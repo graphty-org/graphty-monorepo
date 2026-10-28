@@ -12,13 +12,14 @@
 //     with an OIDC token endpoint whose tokens it trusts (ACTIONS_ID_TOKEN_REQUEST_URL), signed with a key made here;
 //   - GitHub: a scratch gh on PATH that keeps issues, workflow dispatches, re-runs and run artifacts in a JSON file
 //     and fails on any call it does not know, so a new gh call in a tool shows up here first;
-//   - git: a shared clone of HEAD, so channel refs (origin/channel/nightly) are the clone's, never the real remote's.
+//   - git: a shared clone of HEAD whose origin is a scratch bare repository (objects borrowed from this checkout), so
+//     channel refs (channel/candidate, channel/nightly) and the commits a scenario makes (a fix, an accept and its
+//     signed approval, the master merges that bring them in) never reach the real remote.
 // Not rehearsed yet (follow-ups on #4068): the stub lanes from a donor full run's artifacts (captures here are
-// synthesized: complete, nothing differing), version, land and publish to a scratch registry (Verdaccio), the site,
-// fix forward, approval and abandon.
+// synthesized), version, land and publish to a scratch registry (Verdaccio), and the site deploy.
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
-import { createSign, generateKeyPairSync } from "node:crypto";
+import { createHash, createSign, generateKeyPairSync } from "node:crypto";
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -30,6 +31,13 @@ const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const SELF = fileURLToPath(import.meta.url);
 const REPO = "graphty-org/graphty-monorepo";
 const REPO_ID = "1122477634";
+const IDENTITY = {
+    GIT_AUTHOR_NAME: "rehearsal",
+    GIT_AUTHOR_EMAIL: "rehearsal@example.invalid",
+    GIT_COMMITTER_NAME: "rehearsal",
+    GIT_COMMITTER_EMAIL: "rehearsal@example.invalid",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+};
 
 // ---------------------------------------------------------------------------------------------------------------
 // The scratch gh: state in $REHEARSAL_STATE
@@ -168,6 +176,9 @@ function api(s, a) {
             .filter((i) => (q("state") ?? "open") === "all" || i.state === (q("state") ?? "open"))
             .filter((i) => labels.every((l) => i.labels.includes(l)) && (!q("since") || i.updatedAt >= q("since")))
             .map(restIssue);
+    } else if (/\/issues\/\d+\/comments$/.test(url.pathname)) {
+        const n = Number(url.pathname.split("/").at(-2));
+        out = (s.issues.find((i) => i.number === n) ?? fail(`no issue #${n}`)).comments.map((body) => ({ body }));
     } else if (/\/actions\/runs\/[^/]+\/artifacts$/.test(url.pathname)) {
         const run = url.pathname.split("/").at(-2);
         const names = Object.keys(s.artifacts)
@@ -270,7 +281,7 @@ const GREEN = {
     recapture: "success",
 };
 
-async function world(clone, sha) {
+async function world(clone, sha, origin) {
     const dir = mkdtempSync(join(tmpdir(), "rehearsal-"));
     const bin = join(dir, "bin");
     mkdirSync(bin);
@@ -291,7 +302,7 @@ async function world(clone, sha) {
         ACTIONS_ID_TOKEN_REQUEST_URL: `${store.url}/oidc?x=1`,
         ACTIONS_ID_TOKEN_REQUEST_TOKEN: "rehearsal",
         RELEASE_RERUN_RETRY_MS: "1",
-        GIT_CONFIG_GLOBAL: "/dev/null",
+        ...IDENTITY,
     };
     // one step of a job: a tool run in the clone, its GITHUB_OUTPUT parsed
     let step = 0;
@@ -310,14 +321,48 @@ async function world(clone, sha) {
                 .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
         );
     };
-    // a Release (full) run's verdict for one attempt, with its verdict-<n> record kept as the run's artifact
-    const verdict = async ({ runId, attempt, lanes, pick }) => {
+    // git in the clone, and a commit made from parents and files without touching its checkout
+    const git = (args, env = {}) =>
+        execFileSync("git", ["-C", clone, ...args], {
+            encoding: "utf8",
+            env: { ...process.env, ...IDENTITY, ...env },
+        }).trim();
+    const commit = (parents, files, message, treeOf = parents[0]) => {
+        const env = { GIT_INDEX_FILE: join(dir, `index-${++step}`) };
+        git(["read-tree", treeOf], env);
+        for (const [path, content] of Object.entries(files)) {
+            const blob = execFileSync("git", ["-C", clone, "hash-object", "-w", "--stdin"], { input: content })
+                .toString()
+                .trim();
+            git(["update-index", "--add", "--cacheinfo", `100644,${blob},${path}`], env);
+        }
+        const tree = git(["write-tree"], env);
+        return git(["commit-tree", tree, ...parents.flatMap((p) => ["-p", p]), "-m", message]);
+    };
+    // master moves to a commit (its checkout and origin/master, as the next job sees them); a branch on the origin
+    const setHead = (commitId) => {
+        git(["checkout", "--quiet", "--force", "--detach", commitId]);
+        git(["update-ref", "refs/remotes/origin/master", commitId]);
+    };
+    const originRef = (branch) => {
+        try {
+            return execFileSync("git", ["-C", origin, "rev-parse", `refs/heads/${branch}`], {
+                encoding: "utf8",
+            }).trim();
+        } catch {
+            return null;
+        }
+    };
+    // a Release (full) run's verdict for one attempt, with its verdict-<n> record kept as the run's artifact; changed
+    // names the stories whose capture differs from its baseline (one project's), for a green-images run
+    const verdict = async ({ runId, attempt, lanes, pick, changed = [] }) => {
         store.as.run = runId;
         store.as.attempt = String(attempt);
         const captures = join(dir, `captures-${runId}-${attempt}`);
         for (const p of projects) {
             mkdirSync(join(captures, `visual-${p}-${attempt}`), { recursive: true });
-            save(join(captures, `visual-${p}-${attempt}`, "results.json"), { complete: true, items: [] });
+            const items = p === projects[0] ? changed.map((id) => ({ id, file: `${id}.png`, status: "changed" })) : [];
+            save(join(captures, `visual-${p}-${attempt}`, "results.json"), { complete: true, items });
         }
         const records = join(dir, `records-${runId}`);
         mkdirSync(records, { recursive: true });
@@ -376,7 +421,39 @@ async function world(clone, sha) {
         store.close();
         rmSync(dir, { recursive: true, force: true });
     };
-    return { store, tool, verdict, rerun, hold, gh, openIssues, close };
+    // release.yml's site job against a scratch site repository: the site-<sha> asset, deployed.json written by the
+    // real tool and pushed to the site's own repository, whose deploy (site-deploy.yml) checks the asset's hash
+    const siteRepo = join(dir, "site.git");
+    execFileSync("git", ["init", "--quiet", "--bare", "--initial-branch=main", siteRepo]);
+    const deploySite = async (at) => {
+        const asset = join(dir, `site-${at}.tar.gz`);
+        writeFileSync(asset, `the site of ${at}\n`);
+        const sha256 = createHash("sha256").update(readFileSync(asset)).digest("hex");
+        const { stdout } = await run("node", ["tools/channel/nightly.mjs", "deployed-json"], {
+            cwd: clone,
+            env: { ...base, SHA: at, SITE_SHA256: sha256, CONFIG_REF: at },
+        });
+        const work = join(dir, `site-work-${++step}`);
+        execFileSync("git", ["clone", "--quiet", siteRepo, work], { env: { ...process.env, ...IDENTITY } });
+        writeFileSync(join(work, "deployed.json"), stdout);
+        const g = (...args) => execFileSync("git", ["-C", work, ...args], { env: { ...process.env, ...IDENTITY } });
+        g("add", "deployed.json");
+        g("commit", "--quiet", "-m", `deploy: nightly site-${at}`);
+        g("push", "--quiet", "origin", "HEAD:main");
+        const deployed = join(dir, `deployed-${step}.json`);
+        writeFileSync(deployed, execFileSync("git", ["-C", siteRepo, "show", "main:deployed.json"]));
+        const check = (file) =>
+            run("node", ["tools/channel/site-deploy.mjs", "check", deployed, file], { cwd: clone }).then(
+                () => true,
+                () => false,
+            );
+        assert.ok(await check(asset), "the site repository deploys the asset deployed.json names");
+        const forged = join(dir, `forged-${step}.tar.gz`);
+        writeFileSync(forged, "a replaced asset\n");
+        assert.equal(await check(forged), false, "and refuses a replaced one");
+        return JSON.parse(stdout);
+    };
+    return { store, tool, verdict, rerun, hold, gh, openIssues, close, commit, setHead, originRef, deploySite };
 }
 
 // the slot's pick on a master whose newest kept site is `sha`
@@ -388,6 +465,47 @@ async function pickOn(w, sha) {
 }
 
 const candidate = async (w) => (await w.store.call("GET", "/v1/candidate")).body;
+const heldHead = async (w) => (await candidate(w)).hold?.head ?? null;
+const runUrl = (runId) => `https://github.com/${REPO}/actions/runs/${runId}`;
+
+// T4 red on both attempts of run `runId` after a green parent: the commit is held, its issue open
+async function holdRed(w, sha, parent, runId) {
+    const green = await w.store.call("POST", "/v1/verdicts", { sha: parent, state: "green-clean", lane: null });
+    assert.equal(green.status, 200, JSON.stringify(green.body));
+    const pick = await pickOn(w, sha);
+    assert.equal(pick.good, parent, "pick names the last green commit as the bisect's good end");
+    await w.verdict({ runId, attempt: 1, lanes: { t4: "failure" }, pick });
+    assert.equal((await w.rerun({ runId, attempt: 1, conclusion: "failure", failed: ["T4 GPU"] })).decision, "rerun");
+    const second = await w.verdict({ runId, attempt: 2, lanes: { t4: "failure" }, pick });
+    assert.equal(second.state, "red");
+    assert.equal(second.hold, "start", "a red verdict with nothing held holds the commit");
+    const held = await w.hold(pick, second, runId);
+    assert.ok(held.issue, "the hold opens its issue");
+    assert.equal(await heldHead(w), sha, "the store holds the commit");
+    return { pick, second, issue: held.issue };
+}
+
+// the owner's Finish on held head `sha`, merged into master: accept commit A on the head, the signed approval P on A,
+// and master's merge of P; master's checkout is left on the merge
+function approveOnMaster(w, sha, pr) {
+    const a = w.commit(
+        [sha],
+        { "visual-baselines/rehearsal/story.png": "accepted\n" },
+        `test(workspace): approve visual baselines at ${sha.slice(0, 12)}`,
+    );
+    const p = w.commit([a], { "visual-review-approvals/rehearsal.json": "{}\n" }, "test(workspace): sign the approval");
+    const m = w.commit([sha, p], {}, `Merge pull request #${pr} from graphty-org/visual-review/accept`, p);
+    w.setHead(m);
+    return { a, p, m };
+}
+
+// the hold's end (land promoted, or the abandon job): the issue closed and the store holding nothing
+async function endHold(w, why, env = {}) {
+    const out = await w.tool(["tools/channel/hold.mjs", "end"], { WHY: why, RUN_URL: runUrl("9999"), ...env });
+    assert.deepEqual(w.openIssues("Nightly held on"), [], "the hold issue is closed");
+    assert.equal(await heldHead(w), null, "the store holds nothing");
+    return out;
+}
 
 /** The scenarios, in the design's order; each gets a fresh scratch world. */
 export const SCENARIOS = {
@@ -405,6 +523,7 @@ export const SCENARIOS = {
             SHA: sha,
         });
         assert.equal(decide.promote, "true", `nightly promotes a green-clean candidate (${decide.why})`);
+        assert.equal((await w.deploySite(sha)).sha256?.length, 64, "nightly's site is deployed");
         assert.deepEqual(w.openIssues(""), [], "a green-clean run files nothing");
         assert.deepEqual(w.gh().dispatches, [], "and dispatches no bisect");
     },
@@ -430,33 +549,122 @@ export const SCENARIOS = {
     },
     // T4 red on both attempts after a green parent: one red issue, one bisect of the range, and the candidate held
     "red-twice-hold": async (w, sha, parent) => {
-        const green = await w.store.call("POST", "/v1/verdicts", { sha: parent, state: "green-clean", lane: null });
-        assert.equal(green.status, 200, JSON.stringify(green.body));
-        const pick = await pickOn(w, sha);
-        assert.equal(pick.good, parent, "pick names the last green commit as the bisect's good end");
-        await w.verdict({ runId: "9301", attempt: 1, lanes: { t4: "failure" }, pick });
-        assert.equal(
-            (await w.rerun({ runId: "9301", attempt: 1, conclusion: "failure", failed: ["T4 GPU"] })).decision,
-            "rerun",
-        );
-        const second = await w.verdict({ runId: "9301", attempt: 2, lanes: { t4: "failure" }, pick });
-        assert.equal(second.state, "red");
+        const { second } = await holdRed(w, sha, parent, "9301");
         assert.equal(second.deferred, "false");
         assert.equal(w.openIssues("Full run red").length, 1, "one red issue");
         assert.equal(w.gh().dispatches.filter((d) => d.workflow === "bisect.yml").length, 1, "one bisect");
-        assert.equal(second.hold, "start", "a red verdict with nothing held holds the commit");
-        const held = await w.hold(pick, second, "9301");
-        assert.ok(held.issue, "the hold opens its issue");
         assert.equal(w.openIssues("Nightly held on").length, 1);
-        assert.equal(
-            (await candidate(w)).sha ?? (await candidate(w)).candidate?.sha,
-            sha,
-            "the store holds the commit",
-        );
         assert.equal(
             (await w.rerun({ runId: "9301", attempt: 2, conclusion: "failure", failed: [] })).decision,
             "none",
         );
+    },
+    // the red run's bisect: the dispatch the verdict made is planned by bisect.yml's first step on its own inputs
+    "red-then-bisect-plan": async (w, sha, parent) => {
+        await holdRed(w, sha, parent, "9701");
+        const [bisect, ...more] = w.gh().dispatches.filter((d) => d.workflow === "bisect.yml");
+        assert.equal(more.length, 0, "one bisect");
+        const inputs = Object.fromEntries(
+            bisect.fields.map((f) => [f.slice(0, f.indexOf("=")).toUpperCase(), f.slice(f.indexOf("=") + 1)]),
+        );
+        assert.equal(inputs.GOOD, parent, "the bisect starts at the last green commit");
+        assert.equal(inputs.BAD, sha, "and ends at the red one");
+        const plan = await w.tool(["tools/bisect-ci.mjs", "plan", "--out", "bisect-state.json"], inputs);
+        assert.ok(
+            plan.done === "true" || (plan.points ?? "") !== "",
+            `the plan names points or is done (${JSON.stringify(plan)})`,
+        );
+    },
+    // a red head held, a fix made from it and merged into master referencing the hold issue: the fix enters
+    // channel/candidate (never master's merge), the pick re-tests the new head first, it passes and promotes
+    "fix-forward": async (w, sha, parent) => {
+        const { issue } = await holdRed(w, sha, parent, "9401");
+        const fix = w.commit(
+            [sha],
+            { "tools/channel/rehearsal-fix.txt": "fixed\n" },
+            `fix(tools): rehearsal fix\n\nRefs #${issue}`,
+        );
+        const master = w.commit(
+            [sha, fix],
+            {},
+            `Merge pull request #9997 from graphty-org/fix/${issue}-rehearsal`,
+            fix,
+        );
+        w.setHead(master);
+        const moved = await w.tool(["tools/channel/candidate-fix.mjs", "advance"], {
+            RUN_URL: runUrl("9402"),
+            FIX_PR: "",
+        });
+        assert.equal(moved.moved, "true", "the fix moves the candidate");
+        assert.equal(moved.head, fix, "the head is the fix itself (a fast-forward), not master's merge");
+        assert.equal(w.originRef("channel/candidate"), fix, "channel/candidate is pushed");
+        assert.equal(await heldHead(w), fix, "the store's hold moves to the new head");
+        w.setHead(master); // the pick is a new job on master's checkout
+        assert.equal((await w.store.call("POST", "/v1/sites", { sha: master }, "deploy-pages.yml")).status, 200);
+        const tested = await w.tool(["tools/full-run.mjs", "pick"], { MODE: "full", HEAD_SHA: master });
+        assert.equal(tested.sha, fix, `the pick tests the held head first (${tested.why})`);
+        const out = await w.verdict({ runId: "9402", attempt: 1, lanes: {}, pick: tested });
+        assert.equal(out.state, "green-clean");
+        assert.equal(out.hold, "update", "a verdict on the held head updates the hold");
+        const decide = await w.tool(["tools/channel/nightly.mjs", "decide"], {
+            STATE: out.state,
+            GATE: "success",
+            HELD: fix,
+            SHA: fix,
+        });
+        assert.equal(decide.promote, "true", `the fixed head promotes (${decide.why})`);
+        await endHold(w, "promoted to nightly");
+    },
+    // changed screenshots hold a green-images head; the owner's approval merges into master and the next slot's
+    // catch-up promotes the approval
+    "approval-promotes": async (w, sha) => {
+        const pick = await pickOn(w, sha);
+        const out = await w.verdict({ runId: "9501", attempt: 1, lanes: {}, pick, changed: ["rehearsal--story"] });
+        assert.equal(out.state, "green-images");
+        assert.equal(out.hold, "start", "changed screenshots hold the commit");
+        const decide = await w.tool(["tools/channel/nightly.mjs", "decide"], {
+            STATE: out.state,
+            GATE: "success",
+            HELD: "",
+            SHA: sha,
+        });
+        assert.equal(decide.promote, "false", `green-images waits for the owner (${decide.why})`);
+        assert.ok((await w.hold(pick, out, "9501")).issue);
+        const { p } = approveOnMaster(w, sha, 9996);
+        const resume = await w.tool(["tools/channel/resume.mjs", "check"], {
+            MODE: "full",
+            PUBLISH_HOLD: "",
+            RUN_URL: runUrl("9502"),
+        });
+        assert.equal(resume.resume, "true", `the approval promotes (${resume.why})`);
+        assert.equal(resume.sha, p, "the approval's head is what promotes");
+        assert.equal(resume.tested, sha);
+        await w.deploySite(p);
+        await w.tool(["tools/channel/resume.mjs", "record"], {
+            STATE: "approved",
+            TESTED: sha,
+            ACCEPT: p,
+            WHY: "rehearsal",
+            RUN_URL: runUrl("9502"),
+        });
+        await endHold(w, "promoted to nightly");
+    },
+    // the owner abandons a held head: the hold ends, the head is rejected, and an approval of it merged later
+    // promotes nothing
+    abandon: async (w, sha, parent) => {
+        await holdRed(w, sha, parent, "9601");
+        await endHold(w, "abandoned by the owner", { ABANDONED: "true" });
+        const latest = ((await candidate(w)).recent ?? []).find((v) => v.sha === sha);
+        assert.equal(latest?.state, "rejected", "the abandoned head is recorded rejected");
+        const { p } = approveOnMaster(w, sha, 9995);
+        const resume = await w.tool(["tools/channel/resume.mjs", "check"], {
+            MODE: "promote-nightly",
+            CANDIDATE: sha,
+            ACCEPT: p,
+            PUBLISH_HOLD: "",
+            RUN_URL: runUrl("9602"),
+        });
+        assert.equal(resume.resume, "false", "an approval of an abandoned head promotes nothing");
     },
 };
 
@@ -473,9 +681,20 @@ async function main(names) {
     const [sha, parent] = execFileSync("git", ["-C", clone, "rev-parse", "HEAD", "HEAD^1"], { encoding: "utf8" })
         .trim()
         .split("\n");
+    const objects = execFileSync("git", ["-C", ROOT, "rev-parse", "--path-format=absolute", "--git-common-dir"], {
+        encoding: "utf8",
+    }).trim();
     let failed = 0;
     for (const name of names) {
-        const w = await world(clone, sha);
+        // a scratch origin per scenario, and master's checkout back on HEAD
+        const origin = mkdtempSync(join(tmpdir(), "rehearsal-origin-"));
+        execFileSync("git", ["init", "--quiet", "--bare", origin]);
+        writeFileSync(join(origin, "objects", "info", "alternates"), `${join(objects, "objects")}\n`);
+        execFileSync("git", ["-C", origin, "update-ref", "refs/heads/master", sha]);
+        execFileSync("git", ["-C", clone, "remote", "set-url", "origin", origin]);
+        execFileSync("git", ["-C", clone, "checkout", "--quiet", "--force", "--detach", sha]);
+        execFileSync("git", ["-C", clone, "update-ref", "refs/remotes/origin/master", sha]);
+        const w = await world(clone, sha, origin);
         try {
             await SCENARIOS[name](w, sha, parent);
             console.log(`ok ${name}`);
@@ -484,6 +703,7 @@ async function main(names) {
             console.log(`FAILED ${name}: ${e.message}\n  gh calls: ${w.gh().calls.join("\n    ")}`);
         } finally {
             w.close();
+            rmSync(origin, { recursive: true, force: true });
         }
     }
     rmSync(clone, { recursive: true, force: true });

@@ -2942,7 +2942,7 @@ export function shaderParamDescriptor(address: ShaderParamTarget): ChannelDescri
  * @param address - The address, `"<target>.shaders.<shader id>.<parameter id>"`.
  * @returns The descriptor; its `channel` is the address's list channel.
  * @throws A `GraphtyError`: `E_BAD_COMMAND` for a string that is not an address,
- *   `E_UNKNOWN_SHADER` and `E_UNKNOWN_SHADER_PARAM` as {@link shaderParamDescriptor}.
+ *   `E_UNKNOWN_SHADER` and `E_UNKNOWN_SHADER_PARAM` as `shaderParamDescriptor`.
  * @since 3.36.0
  */
 export function shaderParamChannel(address: ShaderParamAddress): ChannelDescriptor {

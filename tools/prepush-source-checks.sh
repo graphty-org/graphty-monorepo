@@ -104,7 +104,20 @@ bg_report() {
     local i="$1" rc
     echo -e "${YELLOW}> ${BG_NAMES[$i]}${NC}"
     if [ "${2:-}" = follow ]; then
-        tail -n +1 -f --pid="${BG_PIDS[$i]}" "${BG_LOGS[$i]}"
+        # By byte offset, not `tail -f --pid`: tail can see the step gone and exit before reading what it
+        # wrote last (#4262). The size is read after the liveness check, so the last pass prints the rest.
+        local off=0 size alive
+        while :; do
+            alive=0
+            kill -0 "${BG_PIDS[$i]}" 2>/dev/null && alive=1
+            size=$(wc -c <"${BG_LOGS[$i]}")
+            if [ "$size" -gt "$off" ]; then
+                tail -c +$((off + 1)) "${BG_LOGS[$i]}" | head -c $((size - off))
+                off=$size
+            fi
+            [ "$alive" = 1 ] || break
+            sleep 0.2
+        done
     else
         cat "${BG_LOGS[$i]}"
     fi

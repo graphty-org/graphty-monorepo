@@ -2507,16 +2507,49 @@ export function associate(
             w.picked = [undefined];
         }
     }
+    // Words a node shares with a node of one name drawn within two node sizes of it (two stations a few pixels apart)
+    // go by where the node's own label sits from it in graphty's drawing, scaled to the node's size: by the nodes'
+    // middles alone, a label set above its node is nearer the middle of a twin drawn just above it (json-cyjs-tokyo:
+    // 71 labels swapped; its twins are 2.8 to 3.3 px apart, a disc 2.7 px across). Only there: farther apart,
+    // graphty's offset would decide which oracle label is judged against it, and a wrong offset would pick the twin's
+    // label and hide graphty's own placement error.
+    const wantedBy = new Map<string, PNode[]>();
+    for (const w of wanting) {
+        for (const l of new Set(w.lines)) {
+            const ns = wantedBy.get(l) ?? [];
+            ns.push(w.n);
+            wantedBy.set(l, ns);
+        }
+    }
+    const twinNear = (n: PNode, line: string): boolean =>
+        (wantedBy.get(line) ?? []).some(
+            (o) => o !== n && Math.hypot(o.cx - n.cx, o.cy - n.cy) <= 2 * Math.max(n.w, n.h, o.w, o.h),
+        );
+    const ownPlace = (n: PNode): Pt => {
+        const g = guideById.get(n.id);
+        if (g === undefined || g.label === null || g.w + g.h <= 0) {
+            return [n.cx, n.cy];
+        }
+        const k = (n.w + n.h) / (g.w + g.h);
+        return [n.cx + k * (cx(g.label.box) - g.cx), n.cy + k * (cy(g.label.box) - g.cy)];
+    };
     const candidates = wanting.flatMap((w) => {
         const reach = reachOf(w.n);
+        const own = ownPlace(w.n);
         return w.lines.flatMap((line, li) =>
             textPrims
                 .filter((p) => norm(p.text?.content ?? "") === line)
-                .map((p) => ({ w, li, p, d: Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy) }))
+                .map((p) => {
+                    const d = Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy);
+                    const rank = twinNear(w.n, line) ? Math.hypot(cx(p.box) - own[0], cy(p.box) - own[1]) : d;
+                    return { w, li, p, d, rank };
+                })
                 .filter((c) => c.d <= reach),
         );
     });
-    candidates.sort((a, b) => a.d - b.d || a.p.index - b.p.index || compareIds(a.w.n.id, b.w.n.id) || a.li - b.li);
+    candidates.sort(
+        (a, b) => a.rank - b.rank || a.p.index - b.p.index || compareIds(a.w.n.id, b.w.n.id) || a.li - b.li,
+    );
     for (const c of candidates) {
         const parts = runParts.get(c.p) ?? [c.p];
         if (parts.every((q) => !used.has(q.index)) && c.w.picked[c.li] === undefined) {
@@ -3300,6 +3333,15 @@ function matchBodies(
         }
     }
     cand.sort((a, b) => a.cost - b.cost || compareIds(a.id, b.id) || a.p.index - b.p.index);
+    // the shape each node finds best: another node's best shape is that node's body, never this one's twin
+    // (json-cyjs-tokyo: two stations' 2.8 px discs 0.9 px apart are two nodes)
+    const bestOf = new Map<string, number>();
+    for (const c of cand) {
+        if (!c.id.startsWith(GROUP_CLAIM) && !bestOf.has(c.id)) {
+            bestOf.set(c.id, c.p.index);
+        }
+    }
+    const bodyOf = new Map([...bestOf].map(([id, index]) => [index, id]));
     const out = new Map<string, Prim[]>();
     const taken = new Set<number>();
     for (const c of cand) {
@@ -3321,6 +3363,7 @@ function matchBodies(
         const twins = shapes.filter(
             (q) =>
                 !taken.has(q.index) &&
+                (c.id.startsWith(GROUP_CLAIM) || (bodyOf.get(q.index) ?? c.id) === c.id) &&
                 Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
                 ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
                 // a group's twin is drawn over its box, not a flat node inside it of about its width

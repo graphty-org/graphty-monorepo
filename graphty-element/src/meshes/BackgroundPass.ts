@@ -65,6 +65,7 @@ export class BackgroundPass {
     private readonly renderer: EffectRenderer;
     private readonly layer: Layer;
     private readonly observer: Observer<Scene>;
+    private readonly afterObserver: Observer<Scene>;
     private program: { readonly shader: HostShader; readonly effect: SceneEffect; readonly tinted: boolean } | null =
         null;
     /** Counts show and hide calls, so a compile that finishes after a newer call is dropped. */
@@ -126,6 +127,15 @@ export class BackgroundPass {
         layers.unshift(this.layer);
         this.observer = scene.onBeforeRenderObservable.add(() => {
             this.frame();
+        });
+        // The group outlines are laid out before the same frame as this pass draws, and either may
+        // run first: one laid out after the draw changed the tints, so ask for the frame that
+        // draws them, or a graph drawn on demand keeps the last frame's tints.
+        this.afterObserver = scene.onAfterRenderObservable.add(() => {
+            if (this.program?.tinted === true && this.readTints()) {
+                // Held until that frame starts: added to this observable now, it would run at once.
+                this.scene.onBeforeRenderObservable.addOnce(animatesEveryFrame(this.scene));
+            }
         });
     }
 
@@ -210,6 +220,7 @@ export class BackgroundPass {
     /** Release the target, the layer, the program and the observer. */
     dispose(): void {
         this.scene.onBeforeRenderObservable.remove(this.observer);
+        this.scene.onAfterRenderObservable.remove(this.afterObserver);
         this.program?.effect.dispose();
         this.program = null;
         if (this.tickTimer !== null) {
@@ -262,6 +273,15 @@ export class BackgroundPass {
         // A graph drawn on demand draws the frame that shows the change.
         const release = animatesEveryFrame(this.scene);
         this.scene.onAfterRenderObservable.addOnce(release);
+    }
+
+    /**
+     * Whether the target was drawn with other group outlines than the ones laid out now, so the
+     * frame on screen does not show the background's tint yet.
+     * @returns True while a draw is owed.
+     */
+    get owesDraw(): boolean {
+        return this.program?.tinted === true && this.target !== null && this.readTints();
     }
 
     /**

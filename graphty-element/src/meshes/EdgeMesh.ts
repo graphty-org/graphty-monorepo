@@ -1071,10 +1071,20 @@ void main() {
                     lineStop: 2 / 3,
                 };
 
+            // A vee's line runs on under it to its notch, half the cap back from its tip: Graphviz strokes a shaft
+            // from the notch to the back (arrows.c arrow_type_crow0), Cytoscape.js and vis-network draw the line on
+            // under the vee
+            case "vee":
+                return {
+                    positioningMode: "tip",
+                    needsRotation: false,
+                    positionOffset: 0,
+                    lineStop: 1 / 2,
+                };
+
             // Filled arrows using FilledArrowRenderer (billboard shaders, no rotation)
             // These arrows have tip/front edge at origin
             case "normal":
-            case "vee":
             case "tee":
             case "half-open":
             case "crow":

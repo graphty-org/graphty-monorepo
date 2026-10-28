@@ -707,6 +707,96 @@ describe("a file's arrowheads", () => {
         assert.approximately(drawn(session, { edge: edge.id }, "edge.arrowTailWidth") as number, 1 / 0.8, 1e-9);
         session.dispose();
     });
+
+    it("draws both of Cytoscape's arrows size times width when the source is a half arrow (DEdgeDetails.adjustArrowSize)", async () => {
+        const session = createGraphSession();
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                nodes: [
+                    { id: 1, x: 0, y: 0 },
+                    { id: 2, x: 100, y: 0 },
+                    { id: 3, x: 200, y: 0 },
+                ],
+            },
+            {
+                edges: [
+                    { id: 10, s: 1, t: 2 },
+                    { id: 11, s: 2, t: 3 },
+                ],
+            },
+            {
+                visualProperties: [
+                    {
+                        default: {
+                            node: { NODE_WIDTH: 75, NODE_HEIGHT: 35 },
+                            edge: {
+                                EDGE_WIDTH: 1.5,
+                                EDGE_TARGET_ARROW_SHAPE: "triangle",
+                                EDGE_TARGET_ARROW_SIZE: 6,
+                                EDGE_SOURCE_ARROW_SIZE: 10,
+                            },
+                        },
+                    },
+                ],
+            },
+            { edgeBypasses: [{ id: 10, v: { EDGE_SOURCE_ARROW_SHAPE: "half_top" } }] },
+            { status: [{ error: "", success: true }] },
+        ]);
+        await session.data.import({ type: "cx2", config: { data: cx2 } }, { styles: "file" });
+        const [half, plain] = session.data.edges();
+        const tailPerNode =
+            (0.5 * (drawn(session, { edge: half.id }, "edge.arrowTailSize") as number)) /
+            (1.5 * (drawn(session, { node: String(half.source) }, "node.size") as number));
+        // HALF_TOP's barb is 0.5675 of a DELTA 2 * (10 * 1.5) long, where a target half arrow is 2 * (10 + 1.5)
+        assert.approximately(tailPerNode, (2 * 15 * 0.5675) / 75, 1e-3);
+        // getTargetArrowSize reads the source's shape too: its DELTA is 2 * (6 * 1.5) long
+        assert.approximately(headPerNode(session, half.id, half.source), 18 / 75, 1e-6);
+        // an edge without a half arrow at its source keeps (6 + 1.5) * 2
+        assert.approximately(headPerNode(session, plain.id, plain.source), 15 / 75, 1e-6);
+        session.dispose();
+    });
+
+    it("draws vis-network's crow and inv_triangle 0.6 of their length wide, as its end-points draw them", async () => {
+        const doc = JSON.stringify({
+            nodes: [
+                { id: "s", x: 0, y: 0 },
+                { id: "t", x: 100, y: 0 },
+            ],
+            edges: [
+                { id: "c", from: "s", to: "t", arrows: { to: { enabled: true, type: "crow" } } },
+                { id: "i", from: "s", to: "t", arrows: { to: { enabled: true, type: "inv_triangle" } } },
+            ],
+            options: { physics: false },
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+        // the element's crow and inverted triangle are 0.8 of their length wide
+        for (const record of session.data.edges()) {
+            assert.approximately(drawn(session, { edge: record.id }, "edge.arrowHeadWidth") as number, 0.6 / 0.8, 1e-9);
+        }
+        session.dispose();
+    });
+
+    it("draws Graphviz's crow 0.9 and its inv 0.7 of their length wide (arrows.c)", async () => {
+        const session = createGraphSession();
+        const dot = "digraph { a -> b [arrowhead=crow]; b -> c [arrowhead=inv]; }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [crow, inv] = session.data.edges();
+        assert.approximately(drawn(session, { edge: crow.id }, "edge.arrowHeadWidth") as number, 0.9 / 0.8, 1e-9);
+        assert.approximately(drawn(session, { edge: inv.id }, "edge.arrowHeadWidth") as number, 0.7 / 0.8, 1e-9);
+        session.dispose();
+    });
+
+    it("draws Graphviz's obox as its box, 0.8 of the arrow's length (arrows.c arrow_type_box)", async () => {
+        const session = createGraphSession();
+        const dot = "digraph { a -> b [arrowhead=obox]; b -> c [arrowhead=box]; }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [open, filled] = session.data.edges();
+        assert.approximately(headPerNode(session, open.id, open.source), 8 / 54, 1e-6);
+        assert.approximately(headPerNode(session, filled.id, filled.source), 8 / 54, 1e-6);
+        session.dispose();
+    });
 });
 
 describe("a file's drawing order", () => {

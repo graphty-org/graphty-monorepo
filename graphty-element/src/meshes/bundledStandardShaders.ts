@@ -11,7 +11,7 @@
  *
  * The side-effect imports below put both shader languages' default shaders in the ShaderStore with
  * the element itself, and {@link useBundledStandardShaders} marks each StandardMaterial created in
- * the scene as already loaded, so Babylon skips the `import()`.
+ * the scene as already loaded from the moment it is constructed, so Babylon skips the `import()`.
  */
 
 import "@babylonjs/core/Shaders/default.vertex";
@@ -19,10 +19,13 @@ import "@babylonjs/core/Shaders/default.fragment";
 import "@babylonjs/core/ShadersWGSL/default.vertex";
 import "@babylonjs/core/ShadersWGSL/default.fragment";
 
-import { type Scene, ShaderStore, StandardMaterial } from "@babylonjs/core";
+import { type Material, type Scene, ShaderStore, StandardMaterial } from "@babylonjs/core";
 
 /** The shaders StandardMaterial would otherwise import lazily, by ShaderStore key. */
 const DEFAULT_SHADERS = ["defaultVertexShader", "defaultPixelShader"] as const;
+
+/** The scenes whose materials of a class skip the lazy import, by the class's prototype. */
+const pinnedScenes = new WeakMap<object, WeakSet<Scene>>();
 
 /**
  * Whether both shader languages' default shaders are in the ShaderStore.
@@ -33,24 +36,45 @@ function defaultShadersStored(): boolean {
 }
 
 /**
- * Make every StandardMaterial created in `scene` skip Babylon's lazy shader import.
+ * Make every material of `materialClass` in `scene` report its shaders as loaded from the moment
+ * it is constructed, so Babylon never runs its lazy shader `import()` for it.
  *
- * The scene announces a material from inside Material's constructor, before StandardMaterial's
- * own constructor writes `_shadersLoaded = false` (a private Babylon field), so the flag is
- * pinned with an accessor that ignores that write rather than set once.
+ * Babylon keeps the flag in a private field, `_shadersLoaded`, that the class's constructor sets
+ * to false and the first compile reads. Pinning it from `scene.onNewMaterialAddedObservable` is too
+ * late: Babylon 8 announces a new material with `Tools.SetImmediate`, a later task, and a material
+ * made in an update pass is compiled by the render that follows in the same task -- with the flag
+ * still false, so it imported anyway and was not ready for that frame. So the flag is an accessor
+ * on the class's prototype instead, which the constructor's write already goes through: it reads
+ * true for a material of a pinned scene and keeps Babylon's own value for every other scene.
+ * @param materialClass - The material class, whose prototype gets the accessor once.
+ * @param scene - The scene whose materials are pinned.
+ */
+export function pinShadersLoaded(materialClass: { readonly prototype: Material }, scene: Scene): void {
+    let scenes = pinnedScenes.get(materialClass.prototype);
+    if (scenes === undefined) {
+        const pinned = new WeakSet<Scene>();
+        const own = new WeakMap<Material, boolean>();
+        scenes = pinned;
+        pinnedScenes.set(materialClass.prototype, pinned);
+        Object.defineProperty(materialClass.prototype, "_shadersLoaded", {
+            configurable: true,
+            get(this: Material): boolean {
+                return pinned.has(this.getScene()) || own.get(this) === true;
+            },
+            set(this: Material, value: boolean) {
+                own.set(this, value);
+            },
+        });
+    }
+    scenes.add(scene);
+}
+
+/**
+ * Make every StandardMaterial created in `scene` skip Babylon's lazy shader import.
  * @param scene - The scene whose materials are pinned.
  */
 export function useBundledStandardShaders(scene: Scene): void {
-    if (!defaultShadersStored()) {
-        return;
+    if (defaultShadersStored()) {
+        pinShadersLoaded(StandardMaterial, scene);
     }
-    scene.onNewMaterialAddedObservable.add((material) => {
-        if (material instanceof StandardMaterial) {
-            Object.defineProperty(material, "_shadersLoaded", {
-                configurable: true,
-                get: () => true,
-                set: () => undefined,
-            });
-        }
-    });
 }

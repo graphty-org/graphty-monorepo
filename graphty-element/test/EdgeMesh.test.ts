@@ -246,6 +246,21 @@ describe("EdgeMesh", () => {
             assert.closeTo(end.x, -1, 1e-9);
         });
 
+        test("stops a vee's line further back as the line grows wider than half the vee, never over its barbs", () => {
+            // the default vee is 0.8 x 0.5 = 0.4 across; a line's thickness is its width over 40
+            const stop = (lineWidth: number, size = 1, breadth = 1): number | undefined =>
+                EdgeMesh.getArrowGeometry("vee", { lineWidth, size, breadth }).lineStop;
+            assert.strictEqual(stop(8), 1 / 2);
+            // 12 wide is 0.3 of a 0.4 vee: its end corners sit on the vee's outline 0.75 back from the tip
+            assert.closeTo(stop(12) ?? 0, 0.75, 1e-9);
+            // as wide as the vee or wider: the line stops at the vee's back, as for any other cap
+            assert.strictEqual(stop(30), 1);
+            assert.strictEqual(stop(10, 0.3), 1);
+            // a broader or bigger vee holds a wider line up to its notch
+            assert.strictEqual(stop(12, 1, 2), 1 / 2);
+            assert.strictEqual(stop(12, 2), 1 / 2);
+        });
+
         test("creates different arrow for different styleId", () => {
             const options = { type: "normal" as const, width: 0.5, color: "#FF0000" };
 

@@ -814,7 +814,7 @@ const TABLE_WRAPPERS: ReadonlySet<string> = new Set(["font", "b", "i", "u", "o",
 function tableAttributes(markup: string): Map<string, string> | null {
     let at = 0;
     for (;;) {
-        while (at < markup.length && markup.charCodeAt(at) <= 0x20) {
+        while (at < markup.length && (markup.codePointAt(at) ?? 0) <= 0x20) {
             at++;
         }
         const end = markup.indexOf(">", at);

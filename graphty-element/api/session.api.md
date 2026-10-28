@@ -2039,9 +2039,10 @@ export type GraphtyWarningCode =
 */
 | "W_ROUTES_NOT_LAID"
 /**
-* A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
-* out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
-* `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
+* A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
+* the `graphty-sources` member: query parameters of a URL load's address, or of a network
+* load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
+* names left out. See the project file guide, "What a save leaves out".
 */
 | "W_SOURCE_URL_REDACTED"
 /**

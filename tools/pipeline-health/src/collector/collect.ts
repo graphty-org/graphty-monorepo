@@ -5,6 +5,8 @@
 
 import type { CostItem, ObservationItem, PullRequestItem, RawItem, RunItem } from "../model/items.js";
 import { DAY, HOUR, homeKey, MIN, ttlAt } from "../model/items.js";
+
+const WEEK = 7 * DAY;
 import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
 import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
@@ -15,22 +17,25 @@ import {
     classifyCancel,
     codeownerPatterns,
     fixedCosts,
+    isGhostRun,
     llmCost,
     loadKind,
     masterState,
     npmName,
-    ownerWait,
     ownerWaitOf,
     prOfRun,
     prRunOf,
     prStages,
     oldestUntested,
     prStocks,
+    RELEASE_WORKFLOW_EVENTS,
     releaseAttempt,
     releaseTags,
     runnerFlags,
     runnerUse,
     type StressCursorRun,
+    STRESS_WEEKS,
+    stressQuiet,
     stressRunState,
     suiteNotes,
     t4Cost,
@@ -41,7 +46,9 @@ import {
     toPrItem,
     toRunItem,
     toStepItems,
+    trainSkipped,
     workflowFile,
+    waitsOnOwner,
     workflowState,
     type CompareCommit,
     type GhJob,
@@ -54,7 +61,15 @@ import {
     type Tag,
 } from "./parse.js";
 import { markPrCaused } from "./pr-caused.js";
-import { ISSUE_QUERY, ownerFilesQuery, PR_QUERY, REPO_FILES_QUERY, SUITE_QUERY, TAG_QUERY } from "./queries.js";
+import {
+    ISSUE_QUERY,
+    OPEN_PAGE,
+    ownerFilesQuery,
+    PR_QUERY,
+    REPO_FILES_QUERY,
+    SUITE_QUERY,
+    TAG_QUERY,
+} from "./queries.js";
 import {
     failureCause,
     nextHolders,
@@ -331,8 +346,10 @@ async function classify(
             ids: chunk.map((x) => x.run.check_suite_node_id),
         });
         chunk.forEach((x, k) => {
-            const notes = suiteNotes(data.nodes[k] ?? null);
-            out.set(x.run.id, { cls: classifyCancel(notes), hung: timedOutJobs(notes) });
+            const node = data.nodes[k] ?? null;
+            const notes = suiteNotes(node);
+            // A suite GitHub did not return is unknown, not empty: it stays red.
+            out.set(x.run.id, { cls: node ? classifyCancel(notes) : "red", hung: timedOutJobs(notes) });
         });
     }
     return out;
@@ -495,9 +512,15 @@ async function withStages(c: Cycle, item: PullRequestItem): Promise<PullRequestI
     return stages ? { ...item, stages } : item;
 }
 
-/** Runner use against the limits (4.3), counted in jobs of every unfinished run. */
+/**
+ * Runner use against the limits (4.3), counted in jobs of every unfinished run. Runs at the end of the GitHub parts,
+ * after the pull requests part, so a run whose pull request is no longer open is left out (isGhostRun); when that part
+ * failed, every unfinished run counts.
+ */
 async function runners(c: Cycle, xs: Collected[], elapsed: number) {
-    const open = xs.filter((x) => x.run.status !== "completed");
+    const prs = c.openPrs;
+    const ghost = (x: Collected) => !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, prs.length < OPEN_PAGE);
+    const open = xs.filter((x) => x.run.status !== "completed" && !ghost(x));
     const jobs = open.flatMap((x) => x.jobs ?? []);
     const noJobs = open.filter((x) => !x.jobs?.length).map((x) => x.run);
     const use = runnerUse(jobs, noJobs, c.now);
@@ -514,7 +537,6 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);
     const prev = await c.json<HoldersSnapshot | undefined>(SNAPSHOT.holders, undefined);
     await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now));
-    c.openRuns = open.map((x) => x.run);
 }
 
 /** Master's state (4.1) from the newest ci.yml push runs on master. */
@@ -583,7 +605,7 @@ async function pullRequests(c: Cycle, gh: GitHub) {
 
 /** The open pull requests waiting on the owner, with the CODEOWNERS paths their files touch (one query). */
 async function ownerWaits(c: Cycle, gh: GitHub, open: GqlPr[]) {
-    const waiting = open.filter((p) => p.state === "OPEN" && !p.isDraft && ownerWait(p));
+    const waiting = open.filter((p) => p.state === "OPEN" && !p.isDraft && waitsOnOwner(p));
     const [owner, name] = c.d.repo.split("/");
     const files = new Map<number, string[]>();
     if (waiting.length) {
@@ -695,18 +717,21 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     c.o("release.lanes_red", candidate?.red.length ?? 0);
     const holdSince = Math.min(candidate?.red.length ? candidate.at : Infinity, heldSince || Infinity);
     c.o("release.hold_open_ms", Number.isFinite(holdSince) ? c.now - holdSince : 0);
-    c.o("release.train_skipped", newest && !newest.tested && newest.sha !== candidate?.sha ? 1 : 0);
+    c.o("release.train_skipped", trainSkipped(attempts, runs) ? 1 : 0);
     c.o("master.full_run_failed", candidate?.ciFailed ? 1 : 0);
 
     let failing = 0;
     let maxInRow = 0;
     const wfs: WorkflowState[] = [];
-    for (const wf of ["release.yml", "promote.yml", "release-watch.yml"]) {
+    for (const wf of Object.keys(RELEASE_WORKFLOW_EVENTS)) {
         const list =
             wf === "release.yml"
                 ? runs
-                : ((await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/${wf}/runs?per_page=10`))?.workflow_runs ??
-                  []);
+                : ((
+                      await gh.rest<RunsPage>(
+                          `repos/${repo}/actions/workflows/${wf}/runs?per_page=10&event=${RELEASE_WORKFLOW_EVENTS[wf][0]}`,
+                      )
+                  )?.workflow_runs ?? []);
         const w = workflowState(wf, list, c.now);
         wfs.push(w);
         if (w.inRow > 0) failing++;
@@ -728,11 +753,13 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
 /** The weekly stress run (4.7), hourly: its newest run's filing, and three weeks finding nothing. */
 async function stress(c: Cycle, gh: GitHub) {
     const repo = c.d.repo;
-    const runs = (
-        (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/restricted-cpu-stress.yml/runs?per_page=3`))
+    const listed = (
+        (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/restricted-cpu-stress.yml/runs?per_page=10`))
             ?.workflow_runs ?? []
     ).filter((r) => r.status === "completed");
-    if (!runs.length) return;
+    if (!listed.length) return;
+    // The runs of the last three weeks (re-runs and dispatches can put three runs in one week), at least the newest.
+    const runs = listed.filter((r, i) => i === 0 || c.now - Date.parse(r.created_at) <= STRESS_WEEKS * WEEK);
     // The Data sources page's stress table (views/sections.ts `stressTable`) reads this cursor: newest first.
     const cache = await c.json<Record<string, StressCursorRun>>("stress", {});
     for (const r of runs) {
@@ -746,8 +773,10 @@ async function stress(c: Cycle, gh: GitHub) {
     }
     await c.setJson("stress", Object.fromEntries(runs.map((r) => [r.id, cache[r.id]])));
     const newest = cache[runs[0].id];
-    const quiet = runs.length === 3 && runs.every((r) => !cache[r.id].foundFailures);
-    c.o("stress.state", newest.state === 2 ? 2 : quiet ? 1 : 0);
+    const seen = runs.map((r) => cache[r.id]);
+    let state = stressQuiet(seen, c.now) ? 1 : 0;
+    if (newest.state === 2) state = 2;
+    c.o("stress.state", state);
     await recordSource(c.d.store, "stress", Date.parse(runs[0].created_at), { ok: true });
 }
 
@@ -913,6 +942,7 @@ async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
 async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: boolean) {
     const d = c.d;
     let ok = true;
+    let collected: Collected[] | undefined;
     ok &&= await c.part("github", "collector", async () => {
         const repos = await activeRepos(c, gh);
         const masterList = (
@@ -927,12 +957,15 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         await prRuns(c, xs);
         const cancels = await classify(gh, [...xs, ...masterList]);
         await writeRuns(c, gh, xs, cancels);
-        await runners(c, xs, elapsed);
+        collected = xs;
+        c.openRuns = xs.filter((x) => x.run.status !== "completed").map((x) => x.run);
         await master(c, masterList, cancels, elapsed);
     });
     if (hourly || (await c.cursor("quarantine")) === undefined)
         await c.part("repo files", "collector", () => repoFiles(c, gh));
     ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
+    const xs = collected;
+    if (xs) ok = (await c.part("runners", "collector", () => runners(c, xs, elapsed))) && ok;
     let heldSince = 0;
     const readIssues = async () => {
         heldSince = await issues(c, gh);

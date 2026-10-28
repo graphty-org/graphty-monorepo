@@ -260,7 +260,7 @@ jobs:
             - name: Restore the selector's import graphs
               if: steps.graphs-key.outputs.key != ''
               continue-on-error: true
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -742,6 +742,10 @@ jobs:
         needs: packages
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        # build-storybook is an nx-cached target (nx.json), so a Storybook whose inputs the pull request leaves
+        # alone comes from the remote cache instead of a 2 to 3 minute build; every Stories bin waits on this
+        # job. Only master writes the cache, through the same environment as the Build job.
+        environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && 'nx-cache-write' || '' }}
         # actions: read to download the Storybooks of the run whose results are reused (artifacts-run).
         permissions:
             contents: read
@@ -802,16 +806,35 @@ jobs:
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
               if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
                   restore-keys: lfs-fidelity-references-
 
+            - name: Probe the nx remote cache
+              if: needs.packages.outputs.artifacts-run == ''
+              env:
+                  NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
+                  NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
+                  WRITES: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+              run: |
+                  if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
+                      echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
+                  elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
+                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
+                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
+                      echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
+                  fi
+
             # The seven Storybooks, three at a time: one after another they took about 3.2 minutes on a pull
             # request (run 40364181619: graph-io-fidelity 51 s, graphty-element 47 s, graphty 47 s, the other
             # four 49 s together), and every Stories job waits for this job. Each build reads only
-            # the package builds downloaded above, so none waits on another.
+            # the package builds downloaded above, so none waits on another. A Storybook whose nx inputs
+            # (nx.json targetDefaults) match a master build is restored from the remote cache instead.
             - name: Build the Storybooks
               if: needs.packages.outputs.artifacts-run == ''
               run: >-
@@ -1320,7 +1343,7 @@ jobs:
             # superseded ones of earlier commits, so the entry does not grow.
             - name: Look up the import graphs
               id: graphs
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -1341,7 +1364,7 @@ jobs:
 
             - name: Save the import graphs
               if: steps.graphs.outputs.cache-hit != 'true'
-              uses: actions/cache/save@v4
+              uses: actions/cache/save@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
@@ -1429,7 +1452,7 @@ jobs:
             # names (about 3 MB), cached like the story tests' baselines.
             - name: Restore the style fidelity oracle pictures
               if: startsWith(matrix.shard, 'graphty-element-browser')
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
@@ -1441,7 +1464,7 @@ jobs:
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
@@ -1515,7 +1538,7 @@ jobs:
             # median over the last 9 runs). Restored from the newest run of this shard, saved under this run.
             # "--" ends the shard's name, so graphty-storybook never restores graphty-storybook-features-on's.
             - name: Restore the shard's test durations
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: test-durations
                   key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
@@ -1559,6 +1582,7 @@ jobs:
                   path: ${{ runner.temp }}/base-checks/
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
             # failing test files and run only those on this machine. continue-on-error: a report that did
@@ -1572,6 +1596,7 @@ jobs:
                   path: test-results/junit-*.xml
                   retention-days: 7
                   if-no-files-found: ignore
+                  overwrite: true
 
             - name: Upload blob report
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
@@ -1582,6 +1607,7 @@ jobs:
                   include-hidden-files: true
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             - name: Upload coverage (graphty-element)
               if: ${{ !cancelled() && needs.packages.outputs.full == 'true' && startsWith(matrix.shard, 'graphty-element') }}
@@ -1591,6 +1617,7 @@ jobs:
                   path: graphty-element/coverage/lcov.info
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # A shard group (tools/ci-test-matrix.mjs, GROUPS) uploads one artifact holding a
             # coverage-<shard>/lcov.info directory per member, the name each shard's own artifact had;
@@ -1615,6 +1642,7 @@ jobs:
                   path: ${{ runner.temp }}/coverage/
                   retention-days: 1
                   if-no-files-found: ignore
+                  overwrite: true
 
             # The node shards of webgpu-graph-algorithms (tools/ci-test-matrix.mjs): two of the four write
             # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.
@@ -1834,7 +1862,7 @@ jobs:
             # to every Chromium-only shard that restores it.
             - name: Restore Playwright browsers
               if: ${{ !cancelled() }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -1986,7 +2014,7 @@ jobs:
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Restore this project's baseline images
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -2023,7 +2051,7 @@ jobs:
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -2291,7 +2319,7 @@ jobs:
 
             - name: Restore this project's baseline images
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -2335,7 +2363,7 @@ jobs:
 
             - name: Cache Playwright browsers
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
@@ -3042,7 +3070,7 @@ jobs:
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Restore graphty-element's baseline images
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-graphty-element-${{ hashFiles('visual-baselines/graphty-element/**/*.png', 'visual-fonts/fonts/**') }}
@@ -3069,7 +3097,7 @@ jobs:
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
             - name: Cache Playwright browsers
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}

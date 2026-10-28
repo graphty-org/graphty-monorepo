@@ -32,6 +32,10 @@
             "graphty-element-storybook-5"
         ]
     },
+    "noBuild": {
+        "$comment": "Packages with no build that their dependents load as source, by relative path, only from their vitest configs, story setups and tests (visual-review: story-test.mjs from the vitest configs, story-test-setup.mjs from the story setups, test/helpers.mjs from githerd's tests). A change to one changes no dependent's build, so it runs only the dependents' tests whose imports, setup files or vitest config reach the changed file, never every shard of every package that depends on it (or on one of those).",
+        "packages": ["visual-review"]
+    },
     "noTests": {
         "$comment": "Root paths no test shard reads: the screenshot lane, design notes and agent settings. Asked only after the import graphs and the test-side string literals (test-select.mjs, rootFiles), so a design file a test imports or names still runs that test. A root file that matches none of these and that no import, rule or test accounts for runs everything, except code under tools/.",
         "patterns": [

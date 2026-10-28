@@ -306,6 +306,8 @@ export interface Agg {
     sum: number;
     /** Durations, when the metric has them. */
     hist?: Histogram;
+    /** The durations themselves, for a metric of few events that asks for exact medians (Contribution.exact). */
+    vals?: number[];
     /** Peak. */
     max?: number;
     /** A stock's end-of-bucket value, and when it was observed. */

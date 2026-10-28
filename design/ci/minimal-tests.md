@@ -184,6 +184,15 @@ by path:
   when that package's build changes; a literal that names nothing tracked stands for the whole package;
 - a read by one of the reader's own build inputs counts as a change to the reader's build, so its
   dependents run whole.
+- a package with no build (`noBuild` in `tools/test-select-rules.json`: visual-review, which its
+  dependents load as source from their vitest configs, story setups and tests) changes no dependent's
+  build: a change to it is only a read, judged as above, so it never runs a package that does not load
+  the changed file (the webgpu-graph-algorithms shards, downstream of algorithms and layout);
+- a file a graph's vitest config imports (graphty-element's `vitest.config.ts` imports visual-review's
+  `story-test.mjs`) selects every test of that graph, which then runs whole; a vitest config is never a
+  build input, so such a read does not run the reader's dependents whole;
+- a literal path into a folder its package does not have (`"../assets/server/..."`, joined at run time
+  onto a directory in `node_modules`) names nothing of that package and is not a read.
 
 A change to a graphty-element test therefore runs graphty's one test that reads graphty-element's
 root (`test/config/element-source.test.ts`), not all of graphty. Section 4 moves the remaining
@@ -494,6 +503,30 @@ githerd in 1. The shards that run whole on a pull request for other reasons cost
 the same 79 runs a visual-review change ran every package that depends on it whole ("depends on
 visual-review, whose build changed"), the four webgpu-graph-algorithms node shards among them,
 although visual-review has no build and its dependents only load it in test and story configs.
+
+### 5.6 visual-review's dependents, 2026-10-27
+
+visual-review has no build, and its dependents load it only from their vitest configs, story setups and
+a few tests. The selector had treated any change to it as a change to every dependent's build. On
+2026-10-26 that ran every shard of every dependent, the four webgpu-graph-algorithms node shards among
+them, in 19 of 79 pull request runs. Each run below broke the same seven visual-review files at once
+(`story-test.mjs`, `capture.mjs` and `trusted/lib/compare.mjs`, which the vitest configs load; `trusted/cli.mjs`,
+`trusted/lib/accept.mjs`, `trusted/lib/init.mjs` and `test/helpers.mjs`, which no package outside visual-review
+loads except githerd's tests) and ran the reader's plain shards whole.
+
+| Reader          | Shards run                            | Result                                                                                                          |
+| --------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| githerd         | githerd                               | 19 failed, every one selected (they import `test/helpers.mjs`); no miss                                         |
+| layout          | layout                                | 0 failed; no miss                                                                                               |
+| algorithms      | algorithms-default                    | 0 failed; no miss                                                                                               |
+| compact-mantine | compact-mantine                       | 0 failed; no miss                                                                                               |
+| graphty-element | graphty-element-default, -storybook-1 | the config does not load (no test runs): what its config loads selects every test; the 4 others alone: 0 failed |
+| graphty         | graphty-1, graphty-storybook          | the same                                                                                                        |
+
+webgpu-graph-algorithms has no plain shard (section 5.4); none of its files names or imports
+visual-review. Replayed on the 79 runs, the change selects less in the 20 that touch visual-review
+code and in no other run, and the webgpu-graph-algorithms node shards no longer run for a
+visual-review change.
 
 ## 6. Rollout
 

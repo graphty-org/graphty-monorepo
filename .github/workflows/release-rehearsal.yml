@@ -1,0 +1,166 @@
+name: Release rehearsal
+
+# A rehearsal of the nightly path (issue #4068): the real tools release.yml and release-rerun.yml run -- the pick,
+# the verdict, the same-commit re-run decision, the hold and the nightly promotion decision -- against a scratch
+# results store, a scratch gh and a scratch clone, with each lane's result taken from a scenario
+# (tools/channel/rehearse.mjs). Nothing real is filed, held, promoted or published, and nothing is paid for.
+# Scenarios: green-clean promote; red on attempt 1, then green on the re-run; red twice, then held; and more
+# (node tools/channel/rehearse.mjs --list). donor-lanes judges a real full run's lane results (the donor: the newest
+# Release run whose verdict was green, or the run the donor input names); its ~1 GB of screenshot captures are
+# downloaded only on a dispatch that asks for them. The publish job versions two packages and publishes them to a
+# Verdaccio registry on the runner that has no uplink, so nothing reaches npm.
+
+on:
+    push:
+        branches: [master]
+        paths: &paths
+            - .github/workflows/release*.yml
+            - .github/workflows/ci.yml
+            - .github/workflows/bisect.yml
+            - .github/workflows/deploy-pages.yml
+            - .github/workflows/master-guard.yml
+            - tools/channel/**
+            - tools/full-run.mjs
+            - tools/release-rerun.mjs
+            - tools/release-due.mjs
+            - tools/release-status.mjs
+            - tools/release-held.sh
+            - tools/results/**
+            - tools/results-service/**
+    pull_request:
+        branches: [master]
+        paths: *paths
+    workflow_dispatch:
+        inputs:
+            donor:
+                description: "Release run id whose lane results donor-lanes judges (default: the newest green one)"
+                required: false
+                default: ""
+            donor_captures:
+                description: "Also download the donor's screenshot captures (about 1 GB)"
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+    # gh run list / gh run download of the donor full run
+    actions: read
+
+concurrency:
+    group: release-rehearsal-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    rehearse:
+        name: Rehearse the nightly path
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        steps:
+            # the pick reads the first-parent history, and the third scenario's green parent
+            - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 200
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            # the verdict-<attempt> record of a green Release run: its lanes, as that run's verdict job judged them
+            - name: Fetch a donor full run's lane results
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DONOR: ${{ inputs.donor }}
+                  CAPTURES: ${{ inputs.donor_captures && 'true' || 'false' }}
+              run: |
+                  set -euo pipefail
+                  dir="$RUNNER_TEMP/donor"
+                  found=""
+                  for id in ${DONOR:-$(gh run list --workflow release.yml --status success --limit 20 --json databaseId -q '.[].databaseId')}; do
+                      rm -rf "$dir" && mkdir -p "$dir"
+                      gh run download "$id" -p 'verdict-*' -D "$dir/records" 2>/dev/null || continue
+                      last=$(find "$dir/records" -name 'verdict-*.json' | sort -V | tail -1)
+                      if [ -n "$last" ] && jq -e '.state == "green-clean" or .state == "green-images"' "$last" > /dev/null; then
+                          cp "$last" "$dir/verdict.json"
+                          found=$id
+                          break
+                      fi
+                  done
+                  if [ -z "$found" ]; then
+                      echo "::notice::no green Release run to donate lane results; donor-lanes is skipped"
+                      exit 0
+                  fi
+                  echo "donor: run $found, $(jq -r '"attempt \(.attempt), \(.state)"' "$dir/verdict.json")"
+                  if [ "$CAPTURES" = true ]; then
+                      gh run download "$found" -p 'visual-final-*' -D "$dir/final"
+                      node tools/channel/recapture.mjs nest --captures "$dir/final" --prefix visual-final-
+                      mkdir -p "$dir/captures"
+                      for d in "$dir"/final/visual-final-*; do
+                          [ -d "$d" ] && mv "$d" "$dir/captures/visual-${d##*/visual-final-}"
+                      done
+                      echo "REHEARSAL_DONOR_CAPTURES=$dir/captures" >> "$GITHUB_ENV"
+                  fi
+                  echo "REHEARSAL_DONOR=$dir/verdict.json" >> "$GITHUB_ENV"
+
+            - name: Rehearse
+              run: node tools/channel/rehearse.mjs
+
+    publish:
+        name: Rehearse the publish to a scratch registry
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v7
+
+            - uses: pnpm/action-setup@v6
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile --ignore-scripts
+
+            # Verdaccio with no uplink: it serves and accepts only what is published to it, so a publish or a read
+            # that missed it fails instead of reaching npm. A step, not a service container, so it can take this config.
+            - name: Start a scratch registry
+              run: |
+                  set -euo pipefail
+                  mkdir -p "$RUNNER_TEMP/verdaccio"
+                  printf '%s\n' 'storage: /verdaccio/storage/data' \
+                      'auth: { htpasswd: { file: /verdaccio/storage/htpasswd } }' \
+                      "packages: { '**': { access: \$all, publish: \$authenticated } }" \
+                      'log: { type: stdout, format: pretty, level: warn }' > "$RUNNER_TEMP/verdaccio/config.yaml"
+                  docker run -d --name verdaccio -p 4873:4873 -v "$RUNNER_TEMP/verdaccio:/verdaccio/conf" verdaccio/verdaccio:6
+                  curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://localhost:4873/-/ping > /dev/null
+                  token=$(curl -fsS -X PUT -H 'content-type: application/json' -d '{"name":"rehearsal","password":"rehearsal"}' \
+                      http://localhost:4873/-/user/org.couchdb.user:rehearsal | jq -r .token)
+                  echo "::add-mask::$token"
+                  echo "REGISTRY_TOKEN=$token" >> "$GITHUB_ENV"
+
+            # release.yml's version and publish, on two packages (one depending on the other), with a patch version
+            # so no conventional-commit history is read; provenance off, since it signs with sigstore's public log
+            - name: Version and publish
+              env:
+                  PROJECTS: graph-format,graph-samples
+                  HUSKY: "0"
+              run: |
+                  set -euo pipefail
+                  pnpm exec nx run-many -t build -p "$PROJECTS"
+                  pnpm exec nx release version patch --projects "$PROJECTS" \
+                      --git-commit=false --git-tag=false --git-push=false --stage-changes=false
+                  for p in ${PROJECTS//,/ }; do
+                      root=$(pnpm exec nx show project "$p" --json | jq -r .root)
+                      jq '.publishConfig.provenance = false' "$root/package.json" > "$RUNNER_TEMP/pkg.json"
+                      mv "$RUNNER_TEMP/pkg.json" "$root/package.json"
+                      # the package's own .npmrc, which npm reads when it publishes from the package
+                      printf 'registry=http://localhost:4873/\n//localhost:4873/:_authToken=%s\n' "$REGISTRY_TOKEN" > "$root/.npmrc"
+                  done
+                  pnpm exec nx release publish --projects "$PROJECTS" --registry http://localhost:4873 --tag rehearsal
+                  for p in ${PROJECTS//,/ }; do
+                      root=$(pnpm exec nx show project "$p" --json | jq -r .root)
+                      spec=$(jq -r '"\(.name)@\(.version)"' "$root/package.json")
+                      got=$(npm view "$spec" version --registry http://localhost:4873)
+                      [ "$got" = "${spec##*@}" ] || { echo "::error::$spec is not readable from the scratch registry (got '$got')"; exit 1; }
+                      echo "published and read back: $spec"
+                  done

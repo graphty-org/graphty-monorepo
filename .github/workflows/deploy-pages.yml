@@ -196,7 +196,7 @@ jobs:
                   node-version: 22.x
 
             - name: Cache graph-samples dataset sources
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: tmp/graph-samples-sources
                   key: graph-samples-sources-${{ hashFiles('graph-samples/scripts/build-hosted.mjs', 'graph-samples/scripts/graph-io-source.mjs') }}

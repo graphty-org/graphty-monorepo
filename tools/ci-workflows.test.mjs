@@ -644,14 +644,24 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
-    // The DOCS_API_PACKAGES line and the docs site functions, cut out of prepush.sh to run alone.
+    // The DOCS_API_PACKAGES line and docs_site_affected live in tools/docs-affected.sh, which prepush.sh
+    // and check-quick.sh both source; docs_site_step is prepush.sh's. Cut out to run alone.
+    const docsAffected = () => {
+        assert.match(code(tool("prepush.sh")), /\nsource "\$SCRIPT_DIR\/docs-affected\.sh"\n/, "prepush.sh sources it");
+        return code(tool("docs-affected.sh"));
+    };
+    const docsApiLine = () => docsAffected().match(/\nDOCS_API_PACKAGES=.*\n/)[0];
     const docsSetup = (prepush) => {
-        const fn = (name) => {
-            const at = prepush.indexOf(`\n${name}() {\n`);
-            assert.ok(at > 0, `${name} is in tools/prepush.sh`);
-            return prepush.slice(at, prepush.indexOf("\n}\n", at) + 3);
+        const fn = (text, file, name) => {
+            const at = text.indexOf(`\n${name}() {\n`);
+            assert.ok(at > 0, `${name} is in tools/${file}`);
+            return text.slice(at, text.indexOf("\n}\n", at) + 3);
         };
-        return prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0] + fn("docs_site_affected") + fn("docs_site_step");
+        return (
+            docsApiLine() +
+            fn(docsAffected(), "docs-affected.sh", "docs_site_affected") +
+            fn(prepush, "prepush.sh", "docs_site_step")
+        );
     };
 
     it("builds the API reference of each affected package that has one, as CI's Docs job does", () => {
@@ -665,7 +675,7 @@ describe("the pre-push gate matches CI", () => {
                 [
                     "-c",
                     `PROJECT_LIST=${list}\naffected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
-                        `run_step() { echo "$2"; }\n${prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0]}${loop}`,
+                        `run_step() { echo "$2"; }\n${docsApiLine()}${loop}`,
                 ],
                 { cwd: new URL("..", import.meta.url), encoding: "utf8" },
             ).stdout;
@@ -2487,6 +2497,57 @@ jobs:
             encoding: "utf8",
         });
         assert.equal(r.stdout.trim(), '["links","build/Lint"]');
+    });
+
+    it("probes the nx remote cache in the Storybooks job the same way, writing only on master", () => {
+        // build-storybook is cached (nx.json), so the Storybooks job reads the cache; its probe must be the
+        // Build job's, tested below, and only master's runs may hold the write environment.
+        const probe = (name) =>
+            /- name: Probe the nx remote cache\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(job(ci, name))[1];
+        assert.equal(probe("build"), probe("packages"));
+        const env = (name) => /\n {8}environment: (.*)\n/.exec(job(ci, name))[1];
+        assert.equal(env("build"), env("packages"));
+        const nx = JSON.parse(readFileSync(new URL("../nx.json", import.meta.url), "utf8"));
+        assert.equal(nx.targetDefaults["build-storybook"].cache, true);
+    });
+
+    it("keys every cached Storybook on everything graphty-element bundles", () => {
+        // Storybooks import graphty-element's source by relative path (graph-io's fidelity stories do), which nx's
+        // graph does not see; a workspace package missing here would restore a stale Storybook from the cache.
+        const root = new URL("../", import.meta.url);
+        const read = (p) => JSON.parse(readFileSync(new URL(p, root), "utf8"));
+        const byPackage = new Map();
+        for (const dir of readdirSync(root)) {
+            const pkg = existsSync(new URL(`${dir}/package.json`, root)) && read(`${dir}/package.json`);
+            if (!pkg || dir === "node_modules") continue;
+            const project = existsSync(new URL(`${dir}/project.json`, root))
+                ? read(`${dir}/project.json`).name
+                : pkg.name;
+            byPackage.set(pkg.name, { dir, project });
+        }
+        const closure = new Set();
+        const walk = (name) => {
+            const { dir, project } = byPackage.get(name);
+            const pkg = read(`${dir}/package.json`);
+            for (const dep of Object.keys({
+                ...pkg.dependencies,
+                ...pkg.peerDependencies,
+                ...pkg.optionalDependencies,
+            })) {
+                if (byPackage.has(dep) && !closure.has(byPackage.get(dep).project)) {
+                    closure.add(byPackage.get(dep).project);
+                    walk(dep);
+                }
+            }
+            return project;
+        };
+        closure.add(walk("@graphty/graphty-element"));
+        const nx = read("nx.json");
+        const listed = nx.targetDefaults["build-storybook"].inputs.find((i) => i.projects)?.projects ?? [];
+        assert.deepEqual(
+            [...closure].filter((p) => !listed.includes(p)),
+            [],
+        );
     });
 
     it("turns the nx remote cache on only when the Worker accepts the token", async () => {

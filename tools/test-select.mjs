@@ -61,7 +61,7 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, smoke, storySetup, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser,
+ * @returns `{ everything, smoke, storySetup, noBuild, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser,
  *   stories }`
  */
 export function loadRules(root) {
@@ -78,6 +78,7 @@ export function loadRules(root) {
         everything: [...raw.everything.patterns.map(toRe), ...shared],
         smoke: { patterns: (raw.smoke?.patterns ?? []).map(toRe), shards: raw.smoke?.shards ?? [] },
         storySetup: { patterns: (raw.storySetup?.patterns ?? []).map(toRe), shards: raw.storySetup?.shards ?? [] },
+        noBuild: new Set(raw.noBuild?.packages ?? []),
         noTests: raw.noTests.patterns.map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
@@ -339,8 +340,22 @@ export function selectInGraph(graph, changed, withOpaque = true) {
 }
 
 /**
- * Adds the test files whose imports reach one changed file, and every test of a project whose setup
- * files reach it.
+ * Whether a repo-relative file is the vitest config a graph was built with (the package's default
+ * vitest.config.* when it names none). Every run of that graph loads it before any test.
+ * @param graph a --graph result
+ * @param file a repo-relative path
+ * @returns boolean
+ */
+const CONFIG_WHY = "vitest config ";
+const isConfigOf = (graph, file) => {
+    const rel = file.startsWith(`${graph.package}/`) ? file.slice(graph.package.length + 1) : null;
+    const config = graph.config?.replace(/^\.\//u, "");
+    return rel !== null && (config ? rel === config : /^vitest\.config\.[cm]?[jt]s$/u.test(rel));
+};
+
+/**
+ * Adds the test files whose imports reach one changed file, every test of a project whose setup files
+ * reach it, and every test of the graph when its vitest config reaches it.
  * @param file a changed file the graph knows
  * @param graph a --graph result
  * @param allSpecs every test file of the graph
@@ -353,6 +368,10 @@ function specsReaching(file, graph, allSpecs, rev, add) {
         if (spec !== file && reached.has(spec)) {
             add(spec, `imports ${file}`);
         }
+    }
+    const config = [...reached].find((f) => isConfigOf(graph, f));
+    if (config) {
+        allSpecs.forEach((s) => add(s, `${CONFIG_WHY}${config} imports ${file}`));
     }
     for (const [name, project] of Object.entries(graph.projects)) {
         if (project.setup.some((s) => reached.has(s))) {
@@ -436,7 +455,17 @@ export function selectPackages({
     if (!deferDownstream) {
         // a file only the story setups load changes no dependent's build: its story shards run (storySetup below)
         const storyOnly = (f) => rules.storySetup?.patterns.some((re) => re.test(f));
-        dependents({ changed: changed.filter((f) => !storyOnly(f)), packages, deps, refs, graphs, pkgOf, whole, out });
+        dependents({
+            changed: changed.filter((f) => !storyOnly(f)),
+            packages,
+            deps,
+            refs,
+            graphs,
+            pkgOf,
+            whole,
+            out,
+            noBuild: rules.noBuild ?? new Set(),
+        });
     }
     for (const dir of dirs) {
         filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole, deleted);
@@ -616,7 +645,9 @@ function namesIn(dir, graphs) {
  * imports graphty-element's source), and the tests that reach a file holding a literal path the changed file
  * is under (`"../../graph-io/test/corpus"`); a literal in a config file, or a package without a graph, runs it
  * whole. A read that goes into the reader's own build (its source imports or names the file) counts as a
- * change to the reader's build, so its dependents run whole too.
+ * change to the reader's build, so its dependents run whole too. A package without a build (rules.noBuild:
+ * visual-review, which its dependents load as source from their vitest configs and story setups) changes no
+ * dependent's build: its changed files are only reads, so they run the tests and configs that load them.
  * @param root0 the inputs
  * @param root0.changed the changed paths
  * @param root0.packages Map of package name to directory
@@ -626,14 +657,15 @@ function namesIn(dir, graphs) {
  * @param root0.pkgOf the package directory of a path
  * @param root0.whole marks a package to run whole
  * @param root0.out each package's selection
+ * @param root0.noBuild Set of the package names that have no build
  */
-function dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out }) {
+function dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out, noBuild }) {
     const nameOf = new Map([...packages].map(([n, d]) => [d, n]));
     const built = new Set();
     const builtFiles = new Map();
     for (const f of changed) {
         const dir = pkgOf(f);
-        if (dir && buildInput(f.slice(dir.length + 1))) {
+        if (dir && buildInput(f.slice(dir.length + 1)) && !noBuild.has(nameOf.get(dir))) {
             built.add(nameOf.get(dir));
             builtFiles.set(nameOf.get(dir), [...(builtFiles.get(nameOf.get(dir)) ?? []), f]);
         }
@@ -641,7 +673,7 @@ function dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out }
     const reads = new Map(
         [...packages].map(([name, dir]) => [
             name,
-            foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, deps, built: new Set(built) }),
+            foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, deps, built: new Set(built), noBuild }),
         ]),
     );
     for (const [name, dir] of packages) {
@@ -759,6 +791,11 @@ function selectReader(dir, { file, holder }, { graphs, whole, out }) {
         stories.forEach((spec) => addSpec(out.get(dir), spec, `its Storybook config ${holder} reads ${file}`));
         return;
     }
+    const configured = known.length === 0 ? configSpecs(dir, holder, graphs.get(dir)) : null;
+    if (configured) {
+        configured.forEach((spec) => addSpec(out.get(dir), spec, `${CONFIG_WHY}${holder} loads ${file}`));
+        return;
+    }
     const linters = known.length === 0 ? lintSpecs(dir, holder, graphs.get(dir)) : null;
     if (linters) {
         linters.forEach((spec) => addSpec(out.get(dir), spec, `runs ESLint, whose config ${holder} reads ${file}`));
@@ -795,6 +832,19 @@ function storybookSpecs(dir, holder, gs) {
 }
 
 /**
+ * Every test of the graphs built with `holder` as their vitest config (a shard's run loads it before any test),
+ * when `holder` is one: graphty-element's vitest.config.ts imports visual-review's story-test.mjs.
+ * @param dir the package
+ * @param holder the file that reads another package's file, or null
+ * @param gs the package's graphs
+ * @returns the test files, or null when no graph of the package was built with that config
+ */
+function configSpecs(dir, holder, gs) {
+    const hit = holder ? (usable(gs) ?? []).filter((g) => isConfigOf(g, holder)) : [];
+    return hit.length > 0 ? hit.flatMap((g) => Object.values(g.projects).flatMap((p) => p.specs)) : null;
+}
+
+/**
  * The tests of a package that may run ESLint, when `holder` is its ESLint config (graphty's lint rules read
  * graphty-element's build): Vitest never loads that config, only a test that runs ESLint does, and such a
  * test reads files at run time (the rules file's opaqueTest pattern counts `new ESLint(` and `loadESLint`).
@@ -826,16 +876,25 @@ const knows = (g, f) => f in g.imports || Object.values(g.projects).some((p) => 
  * @param ctx.nameOf Map of package directory to its name
  * @param ctx.deps Map of package name to its nx dependencies
  * @param ctx.built Set of the packages whose build inputs changed
+ * @param ctx.noBuild Set of the package names that have no build
  * @returns `[{ file, holder }]`; holder null when the package has no graph to say which file reads it
  */
-function foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, deps, built }) {
+function foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, deps, built, noBuild }) {
     const gs = usable(graphs.get(dir));
     const upstream = closure(name, deps);
     const out = [];
     for (const file of changed) {
         const fdir = pkgOf(file);
         if (fdir && fdir !== dir) {
-            out.push(...readsOf(file, fdir, { gs, upstream, target: nameOf.get(fdir), refs: refs.get(name) ?? [] }));
+            const target = nameOf.get(fdir);
+            out.push(
+                ...readsOf(file, fdir, {
+                    gs,
+                    upstream: noBuild.has(target) ? new Set() : upstream,
+                    target,
+                    refs: refs.get(name) ?? [],
+                }),
+            );
         }
     }
     for (const r of refs.get(name) ?? []) {
@@ -882,9 +941,13 @@ function readsOf(file, fdir, { gs, upstream, target, refs }) {
  * @returns boolean
  */
 function intoBuild(holder, dir, graphs) {
-    const own = (f) => f.startsWith(`${dir}/`) && buildInput(f.slice(dir.length + 1));
-    // a test or lint config never goes into a build (a Vite config may: it is not one of these)
-    if (holder && /^(vitest[^/]*|eslint)\.config\.[cm]?[jt]s$/u.test(holder.slice(dir.length + 1))) {
+    // a test or lint config never goes into a build (a Vite config may: it is not one of these), nor does a
+    // file only such a config imports (visual-review's story-test.mjs, which graphty-element's vitest.config.ts
+    // imports and two of its tests import in turn)
+    const testConfig = (rel) => /^(vitest[^/]*|eslint)\.config\.[cm]?[jt]s$/u.test(rel);
+    const own = (f) =>
+        f.startsWith(`${dir}/`) && buildInput(f.slice(dir.length + 1)) && !testConfig(f.slice(dir.length + 1));
+    if (holder?.startsWith(`${dir}/`) && testConfig(holder.slice(dir.length + 1))) {
         return false;
     }
     if (!holder || own(holder)) {
@@ -930,6 +993,12 @@ function filesInPackage(dir, changed, graphs, rules, result, whole, deleted) {
     const mine = changed.filter((f) => f.startsWith(`${dir}/`));
     if (mine.length > 0 && result.mode !== "all") {
         pickFiles(dir, mine, graphs, rules, result, whole, deleted);
+    }
+    // a file the vitest config imports selects every test (specsReaching, configSpecs): the shards run whole
+    const byConfig = [...result.specs.values()].find((why) => why.includes(CONFIG_WHY));
+    const every = usable(graphs)?.flatMap((g) => Object.values(g.projects).flatMap((p) => p.specs)) ?? [];
+    if (result.mode !== "all" && byConfig && every.every((spec) => result.specs.has(spec))) {
+        whole(dir, byConfig);
     }
     if (result.mode !== "all") {
         result.mode = result.specs.size > 0 ? "files" : "none";
@@ -1548,9 +1617,13 @@ export const STORY_MS = {
     // PR run 40567162255 (2026-10-27): 2,558 s of capture for its 575 stories in 7 bins planned at 2.8 s, the longest
     // bin 543 s against a 240 s plan
     "graph-io-fidelity": 4_500,
-    graphty: 6_000,
+    // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
+    // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
+    graphty: 3_000,
     "cytoscape-extensions": 1_600,
-    "graphty-element": 1_400,
+    // the same runs: graphty-element's two bins captured at 1.6 to 2.1 times their plan at 1.4 s (447 s and 460 s
+    // for graphty-element-1, the pull request's last job in 7 of 19 runs), so it is 2.5 s
+    "graphty-element": 2_500,
     "compact-mantine": 1_000,
     algorithms: 1_200,
     layout: 900,
@@ -2423,7 +2496,14 @@ function refOf(root, path, { byDir, index, name, holder }) {
         return null;
     }
     const known = index.has(path);
-    return { target, prefix: known ? stripExt(path) : `${pkg}/`, holder, build: !known && ignoredPath(root, path) };
+    const ignored = !known && ignoredPath(root, path);
+    // a path into a folder the package does not have names nothing of it: a path joined at run time onto
+    // another directory (visual-review's story-test.mjs reads "../assets/server/..." beside Storybook's
+    // package.json in node_modules), not a file built from parts
+    if (!known && !ignored && !isPath(root, path.split("/").slice(0, 2).join("/"))) {
+        return null;
+    }
+    return { target, prefix: known ? stripExt(path) : `${pkg}/`, holder, build: ignored };
 }
 
 /**

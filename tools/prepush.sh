@@ -150,9 +150,6 @@ affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 # The same packages as directories (nx names remote-logger by its package name).
 DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
 
-# The packages with an API reference in the documentation site (a root `docs:api:<package>` script).
-DOCS_API_PACKAGES=$(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")')
-
 # The documentation site, built as CI's Docs job builds it (npm run docs:build: docs:content, every
 # docs:api, vitepress build docs). TypeDoc writes whatever a doc comment holds, and only VitePress's
 # Vue compiler rejects a page that is not valid template: a code span split across two lines of a
@@ -162,13 +159,7 @@ DOCS_API_PACKAGES=$(node -p 'Object.keys(require("./package.json").scripts).filt
 # assemble the site. It reuses the API pages the "API docs" steps generated and builds only the other
 # packages' ones, so a dead link VitePress finds fails here too. Needs the build. About 3 minutes
 # (2026-10-22, a busy machine): the other API pages 30 seconds, vitepress build 2.5 minutes.
-docs_site_affected() {
-    local p
-    for p in $DOCS_API_PACKAGES; do affected "$p" && return 0; done
-    [ -z "${BASE:-}" ] && return 0
-    ! git diff --quiet "$BASE" HEAD -- docs/ $(sed -nE 's#^ *src: "([^"]+)".*#\1/#p' tools/copy-docs-content.js) \
-        tools/copy-docs-content.js tools/sanitize-api-docs.js
-}
+source "$SCRIPT_DIR/docs-affected.sh"
 docs_site_step() {
     docs_site_affected || return 0
     local cmd="pnpm run docs:content" p

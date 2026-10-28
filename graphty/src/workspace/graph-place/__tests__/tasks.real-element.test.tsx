@@ -133,7 +133,11 @@ describe("the Graph place on the real element", () => {
         // A rule with a bare number reads as typed: Enter runs it.
         await userEvent.clear(box);
         await userEvent.type(box, "=minutes >= 10");
-        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
+        // The line drawn under the box. The status line says the same words once the line settles,
+        // so a query over the whole page finds two elements, or one, depending on when it looks.
+        assert.isNotNull(
+            await screen.findByText("Rule: press Enter to select matches", { selector: ".ws-find-empty" }),
+        );
         assert.equal(session.selection.size, 0);
         await userEvent.keyboard("{Enter}");
         await linksOfTenOrMore();

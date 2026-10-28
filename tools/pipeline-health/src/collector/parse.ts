@@ -13,7 +13,7 @@ import type {
     TestItem,
 } from "../model/items.js";
 import { DAY, HOUR, MIN } from "../model/items.js";
-import type { LaneJob, OwnerWait, WorkflowState } from "../model/snapshots.js";
+import type { LaneJob, OwnerWait, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -198,6 +198,9 @@ export interface CheckRunNote {
 export type CancelClass = NonNullable<RunItem["cancelClass"]>;
 
 export function classifyCancel(checkRuns: CheckRunNote[]): CancelClass {
+    // No job was ever created: the run was cancelled while it waited, because a newer push or dispatch replaced it
+    // in its concurrency group (ci.yml since #3855/#3940). It never ran, so it says nothing about the commit.
+    if (!checkRuns.length) return "superseded";
     const all = checkRuns.flatMap((c) => c.annotations);
     if (all.some((m) => /Canceling since a higher priority waiting request for/i.test(m))) return "superseded";
     if (all.some((m) => /The run was cancell?ed by @/i.test(m))) return "by-hand";
@@ -293,6 +296,19 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
     return use;
 }
 
+/**
+ * An unfinished pull_request run of the home repository whose pull request is no longer open (merged or closed):
+ * GitHub can leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged). It holds no
+ * runner and nobody waits on it, so runner use leaves it out. GitHub empties a merged pull request's runs'
+ * pull_requests, so a run is matched to an open pull request by number or head branch. `open` must be every open pull
+ * request: with a truncated list nothing is called a ghost.
+ */
+export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolean {
+    if (!complete || run.event !== "pull_request" || run.status === "completed") return false;
+    const listed = new Set((run.pull_requests ?? []).map((p) => p.number));
+    return !open.some((p) => listed.has(p.number) || p.headRefName === run.head_branch);
+}
+
 /** Saturated: jobs queued > 2 min while running >= limit - 3. Not assigned: queued > 2 min while running < 75%. */
 export function runnerFlags(use: RunnerUse, limit: number): { saturated: boolean; unassigned: boolean } {
     const waiting = use.queuedOver2 > 0;
@@ -330,6 +346,8 @@ export interface GqlPr {
     mergedAt: string | null;
     closedAt: string | null;
     autoMergeRequest: { enabledAt: string } | null;
+    /** Null for a deleted account. */
+    author?: { login: string } | null;
     labels: { nodes: { name: string }[] };
     readyEvents: { nodes: { __typename: string; createdAt?: string }[] };
     /** Only on the open page (the recent page leaves checks out). */
@@ -353,6 +371,16 @@ export function ownerWait(p: GqlPr): boolean {
     if (/^\w+(\([^)]*\))?!:/.test(p.title)) return true;
     return p.reviewDecision === "REVIEW_REQUIRED";
 }
+
+/** The repository owner's account: tools/pr-open.sh leaves auto-merge off on a pull request he opened. */
+export const OWNER_LOGIN = "apowers313";
+
+/**
+ * Waiting on the owner now: auto-merge off by rule (ownerWait), or his own pull request with auto-merge off, which
+ * only he merges. Left out of the open count and the oldest open (4.2); listed under "Waiting on the owner".
+ */
+export const waitsOnOwner = (p: GqlPr): boolean =>
+    ownerWait(p) || (p.author?.login === OWNER_LOGIN && !p.autoMergeRequest);
 
 /** Ready time: the last ReadyForReviewEvent, else creation when it was never a draft. */
 export function readyAt(p: GqlPr): number | undefined {
@@ -488,8 +516,10 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
     const failing = new Map<string, number>();
     for (const p of open) {
         if (p.state !== "OPEN" || p.isDraft) continue;
-        s.open++;
-        if (!ownerWait(p)) s.oldestOpenMs = Math.max(s.oldestOpenMs, nowMs - Date.parse(p.createdAt));
+        if (!waitsOnOwner(p)) {
+            s.open++;
+            s.oldestOpenMs = Math.max(s.oldestOpenMs, nowMs - Date.parse(p.createdAt));
+        }
         const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
         if (armed >= 6 * 60 * MIN || (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS")) s.autoMergeStuck++;
@@ -503,7 +533,7 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
                 s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, nowMs - Date.parse(c.createdAt));
         }
         // An aggregator failing alone counts too (4, "Excluded checks").
-        const checks = new Set(failingChecks(p).map((c) => c.check));
+        const checks = new Set(failingChecks(p, nowMs).map((c) => c.check));
         for (const c of checks) failing.set(c, (failing.get(c) ?? 0) + 1);
     }
     s.maxFailingSameCheck = Math.max(0, ...failing.values());
@@ -659,6 +689,53 @@ export function failedStreak(runs: GhRun[]): GhRun[] {
     return out;
 }
 
+/**
+ * The cancelled runs a newer run of the same workflow took the place of: a newer run was created before the cancel
+ * (a concurrency group replacing a waiting run, or a stuck run cancelled by hand after its successor started).
+ * Neutral: neither failed nor a skipped train. A run cancelled with no successor yet still counts as it did.
+ */
+export function replacedRuns(runs: GhRun[]): Set<number> {
+    const created = runs.map((r) => Date.parse(r.created_at));
+    return new Set(
+        runs
+            .filter(
+                (r) =>
+                    r.status === "completed" &&
+                    r.conclusion === "cancelled" &&
+                    created.some((t) => t > Date.parse(r.created_at) && t <= Date.parse(r.updated_at)),
+            )
+            .map((r) => r.id),
+    );
+}
+
+/**
+ * Whether the train skipped a new commit: the newest release attempt that a newer run did not replace did not test,
+ * on a commit other than the candidate's.
+ * @param attempts the seen attempts, newest first
+ * @param runs the release workflow's newest runs
+ */
+export function trainSkipped(attempts: ReleaseSeen[], runs: GhRun[]): boolean {
+    const replaced = replacedRuns(runs);
+    const candidate = attempts.find((a) => a.tested);
+    const newest = attempts.find((a) => a.run === undefined || !replaced.has(a.run));
+    return !!newest && !newest.tested && newest.sha !== candidate?.sha;
+}
+
+/**
+ * The events each release workflow declares in its `on:` (test/collector/parse.test.ts checks them against the
+ * files). GitHub also records a failed run of a workflow for a push to any branch whose copy of the file it cannot
+ * use (promote.yml's "10 failures in a row" on 2026-10-25 were such push runs), which say nothing about the workflow.
+ */
+export const RELEASE_WORKFLOW_EVENTS: Record<string, string[]> = {
+    "release.yml": ["workflow_dispatch"],
+    "promote.yml": ["workflow_dispatch"],
+    "release-watch.yml": ["workflow_run"],
+};
+
+/** The runs of an event the workflow declares; every run when the workflow's events are not known. */
+export const declaredRuns = (workflow: string, runs: GhRun[]): GhRun[] =>
+    runs.filter((r) => RELEASE_WORKFLOW_EVENTS[workflow]?.includes(r.event) ?? true);
+
 /** Consecutive failed runs, newest first, of one workflow's completed runs. */
 export const failedInRow = (runs: GhRun[]): number => failedStreak(runs).length;
 
@@ -667,15 +744,17 @@ export const failedInRow = (runs: GhRun[]): number => failedStreak(runs).length;
  * failing streak and its start. ponytail: counts only the runs the collector reads (10 or 12), so "in a row"
  * stops there.
  */
-export function workflowState(workflow: string, runs: GhRun[], nowMs: number): WorkflowState {
+export function workflowState(workflow: string, all: GhRun[], nowMs: number): WorkflowState {
+    const runs = declaredRuns(workflow, all);
     const hour = runs.filter(
         (r) => r.status === "completed" && r.conclusion !== "skipped" && nowMs - Date.parse(r.created_at) <= HOUR,
     );
     const streak = failedStreak(runs);
+    const replaced = replacedRuns(runs);
     return {
         workflow,
         runs: hour.length,
-        failed: hour.filter((r) => BAD.has(r.conclusion ?? "")).length,
+        failed: hour.filter((r) => BAD.has(r.conclusion ?? "") && !replaced.has(r.id)).length,
         inRow: streak.length,
         ...(streak.length ? { since: Date.parse(streak[streak.length - 1].created_at) } : {}),
     };
@@ -711,6 +790,21 @@ export function stressRunState(jobs: GhJob[]): StressRun {
         return { state: 0, foundFailures };
     }
     return { state: 2, foundFailures, failedJob: buildBroke ? "Build" : REPORT };
+}
+
+/** Weeks of stress runs the "found nothing" rule reads. */
+export const STRESS_WEEKS = 3;
+
+/**
+ * Found nothing three weeks running: a run in each of the last three weeks (7-day slots back from now), and none of
+ * the runs in them found a failure. Three runs alone are not three weeks: a re-run or a dispatch puts two in a week.
+ * @param runs the stress runs (any order)
+ * @param nowMs now
+ */
+export function stressQuiet(runs: Pick<StressCursorRun, "at" | "foundFailures">[], nowMs: number): boolean {
+    const inRange = runs.filter((r) => nowMs - r.at < STRESS_WEEKS * 7 * DAY);
+    const weeks = new Set(inRange.map((r) => Math.floor((nowMs - r.at) / (7 * DAY))));
+    return weeks.size === STRESS_WEEKS && !inRange.some((r) => r.foundFailures);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

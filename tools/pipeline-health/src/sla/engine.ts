@@ -8,7 +8,7 @@
 import { quantile } from "../model/histogram.js";
 import { type Bucket, DAY, floorTo, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
 import { quotaUsed } from "../model/raw.js";
-import { emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
+import { aggQuantile, emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
 import { type Measure, type MemberConfig, type SlaConfig, SLAS, type SourceConfig, type Threshold } from "./config.js";
 
@@ -150,21 +150,43 @@ function merged(series: Series | undefined, from: number, to: number): Bucket {
 
 const metricsOf = (m: Measure) => ("metric" in m ? [m.metric] : []);
 
-function monthValue(ctx: Ctx, m: Extract<Measure, { type: "month" }>, end: number): number | undefined {
+/** Days of spend a month-end projection takes its daily rate from. */
+export const PROJECTION_DAYS = 7;
+
+/**
+ * A line's month-end projection: what it cost through yesterday plus, for each day left, its average day over the
+ * trailing PROJECTION_DAYS whole days (today at least what it has cost so far). The month-to-date average would
+ * carry a month's early spend to its end (October's T4 lane ran on triggers removed by its second week).
+ * @param daySum one day's cost, by the day's start
+ * @param end now
+ */
+export function projectMonth(daySum: (day: number) => number, end: number): number {
     const d = new Date(end);
     const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
     const monthDays = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) - monthStart) / DAY;
     const today = floorTo(end, "1d");
+    let done = 0;
+    for (let t = monthStart; t < today; t += DAY) done += daySum(t);
+    let recent = 0;
+    for (let i = 1; i <= PROJECTION_DAYS; i++) recent += daySum(today - i * DAY);
+    const rate = recent / PROJECTION_DAYS;
+    const after = monthDays - (today - monthStart) / DAY - 1;
+    return done + Math.max(rate, daySum(today)) + rate * after;
+}
+
+function monthValue(ctx: Ctx, m: Extract<Measure, { type: "month" }>, end: number): number | undefined {
+    const d = new Date(end);
+    const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+    const today = floorTo(end, "1d");
     const series = ctx.daily.get(m.metric);
-    const sumOf = (b: Bucket) => (m.dim === undefined ? b.sum : (b.dims?.[m.dim]?.sum ?? 0));
-    const done = sumOf(merged(series, monthStart, today - 1));
-    const all = sumOf(merged(series, monthStart, today));
+    const sumOf = (b: Bucket | undefined) => {
+        if (b === undefined) return 0;
+        return m.dim === undefined ? b.sum : (b.dims?.[m.dim]?.sum ?? 0);
+    };
     if (!m.projected) {
-        return all;
+        return sumOf(merged(series, monthStart, today));
     }
-    const elapsed = (today - monthStart) / DAY;
-    // ponytail: on the 1st, before a whole day is billed, the month is today's partial lines, unprojected.
-    return elapsed === 0 ? all : (done / elapsed) * monthDays;
+    return projectMonth((t) => sumOf(series?.get(t)), end);
 }
 
 export function measureValue(m: Measure, b: Bucket, spanMs: number): number | undefined {
@@ -239,7 +261,7 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
         }
         const judged = [...dims.values()].filter((a) => a.n >= m.minPerDim);
         return {
-            value: judged.filter((a) => (a.hist ? (quantile(a.hist, 0.5) ?? 0) : 0) > m.over).length,
+            value: judged.filter((a) => (aggQuantile(a, 0.5) ?? 0) > (m.over ?? a.sum / a.n)).length,
             n: judged.length,
             covered,
         };

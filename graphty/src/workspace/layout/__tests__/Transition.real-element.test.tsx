@@ -90,7 +90,7 @@ describe("the layout form's Transition", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Layout" }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circle/ }));
+        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
         const transition = await within(popover).findByRole("combobox", { name: "Transition" });
         assert.strictEqual((transition as HTMLInputElement).value, "None", "no transition by default");
         await userEvent.click(transition);

@@ -16,6 +16,7 @@ import { cdp, page, userEvent } from "vitest/browser";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { renderQualityWords } from "../../style/words";
 import { Workspace } from "../../Workspace";
 import { SHADER_MOTION, SHADER_QUALITY, TRUSTED_SHADERS_KEY } from "../shaderPreferences";
 
@@ -374,7 +375,6 @@ describe("the graph's shader settings", () => {
     it("shows the quality the frame guard stepped down to under Quality, not among the graph's statistics", async () => {
         const element = await openGraphSettings();
         await choose("Quality", "High");
-        await pickNebula();
         await waitFor(
             () => {
                 assert.strictEqual(element.renderQuality.level, "high");
@@ -382,6 +382,7 @@ describe("the graph's shader settings", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.isNull(screen.queryByText(/^Now /));
+        await pickNebula();
 
         // A GPU that takes 80 ms per frame, at the one place the element learns about the GPU:
         // the WebGL 2 fence after each frame reads unsignalled until that long after it was made.
@@ -408,11 +409,19 @@ describe("the graph's shader settings", () => {
             return getSyncParameter.call(gl, sync, pname) as unknown;
         };
         try {
-            const line = await screen.findByText(/^Now Medium/, {}, { timeout: TIMEOUT_MS });
+            // Over the slow-frame line the guard steps to Medium; a software rasterizer slow enough
+            // to cross the long-frame line on the nebula alone steps heavy shaders off first.
+            // Either way the line says what it stepped to.
+            const line = await screen.findByText(/^Now /, {}, { timeout: TIMEOUT_MS });
             assert.isTrue(
                 screen.getByRole("combobox", { name: "Quality" }).getAttribute("aria-describedby")?.includes(line.id),
             );
-            assert.strictEqual(element.renderQuality.level, "medium");
+            // The guard may step again while the slow frames go on: the line follows it.
+            await waitFor(() => {
+                const quality = element.renderQuality;
+                assert.isTrue(quality.level !== "high" || quality.heavy === "off", "the guard stepped down");
+                assert.strictEqual(screen.getByText(/^Now /).textContent, `Now ${renderQualityWords(quality)}`);
+            });
             await userEvent.click(screen.getByRole("tab", { name: "Values" }));
             assert.isNull(screen.queryByText("Shader quality"), "not among the statistics");
         } finally {

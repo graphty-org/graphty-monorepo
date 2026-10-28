@@ -60,7 +60,7 @@ const EDGES = [
 function render(layer: LayerSpec, width = 8): Element {
     const element: Graphty = document.createElement("graphty-element");
     if (isVisualCapture()) {
-        element.shaderSettings = { motion: "off" };
+        element.shaderSettings = { motion: "off", guard: false };
     }
 
     element.background = { backgroundType: "color", color: "#05060b" };

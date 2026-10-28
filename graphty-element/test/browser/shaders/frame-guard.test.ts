@@ -255,9 +255,10 @@ describe("the frame guard", () => {
 
     it("steps quality down when a heavy shader really keeps the GPU behind, with no fence simulated", async () => {
         // Three sprites drawn over one another: each frame shades the canvas about three times
-        // over, some 80 to 180 ms of SwiftShader's time, with almost none of it on the CPU: well
-        // between the slow-frame line (50 ms) and the long-frame line (250 ms), which two frames
-        // of twice the work crossed in a row often enough to step heavy shaders off instead.
+        // over, with almost none of it on the CPU. How long that takes is the machine's: over the
+        // slow-frame line (50 ms) the guard steps the quality down, over the long-frame line
+        // (250 ms, a slower software rasterizer) it steps heavy shaders off. Either is the GPU
+        // really being behind; which one depends on the runner, not on the guard.
         const element = await mounted(
             [
                 { id: "a", x: 0, y: 0 },
@@ -277,8 +278,12 @@ describe("the frame guard", () => {
         await until(element, "the guard stepped down", () => seen.length > 0 || starts.length > 40);
         const gaps = starts.slice(1).map((at, i) => Math.round(at - starts[i]));
         assert.isAbove(seen.length, 0, `frame intervals ${gaps.join(" ")}`);
-        assert.strictEqual(seen[0].code, "guard.slow-gpu");
-        assert.strictEqual(element.renderQuality.level, "medium");
+        assert.oneOf(seen[0].code, ["guard.slow-gpu", "guard.long-frame"]);
+        if (seen[0].code === "guard.slow-gpu") {
+            assert.strictEqual(element.renderQuality.level, "medium");
+        } else {
+            assert.strictEqual(element.renderQuality.heavy, "off");
+        }
     });
 
     it("changes nothing for CPU-bound slow frames", async () => {

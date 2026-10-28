@@ -21,7 +21,9 @@
  *
  * In a visual capture, motion is switched off with the reader's own setting
  * (`shaderSettings.motion`), so the picture is the same on every run: loops are drawn still and
- * the timed effects (the shockwave, the flash) are at their end, which draws nothing.
+ * the timed effects (the shockwave, the flash) are at their end, which draws nothing. The frame
+ * guard (`shaderSettings.guard`) is off too: on a slow software GPU it steps heavy shaders off at
+ * no fixed frame.
  */
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
@@ -80,7 +82,7 @@ function render(
     const element: Graphty = document.createElement("graphty-element");
     if (isVisualCapture() || options.quality !== undefined) {
         element.shaderSettings = {
-            ...(isVisualCapture() ? { motion: "off" as const } : {}),
+            ...(isVisualCapture() ? { motion: "off" as const, guard: false } : {}),
             ...(options.quality === undefined ? {} : { quality: options.quality }),
         };
     }

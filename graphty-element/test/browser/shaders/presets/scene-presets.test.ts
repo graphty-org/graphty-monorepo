@@ -534,7 +534,9 @@ describe("the scene presets on a real element", () => {
         const uniforms = host?.loaded?.uniforms;
         assert.isDefined(uniforms, "the shader runtime is loaded");
 
-        // The scene's time stepped at 60 frames a second for three seconds.
+        // The scene's time stepped at 30 samples a second for three seconds, one drawn frame per
+        // sample (the frame drawn after the time is written shows it): 30 a second still sees
+        // every flash up to 15 a second, five times the limit.
         const scene = element.graph.getScene();
         let time = 0;
         const observer = scene.onBeforeRenderObservable.add(() => {
@@ -543,9 +545,9 @@ describe("the scene presets on a real element", () => {
         try {
             const counter = new FlashCounter();
             let flashing = 0;
-            for (let frame = 0; frame < 180; frame++) {
-                time = frame / 60;
-                const { width, height, rgba } = await canvasPixels(element);
+            for (let frame = 0; frame < 90; frame++) {
+                time = frame / 30;
+                const { width, height, rgba } = await canvasPixels(element, 1);
                 flashing += counter.add(downsample(rgba, width, height), time * 1000) ? 1 : 0;
             }
 

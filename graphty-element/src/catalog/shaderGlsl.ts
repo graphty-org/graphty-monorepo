@@ -1411,12 +1411,48 @@ const READ_FIELDS: readonly [RegExp, ShaderInput][] = [
 ];
 
 /**
+ * A GLSL text with its `//` and closed `/* ... *\/` comments taken out, in one pass: a regular
+ * expression with a lazy block-comment match takes time quadratic in the text on many unclosed
+ * `/*`, and a shader body is a consumer's text.
+ * @param text - The GLSL text.
+ * @returns The text without its comments; an unclosed `/*` stays as it is.
+ */
+function withoutComments(text: string): string {
+    let out = "";
+    let at = 0;
+    let closes = true;
+    while (at < text.length) {
+        const slash = text.indexOf("/", at);
+        if (slash === -1 || slash === text.length - 1) {
+            break;
+        }
+
+        const next = text[slash + 1];
+        if (next === "/") {
+            out += text.slice(at, slash);
+            const end = text.indexOf("\n", slash);
+            at = end === -1 ? text.length : end;
+        } else if (next === "*" && closes) {
+            const end = text.indexOf("*/", slash + 2);
+            closes = end !== -1;
+            out += text.slice(at, closes ? slash : slash + 1);
+            at = closes ? end + 2 : slash + 1;
+        } else {
+            out += text.slice(at, slash + 1);
+            at = slash + 1;
+        }
+    }
+
+    return out + text.slice(at);
+}
+
+/**
  * What a body reads from the layers beneath and from element state, from the fields it names.
  * @param body - The GLSL body.
  * @returns The inputs, in the order {@link ShaderInput} lists them.
  */
 export function inferShaderReads(body: string): readonly ShaderInput[] {
-    const code = body.replaceAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+    const code = withoutComments(body);
 
     return READ_FIELDS.filter(([pattern]) => pattern.test(code)).map(([, input]) => input);
 }
@@ -1429,7 +1465,7 @@ export function inferShaderReads(body: string): readonly ShaderInput[] {
  * @returns True when it does.
  */
 export function readsShaderTime(body: string): boolean {
-    return /\.\s*time\b/.test(body.replaceAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""));
+    return /\.\s*time\b/.test(withoutComments(body));
 }
 
 /**
@@ -1438,7 +1474,7 @@ export function readsShaderTime(body: string): boolean {
  * @returns The target, or undefined when no `vec4 shade(<Input> ...)` names a known input.
  */
 export function entryTargetOf(body: string): ShaderTarget | undefined {
-    const entry = /\bvec4\s+shade\s*\(\s*(?:in\s+)?(\w+)/.exec(body.replaceAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, ""));
+    const entry = /\bvec4\s+shade\s*\(\s*(?:in\s+)?(\w+)/.exec(withoutComments(body));
 
     return entry === null || !Object.hasOwn(TARGET_OF_INPUT, entry[1]) ? undefined : TARGET_OF_INPUT[entry[1]];
 }

@@ -140,11 +140,15 @@ export function compileErrors(element: Graphty): string[] {
 /**
  * The whole canvas, read back after the next frames, bottom row first.
  * @param element - The element.
+ * @param frames - How many frames to wait for first.
  * @returns Width, height and RGBA pixels.
  */
-export async function canvasPixels(element: Graphty): Promise<{ width: number; height: number; rgba: Uint8Array }> {
+export async function canvasPixels(
+    element: Graphty,
+    frames = 2,
+): Promise<{ width: number; height: number; rgba: Uint8Array }> {
     const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
+    await drawnFrames(element.graph.getScene(), frames);
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();
     const read = await engine.readPixels(0, 0, width, height);

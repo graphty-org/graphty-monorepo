@@ -231,8 +231,8 @@ describe("Data > Fields as a + list on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         first.unmount();
+        // This tab's own work reopens straight into the workspace, with no offer to answer.
         const second = mountWorkspace();
-        await userEvent.click(await screen.findByRole("button", { name: "Restore" }, { timeout: TIMEOUT_MS }));
         const restored = await openElement();
         await waitFor(
             () => {

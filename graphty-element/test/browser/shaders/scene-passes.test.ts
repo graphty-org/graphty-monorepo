@@ -210,7 +210,7 @@ describe("a background shader", () => {
         await until(
             element,
             "the background shader draws",
-            () => (renderManager.shaderPasses().background?.draws ?? 0) > 0,
+            () => renderManager.shaderPasses().background?.shown === true,
         );
 
         const scene = element.graph.getScene();

@@ -1418,32 +1418,40 @@ const READ_FIELDS: readonly [RegExp, ShaderInput][] = [
  * @returns The text without its comments; an unclosed `/*` stays as it is.
  */
 function withoutComments(text: string): string {
-    let out = "";
+    const kept: string[] = [];
     let at = 0;
     let closes = true;
-    while (at < text.length) {
-        const slash = text.indexOf("/", at);
-        if (slash === -1 || slash === text.length - 1) {
-            break;
-        }
-
-        const next = text[slash + 1];
-        if (next === "/") {
-            out += text.slice(at, slash);
-            const end = text.indexOf("\n", slash);
-            at = end === -1 ? text.length : end;
-        } else if (next === "*" && closes) {
-            const end = text.indexOf("*/", slash + 2);
-            closes = end !== -1;
-            out += text.slice(at, closes ? slash : slash + 1);
-            at = closes ? end + 2 : slash + 1;
-        } else {
-            out += text.slice(at, slash + 1);
-            at = slash + 1;
-        }
+    let slash = text.indexOf("/");
+    while (slash !== -1 && slash < text.length - 1) {
+        const [keep, next, stillCloses] = commentAt(text, slash, closes);
+        kept.push(text.slice(at, keep));
+        at = next;
+        closes = stillCloses;
+        slash = text.indexOf("/", next);
     }
 
-    return out + text.slice(at);
+    return kept.join("") + text.slice(at);
+}
+
+/**
+ * The comment that starts at a slash, if one does.
+ * @param text - The GLSL text.
+ * @param slash - Where the slash is; a character follows it.
+ * @param closes - Whether a `*\/` can still follow: once one did not, none further on does.
+ * @returns Where the text before it ends, where the text after it starts, and `closes` again.
+ */
+function commentAt(text: string, slash: number, closes: boolean): [number, number, boolean] {
+    if (text[slash + 1] === "/") {
+        const end = text.indexOf("\n", slash);
+        return [slash, end === -1 ? text.length : end, closes];
+    }
+
+    if (text[slash + 1] !== "*" || !closes) {
+        return [slash + 1, slash + 1, closes];
+    }
+
+    const end = text.indexOf("*/", slash + 2);
+    return end === -1 ? [slash + 1, slash + 1, false] : [slash, end + 2, true];
 }
 
 /**

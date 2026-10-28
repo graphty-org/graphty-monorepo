@@ -517,10 +517,11 @@ jobs:
                   # the base, and the test files the change touched: the ones it changed and the ones whose imports
                   # reach a changed file (not the ones a rule runs), and the families with no file-level answer
                   # (every file of those counts as touched). An everything plan gets only the base, so every test
-                  # counts as touched and a re-run still reads the store again; an unavailable one stays as it is,
-                  # and an outage leaves the committed quarantine list in force.
+                  # counts as touched and a re-run still reads the store again. An unavailable one (a store outage)
+                  # gets them too: the committed quarantine list stays in force, and the [NEW-FLAKY] rule still
+                  # fails a test the change touched that failed and then passed (run-group.mjs newFlakyJudge, #4146).
                   jq -s --arg base "$(git rev-parse HEAD^1)" --rawfile changed "$RUNNER_TEMP/changed.txt" \
-                      'if .[0].unavailable then .[0] elif .[1].everything then .[0] + {base: $base} else .[0] + {base: $base,
+                      '.[0] + if .[1].everything then {base: $base} else {base: $base,
                           affected: ((.[1].touched // []) + ($changed | split("\n") | map(select(. != ""))) | unique),
                           unknownFamilies: (.[1].unknown // [])} end' \
                       "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \

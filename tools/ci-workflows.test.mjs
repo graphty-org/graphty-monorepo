@@ -1710,9 +1710,11 @@ describe("ci.yml", () => {
         assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
         assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
-        // no test-type job is limited to pushes or to master
+        // no test-type job is limited to pushes or to master (the nx cache write environment and its probe's
+        // WRITES pick a token on master; they skip nothing)
         for (const name of ["test", "links", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
-            assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
+            const body = job(ci, name).replace(/\n {8}environment: .*|\n {18}WRITES: .*/g, "");
+            assert.doesNotMatch(body, /event_name == 'push'|refs\/heads\/master/, name);
         }
         assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify &&/);
     });
@@ -2509,6 +2511,41 @@ jobs:
         assert.equal(env("build"), env("packages"));
         const nx = JSON.parse(readFileSync(new URL("../nx.json", import.meta.url), "utf8"));
         assert.equal(nx.targetDefaults["build-storybook"].cache, true);
+    });
+
+    it("probes the nx remote cache in the Lint job before linting, writing only on master", () => {
+        // lint is cached (nx.json): a pull request that marks every project affected (nx.json, a project.json)
+        // replays master's lint of the projects whose inputs it left alone instead of linting them again.
+        const probe = (name) =>
+            /- name: Probe the nx remote cache\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(job(ci, name))[1];
+        assert.equal(probe("lint"), probe("packages"));
+        const env = (name) => /\n {8}environment: (.*)\n/.exec(job(ci, name))[1];
+        assert.equal(env("lint"), env("packages"));
+        const lint = job(ci, "lint");
+        assert.ok(lint.indexOf("- name: Probe the nx remote cache") < lint.indexOf("- name: Lint affected (PR)"));
+        const nx = JSON.parse(readFileSync(new URL("../nx.json", import.meta.url), "utf8"));
+        assert.equal(nx.targetDefaults.lint.cache, true);
+    });
+
+    it("runs both knip passes in the Checks job and fails when either fails", () => {
+        const step =
+            /- name: Knip \(dead code detection and production dependencies\)\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+                job(ci, "checks"),
+            )[1];
+        const dir = mkdtempSync(join(tmpdir(), "knip-step-"));
+        const run = (dead, prod) => {
+            writeFileSync(
+                join(dir, "pnpm"),
+                `#!/bin/bash\n[ "$2" = lint:knip ] && exit ${dead}\n[ "$2" = lint:knip:prod ] && exit ${prod}\nexit 9\n`,
+                { mode: 0o755 },
+            );
+            return spawnSync("bash", ["-e", "-c", step], {
+                env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+            }).status;
+        };
+        assert.equal(run(0, 0), 0);
+        assert.notEqual(run(1, 0), 0);
+        assert.notEqual(run(0, 1), 0);
     });
 
     it("keys every cached Storybook on everything graphty-element bundles", () => {

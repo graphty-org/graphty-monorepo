@@ -893,6 +893,8 @@ const config = defineConfig({
                     name: "models-webkit",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/browser/models/**/*.test.ts"],
+                    // Timing benchmarks belong to "browser-bench" (Chromium, CDP input), never here.
+                    exclude: ["test/**/*.bench.test.ts"],
                     fileParallelism: false,
                     browser: {
                         enabled: true,

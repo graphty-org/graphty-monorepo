@@ -4280,6 +4280,8 @@ class Node_2 {
         z: number;
     };
     getRenderState(): NodeRenderState;
+    // @internal
+    get groupDrawnForAnotherCamera(): boolean;
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;

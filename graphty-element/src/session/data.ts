@@ -823,7 +823,9 @@ export class SessionData implements SessionDataApi {
         const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
         try {
             if (source.source !== undefined) {
-                await (await import("./sources/load")).importSource(this.hostInTurn(turn), { ...source, source: source.source }, options);
+                await (
+                    await import("./sources/load")
+                ).importSource(this.hostInTurn(turn), { ...source, source: source.source }, options);
                 return;
             }
 
@@ -1143,7 +1145,11 @@ export class SessionData implements SessionDataApi {
         // In line, as a load: its rows are dispatched after every load asked for before it, and a
         // load asked for after it waits for all of them, so it never adds to the graph that load
         // replaced (issue #3382).
-        return this.inLine(options.signal, (host) => import("./sources/expand").then((module) => module.expandNodes(host, ids, options)), true);
+        return this.inLine(
+            options.signal,
+            (host) => import("./sources/expand").then((module) => module.expandNodes(host, ids, options)),
+            true,
+        );
     }
 
     /**
@@ -1203,7 +1209,9 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
-        return this.inLine(options.signal, (host) => import("./sources/load").then((module) => module.more(host, options)));
+        return this.inLine(options.signal, (host) =>
+            import("./sources/load").then((module) => module.more(host, options)),
+        );
     }
 
     /**
@@ -1300,7 +1308,9 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
-        return this.inLine(options.signal, (host) => import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)));
+        return this.inLine(options.signal, (host) =>
+            import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)),
+        );
     }
 
     /**

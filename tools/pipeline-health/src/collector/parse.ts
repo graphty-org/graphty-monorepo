@@ -510,6 +510,16 @@ export interface PrStocks {
     maxFailingSameCheck: number;
 }
 
+/** How long the pull request's pictures have waited for the owner: its pending "Visual review" status, 0 if none. */
+function screenshotWaitMs(p: GqlPr, nowMs: number): number {
+    let ms = 0;
+    for (const c of p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []) {
+        if (c.__typename === "StatusContext" && c.context === "Visual review" && c.state === "PENDING" && c.createdAt)
+            ms = Math.max(ms, nowMs - Date.parse(c.createdAt));
+    }
+    return ms;
+}
+
 /**
  * The "now" members of 4.2 and "Red on the same check" of 4.1, from the open pull requests.
  * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
@@ -534,15 +544,7 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
         if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") s.autoMergeGreenStuck++;
         if (armed >= 24 * 60 * MIN) s.autoMergeArmedLong++;
-        for (const c of rollup?.contexts.nodes ?? []) {
-            if (
-                c.__typename === "StatusContext" &&
-                c.context === "Visual review" &&
-                c.state === "PENDING" &&
-                c.createdAt
-            )
-                s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, nowMs - Date.parse(c.createdAt));
-        }
+        s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
         // An aggregator failing alone counts too (4, "Excluded checks").
         const checks = new Set(failingChecks(p, nowMs).map((c) => c.check));
         for (const c of checks) failing.set(c, (failing.get(c) ?? 0) + 1);

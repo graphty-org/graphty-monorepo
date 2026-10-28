@@ -586,7 +586,8 @@ const versionCommit = (w, at, version) => {
     const pkg = w
         .git(["show", `${at}:graph-format/package.json`])
         .replace(/"version": "[^"]*"/, `"version": "${version}"`);
-    const log = `## ${version}\n\nRehearsal.\n\n${w.git(["show", `${at}:graph-format/CHANGELOG.md`], {}, true) ?? ""}`;
+    const before = w.git(["show", `${at}:graph-format/CHANGELOG.md`], {}, true) ?? "";
+    const log = `## ${version}\n\nRehearsal.\n\n${before}`;
     return w.commit(
         [at],
         { "graph-format/package.json": `${pkg}\n`, "graph-format/CHANGELOG.md": log },

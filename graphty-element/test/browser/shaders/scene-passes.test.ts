@@ -51,6 +51,10 @@ beforeAll(() => {
         }`,
     });
     defineShader({
+        id: "e6/tinted",
+        glsl: "vec4 shade(BackgroundInput b) { return vec4(b.groupTint.rgb, 1.0); }",
+    });
+    defineShader({
         id: "e6/lantern",
         bloom: true,
         glsl: "vec4 shade(NodeInput n) { return vec4(1.0, 0.8, 0.3, 1.0); }",
@@ -335,6 +339,41 @@ describe("group outlines", () => {
 
         assert.isAbove(blueAt, 0, "the inner outline draws");
         assert.isAbove(redAt, blueAt, "the outer outline rings the inner one");
+    });
+
+    it("tint a background by the outlines laid out after it drew", async () => {
+        const element = await mounted(nodes, []);
+        element.background = { backgroundType: "color", shader: { id: "e6/tinted" } };
+        const renderManager = renderManagerOf(element);
+        await until(element, "the background draws", () => (renderManager.shaderPasses().background?.draws ?? 0) > 0);
+
+        // The outline pass starts after the background's, so it lays the groups out after the
+        // background drew in the same frame; nothing but the background then needs a frame.
+        const untinted = renderManager.shaderPasses().background?.draws ?? 0;
+        await element.session.styles.add(outer);
+        await until(
+            element,
+            "the outline is laid out",
+            () => renderManager.shaderPasses().outline?.tints(4).length === 1,
+        );
+        await element.graph.waitForStableFrame();
+        const { background } = renderManager.shaderPasses();
+        assert.isAbove(background?.draws ?? 0, untinted, "the background is drawn again with the outline's tint");
+        assert.isFalse(background?.owesDraw, "and owes no draw once the frame is stable");
+    });
+
+    it("hold the stable frame until the outline and background shaders are drawn", async () => {
+        // The outline pass and the background load, resolve and compile after the graph is
+        // otherwise drawn; a stable frame before that has no outline and no tint (issue #4243).
+        const element = await mounted(nodes, [outer]);
+        element.background = { backgroundType: "color", shader: { id: "e6/tinted" } };
+        await element.graph.waitForStableFrame();
+        const renderManager = renderManagerOf(element);
+        const { outline, background } = renderManager.shaderPasses();
+        assert.lengthOf(outline?.tints(4) ?? [], 1, "the outline is laid out in the stable frame");
+        assert.isFalse(renderManager.shaderPicturePending(), "no shader picture is on its way once it is stable");
+        assert.isAbove(background?.draws ?? 0, 0, "the background is drawn in the stable frame");
+        assert.isFalse(background?.owesDraw, "and drawn with the outline's tint");
     });
 
     it("follow a running force layout", async () => {

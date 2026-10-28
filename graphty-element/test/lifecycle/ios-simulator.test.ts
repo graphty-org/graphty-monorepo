@@ -329,25 +329,48 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         const lastSaved = fx.lastSaved(tab);
         const mark = fx.log.length;
 
-        // Opened again: Safari may also reload the tab it had, so the first page to report a restore counts.
-        await openInSafari(fx.url({ key, tab: `${tab}.reopened`, webgl: "off" }));
+        // Opened again. Safari may also reload the tab it had, in the background, at the same moment:
+        // then the two pages start on the key together, the old one with this entry as its own (#4148).
+        // The reopened page is in front, so it always reports: the wait ends on its ready, or on a
+        // restore the old tab reported first -- never on the old tab alone, which iOS may suspend.
+        const reopened = `${tab}.reopened`;
+        const entry = fx.events(tab, "saved").at(-1)?.entry as string;
+        await openInSafari(fx.url({ key, tab: reopened, webgl: "off" }));
         const ready = await fx.waitFor(
             (e) =>
-                e.seq >= mark &&
-                e.type === "ready" &&
-                e.tab.startsWith(tab) &&
-                (e.restored as { revision: number } | null) !== null,
+                e.seq >= mark && e.type === "ready" && (e.tab === reopened || (e.tab === tab && e.restored !== null)),
         );
-        const restored = ready.restored as { revision: number };
-        assert.isAtLeast(restored.revision, lastSaved, "the restored revision is at least the last one saved");
-        assert.deepEqual(ready.probes, [restored.revision], "every node's probe equals the restored revision");
+        const restored = ready.restored as { revision: number } | null;
+        let revision: number;
+        let by: string;
+        if (restored === null) {
+            // The old tab claimed its own entry first. iOS suspends a tab in the background, so it may
+            // never report; the reopened page was told who holds the work and read that entry.
+            assert.deepEqual(
+                ready.available,
+                [{ reason: "held-by-other-tab", id: entry }],
+                `the reopened page restored nothing, so it must be told the other tab holds the work: ${JSON.stringify(ready)}`,
+            );
+            const held = (ready.entries as { id: string; revision: number; live: boolean }[]).find(
+                (e) => e.id === entry,
+            );
+            assert.isTrue(held?.live, `the saved entry is held by the reloaded tab: ${JSON.stringify(ready.entries)}`);
+            revision = held?.revision ?? 0;
+            assert.isAtLeast(revision, lastSaved, "the held entry's revision is at least the last one saved");
+            by = "held by the old tab, reloaded in the background";
+        } else {
+            ({ revision } = restored);
+            assert.isAtLeast(revision, lastSaved, "the restored revision is at least the last one saved");
+            assert.deepEqual(ready.probes, [revision], "every node's probe equals the restored revision");
+            by = `restored by ${ready.tab === tab ? "the old tab, reloaded" : "the reopened tab"}`;
+        }
 
         const hidden = fx.log.filter((e) => e.tab === tab && e.type === "visibility" && e.state === "hidden");
         console.log(
             `[ios] ${tab}: hidden reported by ${hidden.map((e) => `${(e.via as string | undefined) ?? "fetch"} at +${(e.at as number) - (tail.at as number)} ms`).join(", ") || "nothing"}`,
         );
-        const landed = restored.revision >= (tail.revision as number);
-        const line = `iOS Simulator, ${what}: restored revision ${restored.revision}, last saved ${lastSaved}; the pending edit ${landed ? "was" : "was not"} kept`;
+        const landed = revision >= (tail.revision as number);
+        const line = `iOS Simulator, ${what}: revision ${revision} ${by}, last saved ${lastSaved}; the pending edit ${landed ? "was" : "was not"} kept`;
         console.log(`[ios] ${line}`);
         if (process.env.GITHUB_STEP_SUMMARY) {
             appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`);

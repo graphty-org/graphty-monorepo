@@ -551,7 +551,9 @@ void main() {
      *
      * Geometry is in XZ plane pointing towards +X axis
      * Uses normalized dimensions - actual sizing handled by shader
-     * V-shape: Triangle with middle baseline point pushed 2/3 toward tip
+     * V-shape: a triangle whose baseline's middle is pushed half its length toward the tip, the
+     * vee Graphviz (lib/common/arrows.c arrow_type_crow0, its inner corner at 0.5 of the arrow),
+     * Cytoscape.js (vee: (0, -0.15) of a 0.3 arrow) and vis-network (Vee: (-0.5, 0)) draw
      * @param scene - Babylon.js scene
      * @returns Created vee arrow mesh
      */
@@ -566,8 +568,8 @@ void main() {
         const tip = 0;
         const base = -length;
 
-        // Middle point: starts at center of baseline, pushed 60% toward tip (2/3 - 10%)
-        const middleX = base + 0.6 * length; // -1.0 + 0.6 = -0.4
+        // Middle point: the baseline's center pushed half the length toward the tip
+        const middleX = base + 0.5 * length;
 
         // XZ plane (normal in Y), pointing along X axis
         // 4 vertices to form V-shape (2 triangles)
@@ -675,7 +677,7 @@ void main() {
         const tip = 0;
         const base = -length;
 
-        // Middle point: pushed 60% toward tip (same as vee)
+        // Middle point: pushed 60% toward tip (deeper than the vee's half)
         const middleX = base + 0.6 * length; // -0.4
 
         // XZ plane (normal in Y), pointing along X axis
@@ -708,11 +710,13 @@ void main() {
     }
 
     /**
-     * Create a crow arrow mesh (V-shaped) - EXACT COPY OF VEE
+     * Create a crow arrow mesh (crow's foot)
      *
      * Geometry is in XZ plane pointing towards +X axis
      * Uses normalized dimensions - actual sizing handled by shader
-     * V-shape: Triangle with middle baseline point pushed 2/3 toward tip
+     * Crow's foot: a reversed vee (shared point at the back on the line, corners at the front near
+     * the node) whose inner corner sits 0.6 of the length from the base toward the back, plus a
+     * narrow center prong pointing at the node
      * @param scene - Babylon.js scene
      * @returns Created crow arrow mesh
      */

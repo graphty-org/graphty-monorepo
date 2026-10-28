@@ -1207,7 +1207,8 @@ export class UpdateManager implements Manager {
 
     /**
      * Whether a picture the scene draws is still loading, so the frame on screen does not show it yet: an image
-     * annotation, painted onto its texture when the image arrives (issue #3383). Null when nothing loads that way.
+     * annotation, painted onto its texture when the image arrives (issue #3383), or a background tinted by group
+     * outlines laid out after it drew (issue #4243). Null when nothing loads that way.
      */
     picturesLoading: (() => boolean) | null = null;
 

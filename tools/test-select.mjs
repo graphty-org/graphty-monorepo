@@ -1614,9 +1614,9 @@ export const STORY_BIN_LIMIT_MS = 4 * 60_000;
  */
 // ponytail: one rate per project; graphty's workspace stories take about twice its average, so record capture time per story in the results store if bins drift from 4 min
 export const STORY_MS = {
-    // PR run 40567162255 (2026-10-27): 2,558 s of capture for its 575 stories in 7 bins planned at 2.8 s, the longest
-    // bin 543 s against a 240 s plan
-    "graph-io-fidelity": 4_500,
+    // its Specimens files; its Samples files are in STORY_FILE_MS (11 PR runs of 2026-10-27, 40573748841 to
+    // 40602189710: 132 bins fitted at 2.75 s a Specimens story, 6.2 s a Samples story)
+    "graph-io-fidelity": 2_800,
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
@@ -1640,6 +1640,22 @@ export const STORY_FILE_MS = {
     // PR run 40567162255, Stories (graphty-1): 458 s for these two files' 40 stories, planned at 240 s
     "graphty/src/workspace/frame/Frame.stories.tsx": 11_500,
     "graphty/src/workspace/style/StylePanel.stories.tsx": 11_500,
+    // graph-io-fidelity's Samples files draw real datasets, about twice its Specimens stories (fit above, at
+    // STORY_MS); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
+    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
+    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 6_200,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;

@@ -96,6 +96,8 @@ export const SPEC: Record<string, Spec> = {
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
     "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
+    "ci.chronic_jobs": { id: "ci.chronic_jobs", link: "/ci/chronic", red: f("sla.any_no_issue") },
+    "ci.bench_regressions": { id: "ci.bench_regressions", link: "/ci/benchmarks" },
     "flaky.rate": { id: "flaky.flake_rate", unit: "per1000", link: "/flaky/hotspots" },
     "flaky.blocked": { id: "flaky.blocked", link: "/flaky/hotspots", red: f("sla.blocked") },
     "flaky.no_issue": { id: "flaky.no_issue", link: "/flaky/hotspots" },

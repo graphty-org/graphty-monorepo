@@ -406,6 +406,21 @@ const ciMembers: Member[] = [
         link: "/ci",
     }),
 ];
+ciMembers.push(
+    member({
+        id: "ci.chronic_jobs",
+        state: "bad",
+        value: num(1),
+        sla: { target: cmp("<=", 0), red: f("sla.any_no_issue") },
+        link: "/ci/chronic",
+    }),
+    member({
+        id: "ci.bench_regressions",
+        value: num(0),
+        sla: { target: cmp("<=", 0), red: cmp(">=", 3) },
+        link: "/ci/benchmarks",
+    }),
+);
 const runnerMembers: Member[] = [runnerWait, longestQueued, saturated, notAssigned, superseded];
 
 // Flaky tests
@@ -1138,6 +1153,63 @@ const ciSections: Section[] = [
         })),
     },
     shardsSection("7d", "full"),
+    {
+        kind: "table",
+        id: "chronic",
+        rows: [
+            {
+                cells: {
+                    job: cell.sub(cell.name("CI / Performance Benchmarks"), cell.name("release.yml")),
+                    failed: { t: "num", n: 7, of: 10 },
+                    rate: { t: "num", n: 70, unit: "pct" },
+                    pass: { t: "ago", at: t("10-24 12:31") },
+                    issue: cell.bad(cell.fact("ci.no_issue")),
+                },
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "non-gating",
+        rows: (
+            [
+                ["Performance Benchmarks", 14, 10],
+                ["Story tests (${{ matrix.name || matrix.project }})", 212, 9],
+                ["Visual report", 160, 0],
+                ["Flaky screenshots", 0, 0],
+            ] as const
+        ).map(([job, n, failed]) => {
+            const rate = { t: "num" as const, n: n ? Math.round(((n - failed) / n) * 100) : 0, unit: "pct" as const };
+            const shown = failed * 2 >= n ? cell.bad(rate) : rate;
+            return {
+                cells: {
+                    job: cell.name(job),
+                    runs: { t: "num", n },
+                    failed: { t: "num", n: failed },
+                    rate: n === 0 ? { t: "none" } : shown,
+                },
+                ...(n ? {} : { past: true }),
+            };
+        }),
+    },
+    {
+        kind: "table",
+        id: "benchmarks",
+        rows: (
+            [
+                ["algorithms: PageRank n=10000", [41, 40, 42, 41, 43, 40, 41, 42, 41, 40, 52, 53, 51], 1.27],
+                ["algorithms: Dijkstra n=10000", [18, 18, 19, 18, 17, 18, 18, 19, 18, 18, 18, 19, 18], 1],
+            ] as const
+        ).map(([benchmark, v, ratio]) => ({
+            cells: {
+                benchmark: cell.name(benchmark),
+                latest: { t: "num", n: v.at(-1) ?? 0, unit: "ms" },
+                ratio: ratio > 1.2 ? cell.bad({ t: "num", n: ratio, unit: "x" }) : { t: "num", n: ratio, unit: "x" },
+                spark: { t: "spark", spark: { step: "1d", ctx: [], trend: [...v], breach: v.map(() => null) } },
+                runs: { t: "num", n: v.length },
+            },
+        })),
+    },
 ];
 
 const QUEUED = [

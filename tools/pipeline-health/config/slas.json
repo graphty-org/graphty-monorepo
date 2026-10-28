@@ -77,6 +77,11 @@
             "label": "Billing (Cost Explorer, Cloudflare, Sentry)",
             "yellowAfterMs": 129600000
         },
+        "benchmarks": {
+            "label": "Benchmark results (CI's benchmark jobs)",
+            "yellowAfterMs": 172800000,
+            "idle": "writes when a full run's Performance Benchmarks job or the T4 lane posts its numbers"
+        },
         "flaky-feed": {
             "label": "Feed of CI's flaky detections",
             "idle": "writes only when a CI shard's retry proves a test flaky (tools/test-quarantine.mjs)"
@@ -468,6 +473,37 @@
                 "metric": "ci.superseded_running"
             },
             "sources": ["collector"]
+        },
+        {
+            "id": "ci.chronic_jobs",
+            "category": "ci",
+            "label": "Chronically failing jobs",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "ci.chronic_jobs"
+            },
+            "ok": ["<=", 0],
+            "also": [
+                {
+                    "metric": "ci.chronic_no_issue",
+                    "fail": [">=", 1]
+                }
+            ],
+            "sources": ["collector"]
+        },
+        {
+            "id": "ci.bench_regressions",
+            "category": "ci",
+            "label": "Benchmark regressions",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "ci.bench_regressions"
+            },
+            "ok": ["<=", 0],
+            "fail": [">=", 3],
+            "sources": ["collector", "benchmarks"]
         },
         {
             "id": "flaky.rate",

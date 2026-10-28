@@ -1836,6 +1836,10 @@ jobs:
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
+        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the numbers)
+        permissions:
+            contents: read
+            id-token: write
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1874,10 +1878,21 @@ jobs:
                   path: .
 
             - name: Run the algorithms benchmarks
+              id: algorithms-bench
               run: pnpm exec nx run algorithms:benchmark
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
+
+            # Each result to the pipeline health dashboard, which keeps every benchmark's trend and flags a
+            # sustained regression (design/ci/health-dashboard.md, section 4.3). Fire and forget: it never fails
+            # the job. Only after the benchmark passed, which rewrote the session file: the copy in git is not
+            # this run's numbers.
+            - name: Post the algorithms benchmark results to the health dashboard
+              if: steps.algorithms-bench.outcome == 'success'
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/results/post-benchmarks.mjs algorithms algorithms/benchmark-results/benchmark-sessions-*-comprehensive.json
 
             # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
             # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit

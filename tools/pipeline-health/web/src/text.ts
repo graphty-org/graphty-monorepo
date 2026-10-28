@@ -44,6 +44,7 @@ const UNIT: Record<Unit, string> = {
     pct: "%",
     ratio: "",
     x: "x",
+    ms: " ms",
     s: " s",
     min: " min",
     h: " h",
@@ -332,6 +333,16 @@ export const MEMBER: Record<MemberId, MemberText> = {
         short: "superseded runs running",
         def: "no cancel-in-progress; not judged yet",
     },
+    "ci.chronic_jobs": {
+        name: "Chronically failing jobs",
+        short: "chronically failing jobs",
+        def: "failed in half of their last 10 runs, or not passed in 3 days; gating or not; red with no open issue",
+    },
+    "ci.bench_regressions": {
+        name: "Benchmark regressions",
+        short: "benchmark regressions",
+        def: "median of the last 3 results over 1.2x the median of the 10 before",
+    },
     "flaky.blocked": {
         name: "Blocked by a flake",
         short: "blocked by a flake",
@@ -477,6 +488,7 @@ export const LABEL: Record<string, string> = {
     "source.hosts": "Host matrix",
     "source.billing": "Billing: AWS, T4 rates",
     "source.flaky-feed": "Feed of CI's flaky detections",
+    "source.benchmarks": "Benchmark results",
     "source.local": "Local writer",
     "source.release": "Release records",
     "source.coverage": "Coverage (Coveralls)",
@@ -505,6 +517,7 @@ const SOURCE: Record<string, string> = {
     local: "the local writer",
     stress: "the weekly stress run",
     hosts: "the host matrix",
+    benchmarks: "CI's benchmark jobs",
 };
 
 // ---------------------------------------------------------------- SLAs
@@ -553,6 +566,7 @@ const S: Record<string, (p: P) => string> = {
     // SLA thresholds that are not plain comparisons
     "sla.red_now": () => "&gt;= 15 min or 2 builds",
     "sla.blocked": () => "&gt;= 3 or any &gt;= 24 h",
+    "sla.any_no_issue": () => "any with no open issue",
     "sla.lanes_open": (p) => `open &gt;= ${fmtN(num(p, "h"))} h`,
     "sla.failed_in_a_row": (p) => `${fmtN(num(p, "runs"))} failed in a row`,
     "sla.word": (p) => str(p, "word"),
@@ -627,6 +641,10 @@ const S: Record<string, (p: P) => string> = {
     "master.no_shared": () => "No check failing in 3 or more pull requests in the last 24 h.",
     "runners.no_holders": () => "No job running or queued now.",
     "runners.no_superseded": () => "No superseded run still running.",
+    "ci.no_chronic": () => "No job is failing chronically.",
+    "ci.no_pass": (p) => `none in ${fmtN(num(p, "days"))} d`,
+    "ci.no_issue": () => "no open issue",
+    "ci.no_benchmarks": () => "No benchmark results posted yet.",
     "data.all_set_up": () => "Every member has a writer.",
     // "out of target", not "past its threshold": several member names already say "past" (sources past their age limit).
     "ep.past_threshold": (p) =>

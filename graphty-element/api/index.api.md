@@ -6161,6 +6161,8 @@ export class RenderManager implements Manager {
     readonly shaderGuard: ShaderGuard;
     // @internal
     shaderPasses(): ReturnType<ShaderScene["passes"]>;
+    // @internal
+    shaderPicturePending(): boolean;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
     readonly ticks: {

@@ -87,6 +87,11 @@ const DEFAULT_IDS = [
     // edges ending at nodes graphty draws no body for (WikiPathways anchors, a node in the canvas's own color), which only
     // where graphty's lines end at them pairs with the program's
     "xgmml-wp4271-cy3-export",
+    // files that place no node, laid out by each program itself and unrelated: a size, a bend or a zigzag of the whole
+    // drawing is judged there apart from any layout (json-vis-world, vis-network's physics; cx-repro-unplaced-boxes,
+    // Cytoscape desktop's load layout, whose boxes graphty drew a ninth of their size)
+    "json-vis-world",
+    "cx-repro-unplaced-boxes",
 ];
 const ALL_IDS = [...DEFAULT_IDS, "cx-syn-mappings", "cx2-syn-mappings", "cys-syn-mappings"];
 const ONLY = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");
@@ -96,16 +101,9 @@ const ONLY = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|"
  * draws the same (graph-io/test/fidelity/oracles/ISSUES.md, "Not testable yet"). Each must be caught as soon as its
  * reason is gone, so the last test fails if one is caught: then take it off this list.
  */
-const UNTESTABLE: Readonly<Record<string, string>> = {
-    "node gradient removed":
-        "graphty draws no gradient where an oracle draws the same one (Cytoscape.js background-fill gradients are not imported)",
-    "label background removed": "graph-io's style vocabulary has no label background, so graphty draws none",
-    "label background opacity 0.5": "graph-io's style vocabulary has no label background, so graphty draws none",
-    "label background border opacity 0.5": "graph-io's style vocabulary has no label background, so graphty draws none",
-    "label background border added": "graph-io's style vocabulary has no label background, so graphty draws none",
-    "label outline removed": "graph-io's style vocabulary has no label outline, so graphty draws none",
-    "label outline opacity 0.5": "graph-io's style vocabulary has no label outline, so graphty draws none",
-};
+// graph-io now imports gradients, label backgrounds and label outlines, and every default sample run of 2026-10-28
+// caught each defect once listed here (#4222)
+const UNTESTABLE: Readonly<Record<string, string>> = {};
 /** Every defect caught on some sample this run. */
 const caughtSomewhere = new Set<string>();
 const ASKED = (import.meta.env.VITE_MUTANT_IDS as string | undefined) ?? DEFAULT_IDS.join(",");

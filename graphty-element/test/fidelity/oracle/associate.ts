@@ -1333,9 +1333,14 @@ export function arrowheadEdge(
         (e) =>
             size <= lineCapSize(e) && (toBox(endOf(e, "source"), p.box) <= 1 || toBox(endOf(e, "target"), p.box) <= 1),
     );
+    // A shape holding a node's center, or centered in a node and half its size, is part of the node's drawing. A flat
+    // node's size is not its thickness: vis-network's 5 px arrowheads lying over a neighbour's 26 x 7 box, drawn after
+    // every node, are their lines' (json-vis-siblings, 31 of 284 read as free shapes)
     if (
         !lineEnd &&
-        nodes.some((n) => inside([n.cx, n.cy], p.box) || (inside(c, boxOfNode(n)) && size >= 0.5 * Math.min(n.w, n.h)))
+        nodes.some(
+            (n) => inside([n.cx, n.cy], p.box) || (inside(c, boxOfNode(n)) && size >= 0.5 * Math.sqrt(n.w * n.h)),
+        )
     ) {
         return null;
     }

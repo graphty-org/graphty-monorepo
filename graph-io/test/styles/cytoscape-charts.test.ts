@@ -206,6 +206,25 @@ describe("Cytoscape charts", () => {
         expect(pie.pieColors).toBe("#0000ff #00ff00 #ff0000");
     });
 
+    it("picks heat strips' and up-down bars' up, zero and down colors from a color scheme as BarLayer does", () => {
+        const bars = (type: string, scheme: string, values: string): unknown =>
+            read({
+                NODE_CUSTOMGRAPHICS_1: `org.cytoscape.BarChart:{"cy_range":[-3.0,3.0],"cy_type":"${type}","cy_colorScheme":"${scheme}","cy_values":${values}}`,
+            }).chartColors;
+        // two colors: up red, down blue, and zero black (BarLayer takes colors[1] as zero only from three colors)
+        expect(bars("HEAT_STRIPS", "Blue-Red", "[1.0,-2.0,3.0]")).toBe("#550000 #0000aa #ff0000");
+        // down is colors[2], never the last of RAINBOW's one color per value
+        expect(bars("UP_DOWN", "RAINBOW", "[1.0,-1.0,2.0,-2.0,3.0]")).toBe("#ff0000 #00ff66 #ff0000 #00ff66 #ff0000");
+        // down is colors[1] from two colors, Java's gray from one
+        expect(bars("UP_DOWN", "Blue-Red", "[1.0,-1.0]")).toBe("#ff0000 #0000ff");
+        expect(
+            read({
+                NODE_CUSTOMGRAPHICS_1:
+                    'org.cytoscape.BarChart:{"cy_range":[-3.0,3.0],"cy_type":"UP_DOWN","cy_colors":["#D62728"],"cy_values":[1.0,-1.0]}',
+            }).chartColors,
+        ).toBe("#d62728 #808080");
+    });
+
     it("reads a chart's own cy_values before its data columns", () => {
         const v = read({
             NODE_CUSTOMGRAPHICS_1:

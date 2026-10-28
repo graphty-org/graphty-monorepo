@@ -557,7 +557,7 @@ function chartOutline(options: ChartOptions): Record<string, StyleValue> {
 }
 
 /**
- * A bar chart's own properties: grouped, stacked, up and down (the first color up, the last down) or heat strips
+ * A bar chart's own properties: grouped, stacked, up and down (the first color up, the third or second down) or heat strips
  * (each bar colored on the three-color scale).
  * @param options - its options
  * @param finite - the node's values that are numbers
@@ -604,11 +604,15 @@ function barColor(
     k: number,
     range: readonly [number, number],
 ): string {
-    if (type === "HEAT_STRIPS") {
-        return scaleColor(colors, v, range);
-    }
-    if (type === "UP_DOWN") {
-        return colors[v >= 0 ? 0 : colors.length - 1].toLowerCase();
+    if (type === "HEAT_STRIPS" || type === "UP_DOWN") {
+        // `BarLayer`: colors[1] is zero only among three or more colors, else black; down is colors[2], else
+        // colors[1], else gray; up is colors[0], else light gray
+        const many = colors.length > 2;
+        const scale = [colors[0] ?? ITEM_BG_COLOR, many ? colors[1] : "#000000", colors[many ? 2 : 1] ?? "#808080"];
+        if (type === "HEAT_STRIPS") {
+            return scaleColor(scale, v, range);
+        }
+        return scale[v < 0 ? 2 : 0].toLowerCase();
     }
     // a bar past the chart's colors is JFreeChart's light gray (`BarLayer`, DEFAULT_ITEM_BG_COLOR)
     return (colors[k] ?? ITEM_BG_COLOR).toLowerCase();

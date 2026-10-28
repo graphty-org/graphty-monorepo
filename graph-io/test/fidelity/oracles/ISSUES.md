@@ -4457,13 +4457,18 @@ arrows, vis-network's crow) and #4264 (a missing or outlined node in a coinciden
   option, a breaking change, so it was not done. The largest real node-size failure, `cx-radiation-bibliography` drawn
   as dots, is #3103.
 
-Every pull request had two independent reviews, one re-deriving its numbers from the run files element by element,
-one checking that each new test fails without the change and probing malformed input. Blocking findings that were
-fixed before the pull request opened: a record label `<f0>|<f1>` handed to Graphviz as HTML (a syntax error, Graphviz
-branch); a table size overriding a larger node size and an outline drawn on a plaintext node's whole box (DOT tables);
-Cytoscape heat-strip colors for two- and five-color schemes (chart marks); click picking still straight for routed
-patterned edges (dashed routes); graphty's own wrong label offset able to pick a twin's label four node sizes away
-(label pairing). No input in any probe threw.
+Every pull request had a review that re-derived its numbers from the run files element by element. The chart marks,
+dashed routes, label pairing and Graphviz label-size changes also had an engineering review, which checked that each
+new test fails without its change and probed malformed input; the DOT tables (#4251) and arrowheads (#4254) changes
+opened without one. Those two reviews, and a review of the commits that fixed the first reviews' findings on #4251
+and the Graphviz branch, came afterwards and found two defects: graphty's own DOT writer lost a table label's frame,
+so the table's padding did not survive a round trip (fixed on #4251, which also reads table attributes as Graphviz's
+lexer does), and #4254's line run on to the vee's notch covered the vee on lines wider than half of it (fixed by
+#4309). Blocking findings that were fixed before the pull requests opened: a record label `<f0>|<f1>` handed to
+Graphviz as HTML (a syntax error, Graphviz branch); a table size overriding a larger node size and an outline drawn
+on a plaintext node's whole box (DOT tables); Cytoscape heat-strip colors for two- and five-color schemes (chart
+marks); click picking still straight for routed patterned edges (dashed routes); graphty's own wrong label offset
+able to pick a twin's label four node sizes away (label pairing). No input in any probe threw.
 
 ### What did not improve, and why
 
@@ -4486,7 +4491,11 @@ samples (53 keys) before round 5. No key that was red before turned green, and e
 the round-5 comparator now sees: `cx-radiation-bibliography` (node sizes), the four `specimen-images-charts-p6`
 copies (graphty's annotation heads), `json-vis-siblings`, `-world`, `-unix`, `-lesmiserables` (bent lines),
 `pajek-synth-lines` (part-way heads), `dot-real-depcruise@matched` (wiggle). Recording them needs
-`fidelity:ratchet --add` with a reason, which no round-5 change was allowed to do. CI runs only the 28-sample scorecard
+`fidelity:ratchet --add` with a reason, which round 5 leaves to the owner. One round-5 change did add known failures:
+the comparator pull request (#4246, commit 4cc3484c97) recorded 31 elements on three CI scorecard samples that the new
+comparator judges and graphty's drawing did not change -- `cx-repro-unplaced-boxes` (24 nodes, `node.sizeToSpacing`),
+`json-vis-transparency` (`edge.curve` on element `edges`) and `json-vis-synth` (3 strays renumbered, in both views).
+CI runs only the 28-sample scorecard
 (`test/browser/oracle-scorecard.test.ts`), which each open pull request passes except the Graphviz branch.
 
 ### Floors
@@ -4509,6 +4518,9 @@ full run of master once the open round-5 pull requests have merged.
 - **yEd hand exports**: every yEd and yEd Live oracle is still a stand-in (see "yEd sheets to export by hand"), so
   the 43 yed and 12 graphml samples judge nothing about yEd.
 - **The red full-run gate**: whether the newly seen defects above are recorded as known failures, and with what reason.
+- **The 31 known failures #4246 added** (commit 4cc3484c97, listed under "The full-run gate"): they keep the CI
+  scorecard green on defects the new comparator sees and graphty's drawing did not cause. Keep the record, or fix
+  the drawings (`cx-repro-unplaced-boxes`'s boxes are #3103) and take it back.
 
 ### What to look at
 

@@ -109,12 +109,20 @@ function labelValue(label: string): string {
         return label;
     }
 
-    // a quote after an even run of backslashes (none included) would end the string: escape it; one after an odd
-    // run is escaped already
-    const quoted = label.replaceAll(/(\\*)"/g, (_, run: string) => (run.length % 2 === 0 ? `${run}\\"` : `${run}"`));
+    let out = "";
+    let run = 0;
+    for (const c of label) {
+        // a quote after an even run of backslashes (none included) would end the string; after an odd run it is
+        // escaped already
+        if (c === '"' && run % 2 === 0) {
+            out += "\\";
+        }
+        out += c;
+        run = c === "\\" ? run + 1 : 0;
+    }
+
     // a trailing lone backslash would escape the closing quote
-    const trailing = /\\+$/.exec(label)?.[0].length ?? 0;
-    return `"${quoted}${trailing % 2 === 1 ? "\\" : ""}"`;
+    return `"${out}${run % 2 === 1 ? "\\" : ""}"`;
 }
 
 /**

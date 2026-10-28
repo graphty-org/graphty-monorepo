@@ -749,13 +749,16 @@ const config = defineConfig({
             {
                 // The style fidelity harness's graphty side (graph-io/test/fidelity/): loads every
                 // fidelity sample with its file styles and writes what was drawn to
-                // test/fidelity/out/. It records and never gates, a sample's layout can take longer
-                // than the browser project's budget to settle, and so it is in no CI shard and not in
-                // the pre-push gate. Run with: npm run test:fidelity, and on this workstation with
-                // GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
+                // test/fidelity/out/. It fails a sample only for an element failing that the known
+                // failures do not list (test/fidelity/oracle/floors.ts); a sample's layout can take
+                // longer than the browser project's budget to settle, and so it is in no CI shard and
+                // not in the pre-push gate. Run with: npm run test:fidelity, and on this workstation
+                // with GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
                 // annotation session draws about one frame a second and does not settle.
+                // GRAPHTY_ORACLE_BASELINE=<an earlier run's tmp/oracle-report> judges that run's
+                // drawings again with this comparator; npm run fidelity:ratchet applies a run.
                 define: { ...define },
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE"],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 resolve: { alias: OWN_ENTRY_POINTS },

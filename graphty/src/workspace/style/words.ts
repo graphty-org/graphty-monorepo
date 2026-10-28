@@ -533,6 +533,22 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOffsetY": "Label offset y",
     "edge.labelShiftX": "Label shift x",
     "edge.labelShiftY": "Label shift y",
+    "node.groupPadding": "Group padding",
+    "node.groupPaddingRatio": "Group padding ratio",
+    "node.groupPaddingOf": "Group padding of",
+    "node.groupMinWidth": "Group min width",
+    "node.groupMinWidthBiasLeft": "Group min width bias left",
+    "node.groupMinHeight": "Group min height",
+    "node.groupMinHeightBiasTop": "Group min height bias top",
+    "node.groupIncludeLabels": "Group includes labels",
+    "edge.sourceNodeGap": "Source node gap",
+    "edge.targetNodeGap": "Target node gap",
+    "edge.supportModel": "Support model",
+    "edge.supportUnit": "Support unit",
+    "edge.supportSpringLength": "Support spring length",
+    "edge.supportSpringConstant": "Support spring constant",
+    "edge.supportRepulsion": "Support repulsion",
+    "edge.supportCentralGravity": "Support central gravity",
 };
 
 /**

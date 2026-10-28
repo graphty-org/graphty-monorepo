@@ -176,4 +176,33 @@ describe("a self-loop drawn through a closed ring of bends", () => {
         assert.closeTo(Math.hypot(...points[0]), half, 0.05 * half);
         assert.closeTo(Math.hypot(...(points.at(-1) ?? [0, 0])), half, 0.05 * half);
     });
+
+    it("measures the ring against the node's size, not the fill an inside border shrinks", async () => {
+        // Gephi's loop, sized from its node's size, was drawn smaller by the node's inside border (gexf specimens)
+        const [node] = graph.getDataManager().nodes.values();
+        await graph.getSession().styles.add({
+            name: "flat",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": "ellipse" },
+        });
+        await drawn(ring(3, 1.5));
+        // the node's size: what its flat ellipse draws without a border
+        const half = node.drawnHalfExtents.y;
+        await graph.getSession().styles.add({
+            name: "border",
+            target: "node",
+            selector: { match: "everything" },
+            set: {
+                "node.shape": "ellipse",
+                "node.borderWidth": 0.2,
+                "node.borderPosition": "inside",
+                "node.borderColor": "#000000",
+            },
+        });
+        const points = await drawn(ring(3, 1.5));
+        assert.isBelow(node.drawnHalfExtents.y, 0.9 * half, "the inside border shrinks the fill");
+        // the ring's top is 4.5 half sizes of the node's size up, not 4.5 of its shrunk fill
+        assert.closeTo(Math.max(...points.map(([, y]) => y)), 4.5 * half, 0.02 * half);
+    });
 });

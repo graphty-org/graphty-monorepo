@@ -133,6 +133,46 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
         );
     });
 
+    it("hides a node only under the outline in front of it, not in an empty corner of its box", () => {
+        // pajek-synth-vertices: man 24 drawn beside man 32's arm, inside the box of his figure
+        const figure = { ...drawn(0, 0, 100, 200, 24), meshName: "man", shapeType: "man" };
+        const corner = drawn(85, 60, 99, 100, 35);
+        const middle = drawn(40, 80, 60, 120, 35);
+        assert.deepEqual(
+            [
+                ...occluders(
+                    new Map([
+                        ["figure", figure],
+                        ["corner", corner],
+                        ["middle", middle],
+                    ]),
+                ),
+            ],
+            [["middle", "figure"]],
+        );
+    });
+
+    it("hides a disc drawn just inside a bigger disc, though its box's corners poke out", () => {
+        // json-graphology-synth: n1 (r 28) touches n11 (r 121) from inside; n66 sits in n77's box corner and shows
+        const disc = (cx: number, cy: number, r: number, near: number): DrawnNode => ({
+            ...drawn(cx - r, cy - r, cx + r, cy + r, near),
+            meshName: "sphere",
+            shapeType: "sphere",
+        });
+        assert.deepEqual(
+            [
+                ...occluders(
+                    new Map([
+                        ["big", disc(0, 0, 121, 10)],
+                        ["inside", disc(0, 93, 28, 20)],
+                        ["corner", disc(-93, 93, 28, 20)],
+                    ]),
+                ),
+            ],
+            [["inside", "big"]],
+        );
+    });
+
     it("reads a group as the node holding visible leaf nodes, and none when they are hidden", () => {
         const outer = drawn(0, 0, 200, 100, 37);
         const inner = drawn(10, 10, 100, 90, 36);

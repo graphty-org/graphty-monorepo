@@ -291,6 +291,18 @@ export type UnpaintedChannel = Waiver & {
     readonly channel: Channel;
 };
 
+/** The channels that size a group round its members, which only a graph holding a group can show. */
+const GROUP_SIZING_CHANNELS: readonly Channel[] = [
+    "node.groupPadding",
+    "node.groupPaddingRatio",
+    "node.groupPaddingOf",
+    "node.groupMinWidth",
+    "node.groupMinHeight",
+    "node.groupMinWidthBiasLeft",
+    "node.groupMinHeightBiasTop",
+    "node.groupIncludeLabels",
+];
+
 /**
  * Every channel published as renderable that `test/browser/channel-paints.test.ts` could not see
  * change the picture.
@@ -336,6 +348,17 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
     },
+    ...GROUP_SIZING_CHANNELS.map((channel): UnpaintedChannel => ({
+        kind: "by-design",
+        channel,
+        reason:
+            "A GROUP IS SIZED BY IT, so this waiver is about the reading and not about the capability. " +
+            "The channel sizes a group drawn round its members -- a node a file names as the parent of " +
+            "others -- and the gate's graph holds no group, so there is nothing for it to resize. " +
+            "`test/browser/groups-follow-members.test.ts` is where it is proved: it reads a Cytoscape.js " +
+            "file whose compound parents set a padding, a minimum width and a bias, and requires each " +
+            "group's box to be the size Cytoscape.js draws.",
+    })),
     ...(["node.tooltipSize", "node.tooltipColor", "node.tooltipBackground"] as const).map(
         (channel): UnpaintedChannel => ({
             kind: "by-design",

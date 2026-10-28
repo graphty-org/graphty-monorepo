@@ -8388,6 +8388,31 @@ describe("the Checks job's CI workflow tests run their files side by side", () =
             rmSync(dir, { recursive: true, force: true });
         }
     });
+
+    it("still prints the summary and the failure list after a file printed megabytes, through a pipe (#4187)", () => {
+        // process.exit() drops whatever a pipe has not taken yet: the Checks log ended mid-file with no "failed:"
+        const dir = mkdtempSync(join(tmpdir(), "ci-workflow-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            copyFileSync(
+                new URL("run-ci-workflow-tests.mjs", import.meta.url),
+                join(dir, "tools/run-ci-workflow-tests.mjs"),
+            );
+            writeFileSync(
+                join(dir, "tools/loud.mjs"),
+                'process.stdout.write("x".repeat(4 * 1024 * 1024) + "\\n"); process.exitCode = 2;',
+            );
+            writeFileSync(join(dir, "tools/tool-tests.txt"), "tools/loud.mjs\n");
+            const r = spawnSync(process.execPath, [join(dir, "tools/run-ci-workflow-tests.mjs")], {
+                encoding: "utf8",
+                maxBuffer: 64 * 1024 * 1024,
+            });
+            assert.equal(r.status, 1);
+            assert.match(r.stdout, /0 of 1 test files passed\nfailed:\n {2}tools\/loud\.mjs \(exit 2\)\n$/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
 });
 
 describe("release.yml's job conditions under a skipped ancestor", () => {

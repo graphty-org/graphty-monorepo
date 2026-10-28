@@ -490,7 +490,7 @@ function printDecision(shard, d, env, unretried) {
     }
     for (const f of d.caused ?? []) {
         console.log(
-            `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and the ledger has no failure of it before this change: the change made it intermittent`,
+            `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and ${d.causedWhy ?? "the ledger has no failure of it before this change"}: the change made it intermittent`,
         );
     }
     const how = unretried ? `failed (${unretried})` : "failed every time";

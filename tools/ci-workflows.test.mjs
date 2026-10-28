@@ -3457,7 +3457,6 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         ];
         for (const [id, j] of Object.entries(jobs)) {
             const name = j.name.replace(/\$\{\{ matrix.project \}\}/, "graphty");
-            if (id.startsWith("abandon")) continue;
             assert.equal(rerunnable(name), !never.includes(id), `${id} (${name})`);
         }
         // a called workflow's jobs are named "<caller job> / <job>"
@@ -3521,35 +3520,44 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         );
     });
 
-    it("holds a candidate only from the verdict's decision, and ends the hold on its promotion or the owner's abandon", () => {
+    it("abandons the held candidate in nightly-abandon.yml, with no approval and outside the train's group", () => {
+        const yml = workflow("nightly-abandon.yml");
+        const wf = parseYaml(yml);
+        // the owner, 2026-10-27: abandoning publishes nothing and the next full run undoes it, so it waits for nobody
+        assert.deepEqual(Object.keys(wf.on), ["workflow_dispatch"]);
+        assert.equal(wf.on.workflow_dispatch.inputs.reason.required, true);
+        assert.equal(wf.concurrency.group, "nightly-abandon");
+        assert.doesNotMatch(yml.replace(/^\s*#.*$/gm, ""), /release-train|production/);
+        const job = wf.jobs.abandon;
+        assert.equal(job.environment, "release");
+        assert.deepEqual(Object.keys(wf.jobs), ["abandon"]);
+        assert.equal(job.steps.find((st) => st.id === "end").run, "node tools/channel/hold.mjs end");
+        assert.match(job.steps.find((st) => st.id === "end").env.WHY, /\$\{\{ inputs.reason \}\}/);
+        assert.match(
+            yml,
+            /--force-with-lease=refs\/heads\/channel\/candidate:"\$HEAD_SHA" origin :refs\/heads\/channel\/candidate/,
+        );
+    });
+
+    it("holds a candidate only from the verdict's decision, and ends the hold on its promotion or an abandon", () => {
         const release = workflow("release.yml");
         const jobs = parseYaml(release).jobs;
         const hold = jobs.verdict.steps.find((st) => st.id === "hold");
         assert.equal(hold.if, "${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' }}");
         assert.equal(hold.run, 'node tools/channel/hold.mjs "$HOLD"');
         assert.equal(jobs.candidate_branch.if, "${{ !cancelled() && needs.verdict.outputs.hold == 'start' }}");
-        assert.equal(jobs.abandon.needs, "abandon_approve");
-        // the wait for the owner's approval holds release-abandon, never the train (#4039); the abandon itself takes
-        // release-train, so it never runs beside a train that could start or move the hold, and it deletes
-        // channel/candidate in the same job, so no train slips in between the two
-        assert.equal(jobs.abandon_approve.concurrency, undefined);
-        assert.deepEqual(jobs.abandon.concurrency, { group: "release-train", "cancel-in-progress": false });
-        assert.ok(
-            jobs.abandon.steps.some((st) =>
-                /git push --no-verify origin :refs\/heads\/channel\/candidate/.test(st.run ?? ""),
-            ),
+        // abandoning is its own workflow, needing no approval (owner, 2026-10-27; it blocked nightly for 6 hours
+        // waiting in production): no abandon mode or job is left here
+        assert.ok(!Object.keys(jobs).some((id) => id.startsWith("abandon")));
+        assert.doesNotMatch(
+            release,
+            /mode == 'abandon'|- abandon\n|environment: production # the owner's approval\n {8}permissions: \{\}/,
         );
-        assert.equal(jobs.abandon_approve.if, "${{ inputs.mode == 'abandon' && github.ref == 'refs/heads/master' }}");
         assert.match(
             jobs.unhold.if,
             /needs.land.outputs.pushed == 'true' && \(\(needs.pick.outputs.held != '' && needs.pick.outputs.held == \(needs.pick.outputs.tested \|\| needs.pick.outputs.sha\)\) \|\| needs.pick.outputs.resume == 'true'\)/,
         );
-        for (const id of ["abandon", "unhold"]) {
-            assert.ok(
-                jobs[id].steps.some((st) => st.run === "node tools/channel/hold.mjs end"),
-                id,
-            );
-        }
+        assert.ok(jobs.unhold.steps.some((st) => st.run === "node tools/channel/hold.mjs end"));
         // after the owner's approval, the tested head is recorded approved, so the same approval never promotes again
         const approved = jobs.unhold.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
         assert.equal(approved.if, "${{ needs.pick.outputs.resume == 'true' }}");
@@ -3986,26 +3994,30 @@ describe("release.yml", () => {
     const held = job(release, "held");
     const version = job(release, "version");
     const land = job(release, "land");
+    const landSh = readFileSync(new URL("./channel/land.sh", import.meta.url), "utf8");
     const publish = job(release, "publish");
     const approve = job(release, "approve");
 
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
         assert.deepEqual(release.match(/git push[^\n]*/g), [
-            // channel/candidate deleted on the owner's abandon (abandon)
-            "git push --no-verify origin :refs/heads/channel/candidate ||",
+            // channel/candidate deleted by the automatic abandon (candidate_fix), only at the head it ended
+            'git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$head" origin :refs/heads/channel/candidate ||',
             // channel/candidate, pushed at a held commit (candidate_branch)
             'git push --no-verify origin "$ref" ||',
-            // a nightly with nothing versioned moves only the site tag and channel/nightly
-            'git push --atomic --no-verify origin "${refs[@]}"',
-            'git push --atomic --no-verify origin HEAD:refs/heads/master "${refs[@]}"; then',
             // the site job's deployed.json, in its checkout of graphty-nightly
             "git push --quiet origin HEAD",
         ]);
-        assert.match(land, /git push --atomic/);
+        // the land job's pushes are in its script: a nightly with nothing versioned moves only the site tag and
+        // channel/nightly; a release pushes the merge and its tags together
+        assert.match(land, /run: tools\/channel\/land\.sh\n/);
+        assert.deepEqual(landSh.match(/git push[^\n]*/g), [
+            'git push --atomic --no-verify origin "${refs[@]}"',
+            'git push --atomic --no-verify origin HEAD:refs/heads/master "${refs[@]}"; then',
+        ]);
         assert.match(job(release, "site"), /cd nightly-site\n(?:.*\n){4}\s+git push --quiet origin HEAD\n/);
-        // the key reaches only the land job and the channel/candidate jobs (candidate_branch, abandon), which install nothing and run no nx
-        assert.equal(release.match(/RELEASE_DEPLOY_KEY/g).length, 4);
+        // the key reaches only the land job and the channel/candidate jobs (candidate_branch, candidate_fix), which install nothing and run no nx
+        assert.equal(release.match(/RELEASE_DEPLOY_KEY/g).length, 3);
         // the fix forward's merge into channel/candidate: git and the script, nothing installed, and the store's hold
         // it moves in the same step (tools/channel/candidate-fix.mjs advance pushes)
         const fix = job(release, "candidate_fix");
@@ -4029,7 +4041,7 @@ describe("release.yml", () => {
     it("lands and publishes only in an owner-approved legacy run; a full run, the default, only tests", () => {
         assert.match(
             release,
-            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: full\n\s+type: choice\n\s+options:\n\s+- full\n\s+- restart\n\s+- shadow\n\s+- legacy\n\s+- abandon\n\s+- candidate\n\s+- promote-nightly\n\s+candidate:\n[^\n]*\n\s+required: false\n\s+default: ""\n\s+type: string\n\s+accept:\n/,
+            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: full\n\s+type: choice\n\s+options:\n\s+- full\n\s+- restart\n\s+- shadow\n\s+- legacy\n\s+- candidate\n\s+- promote-nightly\n\s+candidate:\n[^\n]*\n\s+required: false\n\s+default: ""\n\s+type: string\n\s+accept:\n/,
         );
         assert.match(release, /^ {4}MODE: \$\{\{ inputs.mode \|\| 'full' \}\}\n/m);
         // the owner's approval in production stands before the land job, and refuses a production that asks nobody
@@ -4049,16 +4061,11 @@ describe("release.yml", () => {
         assert.match(job(release, "verdict"), /\n {8}environment: release # Pushover\n/);
         // the nightly site's deploy key and its announcements
         assert.match(job(release, "site"), /\n {8}environment: nightly # NIGHTLY_SITE_DEPLOY_KEY, Pushover\n/);
-        // the owner's abandon of a held candidate waits for him in production; channel/candidate takes the deploy key
-        assert.match(
-            job(release, "abandon_approve"),
-            /\n {8}environment: production # the owner's approval\n {8}permissions: \{\}\n/,
-        );
+        // channel/candidate takes the deploy key
         assert.match(job(release, "candidate_branch"), /\n {8}environment: release # the deploy key\n/);
-        assert.match(job(release, "abandon"), /\n {8}environment: release # the deploy key\n/);
         // and so does the fix forward's merge into it
         assert.match(job(release, "candidate_fix"), /\n {8}environment: release # the deploy key\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 12);
+        assert.equal(release.match(/\n {8}environment: /g).length, 10);
         // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
         for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
             const body = job(release, name);
@@ -4180,7 +4187,7 @@ describe("release.yml", () => {
         assert.doesNotMatch(release, /\$EVENT\b|\$GITHUB_EVENT_NAME|EVENT: \$\{\{/);
         assert.match(
             pick,
-            /needs: candidate_fix\n(?:\s+#.*\n)*\s+if: \$\{\{ !cancelled\(\) && github.ref == 'refs\/heads\/master' && inputs.mode != 'abandon' \}\}/,
+            /needs: candidate_fix\n(?:\s+#.*\n)*\s+if: \$\{\{ !cancelled\(\) && github.ref == 'refs\/heads\/master' \}\}/,
         );
         // the run's own commit, so the run, Coveralls and the lanes all name the tested commit
         assert.match(pick, /CANDIDATE: \$\{\{ github.sha \}\}/);
@@ -4289,7 +4296,7 @@ describe("release.yml", () => {
             version,
             /if ! GITHUB_OUTPUT="\$RUNNER_TEMP\/approvals" node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"; then[\s\S]*?git reset --hard --quiet "\$SHA"[\s\S]*?commit=\$\(tools\/release-version.sh "\$PACKAGES"\)[\s\S]*?node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"\n\s+fi\n\s+node tools\/release-diff.mjs/,
         );
-        assert.match(land, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
+        assert.match(landSh, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         // land and publish follow only a version commit made after every lane passed, and the owner's approval
         // (legacy) or the verdict's decision to promote (a nightly; the land and site tests below)
         assert.match(
@@ -4302,10 +4309,7 @@ describe("release.yml", () => {
             /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true'/,
         );
         // one train at a time across its jobs, so two trains never pay for two T4 runs of one commit
-        assert.match(
-            release,
-            /^concurrency:\n {4}group: \$\{\{ inputs.mode == 'abandon' && 'release-abandon' \|\| 'release-train' \}\}\n {4}cancel-in-progress: false/m,
-        );
+        assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
         // coverage comes from the same CI call, and never holds the release
         assert.match(coverage, /needs: \[pick, ci\]\n\s+if: \$\{\{ needs.ci.result == 'success' \}\}/);
         assert.match(coverage, /uses: \.\/\.github\/workflows\/coverage\.yml/);
@@ -4392,7 +4396,7 @@ describe("release.yml", () => {
         // and the land job pushes exactly the commit the version job made
         assert.match(version, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(land, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
-        assert.match(land, /\[ "\$\(git rev-parse FETCH_HEAD\)" = "\$COMMIT" \]/);
+        assert.match(landSh, /\[ "\$\(git rev-parse FETCH_HEAD\)" = "\$COMMIT" \]/);
         // one issue naming what failed: found by its title prefix and updated, else created with the labels
         // githerd and triage read
         for (const [result, name] of [
@@ -4455,7 +4459,7 @@ describe("release.yml", () => {
         assert.match(held, /if \[ "\$T4_RESULT" = failure \]; then\n\s+echo\n\s+echo "If the T4 job was refused/);
         // and the next train that lands closes it, only after the push
         const close = land.indexOf("tools/release-held.sh close");
-        assert.ok(close > land.indexOf("git push --atomic"), "closed only after the release is on master");
+        assert.ok(close > land.indexOf("tools/channel/land.sh"), "closed only after the release is on master");
     });
 
     // A train attempt ends with a release on master or a "Release held" issue, never with neither. Run
@@ -4893,10 +4897,7 @@ describe("release.yml", () => {
             const on = /^on:\n([\s\S]*?)\n\S/m.exec(release)[1];
             assert.deepEqual(on.match(/^ {4}\w+:/gm), ["    workflow_dispatch:"]);
             assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /workflow_run/);
-            assert.match(
-                pick,
-                /\n {8}if: \$\{\{ !cancelled\(\) && github.ref == 'refs\/heads\/master' && inputs.mode != 'abandon' \}\}\n/,
-            );
+            assert.match(pick, /\n {8}if: \$\{\{ !cancelled\(\) && github.ref == 'refs\/heads\/master' \}\}\n/);
         });
 
         it("runs a schedule only when nothing is held, and a dispatch by hand anyway", () => {
@@ -4958,10 +4959,7 @@ describe("release.yml", () => {
         });
 
         it("shares the one train group, so two pushes in a row never start two trains", () => {
-            assert.match(
-                release,
-                /^concurrency:\n {4}group: \$\{\{ inputs.mode == 'abandon' && 'release-abandon' \|\| 'release-train' \}\}\n {4}cancel-in-progress: false/m,
-            );
+            assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
         });
 
         it("tells a legacy hold's fix to keep the issue open and dispatch again", () => {
@@ -5009,10 +5007,7 @@ describe("release.yml", () => {
         // tested commit T, the version commit V made on T and kept as a bundle, and optionally a commit that
         // reached master after T (`moved`) or one that edits the same version line (`conflict`).
         const land_ = (opts = {}) => {
-            const script =
-                /- name: Push the version commit and its tags to master\n\s+id: push\n\s+run: \|\n([\s\S]*?)\n {14}env:/.exec(
-                    land,
-                )[1];
+            const script = landSh;
             const dir = mkdtempSync(join(tmpdir(), "release-land-"));
             const git = (cwd, ...args) => {
                 const r = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -8191,6 +8186,38 @@ describe("the release policy files release.yml reads", () => {
             if (!/release-version\.sh|release-hold\.mjs|release-approvals\.mjs/.test(runs)) continue;
             const checkout = j.steps.find((st) => String(st.uses ?? "").startsWith("actions/checkout@"));
             assert.equal(checkout?.with?.["fetch-depth"], 0, `${name} needs origin/master to read the policy`);
+        }
+    });
+});
+
+describe("the Checks job's CI workflow tests run their files side by side", () => {
+    it("runs every listed file at once, prints each file's output whole and in list order, and names the failures", () => {
+        const dir = mkdtempSync(join(tmpdir(), "ci-workflow-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            copyFileSync(
+                new URL("run-ci-workflow-tests.mjs", import.meta.url),
+                join(dir, "tools/run-ci-workflow-tests.mjs"),
+            );
+            // "slow" finishes last but is listed first; "bad" fails; "a.mjs" is listed twice (a union merge)
+            const slow = 'console.log("slow-1"); setTimeout(() => console.log("slow-2"), 300);';
+            writeFileSync(join(dir, "tools/slow.mjs"), slow);
+            writeFileSync(join(dir, "tools/a.mjs"), 'console.log("a-1"); console.log("a-2");');
+            writeFileSync(join(dir, "tools/bad.mjs"), 'console.log("bad-1"); process.exit(3);');
+            writeFileSync(
+                join(dir, "tools/tool-tests.txt"),
+                "tools/slow.mjs\ntools/a.mjs\n# note\ntools/bad.mjs\ntools/a.mjs\n",
+            );
+            const r = spawnSync(process.execPath, [join(dir, "tools/run-ci-workflow-tests.mjs")], {
+                encoding: "utf8",
+                env: { ...process.env, CI_WORKFLOW_TESTS_JOBS: "3" },
+            });
+            assert.equal(r.status, 1);
+            assert.match(r.stdout, /^slow-1\nslow-2\na-1\na-2\nbad-1\n/);
+            assert.match(r.stdout, /2 of 3 test files passed/);
+            assert.match(r.stdout, /failed:\n {2}tools\/bad\.mjs \(exit 3\)/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
         }
     });
 });

@@ -547,6 +547,7 @@ the existing semver ranges, or none. An agent adds its fresh review by running `
 | `release-watch.yml` | Announces on the `Release status` issue a Release run that ended badly without announcing itself |
 | `bisect.yml` | Finds the merge that turned a full run red (`tools/bisect-core.mjs`, `tools/bisect-ci.mjs`) |
 | `base-check.yml` | Runs one test file on master's code at a pull request's base, so a failure the pull request did not cause is known |
+| `nightly-abandon.yml` | Ends the held nightly candidate without promoting it (`-f reason="<why>"`); anyone, no approval, its own concurrency group, never the release train's |
 | `promote.yml` | Production promotion (graphty.app, npm `latest`) and nightly rollback; owner only (`tools/channel/promote.mjs`) |
 | `master-guard.yml` | A red master build: a revert pull request and a `priority:critical` issue (none for a failure that looks external); a failed canary deploy: one issue |
 | `coverage.yml` | Called by the full run: merges coverage and publishes it to Coveralls |
@@ -605,7 +606,11 @@ from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candi
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`). The hold ends on that promotion, or by the owner's `mode: abandon`.
+(`mode: promote-nightly`). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
+reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
+capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
+has a newer green build. Changed screenshots awaiting review never end a hold.
 
 Every outcome is announced on the one open `Release status` issue (`tools/release-status.mjs`) and pushed to the
 owner's phone through Pushover. A failed publish opens a `Release held: publish failed on <sha>` issue; re-run

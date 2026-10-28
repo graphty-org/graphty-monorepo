@@ -1112,6 +1112,7 @@ export const OneAtATimeInteractions: Story = {
         await waitFor(() => expect(body.queryByRole("dialog", { name: "Fill settings" })).toBeNull());
         await userEvent.click(body.getByRole("button", { name: "Create style" }));
         await waitFor(() => expect(body.getAllByRole("dialog")).toHaveLength(2));
+        await waitForSettledLayout(canvasElement, "[data-testid='popout-panel']");
     },
 };
 

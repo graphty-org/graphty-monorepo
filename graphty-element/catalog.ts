@@ -35,27 +35,57 @@ export * from "./src/catalog/index";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AiCapabilities,
+    AiCapabilityStatus,
+    AiHostedToolId,
     AiKeyShape,
     AiKeyShapeCheck,
     AiKeyShapeCode,
     AiModelDescriptor,
+    AiModelReasoning,
+    AiPageRetrieval,
     AiProviderDescriptor,
     AiProviderId,
+    AiProviderVoice,
+    AiReasoningEffort,
     AiResultCode,
     AiResultParams,
+    AiToolCapabilities,
+    AiVoiceDestination,
+    AiVoiceDirection,
+    AiVoiceReadiness,
+    AiVoiceRoute,
+    AiVoiceUnavailableReason,
 } from "./src/catalog/ai";
 export {
+    AI_CONVERSATION_FORMAT,
+    AI_CONVERSATION_FORMAT_VERSION,
+    AI_HOSTED_TOOL_CAPABILITIES,
+    AI_HOSTED_TOOL_IDS,
     AI_PROVIDER_DESCRIPTORS,
     AI_PROVIDER_IDS,
+    AI_REASONING_EFFORTS,
     AI_RESULT_CODES,
     AI_STAGES,
     AI_STATES,
     AI_TOOL_CALL_STATUSES,
+    AI_VOICE_APPROVABLE_GATES,
+    AI_VOICE_CAPABILITIES,
+    AI_VOICE_UNAVAILABLE_REASONS,
+    aiHostedToolStatus,
     aiProviderDescriptor,
+    aiVoiceStatus,
     checkApiKeyShape,
 } from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";
 export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src/catalog/algorithms";
+export type {
+    AiToolCauseCode,
+    AssistantToolDescriptor,
+    AssistantToolProfile,
+    CatalogKind,
+} from "./src/catalog/assistant";
+export { AI_TOOL_CAUSE_CODES, ASSISTANT_TOOLS, CATALOG_KINDS } from "./src/catalog/assistant";
 export type { BasemapSourceDescriptor } from "./src/catalog/basemaps";
 export { BASEMAP_SOURCE_DESCRIPTORS } from "./src/catalog/basemaps";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";

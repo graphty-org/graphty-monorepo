@@ -20,6 +20,8 @@ const QueryTypeSchema = z
 /**
  * Command to query graph information.
  * Returns statistics and metadata about the current graph state.
+ * @deprecated The assistant registers generated tools instead: this one is the `query (overview, statistics)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const queryGraph: GraphCommand = {
     name: "queryGraph",
@@ -119,6 +121,8 @@ const DEFAULT_FIND_NODES_LIMIT = 50;
 /**
  * Command to find nodes matching criteria.
  * Searches nodes by data properties using simple selectors.
+ * @deprecated The assistant registers generated tools instead: this one is the `query (nodes)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const findNodes: GraphCommand = {
     name: "findNodes",
@@ -182,6 +186,8 @@ const SchemaQueryTypeSchema = z
 /**
  * Command to get schema information about the graph data.
  * Returns information about node types, edge types, and available properties.
+ * @deprecated The assistant registers generated tools instead: this one is the `query (attributes)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const getSchema: GraphCommand = {
     name: "getSchema",

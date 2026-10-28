@@ -33,6 +33,7 @@ import type {
     Measurement,
     MeasurementDeclaration,
     Path,
+    Query,
     ReadableValue,
     RunId,
     ScopeInput,
@@ -272,6 +273,13 @@ interface PageSources {
      * @returns The test
      */
     textTest(text: string, mode: SelectionTextMode, target: "node" | "edge"): (index: number) => boolean;
+    /**
+     * The ids an expression matches: a page's `where`, over the query engine.
+     * @param where - The expression
+     * @param target - Nodes or edges
+     * @returns The matching ids
+     */
+    matchWhere(where: Query, target: "node" | "edge"): ReadonlySet<NodeId | EdgeId>;
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -2077,12 +2085,13 @@ export class SessionData implements SessionDataApi {
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
         const matching = matchingOf(options.matching);
-        const { issue } = options;
+        const { where, issue } = options;
         if (
             scope === undefined &&
             touching === undefined &&
             sort === undefined &&
             matching === undefined &&
+            where === undefined &&
             issue === undefined
         ) {
             return null;
@@ -2096,7 +2105,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, where, issueKey]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -2112,10 +2121,7 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            const text = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
-            const flagged = issue === undefined ? null : this.issueRows(snapshot, target, issue);
-            const matches =
-                flagged === null ? text : (index: number): boolean => flagged(index) && (text === null || text(index));
+            const matches = this.rowFilter(snapshot, target, matching, issue, where);
             return this.computeOrder(snapshot, target, scope, touching, order, matches);
         });
     }
@@ -2414,6 +2420,45 @@ export class SessionData implements SessionDataApi {
 
         this.openIssuesMemo = { found, state, byRecord };
         return byRecord[target];
+    }
+
+    /**
+     * The test a page's rows must pass: its text match, its issue and its expression, each only when asked.
+     * @param snapshot - the current snapshot
+     * @param target - nodes or edges
+     * @param matching - the text match, if any
+     * @param issue - the issue filter, if any
+     * @param where - the expression, if any
+     * @returns The test, or null when the page asks none of them
+     */
+    private rowFilter(
+        snapshot: GraphSnapshot,
+        target: "node" | "edge",
+        matching: ReturnType<typeof matchingOf>,
+        issue: IssueId | undefined,
+        where: Query | undefined,
+    ): ((index: number) => boolean) | null {
+        const tests: ((index: number) => boolean)[] = [];
+        if (issue !== undefined) {
+            tests.push(this.issueRows(snapshot, target, issue));
+        }
+
+        if (matching !== undefined) {
+            tests.push(this.pages.textTest(matching.text, matching.mode, target));
+        }
+
+        if (where !== undefined) {
+            const wanted = this.pages.matchWhere(where, target);
+            const space = edgeSpaceOf(snapshot);
+            const idOf = (index: number): unknown => (target === "node" ? snapshot.ids.idOf(index) : space.idOf(index));
+            tests.push((index) => wanted.has(idOf(index) as NodeId | EdgeId));
+        }
+
+        if (tests.length === 0) {
+            return null;
+        }
+
+        return tests.length === 1 ? tests[0] : (index) => tests.every((test) => test(index));
     }
 
     /**

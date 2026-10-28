@@ -5313,9 +5313,185 @@ export class Graphty extends LitElement {
      * const result = await element.aiCommand('Show me the most connected nodes');
      * console.log('AI response:', result.message);
      * ```
+     * @param options - The saved conversation to send it into (with `history` set); an unknown
+     *     one resolves `AI_HISTORY_UNAVAILABLE` with `{ reason: "unknown-conversation" }`. `via:
+     *     "voice"` records that the reader spoke it (a transcript from `startVoiceInput`).
      */
-    async aiCommand(message: string): Promise<import("./ai/AiController").ExecutionResult> {
-        return this.#graph.aiCommand(message);
+    async aiCommand(
+        message: string,
+        options?: import("./ai/AiController").AiCommandOptions,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        return this.#graph.aiCommand(message, options);
+    }
+
+    /**
+     * The assistant's open conversation, as an application draws it: what the reader and the model
+     * said, and the calls the model made with their outcomes as codes. Needs `history` in
+     * `enableAiControl`; `ai-conversation-changed` says when to read it again.
+     * @returns Its snapshot, or null without `history` or before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, history: "browser" });
+     * element.addEventListener("ai-conversation-changed", () => draw(element.getAiConversation()));
+     * ```
+     */
+    getAiConversation(): import("./ai/conversation/snapshot").AiConversationSnapshot | null {
+        return this.#graph.getAiConversation();
+    }
+
+    /**
+     * The approval requests waiting on the reader (`ai-approval-requested` asked, nothing ended
+     * yet): held in this page, or reopened from the saved conversation after a reload, when they
+     * are also asked again with `replayed: true`. Read it any time to draw approval cards.
+     * @returns The requests, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, history: "browser", approvals: "writes" });
+     * for (const request of element.getPendingAiApprovals()) drawCard(request);
+     * ```
+     */
+    getPendingAiApprovals(): readonly import("./events").AiApprovalRequest[] {
+        return this.#graph.getPendingAiApprovals();
+    }
+
+    /**
+     * The questions the model asked the reader and waits on (`ai-question-asked` asked, nothing
+     * ended yet): asked in this page, or reopened from the saved conversation after a reload, when
+     * they are also asked again with `replayed: true`. Read it any time to draw questions.
+     * @returns The questions, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, history: "browser", questions: true });
+     * for (const question of element.getPendingAiQuestions()) drawQuestion(question);
+     * ```
+     */
+    getPendingAiQuestions(): readonly import("./events").AiQuestionRequest[] {
+        return this.#graph.getPendingAiQuestions();
+    }
+
+    /**
+     * What the assistant can use with its provider and model: web search, reading web pages and
+     * in-page code (`AiToolOptions`), each `"available"`, `"unsupported"`,
+     * `"results-not-returned"` or `"unknown"`. Synchronous.
+     * @returns The capabilities, or null before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, tools: { webSearch: true } });
+     * const canSearch = element.getAiCapabilities()?.tools["web-search"] === "available";
+     * ```
+     */
+    getAiCapabilities(): import("./catalog/ai").AiCapabilities | null {
+        return this.#graph.getAiCapabilities();
+    }
+
+    /**
+     * Press (`true`) or release (`false`) talk: while it is held the assistant listens, then sends
+     * what was said as a command (`voice` in `enableAiControl`). Without `voice`, or before AI is
+     * enabled, a press ends at once with `ai-voice-end` `{ code: "AI_NOT_ENABLED" }`.
+     * @param down - True to press, false to release.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * talkButton.onpointerdown = () => element.aiTalk(true);
+     * talkButton.onpointerup = () => element.aiTalk(false);
+     * ```
+     */
+    aiTalk(down: boolean): void {
+        this.#graph.aiTalk(down);
+    }
+
+    /**
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * @since 4.0.0
+     */
+    stopAiSpeech(): void {
+        this.#graph.stopAiSpeech();
+    }
+
+    /**
+     * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
+     * `AI_CANCELLED`, and the next press opens another, with the conversation as saved. Does
+     * nothing when none is open.
+     * @since 4.0.0
+     */
+    endAiLive(): void {
+        this.#graph.endAiLive();
+    }
+
+    /**
+     * How speech would be carried in each direction now: the path, whether it is ready, why not,
+     * and where the audio goes. It reads what the page and the provider offer, and starts nothing;
+     * `ai-voice-support-change` says when the answer changes.
+     * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.
+     * @since 4.0.0
+     */
+    getAiVoiceSupport(): Promise<import("./ai/AiManager").AiVoiceSupport> {
+        return this.#graph.getAiVoiceSupport();
+    }
+
+    /**
+     * The assistant's saved conversations, newest first: this element's scope, or every scope.
+     * @param options - Which.
+     * @param options.allKeys - True for every scope's.
+     * @returns Their summaries; none without `history`.
+     * @since 4.0.0
+     */
+    async listAiConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly import("./ai/conversation/snapshot").AiConversationSummary[]> {
+        return this.#graph.listAiConversations(options);
+    }
+
+    /**
+     * Make a saved conversation the open one; the next `aiCommand` continues it.
+     * @param id - Its id.
+     * @returns Its snapshot, or null when there is none.
+     * @since 4.0.0
+     */
+    async openAiConversation(id: string): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        return this.#graph.openAiConversation(id);
+    }
+
+    /**
+     * Start a new conversation; the open one stays saved and listed.
+     * @returns Its snapshot, or null without `history`.
+     * @since 4.0.0
+     */
+    async newAiConversation(): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        return this.#graph.newAiConversation();
+    }
+
+    /**
+     * Delete a saved conversation; deleting the open one starts a new one.
+     * @param id - Its id.
+     * @returns When it is deleted.
+     * @since 4.0.0
+     */
+    async deleteAiConversation(id: string): Promise<void> {
+        return this.#graph.deleteAiConversation(id);
+    }
+
+    /**
+     * Delete every saved conversation, of every scope: for a shared headset's or kiosk's "end session".
+     * @returns When they are deleted.
+     * @since 4.0.0
+     */
+    async clearAiHistory(): Promise<void> {
+        return this.#graph.clearAiHistory();
+    }
+
+    /**
+     * A saved conversation as JSON, in the published `graphty-ai-conversation` format (version 1).
+     * @param id - Its id.
+     * @returns The JSON text, or null when there is none.
+     * @since 4.0.0
+     */
+    async exportAiConversation(id: string): Promise<string | null> {
+        return this.#graph.exportAiConversation(id);
     }
 
     /**
@@ -5350,6 +5526,67 @@ export class Graphty extends LitElement {
      */
     cancelAiCommand(): void {
         this.#graph.cancelAiCommand();
+    }
+
+    /**
+     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`): a
+     * change it held because it was large, slow, replaced the graph, could not be undone, fetched a
+     * URL the reader did not give, or the `approvals` policy asked. The message that made it
+     * continues: approve runs the held calls (with any `calls[].arguments` the reader edited) as
+     * one more step of the message; deny drops them; either way the model hears the decision and
+     * answers. A new message, `cancelAiCommand()` or an undo of the message ends the request
+     * instead (`ai-pending-resolved`).
+     * @param id - The request's id, from the event.
+     * @param answer - The reader's answer: `{ approve }`, and optionally `calls` with edited arguments.
+     * @returns The message's final result, which `ai-command-complete` also carries:
+     *     `AI_COMPLETED`, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE` with the model's answer,
+     *     `AI_CONFIRMATION_NEEDED` with a new request when another limit holds the calls again, or
+     *     `AI_NOT_ENABLED`. An answer given while its message is still running waits for it.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * element.addEventListener("ai-approval-requested", async (event) => {
+     *     const { request } = event.detail;
+     *     await element.resolveAiApproval(request.id, { approve: window.confirm("Apply it?") });
+     * });
+     * ```
+     */
+    async resolveAiApproval(
+        id: string,
+        answer: import("./ai/AiController").AiApprovalAnswer,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        return this.#graph.resolveAiApproval(id, answer);
+    }
+
+    /**
+     * Answer a question the model asked the reader (`ai-question-asked`, with `questions: true`).
+     * The message that asked continues: the answer is its question's result, and the model goes
+     * on. A new message, `cancelAiCommand()` or an undo of the message ends the question instead
+     * (`ai-pending-resolved`).
+     * @param id - The question's id, from the event.
+     * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @returns The message's final result, which `ai-command-complete` also carries;
+     *     `AI_ANSWER_INVALID` when the answer is not among the choices (the question stays open);
+     *     `AI_APPROVAL_STALE` when the question is no longer open; or `AI_NOT_ENABLED`.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * element.addEventListener("ai-question-asked", (event) => {
+     *     const { request } = event.detail;
+     *     for (const choice of request.choices) {
+     *         const button = document.createElement("button");
+     *         button.textContent = choice;
+     *         button.onclick = () => void element.answerAiQuestion(request.id, choice);
+     *         document.body.append(button);
+     *     }
+     * });
+     * ```
+     */
+    async answerAiQuestion(
+        id: string,
+        answer: string | readonly string[],
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        return this.#graph.answerAiQuestion(id, answer);
     }
 
     /**
@@ -5426,7 +5663,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * const started = element.startVoiceInput({
      *   onTranscript: (text, isFinal) => {
-     *     if (isFinal) element.aiCommand(text);
+     *     if (isFinal) element.aiCommand(text, { via: "voice" });
      *   },
      *   onStart: (started) => console.log('Voice started:', started)
      * });

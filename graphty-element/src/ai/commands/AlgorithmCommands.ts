@@ -38,6 +38,8 @@ const listAlgorithmsParamsSchema = z.object({
 
 /**
  * Run a graph algorithm.
+ * @deprecated The assistant registers generated tools instead: this one is the `run_algorithm` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const runAlgorithm: GraphCommand = {
     name: "runAlgorithm",
@@ -161,6 +163,8 @@ export const runAlgorithm: GraphCommand = {
 
 /**
  * List available graph algorithms.
+ * @deprecated The assistant registers generated tools instead: this one is the `catalog (search)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const listAlgorithms: GraphCommand = {
     name: "listAlgorithms",

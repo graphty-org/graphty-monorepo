@@ -68,6 +68,7 @@ import {
     COMMON_WRITER_OPTIONS,
     type FormatWriterRegistration,
     registeredFormatWriter,
+    withCommonWriterOptions,
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
 import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
@@ -952,7 +953,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     if (neo4j) {
         declared = NEO4J_WRITER_OPTIONS;
     } else if (registered !== undefined) {
-        declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
+        declared = withCommonWriterOptions(registered.writerOptions);
     }
     // `notes`, `groupRanks` and `styles` are the element's own options; no exporter reads them as they are.
     const { notes, groupRanks, styles, ...resolved } = resolveOptionValues(declared, options, {

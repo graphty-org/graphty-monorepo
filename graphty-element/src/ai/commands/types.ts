@@ -5,6 +5,7 @@
 
 import type { z } from "zod";
 
+import type { AiToolCauseCode } from "../../catalog/assistant";
 import type { Graph } from "../../Graph";
 import type { TransactionScope } from "../../session/types";
 import type { AiStatus } from "../AiStatus";
@@ -23,6 +24,14 @@ export interface CommandResult {
     affectedNodes?: string[];
     /** IDs of edges affected by the command */
     affectedEdges?: string[];
+    /**
+     * What happened, as a code the model reads in place of `message`: the session's own code,
+     * `AI_OK`, or a cause from `AI_TOOL_CAUSE_CODES`. A command that sets none has its `message`
+     * handed to the model as `params.message`.
+     */
+    code?: AiToolCauseCode;
+    /** The facts behind `code`. */
+    params?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -84,6 +93,20 @@ export interface GraphCommand {
     readonly parameters: z.ZodType;
     /** Examples of how the command can be invoked */
     readonly examples: CommandExample[];
+    /**
+     * What it does to the project: `"write"` (the default) joins the message's undo step and is
+     * measured by the gate; `"read"` adds no step and is never held; `"exempt"` changes only what
+     * no project saves (the camera, the selection).
+     */
+    readonly effect?: "read" | "write" | "exempt";
+    /**
+     * Offered to the model on every turn (`"always"`, the default), or only once the `catalog`
+     * tool's search names it (`"on-demand"`). Loading is not a permission: a model may call an
+     * on-demand command it has only read about.
+     */
+    readonly load?: "always" | "on-demand";
+    /** Further words the `catalog` tool's search finds it by. */
+    readonly keywords?: readonly string[];
     /**
      * Execute the command.
      * @param graph - The graph instance to operate on

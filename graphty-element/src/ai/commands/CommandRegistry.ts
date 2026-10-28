@@ -3,8 +3,40 @@
  * @module ai/commands/CommandRegistry
  */
 
+import { ASSISTANT_TOOLS } from "../../catalog/assistant";
 import type { ToolDefinition } from "../providers/types";
+import { isAssistantTool } from "../tools/toolset";
 import type { GraphCommand } from "./types";
+
+/** The assistant's own tool names. */
+const RESERVED: ReadonlySet<string> = new Set(ASSISTANT_TOOLS.map((tool) => tool.name));
+
+/**
+ * The name a command is offered to the model under: its own, or `app_<name>` when one of the
+ * assistant's own tools has its name.
+ * @param name - The command's name.
+ * @returns The name the registry holds it by.
+ */
+export function offeredName(name: string): string {
+    return RESERVED.has(name) ? `app_${name}` : name;
+}
+
+/** Commands registered under another name, by the name the consumer gave them. */
+const renamedFrom = new WeakMap<GraphCommand, string>();
+
+/**
+ * A consumer command under the name the model is offered it by.
+ * @param command - The command.
+ * @param name - The name.
+ * @returns The command, everything but its name its own.
+ */
+function renamed(command: GraphCommand, name: string): GraphCommand {
+    const view = Object.create(command, {
+        name: { value: name, enumerable: true },
+    }) as GraphCommand;
+    renamedFrom.set(view, command.name);
+    return view;
+}
 
 /**
  * Registry for graph commands that can be executed via AI.
@@ -14,16 +46,30 @@ export class CommandRegistry {
     private readonly commands = new Map<string, GraphCommand>();
 
     /**
-     * Register a new command.
+     * Register a new command. A command named as one of the assistant's own tools
+     * (`ASSISTANT_TOOLS`) is held, and offered to the model, as `app_<name>`, so a tool added in
+     * a later release never displaces a command already written.
      * @param command - The command to register
      * @throws Error if a command with the same name is already registered
      */
     register(command: GraphCommand): void {
-        if (this.commands.has(command.name)) {
-            throw new Error(`Command "${command.name}" is already registered`);
+        const existing = this.commands.get(command.name);
+        if (isAssistantTool(command)) {
+            // The assistant's own tools are rebuilt in place when the catalog changes.
+            if (existing !== undefined && !isAssistantTool(existing)) {
+                throw new Error(`Command "${command.name}" is already registered`);
+            }
+
+            this.commands.set(command.name, command);
+            return;
         }
 
-        this.commands.set(command.name, command);
+        const name = offeredName(command.name);
+        if (this.commands.has(name)) {
+            throw new Error(`Command "${name}" is already registered`);
+        }
+
+        this.commands.set(name, name === command.name ? command : renamed(command, name));
     }
 
     /**
@@ -61,10 +107,17 @@ export class CommandRegistry {
     }
 
     /**
-     * Unregister a command by name.
+     * Unregister a command by name: the name it was registered under, which for a command named
+     * as one of the assistant's own tools removes that command, never the tool.
      * @param name - Name of the command to remove
      */
     unregister(name: string): void {
+        const offered = this.commands.get(offeredName(name));
+        if (offered !== undefined && renamedFrom.get(offered) === name) {
+            this.commands.delete(offeredName(name));
+            return;
+        }
+
         this.commands.delete(name);
     }
 
@@ -76,7 +129,7 @@ export class CommandRegistry {
     }
 
     /**
-     * Convert all registered commands to Vercel AI SDK tool definitions.
+     * Convert all registered commands to tool definitions, as an `LlmProvider` takes them.
      * @returns Array of tool definitions for use with LLM providers
      */
     toToolDefinitions(): ToolDefinition[] {

@@ -2,8 +2,8 @@
  * Layout Commands LLM Regression Tests
  * @module test/ai/llm-regression/layout-commands
  *
- * Tests that verify LLMs correctly call layout commands (setLayout, setDimension)
- * in response to natural language prompts.
+ * Tests that a real model changes the layout with the `layout` tool and switches 2D and 3D
+ * with the `view` tool, in response to natural language prompts.
  *
  * These tests run against real LLM APIs and verify correct tool selection
  * and parameter extraction for graph layout changes.
@@ -12,7 +12,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { assertAction, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
@@ -79,53 +79,53 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
         harness.dispose();
     });
 
-    describe("setLayout", () => {
-        it("calls setLayout for 'Use circular layout'", async () => {
+    describe("layout set", () => {
+        it("calls layout set for 'Use circular layout'", async () => {
             const result = await harness.testPrompt("Use circular layout");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "setLayout");
+            const call = assertAction(result, "layout", "set");
 
             // Verify layout type is circular
             assert.ok(
-                isValidLayoutType(call.arguments.type, "circular"),
-                `Expected layout type 'circular' but got '${call.arguments.type}'`,
+                isValidLayoutType(call.arguments.engine ?? call.arguments.name, "circular"),
+                `Expected layout type 'circular' but got '${call.arguments.engine ?? call.arguments.name}'`,
             );
         });
 
-        it("calls setLayout for 'Switch to force-directed layout'", async () => {
+        it("calls layout set for 'Switch to force-directed layout'", async () => {
             const result = await harness.testPrompt("Switch to force-directed layout");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "setLayout");
+            const call = assertAction(result, "layout", "set");
 
             // Force-directed could be ngraph, d3, spring, or forceatlas2
             assert.ok(
-                isValidLayoutType(call.arguments.type, "force-directed"),
-                `Expected force-directed layout type but got '${call.arguments.type}'`,
+                isValidLayoutType(call.arguments.engine ?? call.arguments.name, "force-directed"),
+                `Expected force-directed layout type but got '${call.arguments.engine ?? call.arguments.name}'`,
             );
         });
 
-        it("calls setLayout for 'Arrange nodes randomly'", async () => {
+        it("calls layout set for 'Arrange nodes randomly'", async () => {
             const result = await harness.testPrompt("Arrange nodes randomly");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "setLayout");
+            const call = assertAction(result, "layout", "set");
 
             // Verify layout type is random
             assert.ok(
-                isValidLayoutType(call.arguments.type, "random"),
-                `Expected layout type 'random' but got '${call.arguments.type}'`,
+                isValidLayoutType(call.arguments.engine ?? call.arguments.name, "random"),
+                `Expected layout type 'random' but got '${call.arguments.engine ?? call.arguments.name}'`,
             );
         });
     });
 
-    describe("setDimension", () => {
-        it("calls setDimension for 'Switch to 2D view'", async () => {
+    describe("view dimension", () => {
+        it("calls view dimension for 'Switch to 2D view'", async () => {
             const result = await harness.testPrompt("Switch to 2D view");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "setDimension");
+            const call = assertAction(result, "view", "dimension");
 
             // Verify dimension is 2D (accept various formats)
             const { dimension } = call.arguments;
@@ -135,11 +135,11 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             );
         });
 
-        it("calls setDimension for 'Show in 3D'", async () => {
+        it("calls view dimension for 'Show in 3D'", async () => {
             const result = await harness.testPrompt("Show in 3D");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const call = assertCalled(result, "setDimension");
+            const call = assertAction(result, "view", "dimension");
 
             // Verify dimension is 3D (accept various formats)
             const { dimension } = call.arguments;
@@ -151,26 +151,26 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
     });
 
     describe("command result validation", () => {
-        it("returns command result for setLayout", async () => {
+        it("returns command result for layout set", async () => {
             const result = await harness.testPrompt("Change layout to circular arrangement");
 
-            assert.ok(result.toolWasCalled, "Expected setLayout to be called");
-            assertCalled(result, "setLayout");
+            assert.ok(result.toolWasCalled, "Expected the layout tool to be called");
+            assertAction(result, "layout", "set");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.ok(result.commandResult.success, "Expected the change to succeed");
         });
 
-        it("returns command result for setDimension", async () => {
+        it("returns command result for view dimension", async () => {
             const result = await harness.testPrompt("Make the graph 2D");
 
-            assert.ok(result.toolWasCalled, "Expected setDimension to be called");
-            assertCalled(result, "setDimension");
+            assert.ok(result.toolWasCalled, "Expected the view tool to be called");
+            assertAction(result, "view", "dimension");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.message, "Expected result message");
+            assert.ok(result.commandResult.success, "Expected the change to succeed");
         });
 
         it("tracks latency for layout commands", async () => {

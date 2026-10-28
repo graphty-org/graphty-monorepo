@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 
-import { aliases } from "./vite.aliases";
+import { aliases, elementSourcePlugins } from "./vite.aliases";
 import { buildStampPlugin } from "./vite.build-stamp";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -46,6 +46,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, monorepoRoot, "");
     const plugins = [
         react(),
+        ...elementSourcePlugins,
         unversionedDepsNotImmutable(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),

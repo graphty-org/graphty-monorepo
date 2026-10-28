@@ -263,7 +263,8 @@ const OFF_SHARDS = [
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
-        "needs-browser": false,
+        // test/packaging/program-wasm.test.ts runs the pages it builds with Vite and webpack in Chromium.
+        "needs-browser": true,
     },
     // graphty-element browser tests (5 shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs

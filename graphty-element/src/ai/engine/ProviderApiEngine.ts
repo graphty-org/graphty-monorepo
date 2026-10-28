@@ -1,0 +1,340 @@
+/**
+ * @file The engine behind the built-in OpenAI, Anthropic and Google providers: one turn is one call
+ * to the provider's API from the page, through the adapter folder (`./tanstack/`), which it loads
+ * on the first turn. The retry schedule is graphty's: the adapter turns off every lower layer's.
+ */
+
+import {
+    AI_VOICE_CAPABILITIES,
+    aiHostedToolStatus,
+    type AiResultCode,
+    type AiResultParams,
+    aiVoiceStatus,
+} from "../../catalog/ai";
+import { API_KEY_MISSING_ERROR } from "../safeError";
+import { providerFailure } from "./LlmProviderEngine";
+import { loadProviderApiTurn, loadProviderLive, loadProviderVoice } from "./load";
+import {
+    type AiEngine,
+    type EngineCapabilities,
+    type EngineOutcome,
+    type LiveOpened,
+    type LiveOptions,
+    type ProviderApiSettings,
+    type ProviderApiTurn,
+    type ProviderLive,
+    type ProviderVoice,
+    type SpeakOptions,
+    type SpokenAudio,
+    type TranscribeOptions,
+    type TurnError,
+    type TurnEvent,
+    type TurnRequest,
+    type TurnText,
+    type VoiceAttempt,
+} from "./types";
+
+/** Retries after the first attempt: the AI SDK 5's schedule, which the assistant keeps. */
+const MAX_RETRIES = 2;
+/** The wait before the first retry; each later one doubles it. */
+const FIRST_RETRY_MS = 2000;
+/** A provider's own wait is honored when it is shorter than this, or than the backoff. */
+const MAX_HONORED_WAIT_MS = 60_000;
+
+/**
+ * Wait, unless the turn is cancelled first.
+ * @param ms - How long.
+ * @param signal - Cancels the wait.
+ * @returns When the time is up.
+ * @throws An `AbortError` when the signal fires first.
+ */
+function wait(ms: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const cancelled = (): DOMException => new DOMException("The wait before a retry was cancelled.", "AbortError");
+        if (signal.aborted) {
+            reject(cancelled());
+            return;
+        }
+
+        const onAbort = (): void => {
+            clearTimeout(timer);
+            reject(cancelled());
+        };
+        const timer = setTimeout(() => {
+            signal.removeEventListener("abort", onAbort);
+            resolve();
+        }, ms);
+        signal.addEventListener("abort", onAbort, { once: true });
+    });
+}
+
+/**
+ * How long to wait before a retry: the provider's `retry-after` when it gave a sane one, else the
+ * backoff.
+ * @param asked - What the provider asked for.
+ * @param backoff - The schedule's wait for this retry.
+ * @returns Milliseconds.
+ */
+function retryDelay(asked: number | undefined, backoff: number): number {
+    return asked !== undefined && asked >= 0 && (asked < MAX_HONORED_WAIT_MS || asked < backoff) ? asked : backoff;
+}
+
+/** What tests may replace. */
+export interface ProviderApiEngineOptions {
+    /** Loads the adapter's turn. */
+    readonly load?: () => Promise<ProviderApiTurn>;
+    /** Waits between attempts. */
+    readonly wait?: (ms: number, signal: AbortSignal) => Promise<void>;
+    /** Loads the adapter's voice module. */
+    readonly loadVoice?: () => Promise<ProviderVoice>;
+    /** Loads the adapter's live module. */
+    readonly loadLive?: () => Promise<ProviderLive>;
+}
+
+/**
+ * The key-missing failure of a call made with no key.
+ * @param provider - The provider.
+ * @param signal - The call's signal.
+ * @returns The error event.
+ */
+function keyMissing(provider: string, signal: AbortSignal): TurnError {
+    const error = Object.assign(new Error(`API key not configured for ${provider}`), { name: API_KEY_MISSING_ERROR });
+    return providerFailure(error, provider, signal);
+}
+
+/**
+ * A failed speech call's outcome.
+ * @param error - The last attempt's error.
+ * @returns Its code and params.
+ */
+function failed(error: TurnError): { code: Exclude<AiResultCode, "AI_COMPLETED">; params: AiResultParams } {
+    return {
+        code: error.code === "AI_COMPLETED" ? "AI_PROVIDER_ERROR" : error.code,
+        params: error.params,
+    };
+}
+
+/** A provider's API, called from the page. */
+export class ProviderApiEngine implements AiEngine {
+    readonly kind = "provider-api";
+    // Present only where the provider can (assigned in the constructor), so `"speak" in engine` is
+    // the capability.
+    declare transcribe?: (audio: Blob, options: TranscribeOptions, signal: AbortSignal) => Promise<TurnText>;
+    declare speak?: (text: string, options: SpeakOptions, signal: AbortSignal) => Promise<SpokenAudio>;
+    declare openLive?: (options: LiveOptions, signal: AbortSignal) => Promise<LiveOpened>;
+
+    /**
+     * An engine over a provider's live configuration.
+     * @param settings - Read before every turn, so a `configure()` after the first reaches the next.
+     * @param options - What tests replace.
+     */
+    constructor(
+        private readonly settings: () => ProviderApiSettings,
+        private readonly options: ProviderApiEngineOptions = {},
+    ) {
+        const { provider } = settings();
+        if (aiVoiceStatus(provider, "input") === "available") {
+            this.transcribe = async (audio, transcribeOptions, signal) => {
+                const done = await this.voiceCall(
+                    (voice, now) => voice.transcribe(now, audio, transcribeOptions, signal),
+                    signal,
+                );
+                return done.type === "done" ? { code: "AI_COMPLETED", params: {}, text: done.value } : failed(done);
+            };
+        }
+
+        if (aiVoiceStatus(provider, "output") === "available") {
+            this.speak = async (text, speakOptions, signal) => {
+                const done = await this.voiceCall((voice, now) => voice.speak(now, text, speakOptions, signal), signal);
+                return done.type === "done" ? { code: "AI_COMPLETED", params: {}, audio: done.value } : failed(done);
+            };
+        }
+
+        if (AI_VOICE_CAPABILITIES[provider].live?.status === "available") {
+            this.openLive = (liveOptions, signal) => this.live(liveOptions, signal);
+        }
+    }
+
+    /**
+     * The provider's name.
+     * @returns Its id.
+     */
+    get providerName(): string {
+        return this.settings().provider;
+    }
+
+    /**
+     * What the provider can do with a model: every built-in provider calls tools, and the adapter
+     * offers each of the provider's own tools that the catalog lists as available for the model.
+     * @param model - The model id.
+     * @returns Its capabilities.
+     */
+    capabilities(model: string): EngineCapabilities {
+        const { provider } = this.settings();
+        const status = (tool: "web-search" | "web-fetch"): "available" | "unsupported" =>
+            aiHostedToolStatus(provider, model, tool) === "available" ? "available" : "unsupported";
+        return {
+            toolCalls: "available",
+            hostedTools: { "web-search": status("web-search"), "web-fetch": status("web-fetch") },
+        };
+    }
+
+    /**
+     * One turn, asked again on a rate limit, a server error or a lost connection, as long as nothing
+     * of the failed attempt was streamed out.
+     * @param request - The turn.
+     * @param signal - Cancels the request and any wait.
+     * @yields The adapter's events.
+     */
+    async *turn(request: TurnRequest, signal: AbortSignal): AsyncIterable<TurnEvent> {
+        const settings = this.settings();
+        if (settings.apiKey === undefined || settings.apiKey === "") {
+            yield keyMissing(settings.provider, signal);
+            return;
+        }
+
+        let turn: ProviderApiTurn;
+        try {
+            turn = await (this.options.load ?? loadProviderApiTurn)();
+        } catch (error) {
+            yield providerFailure(error, settings.provider, signal);
+            return;
+        }
+
+        for (let attempt = 0, backoff = FIRST_RETRY_MS; ; attempt++, backoff *= 2) {
+            let retry: TurnError | undefined;
+            let streamed = false;
+            for await (const event of turn(settings, request, signal)) {
+                if (event.type === "error" && event.retryable === true && !streamed && attempt < MAX_RETRIES) {
+                    retry = event;
+                    break;
+                }
+
+                streamed = true;
+                yield event;
+            }
+
+            if (retry === undefined) {
+                return;
+            }
+
+            try {
+                await (this.options.wait ?? wait)(retryDelay(retry.retryAfterMs, backoff), signal);
+            } catch (error) {
+                yield providerFailure(error, settings.provider, signal);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Ask the provider whether the key is accepted: one short turn.
+     * @param signal - Cancels it.
+     * @returns `AI_COMPLETED`, or the code of what failed (`AI_KEY_REJECTED` for a refused key).
+     */
+    async checkKey(signal: AbortSignal): Promise<EngineOutcome> {
+        for await (const event of this.turn(KEY_CHECK, signal)) {
+            if (event.type === "error") {
+                return { code: event.code, params: event.params };
+            }
+
+            if (event.type === "finish") {
+                return { code: "AI_COMPLETED", params: {} };
+            }
+        }
+
+        return { code: "AI_PROVIDER_ERROR", params: { provider: this.providerName } };
+    }
+
+    /**
+     * One speech call, asked again on graphty's schedule like a turn: a rate limit, a server error
+     * or a lost connection.
+     * @param call - One attempt, with the voice module and the settings as they are now.
+     * @param signal - Cancels the call and any wait.
+     * @returns The value, or the coded error of the last attempt.
+     */
+    private async voiceCall<T>(
+        call: (voice: ProviderVoice, settings: ProviderApiSettings) => Promise<VoiceAttempt<T>>,
+        signal: AbortSignal,
+    ): Promise<VoiceAttempt<T>> {
+        const settings = this.settings();
+        if (settings.apiKey === undefined || settings.apiKey === "") {
+            return keyMissing(settings.provider, signal);
+        }
+
+        let voice: ProviderVoice;
+        try {
+            voice = await (this.options.loadVoice ?? loadProviderVoice)();
+        } catch (error) {
+            return providerFailure(error, settings.provider, signal);
+        }
+
+        for (let attempt = 0, backoff = FIRST_RETRY_MS; ; attempt++, backoff *= 2) {
+            let done: VoiceAttempt<T>;
+            try {
+                done = await call(voice, settings);
+            } catch (error) {
+                // The adapter codes its own failures; anything it threw is coded here, never rethrown.
+                return providerFailure(error, settings.provider, signal);
+            }
+
+            if (done.type === "done" || done.retryable !== true || attempt >= MAX_RETRIES) {
+                return done;
+            }
+
+            try {
+                await (this.options.wait ?? wait)(retryDelay(done.retryAfterMs, backoff), signal);
+            } catch (error) {
+                return providerFailure(error, settings.provider, signal);
+            }
+        }
+    }
+
+    /**
+     * Open a live conversation. No retry: a press that cannot open live runs turn by turn.
+     * @param options - The model, voice, language, instructions and tools.
+     * @param signal - Cancels the opening.
+     * @returns The connection, or the code it failed with.
+     */
+    private async live(options: LiveOptions, signal: AbortSignal): Promise<LiveOpened> {
+        const settings = this.settings();
+        if (settings.apiKey === undefined || settings.apiKey === "") {
+            return failed(keyMissing(settings.provider, signal));
+        }
+
+        // The realtime adapters reach only the provider's own host (UPSTREAM.md).
+        if (settings.baseUrl !== undefined) {
+            return { code: "AI_VOICE_UNAVAILABLE", params: { path: "input", reason: "live-custom-base-url" } };
+        }
+
+        try {
+            const live = await (this.options.loadLive ?? loadProviderLive)();
+            return await live.openLive(settings, options, signal);
+        } catch (error) {
+            // The adapter codes its own failures; anything it threw is coded here, never rethrown.
+            return failed(providerFailure(error, settings.provider, signal, [settings.apiKey]));
+        }
+    }
+
+    /**
+     * Whether a live conversation can open now.
+     * @returns Whether a key is set, and whether a `baseUrl` is.
+     */
+    liveReadiness(): { readonly keyed: boolean; readonly customBaseUrl: boolean } {
+        const { apiKey, baseUrl } = this.settings();
+        return { keyed: apiKey !== undefined && apiKey !== "", customBaseUrl: baseUrl !== undefined };
+    }
+
+    /** The configuration is the provider's, and nothing outlives a turn's signal. */
+    dispose(): void {
+        // Nothing of its own to release.
+    }
+}
+
+/** The turn that checks a key: what `validateApiKey` has always sent. */
+export const KEY_CHECK: TurnRequest = {
+    system: "",
+    messages: [{ id: "m1", role: "user", parts: [{ type: "text", origin: "reader", text: "hi" }] }],
+    tools: [],
+    toolMode: "auto",
+};

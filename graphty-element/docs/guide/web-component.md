@@ -695,6 +695,9 @@ element.stopVoiceInput();
 element.disableAiControl();
 ```
 
+Remembered conversations, approvals before a change, and the rules each promise follows are in
+the [AI Assistant guide](./ai-assistant).
+
 ### Screenshot and Capture
 
 ```javascript

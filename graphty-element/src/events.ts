@@ -1,9 +1,14 @@
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
+import type { AiTokenUsage } from "./ai/agents";
+import type { AiVoiceConversationMode, AiVoiceSupport } from "./ai/AiManager";
 import type { AiStatus } from "./ai/AiStatus";
 import type { CommandResult } from "./ai/commands/types";
-import type { EdgeId, NodeId } from "./catalog/types";
+import type { AiSource } from "./ai/conversation/snapshot";
+import type { AiHostedToolId, AiResultCode, AiResultParams } from "./catalog/ai";
+import type { EdgeId, FormatId, NodeId } from "./catalog/types";
 import type { NodeIdType } from "./config";
+import type { ExportLoss } from "./data/export";
 import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
 import type { GraphtyWarningCode } from "./errors/codes";
@@ -13,6 +18,10 @@ import type { Node } from "./Node";
 import type { StyleChange } from "./session/styles/StylesApi";
 import type { HistoryCause } from "./session/types";
 
+/**
+ * Every event name a listener can subscribe to. OPEN UNION: event names may be added in a minor
+ * release (the assistant's among them), so a `switch` over it needs a `default`.
+ */
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 export type EventCallbackType = (evt: GraphEvent | NodeEvent | EdgeEvent | AiEvent) => void;
 
@@ -34,6 +43,7 @@ export type EventOfType<K extends EventType> = AnyEvent extends infer E
 export type GraphEventType = GraphEvent["type"];
 export type NodeEventType = NodeEvent["type"];
 export type EdgeEventType = EdgeEvent["type"];
+/** The name of an event the AI assistant emits. OPEN UNION: event names may be added in a minor release. */
 export type AiEventType = AiEvent["type"];
 
 /**
@@ -764,7 +774,11 @@ export interface EdgeAddEvent {
     metadata: object;
 }
 
-// AI events (Phase 7)
+/**
+ * Every event the AI assistant emits. OPEN UNION: events may be added in a minor release, so a
+ * `switch` over `type` needs a `default`; a listener subscribed by name never receives one it
+ * did not ask for.
+ */
 export type AiEvent =
     | AiStatusChangeEvent
     | AiCommandStartEvent
@@ -776,7 +790,20 @@ export type AiEvent =
     | AiStreamToolResultEvent
     | AiVoiceStartEvent
     | AiVoiceTranscriptEvent
-    | AiVoiceEndEvent;
+    | AiVoiceEndEvent
+    | AiVoiceLevelEvent
+    | AiVoiceSupportChangeEvent
+    | AiSpeechStartEvent
+    | AiSpeechEndEvent
+    | AiApprovalRequestedEvent
+    | AiExportReadyEvent
+    | AiConversationChangedEvent
+    | AiPendingResolvedEvent
+    | AiQuestionAskedEvent
+    | AiAgentStartEvent
+    | AiAgentEndEvent
+    | AiHostedToolResultEvent
+    | AiCapabilityUnavailableEvent;
 
 /** Main event for UI binding - single source of truth for AI status */
 export interface AiStatusChangeEvent {
@@ -813,10 +840,16 @@ interface AiCommandCancelledEvent {
     reason: "user" | "timeout";
 }
 
-/** Emitted during streaming when text chunks arrive (throttled) */
+/**
+ * Emitted once for each piece of text the provider streams, not throttled.
+ *
+ * OpenAI and Anthropic stream in small pieces, so one answer can send many.
+ */
 export interface AiStreamChunkEvent {
     type: "ai-stream-chunk";
+    /** The piece of text that just arrived. */
     text: string;
+    /** The message's text so far, every turn of it. */
     accumulated: string;
 }
 
@@ -836,19 +869,302 @@ export interface AiStreamToolResultEvent {
 }
 
 /** Emitted when voice input starts */
-interface AiVoiceStartEvent {
+export interface AiVoiceStartEvent {
     type: "ai-voice-start";
+    /**
+     * How the press reaches the model, when `AiVoiceOptions.mode` is set: `"live"`, or `"turns"`.
+     * Live asked for but run turn by turn carries `code` and `params`.
+     */
+    mode?: AiVoiceConversationMode;
+    /** Why a press asked to be live runs turn by turn: `AI_VOICE_UNAVAILABLE`. */
+    code?: AiResultCode;
+    /** The facts behind `code` (`{ path: "input", reason }`). */
+    params?: AiResultParams;
 }
 
 /** Emitted when voice transcript is available */
-interface AiVoiceTranscriptEvent {
+export interface AiVoiceTranscriptEvent {
     type: "ai-voice-transcript";
     transcript: string;
     isFinal: boolean;
 }
 
+/**
+ * The assistant held a batch of its changes for the reader's approval: it was large, slow,
+ * replaced the graph, could not be undone or fetched a URL the reader did not give. Nothing it
+ * asked for has happened. Answer with `resolveAiApproval(request.id, { approve })`; the id expires
+ * at the reader's next message. A host that listens for none of these never runs a held batch.
+ */
+export interface AiApprovalRequestedEvent {
+    /** The event's name. */
+    type: "ai-approval-requested";
+    /** What the reader is asked to approve. */
+    request: AiApprovalRequest;
+    /**
+     * True when the request was made earlier and is asked again: the assistant reopened a saved
+     * conversation still waiting on it (after a reload, in a new element). Draw it as any other.
+     */
+    replayed: boolean;
+}
+
+/** What the assistant asks the reader to approve. */
+export interface AiApprovalRequest {
+    /** The single-use id `resolveAiApproval` takes. */
+    readonly id: string;
+    /**
+     * Why it was held; `"policy"` when the host's approval policy asked, `"plan"` for a hand-off
+     * to a helper while `confirmPlans` is set, `"web-content"` for a change asked for while the
+     * message holds web content. OPEN UNION.
+     */
+    readonly gate:
+        "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    /** The tool calls held, as the model made them. */
+    readonly calls: readonly { readonly tool: string; readonly arguments: Readonly<Record<string, unknown>> }[];
+    /** What the reader is shown before approving; empty for a `"policy"` hold. */
+    readonly preview: AiApprovalPreview;
+    /** The saved conversation it belongs to, when the assistant keeps `history`. */
+    readonly conversationId?: string;
+    /** The conversation message whose calls are held. */
+    readonly messageId?: string;
+    /** When it was held, as an ISO 8601 time. */
+    readonly createdAt?: string;
+    /** The helper (`AiAgentRole.name`) whose calls are held, when a helper made them. */
+    readonly agent?: string;
+}
+
+/**
+ * The model asked the reader a question with a few choices, and the message waits for the answer
+ * (the command resolved `AI_QUESTION_ASKED`). Draw the question and its choices; answer with
+ * `answerAiQuestion(request.id, choice)`, by the choice's value. Only with `questions: true`.
+ */
+export interface AiQuestionAskedEvent {
+    /** The event's name. */
+    type: "ai-question-asked";
+    /** What the reader is asked. */
+    request: AiQuestionRequest;
+    /** True when the question was asked earlier and is asked again, as for an approval. */
+    replayed: boolean;
+}
+
+/** A question the model asks the reader. */
+export interface AiQuestionRequest {
+    /** The single-use id `answerAiQuestion` takes. */
+    readonly id: string;
+    /** The question, as the model wrote it, in the reader's language. */
+    readonly question: string;
+    /** The answers the reader may give, as the model wrote them: two to ten. */
+    readonly choices: readonly string[];
+    /** Whether the reader may pick more than one. */
+    readonly multiple: boolean;
+    /** The saved conversation it belongs to, when the assistant keeps `history`. */
+    readonly conversationId?: string;
+    /** The conversation message that asked. */
+    readonly messageId?: string;
+    /** When it was asked, as an ISO 8601 time. */
+    readonly createdAt?: string;
+}
+
+/** The assistant handed a task to a helper (`AiAgentRole`), which starts on it. */
+export interface AiAgentStartEvent {
+    /** The event's name. */
+    type: "ai-agent-start";
+    /** The helper's name. */
+    agent: string;
+    /** The task it was handed, as the main model or the plan wrote it. */
+    task: string;
+    /**
+     * The helpers before it in a sequence or a plan, and how each ended: it was told their answers
+     * beside its task. Absent when there were none.
+     */
+    after?: readonly { readonly agent: string; readonly code: AiResultCode }[];
+}
+
+/** A helper finished its task. */
+export interface AiAgentEndEvent {
+    /** The event's name. */
+    type: "ai-agent-end";
+    /** The helper's name. */
+    agent: string;
+    /** How it ended, as an AI command's result code. */
+    code: AiResultCode;
+    /** The facts behind `code`. */
+    params: AiResultParams;
+    /** The tokens the helper used. */
+    usage: AiTokenUsage;
+}
+
+/**
+ * A tool the provider ran for the assistant (a web search, reading a web page) finished, or a
+ * helper that had it answered without using it. Draw its sources as text or as links, http and
+ * https only.
+ */
+export interface AiHostedToolResultEvent {
+    /** The event's name. */
+    type: "ai-hosted-tool-result";
+    /** The tool. */
+    tool: AiHostedToolId;
+    /**
+     * `"done"`; `"result-unavailable"` when the provider ran it but its results did not come back;
+     * `"not-used"` when the helper offered it answered without running it (from the model's own
+     * knowledge), so there are no sources.
+     */
+    status: "done" | "result-unavailable" | "not-used";
+    /** The pages it read or found, in the provider's order. */
+    sources: readonly AiSource[];
+}
+
+/**
+ * A tool the configuration asked for (`AiToolOptions`) cannot be used with this provider and
+ * model, so it is left out of every turn; emitted once each time the assistant is enabled.
+ */
+export interface AiCapabilityUnavailableEvent {
+    /** The event's name. */
+    type: "ai-capability-unavailable";
+    /** The tool. */
+    tool: AiHostedToolId;
+    /** Why: `AI_HOSTED_TOOL_UNSUPPORTED`. */
+    code: AiResultCode;
+    /** The facts behind `code`: `{ provider, model, tool }`. */
+    params: AiResultParams;
+}
+
+/**
+ * Something the assistant waited on the reader for ended: an approval was answered, superseded
+ * by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`),
+ * cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+ */
+export interface AiPendingResolvedEvent {
+    /** The event's name. */
+    type: "ai-pending-resolved";
+    /** The request's id, as `ai-approval-requested` or `ai-question-asked` gave it. */
+    id: string;
+    /** What was waiting. OPEN UNION. */
+    kind: "approval" | "question" | (string & {}); // NOSONAR(S4335): the open-union idiom
+    /**
+     * How it ended: `AI_COMPLETED` (approved), `AI_APPROVAL_DENIED`, `AI_APPROVAL_STALE`,
+     * `AI_CANCELLED` or `AI_UNDONE`.
+     */
+    code: AiResultCode;
+    /** The facts behind `code` (`reason` for a stale request). */
+    params: AiResultParams;
+}
+
+/**
+ * What a held change would do, for the reader to judge. Each gate sets the fields it measured:
+ * `large` the counts and the first affected nodes, `slow` the algorithm and its seconds, `replaces`
+ * and `network` what an import or a clear would replace and from where, `irreversible` the run it
+ * would cancel. OPEN: fields may be added in a minor release.
+ */
+export interface AiApprovalPreview {
+    /** Nodes the message would remove in all. */
+    readonly removeNodes?: number;
+    /** Edges the message would remove in all. */
+    readonly removeEdges?: number;
+    /** Attribute values the message would change in all. */
+    readonly changedValues?: number;
+    /** The first nodes it would change, at most ten, with their labels. */
+    readonly ids?: readonly { readonly id: string; readonly label: string }[];
+    /** The algorithm a slow run or a cancel names, by its catalog key. */
+    readonly algorithm?: string;
+    /** How long a slow run is estimated to take, or `"unbounded"`. */
+    readonly seconds?: number | "unbounded";
+    /** The run's cost class (`"linear"`, `"iterative"`, ...). */
+    readonly costClass?: string;
+    /** The run a cancel would stop. */
+    readonly run?: string;
+    /** Nodes the graph holds, which a replacing import or a clear discards. */
+    readonly nodes?: number;
+    /** Edges the graph holds, which a clear discards. */
+    readonly edges?: number;
+    /** How an import treats the graph there: `"merge"` or `"replace"`. */
+    readonly mode?: "merge" | "replace";
+    /** The URL an import would fetch, which the reader did not give. */
+    readonly url?: string;
+}
+
+/**
+ * The assistant exported the graph or captured a picture or a video: the document is handed to
+ * the application, which saves or shows it. The model receives only its size.
+ */
+export interface AiExportReadyEvent {
+    /** The event's name. */
+    type: "ai-export-ready";
+    /** The format: a graph format's id (`graphml`), or a picture's or a video's (`png`, `webm`). */
+    format: FormatId;
+    /** The document: text for a graph format, a `Blob` for a picture or a video. */
+    data: string | Blob;
+    /** What the format could not carry, as coded facts. */
+    losses: readonly ExportLoss[];
+}
+
+/**
+ * The open conversation changed: it was saved, reopened, switched to, started anew
+ * (`newAiConversation`, `clearAiHistory`) or changed by another tab, or its store failed. Read it
+ * again with `getAiConversation()`. Only with `history` set.
+ */
+export interface AiConversationChangedEvent {
+    /** The event's name. */
+    type: "ai-conversation-changed";
+    /** The open conversation's id. */
+    conversationId: string;
+    /**
+     * Set when the store failed: `AI_STORAGE_FAILED` (a write failed; the conversation carries on
+     * in memory) or `AI_HISTORY_UNAVAILABLE` (the browser's storage could not open).
+     */
+    code?: AiResultCode;
+    /** The facts behind `code`. */
+    params?: AiResultParams;
+}
+
 /** Emitted when voice input ends */
-interface AiVoiceEndEvent {
+export interface AiVoiceEndEvent {
     type: "ai-voice-end";
     reason: "user" | "timeout" | "error";
+    /**
+     * How a press of `aiTalk` ended: `AI_COMPLETED`, `AI_CANCELLED`, `AI_VOICE_UNAVAILABLE`,
+     * `AI_NOT_ENABLED`, `AI_FAILED` (the voice code would not load) or a provider's failure code
+     * from transcription (`AI_PROVIDER_ERROR`, `AI_KEY_REJECTED`, ...). Absent for `startVoiceInput`.
+     */
+    code?: AiResultCode;
+    /** The facts behind `code` (`{ path, reason }` for `AI_VOICE_UNAVAILABLE`). */
+    params?: AiResultParams;
+}
+
+/** How loud the microphone is while talk is held, at most once per animation frame. */
+export interface AiVoiceLevelEvent {
+    /** The event's name. */
+    type: "ai-voice-level";
+    /** From 0 (silence) to 1. */
+    level: number;
+}
+
+/**
+ * How speech would be carried changed since `getAiVoiceSupport()` last said: a press asked for
+ * the microphone or learned whether the browser recognizes speech, a key was set, an immersive
+ * session began or ended. Redraw what depends on it from `support`.
+ */
+export interface AiVoiceSupportChangeEvent {
+    /** The event's name. */
+    type: "ai-voice-support-change";
+    /** Both directions now, as `getAiVoiceSupport()` returns them. */
+    support: AiVoiceSupport;
+}
+
+/** The assistant started speaking an answer. */
+export interface AiSpeechStartEvent {
+    /** The event's name. */
+    type: "ai-speech-start";
+}
+
+/** The assistant stopped speaking. */
+export interface AiSpeechEndEvent {
+    /** The event's name. */
+    type: "ai-speech-end";
+    /**
+     * Why: `AI_COMPLETED` (it finished), `AI_CANCELLED` (talk or `stopAiSpeech()` cut it off),
+     * `AI_VOICE_UNAVAILABLE` or a provider's failure code.
+     */
+    code: AiResultCode;
+    /** The facts behind `code`. */
+    params: AiResultParams;
 }

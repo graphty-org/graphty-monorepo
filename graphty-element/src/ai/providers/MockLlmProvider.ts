@@ -1,5 +1,30 @@
 import type { LlmProvider, LlmResponse, Message, ProviderOptions, StreamCallbacks, ToolDefinition } from "./types";
 
+const OPEN_TAG = "<graph-data>";
+const CLOSE_TAG = "</graph-data>";
+
+/**
+ * Text with every `<graph-data>` envelope taken out, in one pass: each tag is found by `indexOf`
+ * from where the last one ended, so the work is linear in the text's length however many
+ * unclosed tags it holds (a lazy regex rescans to the end from each one).
+ * @param text - The text.
+ * @returns It, without the envelopes.
+ */
+function withoutGraphData(text: string): string {
+    let out = "";
+    let from = 0;
+    for (;;) {
+        const open = text.indexOf(OPEN_TAG, from);
+        const close = open < 0 ? -1 : text.indexOf(CLOSE_TAG, open + OPEN_TAG.length);
+        if (close < 0) {
+            return out + text.slice(from);
+        }
+
+        out += text.slice(from, open);
+        from = close + CLOSE_TAG.length;
+    }
+}
+
 /** Records a call to the mock provider for inspection */
 interface CallRecord {
     messages: Message[];
@@ -107,7 +132,8 @@ export class MockLlmProvider implements LlmProvider {
             return this.defaultResponse;
         }
 
-        const content = userMessage.content.toLowerCase();
+        // The reader's words, not the facts about the graph the assistant sends beside them.
+        const content = withoutGraphData(userMessage.content).toLowerCase();
 
         // Check each pattern for a match
         for (const [pattern, response] of this.responses) {

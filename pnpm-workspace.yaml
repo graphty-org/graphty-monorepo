@@ -36,6 +36,17 @@ patchedDependencies:
     # ignored: the real element loads instead. Vitest 5 checks for the trailing slash; this is
     # that fix (issue #493).
     "@vitest/browser@4.1.11": patches/@vitest__browser@4.1.11.patch
+    # graphty-element's live voice (src/ai/engine/tanstack/live.ts, UPSTREAM.md). OpenAI's realtime
+    # adapter sends response.create after every tool result, so a response with two calls asks for a
+    # second response while the first result is still alone: this sends one after the response's
+    # last result. It also reports a response with only calls as complete, and a data channel the
+    # provider closed, neither of which the adapter tells its caller.
+    "@tanstack/ai-openai@0.29.1": patches/@tanstack__ai-openai@0.29.1.patch
+    # Gemini's realtime adapter stops sending audio on stopAudioCapture and never ends the stream,
+    # so on push-to-talk release the server never ends the reader's turn: this pads the silence its
+    # turn detection waits for and sends audioStreamEnd. It also drops the setup's
+    # proactiveAudio: false, which gemini-3.8-live refuses.
+    "@tanstack/ai-gemini@0.37.2": patches/@tanstack__ai-gemini@0.37.2.patch
     # nx 22.7.12 starts a process-metrics collector in every nx process that refreshes every
     # process on the machine through sysinfo, which keeps a /proc/<pid>/stat and a
     # /proc/<pid>/task/<tid>/stat open for each (about 11,000 handles per nx process here). A few
@@ -71,10 +82,32 @@ overrides:
     "uuid@<11.1.1": ^11.1.1
     # storybook 9.1.20 pins @vitest/mocker 3.2.4; GHSA-82fw-gwwq-j7x9 is patched only in 4.1.11.
     "@vitest/mocker@>=2.1.0 <4.1.11": ^4.1.11
-    # graphty-element's @ai-sdk/* -> @ai-sdk/provider-utils 2.x pins undici 5.
+    # graphty-element's optional @ai-sdk/* peers -> @ai-sdk/provider-utils 2.x pin undici 5. The
+    # element no longer imports the AI SDK, but the peers stay declared until the next major, and
+    # auto-install-peers (.npmrc) still installs them in this workspace.
     "undici@<6.28.0": ^6.28.0
     # vitepress 1.x depends on vite 5, which the Vite 6.4.3 advisories do not patch.
     "vite@<6.4.3": ^6.4.3
+    # graphty-element builds TanStack AI and the provider SDKs it drives into its own chunks, so
+    # the versions the contract suite and the paid regression run tested are the versions that
+    # ship: each SDK is pinned exactly under the TanStack adapter that declares it, inside that
+    # adapter's own range (graphty-element/test/packaging/ai-pins.test.ts checks both). Move them
+    # together with the @tanstack/ai* pins (design/ai/tanstack-ai-harness-design.md, section 3.1).
+    "@tanstack/ai-openai>openai": 7.32.0
+    "@tanstack/ai-anthropic>@anthropic-ai/sdk": 0.97.1
+    "@tanstack/ai-gemini>@google/genai": 2.28.0
+    # The TanStack packages the adapters pull in, and the OpenAI SDK under the shared OpenAI base,
+    # pinned the same way: each is built in too, and a caret range would let a lockfile refresh
+    # move it. @tanstack/ai-utils has five dependents, all TanStack's, so it is pinned once.
+    "@tanstack/ai-openai>@tanstack/openai-base": 0.13.1
+    "@tanstack/openai-base>openai": 7.32.0
+    "@tanstack/ai>@tanstack/ai-event-client": 0.13.1
+    "@tanstack/ai-event-client>@tanstack/devtools-event-client": 0.4.4
+    "@tanstack/ai-utils": 0.4.1
+    # In-page code: TanStack Code Mode's QuickJS driver and the WebAssembly build it loads, built
+    # into graphty-element's own program chunk, pinned the same way.
+    "@tanstack/ai-isolate-quickjs>quickjs-emscripten": 0.31.0
+    "quickjs-emscripten>@jitl/quickjs-wasmfile-release-sync": 0.31.0
     # One Playwright for the whole workspace: the version CI installs browsers for (ci.yml's
     # browser cache). graphty-element's @playwright/test ^1.54.1 otherwise resolved 1.63.0, and any
     # lockfile re-resolution moved @vitest/browser-playwright's playwright peer to it, so every

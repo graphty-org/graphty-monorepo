@@ -14,7 +14,7 @@ import {
     Vector3,
 } from "@babylonjs/core";
 
-import { readEndpoint, resolveEndpoints } from "./data/endpoints";
+import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
@@ -400,13 +400,12 @@ function expandNode(node: GraphNode): void {
     // Only Graph has fetchNodes/fetchEdges, not GraphContext
     const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
 
-    const { fetchNodes, fetchEdges } = graph;
-
     // No fetchers: the node's own network source expands it, when the consumer
     // switched that on (`behavior.expand.trigger`). Neither is the default, and
     // neither is an error: a graph that holds everything it is ever going to
     // hold has nothing to expand.
-    if (!fetchNodes || !fetchEdges) {
+    const command = expansionOf(graph, node);
+    if (command === undefined) {
         expandFromSource(node, "double-click");
         return;
     }
@@ -414,43 +413,11 @@ function expandNode(node: GraphNode): void {
     // make sure the graph is running, unless the consumer paused it
     context.getLayoutManager().running = true;
 
-    // fetch all edges for current node
-    const edgeSet = fetchEdges(node, graph);
-    const edges = Array.from(edgeSet);
-
-    // Which keys name this batch's endpoints is decided ONCE, by the same
-    // resolver the data manager uses, and the answer is then passed to
-    // `addEdges` so both halves of the expansion read the same columns.
-    //
-    // Reading `e.src` and `e.dst` here, as this handler used to, made the
-    // expansion work for exactly one spelling -- and not the canonical one. A
-    // `fetchEdges` written the way every guide teaches, returning
-    // `{source, target}`, yielded a set of `undefined` neighbours: nothing was
-    // fetched, and the edges queued as pending for ever.
-    const endpoints = resolveEndpoints(edges, { source: null, target: null });
-    const nodeIds = new Set<NodeIdType>();
-    edges.forEach((e) => {
-        nodeIds.add(readEndpoint(e, endpoints.source) as NodeIdType);
-        nodeIds.add(readEndpoint(e, endpoints.target) as NodeIdType);
-    });
-    nodeIds.delete(node.id);
-
-    // fetch all nodes from associated edges
-    const nodes = fetchNodes(nodeIds, graph);
-
-    // Add what was fetched as one step. The records ride in the command, so a
-    // redo puts them back without asking the consumer again; the command adds
-    // the edges under `repeated: "first"`, because a neighbourhood legitimately
-    // names edges the graph already holds.
+    // Add what was fetched as one step; the command adds the edges under
+    // `repeated: "first"`, because a neighbourhood legitimately names edges the
+    // graph already holds.
     void dispatcherOf(graph.getSession())
-        .dispatch({
-            op: "data.expand",
-            seed: node.id,
-            nodes: [...nodes],
-            edges,
-            source: endpoints.source,
-            target: endpoints.target,
-        })
+        .dispatch(command)
         .catch((error: unknown) => {
             console.error("[graphty] Expanding a node failed:", error);
         });

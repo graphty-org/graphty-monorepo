@@ -7,7 +7,7 @@
     "targets": {
         "build": {
             "executor": "nx:run-commands",
-            "outputs": ["{projectRoot}/dist", "{projectRoot}/build/doors.json"],
+            "outputs": ["{projectRoot}/dist", "{projectRoot}/build/doors.json", "{projectRoot}/build/chunks.json"],
             "options": {
                 "command": "npm run build",
                 "cwd": "graphty-element"
@@ -38,7 +38,7 @@
         "lint": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "eslint --concurrency auto && tsc --noEmit",
+                "command": "eslint --concurrency auto && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit",
                 "cwd": "graphty-element"
             },
             "dependsOn": ["^build"]

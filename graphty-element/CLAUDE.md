@@ -165,6 +165,12 @@ supported extension points today. They may be promoted later. Until then nothing
 keep them working for a third party who finds them, and a bug report about one is a feature
 request.
 
+`assistantReach()` in `./extend` is not a seventh point. The assistant's tools are generated from
+the catalog, so whatever a plugin registers through the six reaches the assistant with no code of
+its own; `assistantReach()` is the plugin's check that it does (an option type no schema can
+offer, a missing description, a camera option no tool passes). A consumer's own AI command stays
+internal: one named as a built-in tool is offered to the model as `app_<name>`.
+
 **Why the list is closed rather than "whatever happens to be registrable".** A seam that is
 half-reachable is worse than no seam: a consumer finds the registration call, builds against it,
 and discovers at integration time that their extension cannot appear in a picker, cannot be
@@ -367,7 +373,7 @@ frame-count-independent, and it is shared by the tests and the stories -- write 
 `GRAPHTY_BROWSER_GPU` picks the Chromium flag set the `browser` project launches with --
 `swiftshader` for a workstation or a plain runner, `nvidia` for the GPU lane's card (add
 `GRAPHTY_EGL_LIB_DIR` when the driver's libEGL is not where Chromium looks). Unset, Chromium
-launches with no flags and sees no WebGPU at all, which is what the five CI shards do and why
+launches with no GPU flags and sees no WebGPU at all, which is what the five CI shards do and why
 `test/browser/webgpu-layout.test.ts` skips itself there.
 
 #### More on the test projects
@@ -535,6 +541,99 @@ that only draws a graph does not ship three LLM provider SDKs and an encrypted k
 coding agent needs in order to drive the element -- the algorithms, layouts, formats, palettes
 and scales, with every option each accepts -- is published as plain JSON by
 `@graphty/graphty-element/catalog` instead.
+
+**The AI engine seam.** Model calls go through `AiEngine` (`src/ai/engine/`, one call per turn):
+`runConversation` is the loop and `ToolExecutor` runs each batch of tool calls. The built-in
+OpenAI, Anthropic and Google providers (`VercelAiProvider`, a historical name) run on
+`ProviderApiEngine`, which owns the retry schedule and loads the TanStack AI adapter
+(`src/ai/engine/tanstack/`, one chunk per provider) on the first turn; WebLLM, the mock and a
+consumer's own `LlmProvider` run through `LlmProviderEngine`; `FakeEngine` is the scripted engine
+new tests are written on. Only `src/ai/engine/tanstack/` may import `@tanstack/*`, `@ag-ui/*` or a
+vendor SDK (WebLLM's provider keeps `@mlc-ai/web-llm`); the AI SDK 5 is imported nowhere, and its
+peers stay declared, unused, until the next major. The adapter is reached only through `load.ts`
+and ships no declarations (the build deletes them). The rules that keep a framework switch cheap,
+each with a check that plants a violation in its self-test:
+
+- No framework or provider type in an API report or a shipped file: `tools/api-report.mjs` and
+  `tools/check-published-deps.mjs`, reading the list in `tools/ai-framework-packages.mjs`.
+- Saved data only in graphty's versioned format: `formats.test.ts`, with the saved conversation
+  format (`src/ai/conversation/formats/`, published in `docs/guide/ai-conversation-format.md`). A
+  released version's schema file never changes; a format change is a new version with an upgrade.
+- Providers configured with named graphty fields, never an open pass-through (`unknown`, `any`,
+  `object`, a record of unknown, an index signature) on `AiManagerConfig`, `ProviderOptions` or a
+  type they reach: `tools/api-report.mjs`.
+- Loop, policies, plans and retries in graphty code: the import rules in
+  `eslint-rules/ai-engine-boundary.mjs`, and the engine contract case that one turn is one request.
+- Tests on `FakeEngine` or `MockLlmProvider`: the engine contract suite
+  (`test/ai/engine/contract.ts`, Node and browser), which every engine passes, the provider-API
+  engine on each provider through a fake `fetch` speaking the provider's own wire format
+  (`test/ai/engine/providerApiFixtures.ts`).
+- Frameworks loaded lazily, one provider per chunk: `test/packaging/ai-lazy-chunks.test.ts`, over
+  the build's `build/chunks.json`.
+
+**Loop-owned tools.** `delegate` (offered when `agents` is set) and `ask_reader` (when
+`questions: true`) are declared by `runConversation`, not generated into `PROFILE_TOOLS`, so the
+default config offers exactly the profile's tools and `test/ai/tools/budget.test.ts` keeps its
+counts. Their names are reserved in `ASSISTANT_TOOLS` with `profiles: []` (a consumer command of that
+name is offered as `app_<name>`). Helpers, routers and plans live in `src/ai/plans/`, reached only by
+`import()` when `agents` is set, so `./ai` keeps its size budget. The consumer guide is
+`docs/guide/ai-assistant.md` ("Questions", "Helpers and plans").
+
+**Web tools and in-page code** (`AiManagerConfig.tools`, guide section "Web search, web pages and
+code"). Web search and web fetch run at the provider, and only in the built-in read-only helper
+`research` (a reserved role name), which the loop adds to `delegate` when a web tool is on and
+available (`src/ai/tools/hosted.ts`); a conversation holding a part with `origin: "web"` refuses,
+holds or allows every call that does not only read, and every hand-off to a helper that fetches
+pages, as `tools.webContentWrites` says (`ToolExecutor` judge, gate and reason `"web-content"`).
+Provider differences the core needs (Google's search has no domain filter and no function tools
+beside it) are `hostedToolLimits()` in `src/ai/engine/types.ts`, never a provider-name check.
+`run_code` is loop-owned like `delegate` (`profiles: []` in `ASSISTANT_TOOLS`), declared only with
+`tools.inPageCode`; its program runs in the page in QuickJS (`src/ai/engine/tanstack/program.ts`, a seam of its own
+that is not the provider engine: see that folder's `UPSTREAM.md`),
+its own chunk plus a `.wasm` asset, loaded by `loadProgramRunner()` and never reached statically
+from `./ai` or `index.js`; `./bundle` leaves it out (`programBuild.ts`). Bindings are the read
+actions that hand the host nothing (`src/ai/tools/runCode.ts`). Which provider offers which tool is
+`AI_HOSTED_TOOL_CAPABILITIES` in `src/catalog/ai.ts`; after changing it (or
+`AI_VOICE_CAPABILITIES`), build and run
+`node scripts/generate-ai-feature-matrix.mjs`, which rewrites `docs/guide/ai-provider-features.md`
+(`test/documentation/ai-provider-features.test.ts` fails until you do).
+
+**Voice** (`AiManagerConfig.voice`, guide section "Voice"). `src/ai/voice/` is the page side:
+`VoiceSession` (one press of `aiTalk`: listen, send or answer, speak), `choose.ts` (the `"auto"`
+rules as a pure function), `support.ts` (the page's speech facts and the per-origin memory of
+whether browser recognition works), `SpeechInput` and `SpeechOutput` (recognition or recording,
+synthesis or playback), `pointing.ts` (nodes pointed at while talk is held, sent in the message's
+facts block), and the XR bindings and in-scene controls (`xr.ts`, `XrPendingControl.ts`). Nothing is
+reached without `voice`: the session is one chunk loaded on the first `aiTalk` or
+`getAiVoiceSupport`, the XR part a second loaded once a session runs, and `prime.ts` (the Enter
+VR/AR click's microphone and audio priming) a third, loaded at enable; the provider calls (`transcribe`, `speak` on `AiEngine`) are the adapter's own chunk,
+`src/ai/engine/tanstack/voice.ts`, through `loadProviderVoice()`. The element speaks only the
+model's text or the host's `voice.say` words, and draws in XR only data, icons and `xr.ai.labels`.
+Which provider transcribes and speaks is `AI_VOICE_CAPABILITIES` in `src/catalog/ai.ts`; it feeds
+the same generated page as the hosted tools, with the browser-by-path table in
+`scripts/generate-ai-feature-matrix.mjs`. Tests run on the fakes in `test/helpers/fake-speech.ts`;
+the "Voice" story fakes recognition and the microphone only under automation, so on a headset it
+is the device check.
+
+**Live voice** (`voice.mode: "live"`, guide section "Live conversation"): speech to speech over the
+provider's realtime API, behind the seam as `AiEngine.openLive` (graphty's own `LiveConnection` and
+`LiveEvent`, all codes). Page side: `LiveSession.ts` (one connection per assistant, the microphone
+sent only while talk is held, barge-in, idle close) and `liveTurns.ts` (`LiveTurnEngine`: each
+provider response is one `turn()` of `runConversation`, so tools, policy, undo and history are the
+turns path's), one chunk loaded by `import()` on the first live press; `chooseLive` in `choose.ts`
+says why live cannot run, and the press then runs turn by turn. Adapter side:
+`src/ai/engine/tanstack/live.ts` (the token minted in the page from the reader's key, the event
+mapping), its own chunk through `loadProviderLive()`, with `openaiRealtime` and `geminiRealtime` in
+each provider's chunk. Two pnpm patches (`patches/@tanstack__ai-openai@0.29.1.patch`: one
+`response.create` after the last tool result of a response; `patches/@tanstack__ai-gemini@0.37.2.patch`:
+`audioStreamEnd` on `stopAudioCapture`) fix upstream defects; `src/ai/engine/tanstack/UPSTREAM.md`
+records each, and an upgrade drops a patch only when its test passes without it. Tests run on
+`FakeEngine.scriptLive()` and `test/helpers/fake-live-transport.ts`; the "Live voice" story runs on
+the scripted connection in `src/testing/fakeLive.ts`.
+
+Framework pins are exact (`test/packaging/ai-pins.test.ts`) and upgraded together with the
+contract suite and the paid `llm-regression` run; peers change only in a major
+(`tools/check-peer-deps-stable.mjs`). Design: `design/ai/tanstack-ai-harness-design.md`.
 
 ## XR Support
 

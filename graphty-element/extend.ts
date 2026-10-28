@@ -424,6 +424,20 @@ export type {
 export { compareNodeIds } from "./src/simple/view";
 
 // ---------------------------------------------------------------------------------------------
+// Whether a registration reaches the assistant
+// ---------------------------------------------------------------------------------------------
+
+/*
+ * NOT AN EXTENSION POINT: A CHECK OF THE SIX. Every algorithm, layout, format and camera view a
+ * plugin registers reaches graphty-element's assistant with no code of its own: the assistant's
+ * tools are generated from the catalog. `assistantReach()` asks, from the plugin's own test, what
+ * of its registrations a model could not be offered, as the element's own build asks of the
+ * built-ins.
+ */
+export type { AssistantReachCode } from "./src/ai/tools/reach";
+export { assistantReach } from "./src/ai/tools/reach";
+
+// ---------------------------------------------------------------------------------------------
 // How a plugin reports a failure
 // ---------------------------------------------------------------------------------------------
 

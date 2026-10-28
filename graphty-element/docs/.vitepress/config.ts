@@ -106,6 +106,9 @@ export default defineConfig({
                         { text: "Where a Node Is on Screen", link: "/guide/screen-position" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },
                         { text: "VR/AR", link: "/guide/vr-ar" },
+                        { text: "AI Assistant", link: "/guide/ai-assistant" },
+                        { text: "The Conversation Format", link: "/guide/ai-conversation-format" },
+                        { text: "AI Provider Features", link: "/guide/ai-provider-features" },
                     ],
                 },
                 {

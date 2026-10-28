@@ -17,6 +17,8 @@ const ImmersiveModeSchema = z
 
 /**
  * Command to enter or exit VR/AR immersive modes (WebXR).
+ * @deprecated The assistant registers generated tools instead: this one is the `immersive` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const setImmersiveMode: GraphCommand = {
     name: "setImmersiveMode",

@@ -215,6 +215,10 @@ else
     # release-hold.json names only real nx projects, each with a reason and a date.
     run_step "Release hold list" "pnpm run check:release-hold"
 
+    # A published package's peer dependencies change only in a major: no peer removed, added, made
+    # required, moved into dependencies or narrowed since origin/master without a breaking commit
+    # scoped to the package. Reads package.json and git only, under a second.
+    run_step "Peer dependencies stable" "pnpm run check:peer-deps"
     # When the push adds or changes a package.json, a project.json, nx.json or release-hold.json:
     # `nx release --dry-run --skip-publish`, so a project the release train cannot version fails this
     # push instead of holding every release (#3318). See tools/release-dry-run.mjs.

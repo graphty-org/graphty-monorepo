@@ -1,8 +1,10 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
+
+import { stubAnthropicNodeToolset } from "../vite.anthropic-sdk-stub.mjs";
 
 /**
  * The published entry points, as `<output file name>: <source file>`.
@@ -87,6 +89,127 @@ function externalDependencies(): RegExp[] {
 }
 
 /**
+ * Writes `build/chunks.json`: for every chunk of the library build, its file, whether it is an
+ * entry, the modules built into it, and the chunks and packages it imports statically and with
+ * `import()`. `test/packaging/ai-lazy-chunks.test.ts` reads it to prove that what an entry point
+ * loads up front holds no AI framework or provider SDK (design/ai/tanstack-ai-harness-design.md,
+ * section 7, rule 6). `build/` is git-ignored and not published.
+ * @returns The plugin.
+ */
+function chunkMeta(): Plugin {
+    return {
+        name: "graphty-chunk-meta",
+        apply: "build",
+        writeBundle(_options, bundle): void {
+            const chunks = Object.values(bundle).flatMap((output) =>
+                output.type === "chunk"
+                    ? [
+                          {
+                              fileName: output.fileName,
+                              isEntry: output.isEntry,
+                              modules: Object.keys(output.modules).map((id) => relative(__dirname, id)),
+                              imports: output.imports,
+                              dynamicImports: output.dynamicImports,
+                          },
+                      ]
+                    : [],
+            );
+            mkdirSync(resolve(__dirname, "build"), { recursive: true });
+            writeFileSync(resolve(__dirname, "build/chunks.json"), `${JSON.stringify({ chunks }, null, 1)}\n`);
+        },
+    };
+}
+
+/**
+ * Builds the in-page code sandbox (`src/ai/engine/tanstack/program.ts`) as its own chunk,
+ * `chunks/program-<hash>.js`, with QuickJS's WebAssembly beside the build as an asset. Nothing an
+ * entry exports reaches it statically: `loadProgramRunner()` loads it with `import()`. It is
+ * emitted here as well, so the chunk exists (and the packaging fixtures in
+ * `test/packaging/program-wasm.test.ts` can load it) whether or not a caller is built in yet.
+ * @returns The plugin.
+ */
+function programChunk(): Plugin {
+    return {
+        name: "graphty-program-chunk",
+        apply: "build",
+        buildStart(): void {
+            this.emitFile({
+                type: "chunk",
+                id: resolve(__dirname, "src/ai/engine/tanstack/program.ts"),
+                name: "program",
+            });
+        },
+        transform: {
+            filter: { id: /quickjs-wasmfile-release-sync\/dist\/emscripten-module\.browser\.mjs$/ },
+            handler(code): string {
+                // Emscripten's own `new URL("emscripten-module.wasm", import.meta.url)` is its default
+                // location, never used: program.ts always passes `wasmLocation`. Left in, a library
+                // build inlines the WebAssembly into the chunk as base64 (700 kB), and a consumer's
+                // bundler would look for a file beside a chunk that has none.
+                const replaced = code.replace(
+                    '(new URL("emscripten-module.wasm",import.meta.url)).href',
+                    '"emscripten-module.wasm"',
+                );
+                if (replaced === code) {
+                    this.error("the QuickJS module no longer has the default WebAssembly URL this build removes");
+                }
+
+                return replaced;
+            },
+        },
+    };
+}
+
+/**
+ * Writes `THIRD-PARTY-LICENSES.txt` beside the build: the license and notice files of every package
+ * whose code the build copies into its own output (TanStack AI and the provider SDKs in the AI
+ * chunks, lodash, and in the `./bundle` build everything), so the package ships the notices their
+ * licenses ask for. The `./bundle` build runs second and writes the full list.
+ * @returns The plugin.
+ */
+export function thirdPartyLicenses(): Plugin {
+    const SECTION_BREAK = ["", "", "-".repeat(80), "", ""].join("\n");
+    return {
+        name: "graphty-third-party-licenses",
+        apply: "build",
+        generateBundle(_options, bundle): void {
+            const packages = new Map<string, string>();
+            for (const output of Object.values(bundle)) {
+                // A virtual module (`\0`, a CommonJS proxy) stands beside the real file, which counts.
+                const ids = output.type === "chunk" ? Object.keys(output.modules) : [];
+                for (const id of ids.filter((m) => !m.startsWith("\0"))) {
+                    const at = id.lastIndexOf("/node_modules/") + "/node_modules/".length;
+                    const parts = id.slice(at).split("/");
+                    const name = parts[0].startsWith("@") ? `${parts[0]}/${parts[1]}` : parts[0];
+                    if (at >= "/node_modules/".length) {
+                        packages.set(name, `${id.slice(0, at)}${name}`);
+                    }
+                }
+            }
+
+            const sections = [...packages]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([name, dir]) => {
+                    const { version, license } = JSON.parse(readFileSync(`${dir}/package.json`, "utf8")) as {
+                        version: string;
+                        license?: string;
+                    };
+                    const texts = readdirSync(dir)
+                        .filter((file) => /^(?:licen[cs]e|notice|copying)(?:[.-]|$)/i.test(file))
+                        .sort((a, b) => a.localeCompare(b))
+                        .map((file) => readFileSync(`${dir}/${file}`, "utf8").trim());
+                    return [`${name}@${version} (${license ?? "see below"})`, ...texts].join("\n\n");
+                });
+            this.emitFile({
+                type: "asset",
+                fileName: "THIRD-PARTY-LICENSES.txt",
+                source: `${sections.join(SECTION_BREAK)}\n`,
+            });
+        },
+    };
+}
+
+/**
  * Leave the Graphviz Worker for the consumer's bundler.
  *
  * Vite builds the Worker (`src/layout/graphviz/worker.ts`) into its own file with the optional
@@ -135,6 +258,10 @@ export default defineConfig(({ mode, command }) => {
                 files: ["./src/graphty-element.ts"],
                 lit: true,
             }),
+            chunkMeta(),
+            programChunk(),
+            stubAnthropicNodeToolset(),
+            thirdPartyLicenses(),
         ],
         define: {
             // Disable Lit dev mode warning
@@ -164,6 +291,8 @@ export default defineConfig(({ mode, command }) => {
                     // would be free to drop every registration and leave an element that
                     // renders nothing it knows how to render.
                     chunkFileNames: "chunks/[name]-[hash].js",
+                    // QuickJS's WebAssembly (the program chunk's), beside the chunks.
+                    assetFileNames: "chunks/[name]-[hash][extname]",
                 },
                 treeshake: {
                     // This does NOT override package.json's `sideEffects` array, and the
@@ -183,6 +312,10 @@ export default defineConfig(({ mode, command }) => {
                     moduleSideEffects: true,
                 },
             },
+        },
+        experimental: {
+            // The program chunk finds its WebAssembly relative to itself, wherever dist/ is served from.
+            renderBuiltUrl: (fileName) => (fileName.endsWith(".wasm") ? { relative: true } : undefined),
         },
         optimizeDeps: {
             exclude: ["@babylonjs/core", "@babylonjs/inspector"],

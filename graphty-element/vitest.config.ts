@@ -39,6 +39,11 @@ import { baseTest } from "../vitest.base.mjs";
 import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
+/** Whether this run names the paid llm-regression project (`--project llm-regression`). */
+const LLM_REGRESSION_ASKED = process.argv.some(
+    (arg, i, argv) => arg === "--project=llm-regression" || (arg === "--project" && argv[i + 1] === "llm-regression"),
+);
+
 /**
  * Each pre-push gate shard's own Vite dependency cache (tools/test-slots.mjs shardCacheDir()), set
  * on every browser project below, since none extends the root. The gate runs several shards of
@@ -91,6 +96,13 @@ const LODASH_FUNCTIONS = [
 const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
 
 /**
+ * The AI adapter's frameworks, which the element loads with `import()` on an assistant's first
+ * turn. Pre-bundled for the same reason: found mid-run, they would make Vite re-optimize and reload
+ * the page under the test that is running.
+ */
+const AI_FRAMEWORKS = ["@tanstack/ai", "@tanstack/ai-openai", "@tanstack/ai-anthropic", "@tanstack/ai-gemini"];
+
+/**
  * The optional Graphviz package, which only the Graphviz layouts' Worker imports. Discovered
  * there mid-run, Vite re-optimizes its dependencies and deletes the chunks the page already
  * holds, and Babylon's next lazy shader import fails to fetch.
@@ -98,13 +110,14 @@ const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout
 const GRAPHVIZ = ["@hpcc-js/wasm-graphviz"];
 
 /** Everything the browser projects pre-bundle up front. */
-const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...GRAPHVIZ];
+const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWORKS, ...GRAPHVIZ];
 
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
+    "test/interactions/xr/xr-voice.test.ts",
 ];
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
@@ -151,7 +164,7 @@ const OWN_ENTRY_POINTS = {
  * on macOS and Windows only). `test/config/vitest-config-loads-with-ci-gpu-values.test.ts` loads
  * this file under each of those values so the next one is caught on Linux.
  *
- * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
+ * With GRAPHTY_BROWSER_GPU unset the project launches with NO GPU flags, which is what the five CI
  * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
  * accelerator, and only `test/browser/webgpu-layout.test.ts` asks for a real one.
  */
@@ -212,6 +225,17 @@ function browserLaunchEnv(): Record<string, string> | undefined {
     return env;
 }
 
+/**
+ * Chromium's fake microphone (a tone), the microphone prompt answered yes, and audio allowed to
+ * play without a gesture, for the voice tests (`test/browser/ai/voice-paths.test.ts`). They touch
+ * nothing but media, and every launch of the `browser` project carries them.
+ */
+const MEDIA_FLAGS = [
+    "--use-fake-device-for-media-stream",
+    "--use-fake-ui-for-media-stream",
+    "--autoplay-policy=no-user-gesture-required",
+];
+
 /** One Playwright Chromium entry for a browser project's `instances`. */
 interface ChromiumInstance {
     /** The browser to launch. */
@@ -226,7 +250,7 @@ interface ChromiumInstance {
  */
 function browserInstance(): ChromiumInstance {
     if (browserGpu === "") {
-        return { browser: "chromium" };
+        return { browser: "chromium", provider: playwright({ launchOptions: { args: [...MEDIA_FLAGS] } }) };
     }
 
     const args = BROWSER_GPU_FLAGS[browserGpu];
@@ -242,7 +266,11 @@ function browserInstance(): ChromiumInstance {
     return {
         browser: "chromium",
         provider: playwright({
-            launchOptions: { args: [...args], channel: BROWSER_GPU_CHANNEL[browserGpu], env: browserLaunchEnv() },
+            launchOptions: {
+                args: [...args, ...MEDIA_FLAGS],
+                channel: BROWSER_GPU_CHANNEL[browserGpu],
+                env: browserLaunchEnv(),
+            },
         }),
     };
 }
@@ -813,6 +841,8 @@ const config = defineConfig({
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
+                        // The XR voice test runs real immersive sessions: see the "xr" project
+                        ...XR_BROWSER_TESTS,
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -932,8 +962,12 @@ const config = defineConfig({
             // job). VITE_LLM_REGRESSION_PROVIDER picks the provider (google by default, as the release job
             // runs; openai and anthropic also work) and its key variable (VITE_GOOGLE_API_KEY, ...). Its seven real test
             // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
-            // job checks the key is set first and fails if it is not.
+            // job checks the key is set first and fails if it is not. Locally the key comes from the
+            // repository's .env, the one the dev server reads (envDir), but only for a run that asks for
+            // this project by name (npm run test:llm-regression): a plain `vitest run test/ai/` must not
+            // spend money. CI sets the key in the environment.
             {
+                ...(LLM_REGRESSION_ASKED ? { envDir: ".." } : {}),
                 define: { ...define },
                 test: {
                     name: "llm-regression",

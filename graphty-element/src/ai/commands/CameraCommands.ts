@@ -53,6 +53,8 @@ const Position3DSchema = z
 
 /**
  * Command to set the camera position or apply a preset.
+ * @deprecated The assistant registers generated tools instead: this one is the `view (camera)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const setCameraPosition: GraphCommand = {
     name: "setCameraPosition",
@@ -169,6 +171,8 @@ export const setCameraPosition: GraphCommand = {
 
 /**
  * Command to zoom the camera to fit specific nodes.
+ * @deprecated The assistant registers generated tools instead: this one is the `view (zoom_to, fit)` tool
+ * now. Register it yourself to keep it; it is removed in the next major release.
  */
 export const zoomToNodes: GraphCommand = {
     name: "zoomToNodes",

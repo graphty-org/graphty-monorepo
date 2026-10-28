@@ -8,14 +8,46 @@
 
 import { assert, beforeEach, describe, it } from "vitest";
 
-import { BUILTIN_COMMANDS } from "../../../src/ai/commands/builtin";
+import {
+    clearStyles,
+    describeProperty,
+    findAndStyleEdges,
+    findAndStyleNodes,
+    listAlgorithms,
+    queryGraph,
+    runAlgorithm,
+    sampleData,
+    setCameraPosition,
+    setDimension,
+    setImmersiveMode,
+    setLayout,
+} from "../../../src/ai/commands";
 import { zoomToNodes } from "../../../src/ai/commands/CameraCommands";
-import { findNodes } from "../../../src/ai/commands/QueryCommands";
+import { findNodes, getSchema } from "../../../src/ai/commands/QueryCommands";
 import { CONNECTED_BY_SYNTAX, nodeScopeOf, SELECTOR_SYNTAX } from "../../../src/ai/commands/selectors";
-import type { CommandContext } from "../../../src/ai/commands/types";
+import type { CommandContext, GraphCommand } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 import { makeSession } from "../../session/helpers";
+
+/** The deprecated hand-written commands, in the order the assistant used to offer them. */
+const LEGACY_COMMANDS: readonly GraphCommand[] = [
+    queryGraph,
+    findNodes,
+    getSchema,
+    sampleData,
+    describeProperty,
+    listAlgorithms,
+    runAlgorithm,
+    setLayout,
+    setDimension,
+    setImmersiveMode,
+    findAndStyleNodes,
+    findAndStyleEdges,
+    clearStyles,
+    setCameraPosition,
+    zoomToNodes,
+];
 
 describe("AI command selectors", () => {
     let graph: Graph;
@@ -102,7 +134,7 @@ describe("AI command selectors", () => {
     });
 
     it("every built-in command that takes a selector describes the same language", () => {
-        const withSelector = BUILTIN_COMMANDS.filter((command) =>
+        const withSelector = LEGACY_COMMANDS.filter((command) =>
             Object.keys((command.parameters as unknown as { shape: Record<string, unknown> }).shape).includes(
                 "selector",
             ),
@@ -118,7 +150,7 @@ describe("AI command selectors", () => {
             assert.include(selector.description, SELECTOR_SYNTAX, command.name);
         }
 
-        const withConnectedBy = BUILTIN_COMMANDS.filter((command) =>
+        const withConnectedBy = LEGACY_COMMANDS.filter((command) =>
             Object.keys((command.parameters as unknown as { shape: Record<string, unknown> }).shape).includes(
                 "connectedBy",
             ),

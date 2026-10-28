@@ -38,7 +38,7 @@
         "lint": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "eslint && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit",
+                "command": "eslint --concurrency auto && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit",
                 "cwd": "graphty-element"
             },
             "dependsOn": ["^build"]

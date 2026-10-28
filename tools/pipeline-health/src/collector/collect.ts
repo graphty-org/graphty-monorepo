@@ -9,9 +9,11 @@ import { DAY, HOUR, homeKey, MIN, ttlAt } from "../model/items.js";
 const WEEK = 7 * DAY;
 import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
 import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
+import { readBenches, trend } from "../model/benchmarks.js";
 import type { Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
 import { flakyMembers } from "./flaky.js";
+import { jobMembers, nonGatingJobs } from "./jobs.js";
 import { type Fetch, type GitHub, HttpError } from "./github.js";
 import {
     classifyCancel,
@@ -590,7 +592,8 @@ async function pullRequests(c: Cycle, gh: GitHub) {
     const s = prStocks(open, c.now);
     c.o("pr.open", s.open);
     c.o("pr.oldest_open_ms", s.oldestOpenMs);
-    c.o("pr.automerge_stuck", s.autoMergeStuck);
+    c.o("pr.automerge_green_stuck", s.autoMergeGreenStuck);
+    c.o("pr.automerge_armed_long", s.autoMergeArmedLong);
     c.o("pr.screenshot_backlog_ms", s.screenshotBacklogMs);
     c.o("pr.max_failing_same_check", s.maxFailingSameCheck);
     const prevShared = await c.json<SharedSnapshot | undefined>(SNAPSHOT.shared, undefined);
@@ -621,12 +624,26 @@ async function ownerWaits(c: Cycle, gh: GitHub, open: GqlPr[]) {
     await c.setJson("owner-wait", list);
 }
 
-/** The committed quarantine list and CODEOWNERS, from master (one query; hourly, and once before either exists). */
+/**
+ * The committed quarantine list, CODEOWNERS and ci.yml's jobs allowed to fail, from master (one query; hourly, and
+ * once before any exists).
+ */
 async function repoFiles(c: Cycle, gh: GitHub) {
     const [owner, name] = c.d.repo.split("/");
+    type Blob = { text: string } | null;
     const data = await gh.graphql<{
-        repository: { quarantine: { text: string } | null; codeowners: { text: string } | null };
+        repository: { quarantine: Blob; codeowners: Blob; ci?: Blob; advisory?: Blob };
     }>(REPO_FILES_QUERY, { owner, name });
+    const ci = data.repository.ci?.text;
+    if (ci) {
+        const advisory = data.repository.advisory?.text;
+        const jobs = advisory
+            ? ((JSON.parse(advisory) as { advisory?: { job: string; step?: string }[] }).advisory ?? [])
+                  .filter((a) => !a.step)
+                  .map((a) => a.job)
+            : [];
+        await c.setJson("non-gating", nonGatingJobs(ci, jobs));
+    }
     const q = data.repository.quarantine?.text;
     const list = q ? ((JSON.parse(q) as { quarantine?: QuarantineEntry[] }).quarantine ?? []) : [];
     await c.setJson(
@@ -961,7 +978,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         c.openRuns = xs.filter((x) => x.run.status !== "completed").map((x) => x.run);
         await master(c, masterList, cancels, elapsed);
     });
-    if (hourly || (await c.cursor("quarantine")) === undefined)
+    if (hourly || (await c.cursor("quarantine")) === undefined || (await c.cursor("non-gating")) === undefined)
         await c.part("repo files", "collector", () => repoFiles(c, gh));
     ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
     const xs = collected;
@@ -978,6 +995,11 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
             for (const [metric, value] of Object.entries(await flakyMembers(d.store, gh, d.repo, open, c.now)))
                 c.o(metric, value);
         });
+    await c.part("jobs", "collector", async () => {
+        const { list, obs: o } = await jobMembers(d.store, gh, d.repo, c.now);
+        await c.setJson("chronic-jobs", list);
+        for (const [metric, value] of Object.entries(o)) c.o(metric, value);
+    });
     if (hourly) {
         await c.part("stress", "stress", () => stress(c, gh));
         await c.part("hosts", "hosts", () => hosts(c, gh));
@@ -1000,6 +1022,10 @@ export async function collect(d: Deps): Promise<CycleReport> {
     if (hourly) await c.part("coverage", "coverage", () => coverage(c));
     if (daily) await c.part("costs", "billing", () => costs(c));
 
+    await c.part("benchmarks", undefined, async () => {
+        const benches = await readBenches(d.store, d.now);
+        c.o("ci.bench_regressions", benches.filter((b) => trend(b.points).regressed).length);
+    });
     const gh = d.gh;
     if (gh) await collectGitHub(c, gh, elapsed, hourly);
 

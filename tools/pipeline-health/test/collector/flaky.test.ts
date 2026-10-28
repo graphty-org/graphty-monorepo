@@ -203,6 +203,44 @@ describe("the six flaky issues of 2026-10-26", () => {
     });
 });
 
+describe("the quarantine issues of 2026-10-27", () => {
+    // Read once from GitHub. Their titles cut the test's name short; only the body names it whole.
+    const issues = JSON.parse(
+        readFileSync(new URL("../fixtures/github/flaky-quarantine-issues.json", import.meta.url), "utf8"),
+    ) as (IssueText & { number: number })[];
+    const tests: [number, string, string][] = [
+        [
+            3981,
+            "graphty/src/workspace/data-place/__tests__/Fields.real-element.test.tsx",
+            "Data > Fields as a + list on the real element > lists the airline sample's label, location and weight with no action from the reader",
+        ],
+        [
+            3982,
+            "graphty/src/workspace/start/__tests__/open-doors.real-element.test.tsx",
+            "the loading doors on the real element > reads a node file and an edge file dropped together as one load, with its problems",
+        ],
+    ];
+
+    it("each names its own test by the body when the title is cut short", () => {
+        for (const [n, file, name] of tests) {
+            for (const i of issues) {
+                expect(namesTest(i, { file, name }), `#${i.number} names ${name}`).toBe(i.number === n);
+            }
+        }
+    });
+
+    it("counts neither as having no issue while its issue is open", async () => {
+        const store = new MemoryStore();
+        await day(
+            store,
+            TODAY,
+            tests.map(([, file, name]) => ["graphty", file, name]),
+        );
+        const m = await flakyMembers(store, searchGitHub(issues, []).gh, REPO, [], NOW);
+        expect(m["flaky.no_issue"]).toBe(0);
+    });
+});
+
 describe("net new flaky", () => {
     const seen = (file: string, ...days: number[]): [string, FlakySeen] => [
         testKey(file, "t"),

@@ -19,18 +19,18 @@ secret (runs, pull requests, test names and truncated failure messages are alrea
 A left navigation lists the overview and seven categories. Each category link carries a colored bar
 with that category's state, so every page repeats the status line.
 
-| Page          | What it shows                                                                                                                                                                                 |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                 |
-| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                            |
-| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                              |
-| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; and **Shard times**: median and p90 per shard against budget. |
-| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                    |
-| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                       |
-| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.                                                |
-| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                                                                    |
-| Costs         | Money spent this month against budget, the 28-day projection, unit costs and spend by workflow.                                                                                               |
-| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.                                                     |
+| Page          | What it shows                                                                                                                                                                                                                                                                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview      | Each category's state, the member that set it, the headline measures with sparklines, and the incidents of the last 24 hours.                                                                                                                                                                                                                         |
+| Master        | A minute-by-minute strip of master's builds, red spans with their cause and fix, and failures shared by several pull requests with suspect merges.                                                                                                                                                                                                    |
+| Pull requests | Where the time to merge goes (waiting for runners, checks, red and fixing, merging), and "Waiting on the owner".                                                                                                                                                                                                                                      |
+| CI            | Why first attempts failed (shared, the change, flaky, infrastructure), hangs, reruns; **Runner-minutes per merge** by run kind; **Shard times**: median and p90 per shard against budget; **Chronically failing jobs**, gating or not; **Allowed to fail, and failing**: each non-gating job's pass rate; and **Benchmarks**: each benchmark's trend. |
+| Runners       | Running and queued jobs against the runner limit, who holds the runners, runs queued with no job, superseded runs still running. Under CI.                                                                                                                                                                                                            |
+| Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                               |
+| Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.                                                                                                                                                                                                        |
+| Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                                                                                                                                                                                                                            |
+| Costs         | Money spent this month against budget, the 28-day projection, unit costs and spend by workflow.                                                                                                                                                                                                                                                       |
+| Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.                                                                                                                                                                                                             |
 
 Every row with a chevron drills down: to the run with its jobs, the pull request, or a test's history
 (its flaky and failed results, newest first). The page, section and range are in the URL
@@ -153,7 +153,9 @@ CI posts test results through [`tools/results/client.mjs`](../results/client.mjs
 variable `HEALTH_API_URL` is set, every record it sends to the results service is also sent to the
 health API, fire and forget (2 seconds at most; a failed post never fails a job). The routes are
 `POST /v1/invocations`, `/v1/failures`, `/v1/durations` and `/v1/verdicts`, with the results service's
-own bodies.
+own bodies. The benchmark jobs (ci.yml's Performance Benchmarks, gpu.yml's T4 lane) post their numbers to
+`POST /v1/benchmarks` through [`tools/results/post-benchmarks.mjs`](../results/post-benchmarks.mjs), which the
+API takes only from master's workflows.
 
 Each post carries a GitHub OIDC token with audience `graphty-health`, so the job needs
 `permissions: id-token: write`. The API's JWT authorizer checks the token's signature, issuer

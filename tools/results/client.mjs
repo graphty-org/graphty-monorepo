@@ -163,6 +163,33 @@ export function postFlaky(env, shard, family, flaky) {
 }
 
 /**
+ * Sends one benchmark job's results to the health API (`POST /v1/benchmarks`), through sendHealth(), so the dashboard
+ * keeps each benchmark's trend. Like postFlaky(): only HEALTH_API_URL and an OIDC token in GitHub Actions; anything
+ * else sends nothing. Never throws.
+ * @param env the environment
+ * @param source what measured them ("algorithms", "webgpu-graph-algorithms")
+ * @param rows the results `{ name, value }`, milliseconds
+ * @returns whether it was sent
+ */
+export function postBenchmarks(env, source, rows) {
+    if (
+        !rows.length ||
+        env.GRAPHTY_RESULTS === "0" ||
+        !env.HEALTH_API_URL ||
+        !env.ACTIONS_ID_TOKEN_REQUEST_URL ||
+        !env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
+    )
+        return false;
+    sendHealth({ oidc: env, health: env.HEALTH_API_URL.replace(/\/$/, "") }, "/v1/benchmarks", {
+        source,
+        unit: "ms",
+        ...(env.GITHUB_SHA ? { sha: env.GITHUB_SHA } : {}),
+        rows,
+    });
+    return true;
+}
+
+/**
  * Settles every health POST still open, each within its own 2 s. Never throws.
  * @returns a promise that resolves when they have
  */

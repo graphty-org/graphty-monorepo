@@ -341,6 +341,35 @@ const TABLES: Record<string, { cls: string; cols: [string, string][] }> = {
             ["newer", "newer commit pushed"],
         ],
     },
+    chronic: {
+        cls: "t-chronic",
+        cols: [
+            ["job", "job, workflow"],
+            ["failed", "failed, newest runs"],
+            ["rate", "failure rate"],
+            ["pass", "last pass"],
+            ["issue", "issue"],
+        ],
+    },
+    "non-gating": {
+        cls: "t-nongating",
+        cols: [
+            ["job", "job"],
+            ["runs", "runs, 7 d"],
+            ["failed", "failed"],
+            ["rate", "pass rate"],
+        ],
+    },
+    benchmarks: {
+        cls: "t-bench",
+        cols: [
+            ["benchmark", "benchmark"],
+            ["latest", "newest"],
+            ["ratio", "last 3 / 10 before"],
+            ["spark", "results, one per run"],
+            ["runs", "runs"],
+        ],
+    },
     lanes: {
         cls: "t-lanes",
         cols: [
@@ -591,6 +620,15 @@ function sectionHead(s: Section): string {
             );
         case "quarantine":
             return h("Quarantine");
+        case "chronic":
+            return h(
+                "Chronically failing jobs",
+                "failed in half of the last 10 runs, or not passed in 3 days; master, full and other runs, gating or not",
+            );
+        case "non-gating":
+            return h("Allowed to fail, and failing", "ci.yml jobs with continue-on-error, every run kind, last 7 d");
+        case "benchmarks":
+            return h("Benchmarks", "red: median of the last 3 results over 1.2x the median of the 10 before");
         case "lanes":
             return h("Lanes on the candidate", subText);
         case "trains":

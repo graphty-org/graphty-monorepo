@@ -164,7 +164,9 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   (auto-merge off by rule: breaking, code-owner paths, screenshots), left out of the time members,
   each naming the red member its merge would fix.
 - **CI**: why first attempts failed (shared, an aggregator alone, the change, flaky,
-  infrastructure); Shard times (section 6). Hangs link to the red span they caused.
+  infrastructure); Shard times (section 6); chronically failing jobs; "Allowed to fail, and
+  failing" (the non-gating jobs and their pass rates); benchmark trends (section 4.3). Hangs link to
+  the red span they caused.
 - **Runners**: running and queued jobs over the range on one count axis, with the plan's limit from
   config as a reference line and the observed peak as a label beside it; who holds the runners,
   now and during saturated spans, by repository, workflow and event, as sorted bars; runs still
@@ -349,7 +351,8 @@ request with auto-merge off, which `tools/pr-open.sh` leaves for him to merge. T
 | Oldest open                 | age of the oldest open, not waiting on the owner         | now             | --        | < 24 h    | > 72 h |
 | Merge ratio                 | merged / created                                         | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
 | Runs failed by their change | first runs red on a test the change touched / first runs | 7 d             | 20 runs   | < 5 %     | --     |
-| Auto-merge stuck            | armed, green and unmerged 2 h, or armed 6 h              | now             | --        | 0         | >= 3   |
+| Green but not merging       | auto-merge armed, green and unmerged 2 h                 | now             | --        | 0         | >= 2   |
+| Armed too long              | auto-merge armed 24 h                                    | now             | --        | <= 1      | >= 4   |
 | Screenshot backlog          | oldest pictures waiting for the owner                    | now             | --        | < 24 h    | > 72 h |
 
 The open count's target assumed the quieter repository of early October; at 107 merges on 2026-10-26,
@@ -375,6 +378,8 @@ with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, 
 | Full-run shards over budget  | shards whose median passes their own budget (section 6)           | slow, 7 d       | 5 runs   | 0        | >= 3 (never sets state)  |
 | Runner-minutes per merge     | job minutes of every run kind / pull requests merged into master  | slow, 7 d       | 10       | <= 400   | > 600 (never sets state) |
 | Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                       |
+| Chronically failing jobs     | jobs, gating or not, failing in their own record (below)          | now             | --       | 0        | any with no open issue   |
+| Benchmark regressions        | benchmarks whose last 3 results regressed (below)                 | now             | --       | 0        | >= 3                     |
 
 Saturated time was "1 h in 24 h"; over one hour a quarter of it saturated is red. Hangs were "any in
 24 h"; over one hour one hang is yellow and two are red, and an earlier hang stays in the episode
@@ -409,6 +414,46 @@ the target and 1.5 times it is red; as a slow measure it never sets CI's state.
 commit, and jobs with `if: always()` still running after their run was cancelled. `ci.yml` and
 `hosts.yml` cancel their own superseded pull request runs. It gets a state once it has fired on
 real data.
+
+**Jobs judged by their own record.** Every other member reads a job's result through its run, its
+lane or its check suite, and a non-gating job (job-level `continue-on-error: true`) cannot fail any
+of those: that is what non-gating means, and the release lanes rightly leave its failure out
+(`parse.ts` `releaseAttempt`). So from 2026-10-21 to 2026-10-27 CI / Performance Benchmarks failed
+on the first attempt of 14 of the 20 full runs that ran it (issue #3413) and the dashboard, which stored every one of
+those job results, showed nothing. Three things now read the jobs themselves; the lane and verdict
+logic is unchanged, so a non-gating job still never fails a lane.
+
+- **Chronically failing jobs** (`ci.chronic_jobs`). Any job of a master push, a full run or another
+  non-pull-request run, gating or not, bins and shards folded into their family, that failed in at
+  least half of its newest 10 finished runs (4 at least), or has failed in every run for 3 days
+  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. A job with no
+  run in 2 days, or in twice its usual gap between runs when that is longer (a weekly job), has
+  stopped -- removed or renamed, as Story tests parity was on 2026-10-27 -- and is not judged. Pull
+  request runs are left out, CodeQL's scans of a pull request included (its `All Checks Pass` and
+  `Queue Checks Pass` jobs fail on every pull request scan): their failures may be their own
+  change's, which "Red on the same check" and the failure causes judge. Jobs stored before that
+  rule count CodeQL's pull request scans as other runs until a backfill rewrites their run kind
+  (README, "Backfill"). Each job is listed
+  with its failures, its last pass and the open issue naming it (one GitHub search per job for its
+  name, confirmed in the title or body, as "Flaky in CI with no open issue" matches tests). Yellow
+  while every chronic job has an open issue, red while one has none. Read from the rollup
+  `ci.job_history` (each job's pass and fail times, 14 days), so it needs no new source.
+- **Allowed to fail, and failing** (a CI section, never judged). Every job ci.yml lets fail --
+  job-level `continue-on-error: true`, or an expression for a job `tools/ci-advisory-checks.json`
+  lists in its warning period, read hourly from master's ci.yml -- with its runs, failures and pass
+  rate over 7 days in every run kind, pull requests included (`ci.job_outcome`), worst first, marked
+  red at half or more failed. It makes the class visible; the chronic member is what judges it.
+- **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms)
+  and the T4 lane (webgpu-graph-algorithms) post each benchmark's result after the benchmark passed
+  (`tools/results/post-benchmarks.mjs`, `POST /v1/benchmarks`, OIDC like the flaky feed, fire and
+  forget), only from master's workflows. Each benchmark keeps its newest 20 results, one per run
+  (source `benchmarks`). A benchmark regressed when the median of its last 3 results is over 1.2
+  times the median of the 10 before them, so it is judged only with 13 results and one slow run
+  never counts. The Benchmarks section lists every benchmark with its newest result, that ratio and
+  its results as a line, regressions first. A benchmark job that fails before it produces numbers
+  posts nothing: that is the chronic member's to catch. graphty-element's timing benchmarks print
+  rows of differing shapes and are not posted; the weekly paired T4 benchmark compares against a
+  release and files its own issue.
 
 ### 4.4 Flaky tests
 
@@ -467,7 +512,7 @@ usage members are not set up until their read-only tokens exist (section 16).
 | Member               | Measure                                          | Target     | Red    |
 | -------------------- | ------------------------------------------------ | ---------- | ------ |
 | Spend this month (H) | projected sum of every money line                | <= 300 USD | > 360  |
-| T4 GPU               | projected, machine.dev                           | <= 200 USD | > 240  |
+| T4 GPU               | projected, machine.dev (the 200 USD budget)      | <= 180 USD | > 200  |
 | LLM regression       | projected, Gemini (the owner's ceiling)          | <= 60 USD  | > 75   |
 | AWS                  | month to date, Cost Explorer (the 10 USD Budget) | <= 8 USD   | > 10   |
 | Cloudflare usage     | usage / the plan's allowance                     | < 50%      | > 90%  |
@@ -595,6 +640,7 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 | Host matrix                                         | nightly              | 30 h                |
 | Billing (Cost Explorer, Cloudflare, Sentry)         | daily                | 36 h                |
 | Feed of CI's flaky detections (issue #3610)         | each new flaky entry | not set up          |
+| Benchmark results (CI's benchmark jobs)             | each full run        | 2 d; idle until set |
 | Local writer (test ledger, push log, slot waits)    | each local run       | idle, not judged    |
 
 Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
@@ -631,6 +677,8 @@ AWS credential in GitHub at all.
   `graphty-health`. The HTTP API's JWT authorizer checks signature, issuer, audience and expiry
   before any Lambda runs; the ingest Lambda checks the claims (`repository_id`, `job_workflow_ref`,
   `ref`) against the record kinds each workflow may write, as `tools/results-service/` does today.
+  Benchmark results (`POST /v1/benchmarks`) are taken only from master's workflows, never a pull
+  request's, so a branch cannot move master's trend.
 - **Reads are public.** Everything stored is already public on GitHub (runs, pull requests, test
   names, truncated failure messages); no tokens, logs or host names are stored.
 - **The collector** signs in as the read-only GitHub App `graphty-pipeline-health` (actions,

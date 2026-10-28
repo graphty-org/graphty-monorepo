@@ -91,6 +91,21 @@ describe("runs and jobs", () => {
         expect(at("bisect.yml", "workflow_dispatch", "master")).toBe("other");
         expect(at("ci.yml", "push", "dependabot/npm/x")).toBe("other");
         expect(at("restricted-cpu-stress.yml", "schedule", "master")).toBe("other");
+        // CodeQL's default setup scanning pull request #4096 (run 40614293039), and scanning master
+        expect(
+            loadKind({
+                path: "dynamic/github-code-scanning/codeql",
+                event: "dynamic",
+                head_branch: "refs/pull/4096/head",
+            }),
+        ).toBe("pr");
+        expect(
+            loadKind({
+                path: "dynamic/github-code-scanning/codeql",
+                event: "dynamic",
+                head_branch: "refs/heads/master",
+            }),
+        ).toBe("other");
         const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
         expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
         expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");
@@ -550,6 +565,33 @@ describe("pull requests waiting on the owner", () => {
         );
         expect(s.open).toBe(2);
         expect(s.oldestOpenMs).toBe(5 * 3_600_000);
+    });
+});
+
+describe("auto-merge stocks", () => {
+    const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] } } } }>("gql-pr.json");
+    const base = { ...page.data.repository.open.nodes[0], state: "OPEN", isDraft: false, labels: { nodes: [] } };
+    const at = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
+    const pr = (armedH: number | null, rollup: "SUCCESS" | "FAILURE" | "PENDING"): GqlPr => ({
+        ...base,
+        autoMergeRequest: armedH === null ? null : { enabledAt: at(armedH) },
+        commits: { nodes: [{ commit: { statusCheckRollup: { state: rollup, contexts: { nodes: [] } } } }] },
+    });
+
+    it("counts green-but-not-merging after 2 h armed and armed-too-long after 24 h, separately", () => {
+        const s = prStocks(
+            [
+                pr(1, "SUCCESS"), // armed too recently for either
+                pr(3, "SUCCESS"), // green 3 h: not merging
+                pr(8, "PENDING"), // armed 8 h, not green: neither (the old 6 h rule counted it)
+                pr(30, "FAILURE"), // armed 30 h: too long
+                pr(30, "SUCCESS"), // both
+                pr(null, "SUCCESS"), // not armed
+            ],
+            NOW,
+        );
+        expect(s.autoMergeGreenStuck).toBe(2);
+        expect(s.autoMergeArmedLong).toBe(2);
     });
 });
 

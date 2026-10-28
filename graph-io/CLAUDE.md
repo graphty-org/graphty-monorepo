@@ -104,6 +104,11 @@ through pnpm's workspace symlink and the format package's `exports` -> `dist/`; 
 tests resolves its sources through `paths`. From the workspace root, `pnpm -r run build:all` orders
 the two correctly.
 
+### Test projects
+
+- Node.js project (`vitest.config.ts`); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+- `browser` (`vitest.browser.config.ts`, shard `graph-io-browser`): the network sources in Chromium against a local server on another origin, with and without CORS headers
+
 ## Key Design Principles
 
 - Importers push scalars into the sink in one pass and never freeze; direction is resolved by the

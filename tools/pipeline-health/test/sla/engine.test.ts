@@ -90,6 +90,18 @@ describe("thresholds", () => {
         );
     });
 
+    it("auto-merge: green but not merging is red at 2, armed too long allows 1 and is red at 4", async () => {
+        const at = T0 - 2 * MIN;
+        const state = async (metric: string, v: number, id: string) =>
+            (await member(await world([obs(metric, v, at)]), id)).state;
+        expect(await state("pr.automerge_green_stuck", 0, "pr.automerge_green_stuck")).toBe("OK");
+        expect(await state("pr.automerge_green_stuck", 1, "pr.automerge_green_stuck")).toBe("WARNING");
+        expect(await state("pr.automerge_green_stuck", 2, "pr.automerge_green_stuck")).toBe("FAILING");
+        expect(await state("pr.automerge_armed_long", 1, "pr.automerge_armed_long")).toBe("OK");
+        expect(await state("pr.automerge_armed_long", 3, "pr.automerge_armed_long")).toBe("WARNING");
+        expect(await state("pr.automerge_armed_long", 4, "pr.automerge_armed_long")).toBe("FAILING");
+    });
+
     it("green time is the share of the hour master was not red", async () => {
         const red = (ms: number) => [0, 1, 2, 3].map((i) => obs("master.red_ms", ms / 4, T0 - (5 + i * 5) * MIN));
         expect((await member(await world(red(4 * MIN)), "master.green_time")).state).toBe("OK");
@@ -139,6 +151,29 @@ describe("thresholds", () => {
         expect(t4.value).toBeCloseTo(310);
         expect(t4.state).toBe("FAILING");
         expect((await member(store, "cost.llm")).value).toBe(0);
+    });
+
+    it("T4: the 200 USD budget is red past 200, amber from 180", async () => {
+        const monthStart = Date.UTC(2026, 9, 1);
+        const days = (floorTo(T0, "1d") - monthStart) / DAY;
+        // A flat daily spend projected over 31 days.
+        const t4At = async (perDay: number) => {
+            const lines: CostItem[] = Array.from({ length: days }, (_, d) => ({
+                kind: "cost",
+                id: `t4#${d}`,
+                attempt: 1,
+                line: "t4",
+                day: monthStart + d * DAY,
+                usd: perDay,
+            }));
+            return member(await world(lines), "cost.t4");
+        };
+        expect((await t4At(5.5)).state).toBe("OK"); // about 170
+        expect((await t4At(6.2)).state).toBe("WARNING"); // about 192
+        const red = await t4At(7);
+        expect(red.value).toBeGreaterThan(200);
+        expect(red.value).toBeLessThan(240);
+        expect(red.state).toBe("FAILING");
     });
 
     it("projects from the trailing 7 days, not the month-to-date average", async () => {

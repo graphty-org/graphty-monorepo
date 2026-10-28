@@ -2175,15 +2175,15 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
 
     it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {
         const files = Array.from({ length: 5 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
-        const perFile = 40 * STORY_MS["graph-io-fidelity"];
+        const perFile = 30 * STORY_MS["graph-io-fidelity"];
         const bins = storyBins(
             [entry("graph-io-fidelity", "files", files)],
             projects,
             list,
             { "graph-io-storybook": { [files[0]]: 1_000 } },
-            () => 40,
+            () => 30,
         );
-        // 40 stories a file: two files fit in 4 minutes, a third starts the next bin
+        // 30 stories a file: two files fit in a bin, a third starts the next one
         assert.ok(2 * perFile <= STORY_BIN_LIMIT_MS && 3 * perFile > STORY_BIN_LIMIT_MS);
         assert.deepEqual(
             bins.map((b) => [b.name, b.files.length, b.ms]),

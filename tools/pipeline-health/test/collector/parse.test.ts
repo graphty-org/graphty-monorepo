@@ -22,7 +22,9 @@ import {
     releaseTags,
     runnerFlags,
     runnerUse,
+    STRESS_FOUND,
     stressQuiet,
+    stressRunState,
     suiteNotes,
     t4Cost,
     taggedNotOnNpm,
@@ -592,6 +594,40 @@ describe("auto-merge stocks", () => {
         );
         expect(s.autoMergeGreenStuck).toBe(2);
         expect(s.autoMergeArmedLong).toBe(2);
+    });
+});
+
+describe("stress run state", () => {
+    // The shape of restricted-cpu-stress.yml run 40177689577 (2026-10-25): every shard job concluded success
+    // because its test step has continue-on-error, though 27 tests failed; the filing job failed.
+    const quota = {
+        name: "Run tests under the CPU quota",
+        conclusion: "success",
+        started_at: null,
+        completed_at: null,
+    };
+    const job = (name: string, conclusion: string, steps = [quota]) =>
+        ({ name, conclusion, steps }) as unknown as GhJob; // only what stressRunState reads
+    const shards = ["graphty-1", "graphty-element-browser-1", "small-node"].map((s) =>
+        job(`Restricted CPU (${s})`, "success"),
+    );
+    const marker = { ...quota, name: STRESS_FOUND };
+
+    it("finds failures from the marker step, though every shard job concluded success", () => {
+        const failed = [...shards];
+        failed[1] = job("Restricted CPU (graphty-element-browser-1)", "success", [quota, marker]);
+        const run = [job("Build", "success"), ...failed, job("File the load-sensitive tests", "failure")];
+        expect(stressRunState(run)).toEqual({
+            state: 2,
+            foundFailures: true,
+            failedJob: "File the load-sensitive tests",
+        });
+    });
+
+    it("finds nothing when no marker step ran (a skipped marker is not a failure)", () => {
+        const skipped = shards.map((j) => ({ ...j, steps: [quota, { ...marker, conclusion: "skipped" }] }));
+        const run = [job("Build", "success"), ...skipped, job("File the load-sensitive tests", "success")];
+        expect(stressRunState(run)).toEqual({ state: 0, foundFailures: false });
     });
 });
 

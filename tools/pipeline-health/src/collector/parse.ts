@@ -788,6 +788,9 @@ export interface StressRun {
 /** One stress run as the collector's `stress` cursor keeps it (the Data sources page reads it). */
 export type StressCursorRun = StressRun & { at: number; runId: number };
 
+/** The step restricted-cpu-stress.yml runs in a shard job only when that shard's tests failed. */
+export const STRESS_FOUND = "Tests failed under the CPU quota";
+
 /**
  * One stress run's state from its jobs.
  * @param jobs the run's jobs
@@ -798,7 +801,13 @@ export function stressRunState(jobs: GhJob[]): StressRun {
     const report = jobs.find((j) => j.name === REPORT);
     const build = jobs.find((j) => j.name === "Build");
     const stress = jobs.filter((j) => j.name.startsWith("Restricted CPU"));
-    const foundFailures = stress.some((j) => j.conclusion === "failure");
+    // The test step has continue-on-error, so a shard job concludes success even when its tests failed; the
+    // workflow runs a marker step only then. A job that failed outright still counts.
+    const foundFailures = stress.some(
+        (j) =>
+            j.conclusion === "failure" ||
+            (j.steps ?? []).some((s) => s.name === STRESS_FOUND && s.conclusion === "success"),
+    );
     const buildBroke = BAD.has(build?.conclusion ?? "");
     const broke = buildBroke || !report || BAD.has(report.conclusion ?? "");
     if (!broke) {

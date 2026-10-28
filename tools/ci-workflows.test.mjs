@@ -4072,9 +4072,9 @@ describe("release.yml", () => {
             'git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$head" origin :refs/heads/channel/candidate ||',
             // channel/candidate, pushed at a held commit (candidate_branch)
             'git push --no-verify origin "$ref" ||',
-            // the site job's deployed.json, in its checkout of graphty-nightly
-            "git push --quiet origin HEAD",
         ]);
+        // the site job's deployed.json, in its checkout of graphty-nightly (nightly-site.yml, which the site job calls)
+        assert.deepEqual(workflow("nightly-site.yml").match(/git push[^\n]*/g), ["git push --quiet origin HEAD"]);
         // the land job's pushes are in its script: a nightly with nothing versioned moves only the site tag and
         // channel/nightly; a release pushes the merge and its tags together
         assert.match(land, /run: tools\/channel\/land\.sh\n/);
@@ -4082,7 +4082,10 @@ describe("release.yml", () => {
             'git push --atomic --no-verify origin "${refs[@]}"',
             'git push --atomic --no-verify origin HEAD:refs/heads/master "${refs[@]}"; then',
         ]);
-        assert.match(job(release, "site"), /cd nightly-site\n(?:.*\n){4}\s+git push --quiet origin HEAD\n/);
+        assert.match(
+            job(workflow("nightly-site.yml"), "site"),
+            /cd nightly-site\n(?:.*\n){4}\s+git push --quiet origin HEAD\n/,
+        );
         // the key reaches only the land job and the channel/candidate jobs (candidate_branch, candidate_fix), which install nothing and run no nx
         assert.equal(release.match(/RELEASE_DEPLOY_KEY/g).length, 3);
         // the fix forward's merge into channel/candidate: git and the script, nothing installed, and the store's hold
@@ -4127,12 +4130,15 @@ describe("release.yml", () => {
         // the full run's verdict announces a red run or an owner item
         assert.match(job(release, "verdict"), /\n {8}environment: release # Pushover\n/);
         // the nightly site's deploy key and its announcements
-        assert.match(job(release, "site"), /\n {8}environment: nightly # NIGHTLY_SITE_DEPLOY_KEY, Pushover\n/);
+        assert.match(
+            job(workflow("nightly-site.yml"), "site"),
+            /\n {8}environment: nightly # NIGHTLY_SITE_DEPLOY_KEY, Pushover\n/,
+        );
         // channel/candidate takes the deploy key
         assert.match(job(release, "candidate_branch"), /\n {8}environment: release # the deploy key\n/);
         // and so does the fix forward's merge into it
         assert.match(job(release, "candidate_fix"), /\n {8}environment: release # the deploy key\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 10);
+        assert.equal(release.match(/\n {8}environment: /g).length, 9);
         // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
         for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
             const body = job(release, name);
@@ -4513,7 +4519,7 @@ describe("release.yml", () => {
         );
         // full, restart and promote-nightly are nightly promotions (the job's NIGHTLY)
         assert.match(held, /\[ "\$\{NIGHTLY:-\}" != true \] \|\| outcome=nightly-held/);
-        const site = job(workflow("release.yml"), "site");
+        const site = job(workflow("nightly-site.yml"), "site");
         assert.match(
             site,
             /- name: Close the failed-deploy and failed-promotion issues\n[^\n]*\n\s+continue-on-error: true\n[\s\S]*release-held.sh close "[^"]*" "Nightly promotion failed:" \|\| rc=\$\?\n\s+tools\/release-held.sh close "[^"]*" "Nightly blocked:" \|\| rc=\$\?\n\s+exit "\$rc"/,
@@ -5355,7 +5361,7 @@ describe("release.yml", () => {
     });
 
     it("hands the Pushover secrets only to the steps that announce (tools/release-status.mjs, publish-hold.mjs settle)", () => {
-        for (const name of ["release.yml", "release-watch.yml", "release-rerun.yml"]) {
+        for (const name of ["release.yml", "release-watch.yml", "release-rerun.yml", "nightly-site.yml"]) {
             const steps = workflow(name).split(/\n(?=\s+- (?:name|uses): )/);
             // tools/release-rerun.mjs announces a re-run, or the red verdict it files, through release-status.mjs
             const announcing = steps.filter((st) =>
@@ -7085,9 +7091,12 @@ describe("release.yml's version dry run with nothing releasable", () => {
 describe("release.yml's nightly promotion (#1020)", () => {
     const release = workflow("release.yml");
     const verdict = job(release, "verdict");
-    const site = job(release, "site");
+    const caller = job(release, "site");
+    const nightlySite = workflow("nightly-site.yml");
+    const site = job(nightlySite, "site");
     const timings = job(release, "timings");
-    const steps = parseYaml(release).jobs;
+    const steps = { ...parseYaml(release).jobs, site: parseYaml(nightlySite).jobs.site };
+    const callerJob = parseYaml(release).jobs.site;
 
     it("records an owner-approved baselines tree in channel.json as approved:<tree>, else unchanged", () => {
         assert.match(verdict, /\n {12}screenshots: \$\{\{ steps.gate.outputs.screenshots \}\}\n/);
@@ -7096,10 +7105,11 @@ describe("release.yml's nightly promotion (#1020)", () => {
         assert.match(gate, /echo "screenshots=approved:\$tree"/);
         // a promotion after the owner's approval records its accept commit's tree the same way
         assert.match(job(release, "resume"), /\n {12}screenshots: \$\{\{ steps.gate.outputs.screenshots \}\}\n/);
-        assert.match(
-            site,
-            /\n {12}SCREENSHOTS: \$\{\{ needs.verdict.outputs.screenshots \|\| needs.resume.outputs.screenshots \}\}\n/,
+        assert.equal(
+            callerJob.with.screenshots,
+            "${{ needs.verdict.outputs.screenshots || needs.resume.outputs.screenshots }}",
         );
+        assert.equal(steps.site.env.SCREENSHOTS, "${{ inputs.screenshots }}");
     });
 
     it("hands the publish job a build of every package it can version, cytoscape-extensions included", () => {
@@ -7395,24 +7405,29 @@ describe("release.yml's nightly promotion (#1020)", () => {
     });
 
     it("deploys the site from environment nightly, after npm next, with the site repository's key only", () => {
-        assert.match(site, /\n {8}needs: \[pick, verdict, resume, version, land, publish\]\n/);
+        assert.match(caller, /\n {8}needs: \[pick, verdict, resume, version, land, publish\]\n/);
+        assert.equal(callerJob.uses, "./.github/workflows/nightly-site.yml");
         assert.equal(
-            steps.site.if,
+            callerJob.if,
             "${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' || inputs.mode == 'promote-nightly') && needs.land.outputs.pushed == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}",
         );
         // after the owner's approval: the candidate's built site (master built it, not the accept commit), and
         // channel/nightly where the land job moved it
-        assert.equal(steps.site.env.SHA, "${{ needs.pick.outputs.tested || needs.pick.outputs.sha }}");
-        assert.equal(steps.site.env.TARGET, "${{ needs.version.outputs.commit || needs.pick.outputs.sha }}");
+        assert.equal(callerJob.with.sha, "${{ needs.pick.outputs.tested || needs.pick.outputs.sha }}");
+        assert.equal(callerJob.with.target, "${{ needs.version.outputs.commit || needs.pick.outputs.sha }}");
+        for (const name of ["SHA", "TARGET", "COMMIT", "TAGS"]) {
+            assert.equal(steps.site.env[name], `\${{ inputs.${name.toLowerCase()} }}`);
+        }
+        // channel.json's fullRun: a redeploy dispatched by hand names the promoting run
+        assert.equal(steps.site.env.RUN_ID, "${{ inputs.run || github.run_id }}");
+        assert.deepEqual(Object.keys(parseYaml(nightlySite).on), ["workflow_call", "workflow_dispatch"]);
         assert.equal(steps.site.environment, "nightly");
-        assert.deepEqual(steps.site.permissions, {
-            actions: "read",
-            contents: "write",
-            "id-token": "write",
-            issues: "write",
-        });
+        const permissions = { actions: "read", contents: "write", "id-token": "write", issues: "write" };
+        assert.deepEqual(steps.site.permissions, permissions);
+        assert.deepEqual(callerJob.permissions, permissions);
         // the key reaches only this job: its presence check and the site repository's checkout
-        assert.deepEqual(release.match(/secrets\.NIGHTLY_SITE_DEPLOY_KEY/g).length, 2);
+        assert.doesNotMatch(release, /NIGHTLY_SITE_DEPLOY_KEY/);
+        assert.deepEqual(nightlySite.match(/secrets\.NIGHTLY_SITE_DEPLOY_KEY/g).length, 2);
         assert.match(
             site,
             /repository: \$\{\{ env.SITE_REPO \}\}\n\s+path: nightly-site\n\s+ssh-key: \$\{\{ secrets.NIGHTLY_SITE_DEPLOY_KEY \}\}/,
@@ -7449,7 +7464,16 @@ describe("release.yml's nightly promotion (#1020)", () => {
         // a nightly closes no legacy train hold
         const closeHeld = steps.land.steps.find((st) => st.name === "Close the held-release issue");
         assert.equal(closeHeld.if, "${{ inputs.mode == 'legacy' }}");
-        assert.match(site, /gh release create "\$tag" --verify-tag --prerelease --latest=false/);
+        // the release and its assets in one call (immutable releases, #4149): tools/channel/nightly.mjs site-release
+        assert.equal(
+            steps.site.steps[at("Hang the site on the site-<sha> prerelease")].run,
+            "node tools/channel/nightly.mjs site-release",
+        );
+        assert.doesNotMatch(nightlySite, /gh release upload/);
+        assert.equal(
+            steps.site.steps[at("Push deployed.json and channel.json to the site repository")].env.TAG,
+            "${{ steps.release.outputs.tag }}",
+        );
         assert.match(site, /node tools\/release-status.mjs nightly --sha "\$SHA" --tags "\$TAGS"/);
         const failed = steps.site.steps.find((st) => st.name === "Report a failed nightly deploy");
         assert.equal(failed.if, "${{ failure() }}");
@@ -8214,7 +8238,7 @@ describe("release.yml's fix forward into the held candidate (#3741)", () => {
         );
         assert.doesNotMatch(workflow("deploy-pages.yml"), /run-id: \$\{\{ github.event.workflow_run.id \}\}/);
         // the site job finds site-<sha> whichever run kept it
-        assert.match(job(release, "site"), /actions\/artifacts\?name=site-\$\{SHA\}/);
+        assert.match(job(workflow("nightly-site.yml"), "site"), /actions\/artifacts\?name=site-\$\{SHA\}/);
     });
 });
 

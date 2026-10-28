@@ -840,6 +840,7 @@ export interface EdgePosition {
     bends?: readonly number[];
     // (undocumented)
     dst: Position;
+    labelAt?: readonly [along: number, across: number];
     // (undocumented)
     src: Position;
 }

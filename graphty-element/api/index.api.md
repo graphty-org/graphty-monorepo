@@ -1176,6 +1176,7 @@ export interface EdgePosition {
     bends?: readonly number[];
     // (undocumented)
     dst: Position;
+    labelAt?: readonly [along: number, across: number];
     // (undocumented)
     src: Position;
 }
@@ -4780,6 +4781,7 @@ export const NodeShapes: z.ZodEnum<{
     vee: "vee";
     star: "star";
     sphere: "sphere";
+    ellipse: "ellipse";
     cross: "cross";
     rectangle: "rectangle";
     triangle: "triangle";
@@ -4798,7 +4800,6 @@ export const NodeShapes: z.ZodEnum<{
     "round-octagon": "round-octagon";
     polygon: "polygon";
     "round-polygon": "round-polygon";
-    ellipse: "ellipse";
     "round-rectangle": "round-rectangle";
     barrel: "barrel";
     database: "database";
@@ -4856,6 +4857,7 @@ export const NodeStyle: z.ZodObject<{
             vee: "vee";
             star: "star";
             sphere: "sphere";
+            ellipse: "ellipse";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -4874,7 +4876,6 @@ export const NodeStyle: z.ZodObject<{
             "round-octagon": "round-octagon";
             polygon: "polygon";
             "round-polygon": "round-polygon";
-            ellipse: "ellipse";
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";
@@ -5040,6 +5041,7 @@ export const NodeStyle: z.ZodObject<{
             vee: "vee";
             star: "star";
             sphere: "sphere";
+            ellipse: "ellipse";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -5058,7 +5060,6 @@ export const NodeStyle: z.ZodObject<{
             "round-octagon": "round-octagon";
             polygon: "polygon";
             "round-polygon": "round-polygon";
-            ellipse: "ellipse";
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";
@@ -5099,6 +5100,7 @@ export const NodeStyle: z.ZodObject<{
             vee: "vee";
             star: "star";
             sphere: "sphere";
+            ellipse: "ellipse";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -5117,7 +5119,6 @@ export const NodeStyle: z.ZodObject<{
             "round-octagon": "round-octagon";
             polygon: "polygon";
             "round-polygon": "round-polygon";
-            ellipse: "ellipse";
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";

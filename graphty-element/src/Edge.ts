@@ -28,6 +28,7 @@ import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
     arcThroughBend,
+    bendPoints,
     bezierThroughControls,
     centerArc,
     clearOfCaps,
@@ -1049,8 +1050,12 @@ export class Edge {
 
         // Update label position if exists
         if (this.label) {
-            const midPoint =
+            // where the layout put the label (Graphviz's `lp`), else the middle of the line
+            let midPoint =
                 (bent || this.bundled) && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
+            if (lnk.labelAt !== undefined && !this.lifted) {
+                midPoint = Vector3.FromArray(bendPoints(src, dst, lnk.labelAt));
+            }
             this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
         }
 

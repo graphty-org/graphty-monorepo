@@ -258,7 +258,7 @@ function heldBlock(state) {
     const issue = state.hold?.issue ? ` (#${state.hold.issue})` : "";
     if (state.offered && state.offered.sha === state.hold?.head)
         return `nightly is held on ${head}${issue}, waiting for the owner's screenshot review of it`;
-    return `nightly is held on ${head}${issue}: fix it forward from its head, or the owner abandons it (mode=abandon)`;
+    return `nightly is held on ${head}${issue}: fix it forward from its head, or abandon it (nightly-abandon.yml)`;
 }
 
 const gh = (...args) => execFileSync("gh", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trim();

@@ -482,6 +482,12 @@ export class Node {
 
     /** Whether the mesh was built as a group following its members: see `groupRegionPaint`. */
     private drawnAsGroup = false;
+    /**
+     * How much the last {@link drawAsGroup} grew the group's face for the perspective it was drawn
+     * under, and the camera height it was drawn for; see {@link groupDrawnForAnotherCamera}.
+     */
+    private groupFar = 1;
+    private groupEye: number | undefined = undefined;
     /** The border built for this node drawn as a group at its box's size, while it is the border drawn. */
     private groupBorder: AbstractMesh | null = null;
     /**
@@ -645,7 +651,12 @@ export class Node {
             return this.size / 2;
         }
 
-        const extent = this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis]);
+        // A group's face is grown for the camera it was drawn under (see `drawAsGroup`): counted
+        // grown, the framing depended on where the camera stood before it, and the same file was
+        // framed at two zooms (issue #4088). Its box is measured without that growth.
+        const far = this.drawnAsGroup && axis !== "z" ? this.groupFar : 1;
+        const extent =
+            (this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis])) / far;
         // A border in screen pixels (`border.screenWidth`) is not counted: its reach in the scene
         // depends on the zoom, so counting it made the box depend on the camera that frames it.
         // The first framing measured the ring built for the camera before it, the ring was then
@@ -956,6 +967,8 @@ export class Node {
         // parent), whose shape is drawn in its box, as Cytoscape.js draws it.
         const round = this.shapeType === "ellipse" && this.drawnStyle?.group === undefined;
         const grow = round ? far * Math.SQRT2 : far;
+        this.groupFar = far;
+        this.groupEye = eye;
         const scale = (want: number, local: number): number => (local > 0 ? want / local : 1);
         const stretch = this.mesh.scaling;
         const before = stretch.clone();
@@ -967,6 +980,23 @@ export class Node {
         ) {
             this.fitGroupChildren(2 * half.x * grow, 2 * half.y * grow, 2 * thin);
         }
+    }
+
+    /**
+     * Whether this node is drawn as a group grown for a camera height other than the active
+     * camera's: the camera moved (a zoom to fit, a reader's orbit) after the group was last drawn,
+     * so its face no longer covers its members' box on screen until it is drawn again.
+     * @returns True when it should be drawn again.
+     * @internal
+     */
+    get groupDrawnForAnotherCamera(): boolean {
+        if (!this.drawnAsGroup || this.mesh.isDisposed()) {
+            return false;
+        }
+
+        const camera = this.mesh.getScene().activeCamera;
+        const eye = camera?.mode === Camera.ORTHOGRAPHIC_CAMERA ? undefined : camera?.position.z;
+        return eye !== this.groupEye;
     }
 
     /**

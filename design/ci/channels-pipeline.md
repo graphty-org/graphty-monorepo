@@ -221,9 +221,22 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   announced on the Release status issue and Pushover. Master keeps merging; master slots still run
   and file red issues, but never promote or replace C. Catch-up order: a due promotion, an untested
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
-  closes the issue) or the owner abandons it (`gh workflow run release.yml -f mode=abandon`, owner
-  only); newer master supersedes it only through that abandon, which records `rejected` on the held
-  head, so an approval of it that merges later promotes nothing.
+  closes the issue) or it is abandoned; newer master supersedes it only through an abandon, which
+  records `rejected` on the held head, so an approval of it that merges later promotes nothing.
+  Abandoning needs no owner (owner, 2026-10-27: it publishes nothing and the next full run undoes it,
+  and its old approval gate held the release-train group for 6 hours while it waited). Anyone may run
+  `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"`, in a concurrency group of its
+  own; it clears only the hold it read (the store clears by base and head, and `channel/candidate` is
+  deleted with a lease on that head), so a train that moved or replaced the hold meanwhile keeps it.
+  Before every full and restart pick, `candidate_fix` also abandons on its own
+  (`tools/channel/hold.mjs autoAbandon`), only when the held head is judged `red` or `owner-item`, and
+  either (a) every lane that held it red is a pipeline lane (the screenshot capture or re-capture) and
+  a newer master commit has its own verdict with none of those lanes and not CI red, so the defect is
+  fixed on master, or (b) the hold started or last moved more than 24 hours ago and master has a newer
+  commit with a green build (a recorded site). Changed screenshots awaiting the owner's review
+  (green-images), an approved or a rejected head, and a head no run judged yet are never abandoned.
+  It closes the hold issue with the reason; the pick then picks as usual, and the newer commit is
+  held if it is not clean.
 - **Fix forward into the candidate.** A fix never brings master into the candidate. Its branch
   starts from the candidate head (`./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate
 --issue <n>`), a commit says `Refs #<hold issue>` (or the branch is named for the hold issue,
@@ -238,7 +251,7 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   it starts from the head; never a cherry-pick), `channel/candidate` is pushed and the store's hold
   moves to the new head H. It refuses, once, with a marked comment on the hold issue, when no
   commit qualifies (the branch holds master commits the candidate lacks: a defect already fixed on
-  master from a newer base cannot enter without a copy, so the owner abandons the hold or the fix is
+  master from a newer base cannot enter without a copy, so the hold is abandoned or the fix is
   made again from the head), when a non-merge commit of the pull request is not in F (a fix commit
   made after the master merge), and on a conflict. Every run does this, so the `mode: candidate`
   run `release-due` dispatches on such a merge loses nothing when another dispatch replaces it
@@ -676,7 +689,9 @@ Answers to review findings that the sections above do not settle by themselves.
 - **Rejected candidate.** A rejected image is a defect of the held candidate, fixed forward into
   `channel/candidate` (section 3); the candidate is not dropped and no other run is offered
   meanwhile. Decisions carry by image hash, so a rejected image stays rejected until a fix changes
-  it. Only the owner ends a hold without a promotion (`mode: abandon`).
+  it. A hold ends without a promotion only by an abandon (section 3): `nightly-abandon.yml`, which
+  needs no owner, or the automatic one, which never ends a hold for changed screenshots awaiting
+  review (owner, 2026-10-27).
 - **Test integrity is replayed, not trialled.** It is replayed over past landings before it is
   required, rather than warning for a week first: the replay gives the false-positive rate without
   letting a week of real pull requests through unchecked.
@@ -775,6 +790,11 @@ In rollout order. Each item says when it is needed, the exact steps, and how to 
     Decide the offered nightly candidate's changed images and Finish; dispatch `promote.yml` (GitHub
     app or `gh workflow run promote.yml`) and approve the `production` deployment whenever you judge
     nightly good.
+
+Abandoning a held nightly candidate is not on this list (owner, 2026-10-27): it is reversible and
+publishes nothing, so `nightly-abandon.yml` runs without an approval and the full run abandons a
+stale or pipeline-made hold on its own (section 3). The owner is needed for nightly only to approve
+changed screenshots and for one-way doors (a first publish, a major).
 
 ## 14. Owner decisions remaining
 

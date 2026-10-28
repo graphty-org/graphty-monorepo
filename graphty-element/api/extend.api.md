@@ -1931,6 +1931,8 @@ class Node_2 {
     };
     getRenderState(): NodeRenderState;
     // @internal
+    get groupDrawnForAnotherCamera(): boolean;
+    // @internal
     get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
     // (undocumented)

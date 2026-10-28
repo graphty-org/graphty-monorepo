@@ -283,6 +283,44 @@ describe("a group with no stored position follows its members", () => {
         assert.closeTo(near, far, 1e-9, "the drawn width does not follow the camera's distance");
     });
 
+    it("frames a 3D group the same wherever the camera stood, and redraws it for the camera that frames it", async () => {
+        // In perspective a group's face is grown for the camera it was drawn under. The framing counted that growth,
+        // so where the camera stood before decided the zoom, and nothing redrew the group once the layout rested, so
+        // it stayed sized for the camera before the last framing: the same file drew two pictures (issue #4088).
+        await follows("dot", DOT, { clusterC: ["m1", "m2"] });
+        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        try {
+            graph.getLayoutManager().running = false;
+            const group = graph.getDataManager().nodes.get("clusterC");
+            assert.isDefined(group);
+            const camera = graph.getScene().activeCamera;
+            assert.isNotNull(camera);
+            const framed = (z: number): number => {
+                camera.position.z = z;
+                group.update();
+                return group.framingHalf("x");
+            };
+            const near = framed(-10);
+            const far = framed(-1000);
+            assert.isAbove(near, 0);
+            assert.closeTo(near, far, 1e-9, "the framed width does not follow the camera's distance");
+
+            // Drawn for a near camera, then the camera moves away: the next frame draws it for the camera now.
+            camera.position.z = -10;
+            group.update();
+            const nearWidth = group.drawnHalfExtents.x;
+            camera.position.z = -1000;
+            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            updates.update(16);
+            const after = group.drawnHalfExtents.x;
+            group.update();
+            assert.notStrictEqual(nearWidth, group.drawnHalfExtents.x, "the two cameras grow the face differently");
+            assert.closeTo(after, group.drawnHalfExtents.x, 1e-9, "the frame redrew the group for the camera now");
+        } finally {
+            release();
+        }
+    });
+
     it("ends an uncapped edge to a group at the group's outline, not under it at its middle", async () => {
         // Cytoscape.js ends an edge to a compound node on the compound's box; the region is drawn behind the
         // edge, so a line from its middle would show across it

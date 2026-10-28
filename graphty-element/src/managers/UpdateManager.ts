@@ -935,6 +935,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Draw again each group grown for a camera other than the one now looking: a group's face is
+     * sized for the perspective it is seen in, and nothing else redraws it once the layout rests,
+     * so the framing's last camera move left it sized for the camera before (issue #4088). Run last
+     * in a pass, after anything in it that moves the camera, so the frame drawn next is consistent.
+     */
+    private redrawGroupsForCamera(): void {
+        for (const { group } of this.dataManager.groups) {
+            const node = this.dataManager.nodes.get(group);
+            if (node?.groupDrawnForAnotherCamera === true) {
+                node.update();
+                // An edge to a group ends on its outline, which just moved.
+                this.forceEdgeWalk();
+            }
+        }
+    }
+
+    /**
      * Place the groups that follow their members on the box the members now make, and draw each
      * over it. A frame that places no node -- the layout stopped, nothing framing -- still applies
      * paint, and paint that resizes a member moves its group's box, while paint that rebuilds a
@@ -1618,6 +1635,7 @@ export class UpdateManager implements Manager {
                 this.updateStatistics();
             }
 
+            this.redrawGroupsForCamera();
             return;
         }
 
@@ -1641,6 +1659,7 @@ export class UpdateManager implements Manager {
 
         // Update statistics
         this.updateStatistics();
+        this.redrawGroupsForCamera();
     }
 
     /**

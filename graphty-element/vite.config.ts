@@ -4,7 +4,6 @@ import { relative, resolve } from "node:path";
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
 
-// import eslint from "vite-plugin-eslint";
 import { stubAnthropicNodeToolset } from "../vite.anthropic-sdk-stub.mjs";
 
 /**

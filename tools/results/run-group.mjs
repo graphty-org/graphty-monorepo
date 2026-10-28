@@ -16,7 +16,8 @@
 // quarantine replaces tools/test-quarantine.json and the pull request rules apply (results-service.md 6.1, 6.3):
 // `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[UNRELATED]`. A re-run attempt reads the quarantine and the master
 // evidence again, so a base check made after the first attempt counts. An unreadable or unavailable plan (a store
-// outage) changes nothing: the committed list stands, as it does elsewhere. When the store answers that a record proved a test flaky, this
+// outage) keeps the committed list, as it does elsewhere, and of the rules only `[NEW-FLAKY]`, judged by the plan's
+// `affected` when it has a `base` (newFlakyJudge). When the store answers that a record proved a test flaky, this
 // files its priority:critical issue (or comments on the signature's earlier one) and posts the number back; a
 // `base` run (base-check.yml) files one `Failing on master` issue per signature that failed every time.
 //
@@ -86,11 +87,7 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  */
 export function prJudge(plan, { shard, family, variant, base, out, env = process.env }) {
     const summary = (line) => env.GITHUB_STEP_SUMMARY && appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
-    const affected = plan?.affected ? new Set(plan.affected) : null;
-    const unknown = (plan?.unknownFamilies ?? []).includes(family);
-    // GPU tests are never excused (CLAUDE.md, WebGPU): they judge as touched
-    const gpu = /^webgpu-graph-algorithms/.test(family);
-    const touched = (f) => gpu || !affected || unknown || affected.has(f.file);
+    const touched = touchedBy(plan, family);
     // master's evidence counts only from the same family and the same flags as this job
     const flagsOf = (v) => v.split("|")[1];
     const onBase = (plan?.failingOnBase ?? []).filter(
@@ -143,6 +140,41 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
             }
         }
         return { ...d, flaky: d.flaky.filter((f) => !failing.includes(f)), failing, pass: failing.length === 0, lines };
+    };
+}
+
+/**
+ * Whether the pull request touched a test: no `affected` answer, or a family with no file-level answer, counts every
+ * test as touched. GPU tests are never excused (CLAUDE.md, WebGPU): they judge as touched.
+ * @param plan the plan file
+ * @param family the group's family
+ * @returns `(failure) => boolean`
+ */
+function touchedBy(plan, family) {
+    const affected = plan?.affected ? new Set(plan.affected) : null;
+    const unknown = (plan?.unknownFamilies ?? []).includes(family);
+    const gpu = /^webgpu-graph-algorithms/.test(family);
+    return (f) => gpu || !affected || unknown || affected.has(f.file);
+}
+
+/**
+ * The `[NEW-FLAKY]` rule alone, as runShard()'s `judge`, for a pull request whose plan holds what the change
+ * touched but not the store's answer (an outage, or a family the store was not asked about): a test that failed and
+ * then passed fails the shard when the pull request touched it and is not on `list`; everything else is decide()'s
+ * (#4146: without it such a run let a test the pull request made flaky merge with a warning).
+ * @param plan the plan file, with `affected` and `unknownFamilies`
+ * @param family the group's family
+ * @param list the quarantine in force
+ * @returns the judge
+ */
+export function newFlakyJudge(plan, family, list) {
+    const touched = touchedBy(plan, family);
+    return (d) => {
+        const caused = d.flaky.filter((f) => touched(f) && !quarantined(list, family, f));
+        if (caused.length === 0) return { ...d, caused };
+        const flaky = d.flaky.filter((f) => !caused.includes(f));
+        const causedWhy = "this pull request changed it or its imports";
+        return { ...d, pass: false, flaky, failing: [...d.failing, ...caused], caused, causedWhy };
     };
 }
 
@@ -499,6 +531,8 @@ export async function runGroup(
     const head = headFacts(root, env);
     // no file (the full path), an unreadable one or a store outage: the committed list stands
     let plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : null;
+    // what the pull request touched (ci.yml writes `base` with it), which holds even without the store's answer
+    const touchedPlan = env.GITHUB_EVENT_NAME === "pull_request" && plan?.base ? plan : null;
     // a family the store was not asked about (a bin of a package nx did not call affected) keeps the committed list
     if (plan?.unavailable || (plan?.families && !plan.families.includes(family))) plan = null;
     if (plan && Number(env.GITHUB_RUN_ATTEMPT ?? 1) > 1)
@@ -522,6 +556,7 @@ export async function runGroup(
     // the shard's committed quarantine counts for it too
     const base = familyOf(shardName);
     if (family !== base) rules.list = rules.list.map((q) => (q.family === base ? { ...q, family } : q));
+    if (!rules.judge && touchedPlan) rules.judge = newFlakyJudge(touchedPlan, family, rules.list);
     // the list this run judges by, for a later step (ci.yml's merge-results) that must judge by the same one
     if (env.RESULTS_QUARANTINE_OUT) {
         const quarantine = rules.list.filter((q) => q.family === family);

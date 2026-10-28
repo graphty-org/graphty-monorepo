@@ -381,25 +381,29 @@ export class PatternedLineMesh {
      * @returns The route's length.
      */
     private lay(route: readonly Vector3[]): number {
-        const points = [route[0].clone()];
+        let last = route[0].clone();
+        let length = 0;
+        const points = [last];
         const along = [0];
         for (const point of route.slice(1)) {
-            const step = Vector3.Distance(points[points.length - 1], point);
+            const step = Vector3.Distance(last, point);
             if (step > 0) {
-                points.push(point.clone());
-                along.push(along[along.length - 1] + step);
+                last = point.clone();
+                length += step;
+                points.push(last);
+                along.push(length);
             }
         }
 
         // a route of one point is a line of length 0 between its two ends, as a straight line between one point
         if (points.length === 1) {
-            points.push(points[0].clone());
+            points.push(last.clone());
             along.push(0);
         }
 
         this.laid = { points, along };
-        this.lineDirection = route[route.length - 1].subtract(route[0]).normalize();
-        return along[along.length - 1];
+        this.lineDirection = (route.at(-1) ?? last).subtract(route[0]).normalize();
+        return length;
     }
 
     /**

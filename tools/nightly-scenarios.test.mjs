@@ -6,7 +6,8 @@
 //
 // The model: expressions are evaluated by GitHub's own evaluator (@actions/expressions), with success(), failure(),
 // cancelled() and always() and the implicit success() of an `if:` that names none of them; the needs graph decides
-// what runs (a job whose `if` is false is skipped, a skipped or failed need skips a job that only asks success());
+// what runs (a job whose `if` is false is skipped, and a skipped or failed ancestor, a need's need too, skips a job
+// that only asks success());
 // a job's result comes from the row (default success; a lane can be failure, cancelled or timed_out, which ends a
 // job cancelled); a called workflow (`uses: ./.github/workflows/x.yml`) runs with the caller's github context and
 // the inputs its `with:` computes, and fails when one of its jobs fails; steps run in order with their `if`, and a
@@ -197,8 +198,9 @@ function run(file, sc, inputs, prefix, out) {
         const ctx = { ...base, needs, env: wfEnv };
         const res = (j) => out.jobs[prefix + j].result;
         const status = {
-            success: () =>
-                needsOf(job).every((n) => res(n) === "success") && !ancestors(id).some((a) => FAILED.has(res(a))),
+            // every ancestor, not only the direct needs: a skipped grandparent skips a job that only asks
+            // success() (release.yml run 40630434337: candidate_fix skipped, pick ran, resume was skipped)
+            success: () => ancestors(id).every((a) => res(a) === "success"),
             failure: () => ancestors(id).some((a) => res(a) === "failure"),
             cancelled: () => Boolean(sc.cancelled),
             always: () => true,
@@ -753,8 +755,13 @@ describe("the nightly path's scenario matrix", () => {
             steps: promoted,
         });
         assert.equal(r.title, "Release (promote-nightly)");
-        skipped(r, ...LANE_JOBS, "recapture", "verdict", "candidate_fix");
-        ran(r, "resume", "version", "land", "publish", "site", "unhold");
+        skipped(r, ...LANE_JOBS, "recapture", "verdict");
+        // candidate_fix runs and does nothing: skipped, it skipped resume and every job after it (run 40630434337)
+        ran(r, "candidate_fix", "resume", "version", "land", "publish", "site", "unhold");
+        assert.ok(
+            Object.values(r.jobs.candidate_fix.steps).every((s) => !s.ran),
+            "candidate_fix merges nothing",
+        );
         const download = r.jobs.version.steps["Download the approved candidate's builds"];
         assert.deepEqual([download.ran, download.with.name, download.with["run-id"]], [true, keptName, "3000"]);
         assert.deepEqual(r.reads, []);

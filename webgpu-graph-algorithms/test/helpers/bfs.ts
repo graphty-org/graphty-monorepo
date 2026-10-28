@@ -406,28 +406,60 @@ async function directionReports(
  * rmat14's direction and unvisited words under the default rule at both cadences, the path from its middle and the
  * hub-clique fixture forced bottom-up (the clique's `arcsScanned` exactly one read per claim), the directed
  * path's unvisited words, and the one-workgroup predecessor pass, all bitwise against the oracle and the host rules.
+ *
+ * It stops at the first fixture with a mismatch (a ratio of Infinity): no later sample can raise the worst ratio
+ * above Infinity or move its label, which is the first sample to reach it, so the verdict and the reported label
+ * are the full check's. A mutant caught on the grid then costs one traversal instead of the whole check (on CI's
+ * lavapipe the check takes about 9 s, and test/sabotage/bfs.test.ts runs it for 29 mutants; issue #4188).
  * @param ctx - the context
  * @returns the report
  */
 export async function bfsReport(ctx: GpuContext): Promise<CheckReport> {
     const reports: CheckReport[] = [];
+    const caught = (): boolean => reports.some((r) => !(r.worst < Infinity));
     const grid = snapshotOf(gridEdges(30, 30), { label: "bfs-report-grid" });
     const path = snapshotOf(pathEdges(500), { label: "bfs-report-path" });
-    for (const [name, tuning] of FORCED_PATHS) {
-        reports.push(...(await traversalReports(ctx, `grid30/${name}`, grid, 0, tuning)));
-        reports.push(...(await traversalReports(ctx, `path500-last/${name}`, path, path.nodeCount - 1, tuning)));
+    try {
+        for (const [name, tuning] of FORCED_PATHS) {
+            reports.push(...(await traversalReports(ctx, `grid30/${name}`, grid, 0, tuning)));
+            if (caught()) {
+                return mergeReports(reports);
+            }
+            reports.push(...(await traversalReports(ctx, `path500-last/${name}`, path, path.nodeCount - 1, tuning)));
+            if (caught()) {
+                return mergeReports(reports);
+            }
+        }
+        // P8-T8: the path from its middle is bottom-up from level 1 on (growing once, never shrinking) under the forced rule
+        const middle = Math.floor(path.nodeCount / 2);
+        reports.push(...(await directionReports(ctx, "path500-mid/bottom-up", path, middle, FORCED_BOTTOM_UP)).reports);
+        if (caught()) {
+            return mergeReports(reports);
+        }
+    } finally {
+        ctx.release(grid);
+        ctx.release(path);
     }
-    ctx.release(grid);
-    // P8-T8: the path from its middle is bottom-up from level 1 on (growing once, never shrinking) under the forced rule
-    const middle = Math.floor(path.nodeCount / 2);
-    reports.push(...(await directionReports(ctx, "path500-mid/bottom-up", path, middle, FORCED_BOTTOM_UP)).reports);
-    ctx.release(path);
     const rmat = snapshotOf(rmatEdges(14, 10, 7), { label: "bfs-report-rmat14" });
-    reports.push(...(await choiceReports(ctx, "rmat14", rmat, 0)));
-    // P8-T8: the default rule at the production cadence and at cadence 1 against the host model
-    reports.push(...(await directionReports(ctx, "rmat14/auto", rmat, 0, {})).reports);
-    reports.push(...(await directionReports(ctx, "rmat14/auto-cadence-1", rmat, 0, { levelsPerSubmit: 1 })).reports);
-    ctx.release(rmat);
+    try {
+        reports.push(...(await choiceReports(ctx, "rmat14", rmat, 0)));
+        if (caught()) {
+            return mergeReports(reports);
+        }
+        // P8-T8: the default rule at the production cadence and at cadence 1 against the host model
+        reports.push(...(await directionReports(ctx, "rmat14/auto", rmat, 0, {})).reports);
+        if (caught()) {
+            return mergeReports(reports);
+        }
+        reports.push(
+            ...(await directionReports(ctx, "rmat14/auto-cadence-1", rmat, 0, { levelsPerSubmit: 1 })).reports,
+        );
+        if (caught()) {
+            return mergeReports(reports);
+        }
+    } finally {
+        ctx.release(rmat);
+    }
     // P8-T8 Step 6: the early exit's witness -- one read per bottom-up claim on the hub-clique fixture, each claim
     // pinned from both sides (arcsScanned == claimed: fewer means the winning read went uncounted, issue #472);
     // maxDepth 4 bounds a mutant that re-claims stale entries
@@ -449,10 +481,16 @@ export async function bfsReport(ctx: GpuContext): Promise<CheckReport> {
         });
     }
     ctx.release(clique);
+    if (caught()) {
+        return mergeReports(reports);
+    }
     // P8-T8 Step 6: the directed path's unvisited words (vertex 0's in-degree 0 differs from its out-degree 1)
     const directed = snapshotOf(pathEdges(500), { directed: true, label: "bfs-report-path-directed" });
     reports.push(...(await directionReports(ctx, "path500-directed", directed, 0, {})).reports);
     ctx.release(directed);
+    if (caught()) {
+        return mergeReports(reports);
+    }
     const pred = await runPredOneWorkgroup(ctx);
     const wantPred = new Uint32Array(STRIDE_PATH_NODES).fill(INVALID_INDEX);
     for (let v = 1; v < STRIDE_PATH_NODES; v++) {

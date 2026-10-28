@@ -248,6 +248,8 @@ function drawnScale(mover: Mover): number {
 export class LayoutTransitionRunner {
     private state: (TransitionSnapshot & { start: number | null }) | null = null;
     private now = 0;
+    /** The setting's `hold`, read once a frame: the progress the move is held at, if any. */
+    private hold: number | undefined = undefined;
     private drawable: ParticleDrawable | null = null;
 
     /**
@@ -262,6 +264,16 @@ export class LayoutTransitionRunner {
      */
     get active(): boolean {
         return this.state !== null;
+    }
+
+    /**
+     * Whether the transition is still going to change the picture: it is under way and not held.
+     * A move held at its `hold` progress draws the same picture every frame until the hold is
+     * cleared or another layout replaces it, so it is a final picture.
+     * @returns True while the drawn nodes will still move.
+     */
+    get moving(): boolean {
+        return this.state !== null && (this.state.start === null || this.hold === undefined);
     }
 
     /**
@@ -355,6 +367,24 @@ export class LayoutTransitionRunner {
     /** Read the clock once for the frame, so every node of it is placed at the same moment. */
     beginPass(): void {
         this.now = performance.now();
+        const hold = this.host.config()?.hold;
+        const { state } = this;
+        if (this.hold !== undefined && hold === undefined && state !== null && state.start !== null) {
+            // Released: the move runs on from where it was held, not from where its clock is.
+            state.start = this.now - this.hold * state.durationMs;
+        }
+
+        this.hold = hold;
+    }
+
+    /**
+     * How far along the move is this frame: the held progress, else the clock's.
+     * @param start - When the move's clock started.
+     * @param durationMs - How long the move takes.
+     * @returns The progress; 1 or more once the move is over.
+     */
+    private progress(start: number, durationMs: number): number {
+        return this.hold ?? (this.now - start) / durationMs;
     }
 
     /**
@@ -385,7 +415,7 @@ export class LayoutTransitionRunner {
             state.start = this.now;
         }
 
-        const t = (this.now - state.start) / state.durationMs;
+        const t = this.progress(state.start, state.durationMs);
         let at: Vec3 | undefined = mover.to;
         if (t < 1) {
             try {
@@ -401,7 +431,7 @@ export class LayoutTransitionRunner {
         mover.drawn.z = drawn.z;
         mover.travel = t >= 1 ? 1 : travelOf(mover, t);
         if (state.transition.descriptor.drawable === "particles") {
-            node.mesh.scaling?.setAll(drawnScale(mover));
+            node.mesh.scaling?.setAll(this.hold === undefined ? drawnScale(mover) : mover.scale);
         }
 
         return drawn;
@@ -421,7 +451,7 @@ export class LayoutTransitionRunner {
             return measured;
         }
 
-        const e = easeInOut(Math.min(1, Math.max(0, (this.now - state.start) / state.durationMs)));
+        const e = easeInOut(Math.min(1, Math.max(0, this.progress(state.start, state.durationMs))));
         // Copied coordinate by coordinate: a Babylon vector keeps them behind getters.
         const min = { x: measured.min.x, y: measured.min.y, z: measured.min.z };
         const max = { x: measured.max.x, y: measured.max.y, z: measured.max.z };
@@ -462,7 +492,14 @@ export class LayoutTransitionRunner {
             return;
         }
 
-        const t = (this.now - state.start) / state.durationMs;
+        if (this.hold !== undefined) {
+            // Held: the same picture every frame, so no particle cloud, whose picture follows the clock.
+            this.drawable?.dispose();
+            this.drawable = null;
+            return;
+        }
+
+        const t = this.progress(state.start, state.durationMs);
         if (t >= 1) {
             this.end();
             return;
@@ -513,7 +550,7 @@ export class LayoutTransitionRunner {
                 const { drawn } = mover;
                 node.setMeshPosition(drawn.x, drawn.y, drawn.z);
                 if (shrinks) {
-                    node.mesh.scaling?.setAll(drawnScale(mover));
+                    node.mesh.scaling?.setAll(this.hold === undefined ? drawnScale(mover) : mover.scale);
                 }
 
                 node.mesh.computeWorldMatrix(true);

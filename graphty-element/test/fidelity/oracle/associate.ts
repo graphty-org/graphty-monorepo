@@ -2507,11 +2507,23 @@ export function associate(
             w.picked = [undefined];
         }
     }
-    // Words several nodes want (two stations of one name drawn a few pixels apart) go by where each node's own label
-    // sits from it in graphty's drawing, scaled to the node's size: by the nodes' middles alone, a label set above its
-    // node is nearer the middle of a twin drawn just above it (json-cyjs-tokyo: 71 labels swapped).
-    const wantedBy = new Map<string, number>();
-    wanting.forEach((w) => new Set(w.lines).forEach((l) => wantedBy.set(l, (wantedBy.get(l) ?? 0) + 1)));
+    // Words a node shares with a node of one name drawn within a node's size of it (two stations a few pixels apart) go
+    // by where the node's own label sits from it in graphty's drawing, scaled to the node's size: by the nodes' middles
+    // alone, a label set above its node is nearer the middle of a twin drawn just above it (json-cyjs-tokyo: 71 labels
+    // swapped). Only there: farther apart, graphty's offset would decide which oracle label is judged against it, and
+    // a wrong offset would pick the twin's label and hide graphty's own placement error.
+    const wantedBy = new Map<string, PNode[]>();
+    for (const w of wanting) {
+        for (const l of new Set(w.lines)) {
+            const ns = wantedBy.get(l) ?? [];
+            ns.push(w.n);
+            wantedBy.set(l, ns);
+        }
+    }
+    const twinNear = (n: PNode, line: string): boolean =>
+        (wantedBy.get(line) ?? []).some(
+            (o) => o !== n && Math.hypot(o.cx - n.cx, o.cy - n.cy) <= Math.max(n.w, n.h, o.w, o.h),
+        );
     const ownPlace = (n: PNode): Pt => {
         const g = guideById.get(n.id);
         if (g === undefined || g.label === null || g.w + g.h <= 0) {
@@ -2528,7 +2540,7 @@ export function associate(
                 .filter((p) => norm(p.text?.content ?? "") === line)
                 .map((p) => {
                     const d = Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy);
-                    const rank = (wantedBy.get(line) ?? 0) > 1 ? Math.hypot(cx(p.box) - own[0], cy(p.box) - own[1]) : d;
+                    const rank = twinNear(w.n, line) ? Math.hypot(cx(p.box) - own[0], cy(p.box) - own[1]) : d;
                     return { w, li, p, d, rank };
                 })
                 .filter((c) => c.d <= reach),

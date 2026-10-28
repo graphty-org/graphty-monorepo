@@ -127,34 +127,56 @@ describe("two nodes of one name drawn close together", () => {
             label: words(content, x, labelAt(y, size)),
         })),
     };
-    const drawn: Prim[] = AT.flatMap(([, x, y, size, content], i): Prim[] => {
-        const points = disc(x, y, size / 2);
-        const base = {
-            closed: true,
-            corners: 0,
-            stroke: null,
-            markers: { start: false, end: false },
-            hint: null,
-        };
-        const t = words(content, x, labelAt(y, size));
-        return [
-            {
-                ...base,
-                index: 2 * i,
-                tag: "path",
-                kind: "shape",
-                box: boxOfPoints(points),
-                fill: FILL,
-                text: null,
-                points,
-            },
-            { ...base, index: 2 * i + 1, tag: "text", kind: "text", box: t.box, fill: null, text: t, points: [] },
-        ];
-    });
+    const drawnAt = (at: typeof AT): Prim[] =>
+        at.flatMap(([, x, y, size, content], i): Prim[] => {
+            const points = disc(x, y, size / 2);
+            const base = {
+                closed: true,
+                corners: 0,
+                stroke: null,
+                markers: { start: false, end: false },
+                hint: null,
+            };
+            const t = words(content, x, labelAt(y, size));
+            return [
+                {
+                    ...base,
+                    index: 2 * i,
+                    tag: "path",
+                    kind: "shape",
+                    box: boxOfPoints(points),
+                    fill: FILL,
+                    text: null,
+                    points,
+                },
+                { ...base, index: 2 * i + 1, tag: "text", kind: "text", box: t.box, fill: null, text: t, points: [] },
+            ];
+        });
+    const drawn = drawnAt(AT);
 
     it("gives each node the label drawn where its own label goes", () => {
         const o = associate(drawn, 600, 400, labelled).scene;
         for (const [id, , y, size] of AT.slice(6)) {
+            const n = o.nodes.find((m) => m.id === id);
+            assert.approximately(n?.label?.y ?? 0, labelAt(y, size), 0.01, id);
+        }
+    });
+
+    it("does not let graphty's own wrong label offset pick the label of a twin a node size away", () => {
+        // q is drawn 40 px above p and graphty sets both labels 40 px too high: graphty's offset would hand each node
+        // its twin's label and hide graphty's placement error, so apart nodes go by their middles
+        const apart = AT.map(([id, x, y, size, content]): [string, number, number, number, string] =>
+            id === "q" ? [id, x, 160, size, content] : [id, x, y, size, content],
+        );
+        const wrong: PScene = {
+            ...guide,
+            nodes: apart.map(([id, x, y, size, content]) => ({
+                ...node([id, x, y, size]),
+                label: words(content, x, labelAt(y, size) - (id === "p" || id === "q" ? 40 : 0)),
+            })),
+        };
+        const o = associate(drawnAt(apart), 600, 400, wrong).scene;
+        for (const [id, , y, size] of apart.slice(6)) {
             const n = o.nodes.find((m) => m.id === id);
             assert.approximately(n?.label?.y ?? 0, labelAt(y, size), 0.01, id);
         }

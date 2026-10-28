@@ -102,11 +102,27 @@ describe("the scratch gh", () => {
             /does not know: gh api repos\/x\/y\/pulls/,
         );
     });
+
+    it("answers a hold issue's comments, as candidate-fix reads them", () => {
+        const s = emptyState();
+        ghCall(s, ["issue", "create", "--title", "Nightly held on abc", "--body", "b"]);
+        ghCall(s, ["issue", "comment", "1", "--body", "first"]);
+        const out = ghCall(s, ["api", "repos/{owner}/{repo}/issues/1/comments", "--paginate", "--jq", ".[].body"]);
+        assert.equal(out.trim(), "first");
+    });
 });
 
 describe("the driver", () => {
-    it("names the first three scenarios of the design, in order", () => {
-        assert.deepEqual(Object.keys(SCENARIOS), ["green-clean-promote", "red-then-green-rerun", "red-twice-hold"]);
+    it("names the design's scenarios, in order", () => {
+        assert.deepEqual(Object.keys(SCENARIOS), [
+            "green-clean-promote",
+            "red-then-green-rerun",
+            "red-twice-hold",
+            "red-then-bisect-plan",
+            "fix-forward",
+            "approval-promotes",
+            "abandon",
+        ]);
         const out = execFileSync("node", [fileURLToPath(new URL("rehearse.mjs", import.meta.url)), "--list"], {
             encoding: "utf8",
         });

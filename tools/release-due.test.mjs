@@ -73,7 +73,7 @@ describe("release-due approval merges since the last green build", () => {
     const dir = mkdtempSync(join(tmpdir(), "release-due-approval-"));
     after(() => rmSync(dir, { recursive: true, force: true }));
     const g = (...args) =>
-        spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args], {
+        spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {
             cwd: dir,
             encoding: "utf8",
         }).stdout.trim();

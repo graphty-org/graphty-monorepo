@@ -238,6 +238,20 @@ describe("an arrowhead the program draws part-way along its line", () => {
     it("fails graphty's head drawn at the line's end", () => {
         assert.strictEqual(judge(head([485, 100])), 0);
     });
+
+    it("fails a head mirrored about the middle: 0.3 from the source where the program's is 0.3 from the target", () => {
+        const at = (g: Pt): number | null =>
+            rate(
+                compareOracle(
+                    "t",
+                    scene("oracle", nodes, [edge("a", "b", [a, b], [head([380, 100])])]),
+                    scene("graphty", nodes, [edge("a", "b", [a, b], [{ ...head(g), partWay: true }])]),
+                ),
+                "edge.arrowPlace",
+            );
+        assert.strictEqual(at([380, 100]), 1);
+        assert.strictEqual(at([220, 100]), 0);
+    });
 });
 
 describe("a label's place on its node", () => {

@@ -1267,6 +1267,11 @@ export function absorbedByKnownFailures(
     ) {
         return false;
     }
+    const drawingCurveOnly =
+        targets.includes("edge.curve") &&
+        !curveByEdge(base) &&
+        failing.get("graph\u0000edges")?.includes("edge.curve") === true &&
+        targets.every((p) => p === "edge.curve" || (base.judged[p] ?? []).length === 0);
     const fails = (kind: "nodes" | "edges" | "groups", gid: string): boolean => {
         const k = KIND[kind];
         const oid = base.paired[kind][gid] as string | undefined;
@@ -1275,9 +1280,10 @@ export function absorbedByKnownFailures(
         if (oid === undefined) {
             return failing.has(`${k}\u0000graphty:${gid}`);
         }
-        // a property judged of the edges together (the share of bent lines where each program lays the file out
-        // itself) that the drawing already fails
-        if (k === "edge" && failing.get("graph\u0000edges")?.some((p) => targets.includes(p)) === true) {
+        // bends judged only of the edges together (the share of bent lines where each program lays the file out
+        // itself), which the drawing already fails, and nothing else the defect is for judged edge by edge: a target
+        // judged per edge (edge.wiggle, edge.route) could still catch it on each edge, so it is never excused
+        if (k === "edge" && drawingCurveOnly) {
             return true;
         }
         return [oid, `${k}:${oid}`, `${oid}@source`, `${oid}@target`].some(

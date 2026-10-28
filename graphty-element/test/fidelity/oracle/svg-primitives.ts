@@ -642,8 +642,9 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
     "sans-serif": "DejaVu Sans",
     // Calibri, which the oracles' Java has no font of either: cx-radiation-bibliography's `Calibri-Bold` labels lie
     // where their DejaVu Sans (regular) width centers them on their nodes (within 0.022 em on 52 centered lines), not
-    // where Carlito's or the browser's stand-in's would
-    "calibri-bold": "DejaVu Sans",
+    // where Carlito's or the browser's stand-in's would; every PostScript style of it (`Calibri-Italic`) is looked up
+    // by its family
+    calibri: "DejaVu Sans",
     times: "DejaVu Serif",
     serif: "DejaVu Serif",
     courier: "DejaVu Sans Mono",
@@ -659,7 +660,8 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
  */
 function measureInJavaFace(el: SVGTextElement, first: string): () => void {
     const [name, javaStyle = ""] = first.split(".");
-    const face = FREEHEP_JAVA_FACES[name];
+    // a PostScript name's style suffix (`Calibri-Bold`) after the family, where the whole name is not a face itself
+    const face = FREEHEP_JAVA_FACES[name] ?? FREEHEP_JAVA_FACES[name.split("-")[0]];
     const desc = el.ownerSVGElement?.querySelector(":scope > desc")?.textContent ?? "";
     if (face === undefined || !desc.includes("FreeHEP")) {
         return () => undefined;

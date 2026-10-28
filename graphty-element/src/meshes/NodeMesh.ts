@@ -1034,10 +1034,9 @@ export class NodeMesh {
 
         if (createOptions.picture !== undefined && createOptions.picture !== null) {
             this.setUpPictureMaterial(mat, createOptions, createOptions.picture, is2D, unlit);
-            return;
+        } else {
+            this.setUpColorMaterial(mat, gradientTexture, color3, unlit, scene);
         }
-
-        this.setUpColorMaterial(mat, gradientTexture, color3, unlit, scene);
 
         mat.wireframe = createOptions.effect?.wireframe ?? false;
 

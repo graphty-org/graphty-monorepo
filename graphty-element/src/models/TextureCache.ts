@@ -41,6 +41,10 @@ interface Entry {
     id?: string;
     /** Read and waiting for its nodes' repaint: still on its way to the screen. */
     landing: boolean;
+    /** Allowed and being fetched or read (not while the reader is asked): on its way too. */
+    fetching: boolean;
+    /** The host the reader refused, so it is fetched once that host is allowed after all. */
+    denied?: string;
     texture: BaseTexture | null;
     readonly users: Set<TextureUser>;
     ready: Promise<BaseTexture | null>;
@@ -113,14 +117,19 @@ export class TextureCache {
     private constructor(
         private readonly scene: Scene,
         private readonly session: TextureSession,
-    ) {}
+    ) {
+        const unwatch = session.network.watchAllowed(() => {
+            this.retryAllowed();
+        });
+        scene.onDisposeObservable.addOnce(unwatch);
+    }
 
     /**
-     * Whether a picture is read and waits for its nodes' repaint.
-     * @returns True while one does.
+     * Whether a picture is being fetched or read, or waits for its nodes' repaint.
+     * @returns True while one is.
      */
     get loading(): boolean {
-        return [...this.entries.values()].some((entry) => entry.landing);
+        return [...this.entries.values()].some((entry) => entry.landing || entry.fetching);
     }
 
     /**
@@ -175,10 +184,18 @@ export class TextureCache {
         let entry = this.entries.get(ref);
         if (entry === undefined) {
             const users = new Set<TextureUser>();
-            const made: Entry = { ref, landing: false, texture: null, users, ready: Promise.resolve(null) };
+            const made: Entry = {
+                ref,
+                landing: false,
+                fetching: false,
+                texture: null,
+                users,
+                ready: Promise.resolve(null),
+            };
             entry = made;
             this.entries.set(ref, made);
             made.ready = this.start(made).then((texture) => {
+                made.fetching = false;
                 made.texture = texture;
                 if (texture !== null) {
                     made.landing = true;
@@ -208,6 +225,7 @@ export class TextureCache {
         if (decided !== null) {
             this.publish(ref, "pending", []);
             if (!(await this.session.network.ask(decided))) {
+                entry.denied = decided.url.host;
                 this.publish(ref, "rejected", [
                     {
                         code: "E_MODEL_URL_BLOCKED",
@@ -218,6 +236,7 @@ export class TextureCache {
             }
         }
 
+        entry.fetching = true;
         this.publish(ref, "pending", []);
         const record = await this.session.assets.ready(ref);
         if (record.state !== "accepted") {
@@ -243,6 +262,19 @@ export class TextureCache {
         } catch {
             this.publish(ref, "failed", [{ code: "E_MODEL_PARSE", params: { format: record.format } }], record.id);
             return null;
+        }
+    }
+
+    /** Start again every picture the reader refused whose host is allowed now. */
+    private retryAllowed(): void {
+        for (const entry of [...this.entries.values()]) {
+            if (entry.denied !== undefined && this.session.network.allowed(entry.denied)) {
+                this.entries.delete(entry.ref);
+                const again = this.entryOf(entry.ref);
+                for (const user of entry.users) {
+                    again.users.add(user);
+                }
+            }
         }
     }
 

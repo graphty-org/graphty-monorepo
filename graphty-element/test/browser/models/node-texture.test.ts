@@ -7,12 +7,63 @@
 import type { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 import { PNG_1X1, sphereGlb } from "../../fixtures/models/fixtures";
-import { drawnAsModel, mount, nextModelEvent, stubFetch } from "./helpers";
+import { cleanups, drawnAsModel, mount, nextModelEvent, stubFetch } from "./helpers";
+
+/**
+ * Hold `fetch` for one URL until released; every other request passes through.
+ * @param url - The URL held.
+ * @param bytes - What it answers with once released.
+ * @returns A promise settled when the URL is requested, and the release.
+ */
+function holdFetch(url: string, bytes: Uint8Array): { requested: Promise<void>; release: () => void } {
+    const original = globalThis.fetch.bind(globalThis);
+    let release = (): void => undefined;
+    const released = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    let noteRequested = (): void => undefined;
+    const requested = new Promise<void>((resolve) => {
+        noteRequested = resolve;
+    });
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        if ((input instanceof Request ? input.url : String(input)) !== url) {
+            return original(input, init);
+        }
+
+        noteRequested();
+        await released;
+        return new Response(bytes as Uint8Array<ArrayBuffer>, { status: 200 });
+    });
+    cleanups.push(() => {
+        spy.mockRestore();
+    });
+    return { requested, release };
+}
+
+/**
+ * Settles after the scene has drawn some frames.
+ * @param element - The element.
+ * @param frames - How many.
+ * @returns Settles after that many frames.
+ */
+function framesDrawn(element: Graphty, frames: number): Promise<void> {
+    const scene = element.graph.getScene();
+    return new Promise((resolve) => {
+        let left = frames;
+        const observer = scene.onAfterRenderObservable.add(() => {
+            left--;
+            if (left === 0) {
+                scene.onAfterRenderObservable.remove(observer);
+                resolve();
+            }
+        });
+    });
+}
 
 /**
  * The texture a node's source material draws, or null.
@@ -150,6 +201,81 @@ describe("node.texture", () => {
         await drawn;
         await operationQueueOf(element.graph).waitForCompletion();
         await element.waitForStableFrame();
+        assert.isNotNull(surfaceOf(element, "a"));
+    });
+
+    it("does not call the frame final while a picture is still downloading", async () => {
+        const picture = "https://pictures.example.com/slow.png";
+        const held = holdFetch(picture, PNG_1X1);
+        const element = await mount();
+        await element.graph.addNodes([{ id: "a" }]);
+        await element.session.styles.add({
+            name: "slow picture",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.texture": picture },
+        });
+        await held.requested;
+        const stable = element.waitForStableFrame().then(() => "stable" as const);
+        // While the download is held, drawn frames must come before the frame is called final.
+        const first = await Promise.race([stable, framesDrawn(element, 5).then(() => "frames" as const)]);
+        assert.equal(first, "frames", "the frame was called final with the picture still downloading");
+        held.release();
+        await stable;
+        assert.isNotNull(surfaceOf(element, "a"), "the final frame draws the picture");
+    });
+
+    it("draws a picture node as a wireframe when node.wireframe asks", async () => {
+        const element = await mount();
+        await element.graph.addNodes([{ id: "a" }]);
+        const picture = await element.session.assets.add({ files: new Map([["dots.png", PNG_1X1]]) });
+        const drawn = nextModelEvent(element, (change) => change.ref === picture.id && change.state === "drawn");
+        await element.session.styles.add({
+            name: "wire picture",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.texture": picture.id, "node.wireframe": true },
+        });
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const mesh = element.graph.getNodeMesh("a");
+        const material = (mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh)?.material as StandardMaterial;
+        assert.include(material.diffuseTexture?.name ?? "", picture.id);
+        assert.isTrue(material.wireframe);
+    });
+
+    it("draws a picture the reader refused once its host is allowed after all", async () => {
+        const picture = "https://pictures.example.org/later.png";
+        const requested = stubFetch(new Map([[picture, PNG_1X1]]));
+        const element = await mount();
+        await element.graph.addNodes([{ id: "a" }]);
+        const asked = new Promise<string>((resolve) => {
+            element.session.on("network:pending", (request) => {
+                resolve(request.params.id);
+            });
+        });
+        const refused = nextModelEvent(element, (change) => change.ref === picture && change.state === "rejected");
+        await element.session.styles.applyTemplate({
+            version: 1,
+            layers: [
+                {
+                    name: "from a file",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.texture": picture },
+                },
+            ],
+        });
+        element.session.network.deny(await asked);
+        await refused;
+        assert.notInclude(requested, picture);
+        const drawn = nextModelEvent(element, (change) => change.ref === picture && change.state === "drawn");
+        element.session.assets.allowHosts(["pictures.example.org"]);
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.include(requested, picture);
         assert.isNotNull(surfaceOf(element, "a"));
     });
 

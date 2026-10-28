@@ -183,6 +183,62 @@ describe("nodes drawn as models", () => {
         assert.isFalse(drawnAsModel(element.graph, "b"));
     });
 
+    it("loads a model the reader refused once its host is allowed after all", async () => {
+        const url = "https://models.example.org/later.glb";
+        const requested = stubFetch(new Map([[url, sphereGlb(12, 6)]]));
+        const element = await mount();
+        await element.graph.addNodes([{ id: "a" }]);
+        const asked = new Promise<string>((resolve) => {
+            element.session.on("network:pending", (request) => {
+                resolve(request.params.id);
+            });
+        });
+        const refused = nextModelEvent(element, (change) => change.ref === url && change.state === "rejected");
+        await element.session.styles.applyTemplate({
+            version: 1,
+            layers: [
+                { name: "from a file", target: "node", selector: { match: "everything" }, set: { "node.model": url } },
+            ],
+        });
+        element.session.network.deny(await asked);
+        await refused;
+        assert.notInclude(requested, url);
+        const drawn = nextModelEvent(element, (change) => change.ref === url && change.state === "drawn");
+        element.session.assets.allowHosts(["models.example.org"]);
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.include(requested, url);
+        assert.isTrue(drawnAsModel(element.graph, "a"));
+    });
+
+    it("draws a model a layer names before its file is added, once it is added", async () => {
+        const element = await mount();
+        await element.graph.addNodes([{ id: "a" }]);
+        const events = modelEvents(element);
+        await element.session.styles.add({
+            name: "named early",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": "asset:early-ball" },
+        });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isFalse(drawnAsModel(element.graph, "a"));
+        const drawn = nextModelEvent(
+            element,
+            (change) => change.ref === "asset:early-ball" && change.state === "drawn",
+        );
+        await element.session.assets.add(
+            { files: new Map([["ball.glb", sphereGlb(12, 6)]]) },
+            { name: "asset:early-ball" },
+        );
+        await drawn;
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.isTrue(drawnAsModel(element.graph, "a"));
+        const loads = events.filter((change) => change.ref === "asset:early-ball" && change.state === "accepted");
+        assert.lengthOf(loads, 1, "the model is prepared once");
+    });
+
     it("draws a model as wide as an icosphere of the same size under the default size mode", async () => {
         const element = await mount(600, 300);
         const { graph } = element;

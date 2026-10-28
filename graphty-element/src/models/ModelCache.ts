@@ -19,11 +19,11 @@
  * first model only (./loadModel).
  */
 
-import { isGraphtyError } from "../errors";
 import type { BaseTexture, Mesh, Observer, Scene } from "@babylonjs/core";
 
 import type { LayerId } from "../catalog/types";
 import type { NodeStyleConfig } from "../config";
+import { isGraphtyError } from "../errors";
 import type { GraphContext } from "../managers/GraphContext";
 import type { AssetRecord, AssetsApiInternal } from "../session/assets/AssetsApi";
 import type { NetworkApiInternal } from "../session/network";
@@ -97,6 +97,8 @@ interface Entry {
     idle: number;
     /** Whether a load is under way, so a second trigger does not prepare a second copy. */
     loading?: boolean;
+    /** The host the reader refused, so it is loaded once that host is allowed after all. */
+    denied?: string;
 }
 
 /** Where one model a layer names stands, for its events. */
@@ -193,6 +195,7 @@ export class ModelCache {
     private reportScheduled = false;
     private readonly unwatch: () => void;
     private readonly unwatchSupplied: () => void;
+    private readonly unwatchAllowed: () => void;
     private readonly frames: Observer<Scene>;
 
     /**
@@ -211,6 +214,16 @@ export class ModelCache {
         this.unwatchSupplied = session.assets.watchSupplied((names) => {
             for (const entry of this.entries.values()) {
                 if (entry.template === null && entry.loading !== true && names.includes(entry.ref)) {
+                    this.load(entry, entry.shape);
+                }
+            }
+        });
+        // A URL the reader refused loads once its host is allowed after all (another answer, the
+        // page's allowHosts, the project's remembered hosts, the policy).
+        this.unwatchAllowed = session.network.watchAllowed(() => {
+            for (const entry of [...this.entries.values()]) {
+                if (entry.denied !== undefined && session.network.allowed(entry.denied)) {
+                    entry.denied = undefined;
                     this.load(entry, entry.shape);
                 }
             }
@@ -358,6 +371,7 @@ export class ModelCache {
         this.settle(ref, "pending", []);
         void this.session.network.ask(decided).then((allowed) => {
             if (!allowed) {
+                entry.denied = decided.url.host;
                 this.settle(ref, "rejected", [
                     {
                         code: "E_MODEL_URL_BLOCKED",
@@ -753,6 +767,7 @@ export class ModelCache {
     private dispose(): void {
         this.unwatch();
         this.unwatchSupplied();
+        this.unwatchAllowed();
         this.scene.onAfterRenderObservable.remove(this.frames);
         for (const entry of this.entries.values()) {
             entry.template?.dispose();

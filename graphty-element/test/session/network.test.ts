@@ -31,6 +31,20 @@ const OTHER = new URL("https://models.example.com/kit/other.glb");
 const ELSEWHERE = new URL("https://elsewhere.example.org/x.glb");
 
 describe("session.network", () => {
+    it("tells its watchers each time hosts may have become allowed, until they stop", () => {
+        const { network } = gate();
+        let told = 0;
+        const stop = network.watchAllowed(() => {
+            told++;
+        });
+        network.allowHosts(["models.example.com"]);
+        network.setPolicy("allow");
+        assert.equal(told, 2);
+        stop();
+        network.allowHosts(["elsewhere.example.org"]);
+        assert.equal(told, 2);
+    });
+
     it("asks once per URL, and an answer holds for its host", async () => {
         const { network, published } = gate();
         const first = network.ask({ url: RACK, kind: "model", by: "file", layerIds: [] });

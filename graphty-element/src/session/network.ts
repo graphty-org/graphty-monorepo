@@ -214,6 +214,12 @@ export interface NetworkApiInternal extends NetworkApi {
     allowHosts(hosts: readonly string[]): void;
     /** Ask the page's `setProjectHosts` lookup again: a project opened, or its loads were restored. */
     projectChanged(): void;
+    /**
+     * Be told whenever hosts may have become allowed, so a fetch refused earlier can be made now.
+     * @param listener - Called after each change.
+     * @returns Stops watching.
+     */
+    watchAllowed(listener: () => void): () => void;
 }
 
 /** What the session lends the gate for its network-source loads. */
@@ -257,6 +263,7 @@ export function createNetworkApi(
     const projectHosts = new Set<string>();
     const waiting = new Map<string, Waiting>();
     const dismissed = new Set<string>();
+    const allowWatchers = new Set<() => void>();
     let next = 0;
 
     const sourceRequests = (): NetworkRequest[] =>
@@ -304,6 +311,10 @@ export function createNetworkApi(
                     dismissed.delete(load.id);
                 });
             }
+        }
+
+        for (const watcher of [...allowWatchers]) {
+            watcher();
         }
     };
 
@@ -432,6 +443,13 @@ export function createNetworkApi(
             }
 
             release((request) => hosts.has(request.params.host.toLowerCase()));
+        },
+
+        watchAllowed(listener) {
+            allowWatchers.add(listener);
+            return () => {
+                allowWatchers.delete(listener);
+            };
         },
     };
 

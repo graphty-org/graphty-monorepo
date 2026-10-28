@@ -6750,6 +6750,7 @@ export class UpdateManager implements Manager {
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;
+    static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(budgetMs?: number): void;

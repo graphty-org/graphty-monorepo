@@ -230,6 +230,7 @@ export {
     type CysImportOptions,
 } from "./formats/cys/index.js";
 export {
+    type BendPoint,
     DOT_ISSUE,
     DOT_LOSS,
     DOT_STYLE_BLOCK_ATTRIBUTE,
@@ -238,6 +239,9 @@ export {
     type DotExportOptions,
     dotImporter,
     type DotImportOptions,
+    graphvizPosBends,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
 } from "./formats/dot/index.js";
 export {
     GEXF_1_2_CAPABILITIES,

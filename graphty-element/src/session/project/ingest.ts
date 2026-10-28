@@ -20,7 +20,7 @@ import { decideRepeat, edgeIdOf, pairKey } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints, searchRecord } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
-import { GROUPS_VALUE, readGroups } from "../../data/groups";
+import { GROUPS_VALUE, RANK_SETS_VALUE, readGroups, readRankSets } from "../../data/groups";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import {
     type ImportReport,
@@ -1792,7 +1792,8 @@ export class Ingest<K extends KnownEdge> {
 
     /**
      * Record the groups the file read with no stored position, which the layout places by their
-     * members (see `LayoutManager.placeGroups`).
+     * members (see `LayoutManager.placeGroups`), and its rank subgraphs, which a Graphviz layout
+     * hands back to Graphviz.
      *
      * ponytail: a merge's groups replace the graph's earlier ones; keep both when merging two
      * nested files matters.
@@ -1800,9 +1801,14 @@ export class Ingest<K extends KnownEdge> {
      * @param writer - The graph primitives to write through.
      */
     private async recordGroups(reader: object | null, writer: GraphWriter): Promise<void> {
-        const groups = reader === null ? [] : await readGroups(reader, (id) => this.heldNode(id));
+        const heldId = (id: NodeIdType): NodeIdType | undefined => this.heldNode(id);
+        const groups = reader === null ? [] : await readGroups(reader, heldId);
         if (groups.length > 0) {
             writer.setGraphValues({ [GROUPS_VALUE]: Object.freeze(groups) });
+        }
+        const ranks = reader === null ? [] : await readRankSets(reader, heldId);
+        if (ranks.length > 0) {
+            writer.setGraphValues({ [RANK_SETS_VALUE]: Object.freeze(ranks) });
         }
     }
 

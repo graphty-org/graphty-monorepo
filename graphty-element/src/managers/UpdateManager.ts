@@ -1261,6 +1261,10 @@ export class UpdateManager implements Manager {
             return "the camera is still moving to the selection";
         }
 
+        if (!this.dataManager.supportPoints.resting) {
+            return "the curves through their support points are still settling";
+        }
+
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
         }
@@ -1329,6 +1333,11 @@ export class UpdateManager implements Manager {
 
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
         if (this.viewMasksPending() || this.followingSelection) {
+            return false;
+        }
+
+        // Curves through support points still settling around nodes that have stopped.
+        if (!this.dataManager.supportPoints.resting) {
             return false;
         }
 
@@ -1888,7 +1897,16 @@ export class UpdateManager implements Manager {
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        if (this.edgesNeedWalking()) {
+        const walk = this.edgesNeedWalking();
+        // support points move after their nodes stop, until they come to rest, and their edges with them
+        const bowed = this.dataManager.supportPoints.update(
+            () => Array.from(this.layoutManager.nodes, (node) => node.mesh.position),
+            this.layoutManager.edges,
+            (edge) => edge.supportEdge(),
+            walk,
+        );
+        this.sceneChanged ||= bowed;
+        if (walk || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
             for (const edge of this.layoutManager.edges) {

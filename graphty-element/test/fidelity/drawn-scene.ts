@@ -12,7 +12,7 @@
  * centers.
  */
 import {
-    type AbstractMesh,
+    AbstractMesh,
     type Camera,
     Color3,
     InstancedMesh,
@@ -36,6 +36,7 @@ import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
+import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
 
@@ -222,6 +223,7 @@ interface PatternInternals {
     color: string;
     opacity: number;
     wave: WaveShape | undefined;
+    laidAt: { start: Vector3; direction: Vector3; length: number } | null;
 }
 interface NodeInternals {
     border: AbstractMesh | null;
@@ -423,6 +425,11 @@ export interface DrawnLabel {
     textBox: { x0: number; y0: number; x1: number; y1: number } | null;
     /** The words' opacity: their color's alpha times the plane's. */
     opacity: number;
+    /**
+     * A label shown only while its node is drawn at least `min` px across (`minNodeScreenSize`, sigma's
+     * labelRenderedSizeThreshold): the node's size across on screen now, and whether that rule alone hides it.
+     */
+    nodeSizeRule?: { acrossPx: number; min: number; hidden: boolean };
     /** How many lines the words are drawn on. */
     lineCount: number;
     /** How the lines are aligned. */
@@ -459,6 +466,27 @@ export function cssWeight(weight: string | undefined): number {
     }
     const n = Number(weight);
     return Number.isFinite(n) ? n : 400;
+}
+
+/**
+ * A label's node-size rule as drawn (`RichTextLabel.tooSmall`'s second half): its node's size across on screen, the
+ * least that shows the label, and whether the rule alone hides it now (the mesh otherwise shown).
+ * @param label - the label
+ * @returns `{ nodeSizeRule }`, or nothing for a label under no such rule
+ */
+function nodeSizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "nodeSizeRule"> {
+    const { minNodeScreenSize: min, attachTo } = (
+        label as unknown as { options: { minNodeScreenSize?: number; attachTo?: unknown } }
+    ).options;
+    const mesh = label.labelMesh;
+    const camera = mesh?.getScene().activeCamera;
+    if (min === undefined || min <= 0 || !(attachTo instanceof AbstractMesh) || !mesh || !camera) {
+        return {};
+    }
+    const { extendSizeWorld, centerWorld } = attachTo.getBoundingInfo().boundingBox;
+    const acrossPx = 2 * Math.min(extendSizeWorld.x, extendSizeWorld.y) * pixelsPerUnit(camera, centerWorld);
+    const hidden = acrossPx < min && mesh.isEnabled() && mesh.isVisible && mesh.visibility === 0;
+    return { nodeSizeRule: { acrossPx, min, hidden } };
 }
 
 /**
@@ -550,6 +578,7 @@ export function readLabel(label: RichTextLabel | null | undefined, p: Projector)
         rotation: (Math.atan2(x.y - o.y, x.x - o.x) * 180) / Math.PI,
         textBox,
         opacity: textColor.alpha * planeAlpha,
+        ...nodeSizeRuleOf(label),
         lineCount,
         align,
         outline:
@@ -942,6 +971,8 @@ export interface DrawnEdge {
      * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
      */
     outline: { color: string; opacity: number; width: number; pattern?: string } | null;
+    /** The band drawn over the line (`line.overlay`): its color, opacity and whole width in pixels; null for none. */
+    overlay?: { color: string; opacity: number; width: number } | null;
     caps: {
         end: EdgeCapEnd;
         name: string;
@@ -1101,10 +1132,30 @@ function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | 
 function readOutline(internal: EdgeInternals, p: Projector): DrawnEdge["outline"] {
     // the band drawn under the line: its outline, else its underlay (Cytoscape.js draws both as a wider stroke beneath)
     const underlay = internal.haloBands.find((band) => band.kind === "underlay");
-    const [batch, slots] =
-        internal.outlineBatch === null
-            ? [underlay?.batch ?? null, underlay?.slots ?? []]
-            : [internal.outlineBatch, internal.outlineSlots];
+    return internal.outlineBatch === null
+        ? readBand(underlay?.batch ?? null, underlay?.slots ?? [], p)
+        : readBand(internal.outlineBatch, internal.outlineSlots, p);
+}
+
+/**
+ * The band drawn over an edge's line (`line.overlay`), as drawn.
+ * @param internal - the edge's internals
+ * @param p - the projector
+ * @returns its color, opacity and whole width in pixels, or null for none
+ */
+function readOverlay(internal: EdgeInternals, p: Projector): DrawnEdge["overlay"] {
+    const overlay = internal.haloBands.find((band) => band.kind === "overlay");
+    return readBand(overlay?.batch ?? null, overlay?.slots ?? [], p);
+}
+
+/**
+ * A band drawn along an edge's line, as drawn.
+ * @param batch - the line batch it is drawn in, or null for none
+ * @param slots - its slots in the batch
+ * @param p - the projector
+ * @returns its color, opacity, whole width in pixels and pattern, or null for none
+ */
+function readBand(batch: EdgeLineBatch | null, slots: readonly number[], p: Projector): DrawnEdge["outline"] {
     if (batch === null || batch.disposed || slots.length === 0 || !batch.mesh.isEnabled()) {
         return null;
     }
@@ -1186,7 +1237,15 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const fields = pm as unknown as PatternInternals;
         ({ pattern } = pm);
         // a wave with a period of its own runs from end to end of what it drew, not from element to element
-        world = pm.drawnEnds() ?? pm.elements.map((el: ArrowCap) => el.position);
+        // a dash or dot pattern's line runs from where it was laid to its end, as a stroke's dashes do, not from its
+        // first element's middle to its last's: a wide dotted line's route started half a dot late, and one element
+        // on a line too short for two had no route at all (`pajek-synth-lines` 12 -> 13, 2 -> 3)
+        const laid = fields.laidAt;
+        world =
+            pm.drawnEnds() ??
+            (laid === null
+                ? pm.elements.map((el: ArrowCap) => el.position)
+                : [laid.start, laid.start.add(laid.direction.scale(laid.length))]);
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
         // a wave with a swing of its own is a line `width` thick waving across its path: as thick as the band one
         // period of it draws, read as an outline drawn as a fill is (twice its area over its edges)
@@ -1258,6 +1317,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         pattern,
         dashPx,
         outline: readOutline(internal, p),
+        overlay: readOverlay(internal, p),
         caps,
         label: readLabel(edge.label, p),
         endLabels: [edge.arrowTailText, edge.arrowHeadText].flatMap((l) => {

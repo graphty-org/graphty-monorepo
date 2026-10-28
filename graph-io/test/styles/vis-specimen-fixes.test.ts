@@ -124,7 +124,13 @@ describe("vis-network edge routes", () => {
         });
         // vis-network-specimen-edges-lines `self-reference-front`: an arc of the circle of 20 centered 8 out at pi / 4,
         // part of the way round, every point outside the node
-        const points = (values(r, "edge", "bends")[0] as string).split(" ").map((p) => p.split(",").map(Number));
+        // its two ends are ports, where the line starts and stops: vis-network draws no line from the node out to the
+        // arc, whose ends its search leaves off the node
+        const ends = [values(r, "edge", "sourcePort")[0], values(r, "edge", "targetPort")[0]] as string[];
+        const points = [ends[0], values(r, "edge", "bends")[0] as string, ends[1]]
+            .join(" ")
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
         const c = Math.cos(Math.PI / 4);
         for (const [x, y] of points) {
             expect(Math.hypot(x * 8 - c * 8, y * 8 - c * 8)).toBeCloseTo(20, 2);

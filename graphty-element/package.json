@@ -154,6 +154,7 @@
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "eslint && node eslint-rules/node-position-funnel.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
         "benchmark": "tsx benchmarks/run.ts",
+        "fidelity:ratchet": "tsx scripts/fidelity-ratchet.ts",
         "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json && tsc -p tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",
         "api:report": "node ../tools/api-report.mjs .",

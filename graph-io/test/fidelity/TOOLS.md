@@ -35,7 +35,10 @@ length in the unit of the positions, so their 1200 x 900 canvas does not change 
 
 An oracle is the program's own SVG drawing of a committed file, kept in `oracles/<sample id>.svg` with a PNG of it
 and an `.oracle.json` that records the program, its version, the exact command, the file's hash and whether the
-program is a stand-in for the one that wrote the file. One script per program makes them, from
+program is a stand-in for the one that wrote the file. Where the program says where it drew each node, the
+`.oracle.json` records that too (`drawn`): sigma.js for its raster, and vis-network (each node's id, center and box,
+from its own `getPositions` and `getBoundingBox`), which the comparator names the SVG's shapes by, since a vis-network
+SVG carries no ids. One script per program makes them, from
 `oracles/tools/`:
 
 | Script                  | Program                              | Draws                                                                                  |
@@ -69,11 +72,54 @@ servherd_start({ name: "cytoscape-desktop", cwd: "<main checkout>/tmp/file-style
 
 then run `CYREST_PORT=<its port> CYTOSCAPE_DISPLAY=:96 node cytoscape-desktop.mjs [sample ids]`.
 
+## How the scorecards decide pass and fail
+
+graphty-element runs two scorecards over these samples: the oracle scorecard (`test/fidelity/oracle-report.test.ts`,
+every oracle in `oracles/`, and its CI subset `test/browser/oracle-scorecard.test.ts`) and the drawn-scene scorecard
+(`test/fidelity/fidelity.test.ts`, against the reference scenes in `scenes/`). Both decide on elements, never on
+decimals:
+
+- **A sample fails only when an element fails a property that its known failures do not list**: a node, edge, group,
+  label or stray that passed before and fails now, or a failing element that is new. The known failures are
+  `graphty-element/test/fidelity/oracle-known-failures.json` (per sample and per `<sample>@matched`, the comparison
+  with graphty's nodes at the program's own positions) and the `known` lists of
+  `graphty-element/test/fidelity/baseline-scores.json`.
+- **Pass rates are a report.** Each run writes `gate.txt` and `gate.json` (`graphty-element/tmp/oracle-report/` and
+  `graphty-element/test/fidelity/out/`): every newly failing element, every known failure that passes now, and every
+  pass rate that moved from its recorded value (`oracle-floors.json`, the `floors` of `baseline-scores.json`). The
+  recorded values only say how far a property has been; none of them fails a sample.
+- **Whole-picture (raster) regions** are reported when they measure more than 0.02 under their recorded value, and
+  never fail a sample. Their recorded values come from SwiftShader runs only (`GRAPHTY_BROWSER_GPU` unset).
+- **A property that cannot be measured any more** (no element on the other side to compare it with: an arrowhead
+  graphty rightly stopped drawing, a layout no longer judged between unrelated layouts) is reported as not
+  measurable, never as a failure. A known failure that is not measurable stays on the list.
+- **Comparator or drawing.** `GRAPHTY_ORACLE_BASELINE=<an earlier run's tmp/oracle-report directory>` judges that run's
+  drawings again with this run's comparator. Every newly failing element is then marked `drawing` (the earlier
+  drawing passes it under this comparator), `comparator` (the earlier drawing fails it too under this comparator,
+  though its own run passed it) or `baseline` (it failed on the earlier drawing already); without a baseline it is
+  `unclassified`. Every moved pass rate is split the same way: `comparator` is the earlier drawing's rate under this
+  comparator minus its own run's, `drawing` is this run's minus the earlier drawing's under this comparator. So a
+  comparator change moves both sides alike and is never reported as a graphty regression. Keep a run's report
+  directory (copy `graphty-element/tmp/oracle-report` away) before changing the comparator to have a baseline.
+
+After a run, in graphty-element, and in the same commit as the change that moved it:
+
+```bash
+npm run fidelity:ratchet                                    # take off what passes, raise the recorded rates
+npm run fidelity:ratchet -- --add "<why these fail now>"     # also list every unlisted failing element
+npm run fidelity:ratchet -- --add "<why>" --keys <sample>,<sample>@matched --suite oracle
+```
+
+The ratchet (`graphty-element/scripts/fidelity-ratchet.ts`) takes off the known failures every element that passes
+now, raises every recorded rate to what the run measured and never lowers one, and adds elements only with `--add`
+and a reason, which it records in the file's `reasons` with the date, the elements and how many came from the drawing
+and from the comparator. It exits 1 while unlisted failures remain. Nobody edits a decimal or a list by hand.
+
 ## yEd's oracles
 
 yEd's license says it "may not be used as part of an automated process", so no script drives yEd or yEd Live. Every
 yEd GraphML and yEd Live GraphML oracle is draw.io's drawing, marked `standIn: true`, and the comparator holds stand-ins
-to their own floors (`standInFloors` in `graphty-element/test/fidelity/oracle-floors.json`). To replace one with yEd's
+to their own recorded rates (`standInFloors` in `graphty-element/test/fidelity/oracle-floors.json`). To replace one with yEd's
 own drawing, open the file in yEd, use File > Export > SVG at the sheet's 1200 x 900 size, save it over the
 oracle's SVG, run `rasterize.mjs` on it, and set the oracle's `.oracle.json` to `program: "yEd"` with
 `standIn: false`. The files and the paths they go to are listed in `oracles/ISSUES.md`, "yEd sheets to export by

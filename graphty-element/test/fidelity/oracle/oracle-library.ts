@@ -8,9 +8,19 @@
  * Browser only (it reads graphty's Babylon scene).
  */
 import type { Graphty } from "../../../index.js";
+import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../../src/layout/graphviz/engines";
 import { readDrawn } from "../drawn-scene";
 import { extractScene } from "../extract-scene";
-import { associate, type Association, diskColor, type RasterDrawing, rasterScene, withoutCovered } from "./associate";
+import {
+    associate,
+    type Association,
+    diskColor,
+    type DrawnNodes,
+    nameDrawnNodes,
+    type RasterDrawing,
+    rasterScene,
+    withoutCovered,
+} from "./associate";
 import {
     compareOracle,
     namedCaptions,
@@ -178,11 +188,17 @@ async function associateOracle(
     prims: Parameters<typeof associate>[0],
     size: { width: number; height: number },
     graphty: PScene,
+    ownLayout: boolean,
 ): Promise<Association> {
     const drawing = meta.drawn as RasterDrawing | undefined;
     const pngUrl = await oraclePngUrl(id);
     if (meta.svgKind !== "raster" || drawing === undefined || pngUrl === undefined) {
-        return associate(prims, size.width, size.height, graphty);
+        // a vector oracle whose program said where it drew each node (vis-network) names its shapes by that
+        const named =
+            meta.svgKind !== "raster" && drawing !== undefined
+                ? nameDrawnNodes(prims, meta.drawn as DrawnNodes)
+                : prims;
+        return associate(named, size.width, size.height, graphty, { ownLayout });
     }
     const png = await pngPixels(pngUrl);
     const k = png.width / size.width;
@@ -210,6 +226,24 @@ export function isStandIn(meta: Record<string, unknown>): boolean {
 const NO_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Gephi Toolkit", "Pajek"]);
 
 /**
+ * What a comparison takes from the mounted element besides its drawing, so the same comparison can be run again on a
+ * drawing kept from another run (`judgeDrawing`): the specimen names both sides are named by, and whether graphty ran
+ * its own layout. These follow from the sample file, not from how graphty drew it.
+ */
+export interface JudgeInputs {
+    /** Node id to its specimen role name (`cap-*`, `anchor-*`), from the sample's own data. */
+    captionOf: [string, string][];
+    /** Node id to its specimen setting id, for a sheet whose format numbers its nodes. */
+    names: [string, string][];
+    /** The file placed no node: graphty laid it out itself. */
+    ownLayout: boolean;
+    /** ...and with its own layout, not the program's (Graphviz lays a DOT file out on both sides alike). */
+    ownLayouts: boolean;
+    /** How the sample was loaded, for the provenance. */
+    command: string;
+}
+
+/**
  * One reference's judgments of a sheet judged per setting: the sheet's oracle, a stand-in program or the
  * specification, each scoring only the properties of the settings it draws (judges.json).
  */
@@ -223,7 +257,7 @@ export interface ReferenceJudgment {
     scene: PScene;
 }
 
-/** One comparison of a mounted element's drawing with the program's own. */
+/** One comparison of a drawing with the program's own. */
 export interface OracleComparison {
     /** The sheet's oracle's report: for a sheet judged per setting, only what the oracle judges. */
     report: OracleReport;
@@ -237,6 +271,8 @@ export interface OracleComparison {
     /** The SVG's rendered size. */
     width: number;
     height: number;
+    /** What the comparison took from the element, to judge another drawing of the same sample alike. */
+    inputs: JudgeInputs;
     /** A sheet judged per setting: every reference's judgments, the oracle's first; empty for any other sample. */
     references: ReferenceJudgment[];
 }
@@ -263,6 +299,7 @@ function scoresOf(report: OracleReport): Record<string, number> {
  * @param element - the element, the sample loaded and settled
  * @param sha256 - the sample file's sha256
  * @param command - how it was loaded, for the provenance
+ * @param mutate - a planted defect, applied to graphty's drawing before it is judged
  * @returns the comparison
  */
 export async function compareWithOracle(
@@ -291,9 +328,34 @@ export async function compareWithOracle(
     const names = id.startsWith("gml-specimen-")
         ? specimenSettingNames(element.session.data.nodes())
         : specimenNames(id);
-    const numbers = new Map([...names].map(([k, v]) => [v, k]));
     const named = namedCaptions(namedCaptions(unmutated, captionOf), names);
     const graphty = mutate === undefined ? named : mutate(structuredClone(named));
+    const ownLayout = element.session.seededNodeCount === 0;
+    return judgeDrawing(id, graphty, {
+        captionOf: [...captionOf],
+        names: [...names],
+        ownLayout,
+        // the file placed no node and graphty ran its own layout, not the program's (Graphviz lays a DOT file out on
+        // both sides alike)
+        ownLayouts: ownLayout && !GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === element.layout),
+        command,
+    });
+}
+
+/**
+ * Judges a drawing of graphty's, already read and named (`compareWithOracle`, or one kept in an earlier run's report),
+ * against the program's own SVG of the same sample: the comparator alone, so a drawing kept from another run is judged
+ * by this run's comparator exactly as this run's drawing is.
+ * @param id - the sample
+ * @param graphty - graphty's drawing, named
+ * @param inputs - what the comparison takes from the element
+ * @returns the comparison
+ */
+export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInputs): Promise<OracleComparison> {
+    const meta = oracleMeta(id);
+    const captionOf = new Map(inputs.captionOf);
+    const names = new Map(inputs.names);
+    const numbers = new Map([...names].map(([k, v]) => [v, k]));
     const svgPath = pathOf(svgs, id);
     if (svgPath === undefined) {
         throw new Error(`${id} has no oracle SVG`);
@@ -312,6 +374,7 @@ export async function compareWithOracle(
             read.prims,
             { width: read.width, height: read.height },
             namedCaptions(graphty, numbers),
+            inputs.ownLayout,
         );
         // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
         const association = {
@@ -332,11 +395,12 @@ export async function compareWithOracle(
                     width: read.width,
                     height: read.height,
                 },
-                graphty: { command, width: graphty.width, height: graphty.height },
+                graphty: { command: inputs.command, width: graphty.width, height: graphty.height },
             },
             {
                 mirror: drawnBy.mirrored === true,
                 standIn: isStandIn(drawnBy),
+                ownLayouts: inputs.ownLayouts,
                 ...(sheet === undefined ? {} : { judges: judgesFor(sheet, reference) }),
             },
         );
@@ -379,7 +443,7 @@ export async function compareWithOracle(
             {
                 method: "specification",
                 guide: null,
-                graphty: { command, width: graphty.width, height: graphty.height },
+                graphty: { command: inputs.command, width: graphty.width, height: graphty.height },
             },
             { judges: judgesFor(sheet, "specification") },
         );
@@ -391,7 +455,7 @@ export async function compareWithOracle(
             scene: expected,
         });
     }
-    return { report, scores, meta, association, graphty, names, width, height, references };
+    return { report, scores, meta, association, graphty, names, width, height, inputs, references };
 }
 
 /** What the specification reference is (each expectation cites its own section in judges.json). */

@@ -39,6 +39,7 @@ import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel"
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
+import { spansAlongCenters } from "./pattern-spans";
 
 /**
  * Drawn values a third-party consumer cannot read through the public API today, so cannot check
@@ -1107,16 +1108,11 @@ function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | 
         const s = p.point(el.position);
         return [s.x, s.y] as const;
     });
-    const [a, b] = [centers[0], centers[centers.length - 1]];
-    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (L < 1e-9) {
+    // along the line as it was laid, its corners and curves too (issue #3102)
+    const spans = spansAlongCenters(centers, outlines as [number, number][][]);
+    if (spans === null) {
         return null;
     }
-    const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
-    const spans = (outlines as [number, number][][]).map((o) => {
-        const t = o.map(([x, y]) => (x - a[0]) * u[0] + (y - a[1]) * u[1]);
-        return [Math.min(...t), Math.max(...t)] as const;
-    });
     const pairs = spans.slice(0, -1).flatMap(([t0, t1], i) => [t1 - t0, spans[i + 1][0] - t1]);
     // the last element too (a dash-dot of two elements is a dash and a dot), followed by the line's usual gap
     const gaps = pairs.filter((_, i) => i % 2 === 1).sort((x, y) => x - y);

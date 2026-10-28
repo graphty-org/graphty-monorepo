@@ -13,11 +13,21 @@ import "../../src/graphty-element";
 import { Matrix } from "@babylonjs/core";
 import { raySphere } from "babylonjs-map/projection";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { commands } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { click, drag, type Point, wheel } from "../helpers/real-input";
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Holds every request whose URL holds the piece given, unanswered, until it is released. */
+        holdRequests: (fragment: string) => Promise<void>;
+        /** Once one has come, lets the held requests go: answered, or refused when `refuse`. */
+        releaseRequests: (fragment: string, refuse: boolean) => Promise<void>;
+    }
+}
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -52,6 +62,47 @@ afterEach(() => {
 async function applied(element: Graphty): Promise<void> {
     await drawnFrames(element.graph.getScene(), 1);
     await element.waitForStableFrame();
+}
+
+/**
+ * Wait until the map under the graph is in a state, and drawing a source when one is named. The
+ * element tells every change of the map's state as a `basemap-status` event, so this waits on that
+ * event and never on a clock: loading a map's tiles and compiling their shaders take as long as the
+ * machine takes.
+ * @param element - The element.
+ * @param state - The state.
+ * @param source - The source, when it matters.
+ */
+async function basemapIs(element: Graphty, state: string, source?: string): Promise<void> {
+    const reached = (): boolean => {
+        const status = element.basemapStatus;
+        return status.state === state && (source === undefined || status.source === source);
+    };
+    if (reached()) {
+        return;
+    }
+
+    await new Promise<void>((resolve) => {
+        const listener = (): void => {
+            if (reached()) {
+                element.removeEventListener("basemap-status", listener);
+                resolve();
+            }
+        };
+        element.addEventListener("basemap-status", listener);
+    });
+}
+
+/**
+ * The link the map's credits give, as drawn over the canvas now.
+ * @param element - The element.
+ * @returns The first credit's link, or null when none is drawn.
+ */
+function creditLink(element: Graphty): string | null {
+    const strip =
+        element.querySelector("[data-graphty-attribution]") ??
+        element.shadowRoot?.querySelector("[data-graphty-attribution]");
+    return strip?.querySelector("a")?.getAttribute("href") ?? null;
 }
 
 /**
@@ -309,15 +360,14 @@ describe("the map under the graph", () => {
         await element.session.layout.set("location-map", {
             options: { extent: "world", map: { source: "natural-earth-gray" } },
         });
+        await basemapIs(element, "ready", "natural-earth-gray");
         await applied(element);
-        await vi.waitFor(async () => {
-            assert.isAbove(await colorsAround(element, CENTER, 40), 20, "a picture under the graph in 3D");
-        });
+        assert.isAbove(await colorsAround(element, CENTER, 40), 20, "a picture under the graph in 3D");
         await element.setViewMode("2d");
         await applied(element);
-        await vi.waitFor(async () => {
-            assert.isAbove(await colorsAround(element, CENTER, 40), 20, "and in 2D");
-        });
+        await basemapIs(element, "ready", "natural-earth-gray");
+        await applied(element);
+        assert.isAbove(await colorsAround(element, CENTER, 40), 20, "and in 2D");
     });
 
     it("says it is loading until a tile is drawn, so a reader waiting for ready sees the map", async () => {
@@ -325,9 +375,7 @@ describe("the map under the graph", () => {
         await applied(element);
         await element.session.layout.set("location-map", { options: { extent: "world" } });
         // Nothing asked for yet is not ready: the status stays loading until a tile has settled.
-        await vi.waitFor(() => {
-            assert.strictEqual(element.basemapStatus.state, "ready");
-        });
+        await basemapIs(element, "ready");
         await applied(element);
         assert.isAbove(await colorsAround(element, CENTER, 40), 20, "the map is on screen once ready");
     });
@@ -451,9 +499,7 @@ function globeTiles(element: Graphty): { source: string; z: number; textured: bo
 describe("the globe's map", () => {
     it("wraps every kind of source onto the sphere, switched live without moving a node, refining as it nears", async () => {
         const element = await mounted("3d", { surface: "globe", extent: "world" });
-        await vi.waitFor(() => {
-            assert.strictEqual(element.basemapStatus.state, "ready");
-        });
+        await basemapIs(element, "ready");
         const placed = scenePositions(element);
         // One 2 x 1 pixel picture of the whole world, as a reader's own image would be.
         const picture =
@@ -470,11 +516,8 @@ describe("the globe's map", () => {
         ] as const;
         for (const [map, source] of sources) {
             await element.session.layout.set("location-map", { options: { surface: "globe", extent: "world", map } });
-            await vi.waitFor(async () => {
-                await applied(element);
-                assert.strictEqual(element.basemapStatus.source, source);
-                assert.strictEqual(element.basemapStatus.state, "ready", source);
-            });
+            await basemapIs(element, "ready", source);
+            await applied(element);
             const tiles = globeTiles(element);
             assert.isAbove(tiles.length, 0, `${source} is drawn on the globe`);
             assert.isTrue(
@@ -488,10 +531,8 @@ describe("the globe's map", () => {
         await element.session.layout.set("location-map", {
             options: { surface: "globe", extent: "world", map: { source: "openstreetmap" } },
         });
-        await vi.waitFor(async () => {
-            await applied(element);
-            assert.strictEqual(element.basemapStatus.state, "ready");
-        });
+        await basemapIs(element, "ready", "openstreetmap");
+        await applied(element);
         const far = Math.max(...globeTiles(element).map((t) => t.z));
         for (let i = 0; i < 12; i++) {
             await wheel(element, CENTER, -400);
@@ -617,24 +658,33 @@ describe("the location map's history and map", () => {
     });
 
     it("falls back to the bundled world when tiles cannot be reached, says so, and credits only what it drew", async () => {
-        const element = await mounted("2d");
-        const states: { state: string; error?: { code: string } }[] = [];
+        // The map starts as the gray world, made from the bundled picture, so the full-color world a
+        // tile service is drawn over has not been loaded yet when the service is set.
+        const element = await mounted("2d", { map: { source: "natural-earth-gray" } });
+        await basemapIs(element, "ready", "natural-earth-gray");
+        // The order a slow machine brings: the service refuses its tiles while the world under them
+        // is still on its way.
+        await commands.holdRequests("natural-earth.jpg");
+        await commands.holdRequests("127.0.0.1:9");
+        // The credits drawn when each state is told: a fallback is told once the world it falls back
+        // to is drawn, so its credit is already on screen then, not a frame or a picture later.
+        const states: { state: string; error?: { code: string }; credit: string | null }[] = [];
         element.addEventListener("basemap-status", (event) => {
-            states.push(event.detail);
+            states.push({ ...event.detail, credit: creditLink(element) });
         });
         await element.session.layout.set("location-map", {
             options: { map: { tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png", attribution: "Bad Tiles Co" } },
         });
-        await vi.waitFor(async () => {
-            await applied(element);
-            assert.strictEqual(element.basemapStatus.state, "fallback");
-        });
-        assert.deepInclude(states.at(-1)?.error, { code: "E_BASEMAP_UNREACHABLE" });
+        await commands.releaseRequests("127.0.0.1:9", true);
+        await applied(element);
+        await applied(element);
+        await commands.releaseRequests("natural-earth.jpg", false);
+        await basemapIs(element, "fallback");
+        const fallback = states.find((s) => s.state === "fallback");
+        assert.deepInclude(fallback?.error, { code: "E_BASEMAP_UNREACHABLE" });
+        assert.strictEqual(fallback?.credit, "https://www.naturalearthdata.com/", "the credit is a link when told");
         assert.notInclude(element.basemapStatus.attribution, "Bad Tiles Co");
-        const strip =
-            element.querySelector("[data-graphty-attribution]") ??
-            element.shadowRoot?.querySelector("[data-graphty-attribution]");
-        const link = strip?.querySelector("a");
-        assert.strictEqual(link?.getAttribute("href"), "https://www.naturalearthdata.com/", "the credit is a link");
+        await applied(element);
+        assert.strictEqual(creditLink(element), "https://www.naturalearthdata.com/", "the credit is a link");
     });
 });

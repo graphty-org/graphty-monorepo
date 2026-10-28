@@ -129,7 +129,13 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     {/* A region named for the drawing, holding it and its key, so a screen reader can
                         land on it and read it as one place. */}
                     {/* Under the maximized table, the canvas and its tools take no input or focus. */}
-                    <section className="ws-canvas" aria-label="Graph drawing" data-testid="canvas" {...canvasDrop} inert={dockOpen && dockMaximized}>
+                    <section
+                        className="ws-canvas"
+                        aria-label="Graph drawing"
+                        data-testid="canvas"
+                        {...canvasDrop}
+                        inert={dockOpen && dockMaximized}
+                    >
                         <CanvasMenu>
                             <ElementHost key={projectId} onReady={onElementReady} autosave={autosave} />
                         </CanvasMenu>

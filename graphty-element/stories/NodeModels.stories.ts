@@ -45,11 +45,6 @@ const meta: Meta = {
     component: "graphty-element",
     render: renderFn,
     decorators: [eventWaitingDecorator],
-    parameters: {
-        chromatic: {
-            delay: 500,
-        },
-    },
     args: {
         setup: storySetup({}),
         layout: "fixed",

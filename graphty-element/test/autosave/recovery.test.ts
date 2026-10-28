@@ -183,6 +183,40 @@ describe("choosing what to restore", () => {
         assert.sameMembers([a.session.project.name, b.session.project.name], ["First", "Second"]);
     });
 
+    it("of a tab reloaded and a new tab opened at once, the one that loses the claim is told (#4148)", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+
+        // Both list the key before either claims: neither sees the other's lock in the listing.
+        const locks = new FakeLocks();
+        const reloaded = load(store, locks);
+        const opened = load(store, locks);
+        const [ra, rb] = await Promise.all([reloaded.saver.recover({ own: id }), opened.saver.recover()]);
+
+        assert.strictEqual(ra?.entry.id, id, "the reloaded tab restores its own entry");
+        assert.isNull(rb, "the new tab restores nothing");
+        assert.deepStrictEqual(
+            opened.available.map((each) => [each.entry.id, each.reason, each.entry.live]),
+            [[id, "held-by-other-tab", true]],
+            "the new tab is told the entry is open in another tab",
+        );
+    });
+
+    it("a tab whose own entry was claimed first by a new tab copies it, as when the listing shows it held", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+
+        const locks = new FakeLocks();
+        const opened = load(store, locks);
+        const reloaded = load(store, locks);
+        const [rb, ra] = await Promise.all([opened.saver.recover(), reloaded.saver.recover({ own: id })]);
+
+        assert.strictEqual(rb?.entry.id, id, "the new tab claimed it first");
+        assert.strictEqual(ra?.copiedFrom, id, "the reloaded tab copies its own entry, never shares it");
+        assert.notStrictEqual(ra?.entry.id, id);
+        assert.strictEqual(reloaded.session.project.name, "Mine");
+    });
+
     it("this tab's own entry wins over a newer one another tab wrote", async () => {
         const store = memoryAutosaveStore();
         const own = await earlier(store, (session) => session.config.set({ name: "Mine" }));

@@ -3476,6 +3476,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             bindShaderScene: RENDER,
             pickGroupOutline: READ,
             shaderPasses: READ,
+            shaderPicturePending: READ,
             applyLighting: RENDER,
             getRenderStats: READ,
             ticks: READ,

@@ -542,51 +542,69 @@ function releaseOf(tag) {
     }
 }
 
+const gitWith = (args, extra = {}) =>
+    execFileSync("git", args, { encoding: "utf8", env: { ...process.env, ...extra } }).trim();
+
+/**
+ * Makes the carrier commit for sha and pushes its site-<carrier> tag (pushing it again is a no-op).
+ * @param sha the candidate
+ * @returns the carrier's commit id
+ */
+function pushCarrier(sha) {
+    try {
+        gitWith(["cat-file", "-e", `${sha}^{commit}`]);
+    } catch {
+        gitWith(["fetch", "--quiet", "--no-tags", "--filter=blob:none", "origin", sha]);
+    }
+    const carrier = carrierCommit(sha, gitWith);
+    gitWith(["push", "--quiet", "--no-verify", "origin", `${carrier}:refs/tags/site-${carrier}`]);
+    return carrier;
+}
+
+function createSiteRelease(tag, env) {
+    const out = join(env.RUNNER_TEMP, "out");
+    const carried =
+        tag === `site-${env.SHA}`
+            ? ""
+            : ` site-${env.SHA} was published without it, so it hangs on a commit with the same tree.`;
+    const notes = `The built site of ${env.SHA}, promoted to nightly.graphty.app by ${env.RUN_URL ?? ""}.${carried}`;
+    const title = `Nightly site ${env.SHA.slice(0, 7)}`;
+    const assets = [join(out, "site.tar.zst"), join(out, "channel.json")];
+    gh(
+        "release",
+        "create",
+        tag,
+        ...assets,
+        "--verify-tag",
+        "--prerelease",
+        "--latest=false",
+        "--title",
+        title,
+        "--notes",
+        notes,
+    );
+    const check = siteReleasePlan(releaseOf(tag), env.SITE_SHA256);
+    if (check.action !== "reuse") throw new Error(`${tag} after its creation: ${check.why}`);
+}
+
+function planFor(tag, siteSha256) {
+    const plan = siteReleasePlan(releaseOf(tag), siteSha256);
+    console.log(`${tag}: ${plan.action} (${plan.why})`);
+    return plan;
+}
+
 function siteReleaseMain(env) {
     need(env, ["SHA", "SITE_SHA256", "RUNNER_TEMP", "GITHUB_REPOSITORY"]);
-    const git = (args, extra = {}) =>
-        execFileSync("git", args, { encoding: "utf8", env: { ...process.env, ...extra } }).trim();
-    const out = join(env.RUNNER_TEMP, "out");
-    let commit = env.SHA;
-    for (let hop = 0; hop < 2; hop++) {
-        const tag = `site-${commit}`;
-        const plan = siteReleasePlan(releaseOf(tag), env.SITE_SHA256);
-        console.log(`${tag}: ${plan.action} (${plan.why})`);
-        if (plan.action === "refuse") throw new Error(plan.why);
-        if (plan.action === "carrier") {
-            if (hop > 0) throw new Error(`the carrier's release ${tag} has no site.tar.zst either`);
-            try {
-                git(["cat-file", "-e", `${env.SHA}^{commit}`]);
-            } catch {
-                git(["fetch", "--quiet", "--no-tags", "--filter=blob:none", "origin", env.SHA]);
-            }
-            commit = carrierCommit(env.SHA, git);
-            // the tag on the carrier; pushing it again is a no-op
-            git(["push", "--quiet", "--no-verify", "origin", `${commit}:refs/tags/site-${commit}`]);
-            continue;
-        }
-        if (plan.action === "create") {
-            const notes = `The built site of ${env.SHA}, promoted to nightly.graphty.app by ${env.RUN_URL ?? ""}.${commit === env.SHA ? "" : ` site-${env.SHA} was published without it, so it hangs on ${commit}, a commit with ${env.SHA}'s tree.`}`;
-            gh(
-                "release",
-                "create",
-                tag,
-                join(out, "site.tar.zst"),
-                join(out, "channel.json"),
-                "--verify-tag",
-                "--prerelease",
-                "--latest=false",
-                "--title",
-                `Nightly site ${env.SHA.slice(0, 7)}`,
-                "--notes",
-                notes,
-            );
-            const check = siteReleasePlan(releaseOf(tag), env.SITE_SHA256);
-            if (check.action !== "reuse") throw new Error(`${tag} after its creation: ${check.why}`);
-        }
-        output({ tag });
-        return;
+    let tag = `site-${env.SHA}`;
+    let plan = planFor(tag, env.SITE_SHA256);
+    if (plan.action === "carrier") {
+        tag = `site-${pushCarrier(env.SHA)}`;
+        plan = planFor(tag, env.SITE_SHA256);
+        if (plan.action === "carrier") throw new Error(`the carrier's release ${tag} has no site.tar.zst either`);
     }
+    if (plan.action === "refuse") throw new Error(plan.why);
+    if (plan.action === "create") createSiteRelease(tag, env);
+    output({ tag });
 }
 
 function deployedJsonMain(env) {

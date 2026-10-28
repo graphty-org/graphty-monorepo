@@ -1321,6 +1321,10 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        // A picture the frame on screen does not show yet: an image annotation still loading, or a
+        // background that has not been drawn with the group outlines laid out since (issue #4243).
+        this.updateManager.picturesLoading = () =>
+            this.#annotations?.isLoading === true || this.renderManager.shaderPasses().background?.owesDraw === true;
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };
@@ -8139,7 +8143,6 @@ export class Graph implements GraphContext {
             this.#annotations = new AnnotationMeshes(this.scene, () => {
                 this.renderManager.requestFrame();
             });
-            this.updateManager.picturesLoading = () => this.#annotations?.isLoading === true;
         }
 
         this.#annotations.update(value);

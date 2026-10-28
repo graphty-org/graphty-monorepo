@@ -590,7 +590,8 @@ async function pullRequests(c: Cycle, gh: GitHub) {
     const s = prStocks(open, c.now);
     c.o("pr.open", s.open);
     c.o("pr.oldest_open_ms", s.oldestOpenMs);
-    c.o("pr.automerge_stuck", s.autoMergeStuck);
+    c.o("pr.automerge_green_stuck", s.autoMergeGreenStuck);
+    c.o("pr.automerge_armed_long", s.autoMergeArmedLong);
     c.o("pr.screenshot_backlog_ms", s.screenshotBacklogMs);
     c.o("pr.max_failing_same_check", s.maxFailingSameCheck);
     const prevShared = await c.json<SharedSnapshot | undefined>(SNAPSHOT.shared, undefined);

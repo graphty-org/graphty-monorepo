@@ -502,7 +502,10 @@ export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined 
 export interface PrStocks {
     open: number;
     oldestOpenMs: number;
-    autoMergeStuck: number;
+    /** Armed, green and still unmerged 2 h after arming. */
+    autoMergeGreenStuck: number;
+    /** Armed 24 h or more, green or not. */
+    autoMergeArmedLong: number;
     screenshotBacklogMs: number;
     maxFailingSameCheck: number;
 }
@@ -512,7 +515,14 @@ export interface PrStocks {
  * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
  */
 export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
-    const s: PrStocks = { open: 0, oldestOpenMs: 0, autoMergeStuck: 0, screenshotBacklogMs: 0, maxFailingSameCheck: 0 };
+    const s: PrStocks = {
+        open: 0,
+        oldestOpenMs: 0,
+        autoMergeGreenStuck: 0,
+        autoMergeArmedLong: 0,
+        screenshotBacklogMs: 0,
+        maxFailingSameCheck: 0,
+    };
     const failing = new Map<string, number>();
     for (const p of open) {
         if (p.state !== "OPEN" || p.isDraft) continue;
@@ -522,7 +532,8 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         }
         const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
-        if (armed >= 6 * 60 * MIN || (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS")) s.autoMergeStuck++;
+        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") s.autoMergeGreenStuck++;
+        if (armed >= 24 * 60 * MIN) s.autoMergeArmedLong++;
         for (const c of rollup?.contexts.nodes ?? []) {
             if (
                 c.__typename === "StatusContext" &&

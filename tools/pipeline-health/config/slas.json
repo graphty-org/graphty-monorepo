@@ -266,16 +266,29 @@
             "sources": ["collector"]
         },
         {
-            "id": "pr.automerge_stuck",
+            "id": "pr.automerge_green_stuck",
             "category": "pull_requests",
-            "label": "Auto-merge stuck",
+            "label": "Green but not merging",
             "window": "now",
             "measure": {
                 "type": "last",
-                "metric": "pr.automerge_stuck"
+                "metric": "pr.automerge_green_stuck"
             },
             "ok": ["<=", 0],
-            "fail": [">=", 3],
+            "fail": [">=", 2],
+            "sources": ["collector"]
+        },
+        {
+            "id": "pr.automerge_armed_long",
+            "category": "pull_requests",
+            "label": "Armed too long",
+            "window": "now",
+            "measure": {
+                "type": "last",
+                "metric": "pr.automerge_armed_long"
+            },
+            "ok": ["<=", 1],
+            "fail": [">=", 4],
             "sources": ["collector"]
         },
         {
@@ -707,8 +720,8 @@
                 "dim": "t4",
                 "projected": true
             },
-            "ok": ["<=", 200],
-            "fail": [">", 240],
+            "ok": ["<=", 180],
+            "fail": [">", 200],
             "sources": ["collector"]
         },
         {

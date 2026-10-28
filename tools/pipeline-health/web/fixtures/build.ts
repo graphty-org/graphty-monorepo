@@ -108,7 +108,8 @@ const SLA = {
     openPrs: { target: cmp("<=", 15), red: cmp(">", 25) } satisfies Sla,
     age24: { target: cmp("<", 24, "h"), red: cmp(">", 72, "h") } satisfies Sla,
     mergeRatio: { target: cmp(">=", 0.9, "ratio"), red: cmp("<", 0.7, "ratio"), needs6h: true } satisfies Sla,
-    stuck: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
+    greenStuck: { target: cmp("==", 0), red: cmp(">=", 2) } satisfies Sla,
+    armedLong: { target: cmp("<=", 1), red: cmp(">=", 4) } satisfies Sla,
     wait: { target: cmp("<=", 5, "min"), red: cmp(">", 15, "min") } satisfies Sla,
     saturated: { target: cmp("==", 0, "min"), red: cmp(">=", 15, "min") } satisfies Sla,
     firstAttempt: { target: cmp(">=", 85, "pct"), red: cmp("<", 70, "pct"), needs6h: true } satisfies Sla,
@@ -251,7 +252,8 @@ const prMembers: Member[] = [
         sla: SLA.prCaused,
         link: "/pull-requests",
     }),
-    member({ id: "pull-requests.automerge_stuck", value: num(0), sla: SLA.stuck, link: "/pull-requests" }),
+    member({ id: "pull-requests.automerge_green_stuck", value: num(0), sla: SLA.greenStuck, link: "/pull-requests" }),
+    member({ id: "pull-requests.automerge_armed_long", value: num(1), sla: SLA.armedLong, link: "/pull-requests" }),
     member({
         id: "pull-requests.screenshot_backlog",
         value: num(2.1, "h"),
@@ -525,7 +527,7 @@ const costMembers: Member[] = [
     member({
         id: "costs.t4",
         value: num(160, "usd"),
-        sla: { target: cmp("<=", 200, "usd"), red: cmp(">", 240, "usd") },
+        sla: { target: cmp("<=", 180, "usd"), red: cmp(">", 200, "usd") },
         link: "/costs",
     }),
     member({

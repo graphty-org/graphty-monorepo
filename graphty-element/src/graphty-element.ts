@@ -846,7 +846,11 @@ export class Graphty extends LitElement {
             }),
         );
 
-        this.#graph.engine.resize();
+        // Through the graph, like every other resize, so a size that changed since the first
+        // frame is drawn at once. Resizing the engine directly cleared the canvas with nothing
+        // drawn: a box resized in these two frames reached the ResizeObserver already at its new
+        // size, which then saw nothing to draw, and the page painted an empty canvas (#4122).
+        this.#graph.resize();
     }
 
     /**

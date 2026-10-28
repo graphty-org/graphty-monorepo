@@ -24,6 +24,11 @@ import { type Material, type Scene, ShaderStore, StandardMaterial } from "@babyl
 /** The shaders StandardMaterial would otherwise import lazily, by ShaderStore key. */
 const DEFAULT_SHADERS = ["defaultVertexShader", "defaultPixelShader"] as const;
 
+/** A Babylon material class, by the prototype its instances share. */
+interface MaterialClass {
+    readonly prototype: Material;
+}
+
 /** The scenes whose materials of a class skip the lazy import, by the class's prototype. */
 const pinnedScenes = new WeakMap<object, WeakSet<Scene>>();
 
@@ -49,7 +54,7 @@ function defaultShadersStored(): boolean {
  * @param materialClass - The material class, whose prototype gets the accessor once.
  * @param scene - The scene whose materials are pinned.
  */
-export function pinShadersLoaded(materialClass: { readonly prototype: Material }, scene: Scene): void {
+export function pinShadersLoaded(materialClass: MaterialClass, scene: Scene): void {
     let scenes = pinnedScenes.get(materialClass.prototype);
     if (scenes === undefined) {
         const pinned = new WeakSet<Scene>();

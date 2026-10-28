@@ -8,8 +8,13 @@ This file provides guidance to Claude Code when working with the @graphty/graph-
 random-graph generators, the deterministic classic families, and real datasets with ground truth.
 Every generated graph is a `SampleGraph` (typed arrays, structurally a graph-format
 `EdgeArraysInput`), so `fromEdgeArrays()` loads it in one call. No dataset's data is in the package
-(owner decision, 2026-10-14): every dataset is published on graphty.app and `fetchDataset(name)`
-(or a small dataset's subpath loader, the same call) downloads it as a `GraphSnapshot`.
+(owner decision, 2026-10-14): `fetchDataset(name)` (or a small dataset's subpath loader, the same
+call) downloads it as a `GraphSnapshot` from `DEFAULT_DATASET_BASE_URL`,
+`https://graphty.app/data/graph-samples/v1/`, or from `baseUrl`. Every channel's site (canary,
+nightly, graphty.app) serves its own build's datasets at `/data/graph-samples/v1/`, and the graphty
+app passes its channel's as `baseUrl`. graphty.app's copy is append-only, because every published
+version reads it: a production promotion adds new files and fails on a changed one
+(`tools/dataset-overlay.mjs`), so a content change needs a new name or a `v2` directory.
 
 The design, the determinism contract and the roadmap are in
 `design/graph-samples/graph-samples-design.md` in the monorepo.

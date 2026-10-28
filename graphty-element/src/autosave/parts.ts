@@ -9,12 +9,14 @@
  * | `sources` | the `graphty-sources` member, written with `data`; absent when the session holds no load |
  * | `arrangement` | the `graphty-arrangement` member |
  * | `run:<id>` | one run of the `graphty-results` member (their order is the meta's `runs`) |
- * | `rest` | the document's head, the session, style, notes and view-state members, the results' head |
+ * | `rest` | the document's head, the session, style, notes and view-state members, the results' head, the assets member without its files |
+ * | `asset:<sha256>` | the files of one embedded model, written once per digest |
  * | `stash` | the consumer's stash |
  * @module autosave
  */
 
 import type { RunId } from "../catalog/types";
+import { assetsMember } from "../session/assets/projectMember";
 import { dispatcherOf, sessionRunsOf } from "../session/GraphSession";
 import {
     arrangementMember,
@@ -24,6 +26,7 @@ import {
     graphIdsOf,
     notesMember,
     type ProjectSources,
+    requiresOf,
     resultsMember,
     runEntry,
     sessionMember,
@@ -51,6 +54,8 @@ interface RestPart {
     readonly style: Record<string, unknown>;
     readonly notes: Record<string, unknown>;
     readonly viewState: Record<string, unknown>;
+    /** The assets member, each entry's files in its own `asset:<sha256>` part. */
+    readonly assets?: Record<string, unknown>;
 }
 
 /** A part could not be built: its text is over the engine's string length limit. */
@@ -76,6 +81,8 @@ export interface BuiltParts {
     readonly runs: ReadonlyMap<RunId, unknown>;
     /** The finished runs, in the results member's order. */
     readonly order: readonly RunId[];
+    /** The digests whose `asset:` parts the store holds after this build; undefined when `rest` was not built. */
+    readonly assets?: ReadonlySet<string>;
 }
 
 /**
@@ -104,6 +111,92 @@ function attempt(part: string, build: () => string): string {
 }
 
 /**
+ * Build the `rest` part, an `asset:` part for each model file set not yet in the store, and a
+ * null (delete) for each stored `asset:` part no model holds any more.
+ * @param session - The session.
+ * @param sources - The session's project sources.
+ * @param idsNow - The session's graph ids, built on first use.
+ * @param parts - The parts being built, written into.
+ * @param writtenAssets - The digests whose `asset:` parts are already in the store.
+ * @returns The digests the session's models hold.
+ */
+function buildRestPart(
+    session: GraphSession,
+    sources: ProjectSources,
+    idsNow: () => GraphIds,
+    parts: Record<string, string | null>,
+    writtenAssets: ReadonlySet<string>,
+): Set<string> {
+    const held = new Set<string>();
+    parts.rest = attempt("rest", () => {
+        // Each model's files once, in a part of their own: a style change rewrites none of them.
+        const { member } = assetsMember(session);
+        const entries = ((member?.assets ?? []) as Record<string, unknown>[]).map(({ files, ...entry }) => {
+            const digest = entry.sha256 as string;
+            if (files !== undefined) {
+                held.add(digest);
+                if (!writtenAssets.has(digest)) {
+                    parts[`asset:${digest}`] = attempt(`asset:${digest}`, () => JSON.stringify(files));
+                }
+            }
+
+            return entry;
+        });
+        const rest: RestPart = {
+            head: documentAround(session, [], {}),
+            session: sessionMember(sources, idsNow),
+            results: resultsMember(session, []),
+            style: styleMember(session),
+            notes: notesMember(session),
+            viewState: viewStateMember(session, idsNow),
+            ...(member === null ? {} : { assets: { ...member, assets: entries } }),
+        };
+        return JSON.stringify(rest);
+    });
+    for (const digest of writtenAssets) {
+        if (!held.has(digest)) {
+            parts[`asset:${digest}`] = null;
+        }
+    }
+
+    return held;
+}
+
+/**
+ * Build a `run:` part for each finished run that is new or changed (or every one), and a null
+ * (delete) for each stored run that is no longer finished.
+ * @param sources - The session's project sources.
+ * @param idsNow - The session's graph ids, built on first use.
+ * @param all - Whether every finished run is rewritten.
+ * @param written - The run entries already in the store, by id.
+ * @param parts - The parts being built, written into.
+ * @param runs - The run entries the parts hold, written into.
+ */
+function buildRunParts(
+    sources: ProjectSources,
+    idsNow: () => GraphIds,
+    all: boolean,
+    written: ReadonlyMap<RunId, unknown>,
+    parts: Record<string, string | null>,
+    runs: Map<RunId, unknown>,
+): void {
+    const finished = sources.dispatcher.state.runs;
+    for (const [id, entry] of finished) {
+        if (all || written.get(id) !== entry) {
+            parts[`run:${id}`] = attempt(`run:${id}`, () => JSON.stringify(runEntry(sources, id, idsNow())));
+            runs.set(id, entry);
+        }
+    }
+
+    for (const id of written.keys()) {
+        if (!finished.has(id)) {
+            parts[`run:${id}`] = null;
+            runs.set(id, undefined);
+        }
+    }
+}
+
+/**
  * The `data` part and, written with it because the data member reads the load records too, the
  * `sources` part. Every change to the records marks the data part unwritten (`Autosaver`).
  * @param session - The session.
@@ -124,6 +217,7 @@ function dataParts(session: GraphSession): Record<string, string | null> {
  * @param tags - What is unwritten.
  * @param written - The run entries already in the store, by id.
  * @param stash - The consumer's stash.
+ * @param writtenAssets - The digests whose `asset:` parts are already in the store.
  * @returns The parts, and the run entries they hold.
  * @throws {PartTooLarge} when a part cannot be built.
  */
@@ -132,6 +226,7 @@ export function buildParts(
     tags: ReadonlySet<PartTag>,
     written: ReadonlyMap<RunId, unknown>,
     stash: ReadonlyMap<string, unknown>,
+    writtenAssets: ReadonlySet<string> = new Set(),
 ): BuiltParts {
     const sources = sourcesOf(session);
     const finished = sources.dispatcher.state.runs;
@@ -145,41 +240,17 @@ export function buildParts(
         parts.arrangement = attempt("arrangement", () => JSON.stringify(arrangementMember(session, idsNow())));
     }
 
-    if (tags.has("rest")) {
-        parts.rest = attempt("rest", () => {
-            const rest: RestPart = {
-                head: documentAround(session, [], {}),
-                session: sessionMember(sources, idsNow),
-                results: resultsMember(session, []),
-                style: styleMember(session),
-                notes: notesMember(session),
-                viewState: viewStateMember(session, idsNow),
-            };
-            return JSON.stringify(rest);
-        });
-    }
+    const assets = tags.has("rest") ? buildRestPart(session, sources, idsNow, parts, writtenAssets) : undefined;
 
     if (tags.has("runs") || tags.has("allRuns")) {
-        for (const [id, entry] of finished) {
-            if (tags.has("allRuns") || written.get(id) !== entry) {
-                parts[`run:${id}`] = attempt(`run:${id}`, () => JSON.stringify(runEntry(sources, id, idsNow())));
-                runs.set(id, entry);
-            }
-        }
-
-        for (const id of written.keys()) {
-            if (!finished.has(id)) {
-                parts[`run:${id}`] = null;
-                runs.set(id, undefined);
-            }
-        }
+        buildRunParts(sources, idsNow, tags.has("allRuns"), written, parts, runs);
     }
 
     if (tags.has("stash")) {
         parts.stash = attempt("stash", () => JSON.stringify(Object.fromEntries(stash)));
     }
 
-    return { parts, runs, order: [...finished.keys()] };
+    return { parts, runs, order: [...finished.keys()], ...(assets === undefined ? {} : { assets }) };
 }
 
 /**
@@ -210,19 +281,37 @@ export function reassemble(meta: AutosaveEntryMeta, parts: AutosaveParts): Recor
     const rest = JSON.parse(textOf(parts, "rest")) as RestPart;
     const order = Array.isArray(meta.runs) ? (meta.runs as string[]) : [];
     const runs = order.map((id) => JSON.parse(textOf(parts, `run:${id}`)) as unknown);
-    return {
-        ...rest.head,
-        members: [
-            JSON.parse(textOf(parts, "data")) as unknown,
-            rest.session,
-            JSON.parse(textOf(parts, "arrangement")) as unknown,
-            { ...rest.results, runs },
-            rest.style,
-            rest.notes,
-            rest.viewState,
-            ...(typeof parts.sources === "string" ? [JSON.parse(parts.sources) as unknown] : []),
-        ],
-    };
+    // The first entry of each digest carries its files, as `project.save()` writes them.
+    const seen = new Set<string>();
+    const assets =
+        rest.assets === undefined
+            ? []
+            : [
+                  {
+                      ...rest.assets,
+                      assets: (rest.assets.assets as Record<string, unknown>[]).map((entry) => {
+                          const digest = entry.sha256 as string;
+                          if (seen.has(digest)) {
+                              return entry;
+                          }
+
+                          seen.add(digest);
+                          return { ...entry, files: JSON.parse(textOf(parts, `asset:${digest}`)) as unknown };
+                      }),
+                  },
+              ];
+    const members = [
+        JSON.parse(textOf(parts, "data")) as Record<string, unknown>,
+        rest.session,
+        JSON.parse(textOf(parts, "arrangement")) as Record<string, unknown>,
+        { ...rest.results, runs },
+        rest.style,
+        rest.notes,
+        rest.viewState,
+        ...assets,
+        ...(typeof parts.sources === "string" ? [JSON.parse(parts.sources) as Record<string, unknown>] : []),
+    ];
+    return { ...rest.head, requires: requiresOf(members), members };
 }
 
 /**

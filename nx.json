@@ -77,7 +77,7 @@
     "targetDefaults": {
         "build": {
             "dependsOn": ["^build"],
-            "inputs": ["production", "^production", { "runtime": "node --version" }],
+            "inputs": ["buildSources", "^buildSources", { "runtime": "node --version" }],
             "outputs": ["{projectRoot}/dist"],
             "cache": true
         },
@@ -86,10 +86,42 @@
             "cache": true
         },
         "build-storybook": {
-            "dependsOn": ["^build"]
+            "dependsOn": ["^build"],
+            "cache": true,
+            "outputs": ["{projectRoot}/storybook-static"],
+            "inputs": [
+                "default",
+                "^production",
+                {
+                    "input": "default",
+                    "projects": [
+                        "graphty-element",
+                        "@graphty/remote-logger",
+                        "algorithms",
+                        "babylonjs-map",
+                        "graph-format",
+                        "graph-io",
+                        "graph-samples",
+                        "layout",
+                        "visual-review",
+                        "webgpu-graph-algorithms"
+                    ]
+                },
+                "{workspaceRoot}/tools/storybook-brand-theme.*",
+                "{workspaceRoot}/visual-review/capture/**/*",
+                "{workspaceRoot}/docs/examples/**/*",
+                "{workspaceRoot}/algorithms/stories/**/*",
+                { "runtime": "node --version" }
+            ]
         },
         "lint": {
-            "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"],
+            "inputs": [
+                "default",
+                "^production",
+                "{workspaceRoot}/eslint.config.js",
+                "{workspaceRoot}/tools/eslint-rules/**/*",
+                "{workspaceRoot}/compact-mantine/eslint/**/*"
+            ],
             "cache": true
         },
         "@nx/vitest:test": {
@@ -106,6 +138,19 @@
             "!{projectRoot}/vitest.config.ts",
             "!{projectRoot}/eslint.config.js",
             "!{projectRoot}/**/*.md"
+        ],
+        "buildSources": [
+            "production",
+            "!{projectRoot}/test/**/*",
+            "!{projectRoot}/tests/**/*",
+            "!{projectRoot}/**/__tests__/**/*",
+            "!{projectRoot}/stories/**/*",
+            "!{projectRoot}/**/*.stories.*",
+            "!{projectRoot}/benchmarks/**/*",
+            "!{workspaceRoot}/eslint.config.js",
+            "!{workspaceRoot}/vitest.shared.config.ts",
+            "!{workspaceRoot}/vitest.browser-coverage-setup.ts",
+            "{workspaceRoot}/vitest.ci-junit.d.mts"
         ],
         "sharedGlobals": [
             "{workspaceRoot}/tsconfig.base.json",

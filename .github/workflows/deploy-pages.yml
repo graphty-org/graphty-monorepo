@@ -53,6 +53,17 @@ jobs:
                   ref: ${{ env.SHA }}
                   fetch-depth: 0
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             # Download all artifacts from CI workflow
             - name: Download graphty app build
               uses: actions/download-artifact@v8
@@ -185,7 +196,7 @@ jobs:
                   node-version: 22.x
 
             - name: Cache graph-samples dataset sources
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   path: tmp/graph-samples-sources
                   key: graph-samples-sources-${{ hashFiles('graph-samples/scripts/build-hosted.mjs', 'graph-samples/scripts/graph-io-source.mjs') }}

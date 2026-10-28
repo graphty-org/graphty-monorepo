@@ -282,6 +282,32 @@ const LineStyle = z.strictObject({
      */
     arcRadius: z.number().min(0.5).optional(),
     /**
+     * Draws a curved line (`bezier`) as one quadratic curve through a support point that a force
+     * simulation places, under this force law: `"barnesHut"`, every node and every other support
+     * point pushes it away by `supportRepulsion / d^2` and it is pulled toward the middle of the
+     * nodes by a constant `supportCentralGravity`; `"forceAtlas2"`, pushed by `supportRepulsion / d`
+     * and pulled by `supportCentralGravity * d`. Two springs of half `supportSpringLength`, of
+     * stiffness `supportSpringConstant`, tie it to the edge's two nodes. The nodes stay where the
+     * layout puts them and only the support points move, so an edge bows away from crowding and
+     * edges between the same two nodes bow apart (as vis-network draws its "dynamic" smooth
+     * edges: barnesHut and forceAtlas2Based are its solvers of those names). Unset, no support
+     * point. A file's setting arrives here through its style layer.
+     */
+    supportModel: z.enum(["barnesHut", "forceAtlas2"]).optional(),
+    /** The support point's springs, together, rest at this length (in `supportUnit`s; 95 when unset). */
+    supportSpringLength: z.number().nonnegative().optional(),
+    /** How hard the support point's springs pull per unit they are stretched (0.04 when unset). */
+    supportSpringConstant: z.number().nonnegative().optional(),
+    /** How hard nodes and other support points push the support point away (2000 when unset). */
+    supportRepulsion: z.number().nonnegative().optional(),
+    /** How hard the support point is pulled toward the middle of the nodes (0.3 when unset). */
+    supportCentralGravity: z.number().nonnegative().optional(),
+    /**
+     * How many scene units one unit of the support's lengths and forces is (1 when unset or 0): a
+     * file's constants keep their meaning however its lengths are scaled into the scene.
+     */
+    supportUnit: z.number().nonnegative().optional(),
+    /**
      * The path the line takes between its nodes, whether or not it is curved: unset, the active
      * layout's choice (the `location-map` layout raises arcs over a flat map in 3D and draws
      * great-circle arcs on its globe; every other layout, and the 2D view, a straight line);
@@ -302,6 +328,13 @@ const LineStyle = z.strictObject({
      * outline. A self-loop ignores it. A file's setting (Gephi's `edge.radius`) arrives here through its style layer.
      */
     nodeGap: z.number().nonnegative().optional(),
+    /**
+     * How far from its source node's outline the line stops, in place of `nodeGap` at that end (Cytoscape.js
+     * `source-distance-from-node`). Unset, `nodeGap`.
+     */
+    sourceNodeGap: z.number().nonnegative().optional(),
+    /** How far from its target node's outline the line stops, in place of `nodeGap` at that end; see `sourceNodeGap`. */
+    targetNodeGap: z.number().nonnegative().optional(),
     /**
      * Where the line leaves its source node, when not where the line from the node's center crosses
      * its outline: `x,y` from the node's center as fractions of its half width and half height, y up

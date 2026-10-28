@@ -1,6 +1,7 @@
 /**
  * `line.nodeGap`: an edge stops that far short of its nodes' outlines, its arrowhead with it, straight or curved, as
- * Gephi draws its edges under `edge.radius` (gexf-specimen-arrows-p4: 10 px between a node and its edges).
+ * Gephi draws its edges under `edge.radius` (gexf-specimen-arrows-p4: 10 px between a node and its edges); and
+ * `line.sourceNodeGap` / `line.targetNodeGap` at one end only.
  */
 import { afterEach, assert, describe, test } from "vitest";
 
@@ -25,6 +26,17 @@ afterEach(() => {
  * @returns the edge
  */
 async function oneEdge(edgeSet: StaticStyle): Promise<Edge> {
+    const edge = await placed({ "edge.arrowHead": "normal", ...edgeSet });
+    assert(edge.arrowCap, "the head is drawn");
+    return edge;
+}
+
+/**
+ * Two flat round nodes 6 apart on the x axis and one edge between them, laid out and placed.
+ * @param edgeSet - the edge layer
+ * @returns the edge
+ */
+async function placed(edgeSet: StaticStyle): Promise<Edge> {
     graph?.dispose();
     container?.remove();
     container = document.createElement("div");
@@ -39,11 +51,11 @@ async function oneEdge(edgeSet: StaticStyle): Promise<Edge> {
     await graph.addNode(asData({ id: "B", position: { x: 6, y: 0, z: 0 } }));
     await graph.addEdge(asData({ id: "A:B", source: "A", target: "B" }), { source: "source", target: "target" });
     await styleEveryNode(graph, { "node.shape": "ellipse" });
-    await styleEveryEdge(graph, { "edge.arrowHead": "normal", ...edgeSet });
+    await styleEveryEdge(graph, edgeSet);
     await operationQueueOf(graph).waitForCompletion();
     await graph.waitForStableFrame();
     const edge = edgeBetween(graph, "A", "B");
-    assert(edge?.arrowCap, "the head is drawn");
+    assert(edge, "the edge is drawn");
     return edge;
 }
 
@@ -71,5 +83,20 @@ describe("an edge's gap off its nodes", () => {
         // the head's tip moves out from the outline to the circle 0.5 further out; its position is the cap's own
         assert.isAbove(gapped - touching, 0.4);
         assert.isBelow(gapped - touching, 0.6);
+    });
+
+    test("takes each end's own gap over the edge's (Cytoscape.js source- and target-distance-from-node)", async () => {
+        const touching = headFromB(await oneEdge({}));
+        const target = headFromB(await oneEdge({ "edge.nodeGap": 0.2, "edge.targetNodeGap": 0.5 }));
+        const source = headFromB(await oneEdge({ "edge.sourceNodeGap": 0.5 }));
+        assert.closeTo(target - touching, 0.5, 1e-3, "the target's own gap, not the edge's");
+        assert.closeTo(source - touching, 0, 1e-3, "the source's gap leaves the target end where it was");
+    });
+
+    test("stops a line with no cap at that end its gap past the outline, which no node hides", async () => {
+        const length = async (gap: number): Promise<number> =>
+            (await placed({ "edge.arrowHead": "none", "edge.sourceNodeGap": gap })).drawnLine?.length ?? Number.NaN;
+        const [near, far] = [await length(0.2), await length(0.5)];
+        assert.closeTo(near - far, 0.3, 1e-3);
     });
 });

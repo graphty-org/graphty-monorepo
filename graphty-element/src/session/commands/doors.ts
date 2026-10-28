@@ -824,6 +824,8 @@ const SESSION: Readonly<Record<string, Door>> = {
     scope: READ,
     sets: READ,
     notes: READ,
+    assets: READ,
+    network: READ,
     journal: READ,
     selection: READ,
     visibility: READ,
@@ -1700,6 +1702,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             applySessionPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,
+            modelDrawn: READ,
             getRenderState: READ,
             setRenderState: RENDER,
             isSelected: READ,
@@ -1719,9 +1722,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             borderReach: READ,
             framingHalf: READ,
             drawnHalfExtents: READ,
+            outlineHalfExtents: READ,
+            groupSizing: READ,
+            wordedLabel: READ,
             decorationPieces: READ,
             shapeTextLabels: RENDER,
             isDrawnAsGroup: READ,
+            groupDrawnForAnotherCamera: READ,
         },
     },
     {
@@ -1770,6 +1777,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             transformEdgeMesh: RENDER,
             transformArrowCap: RENDER,
             getInterceptPoints: READ,
+            supportEdge: READ,
         },
     },
     {
@@ -1785,6 +1793,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,
         },
@@ -1837,6 +1846,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgesByIndex: READ,
             isLoading: READ,
             heldCounts: READ,
+            rankSets: READ,
+            supportPoints: RENDER,
             // Written only by a plugin while `algo.legacy` runs it, and then into that step.
             graphResults: READ,
             meshCache: RENDER,
@@ -1959,6 +1970,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             scopeUser: READ,
             releaseDetachedScope: DERIVED,
         },
+    },
+    {
+        name: "SupportPoints",
+        file: "src/meshes/supportPoints.ts",
+        half: "renderer",
+        whole: RENDER,
     },
     {
         name: "UpdateManager",
@@ -2927,6 +2944,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         half: "session",
         doors: {
             name: READ,
+            id: READ,
             dirty: READ,
             rename: {
                 kind: "dispatches",
@@ -2982,6 +3000,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
             ),
         },
+    },
+    {
+        name: "AssetsApi",
+        file: "src/session/assets/AssetsApi.ts",
+        half: "session",
+        whole: exempt(
+            "Model files are kept beside the project, not in it: they are not commands, so adding or removing one is no step and no recipe entry, and limits and hosts are the page's own settings.",
+        ),
+    },
+    {
+        name: "NetworkApi",
+        file: "src/session/network.ts",
+        half: "session",
+        whole: exempt(
+            "Answers to a waiting fetch are the reader's trust, not graph content: no step and no recipe entry. Nothing of it is saved in the project file: what a reader remembers for a project the page keeps and hands back with setProjectHosts.",
+        ),
     },
     {
         name: "JournalApi",
@@ -3170,6 +3204,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...STYLES_API,
             compiled: READ,
+            modelUrlFromCode: READ,
         },
     },
     {

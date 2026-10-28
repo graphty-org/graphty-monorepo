@@ -124,7 +124,11 @@ export function activeList(committed, state, day = today()) {
  * @param t `{ file, name }`
  * @returns the entry, or undefined
  */
-export const quarantined = (list, family, t) => list.find((q) => keyOf(q) === keyOf({ ...t, family }));
+export const quarantined = (list, family, t) => {
+    // an On shard (tools/features-on.mjs) runs its Off family's tests: that family's entries excuse them too
+    const off = family.replace(/-features-on$/u, "");
+    return list.find((q) => keyOf(q) === keyOf({ ...t, family }) || keyOf(q) === keyOf({ ...t, family: off }));
+};
 
 // ---------------------------------------------------------------- one shard run
 
@@ -486,7 +490,7 @@ function printDecision(shard, d, env, unretried) {
     }
     for (const f of d.caused ?? []) {
         console.log(
-            `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and the ledger has no failure of it before this change: the change made it intermittent`,
+            `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and ${d.causedWhy ?? "the ledger has no failure of it before this change"}: the change made it intermittent`,
         );
     }
     const how = unretried ? `failed (${unretried})` : "failed every time";

@@ -118,7 +118,7 @@ function mergeOld(r: RawItem, old: (Item & RawItem) | undefined): RawItem {
     );
     return { ...r, ...live } as RawItem;
 }
-const LIVE_ONLY = ["cause", "cancelClass", "hang", "stages", "tested"] as const;
+const LIVE_ONLY = ["cause", "prCaused", "cancelClass", "hang", "stages", "tested"] as const;
 
 export function check(r: RawItem): void {
     if (!TIME_FIELDS[r.kind]) {
@@ -234,7 +234,7 @@ export async function recordSource(
     store: Store,
     source: string,
     nowMs: number,
-    result: { ok: true } | { ok: false; error: string },
+    result: { ok: true; partial?: string } | { ok: false; error: string },
     since?: number,
 ): Promise<void> {
     const key: Key = sourceKey(source);
@@ -248,6 +248,7 @@ export async function recordSource(
     };
     if (result.ok) {
         item.lastOkAt = nowMs;
+        if (result.partial) item.partial = result.partial;
     } else {
         item.error = result.error;
         item.errorSince = old?.error ? (old.errorSince ?? nowMs) : nowMs;

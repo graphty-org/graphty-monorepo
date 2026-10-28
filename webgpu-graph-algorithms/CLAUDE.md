@@ -206,7 +206,7 @@ needs the extracted libEGL tree of `docs/HEADLESS_GPU_REPORT.md` appendix D on `
 `GRAPHTY_EGL_LIB_DIR` (browser). Without it Dawn lists only llvmpipe and Chromium falls back to SwiftShader --
 which the tests turn RED under `GRAPHTY_GPU_REQUIRE=hardware` / `nvidia` and under `GRAPHTY_BROWSER_GPU=nvidia`,
 never into a silent pass.
-The pre-push gate (`tools/prepush.sh`) prepends `GRAPHTY_EGL_LIB_DIR`, or the main checkout's
+`pnpm run check:quick` (`tools/check-quick.sh`) prepends `GRAPHTY_EGL_LIB_DIR`, or the main checkout's
 `tmp/egl/root/usr/lib/x86_64-linux-gnu` when the variable is unset, to `LD_LIBRARY_PATH` for the node
 tests, so it runs on the NVIDIA GPU when the tree exists and on lavapipe otherwise. The node project's
 global setup prints the adapter it ran on (`[gpu] node project adapter: <vendor> / <architecture>`)
@@ -425,6 +425,12 @@ host matrix (never a job of CI; since 2026-09-18 `release.yml` waits for it and 
 when both are green): Dawn-node and Chromium on Metal on `macos-latest` (plus a WebKit spike),
 Dawn-node on D3D12 / WARP and Chromium on SwiftShader on `windows-latest` -- the other shader compilers, added after
 the WebKit pipeline-constants finding below.
+
+### Test projects in short
+
+- `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
+- `node-limits` - the GPU lane only (real device limits)
+- `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
 
 ## Verified Platform Facts
 

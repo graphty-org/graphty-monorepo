@@ -3,7 +3,7 @@
 
 const PR_BASE = `
   number title state isDraft reviewDecision baseRefName headRefName headRefOid createdAt updatedAt mergedAt closedAt
-  autoMergeRequest { enabledAt }
+  autoMergeRequest { enabledAt } author { login }
   labels(first: 20) { nodes { name } }
   readyEvents: timelineItems(itemTypes: [READY_FOR_REVIEW_EVENT, CONVERT_TO_DRAFT_EVENT], last: 5) {
     nodes { __typename ... on ReadyForReviewEvent { createdAt } ... on ConvertToDraftEvent { createdAt } } }`;
@@ -15,13 +15,16 @@ const PR_CHECKS = `
       ... on CheckRun { name status conclusion startedAt detailsUrl }
       ... on StatusContext { context state createdAt } } } } } } }`;
 
+/** Open pull requests the collector reads: one page. A full page may have left some out. */
+export const OPEN_PAGE = 50;
+
 /**
  * Open pull requests with their checks (first page only, for the stocks) and the most recently updated ones
  * without checks, paged: both with checks in one query timed out at GitHub (a 504).
  */
 export const PR_QUERY = `query($owner: String!, $name: String!, $cursor: String, $withOpen: Boolean!) {
   repository(owner: $owner, name: $name) {
-    open: pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) @include(if: $withOpen) {
+    open: pullRequests(states: OPEN, first: ${OPEN_PAGE}, orderBy: {field: UPDATED_AT, direction: DESC}) @include(if: $withOpen) {
       pageInfo { hasNextPage endCursor } nodes { ${PR_BASE} ${PR_CHECKS} } }
     recent: pullRequests(first: 50, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo { hasNextPage endCursor } nodes { ${PR_BASE} } }
@@ -77,5 +80,7 @@ export const REPO_FILES_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     quarantine: object(expression: "HEAD:tools/test-quarantine.json") { ... on Blob { text } }
     codeowners: object(expression: "HEAD:.github/CODEOWNERS") { ... on Blob { text } }
+    ci: object(expression: "HEAD:.github/workflows/ci.yml") { ... on Blob { text } }
+    advisory: object(expression: "HEAD:tools/ci-advisory-checks.json") { ... on Blob { text } }
   }
 }`;

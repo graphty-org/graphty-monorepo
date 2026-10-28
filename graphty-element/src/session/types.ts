@@ -38,6 +38,7 @@ import type {
     CatalogApi,
     DeprecatedCatalogMethod,
     EdgeId,
+    LayerId,
     LayoutId,
     MeasurementDeclaration,
     Path,
@@ -56,10 +57,12 @@ import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionSt
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
+import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { LayoutRecommendation } from "./layout";
+import type { NetworkApi, NetworkRequest } from "./network";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
@@ -1225,7 +1228,7 @@ export interface SessionDataApi {
      * ```
      * @param key - The load's key, from {@link SessionDataApi.sources}.
      * @returns How many nodes and edges went and stayed.
-     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @throws A `GraphtyError` (as a rejection) with `E_LOAD_UNKNOWN` for a key `sources()` does not list.
      * @since 3.30.0
      */
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
@@ -1634,10 +1637,12 @@ export interface SessionDataApi {
      * const [load] = session.data.loads();
      * if (load.next !== null) await session.data.more({ load: load.key });
      * ```
-     * @param options - The load options; `load` names the load to page (a key from `loads()`),
-     *     else the newest load that has more. The load's own caps apply unless `limits` is given.
+     * @param options - The load options; `load` names the load to page (its `sources()` key, or
+     *     its key in `loads()`), else the newest load that has more and is not waiting to run. The
+     *     load's own caps apply unless `limits` is given.
      * @returns Settles once the page is in the graph, or at once when the load has no more;
-     *     rejects with `E_SOURCE_UNKNOWN` for a `load` that `loads()` does not list.
+     *     rejects with `E_LOAD_UNKNOWN` for a `load` neither lists, and `E_SOURCE_PENDING` for a
+     *     load of an opened project that has not run since it opened.
      */
     more(options?: SourceMoreOptions): Promise<void>;
     /**
@@ -1656,10 +1661,11 @@ export interface SessionDataApi {
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     /**
      * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
-     * @param load - The load's key, from `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`.
      * @param options - The credential and the endpoint.
      * @returns `{ changed }`; null when the source cannot tell (it has no cheap check, or the
-     *     load recorded nothing to compare). Rejects with `E_SOURCE_UNKNOWN` for an unknown key.
+     *     load recorded nothing to compare). Rejects with `E_LOAD_UNKNOWN` for an unknown key and
+     *     `E_SOURCE_PENDING` for a load of an opened project that has not run since it opened.
      */
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     /**
@@ -1672,10 +1678,11 @@ export interface SessionDataApi {
      * ```ts
      * const { added, removed, updated } = await session.data.refresh(session.data.loads()[0].key);
      * ```
-     * @param load - The load's key, from `loads()`.
+     * @param load - The load's key, from `sources()` or `loads()`.
      * @param options - The credential and the endpoint.
      * @returns The node and edge counts added, removed and updated; rejects with
-     *     `E_SOURCE_UNKNOWN` for an unknown key, else with the source's code.
+     *     `E_LOAD_UNKNOWN` for an unknown key, `E_SOURCE_PENDING` for a load of an opened project
+     *     that has not run since it opened, else with the source's code.
      */
     refresh(load: string, options?: SourceLoadOptions): Promise<SourceRefreshReport>;
     /**
@@ -2261,8 +2268,9 @@ export interface LoadedSource extends DataSourceDescriptor {
      */
     readonly reloadable?: true;
     /**
-     * For a network source's load: its key in {@link SessionDataApi.loads}, which `data.more`,
-     * `data.refresh` and `data.checkSource` take.
+     * For a network source's load: its record's key in {@link SessionDataApi.loads}. `data.more`,
+     * `data.refresh` and `data.checkSource` take it or {@link LoadedSource.key}; keep `key`, which a
+     * save and reopen never changes.
      * @since 3.30.0
      */
     readonly loadKey?: string;
@@ -2278,6 +2286,12 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @since 3.30.0
      */
     readonly total?: number;
+    /**
+     * For a network source's load: how many edges the source holds for it, when the source counted
+     * them or a complete read did.
+     * @since 3.30.0
+     */
+    readonly totalEdges?: number;
 }
 
 /**
@@ -2435,11 +2449,14 @@ export interface JoinRecord {
     readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 }
 
-/** Where a load came from, as {@link LoadedSource.kind} says. OPEN UNION: kinds may be added. */
-export type LoadedSourceKind = "file" | "server" | "sample" | "join";
-
-/** One entry of `session.data.sources()`: the name the data prototype's design uses for it. */
-export type SourceEntry = LoadedSource;
+/**
+ * Where a load came from, as {@link LoadedSource.kind} says: a file the reader gave (or inline
+ * text), a URL, a network source, a generated or sample graph, or a table joined onto an earlier
+ * load. A saved project's `graphty-sources` entry names the same kinds `file`, `url`, `source`
+ * (for `server`) and `sample`, and a join as a `file` entry with `joinedOnto`. OPEN UNION: kinds
+ * may be added.
+ */
+export type LoadedSourceKind = "file" | "url" | "server" | "sample" | "join";
 
 /**
  * What `session.data.removeSource(key)` did.
@@ -2892,6 +2909,17 @@ export interface SessionEventMap {
      */
     "project:status": ProjectStatus;
     /**
+     * A model a style layer names moved on: requested, checked, drawn, refused or failed. One
+     * event per model and state, never one per node. Mirrored on the element as
+     * `graphty-model-change`.
+     */
+    "model:changed": ModelChange;
+    /**
+     * A fetch the page's code did not ask for waits for an answer (`session.network.allow` or
+     * `deny`). Once per URL.
+     */
+    "network:pending": NetworkRequest;
+    /**
      * The session was disposed: `dispose()` was called, or its element left the page. Published
      * once, the last event it publishes, with `status.ready` already false; its data verbs throw
      * `E_DISPOSED` once `dispose()` returns. A host that handed the session to readers (a view, a
@@ -2900,6 +2928,30 @@ export interface SessionEventMap {
      */
     "session:disposed": Readonly<Record<string, never>>;
 }
+
+/**
+ * What happened to one model a style layer names (`node.model`), for `model:changed` and the
+ * element's `graphty-model-change`.
+ */
+export interface ModelChange {
+    /** What the layer named: the URL or the asset id, exactly as written. */
+    readonly ref: string;
+    /** The asset's id, once the session holds it. */
+    readonly id?: AssetId;
+    /** The layers that name it. */
+    readonly layerIds: readonly LayerId[];
+    /**
+     * `pending` while it is fetched or loaded; `accepted` once its files passed the checks;
+     * `drawn` once the scene shows it; `rejected` when its files were refused (or its URL was not
+     * fetched); `failed` when it could not be drawn. Nodes keep `node.shape` until `drawn`.
+     */
+    readonly state: ModelState;
+    /** Why it was refused or failed (`E_MODEL_*`), and what is worth knowing (`W_MODEL_*`). */
+    readonly problems: readonly CodedFact[];
+}
+
+/** Where a model a layer names stands; see {@link ModelChange.state}. */
+export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
 /**
  * The parts of a project. Everything a project file saves lives in one of these, and a change
@@ -3647,6 +3699,19 @@ export interface GraphSession {
      */
     readonly notes: NotesApi;
     /**
+     * The 3D model files a style layer can draw nodes as: add one (a URL, a File, a folder, a
+     * .zip or bytes), wait for one, read what it holds, remove it. Adding checks the files and
+     * draws nothing; assets are not commands, so they are kept out of the history and recipes.
+     */
+    readonly assets: AssetsApi;
+    /**
+     * The fetches the page's code did not ask for, waiting for the reader: a model URL a project
+     * file, an AI command or the data names, and a reopened project's network-source loads. Each
+     * is a `W_URL_NEEDS_APPROVAL` fact, published as `network:pending`; nothing is fetched until
+     * `allow`. Private, loopback and link-local addresses are refused whatever the answer.
+     */
+    readonly network: NetworkApi;
+    /**
      * The record of the commands this session ran, oldest first: one entry per command that
      * finished, published as `journal:appended`. A run's `journalId` names the entry its command
      * wrote. Undo does not read it; `history` is the undo record.
@@ -3916,6 +3981,11 @@ export interface ElementSession extends GraphSession {
      * the verbs differ -- the stack is still the one that decides -- only the shape of the answer.
      */
     readonly paint: ElementPaint;
+    /**
+     * Publish what happened to a model a layer names, as `model:changed`.
+     * @param change - The change.
+     */
+    publishModelChange(change: ModelChange): void;
     /**
      * Publishes `canvas:empty-click`; the renderer calls it for a click on empty canvas.
      * @param at - Where the click landed.

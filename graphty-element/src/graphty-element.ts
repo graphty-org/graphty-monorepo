@@ -80,7 +80,7 @@ import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
+import type { ModelChange, ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 import { downloadBlob } from "./utils/download";
 
@@ -196,6 +196,7 @@ export class Graphty extends LitElement {
     /** Unsubscribes the three network-source expansion mirrors. */
     #unwatchSource: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
+    #unwatchModels: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
     readonly #runProgressAt = new Map<string, number>();
@@ -743,6 +744,16 @@ export class Graphty extends LitElement {
                 }),
             );
         });
+        // A model a layer names moved on: requested, checked, drawn, refused or failed.
+        this.#unwatchModels ??= session.on("model:changed", (change) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-model-change", {
+                    detail: change satisfies GraphtyModelChangeDetail,
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
+        });
         this.#unwatchProgress ??= session.on("progress:changed", (change) => {
             this.#mirrorProgressChange(change);
         });
@@ -755,7 +766,7 @@ export class Graphty extends LitElement {
         // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
         this.#unwatchSource ??= this.#mirrorSourceEvents(session);
         // A source load given no credential asks this element's store, by source and origin.
-        attachCredentials(session.data, (source, origin) => this.credentials.lookup(source, origin));
+        attachCredentials(session.data, (source, origin, slot) => this.credentials.lookup(source, origin, slot));
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -846,7 +857,11 @@ export class Graphty extends LitElement {
             }),
         );
 
-        this.#graph.engine.resize();
+        // Through the graph, like every other resize, so a size that changed since the first
+        // frame is drawn at once. Resizing the engine directly cleared the canvas with nothing
+        // drawn: a box resized in these two frames reached the ResizeObserver already at its new
+        // size, which then saw nothing to draw, and the page painted an empty canvas (#4122).
+        this.#graph.resize();
     }
 
     /**
@@ -995,6 +1010,8 @@ export class Graphty extends LitElement {
         this.#unwatchSource = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
+        this.#unwatchModels?.();
+        this.#unwatchModels = null;
         this.#unwatchProgress?.();
         this.#unwatchProgress = null;
 
@@ -3244,11 +3261,11 @@ export class Graphty extends LitElement {
     /**
      * How the 3D nodes are lit.
      * @remarks
-     * - `"studio"` (the default): a key light from above the camera, a soft fill, and a rim that
-     *   lifts each node's own color toward its edge. Round shapes read as round, and no pixel is
-     *   lifted to white: the brightest is about 1.13 times the style color's lightness.
-     * - `"headlight"`: one light from beside the camera and a soft fill. Never brighter than the
-     *   style color.
+     * - `"studio"` (the default): a light that follows the camera, a soft fill with a light ground,
+     *   and a rim that lifts each node's own color toward its edge. No side of a node goes dark from
+     *   any angle, and no pixel is lifted to white: the brightest is about 1.07 times the style
+     *   color's lightness.
+     * - `"headlight"`: the same lights without the rim. Never brighter than the style color.
      * - `"matte"`: one soft light from above, no highlight. A lit face is exactly the style color
      *   at most; shapes read flatter and darker than `"studio"`.
      * - `"flat"`: unlit. Every pixel of a node is exactly its style color, with a thin dark
@@ -5712,6 +5729,13 @@ export interface GraphtyHistoryChangeDetail {
 /** The detail of `graphty-note-change`: which note, what happened to it, and what caused it. */
 export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
 
+/**
+ * The detail of `graphty-model-change`: what happened to one model a style layer names, by what the
+ * layer named (`ref`, the URL or asset id as written), with the layers that name it, its state and
+ * its coded problems. Fires once per model and state, never once per node.
+ */
+export type GraphtyModelChangeDetail = ModelChange;
+
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration and XR capabilities after the change. */
@@ -5747,6 +5771,7 @@ declare global {
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
         "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
         "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
         "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;
@@ -5772,6 +5797,7 @@ declare global {
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
         "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
         "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
         "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;

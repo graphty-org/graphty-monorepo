@@ -19,6 +19,7 @@ import {
     EVENT_MS,
     flushHealth,
     postFailures,
+    postBenchmarks,
     postFlaky,
     postInvocation,
     readPlan,
@@ -28,14 +29,17 @@ import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
+import { benchmarkRows } from "./post-benchmarks.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
 import {
     baseId,
     fileIssues,
+    groupKeys,
     groupFamily,
     junitOf,
+    newFlakyJudge,
     postRecords,
     prJudge,
     recordsOf,
@@ -69,9 +73,11 @@ function serve(answer = true) {
             if (req.url.startsWith("/token")) {
                 const payload = Buffer.from(JSON.stringify({ exp: Date.now() / 1000 + 600 })).toString("base64url");
                 res.end(JSON.stringify({ value: `h.${payload}.s` }));
-            } else if (req.url.startsWith("/v1/plan"))
-                res.end(JSON.stringify(typeof answer === "function" ? answer(req) : { order: ["a"] }));
-            else res.end("{}");
+            } else if (req.url.startsWith("/v1/plan")) {
+                // a function that returns undefined leaves this request unanswered
+                const plan = typeof answer === "function" ? answer(req) : { order: ["a"] };
+                if (plan !== undefined) res.end(JSON.stringify(plan));
+            } else res.end("{}");
         });
     });
     servers.push(server);
@@ -140,10 +146,25 @@ describe("client", () => {
     it("fails open against a store that never answers, and spools the record", async () => {
         const s = await serve(false);
         const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
-        const r = await postInvocation(cfg, { id: "r1.1" }, join(TMP, "spool"), 300);
+        const r = await postInvocation({ ...cfg, retryMs: [10, 10] }, { id: "r1.1" }, join(TMP, "spool"), 300);
         assert.equal(r.ok, false);
         assert.equal(r.why, "no answer in 0.3 s");
+        assert.equal(s.seen.length, 3, "sent once and retried twice");
         assert.deepEqual(JSON.parse(readFileSync(r.spooled, "utf8")), { id: "r1.1" });
+    });
+    it("sends a request again when no answer came, and never one that got an answer", async () => {
+        let calls = 0;
+        const slowOnce = await serve(() => (++calls === 1 ? undefined : { order: ["b"] }));
+        const cfg = { ...config({ RESULTS_URL: slowOnce.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
+        assert.deepEqual(await call(cfg, "GET", "/v1/plan", undefined, 300), { ok: true, data: { order: ["b"] } });
+        assert.equal(calls, 2);
+        mock.method(globalThis, "fetch", () => Promise.resolve(new Response("", { status: 503 })));
+        try {
+            assert.deepEqual(await call(cfg, "GET", "/v1/plan"), { ok: false, why: "HTTP 503" });
+            assert.equal(globalThis.fetch.mock.callCount(), 1);
+        } finally {
+            mock.restoreAll();
+        }
     });
     it("gives the OIDC token request and the call one deadline between them", async () => {
         const signals = [];
@@ -254,11 +275,11 @@ describe("reporter", () => {
     });
     it("ends the run when the store never answers", async () => {
         const s = await serve(false);
-        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
         const r = new ResultsReporter({ env: { GRAPHTY_RESULTS_INVOCATION: "b" }, cfg });
         r.onTestCaseResult(testCase(1));
         await r.onTestRunEnd();
-        assert.equal(s.seen.length, 1);
+        assert.equal(s.seen.length, 3, "the first request and its two retries, and nothing after");
     });
 });
 
@@ -359,10 +380,10 @@ describe("runShape", () => {
 describe("postRecords", () => {
     it("asks a store that never answers once and spools every record", async () => {
         const s = await serve(false);
-        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
         const spool = join(TMP, "spool-2");
         const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], spool, 300);
-        assert.equal(s.seen.length, 1);
+        assert.equal(s.seen.length, 3, "the first request and its two retries, and nothing after");
         assert.deepEqual(
             rs.map((r) => r.ok),
             [false, false],
@@ -395,6 +416,36 @@ describe("runGroup", () => {
         assert.equal(rec.variant, "fake|flags=off|whole");
         assert.equal(rec.outcome, "infra");
         assert.equal(rec.sha.length, 40);
+    });
+
+    it("files an On shard's record and inputs key under flags=on, a plain shard's under flags=off", async () => {
+        const s = await serve(false);
+        const root = join(TMP, "checkout-on");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            "export const SHARDS = [" +
+                '{ shard: "plain", package: "pkg", "test-command": "exit 3" },' +
+                '{ shard: "pkg-features-on-1", package: "pkg", "test-command": "exit 3", flags: "on" }];\n',
+        );
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "7" };
+        const spool = join(root, "test-results/results-spool");
+        await runGroup("plain", undefined, { root, env });
+        await runGroup("pkg-features-on-1", undefined, { root, env });
+        const read = (f) => JSON.parse(readFileSync(join(spool, f), "utf8"));
+        assert.equal(read("7.1.job.plain.1.json").variant, "plain|flags=off|whole");
+        assert.equal(read("7.1.job.pkg-features-on-1.1.json").variant, "pkg-features-on|flags=on|whole");
+
+        const e = { PATH: "x" };
+        const on = { flags: "on", "test-command": "c" };
+        const keys = (shard, env = e) => groupKeys({ shardName: "f-1", shard, cmd: "c", env, shardKey: "k" });
+        const key = (flags) => inputsKey({ shardKey: "k", env: envString(e), flags });
+        assert.deepEqual(keys(on), { variant: "f|flags=on|whole", inputs: key("on") });
+        assert.deepEqual(keys({ "test-command": "c" }), { variant: "f|flags=off|whole", inputs: key("off") });
+        assert.equal(keys({ "test-command": "c" }, { ...e, GRAPHTY_FLAGS: "on" }).inputs, key("on"));
+        assert.notEqual(key("on"), key("off"));
     });
 
     it("keeps a passing verdict when the record cannot even be spooled", async () => {
@@ -485,6 +536,14 @@ describe("planRead", () => {
             "graphty-element-browser|flags=off|selected",
         ]);
     });
+    it("never asks about a full-run-only family, such as the On shards", () => {
+        const on = {
+            shard: "graphty-element-browser-features-on-1",
+            package: "graphty-element",
+            "full-run-only": true,
+        };
+        assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
+    });
     it("also asks for a story shard's screenshot family", () => {
         const stories = [{ shard: "graphty-storybook", package: "graphty" }];
         assert.deepEqual(variantsOf(stories, ["graphty"]), [
@@ -528,6 +587,74 @@ describe("planRead", () => {
         assert.equal(q.get("variants"), "layout|flags=off|whole,layout|flags=off|selected");
         assert.equal(q.get("inputs"), "-,-");
         assert.equal(q.get("files"), "layout/src/x.ts");
+    });
+});
+
+describe("the [NEW-FLAKY] rule without the store's answer (#4146)", () => {
+    const FILE = "graphty/src/a.test.ts";
+    const T = { file: FILE, name: "flips" };
+    const OTHER = { file: "graphty/src/b.test.ts", name: "other" };
+    const flaky = { pass: true, flaky: [T, OTHER], excused: [], failing: [] };
+
+    it("fails a flaky test the pull request touched and leaves an untouched or quarantined one flaky", () => {
+        const d = newFlakyJudge({ base: "b1", affected: [FILE] }, "graphty", [])(flaky);
+        assert.equal(d.pass, false);
+        assert.deepEqual(d.caused, [T]);
+        assert.deepEqual(d.failing, [T]);
+        assert.deepEqual(d.flaky, [OTHER]);
+        const q = [{ family: "graphty", file: FILE, name: "flips", issue: 9 }];
+        assert.equal(newFlakyJudge({ base: "b1", affected: [FILE] }, "graphty", q)(flaky).pass, true);
+        assert.equal(newFlakyJudge({ base: "b1", affected: ["x.ts"] }, "graphty", [])(flaky).pass, true);
+        // no file-level answer for the family: every test counts as touched
+        const unknown = { base: "b1", affected: [], unknownFamilies: ["graphty"] };
+        assert.equal(newFlakyJudge(unknown, "graphty", [])(flaky).caused.length, 2);
+    });
+
+    // A checkout whose one shard fails FILE's test, then passes it when the retry runs the file alone
+    // (bin/pnpm stands in for vitest).
+    function flakyCheckout(name) {
+        const root = join(TMP, name);
+        mkdirSync(join(root, "tools"), { recursive: true });
+        mkdirSync(join(root, "graphty"));
+        mkdirSync(join(root, "bin"));
+        mkdirSync(join(root, "test-results"));
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "graphty-1", package: "graphty", "test-command": "cd graphty && pnpm exec vitest run --project=x" }];\n`,
+        );
+        const junit = (failed) =>
+            `<testsuites><testsuite><testcase classname="src/a.test.ts" name="flips">${failed ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase></testsuite></testsuites>`;
+        writeFileSync(join(root, "first.xml"), junit(true));
+        writeFileSync(join(root, "retry.xml"), junit(false));
+        writeFileSync(
+            join(root, "bin/pnpm"),
+            "#!/bin/sh\ncp ../retry.xml ../test-results/junit-graphty-2.xml; echo ' Test Files  1 passed (1)'\n",
+            { mode: 0o755 },
+        );
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const first =
+            "cp first.xml test-results/junit-graphty-1.xml; echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1";
+        return { root, first };
+    }
+
+    it("fails a pull request's shard on a test it made flaky when the store gave no answer", async () => {
+        const verdict = async (name, plan, event = "pull_request") => {
+            const c = flakyCheckout(name);
+            writeFileSync(join(c.root, "plan.json"), JSON.stringify(plan));
+            const env = {
+                PATH: `${join(c.root, "bin")}:${process.env.PATH}`,
+                GRAPHTY_RESULTS: "0",
+                GITHUB_EVENT_NAME: event,
+                RESULTS_PLAN: join(c.root, "plan.json"),
+            };
+            return runGroup("graphty-1", c.first, { root: c.root, env });
+        };
+        const outage = { unavailable: "no answer", base: "b1", affected: [FILE], unknownFamilies: [] };
+        assert.equal(await verdict("nf-touched", outage), 1, "touched: [NEW-FLAKY] fails the shard");
+        assert.equal(await verdict("nf-untouched", { ...outage, affected: ["graphty/src/z.ts"] }), 0);
+        assert.equal(await verdict("nf-no-diff", { unavailable: "the test selector failed" }), 0, "no answer at all");
+        assert.equal(await verdict("nf-push", outage, "push"), 0, "only a pull request");
     });
 });
 
@@ -704,6 +831,10 @@ describe("the pull request rules", () => {
 
     it("keeps repeated runs of one job apart", () => {
         assert.equal(baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "check", RESULTS_REPEAT: "3" }), "5.1.check.s.r3");
+        assert.equal(
+            baseId("s", { GITHUB_RUN_ID: "5", GITHUB_JOB: "story-tests", RESULTS_PART: "2" }),
+            "5.1.story-tests.s.p2",
+        );
     });
 });
 
@@ -1139,6 +1270,51 @@ describe("health API fan-out", () => {
             ],
         });
         assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
+    });
+    it("sends a benchmark job's results to the health API as one post", async () => {
+        const h = await serveHealth();
+        const env = { ...healthEnv("http://store", h.url), GITHUB_SHA: "abc" };
+        assert.equal(postBenchmarks(env, "algorithms", []), false);
+        assert.equal(postBenchmarks({ ...env, HEALTH_API_URL: "" }, "algorithms", [{ name: "x", value: 1 }]), false);
+        assert.equal(postBenchmarks(env, "algorithms", [{ name: "PageRank n=1000", value: 4.5 }]), true);
+        await flushHealth();
+        const post = await h.posted;
+        assert.equal(post.url, "/v1/benchmarks");
+        assert.deepEqual(post.body, {
+            source: "algorithms",
+            unit: "ms",
+            sha: "abc",
+            rows: [{ name: "PageRank n=1000", value: 4.5 }],
+        });
+    });
+    it("reads the newest session of the algorithms and the harness result files", () => {
+        // algorithms/benchmark-results/benchmark-sessions-linux-comprehensive.json
+        const algorithms = [
+            { timestamp: "old", results: [{ algorithm: "GRSBM", graphSize: 50, executionTime: 9 }] },
+            {
+                timestamp: "new",
+                results: [
+                    { algorithm: "GRSBM", graphSize: 50, edges: 98, executionTime: 4.18, memoryUsage: 0 },
+                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, memoryUsage: 0 },
+                ],
+            },
+        ];
+        assert.deepEqual(benchmarkRows(algorithms), [
+            { name: "GRSBM n=50", value: 4.18 },
+            { name: "GRSBM n=100", value: 15.75 },
+        ]);
+        // webgpu-graph-algorithms/benchmarks/out/gpu-linux-t4.json (benchmarks/harness.ts)
+        const harness = [
+            {
+                runnerClass: "gpu-linux-t4",
+                results: [
+                    { group: "upload", name: "residency.core 100k/1M", medianMs: 14.46, minMs: 14.17, runs: 5 },
+                    { group: "upload", name: "no median", minMs: 1 },
+                ],
+            },
+        ];
+        assert.deepEqual(benchmarkRows(harness), [{ name: "upload / residency.core 100k/1M", value: 14.46 }]);
+        assert.deepEqual(benchmarkRows([]), []);
     });
     it("is off without HEALTH_API_URL, and without an OIDC token to sign in with", async () => {
         const h = await serveHealth();

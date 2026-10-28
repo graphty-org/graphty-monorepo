@@ -98,6 +98,8 @@ import {
     PIN_ATTRIBUTE,
     POS_ATTRIBUTE,
     POSITION_COLUMN,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
@@ -177,8 +179,13 @@ export const DOT_ISSUE = Object.freeze({
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /** A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning. */
     NUMERAL_AMBIGUITY: "W_DOT_NUMERAL_AMBIGUITY",
-    /** Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented. */
+    /**
+     * Attributes of a subgraph that is not a cluster cannot be represented, except its `rank`, which is kept in the
+     * `graphty.rank` and `graphty.rankSet` node columns.
+     */
     SUBGRAPH_ATTRIBUTES_DROPPED: "W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED",
+    /** A node in two rank subgraphs (`rank=same` and the like) keeps the first one's rank. */
+    RANK_CONFLICT: "W_DOT_RANK_CONFLICT",
     /** A port on a node statement has no meaning and was dropped. */
     NODE_PORT_DROPPED: "W_DOT_NODE_PORT_DROPPED",
     /** A plain node and a cluster share a name and were merged into one container node. */
@@ -262,6 +269,10 @@ const EXTENSIONS: readonly string[] = Object.freeze([".dot", ".gv"]);
 const MIME_TYPES: readonly string[] = Object.freeze(["text/vnd.graphviz"]);
 const CLUSTER_PREFIX = "cluster";
 const CLUSTER_ATTRIBUTE = "cluster";
+/** The subgraph attribute that puts its nodes on one rank, or on the first or last. */
+const RANK_ATTRIBUTE = "rank";
+/** The values of `rank` Graphviz knows (lib/common/const.h: SAMERANK ... SINKRANK). */
+const RANK_KINDS: ReadonlySet<string> = new Set(["same", "min", "max", "source", "sink"]);
 const STATEMENTS_PER_ABORT_CHECK = 64;
 const MAX_ANCESTOR_WALK = 4096;
 /**
@@ -792,6 +803,16 @@ class DotParser {
 
     private targetPortHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
+    private rankHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // NOSONAR(S2933): stringColumn assigns it through this[field]
+
+    private rankSetHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // NOSONAR(S2933): stringColumn assigns it through this[field]
+
+    /** The rank subgraph each node was put in first, by node index. */
+    private readonly rankSetOf = new Map<number, string>();
+
+    /** How many anonymous rank subgraphs were read, which names the next `%<n>`. */
+    private anonymousRanks = 0;
+
     /** The current subgraph nesting depth. */
     private depth = 0;
 
@@ -1206,14 +1227,16 @@ class DotParser {
     }
 
     /**
-     * Finish a subgraph that is not a cluster: report its attributes dropped, and hand its nested
+     * Finish a subgraph that is not a cluster: keep its rank, report its other attributes dropped, and hand its nested
      * containers to the enclosing scope.
      * @param scope - the closed scope
      * @param parent - the enclosing scope
      */
     private closePlainSubgraph(scope: Scope, parent: Scope): void {
-        if (scope.attributes.size > 0) {
-            const names = [...scope.attributes.keys()].join(", ");
+        const ranked = this.recordRank(scope);
+        const dropped = [...scope.attributes.keys()].filter((name) => !(ranked && name === RANK_ATTRIBUTE));
+        if (dropped.length > 0) {
+            const names = dropped.join(", ");
             this.report.warning(
                 "unsupported",
                 DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED,
@@ -1984,6 +2007,54 @@ class DotParser {
             });
         }
         return this.positionHandle;
+    }
+
+    /**
+     * Keep a non-cluster subgraph's `rank` on its nodes: each gets the rank and the subgraph's name (`%<n>` for an
+     * anonymous one). A node already in another rank subgraph keeps that one, with a warning.
+     * @param scope - the closed subgraph
+     * @returns true when the subgraph has a rank Graphviz knows
+     */
+    private recordRank(scope: Scope): boolean {
+        const rank = scope.attributes.get(RANK_ATTRIBUTE)?.value.trim();
+        if (rank === undefined || !RANK_KINDS.has(rank)) {
+            return false;
+        }
+        const set = scope.name ?? `%${this.anonymousRanks++}`;
+        for (const member of scope.members) {
+            const held = this.rankSetOf.get(member);
+            const id = String(this.idOf.get(member) ?? member);
+            if (held === undefined) {
+                this.rankSetOf.set(member, set);
+                try {
+                    this.sink.setNodeValue(this.stringColumn("rankHandle", RANK_COLUMN), member, rank);
+                    this.sink.setNodeValue(this.stringColumn("rankSetHandle", RANK_SET_COLUMN), member, set);
+                } catch (err) {
+                    this.report.recordError(err, { element: id });
+                }
+            } else if (held !== set) {
+                this.report.warning(
+                    "coercion",
+                    DOT_ISSUE.RANK_CONFLICT,
+                    `node ${JSON.stringify(id)} is in rank subgraph ${JSON.stringify(held)} and in rank subgraph ${JSON.stringify(set)}; the first is kept`,
+                    { line: scope.line, element: id },
+                );
+            }
+        }
+        return true;
+    }
+
+    /**
+     * One of the importer's string node columns, declared on first use.
+     * @param field - the field holding its handle
+     * @param name - the column name
+     * @returns the handle
+     */
+    private stringColumn(field: "rankHandle" | "rankSetHandle", name: string): ColumnHandle {
+        if (this[field] === INVALID_INDEX) {
+            this[field] = this.declare("node", { name, dtype: "string", nullable: true, origin: DOT_ORIGIN });
+        }
+        return this[field];
     }
 
     /**

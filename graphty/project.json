@@ -46,6 +46,7 @@
             "executor": "nx:run-commands",
             "inputs": [
                 "default",
+                "^production",
                 "{workspaceRoot}/eslint.config.js",
                 { "dependentTasksOutputFiles": "**/doors.json", "transitive": true }
             ],

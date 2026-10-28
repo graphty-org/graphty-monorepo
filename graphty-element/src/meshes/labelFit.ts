@@ -43,7 +43,9 @@ const SIDES: ReadonlyMap<string, number> = new Map([
  *
  * A "polygon" counts its corners (`shape.points`) as its sides, and once at least its least size
  * it grows by as far as its corners reach past its half width and half height, as Graphviz grows
- * a distorted or skewed polygon.
+ * a distorted or skewed polygon. Corners drawn where they say (`shape.stretchPoints` false) already
+ * reach that far past the box they are fractions of when they are drawn, so that box is not grown
+ * by their reach again (corners that fall short of it still draw it in).
  *
  * `labelFitSquare` then makes both sides the larger one.
  * @param shape - The node's shape block.
@@ -83,7 +85,9 @@ export function labelFitExtent(
     width = Math.max(least.width, width);
     height = Math.max(least.height, height);
     if (polygon !== null) {
-        const [reachX, reachY] = polygonReach(polygon);
+        // corners drawn where they say reach past the box as they are drawn: only a shortfall counts here
+        const drawnAsTheySay = shape.stretchPoints === false;
+        const [reachX, reachY] = polygonReach(polygon).map((r) => (drawnAsTheySay ? Math.min(1, r) : r));
         width = Math.max(least.width, width * reachX);
         height = Math.max(least.height, height * reachY);
     }

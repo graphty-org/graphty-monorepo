@@ -11,6 +11,22 @@
  */
 
 export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
+export type {
+    AddAssetOptions,
+    AssetId,
+    AssetOffer,
+    AssetRecord,
+    AssetsApi,
+    AssetSource,
+    AssetState,
+    BuiltInModelFormat,
+    ModelFormat,
+    ModelLimits,
+    ModelSummary,
+    NamedBlob,
+    PartAnswer,
+} from "./assets/AssetsApi";
+export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
 export { LOAD_ROLES } from "./draft";
@@ -20,6 +36,7 @@ export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendati
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";
+export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./network";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
 export type {
@@ -120,6 +137,8 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    ModelChange,
+    ModelState,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -162,7 +181,6 @@ export type {
     SessionViews,
     SettingEffect,
     SettingEffectCode,
-    SourceEntry,
     StyleProblem,
     TableMapping,
     TableMappingRead,

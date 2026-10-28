@@ -80,6 +80,10 @@ env:
 jobs:
     test-gpu:
         name: Test (NVIDIA T4)
+        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the benchmark numbers)
+        permissions:
+            contents: read
+            id-token: write
         # On-demand by default (owner decision, 2026-10-08): spot ($0.0045/min against $0.018/min) was the default
         # from 2026-10-04, but reclaimed spot runners ("spot interrupted") failed the release train's T4 job and held
         # releases overnight. A held release costs far more than the difference. Spot stays a dispatch option.
@@ -229,7 +233,7 @@ jobs:
             # wrong shared libraries. HOME is the container's, so the path is consistent within the job.
             - name: Cache Playwright browsers
               id: pw
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               with:
                   {
                       path: ~/.cache/ms-playwright,
@@ -248,7 +252,7 @@ jobs:
               if: ${{ !inputs.files }}
               working-directory: graphty-element
               timeout-minutes: 20 # Chromium on the NVIDIA path can hang AFTER every test passed (webgpu-graph-algorithms R-13); bound it here rather than let it eat the job's 45
-              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
+              run: pnpm exec nx run-many -t build --projects=@graphty/remote-logger,algorithms,graph-io,layout,graph-samples,babylonjs-map && pnpm exec vitest run --project=browser test/browser/webgpu-layout.test.ts # the job env already carries GRAPHTY_BROWSER_GPU=nvidia; nx resolves the workspace root from here. Every workspace package the element imports resolves to its dist (no src fallback), so each must be built: graph-format and webgpu-graph-algorithms by the step above, the rest here. Keep this list in step with graphty-element/package.json -- graph-io missing from it broke this step when the element began reading csv and json through graph-io
             # Issue #703: the 10k layout-fr rows swung x1.0 to x3.6 between T4 runs on unchanged code, in the
             # profiler's GPU time as well as the wall time, so the card itself ran the kernels slower. NVIDIA's power
             # governor holds the SM clock low under the sparse one-step dispatches of a small rung (finding G3-F1),
@@ -273,6 +277,7 @@ jobs:
                   nohup nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.max.sm,pstate,power.draw --format=csv -lms 200 > gpu-clocks.csv 2>&1 &
                   echo $! > gpu-clocks.pid
             - name: Benchmarks (tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json; every line stamped with the local time nvidia-smi's log carries)
+              id: bench
               if: ${{ !inputs.files }}
               run: pnpm run bench 2>&1 | while IFS= read -r line; do printf '%s %s\n' "$(date '+%Y/%m/%d %H:%M:%S.%3N')" "$line"; done | tee bench.log # pipefail carries the bench's exit code through the loop and tee
             - name: Stop the clock log and summarize the SM clock of every benchmark group
@@ -283,6 +288,30 @@ jobs:
                   node scripts/gpu-report.js --clocks gpu-clocks.csv bench.log > gpu-clocks.json && cat gpu-clocks.json
             - if: ${{ !inputs.files }}
               run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
+            # Each result to the pipeline health dashboard, which keeps every benchmark's trend and flags a sustained
+            # regression (design/ci/health-dashboard.md, section 4.3). Fire and forget: it never fails the lane. The
+            # API takes them only from master's workflows, so a dispatch on a branch posts nothing it keeps.
+            # the workflow's tools/, not the checked-out candidate's (tools/own-tools-overlay.test.mjs): a candidate
+            # older than the poster has none. Last in the job, so nothing before it runs the workflow's copy.
+            # continue-on-error here and on the post: the numbers are a report, never a reason to fail the lane.
+            - name: Use the workflow's own tools and actions
+              if: ${{ !cancelled() && steps.bench.outcome == 'success' }}
+              continue-on-error: true
+              working-directory: .
+              env:
+                  OVERLAY: tools
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+            - name: Post the benchmark results to the health dashboard
+              if: ${{ !cancelled() && steps.bench.outcome == 'success' }}
+              continue-on-error: true
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node ../tools/results/post-benchmarks.mjs webgpu-graph-algorithms benchmarks/out/gpu-linux-t4.json
             - name: Release the SM clock lock
               if: ${{ always() && steps.clocks.outcome != 'skipped' }}
               run: sudo nvidia-smi -rgc || true

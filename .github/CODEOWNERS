@@ -34,6 +34,7 @@
 /vitest.shared.config.ts @graphty-org/code-owners
 /vitest.base.mjs @graphty-org/code-owners
 /vitest.ci-junit.mjs @graphty-org/code-owners
+/vitest.ci-junit.d.mts @graphty-org/code-owners
 **/.storybook/vitest.setup.* @graphty-org/code-owners
 /graphty/sites/canary.json @graphty-org/code-owners
 /graphty/sites/nightly.json @graphty-org/code-owners
@@ -64,6 +65,9 @@
 /tools/check-owned-closure.mjs @graphty-org/code-owners
 /tools/pr-integrity.mjs @graphty-org/code-owners
 /tools/check-features.mjs @graphty-org/code-owners
+/tools/features-on.mjs @graphty-org/code-owners
+# the experiment list the CI matrix and test selection import and run (tools/features-on.mjs)
+/graphty-element/src/features/registry.ts @graphty-org/code-owners
 /tools/pr-open.sh @graphty-org/code-owners
 /tools/pr-review.sh @graphty-org/code-owners
 /tools/check-quick.sh @graphty-org/code-owners
@@ -88,6 +92,8 @@
 /tools/claude-area-rules.mjs @graphty-org/code-owners
 /tools/claude-no-foreground-wait.mjs @graphty-org/code-owners
 /tools/copy-docs-content.js @graphty-org/code-owners
+/tools/docs-affected.sh @graphty-org/code-owners
+/tools/sanitize-api-docs.js @graphty-org/code-owners
 /tools/dependency-refresh.mjs @graphty-org/code-owners
 /tools/eslint-rules/no-test-timing.mjs @graphty-org/code-owners
 /tools/eslint-rules/story-wait-options.mjs @graphty-org/code-owners
@@ -115,6 +121,7 @@
 /tools/visual-capture-plan.mjs @graphty-org/code-owners
 /tools/visual-flaky-report.mjs @graphty-org/code-owners
 /tools/visual-preview.sh @graphty-org/code-owners
+/tools/vitest-deps-reload.mjs @graphty-org/code-owners
 /tools/vitest-time-budget.mjs @graphty-org/code-owners
 /tools/wait-log.mjs @graphty-org/code-owners
 /tools/with-browser.sh @graphty-org/code-owners

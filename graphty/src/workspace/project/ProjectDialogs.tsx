@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DISCARD_DIALOG, discardAndContinue, openPending, SAVE_AS_DIALOG, saveProjectAs } from "./actions";
+import { NetworkPrompt } from "./NetworkPrompt";
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
@@ -136,6 +137,7 @@ export function ProjectDialogs(): React.JSX.Element {
         <>
             <SaveAsDialog />
             <DiscardDialog />
+            <NetworkPrompt />
         </>
     );
 }

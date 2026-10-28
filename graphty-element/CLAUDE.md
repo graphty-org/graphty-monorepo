@@ -209,6 +209,27 @@ plugin author who expected otherwise would be misled.
 - **An algorithm plugin cannot be unit-tested in Node.** `Algorithm`'s constructor takes the
   renderer-backed `Graph`. `./extend` resolving in Node buys type-checking, not a headless test.
 
+### Registering an extension (the plugin system)
+
+Every extension point is exported from `@graphty/graphty-element/extend`:
+
+```typescript
+import {
+    Algorithm,
+    DataSource,
+    LayoutEngine,
+    registerFormatWriter,
+    registerSnapshotLayout,
+} from "@graphty/graphty-element/extend";
+
+Algorithm.register(MyAlgorithm); // a DeclaredAlgorithm subclass
+registerSnapshotLayout({ descriptor, compute }); // a static layout over the snapshot
+LayoutEngine.register(MyIterativeEngine); // an iterative (step-by-step) layout engine
+DataSource.register(MyDataSource); // a reader that parses a file itself
+DataSource.register(DataSource.fromImporter(myGraphIoImporter, formatDescriptor)); // a graph-io importer as a reader
+registerFormatWriter({ descriptor, exporter }); // a graph-io exporter as a file writer
+```
+
 ## Essential Commands
 
 ```bash
@@ -263,6 +284,14 @@ without it: start them through servherd with PORT={{port}} (see the root CLAUDE.
 - **Manager Pattern**: Side effects handled through managers (always use manager methods, not direct manipulation)
 - **Observable Pattern**: Events via graphObservable, nodeObservable, edgeObservable
 - **Stateless Design**: APIs work regardless of call order
+
+### Web Component Architecture
+
+- **Graph.ts** - Core orchestrator class
+- **Manager pattern** - Side effects handled by dedicated managers
+- **Registry pattern** - Extensible layouts, algorithms, data sources
+- **Babylon.js** - 3D rendering with mesh instancing
+- **Lit** - Web Component framework
 
 ### Error Model
 
@@ -340,6 +369,23 @@ frame-count-independent, and it is shared by the tests and the stories -- write 
 `GRAPHTY_EGL_LIB_DIR` when the driver's libEGL is not where Chromium looks). Unset, Chromium
 launches with no flags and sees no WebGPU at all, which is what the five CI shards do and why
 `test/browser/webgpu-layout.test.ts` skips itself there.
+
+#### More on the test projects
+
+- `default` - Node.js tests
+- `browser` - Playwright tests (5 CI shards)
+- `storybook` - Component tests (5 CI shards)
+- `interactions` - Interaction tests
+- `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in the CI browser shards
+- `lifecycle` - autosave across reloads, closes, discards, freezes, crashes and kills: Node tests that launch Chromium, Firefox and WebKit (Playwright's library API) and Chrome for Testing over the raw DevTools protocol, on the built `./bundle`; its own CI shard, `graphty-element-lifecycle`, with `autosave-engines`
+- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default; its key in `VITE_GOOGLE_API_KEY`). Runs in the full run once per UTC day (`tools/llm-due.mjs`, which warns at $60 in a month), never on a pull request
+
+Run one project:
+
+```bash
+npm test -- --project=browser
+npm test -- --project=storybook
+```
 
 ## Common Pitfalls
 

@@ -1,6 +1,6 @@
 {
     "name": "babylonjs-map",
-    "version": "0.0.0",
+    "version": "0.0.1",
     "private": false,
     "description": "Maps and globes for Babylon.js scenes: projections, flat maps and globes with tile level of detail, map sources with attribution, and location parsing",
     "author": "Adam Powers <apowers@ato.ms>",

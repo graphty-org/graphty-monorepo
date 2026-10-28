@@ -11,6 +11,15 @@ import { RichTextStyle } from "./RichTextStyle";
  */
 export const NodeSizeModes = z.enum(["scale", "diameter", "uniform"]);
 
+/** The axis that points up in a model's file, or "detected" to read it from the format. */
+export const NodeModelUpAxes = z.enum(["detected", "y", "z", "-y", "-z", "x", "-x"]);
+
+/** How a model fills a node: keeping its proportions, or stretched to width, height and depth. */
+export const NodeModelFits = z.enum(["contain", "stretch"]);
+
+/** Where a model's pivot sits on the node: its bounding box's center, or the file's own origin. */
+export const NodeModelCenters = z.enum(["bounds", "origin"]);
+
 /**
  * How a node grows to hold its label, when `shape.labelFit` is set: "inside" fits the label's
  * padded box inside the node's outline, so an ellipse or a diamond reaches past the box's corners;
@@ -276,6 +285,20 @@ export const NodeStyle = z.strictObject({
             labelPaddingX: z.number().nonnegative().optional(),
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
+            // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
+            // URL. `type` stays the placeholder while it loads and the fallback when it fails
+            // (design/rendering/node-models.md).
+            model: z.string().optional(),
+            // The axis that points up in the model's file; "detected" reads it from the format.
+            modelSourceUp: NodeModelUpAxes.optional(),
+            // A turn about the up axis after `modelSourceUp`, in degrees.
+            modelTurn: z.number().min(-360).max(360).optional(),
+            // true multiplies the model's base color by the node color; "replace" paints it flat.
+            modelTint: z.union([z.boolean(), z.literal("replace")]).optional(),
+            // "contain" keeps proportions; "stretch" fills width, height and depth separately.
+            modelFit: NodeModelFits.optional(),
+            // "bounds" centers the bounding box on the node; "origin" keeps the file's pivot.
+            modelCenter: NodeModelCenters.optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })
@@ -283,12 +306,10 @@ export const NodeStyle = z.strictObject({
     texture: z
         .strictObject({
             color: AdvancedColorStyle.or(ColorStyle).optional(),
-            // A node texture from a URL used to be declared here, as a validated `z.url()`, and
-            // was read by nothing in this version of the package or any earlier one. A schema
-            // that accepts a URL and draws nothing with it is worse than one that refuses it: the
-            // consumer is told their image was accepted. It comes back with a renderer and a
-            // channel, together, or not at all.
             icon: z.string().optional(),
+            // `node.texture`: an image asset id or URL, drawn as a model's base color texture or a
+            // built-in shape's surface (design/rendering/node-models.md section 2.8).
+            image: z.string().optional(),
             // pieChart: z.string().or(z.null()).default(null), // https://manual.cytoscape.org/en/stable/Styles.html#using-graphics-in-styles
             // shader: z.url().or(z.null()).default(null), // https://doc.babylonjs.com/features/featuresDeepDive/materials/shaders/
             // bumpmap: z.url().or(z.null()).default(null), // https://doc.babylonjs.com/features/featuresDeepDive/materials/using/moreMaterials/#bump-map
@@ -520,6 +541,28 @@ export const NodeStyle = z.strictObject({
             size: z.number().nonnegative().optional(),
             weight: z.number().min(1).max(1000).optional(),
             color: ColorStyle.optional(),
+        })
+        .optional(),
+    /**
+     * How a group drawn round its members -- a node other nodes name as their parent, with no box
+     * of its own -- is sized (a Cytoscape.js compound parent). Its members' box, their labels in it
+     * with `includeLabels`, is made at least `minWidth` by `minHeight` (the added width going
+     * `minWidthBiasLeft` of it to the left, 0..1, and the added height `minHeightBiasTop` of it
+     * upward; unset, half each way), then grown by `padding` on every side, or by `paddingRatio`
+     * times the members' box's `paddingOf` side (`width`, `height`, their `average`, the `min` or
+     * the `max` of the two; unset, `width`). Lengths are in the units of `shape.size`. Unset, a
+     * group reaches its largest member's radius past its members.
+     */
+    group: z
+        .strictObject({
+            padding: z.number().nonnegative().optional(),
+            paddingRatio: z.number().nonnegative().optional(),
+            paddingOf: z.enum(["width", "height", "average", "min", "max"]).optional(),
+            minWidth: z.number().nonnegative().optional(),
+            minHeight: z.number().nonnegative().optional(),
+            minWidthBiasLeft: z.number().min(0).max(1).optional(),
+            minHeightBiasTop: z.number().min(0).max(1).optional(),
+            includeLabels: z.boolean().optional(),
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),

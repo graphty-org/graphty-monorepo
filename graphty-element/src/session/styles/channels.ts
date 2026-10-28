@@ -57,7 +57,7 @@
  */
 
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
-import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
+import type { Binding, Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import {
     defaultEdgeStyle,
@@ -72,10 +72,14 @@ import {
     NodeBorderPositions,
     NodeBorderStyles,
     NodeLabelFits,
+    NodeModelCenters,
+    NodeModelFits,
+    NodeModelUpAxes,
     NodeShapes,
     NodeSizeModes,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
+import { isAssetId } from "../assets/assetId";
 
 // ---------------------------------------------------------------------------------------------
 // Colour: one string parse, kept
@@ -226,6 +230,9 @@ function fromComponents(rgba: Rgba): ColorValue {
 // The enumerated values, read out of the element's own schemas
 // ---------------------------------------------------------------------------------------------
 
+/** What a group's `paddingRatio` is a fraction of. */
+export type GroupPaddingOfValue = NonNullable<NonNullable<NodeStyleConfig["group"]>["paddingOf"]>;
+
 /** A node shape the element can build a mesh for. */
 export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
 
@@ -276,12 +283,16 @@ export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["
 export type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"]>["kind"]>;
 /** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
 export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
+/** The force law an edge's support point settles under (`edge.supportModel`). */
+export type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
 
 /** A value of `edge.route`: the path a line takes between its nodes. */
 export type EdgeRouteValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["route"]>;
 export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
 /** How a node's gradient fill runs (`node.gradientKind`): straight across it, or out from its middle. */
 export type NodeGradientKindValue = "linear" | "radial";
+/** The axis that points up in a model's file, as `node.modelSourceUp` takes it. */
+export type NodeModelUpValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["modelSourceUp"]>;
 
 /** A line style a node border can be drawn in. */
 export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
@@ -461,6 +472,21 @@ export interface ChannelValues {
     "node.chartLineWidth": number;
     "node.chartBorderColor": ColorValue;
     "node.chartBorderWidth": number;
+    "node.model": string;
+    "node.modelSourceUp": NodeModelUpValue;
+    "node.modelTurn": number;
+    "node.modelTint": boolean | "replace";
+    "node.modelFit": "contain" | "stretch";
+    "node.modelCenter": "bounds" | "origin";
+    "node.texture": string;
+    "node.groupPadding": number;
+    "node.groupPaddingRatio": number;
+    "node.groupPaddingOf": GroupPaddingOfValue;
+    "node.groupMinWidth": number;
+    "node.groupMinHeight": number;
+    "node.groupMinWidthBiasLeft": number;
+    "node.groupMinHeightBiasTop": number;
+    "node.groupIncludeLabels": boolean;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
@@ -491,9 +517,17 @@ export interface ChannelValues {
     "edge.fanned": boolean;
     "edge.bendCurve": EdgeBendCurveValue;
     "edge.arcRadius": number;
+    "edge.supportModel": EdgeSupportModelValue;
+    "edge.supportSpringLength": number;
+    "edge.supportSpringConstant": number;
+    "edge.supportRepulsion": number;
+    "edge.supportCentralGravity": number;
+    "edge.supportUnit": number;
     "edge.route": EdgeRouteValue;
     "edge.arcHeight": number;
     "edge.nodeGap": number;
+    "edge.sourceNodeGap": number;
+    "edge.targetNodeGap": number;
     "edge.sourcePort": string;
     "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
@@ -885,6 +919,8 @@ const NODE_GRADIENT_CAVEAT =
 /** How a node's gradient fill runs. */
 const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
 const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
+const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut", "forceAtlas2"];
+const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
 const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
 
 const EDGE_OUTLINE_CAVEAT =
@@ -922,6 +958,17 @@ const NODE_STRIPE_DIRECTION_VALUES: readonly NodeStripeDirectionValue[] = ["down
 
 /** What a node's chart draws. */
 const NODE_CHART_KIND_VALUES: readonly NodeChartKindValue[] = ["bar", "stacked-bar", "line", "box", "cells"];
+
+const NODE_GROUP_CAVEAT =
+    "How a group drawn round its members (a node other nodes name as their parent, with no box of its own) is " +
+    "sized, as a Cytoscape.js compound parent is: its members' box, their labels counted with " +
+    "`node.groupIncludeLabels`, at least `node.groupMinWidth` by `node.groupMinHeight` (the growth split by " +
+    "`node.groupMinWidthBiasLeft` and `node.groupMinHeightBiasTop`), then `node.groupPadding` larger on every side, " +
+    "or `node.groupPaddingRatio` times its `node.groupPaddingOf` side. Lengths are in the units of `node.size`. " +
+    "Unset, a group reaches its largest member's radius past its members.";
+
+/** The sides a group's padding ratio can be measured against. */
+const GROUP_PADDING_OF_VALUES: readonly GroupPaddingOfValue[] = ["width", "height", "average", "min", "max"];
 
 const NODE_CHART_CAVEAT =
     "A chart over the node's face, drawn when `node.chartValues` (numbers separated by spaces) and " +
@@ -1729,6 +1776,17 @@ export function mergeLabelStyle(held: unknown, over: object): object {
 
     return merged;
 }
+
+/**
+ * What a model node is, read by `node.model`.
+ */
+const NODE_MODEL_CAVEAT =
+    "Draws the node as a 3D model: an asset id from `session.assets` or a URL. The model is fitted " +
+    "to the box a node of the same size would fill, centered and lit; `node.shape` is drawn while it " +
+    "loads and if it fails. A URL a layer added or updated by the page's code names is fetched at " +
+    "once; a URL from a project file, an AI command, a template, an encoding or an expression waits " +
+    "for the reader (`session.network`) unless its host is allowed. `node.color` applies only with " +
+    "`node.modelTint`.";
 
 /**
  * What a node border is, written once and read by its three channels.
@@ -3047,6 +3105,109 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_CHART_CAVEAT,
     },
+    "node.groupPadding": {
+        channel: "node.groupPadding",
+        target: "node",
+        plainName: "Node Group Padding",
+        shortName: "Group padding",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "group.padding",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupPaddingRatio": {
+        channel: "node.groupPaddingRatio",
+        target: "node",
+        plainName: "Node Group Padding Ratio",
+        shortName: "Group padding ratio",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "group.paddingRatio",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupPaddingOf": {
+        channel: "node.groupPaddingOf",
+        target: "node",
+        plainName: "Node Group Padding Of",
+        shortName: "Group padding of",
+        group: "shape",
+        default: "width",
+        accepts: "enum",
+        values: GROUP_PADDING_OF_VALUES,
+        stylePath: "group.paddingOf",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinWidth": {
+        channel: "node.groupMinWidth",
+        target: "node",
+        plainName: "Node Group Min Width",
+        shortName: "Group min width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "group.minWidth",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinHeight": {
+        channel: "node.groupMinHeight",
+        target: "node",
+        plainName: "Node Group Min Height",
+        shortName: "Group min height",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "group.minHeight",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinWidthBiasLeft": {
+        channel: "node.groupMinWidthBiasLeft",
+        target: "node",
+        plainName: "Node Group Min Width Bias Left",
+        shortName: "Group min width bias left",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "group.minWidthBiasLeft",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinHeightBiasTop": {
+        channel: "node.groupMinHeightBiasTop",
+        target: "node",
+        plainName: "Node Group Min Height Bias Top",
+        shortName: "Group min height bias top",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "group.minHeightBiasTop",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupIncludeLabels": {
+        channel: "node.groupIncludeLabels",
+        target: "node",
+        plainName: "Node Group Include Labels",
+        shortName: "Group include labels",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "group.includeLabels",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
     "node.cornerRadius": {
         channel: "node.cornerRadius",
         target: "node",
@@ -3274,6 +3435,106 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "texture.color.colorType",
         renderable: true,
         caveat: NODE_GRADIENT_CAVEAT,
+    },
+    "node.model": {
+        channel: "node.model",
+        target: "node",
+        plainName: "Node Model",
+        shortName: "Model",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.model",
+        renderable: true,
+        caveat: NODE_MODEL_CAVEAT,
+    },
+    "node.modelSourceUp": {
+        channel: "node.modelSourceUp",
+        target: "node",
+        plainName: "Node Model Up Axis",
+        shortName: "Model up axis",
+        group: "shape",
+        default: "detected",
+        accepts: "enum",
+        values: NodeModelUpAxes.options,
+        stylePath: "shape.modelSourceUp",
+        renderable: true,
+        caveat:
+            "The axis that points up in the model's file; the element turns the model so it points " +
+            'up on screen. "detected": glTF and GLB are Y up by their specification, STL is taken ' +
+            "as Z up and OBJ and PLY as Y up.",
+    },
+    "node.modelTurn": {
+        channel: "node.modelTurn",
+        target: "node",
+        plainName: "Node Model Turn",
+        shortName: "Model turn",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: -360,
+        max: 360,
+        stylePath: "shape.modelTurn",
+        renderable: true,
+        caveat: "A turn about the up axis, in degrees, after the up axis is applied.",
+    },
+    "node.modelTint": {
+        channel: "node.modelTint",
+        target: "node",
+        plainName: "Node Model Tint",
+        shortName: "Model tint",
+        group: "color",
+        default: "false",
+        accepts: "enum",
+        values: ["false", "true", "replace"],
+        stylePath: "shape.modelTint",
+        renderable: true,
+        caveat:
+            "A model keeps its own colors unless this is set: true multiplies the model's base " +
+            'color by `node.color`, and "replace" paints every material in `node.color`. Takes ' +
+            'true, false or "replace".',
+    },
+    "node.modelFit": {
+        channel: "node.modelFit",
+        target: "node",
+        plainName: "Node Model Fit",
+        shortName: "Model fit",
+        group: "shape",
+        default: "contain",
+        accepts: "enum",
+        values: NodeModelFits.options,
+        stylePath: "shape.modelFit",
+        renderable: true,
+        caveat:
+            '"contain" keeps the model\'s proportions; "stretch" fills `node.width`, `node.height` ' +
+            "and `node.depth` separately.",
+    },
+    "node.modelCenter": {
+        channel: "node.modelCenter",
+        target: "node",
+        plainName: "Node Model Center",
+        shortName: "Model center",
+        group: "shape",
+        default: "bounds",
+        accepts: "enum",
+        values: NodeModelCenters.options,
+        stylePath: "shape.modelCenter",
+        renderable: true,
+        caveat: '"bounds" centers the model\'s bounding box on the node; "origin" keeps the file\'s own pivot.',
+    },
+    "node.texture": {
+        channel: "node.texture",
+        target: "node",
+        plainName: "Node Texture",
+        shortName: "Texture",
+        group: "color",
+        accepts: "text",
+        stylePath: "texture.image",
+        renderable: true,
+        caveat:
+            "An image (PNG, JPEG or WebP) drawn on the node: an asset id from `session.assets` or a URL. " +
+            "On a model it replaces the base color texture of every material; on a built-in shape it " +
+            "is the shape's surface. The node's color then multiplies it only with `node.modelTint`. " +
+            "A URL waits for the reader as a model's does (`session.network`).",
     },
     "edge.color": {
         channel: "edge.color",
@@ -3602,6 +3863,86 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "circle; larger is flatter). Left unset, the edge keeps the element's own bow. A straight " +
             "edge ignores it.",
     },
+    "edge.supportModel": {
+        channel: "edge.supportModel",
+        target: "edge",
+        plainName: "Edge Support Model",
+        shortName: "Support model",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_SUPPORT_MODEL_VALUES,
+        stylePath: "line.supportModel",
+        renderable: true,
+        caveat:
+            "Draws a curved edge as one quadratic curve through a support point a force simulation " +
+            "places: tied to the two nodes by springs, pushed away by every node and every other " +
+            'support point, pulled toward the middle of the nodes. "barnesHut" pushes by repulsion over ' +
+            'the distance squared and pulls with a constant force; "forceAtlas2" pushes by repulsion over ' +
+            "the distance and pulls in proportion to it. The nodes stay where the layout puts them, so " +
+            "an edge bows away from crowding and edges between the same two nodes bow apart. Left unset, " +
+            "no support point. A straight edge ignores it.",
+    },
+    "edge.supportSpringLength": {
+        channel: "edge.supportSpringLength",
+        target: "edge",
+        plainName: "Edge Support Spring Length",
+        shortName: "Spring length",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportSpringLength",
+        renderable: true,
+        caveat: `The length the two springs of the support point rest at together, in support units (95 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportSpringConstant": {
+        channel: "edge.supportSpringConstant",
+        target: "edge",
+        plainName: "Edge Support Spring Constant",
+        shortName: "Spring constant",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportSpringConstant",
+        renderable: true,
+        caveat: `How hard the springs of the support point pull per unit they are stretched (0.04 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportRepulsion": {
+        channel: "edge.supportRepulsion",
+        target: "edge",
+        plainName: "Edge Support Repulsion",
+        shortName: "Repulsion",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportRepulsion",
+        renderable: true,
+        caveat: `How hard every node and every other support point push the support point away (2000 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportCentralGravity": {
+        channel: "edge.supportCentralGravity",
+        target: "edge",
+        plainName: "Edge Support Central Gravity",
+        shortName: "Central gravity",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportCentralGravity",
+        renderable: true,
+        caveat: `How hard the support point is pulled toward the middle of the nodes (0.3 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportUnit": {
+        channel: "edge.supportUnit",
+        target: "edge",
+        plainName: "Edge Support Unit",
+        shortName: "Support unit",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        exclusiveMin: true,
+        stylePath: "line.supportUnit",
+        renderable: true,
+        caveat: `How many scene units one support unit is, the unit of the lengths and forces of the support (1 when unset).${SUPPORT_CAVEAT}`,
+    },
     "edge.route": {
         channel: "edge.route",
         target: "edge",
@@ -3648,6 +3989,36 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "How far from each of its nodes' outlines the line stops, in the scene's units, leaving that " +
             "much empty between the node and the line's end; an arrow cap there moves out with it. A " +
             "self-loop ignores it.",
+    },
+    "edge.sourceNodeGap": {
+        channel: "edge.sourceNodeGap",
+        target: "edge",
+        plainName: "Edge Source Node Gap",
+        shortName: "Source gap",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.sourceNodeGap",
+        renderable: true,
+        caveat:
+            "How far from its source node's outline the line stops, in the scene's units, in place of " +
+            "`edge.nodeGap` at that end; an arrow cap there moves out with it. A self-loop ignores it.",
+    },
+    "edge.targetNodeGap": {
+        channel: "edge.targetNodeGap",
+        target: "edge",
+        plainName: "Edge Target Node Gap",
+        shortName: "Target gap",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.targetNodeGap",
+        renderable: true,
+        caveat:
+            "How far from its target node's outline the line stops, in the scene's units, in place of " +
+            "`edge.nodeGap` at that end; an arrow cap there moves out with it. A self-loop ignores it.",
     },
     "edge.sourcePort": {
         channel: "edge.sourcePort",
@@ -3884,6 +4255,49 @@ export function channelDescriptor(channel: string): ChannelDescriptor | undefine
  */
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[] {
     return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter((descriptor) => descriptor.target === target);
+}
+
+/**
+ * Why a binding may not write `node.model`, or null when it may (design/rendering/node-models.md,
+ * section 2.2).
+ *
+ * An encoded or computed `node.model` -- a value map, a column of URLs, a template -- may name asset
+ * ids and `http`/`https` URLs. A URL read from the data is never fetched on the binding's say-so:
+ * its host must be allowed by the page or the reader (`session.network`), each distinct URL is
+ * fetched once, and private addresses are refused. The values a binding lists itself (`map`,
+ * `other.value`, `missing.value`) must each be one of the two; anything else could not name a model.
+ * @param binding - The binding written to `node.model`.
+ * @param path - Where in the specification it sits, such as `encode.node.model`.
+ * @returns The `E_MODEL_URL_BLOCKED` problem, or null.
+ */
+export function modelBindingProblem(
+    binding: Binding,
+    path: string,
+): { readonly code: "E_MODEL_URL_BLOCKED"; readonly message: string; readonly path: string } | null {
+    if ("value" in binding || !("by" in binding)) {
+        return null;
+    }
+
+    const listed: [string, unknown][] = [
+        ...Object.entries(binding.map ?? {}).map(([name, value]): [string, unknown] => [`.map.${name}`, value]),
+        ...(binding.other === undefined ? [] : [[".other.value", binding.other.value] as [string, unknown]]),
+        ...(typeof binding.missing === "object"
+            ? [[".missing.value", binding.missing.value] as [string, unknown]]
+            : []),
+    ];
+    const bad = listed.find(
+        ([, value]) => !isAssetId(value) && !(typeof value === "string" && /^https?:\/\//i.test(value)),
+    );
+
+    return bad === undefined
+        ? null
+        : {
+              code: "E_MODEL_URL_BLOCKED",
+              message:
+                  `An encoded node.model names asset ids or http(s) URLs: ${JSON.stringify(bad[1])} is neither. ` +
+                  "Add the file with session.assets.add and map the category to the id it returns.",
+              path: `${path}${bad[0]}`,
+          };
 }
 
 /**

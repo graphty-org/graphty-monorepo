@@ -99,13 +99,13 @@ export async function countStep(
     id: string,
 ): Promise<{ readonly before: Left; readonly after: Left } | null> {
     const plan = await session.plan({ op: "visibility.steps", steps });
-    if (plan.effect.kind !== "steps") {
+    if (plan.effect.kind !== "match" || plan.effect.steps === undefined) {
         return null;
     }
     // One entry per step that is on, in order: the one before it says what reaches it.
-    const counted = plan.effect.steps;
+    const { start, steps: counted } = plan.effect.steps;
     const at = counted.findIndex((s) => s.id === id);
-    return at === -1 ? null : { before: at === 0 ? plan.effect.start : counted[at - 1], after: counted[at] };
+    return at === -1 ? null : { before: at === 0 ? start : counted[at - 1], after: counted[at] };
 }
 
 /**

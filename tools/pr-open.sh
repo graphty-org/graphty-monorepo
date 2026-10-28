@@ -147,9 +147,10 @@ if [ -z "$url" ]; then
         echo
         echo "## Proof"
         echo
-        # The file's own "#" and "##" headings become "###", so they stay inside the Proof section (PR Integrity
-        # reads the section up to the next "##"; a file starting "## Proof" left it empty).
-        sed -E 's/^#{1,2}[ \t]+/### /' "$proof"
+        # A file's own leading "Proof" heading is dropped (the heading is above), and its other "#" and "##"
+        # headings become "###", so they stay inside the Proof section (PR Integrity reads the section up to the
+        # next "##"; a file starting "## Proof" left it empty).
+        awk '!s && /^[ \t]*$/ { next } !s && /^##?[ \t]+Proof[ \t]*$/ { next } { s = 1; sub(/^##?[ \t]+/, "### "); print }' "$proof"
     } >"$body"
     url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$body")
 fi

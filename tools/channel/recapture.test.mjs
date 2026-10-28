@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { isolateGit } from "../isolated-git-env.mjs";
-import { acceptedBy, finalOf, merge, newestCapture, reshootIds } from "./recapture.mjs";
+import { acceptedBy, finalOf, legShare, merge, nestSingle, newestCapture, reshootIds } from "./recapture.mjs";
 
 isolateGit();
 
@@ -52,6 +52,48 @@ describe("plan", () => {
         assert.equal(newestCapture(dir, "none"), null);
         const items = [item("a", "changed"), item("b", "unchanged"), item("c", "new"), item("a", "changed")];
         assert.deepEqual(reshootIds({ items }), ["a", "c"]);
+    });
+    it("splits the stories into legs that together shoot each one exactly once", () => {
+        const ids = ["a", "b", "c", "d", "e"];
+        const legs = [1, 2, 3, 4].map((n) => legShare(ids, `${n}/4`));
+        assert.deepEqual(legs, [["a", "e"], ["b"], ["c"], ["d"]]);
+        assert.deepEqual(legShare(ids, undefined), ids);
+        assert.throws(() => legShare(ids, "5/4"), /bad --leg/);
+    });
+});
+
+describe("nestSingle", () => {
+    it("moves one capture download-artifact extracted straight into the directory into its own, as for several", () => {
+        const dir = join(mkdtempSync(join(tmpdir(), "recapture-")), "final");
+        capture(dir, [item("a", "changed")], { "a.png": png(9) });
+        assert.equal(nestSingle(dir, "visual-final-"), join(dir, "visual-final-app-0"));
+        assert.ok(existsSync(join(dir, "visual-final-app-0", "results.json")));
+        assert.ok(existsSync(join(dir, "visual-final-app-0", "a.png")));
+        nestSingle(dir, "visual-final-");
+        assert.ok(existsSync(join(dir, "visual-final-app-0", "results.json")), "nesting twice changes nothing");
+    });
+    it("lets plan find a single first capture", () => {
+        const dir = join(mkdtempSync(join(tmpdir(), "recapture-")), "first");
+        capture(dir, [item("a", "unchanged")]);
+        assert.equal(newestCapture(dir, "app"), null, "flat, as download-artifact leaves one match");
+        nestSingle(dir, "visual-");
+        assert.equal(newestCapture(dir, "app"), join(dir, "visual-app-0"));
+    });
+    it("leaves several downloaded artifacts and a missing directory alone", () => {
+        const dir = mkdtempSync(join(tmpdir(), "recapture-"));
+        capture(join(dir, "visual-final-app-1"), []);
+        capture(join(dir, "visual-final-other-1"), []);
+        assert.equal(nestSingle(dir, "visual-final-"), null);
+        assert.equal(nestSingle(join(dir, "absent"), "visual-final-"), null);
+    });
+    it("runs after every pattern download of a capture in release.yml", () => {
+        const yml = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
+        const paths = [...yml.matchAll(/pattern: visual-[^\n]*\n\s*path: \$\{\{ runner\.temp \}\}\/(\w+)/g)].map(
+            (m) => m[1],
+        );
+        assert.ok(paths.length >= 4, `found ${paths.length} capture downloads`);
+        for (const p of new Set(paths))
+            assert.match(yml, new RegExp(`recapture\\.mjs nest --captures "\\$RUNNER_TEMP/${p}"`), `${p} is nested`);
     });
 });
 
@@ -112,6 +154,32 @@ describe("merge", () => {
         assert.deepEqual(readFileSync(join(out, "second", "third.png")), green, "the other shot of an unstable story");
         assert.deepEqual(readFileSync(join(out, "third.png")), red);
         assert.deepEqual(JSON.parse(readFileSync(join(out, "flaky.json"), "utf8")), flaky);
+    });
+    it("merges the re-captures of several legs, and fails a story whose leg shot nothing", async () => {
+        const root = mkdtempSync(join(tmpdir(), "recapture-"));
+        const [first, leg1, leg2, out] = ["first", "leg1", "leg2", "out"].map((d) => join(root, d));
+        const red = png(200);
+        capture(first, [item("a", "changed"), item("b", "new"), item("c", "changed")], {
+            "a.png": red,
+            "b.png": red,
+            "c.png": red,
+        });
+        capture(leg1, [item("a", "changed")], { "a.png": red });
+        capture(leg2, [item("b", "unchanged")]);
+        const flaky = await merge({ first, second: [leg1, leg2, join(root, "leg3")], out });
+        assert.deepEqual(
+            flaky.map((f) => f.file),
+            ["b.png"],
+        );
+        const final = JSON.parse(readFileSync(join(out, "results.json"), "utf8"));
+        assert.deepEqual(
+            final.items.map((i) => [i.file, i.status]),
+            [
+                ["a.png", "changed"],
+                ["b.png", "unchanged"],
+                ["c.png", "failed"],
+            ],
+        );
     });
     it("copies the first capture unchanged when nothing was shot again", async () => {
         const root = mkdtempSync(join(tmpdir(), "recapture-"));

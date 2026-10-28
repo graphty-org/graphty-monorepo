@@ -27,6 +27,7 @@ import {
     type StepItem,
     type TestItem,
 } from "../model/index.js";
+import { type BenchItem, benchKey, BENCH_PK, withPoint } from "../model/benchmarks.js";
 import type { Store } from "../model/store.js";
 
 export const MAX_BODY_BYTES = 1_000_000;
@@ -61,7 +62,10 @@ const MASTER_KINDS: Record<string, Kind> = {
 };
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
-const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "sites"]);
+const CI_ROUTES = new Set(["invocations", "failures", "durations", "verdicts", "sites", "benchmarks"]);
+/** Results in one benchmark post, and the longest benchmark name or source. */
+const MAX_BENCH_ROWS = 1000;
+const MAX_BENCH_NAME = 200;
 const LOCAL_ROUTES = new Set(["invocations", "push-runs", "waits"]);
 
 type Kind = "pr" | "full" | "bisect" | "base" | "stress" | "local" | "deploy" | "site";
@@ -256,6 +260,8 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
                 ...(await failureItems(body, who, db, now)),
                 source: body.flaky === true ? "flaky-feed" : "ci-results",
             };
+        case "benchmarks":
+            return { items: [], extra: await benchItems(body, who, db, now), source: "benchmarks" };
         case "durations":
             // The site repositories' and deploy-pages.yml's deploy timings must not keep ci-results looking fresh.
             return {
@@ -328,7 +334,11 @@ async function invocationItems(
         source,
         variant,
         family,
-        bin: who.kind === "pr",
+        // A light-check bin: a pull request's test shard. A run of the `shots` shape (variant
+        // `<family>|flags=..|shots`) is the Story tests job's whole-project capture, report-only and outside
+        // All Checks Pass, so not a bin: counted, graphty's 30-minute capture alone put ci.bins_over_8 at 80%
+        // while every required job of the same runs took under 9 minutes.
+        bin: who.kind === "pr" && variant.split("|").at(-1) !== "shots",
         full: who.kind === "full",
         ...(typeof b.pr === "number" ? { pr: b.pr } : {}),
         sha: b.sha as string,
@@ -412,6 +422,32 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
             completedAt: startedAt + (r.ms as number),
         };
     });
+}
+
+/**
+ * A benchmark job's results (`{ source, sha?, unit?, rows: [{ name, value }] }`, tools/results/post-benchmarks.mjs),
+ * each added to its benchmark's item (model/benchmarks.ts) as this run's point. Only from master's workflows: a pull
+ * request's numbers would move master's trend.
+ */
+async function benchItems(b: Record<string, unknown>, who: Who, db: Store, now: number): Promise<Extra[]> {
+    if (who.kind !== "full") refuse(403, "benchmarks_from_master_only");
+    need(b, { source: "string" });
+    const source = (b.source as string).slice(0, MAX_BENCH_NAME);
+    const unit = typeof b.unit === "string" ? b.unit.slice(0, 10) : "ms";
+    const rows = list(b.rows, "rows");
+    if (rows.length > MAX_BENCH_ROWS) refuse(413, "too_many_rows", { limit: MAX_BENCH_ROWS });
+    const old = new Map(((await db.query(BENCH_PK)) as BenchItem[]).map((i) => [i.sk, i]));
+    const run = Number(who.claims.run_id);
+    const sha = typeof b.sha === "string" ? b.sha.slice(0, 40) : undefined;
+    const out = new Map<string, Extra>();
+    for (const r of rows) {
+        need(r, { name: "string", value: "number" });
+        if ((r.value as number) < 0) refuse(400, "bad_field", { field: "value", type: "non-negative" });
+        const benchmark = `${source}: ${(r.name as string).slice(0, MAX_BENCH_NAME)}`;
+        const point = { at: now, v: r.value as number, run, ...(sha ? { sha } : {}) };
+        out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, point, now) as Extra);
+    }
+    return [...out.values()];
 }
 
 /** A site deploy-pages.yml built and kept as artifact site-<sha> (as the results service's `site` table). */

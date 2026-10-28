@@ -30,29 +30,12 @@ import {
     pinnedFonts,
     provenance,
     SCALE,
-    SHOT,
-    shootTiles,
+    screenshotWholePage,
     storySettings,
     toolVersion,
-    twoFrames,
     VIEWPORT,
 } from "./capture.mjs";
 import { unstableLine } from "./story-outcomes.mjs";
-
-/* global document -- read only inside the page */
-
-/**
- * The size a full-page screenshot of the frame's document would have, as capture.mjs measures it.
- * @param {import("playwright").Frame} frame the tester iframe
- * @returns {Promise<{ width: number, height: number }>} in CSS px
- */
-const measure = (frame) =>
-    frame.evaluate(() => {
-        const [b, d] = [document.body, document.documentElement];
-        const most = (key) =>
-            Math.max(...[b, d].flatMap((e) => [e[`scroll${key}`], e[`offset${key}`], e[`client${key}`]]));
-        return { width: most("Width"), height: most("Height") };
-    });
 
 /**
  * A play function's real pointer stays where it last was and hovers whatever is under it;
@@ -63,55 +46,15 @@ const measure = (frame) =>
 const park = (page) => page.mouse.move(-1, -1);
 
 /**
- * The tester iframe's whole document, as capture.mjs's screenshotWholePage shoots iframe.html:
- * a throwaway shot, two frames, measure, then the outer page clipped to the iframe, which sits at
- * the top left at scale 1 when the page's viewport is the iframe's size. A story taller or wider
- * than the viewport is shot in viewport-sized tiles, scrolling the iframe's document to each and
- * stitching them, so its layout keeps the 1200 x 900 viewport (its `vh` units too), as
- * capture.mjs's full-page shot does; growing the frame instead made `vh` follow it.
+ * The tester iframe's whole document, shot as capture.mjs shoots its story iframe, with the
+ * pointer moved off the page first.
  * @param {import("playwright").Page} page vitest's orchestrator page
  * @param {import("playwright").Frame} frame the tester iframe
  * @returns {Promise<Buffer>} the PNG
  */
 async function shootFrame(page, frame) {
     await park(page);
-    await page.screenshot({ ...SHOT, clip: { x: 0, y: 0, width: 1, height: 1 } });
-    await twoFrames(frame);
-    const size = await measure(frame);
-    await frame.evaluate(scrollLikeTopFrame, true);
-    try {
-        await twoFrames(frame);
-        const view = { x: 0, y: 0, ...VIEWPORT };
-        if (size.width <= VIEWPORT.width && size.height <= VIEWPORT.height) {
-            return await page.screenshot({ ...SHOT, clip: { ...view, ...size } });
-        }
-        return await shootTiles(page, frame, size, VIEWPORT);
-    } finally {
-        await frame.evaluate(scrollLikeTopFrame, false);
-    }
-}
-
-/**
- * Makes the tester iframe's document scrollable by one pixel below everything it draws, or takes
- * that back. iframe.html, the top frame capture.mjs shoots, always scrolls on the compositor, so
- * Chromium draws its `position: fixed` elements (a popover, a menu, a toast) in layers of their
- * own, apart from the scrolling page; an iframe whose content fits does not scroll, so it drew
- * them into the page's layer and their blurred shadows came out one level darker. The pixel is
- * added after the frame was measured and lies outside every shot; headless Chromium draws no
- * scrollbar, so nothing moves.
- * @param {boolean} on add the pixel, or remove it
- * @returns {void}
- */
-function scrollLikeTopFrame(on) {
-    const ID = "visual-review-scroll-pixel";
-    document.getElementById(ID)?.remove();
-    if (on) {
-        const pixel = document.createElement("div");
-        pixel.id = ID;
-        const root = document.documentElement;
-        pixel.style.cssText = `position:absolute;left:0;top:${Math.max(root.scrollHeight, root.clientHeight)}px;width:1px;height:1px;visibility:hidden`;
-        root.append(pixel);
-    }
+    return screenshotWholePage(page, frame);
 }
 
 /**
@@ -281,9 +224,17 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
         return theirs ? { baseline: theirs, from: old } : { baseline: own, from: null };
     };
 
-    const finish = async (job, first, second, logged) => {
+    const finish = async (job, first, second, logged, firstResult = null) => {
         const { id, mode, file, baseline, from, s } = job;
-        const r = classify({ baseline, first, second, threshold: s.threshold, includeAA: s.includeAA, moved: !!from });
+        const r = classify({
+            baseline,
+            first,
+            second,
+            threshold: s.threshold,
+            includeAA: s.includeAA,
+            moved: !!from,
+            firstResult,
+        });
         if (["changed", "moved", "new", "unstable"].includes(r.status)) {
             writeFileSync(join(out, file), r.flaky ? second : first);
         }
@@ -327,7 +278,19 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
          */
         async visualPark(ctx) {
             await park(ctx.page);
-            await (await (await ctx.frame()).frameElement()).focus();
+            const frame = await ctx.frame();
+            await (await frame.frameElement()).focus();
+            // The press resets Chromium's modality, which happens before any listener runs; the story
+            // must not see it (capture.mjs presses no key): Mantine's menus focus their first row on
+            // a keyboard open, so a Shift a menu heard lit that row.
+            await frame.evaluate(() => {
+                for (const type of ["keydown", "keyup"]) {
+                    globalThis.addEventListener(type, (e) => e.stopImmediatePropagation(), {
+                        capture: true,
+                        once: true,
+                    });
+                }
+            });
             await ctx.page.keyboard.press("Shift");
         },
         /**
@@ -385,7 +348,9 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
             const held = pending.get(file);
             if (held) {
                 pending.delete(file);
-                return { status: await finish(held.job, held.first, png, [...held.console, ...console]) };
+                return {
+                    status: await finish(held.job, held.first, png, [...held.console, ...console], held.result),
+                };
             }
             const job = { id, mode, file, ...(await baselineOf(id, mode)), s: await settings(id, chromatic) };
             const r = classify({
@@ -395,7 +360,7 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
                 includeAA: job.s.includeAA,
             });
             if (r.status === "changed" || r.status === "new") {
-                pending.set(file, { job, first: png, console });
+                pending.set(file, { job, first: png, console, result: r });
                 return { again: true };
             }
             return { status: await finish(job, png, null, console) };
@@ -461,7 +426,13 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
                 files.ran = [...new Set([...kept.ran, ...files.ran])].sort((a, b) => a.localeCompare(b));
                 missing.unshift(...kept.missing.filter((id) => !planned.has(id)));
             }
-            results.partial = { shard, reported: reported && (!kept || kept.reported), missing, ...files };
+            // The retry is not run with --shard, so its own shard reads 1 of 1: the leg is the first run's.
+            results.partial = {
+                shard: kept?.shard ?? shard,
+                reported: reported && (!kept || kept.reported),
+                missing,
+                ...files,
+            };
             results.items.sort((a, b) => (a.file < b.file ? -1 : 1));
             save();
         },

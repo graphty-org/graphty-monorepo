@@ -785,6 +785,8 @@ interface VisLayer {
     selfReference?: unknown;
     selfReferenceSize?: unknown;
     physics?: unknown;
+    /** edges: the rest length of its spring (and of its support node's two springs together) */
+    length?: unknown;
     image?: unknown;
     brokenImage?: unknown;
     useImageSize?: unknown;
@@ -1025,6 +1027,7 @@ function visEdgeLayer(o: Record<string, unknown>, set: SetLayer): void {
     set("selfReference", o.selfReference);
     set("selfReferenceSize", o.selfReferenceSize);
     set("physics", o.physics);
+    set("length", o.length);
 }
 
 /**
@@ -1809,7 +1812,9 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const borderOf = (i: number): StyleValue =>
         node.values.borderColor?.[i] ?? (toolNode?.borderColor?.value as StyleValue | undefined) ?? "#2b7ce9";
     const geometry = visGeometry(snapshot, node.values, shapes);
-    const edge = visEdges(snapshot, visLayer(options.edges, "edge"), borderOf, geometry, notes, context);
+    const support = visSupport(options.physics, options.layout);
+    const edges = visLayer(options.edges, "edge");
+    const edge = visEdges(snapshot, edges, borderOf, { ...geometry, support }, notes, context);
     const values = { node: node.values, edge: edge.values };
     exactFromBlock(snapshot, src.block, values, visWritten(snapshot, values.edge));
     return {
@@ -2444,6 +2449,8 @@ interface VisGeometry {
     readonly at: (i: number) => readonly [number, number] | null;
     /** A node's half width, half height, border width and vis-network shape, or null for a node sized by its label. */
     readonly box: (i: number) => VisBox | null;
+    /** The forces vis-network's physics moves a dynamic edge's support node by, or null where nothing moves it. */
+    readonly support?: Row | null;
 }
 
 /** A node's half width, half height, border width and vis-network shape. */
@@ -2699,13 +2706,73 @@ function visRoute(defaults: VisLayer, own: VisLayer, s: number, t: number, g: Vi
         return visLoop(defaults, own, g.box(s));
     }
     const smooth = visSmooth(defaults.smooth, own.smooth);
+    if (smooth.enabled && smooth.type === "dynamic") {
+        return visDynamic(defaults, own, g.support ?? null);
+    }
     const [a, b] = [g.at(s), g.at(t)];
-    // ponytail: a dynamic curve where physics runs is wherever the simulation left its support node; drawn straight
-    if (!smooth.enabled || smooth.type === "dynamic" || a === null || b === null || (a[0] === b[0] && a[1] === b[1])) {
+    if (!smooth.enabled || a === null || b === null || (a[0] === b[0] && a[1] === b[1])) {
         return {};
     }
     const controls = smooth.type === "cubicBezier" ? visCubicVia(a, b, smooth) : [visStaticVia(a, b, smooth)];
     return { curved: true, bendCurve: "bezier", bends: controls.map((p) => alongAcross(a, b, p)).join(" ") };
+}
+
+/**
+ * vis.js: a dynamic smooth edge, drawn through the support node vis-network's physics places, wherever its nodes
+ * are (they need no position in the file): its forces, with the edge's own `length` as its springs' rest length.
+ * Straight where physics does not run for it (`physics: false` on the network or the edge), as the support node
+ * then stays at the middle.
+ * @param defaults - `options.edges`
+ * @param own - the edge's own keys
+ * @param support - the network's forces, or null
+ * @returns the route's values
+ */
+function visDynamic(defaults: VisLayer, own: VisLayer, support: Row | null): Row {
+    if (support === null || own.physics === false || (own.physics === undefined && defaults.physics === false)) {
+        return {};
+    }
+    const length = [own.length, defaults.length].find((v) => typeof v === "number" && Number.isFinite(v) && v >= 0);
+    return { curved: true, ...support, ...(length === undefined ? {} : { supportSpringLength: length as number }) };
+}
+
+/** vis-network 9.1.9's physics defaults for the two solvers whose forces a support node is drawn under. */
+const VIS_SOLVERS: Readonly<Record<string, { model: string; g: number; cg: number; length: number; k: number }>> = {
+    barnesHut: { model: "barnesHut", g: -2000, cg: 0.3, length: 95, k: 0.04 },
+    forceAtlas2Based: { model: "forceAtlas2", g: -50, cg: 0.01, length: 100, k: 0.08 },
+};
+
+/**
+ * vis.js: the forces a dynamic edge's support node settles under (9.1.9 BarnesHutSolver,
+ * ForceAtlas2BasedRepulsionSolver, their central gravity solvers and SpringSolver). None where physics is off, where
+ * a hierarchical layout turns every dynamic curve static (`_forceDisableDynamicCurves`), or under the repulsion and
+ * hierarchicalRepulsion solvers (ponytail: drawn straight; their force laws when a file uses them).
+ * @param physics - `options.physics`
+ * @param layout - `options.layout`
+ * @returns the neutral support values, or null
+ */
+function visSupport(physics: unknown, layout: unknown): Row | null {
+    const hierarchical = isJsonObject(layout) ? layout.hierarchical : undefined;
+    if (hierarchical === true || (isJsonObject(hierarchical) && hierarchical.enabled !== false)) {
+        return null;
+    }
+    if (physics === false || (isJsonObject(physics) && physics.enabled === false)) {
+        return null;
+    }
+    const o = isJsonObject(physics) ? physics : {};
+    const solver = typeof o.solver === "string" ? o.solver : "barnesHut";
+    const base = VIS_SOLVERS[solver] as (typeof VIS_SOLVERS)[string] | undefined;
+    if (base === undefined) {
+        return null;
+    }
+    const given = isJsonObject(o[solver]) ? o[solver] : {};
+    const num = (v: unknown, fallback: number): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
+    return {
+        supportModel: base.model,
+        supportSpringLength: Math.max(0, num(given.springLength, base.length)),
+        supportSpringConstant: Math.max(0, num(given.springConstant, base.k)),
+        supportRepulsion: Math.max(0, -num(given.gravitationalConstant, base.g)),
+        supportCentralGravity: Math.max(0, num(given.centralGravity, base.cg)),
+    };
 }
 
 /**
@@ -2826,7 +2893,14 @@ function visFrontArc(cx: number, cy: number, radius: number, angle: number, box:
         const a = start + ((end - start) * k) / steps;
         points.push(`${fraction((x + radius * Math.cos(a)) / hw)},${fraction(-(y + radius * Math.sin(a)) / hh)}`);
     }
-    return { curved: false, bends: points.join(" ") };
+    // the arc's two ends are where vis-network starts and stops it, off the node as often as on it: ports, so no line
+    // is drawn from the node out to them
+    return {
+        curved: false,
+        sourcePort: points[0],
+        bends: points.slice(1, -1).join(" "),
+        targetPort: points.at(-1) ?? points[0],
+    };
 }
 
 /**
@@ -2887,6 +2961,7 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
         "selfReference",
         "selfReferenceSize",
         "physics",
+        "length",
         "widthConstraint",
     ],
 };
@@ -3077,13 +3152,34 @@ const visFitBack =
  * @returns the readings back
  */
 function visWritten(snapshot: GraphSnapshot, edgeValues: Values): Written {
+    const isLoop = (i: number): boolean => snapshot.edgeSource(i) === snapshot.edgeTarget(i);
     const loop =
         (property: string) =>
         (want: (p: string) => StyleValue | null, i: number): StyleValue | null =>
-            snapshot.edgeSource(i) === snapshot.edgeTarget(i) ? (edgeValues[property]?.[i] ?? null) : want(property);
+            isLoop(i) ? (edgeValues[property]?.[i] ?? null) : want(property);
+    // the writer writes no `smooth` and no `options.physics`, so every other edge reads back as vis-network's default,
+    // a dynamic curve under the default barnesHut physics
+    const dynamic = visSupport(undefined, undefined) ?? {};
+    const support = (property: string) => (_want: unknown, i: number) =>
+        isLoop(i) ? (edgeValues[property]?.[i] ?? null) : (dynamic[property] ?? null);
+    const supports = Object.fromEntries(Object.keys(dynamic).map((property) => [property, support(property)]));
+    // an edge's own `length`, kept as data, is its springs' rest length again
+    const lengths = cells(snapshot, "edge", "length");
+    supports.supportSpringLength = (want, i) => {
+        const own = lengths?.(i);
+        return typeof own === "number" && Number.isFinite(own) && own >= 0 && !isLoop(i)
+            ? own
+            : support("supportSpringLength")(want, i);
+    };
     return {
         node: VIS_WRITTEN.node,
-        edge: { ...VIS_WRITTEN.edge, bends: loop("bends"), bendCurve: loop("bendCurve"), curved: loop("curved") },
+        edge: {
+            ...VIS_WRITTEN.edge,
+            ...supports,
+            bends: loop("bends"),
+            bendCurve: loop("bendCurve"),
+            curved: (_want, i) => (isLoop(i) ? (edgeValues.curved?.[i] ?? null) : true),
+        },
     };
 }
 

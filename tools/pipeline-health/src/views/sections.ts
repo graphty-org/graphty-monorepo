@@ -21,10 +21,9 @@ import rates from "../../config/rates.json" with { type: "json" };
 import type { StressCursorRun } from "../collector/parse.js";
 import { quantile } from "../model/histogram.js";
 import { type Agg, type Bucket, DAY, floorTo, HOUR, type LoadKind, MIN, STEP_MS } from "../model/items.js";
-import { SHARD_BASE_MS } from "../model/metrics.js";
 import { getCursor } from "../model/raw.js";
-import { emptyAgg, mergeAgg } from "../model/rollup.js";
-import { type MemberStatus } from "../sla/engine.js";
+import { aggQuantile, emptyAgg, mergeAgg } from "../model/rollup.js";
+import { type MemberStatus, PROJECTION_DAYS, projectMonth } from "../sla/engine.js";
 import {
     type HoldersSnapshot,
     type SharedSnapshot,
@@ -165,9 +164,9 @@ const SHOWN = 12;
  * @param minRuns
  */
 function shardRow(shard: string, a: Agg, full: boolean, minRuns: number): ShardRow | undefined {
-    const q50 = a.hist && quantile(a.hist, 0.5);
-    const q90 = a.hist && quantile(a.hist, 0.9);
-    // A full-run value is normalized to a one-hour budget; the bucket's sum holds the budgets themselves.
+    const q50 = aggQuantile(a, 0.5);
+    const q90 = aggQuantile(a, 0.9);
+    // A full-run bucket's sum holds the budgets themselves (the member judges against the same).
     let budgetMs: number | undefined = 480_000;
     if (full) {
         budgetMs = a.n > 0 && a.sum > 0 ? a.sum / a.n : undefined;
@@ -175,9 +174,8 @@ function shardRow(shard: string, a: Agg, full: boolean, minRuns: number): ShardR
     if (q50 === undefined || q90 === undefined || budgetMs === undefined) {
         return undefined;
     }
-    const ms = budgetMs;
-    const toS = (q: number) => Math.round((full ? (q * ms) / SHARD_BASE_MS : q) / 1000);
-    return { shard, runs: a.n, minRuns, medianS: toS(q50), p90S: toS(q90), budgetS: Math.round(ms / 1000) };
+    const toS = (q: number) => Math.round(q / 1000);
+    return { shard, runs: a.n, minRuns, medianS: toS(q50), p90S: toS(q90), budgetS: toS(budgetMs) };
 }
 
 /**
@@ -348,7 +346,7 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
     const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
     const monthDays = (Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) - monthStart) / DAY;
     const today = floorTo(reads.now, "1d");
-    const from = Math.min(monthStart, today - (days - 1) * DAY);
+    const from = Math.min(monthStart, today - Math.max(days - 1, PROJECTION_DAYS) * DAY);
     const daily = await reads.series("cost.usd", "1d", from, today);
     const sumOf = (b: Bucket | undefined, line?: string) => {
         if (!b) {
@@ -358,20 +356,17 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
     };
     const lineRow = (line: string | undefined, memberId: string | undefined): TableRow | undefined => {
         let soFar = 0;
-        let done = 0;
         let seen = false;
         for (const [s, b] of daily) {
             if (s >= monthStart) {
                 soFar += sumOf(b, line);
-                done += s < today ? sumOf(b, line) : 0;
                 seen ||= line === undefined ? b.n > 0 : (b.dims?.[line]?.n ?? 0) > 0;
             }
         }
         if (!seen) {
             return undefined;
         }
-        const elapsed = (today - monthStart) / DAY;
-        const projected = elapsed === 0 ? soFar : (done / elapsed) * monthDays;
+        const projected = projectMonth((t) => sumOf(daily.get(t), line), reads.now);
         const budget = memberId ? (reads.config(memberId).ok?.[1] ?? null) : null;
         const trend = Array.from({ length: days }, (_, i) => {
             const b = daily.get(today - (days - 1 - i) * DAY);

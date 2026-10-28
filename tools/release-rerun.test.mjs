@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
+import { retry } from "./full-run.mjs";
 import { decide, modeOf } from "./release-rerun.mjs";
 
 const full = {
@@ -27,6 +28,31 @@ describe("decide", () => {
             decide({ ...full, failed: ["CI / test (graphty-1)", "CI / All Checks Pass", "Re-capture (graphty)"] }),
             "rerun",
         );
+    });
+    it("re-runs a full run that ended cancelled because a CI job hit its timeout (run 40448487922)", () => {
+        const timedOut = {
+            ...full,
+            title: "Release (restart)",
+            conclusion: "cancelled",
+            record: { deferred: true, red: ["ci"] },
+            failed: [
+                "CI / Story tests (graph-io-fidelity)",
+                "CI / visual (graph-io-fidelity)",
+                "CI / Story tests parity (graphty)",
+            ],
+        };
+        assert.equal(decide(timedOut), "rerun");
+        assert.equal(decide({ ...timedOut, conclusion: "timed_out" }), "rerun");
+        assert.equal(decide({ ...timedOut, failed: [...timedOut.failed, "Publish the release"] }), "file");
+        assert.equal(
+            decide({ ...timedOut, record: null }),
+            "none",
+            "cancelled before the verdict: release-watch announces",
+        );
+    });
+    it("re-runs a GPU run that lost its runner only when it failed, never one that was cancelled", () => {
+        const gpu = { ...full, workflow: "GPU", title: "GPU", lostRunner: () => true };
+        assert.equal(decide({ ...gpu, conclusion: "cancelled" }), "none");
     });
     it("never re-runs a second attempt, a success, or a verdict that decided at once", () => {
         assert.equal(decide({ ...full, attempt: 2 }), "none");
@@ -54,6 +80,26 @@ describe("decide", () => {
             assert.equal(decide({ ...full, ...o, lostRunner: () => true }), "rerun");
         }
     });
+    it("re-runs only the Verdict job once when it failed after a verdict that is not red (a screenshot gate error)", () => {
+        const decided = { ...full, record: { deferred: false, state: "green-clean", red: [] }, failed: ["Verdict"] };
+        assert.equal(decide(decided), "rerun");
+        assert.equal(decide({ ...decided, record: { ...decided.record, state: "green-images" } }), "rerun");
+        assert.equal(
+            decide({ ...decided, record: { deferred: false, state: "red", red: ["ci"] } }),
+            "none",
+            "filed already",
+        );
+        assert.equal(decide({ ...decided, failed: ["Verdict", "Publish the release"] }), "none");
+        assert.equal(decide({ ...decided, attempt: 2 }), "none", "once");
+    });
+    it("files attempt 1's deferred red when the re-run attempt was cancelled before its verdict (replaced while pending)", () => {
+        const replaced = { ...full, attempt: 2, conclusion: "cancelled", failed: [] };
+        assert.equal(decide(replaced), "file");
+        assert.equal(decide({ ...replaced, record2: { deferred: false, state: "red" } }), "none", "attempt 2 decided");
+        assert.equal(decide({ ...replaced, record: { deferred: false, state: "red" } }), "none");
+        assert.equal(decide({ ...replaced, conclusion: "failure" }), "none");
+        assert.equal(decide({ ...replaced, title: "Release (legacy)" }), "none");
+    });
     it("reads the mode from the run's display title", () => {
         assert.equal(modeOf("Release (candidate)"), "candidate");
         assert.equal(modeOf("GPU"), "");
@@ -61,7 +107,15 @@ describe("decide", () => {
 });
 
 // main() in a directory whose gh and tools/ are stubs that log how they were called
-function runMain({ failed, rerunFails, record }) {
+function runMain({
+    failed,
+    rerunFails,
+    record,
+    downloadFails = false,
+    attempt = "1",
+    conclusion = "failure",
+    fixed = "",
+}) {
     const dir = mkdtempSync(join(tmpdir(), "release-rerun-"));
     const log = join(dir, "calls.log");
     writeFileSync(log, "");
@@ -73,15 +127,21 @@ function runMain({ failed, rerunFails, record }) {
         [
             "#!/bin/bash",
             `echo "gh $*" >> "${log}"`,
+            // the artifact listing: verdict-1 exists when the test gives a record, verdict-2 never
+            `if [ "$1" = api ] && [[ "$2" == *artifacts?name=verdict-1 ]]; then echo ${record ? 1 : 0}; exit 0; fi`,
+            `if [ "$1" = api ] && [[ "$2" == *artifacts* ]]; then echo 0; exit 0; fi`,
             `if [ "$1" = api ]; then printf '%s\\n' ${failed.map((j) => `'${j}'`).join(" ")}; exit 0; fi`,
-            `if [ "$1 $2" = "run download" ]; then while [ $# -gt 0 ]; do [ "$1" = -D ] && cp "${join(dir, "record.json")}" "$2/verdict-1.json"; shift; done; exit 0; fi`,
+            `if [ "$1 $2" = "run download" ]; then ${downloadFails ? 'echo "HTTP 502" >&2; exit 1' : `while [ $# -gt 0 ]; do [ "$1" = -D ] && mkdir -p "$2" && cp "${join(dir, "record.json")}" "$2/verdict-1.json"; shift; done; exit 0`}; fi`,
             `if [ "$1 $2" = "run rerun" ]; then exit ${rerunFails ? 1 : 0}; fi`,
         ].join("\n"),
         { mode: 0o755 },
     );
     const stub = (name) =>
-        `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(log)}, \`${name} \${process.argv.slice(2).join(" ")} \${process.env.ONLY_IF_FREE ?? ""} \${process.env.SHA ?? ""}\\n\`);\n`;
-    writeFileSync(join(dir, "tools", "full-run.mjs"), stub("full-run"));
+        `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(log)}, \`${name} \${process.argv.slice(2).join(" ")} \${process.env.SHA ?? ""}\\n\`);\n`;
+    writeFileSync(
+        join(dir, "tools", "full-run.mjs"),
+        stub("full-run") + (fixed ? `console.log(${JSON.stringify(`fixed=${fixed}`)});\n` : ""),
+    );
     writeFileSync(join(dir, "tools", "release-status.mjs"), stub("release-status"));
     writeFileSync(join(dir, "tools", "channel", "hold.mjs"), stub("hold"));
     const r = spawnSync(process.execPath, [new URL("./release-rerun.mjs", import.meta.url).pathname], {
@@ -93,8 +153,10 @@ function runMain({ failed, rerunFails, record }) {
             RUN: "9",
             WORKFLOW: "Release",
             TITLE: "Release (full)",
-            ATTEMPT: "1",
-            CONCLUSION: "failure",
+            ATTEMPT: attempt,
+            CONCLUSION: conclusion,
+            // no waits between retries in a test
+            RELEASE_RERUN_RETRY_MS: "0",
             RUN_URL: "https://run",
             HEAD_SHA: "a".repeat(40),
             GITHUB_REPOSITORY: "o/r",
@@ -111,20 +173,62 @@ describe("a red run that is not re-run", () => {
         assert.equal(r.status, 0);
         assert.doesNotMatch(r.calls, /gh run rerun/);
         assert.match(r.calls, /^full-run file-deferred /m);
-        assert.match(r.calls, new RegExp(`^hold start true ${"a".repeat(40)}$`, "m"));
+        assert.match(r.calls, new RegExp(`^hold start ${"a".repeat(40)}$`, "m"));
     });
     it("does the same when the re-run itself could not start", () => {
         const r = runMain({ failed: ["T4 GPU / T4 tests"], rerunFails: true, record });
         assert.equal(r.status, 0);
         assert.match(r.calls, /gh run rerun 9 --failed/);
-        assert.match(r.calls, /^hold start true /m);
+        assert.match(r.calls, /^hold start a/m);
     });
     it("starts no hold for a held head past its commit", () => {
         const r = runMain({ failed: ["Merge fixes into the held candidate"], record: { ...record, forward: true } });
         assert.doesNotMatch(r.calls, /^hold /m);
     });
+    it("files attempt 1's deferred red when the re-run attempt was cancelled while pending", () => {
+        const r = runMain({ failed: ["T4 GPU / T4 tests"], record, attempt: "2", conclusion: "cancelled" });
+        assert.equal(r.status, 0);
+        assert.doesNotMatch(r.calls, /gh run rerun/);
+        assert.match(r.calls, /^full-run file-deferred .*verdict-1\.json/m);
+    });
+    it("holds and announces nothing when a merged fix cancelled the re-run attempt to restart (release-due)", () => {
+        const r = runMain({
+            failed: ["T4 GPU / T4 tests"],
+            record,
+            attempt: "2",
+            conclusion: "cancelled",
+            fixed: "77",
+        });
+        assert.equal(r.status, 0);
+        assert.match(r.calls, /^full-run file-deferred /m);
+        assert.doesNotMatch(r.calls, /^(hold|release-status) /m);
+    });
+    it("fails, deciding nothing, when the verdict record cannot be downloaded (a GitHub 5xx is not 'no record')", () => {
+        const r = runMain({ failed: ["T4 GPU / T4 tests"], record, downloadFails: true });
+        assert.notEqual(r.status, 0);
+        assert.doesNotMatch(r.calls, /^(hold|full-run) /m);
+        assert.equal(r.calls.match(/gh run download/g).length, 3, "tried three times");
+    });
     it("a re-run that starts holds nothing: the second attempt decides", () => {
         const r = runMain({ failed: ["T4 GPU / T4 tests"], record });
         assert.doesNotMatch(r.calls, /^(hold|full-run) /m);
+    });
+});
+
+describe("retry", () => {
+    it("tries again after a failure and gives up after the third", () => {
+        let n = 0;
+        assert.equal(
+            retry(() => {
+                if (++n < 3) throw new Error("HTTP 502");
+                return "ok";
+            }, [0, 0]),
+            "ok",
+        );
+        assert.throws(() =>
+            retry(() => {
+                throw new Error("HTTP 502");
+            }, [0, 0]),
+        );
     });
 });

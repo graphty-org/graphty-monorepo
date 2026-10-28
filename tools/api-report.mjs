@@ -161,6 +161,16 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "origin",
     "loadedAt",
     "username",
+    // a 3D model reference exactly as a style layer wrote it: a model id or a URL
+    "ref",
+    // where a model or picture came from, as the consumer gave it: its address, the address's host,
+    // and a dropped file's own name and folder path
+    "url",
+    "host",
+    "fileName",
+    "webkitRelativePath",
+    // the name of a source's credential slot, an identifier its descriptor declares ("api_key")
+    "slot",
     // the consumer's own words handed back: a style folder's name (StyleDocumentRow.folder) and the
     // text a reader typed into a find (FindContainsRow.text)
     "folder",
@@ -172,6 +182,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "latitude",
     "longitude",
     "within",
+    // the name of the credential slot a load filled, an identifier its source's descriptor declares
+    "credentialSlot",
 ]);
 
 const DECLARATION =

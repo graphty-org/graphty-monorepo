@@ -166,6 +166,45 @@ describe("ingest: who may write", () => {
     });
 });
 
+describe("ingest: benchmarks", () => {
+    // ci.yml's Performance Benchmarks job in a full run: release.yml calls it on master.
+    const full = (run: string) => ({
+        ...CI_CLAIMS,
+        event_name: "workflow_dispatch",
+        run_id: run,
+        ref: "refs/heads/master",
+        job_workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/ci.yml@refs/heads/master",
+    });
+    // tools/results/post-benchmarks.mjs's body
+    const body = (ms: number) => ({
+        source: "algorithms",
+        unit: "ms",
+        sha: "abc",
+        rows: [{ name: "PageRank n=1000", value: ms }],
+    });
+
+    it("keeps each benchmark's results, one per run, and refuses a pull request's", async () => {
+        const h = await ingest();
+        expect((await h(event("/v1/benchmarks", body(4)))).statusCode).toBe(403);
+        expect((await h(event("/v1/benchmarks", body(4), { claims: full("600") }))).statusCode).toBe(200);
+        expect((await h(event("/v1/benchmarks", body(5), { claims: full("601") }))).statusCode).toBe(200);
+        // a retried post of run 601 replaces its own result
+        expect((await h(event("/v1/benchmarks", body(6), { claims: full("601") }))).statusCode).toBe(200);
+        const item = await mem.get({ pk: "BENCH", sk: "algorithms: PageRank n=1000" });
+        expect(item?.points).toEqual([
+            { at: NOW, v: 4, run: 600, sha: "abc" },
+            { at: NOW, v: 6, run: 601, sha: "abc" },
+        ]);
+        expect(
+            (
+                await h(
+                    event("/v1/benchmarks", { ...body(1), rows: [{ name: "x", value: -1 }] }, { claims: full("602") }),
+                )
+            ).statusCode,
+        ).toBe(400);
+    });
+});
+
 describe("ingest: what it stores", () => {
     it("stores a shard run and its failures, and a retried post replaces them", async () => {
         const h = await ingest();
@@ -181,6 +220,17 @@ describe("ingest: what it stores", () => {
         const run = mem.items.get("R#shard_run#500.1.graphty-element-browser-3\u0000A#1");
         expect(run).toMatchObject({ family: "graphty-element-browser", bin: true, source: "ci" });
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(true);
+    });
+
+    it("does not count a Story tests capture (the shots shape) as a pull request bin", async () => {
+        const h = await ingest();
+        const body = invocation({
+            id: "500.1.graphty-storybook-shots",
+            variant: "graphty-storybook-shots|flags=off|shots",
+        });
+        expect((await h(event("/v1/invocations", body))).statusCode).toBe(200);
+        const run = mem.items.get("R#shard_run#500.1.graphty-storybook-shots\u0000A#1");
+        expect(run).toMatchObject({ bin: false, source: "ci" });
     });
 
     it("answers 400 when DynamoDB refuses a row's content, so the local collector splits and skips it", async () => {

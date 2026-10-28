@@ -21,6 +21,7 @@ import {
     type GraphSession,
     GraphtyError,
     type GraphtyErrorCode,
+    type GraphtyWarningCode,
     type ReadableValue,
 } from "@graphty/graphty-element/session";
 
@@ -254,6 +255,13 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.size": "Size",
     "node.sizeMode": "Size mode",
     "node.shape": "Shape",
+    "node.model": "Model",
+    "node.modelSourceUp": "Model up axis",
+    "node.modelTurn": "Model turn",
+    "node.modelTint": "Use node color",
+    "node.modelFit": "Model fit",
+    "node.modelCenter": "Model center",
+    "node.texture": "Texture",
     "node.label": "Label",
     "node.labelStyle": "Label style",
     "node.labelColor": "Label color",
@@ -533,6 +541,22 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOffsetY": "Label offset y",
     "edge.labelShiftX": "Label shift x",
     "edge.labelShiftY": "Label shift y",
+    "node.groupPadding": "Group padding",
+    "node.groupPaddingRatio": "Group padding ratio",
+    "node.groupPaddingOf": "Group padding of",
+    "node.groupMinWidth": "Group min width",
+    "node.groupMinWidthBiasLeft": "Group min width bias left",
+    "node.groupMinHeight": "Group min height",
+    "node.groupMinHeightBiasTop": "Group min height bias top",
+    "node.groupIncludeLabels": "Group includes labels",
+    "edge.sourceNodeGap": "Source node gap",
+    "edge.targetNodeGap": "Target node gap",
+    "edge.supportModel": "Support model",
+    "edge.supportUnit": "Support unit",
+    "edge.supportSpringLength": "Support spring length",
+    "edge.supportSpringConstant": "Support spring constant",
+    "edge.supportRepulsion": "Support repulsion",
+    "edge.supportCentralGravity": "Support central gravity",
 };
 
 /**
@@ -814,6 +838,87 @@ export function matchesWordStart(name: string, query: string): boolean {
             .split(/[^a-z0-9]+/)
             .some((word) => word.startsWith(q)) || name.toLowerCase().startsWith(q)
     );
+}
+
+/** Every code graphty-element reports about a model. */
+type ModelCode = Extract<GraphtyErrorCode | GraphtyWarningCode, `E_MODEL_${string}` | `W_MODEL_${string}`>;
+
+/**
+ * A param as text, cut short.
+ * @param value - the param.
+ * @returns the text.
+ */
+function said(value: CodedFact["params"][string] | undefined): string {
+    if (Array.isArray(value)) {
+        return value.map(String).join(", ");
+    }
+    return value === undefined || value === null ? "" : String(value);
+}
+
+/**
+ * A number of things as a reader reads it: "4,200,000".
+ * @param value - the param.
+ * @returns the text.
+ */
+function amount(value: CodedFact["params"][string] | undefined): string {
+    return typeof value === "number" ? value.toLocaleString() : said(value);
+}
+
+/** What the app says for each model code. Typed over the element's codes, so a new one fails to compile here. */
+const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string>> = {
+    E_MODEL_FETCH: (p) =>
+        typeof p.status === "number"
+            ? `Could not download ${said(p.url)} (${String(p.status)}).`
+            : "The server did not answer or does not share its files with other sites. Download the model and drop it here.",
+    E_MODEL_URL_BLOCKED: (p) => `This style loads a model from ${said(p.hosts)}, which is not allowed here.`,
+    E_MODEL_TOO_LARGE: (p) =>
+        `This model is too large: ${amount(p.found)} ${said(p.what)}, the limit is ${amount(p.limit)}. Pick a lighter one.`,
+    E_MODEL_STRUCTURE: () => "The model file is damaged.",
+    E_MODEL_FORMAT_UNSUPPORTED: (p) =>
+        `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
+    E_MODEL_FORMAT_UNKNOWN: (p) => `${said(p.fileName) || "This file"} is not a 3D model file graphty knows.`,
+    E_MODEL_AMBIGUOUS: (p) => `Which one is the model? ${said(p.candidates)}. Drop just one of them.`,
+    E_MODEL_MISSING_FILE: (p) =>
+        `${said(p.referencedBy) || "The model"} needs ${said(p.name)}. Drop the whole folder or a .zip, or export as .glb.`,
+    E_MODEL_PART_AMBIGUOUS: (p) =>
+        `More than one file could be ${said(p.name)}: ${said(p.candidates)}. Drop just the one the model uses.`,
+    E_MODEL_WEB_PAGE: (p) =>
+        typeof p.suggested === "string"
+            ? `That address is a web page, not a model. Try ${p.suggested}.`
+            : "That address is a web page, not a model. Use the address of the file itself.",
+    E_MODEL_PART_REQUIRED: (p) => `The model cannot be drawn without ${said(p.name)}.`,
+    E_MODEL_EXTERNAL_URL: () => "This model loads parts from somewhere else, which is not allowed. Export it as .glb.",
+    E_MODEL_DECODER_UNAVAILABLE: () => "This model is compressed in a way this page cannot read yet.",
+    E_MODEL_PARSE: (p) => `The file is damaged or not a valid ${said(p.format).toUpperCase() || "model"}.`,
+    E_MODEL_ZIP: () => "The .zip could not be opened.",
+    E_MODEL_NAME_TAKEN: (p) => `A different model is already called ${said(p.id).replace(/^asset:/, "")}.`,
+    E_MODEL_UNKNOWN_ASSET: () => "This style needs a model that is not here. Add the model file again.",
+    E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
+    W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
+    W_MODEL_HAS_ANIMATIONS: () => "This model has animations; they do not play yet.",
+    W_MODEL_COLOR_IGNORED: () => "The model keeps its own colors. Use node color to paint it.",
+    W_MODEL_HEAVY: (p) => `This model is detailed; with ${amount(p.nodes)} nodes the graph may be slow.`,
+    W_MODEL_BUDGET: (p) => `The graph draws ${amount(p.triangles)} triangles and may be slow.`,
+    W_MODEL_TRANSPARENT: () => "See-through parts may look wrong where models overlap.",
+    W_MODEL_TEXTURES_REDUCED: () => "Some pictures on the model are drawn smaller.",
+    W_MODEL_NOT_EMBEDDED: () => "This project names a model it does not carry; others may not be able to open it.",
+    W_MODEL_CHANGED: (p) => `The file at ${said(p.url)} changed since this project was saved.`,
+    W_MODEL_PART_SUBSTITUTED: (p) => `Used ${said(p.used)} for ${said(p.name)}.`,
+    W_MODEL_PART_SKIPPED: (p) => `The model is drawn without ${said(p.name)}.`,
+    W_MODEL_PART_UNUSED: (p) => `${said(p.fileName) || "A file"} is not part of this model.`,
+    W_MODEL_NOT_KEPT_BY_URL: () => "This model's files came from several places, so the project carries them.",
+};
+
+/**
+ * What the app says about a model, from the element's coded problem.
+ * @param fact - the problem.
+ * @returns one or two short sentences.
+ */
+export function modelWords(fact: CodedFact): string {
+    const words = (MODEL_WORDS as Readonly<Record<string, ((p: CodedFact["params"]) => string) | undefined>>)[
+        fact.code
+    ];
+    return words === undefined ? "The model could not be drawn." : words(fact.params);
 }
 
 /** Compares names as a reader counts: GAL2 before GAL10. */

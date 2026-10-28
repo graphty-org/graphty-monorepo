@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { type CostItem, DAILY_ROW_LIMIT, DAY, floorTo, type RawItem } from "../../src/model/items.js";
+import {
+    type CostItem,
+    DAILY_ROW_LIMIT,
+    DAY,
+    floorTo,
+    type RawItem,
+    type ShardRunItem,
+} from "../../src/model/items.js";
 import { putRaw, recordSource, takeQuota } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { type MemberConfig, type SlaConfig, SLAS } from "../../src/sla/config.js";
-import { evaluate } from "../../src/sla/engine.js";
+import { evaluate, projectMonth } from "../../src/sla/engine.js";
 import { HOUR, job, MIN, obs, pr, run, T0 } from "../model/helpers.js";
 
 const LIVE = ["collector", "ci-results", "release", "npm", "billing", "coverage"];
@@ -83,6 +90,18 @@ describe("thresholds", () => {
         );
     });
 
+    it("auto-merge: green but not merging is red at 2, armed too long allows 1 and is red at 4", async () => {
+        const at = T0 - 2 * MIN;
+        const state = async (metric: string, v: number, id: string) =>
+            (await member(await world([obs(metric, v, at)]), id)).state;
+        expect(await state("pr.automerge_green_stuck", 0, "pr.automerge_green_stuck")).toBe("OK");
+        expect(await state("pr.automerge_green_stuck", 1, "pr.automerge_green_stuck")).toBe("WARNING");
+        expect(await state("pr.automerge_green_stuck", 2, "pr.automerge_green_stuck")).toBe("FAILING");
+        expect(await state("pr.automerge_armed_long", 1, "pr.automerge_armed_long")).toBe("OK");
+        expect(await state("pr.automerge_armed_long", 3, "pr.automerge_armed_long")).toBe("WARNING");
+        expect(await state("pr.automerge_armed_long", 4, "pr.automerge_armed_long")).toBe("FAILING");
+    });
+
     it("green time is the share of the hour master was not red", async () => {
         const red = (ms: number) => [0, 1, 2, 3].map((i) => obs("master.red_ms", ms / 4, T0 - (5 + i * 5) * MIN));
         expect((await member(await world(red(4 * MIN)), "master.green_time")).state).toBe("OK");
@@ -133,6 +152,78 @@ describe("thresholds", () => {
         expect(t4.state).toBe("FAILING");
         expect((await member(store, "cost.llm")).value).toBe(0);
     });
+
+    it("T4: the 200 USD budget is red past 200, amber from 180", async () => {
+        const monthStart = Date.UTC(2026, 9, 1);
+        const days = (floorTo(T0, "1d") - monthStart) / DAY;
+        // A flat daily spend projected over 31 days.
+        const t4At = async (perDay: number) => {
+            const lines: CostItem[] = Array.from({ length: days }, (_, d) => ({
+                kind: "cost",
+                id: `t4#${d}`,
+                attempt: 1,
+                line: "t4",
+                day: monthStart + d * DAY,
+                usd: perDay,
+            }));
+            return member(await world(lines), "cost.t4");
+        };
+        expect((await t4At(5.5)).state).toBe("OK"); // about 170
+        expect((await t4At(6.2)).state).toBe("WARNING"); // about 192
+        const red = await t4At(7);
+        expect(red.value).toBeGreaterThan(200);
+        expect(red.value).toBeLessThan(240);
+        expect(red.state).toBe("FAILING");
+    });
+
+    it("projects from the trailing 7 days, not the month-to-date average", async () => {
+        // October's T4 line as the job list prices it: $162 in its first week (the GPU triggers since removed), then
+        // a few dollars a day.
+        const monthStart = Date.UTC(2026, 9, 1);
+        const early = [10.48, 27.11, 24.71, 28.69, 17.0, 53.91];
+        const usd = (d: number) => early[d] ?? 2;
+        const lines: CostItem[] = Array.from({ length: 24 }, (_, d) => ({
+            kind: "cost",
+            id: `t4#${d}`,
+            attempt: 1,
+            line: "t4",
+            day: monthStart + d * DAY,
+            usd: usd(d),
+        }));
+        const spent = lines.reduce((a, l) => a + l.usd, 0);
+        const t4 = await member(await world(lines), "cost.t4");
+        // Spent through the 24th, then 7 days left (the 25th to the 31st) at $2 a day.
+        expect(t4.value).toBeCloseTo(spent + 7 * 2);
+        // The month-to-date average carried the first week to the month's end.
+        expect((spent / 24) * 31).toBeGreaterThan(200);
+        expect(projectMonth((t) => (t < monthStart ? 0 : usd((t - monthStart) / DAY)), T0)).toBeCloseTo(spent + 14);
+    });
+
+    it("judges full-run shards by the events' median against their budget, not by a histogram bin", async () => {
+        const shard = (variant: string, i: number, secs: number): ShardRunItem => ({
+            kind: "shard_run",
+            id: `40400000000.1.${variant}.${i}`,
+            attempt: 1,
+            source: "ci",
+            variant,
+            family: variant.split("|")[0],
+            bin: false,
+            full: true,
+            sha: "abc",
+            outcome: "passed",
+            startedAt: T0 - (i + 1) * HOUR - secs * 1000,
+            endedAt: T0 - (i + 1) * HOUR,
+            secs,
+            files: [],
+        });
+        // Under the 900 s budget, but in the histogram bin whose middle is 932 s; and one really over it.
+        const under = [861, 870, 880, 885, 890].map((s, i) =>
+            shard("webgpu-graph-algorithms-node|flags=off|whole", i, s),
+        );
+        const over = [940, 950, 960, 980, 990].map((s, i) => shard("graphty-storybook-shots|flags=off|shots", i, s));
+        const m = await member(await world([...under, ...over]), "ci.full_shards_over_budget");
+        expect(m.value).toBe(1);
+    });
 });
 
 describe("data states", () => {
@@ -150,11 +241,35 @@ describe("data states", () => {
         expect(e.categories.find((c) => c.id === "ci")).toMatchObject({ state: "NO DATA", setBy: "ci.hangs" });
     });
 
-    it("a rejected token is NO DATA with its error", async () => {
-        const store = await world([]);
+    it("a rejected token is NO DATA with its error once its last good write is past the age limit", async () => {
+        const store = await world(
+            [],
+            T0,
+            LIVE.filter((s) => s !== "npm"),
+        );
+        await recordSource(store, "npm", T0 - 4 * HOUR, { ok: true }); // npm's limit is 3 h
         await recordSource(store, "npm", T0, { ok: false, error: "token rejected" });
         const m = await member(store, "release.tagged_not_on_npm");
         expect(m).toMatchObject({ state: "NO DATA", reason: { code: "error", params: { error: "token rejected" } } });
+    });
+
+    it("a source error within the age limit keeps the member's value, marked stale since the last good write", async () => {
+        // The 2026-10-27 GitHub 502s: one failed collector cycle grayed every member that reads the collector.
+        const store = await world(hangs(4));
+        await recordSource(store, "collector", T0 + 5 * MIN, { ok: false, error: "GitHub jobs: HTTP 502" });
+        const e = await evaluate(store, T0 + 5 * MIN, only("ci.hangs", "data.sources_age"));
+        expect(e.members.find((m) => m.id === "ci.hangs")).toMatchObject({
+            state: "FAILING",
+            judged: true,
+            value: 4,
+            reason: { code: "stale", params: { source: "collector", since: T0 } },
+        });
+        expect(e.sources.find((s) => s.id === "collector")).toMatchObject({ state: "error", holding: true });
+        expect(e.members.find((m) => m.id === "data.sources_age")).toMatchObject({ state: "OK", value: 0 });
+        // Past the collector's 15-minute limit with no good write, the member grays.
+        await recordSource(store, "collector", T0 + 20 * MIN, { ok: false, error: "GitHub jobs: HTTP 502" });
+        const later = await member(store, "ci.hangs", T0 + 20 * MIN);
+        expect(later).toMatchObject({ state: "NO DATA", reason: { code: "error" } });
     });
 
     it("idle by design is IDLE, out of the rollup, while a broken source is NO DATA", async () => {
@@ -311,8 +426,8 @@ describe("episodes", () => {
     it("a state member's episode runs from its first bad step until it is OK again", async () => {
         const items = [
             obs("pr.open", 10, T0 - 3 * HOUR),
-            obs("pr.open", 20, T0 - 2 * HOUR),
-            obs("pr.open", 30, T0 - 90 * MIN),
+            obs("pr.open", 25, T0 - 2 * HOUR),
+            obs("pr.open", 35, T0 - 90 * MIN),
             obs("pr.open", 10, T0 - 30 * MIN),
         ];
         const e = await evaluate(await world(items), T0, only("pr.open"));
@@ -324,7 +439,7 @@ describe("episodes", () => {
                 start: T0 - 2 * HOUR,
                 clearedAt: T0 - 30 * MIN,
                 endedAt: T0 - 30 * MIN,
-                peak: 30,
+                peak: 35,
             },
         ]);
     });

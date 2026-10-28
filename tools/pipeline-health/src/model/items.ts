@@ -66,6 +66,8 @@ export interface RunItem extends RawBase {
     cancelClass?: "superseded" | "by-hand" | "red";
     /** Why a failed attempt-1 pull request run failed (4, "Failure cause"); flaky once a rerun passed. */
     cause?: "infrastructure" | "shared_aggregator" | "shared_check" | "flaky" | "change";
+    /** A finished attempt-1 ci.yml pull request run: it failed on a test its change touched (pr-caused.ts). */
+    prCaused?: boolean;
     /** The run's kind for its duration budget (`pr`, `pr-wide`), and that budget. */
     runKind?: string;
     budgetMs?: number;
@@ -304,6 +306,8 @@ export interface Agg {
     sum: number;
     /** Durations, when the metric has them. */
     hist?: Histogram;
+    /** The durations themselves, for a metric of few events that asks for exact medians (Contribution.exact). */
+    vals?: number[];
     /** Peak. */
     max?: number;
     /** A stock's end-of-bucket value, and when it was observed. */
@@ -355,4 +359,6 @@ export interface SourceItem extends Item {
     lastOkAt?: number;
     error?: string;
     errorSince?: number;
+    /** The newest OK write skipped these items (one GitHub request that kept failing); the rest was written. */
+    partial?: string;
 }

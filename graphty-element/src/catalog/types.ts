@@ -25,6 +25,7 @@ import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { LabelStyle } from "./label-style";
+import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
 
 /**
@@ -710,6 +711,21 @@ export type Channel =
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.model"
+    | "node.modelSourceUp"
+    | "node.modelTurn"
+    | "node.modelTint"
+    | "node.modelFit"
+    | "node.modelCenter"
+    | "node.texture"
+    | "node.groupPadding"
+    | "node.groupPaddingRatio"
+    | "node.groupPaddingOf"
+    | "node.groupMinWidth"
+    | "node.groupMinHeight"
+    | "node.groupMinWidthBiasLeft"
+    | "node.groupMinHeightBiasTop"
+    | "node.groupIncludeLabels"
     | "edge.color"
     | "edge.width"
     | "edge.minScreenWidth"
@@ -740,9 +756,17 @@ export type Channel =
     | "edge.fanned"
     | "edge.bendCurve"
     | "edge.arcRadius"
+    | "edge.supportModel"
+    | "edge.supportSpringLength"
+    | "edge.supportSpringConstant"
+    | "edge.supportRepulsion"
+    | "edge.supportCentralGravity"
+    | "edge.supportUnit"
     | "edge.route"
     | "edge.arcHeight"
     | "edge.nodeGap"
+    | "edge.sourceNodeGap"
+    | "edge.targetNodeGap"
     | "edge.sourcePort"
     | "edge.targetPort"
     | "edge.arrowHead"
@@ -2203,6 +2227,11 @@ export interface CatalogApi {
      * and license. Supplied by @graphty/graph-samples.
      */
     datasets(): readonly DatasetMeta[];
+    /**
+     * Every sample 3D model graphty-element ships, which a style layer names in `node.model`
+     * (`"asset:sample/server"`) without adding a file, with a plain name and a thumbnail picture.
+     */
+    models(): readonly ModelDescriptor[];
     /**
      * Every screenshot preset `captureScreenshot({ preset })` takes, with the size, format and
      * background each sets, so an export dialog can show them. Static; also published as

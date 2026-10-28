@@ -238,6 +238,7 @@ those too, in plain sentences, and changes nothing.
 | [style.md](style.md) | [style.schema.json](style.schema.json) | The style member: layers, selectors, encodings, carried palettes |
 | [recipe.md](recipe.md) | [recipe.schema.json](recipe.schema.json) | The recipe member: its commands, how it binds to a new graph's columns, how it replays and is recorded |
 | [notes.md](notes.md) | [notes.schema.json](notes.schema.json) | The notes member: people's notes about a graph, how they are saved, and how opening them merges |
+| [assets.md](assets.md) | [assets.schema.json](assets.schema.json) | The assets member: the 3D model files a style names, embedded as given, checked against their digest on read |
 | [sources.md](sources.md) | [sources.schema.json](sources.schema.json) | The sources member: every load in a project's graph (file, URL, network source, sample), per-element provenance, credential slots, reopening and rebuilding |
 | [export-mapping.md](export-mapping.md) | -- | How styles and results are written into other tools' formats |
 | [conformance.md](conformance.md) | -- | The edge-case rulings: input, expected result, the rule each follows; each row becomes a test |
@@ -418,7 +419,8 @@ opening budget through `openDocument`'s `limits` and `openingSeconds`; the impor
 in a session that draws nothing.
 
 - a file of at most 64 MB, nested at most 64 levels deep, checked before it is parsed; the same two
-  limits hold for every JSON import;
+  limits hold for every JSON import. A project file (`session.project.open`) may be up to 256 MiB,
+  because it may embed up to 64 MB of model files (assets.md), about 85 MB as base64;
 - no member name `__proto__` and no object with the same member name twice (`E_BAD_DOCUMENT`);
 - at most 64 members; 1,000 style layers in the file; per style 100 carried palettes of at most 256
   colours; per recipe 1,000 commands;
@@ -518,7 +520,6 @@ codes:
 | `E_UNKNOWN_COMMAND` | a recipe command whose `op` this reader does not know; details name the nearest known `op` |
 | `E_DEPENDENCY_SKIPPED` | a command skipped because a command it reads, or a filter before it, was skipped |
 | `E_REPEAT_APPLICATION` | a recipe or style opened again where `onRepeat` refuses it |
-| `E_SOURCE_CHANGED` | a file supplied to rebuild a steps-only load has another SHA-256 than the load recorded; details `{ id, expected, found }` (sources.md, "Reopening" rule 3) |
 
 A new published `GraphtyWarningCode` union, for notices that stop nothing:
 
@@ -526,7 +527,7 @@ A new published `GraphtyWarningCode` union, for notices that stop nothing:
 | Code | When |
 | --- | --- |
 | `W_UNKNOWN_MEMBER` | an object member this reader does not know, ignored; the JSON pointer names it |
-| `W_UNKNOWN_KIND` | a member of a kind this reader does not know, skipped and kept on save |
+| `W_UNKNOWN_KIND` | a member of a kind this reader does not know, skipped and kept on save, details `{ index, kind }`; or a `graphty-sources` entry of a kind it does not know, kept and never run, details `{ kind, pointer, found }` (sources.md, "Reading" rule 3) |
 | `W_COLUMN_TYPE` | a column compared with or scaled as a number holds values that are not finite numbers; details `{ column, count }` |
 | `W_DIRECTION_DIFFERS` | the graph's direction differs from the recipe's, or a directed graph looks undirected |
 | `W_PARALLEL_EDGES` | a graph holds repeated edges where the recipe's did not, or most pairs of an undirected graph twice |
@@ -541,9 +542,10 @@ A new published `GraphtyWarningCode` union, for notices that stop nothing:
 | `W_GRAPHTY_NOTES` | an export left out the session's notes; `count` is the number of notes (export-mapping.md, "Notes") |
 | `W_GRAPHTY_TRUNCATED` | an exported `graphty.notes.text` cell was cut to 64 KB (export-mapping.md, "Notes") |
 | `W_GRAPHTY_*` | the loss notes of an export (export-mapping.md) |
-| `W_SOURCE_CHANGED` | a load run again read other data than it recorded; details `{ id, via }` (sources.md, "Reopening" rule 3) |
-| `W_SOURCE_URL_REDACTED` | a save left query parameters that name a credential out of a URL load's address; details `{ id, names }` (sources.md, "URLs" rule 2) |
-| `W_SOURCE_STEPS_IGNORED` | a sources member says `data: "steps"` but the file embeds that graph; the data applied; details `{ graph }` |
+| `W_SOURCE_URL_REDACTED` | a save left values that name a credential out of the sources member: a URL load's query parameters, or a network load's endpoint, cursor or REST mapping members; details `{ id, names }` (sources.md, "URLs" rule 2, "Network loads" rules 3 and 4) |
+| `W_SOURCE_STEPS_IGNORED` | a sources member says `data: "steps"` but the file embeds that graph; the data applied; details `{ kind, pointer, graph }`, `graph` null for the file's one graph |
+| `W_SOURCE_UNREGISTERED` | a sources entry names a network source this release has not registered; kept, not offered; details `{ kind, pointer, id, source }` (sources.md, "Reopening" rule 4) |
+| `W_VERSION_UPGRADED` | a member of an older version was read and upgraded; a save writes the new version; details `{ kind, pointer, found, version }` |
 
 `E_TOO_LARGE` and `E_CAP_EXCEEDED` are widened to the document limits and the recipe budgets, and
 `E_UNKNOWN_FORMAT` to "this JSON text is not a graphty document", with `details.available` listing

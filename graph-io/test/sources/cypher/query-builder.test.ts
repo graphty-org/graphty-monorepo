@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { credentials, loadFromSource, replayFetch } from "../../../src/index.js";
 import { cypherIdentifier } from "../../../src/sources/cypher/index.js";
 import { neo4jProfile, neptuneProfile } from "../../../src/sources/cypher/profiles.js";
-import { edgePage, neighborhood, nodePage } from "../../../src/sources/cypher/query-builder.js";
+import { edgePage, edgesAmong, neighborhood, nodePage } from "../../../src/sources/cypher/query-builder.js";
 import { rejection } from "../helpers.js";
 
 const ENDPOINT = "https://db.example.com";
@@ -154,5 +154,22 @@ describe("injection", () => {
             name: "ids",
             reason: "required",
         });
+    });
+});
+
+describe("edgesAmong", () => {
+    it("starts every match from the node page's own keys, never from every relationship", () => {
+        const filters = { labels: ["`Gene`"], idProperty: null, relationshipTypes: [] };
+        const statement = edgesAmong(neo4jProfile("5.24.0"), filters);
+        const branches = statement.split(" UNION ALL ");
+        expect(branches).toHaveLength(2);
+        for (const branch of branches) {
+            // each branch anchors one end on $keys before anything else is read
+            expect(branch).toMatch(/^MATCH \(a\)-\[r\]->\(b\) WHERE (?:elementId|id)\([ab]\) IN \$keys AND /);
+            expect(branch).toContain("(a:`Gene`)");
+            expect(branch).toContain("(b:`Gene`)");
+        }
+        // a relationship with both ends on the page arrives once
+        expect(branches[1]).toMatch(/NOT (elementId|id)\(a\) IN \$keys/);
     });
 });

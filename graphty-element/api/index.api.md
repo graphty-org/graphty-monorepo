@@ -16,6 +16,7 @@ import { CommonImportOptions } from '@graphty/graph-io';
 import { Credential as Credential_2 } from '@graphty/graph-io';
 import { CredentialKind } from '@graphty/graph-io';
 import { credentials } from '@graphty/graph-io';
+import { credentialSlots } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
@@ -85,6 +86,7 @@ import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
+import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
@@ -706,6 +708,8 @@ export { CredentialKind }
 
 export { credentials }
 
+export { credentialSlots }
+
 // @public
 export class CredentialStore {
     constructor(ai?: ApiKeyManager | Promise<ApiKeyManager>);
@@ -713,7 +717,7 @@ export class CredentialStore {
     forget(target: SourceCredentialTarget): Promise<void>;
     forgetAll(): Promise<void>;
     list(): readonly StoredCredentialInfo[];
-    lookup(source: string, origin: string | URL): Promise<Credential_2 | undefined>;
+    lookup(source: string, origin: string | URL, slot?: string): Promise<Credential_2 | undefined>;
     remember(target: SourceCredentialTarget, credential: Credential_2): Promise<void>;
 }
 
@@ -870,6 +874,7 @@ export class DataManager implements Manager {
     // @internal
     notePainted(dirty: ReadonlySet<string> | null): void;
     get positions(): ReadonlyElementPositions;
+    get rankSets(): readonly RankSet[];
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
         added: number;
         removed: number;
@@ -885,6 +890,8 @@ export class DataManager implements Manager {
     get snapshotStale(): boolean;
     startLabelAnimations(): void;
     supersedeLoads(): void;
+    // @internal
+    readonly supportPoints: SupportPoints<Edge>;
     // @internal
     takeLateEdgeRows(): number[];
     throwIfSuperseded(generation: number, type: string): void;
@@ -1053,6 +1060,8 @@ export class Edge {
     readonly srcId: NodeIdType;
     // (undocumented)
     srcNode: Node_2;
+    // @internal
+    supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
@@ -1133,6 +1142,7 @@ export interface EdgeLabelCounts {
 
 // @public (undocumented)
 export interface EdgePosition {
+    bends?: readonly number[];
     // (undocumented)
     dst: Position;
     // (undocumented)
@@ -1782,6 +1792,15 @@ export const EdgeStyle: z.ZodObject<{
             arc: "arc";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
+        supportModel: z.ZodOptional<z.ZodEnum<{
+            barnesHut: "barnesHut";
+            forceAtlas2: "forceAtlas2";
+        }>>;
+        supportSpringLength: z.ZodOptional<z.ZodNumber>;
+        supportSpringConstant: z.ZodOptional<z.ZodNumber>;
+        supportRepulsion: z.ZodOptional<z.ZodNumber>;
+        supportCentralGravity: z.ZodOptional<z.ZodNumber>;
+        supportUnit: z.ZodOptional<z.ZodNumber>;
         route: z.ZodOptional<z.ZodEnum<{
             arc: "arc";
             straight: "straight";
@@ -1789,6 +1808,8 @@ export const EdgeStyle: z.ZodObject<{
         }>>;
         arcHeight: z.ZodOptional<z.ZodNumber>;
         nodeGap: z.ZodOptional<z.ZodNumber>;
+        sourceNodeGap: z.ZodOptional<z.ZodNumber>;
+        targetNodeGap: z.ZodOptional<z.ZodNumber>;
         sourcePort: z.ZodOptional<z.ZodString>;
         targetPort: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
@@ -3636,6 +3657,18 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_UNKNOWN"
 /**
+* A load an opened project holds has not been run since it opened, so nothing may fetch for it
+* yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+* once the reader approved. Nothing was fetched. `details.id`. Experimental.
+*/
+| "E_SOURCE_PENDING"
+/**
+* No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+* `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+* `details.key`, `details.known`. Experimental.
+*/
+| "E_LOAD_UNKNOWN"
+/**
 * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
 */
 | "E_SOURCE_UNSUPPORTED"
@@ -3652,7 +3685,89 @@ export type GraphtyErrorCode =
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
 */
-| "E_INTERNAL";
+/**
+* A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+*/
+| "E_MODEL_FETCH"
+/**
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`; `params.denied` when the reader refused it; `params.part` (the part's name) for a part handed to `assets.supply` by URL. A private, loopback or link-local host is refused for a supplied part whoever asks.
+*/
+| "E_MODEL_URL_BLOCKED"
+/**
+* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+*/
+| "E_MODEL_TOO_LARGE"
+/**
+* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+*/
+| "E_MODEL_STRUCTURE"
+/**
+* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
+*/
+| "E_MODEL_FORMAT_UNSUPPORTED"
+/**
+* No model format matches the bytes or the name. `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNKNOWN"
+/**
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`
+* (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+* `add`'s `main` option.
+*/
+| "E_MODEL_AMBIGUOUS"
+/**
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+* part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+* `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+* part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+* `params.tried` (the addresses tried, without queries, at most 4).
+*/
+| "E_MODEL_MISSING_FILE"
+/**
+* A reference matched more than one file of the set by case or base name, so none was used.
+* `params.name`, `params.referencedBy`, `params.candidates`.
+*/
+| "E_MODEL_PART_AMBIGUOUS"
+/**
+* An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+* `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+* address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+*/
+| "E_MODEL_WEB_PAGE"
+/**
+* A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+*/
+| "E_MODEL_PART_REQUIRED"
+/**
+* A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+*/
+| "E_MODEL_EXTERNAL_URL"
+/**
+* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+*/
+| "E_MODEL_DECODER_UNAVAILABLE"
+/**
+* Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+*/
+| "E_MODEL_PARSE"
+/**
+* A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+*/
+| "E_MODEL_ZIP"
+/**
+* An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+*/
+| "E_MODEL_NAME_TAKEN"
+/**
+* An asset id the session holds no accepted model for. `details.id`.
+*/
+| "E_MODEL_UNKNOWN_ASSET"
+/**
+* A model a project file embeds does not match the digest the file records for it (or its id,
+* for an unnamed asset), so it was not added. `params.id`.
+*/
+| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -3710,6 +3825,9 @@ export interface GraphtyHistoryChangeDetail {
 }
 
 // @public
+export type GraphtyModelChangeDetail = ModelChange;
+
+// @public
 export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
 
 // @public
@@ -3721,7 +3839,11 @@ export type GraphtyWarningCode =
 "W_UNKNOWN_MEMBER"
 /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
 | "W_FUTURE_TIME"
-/** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+/**
+* A member of a kind this reader does not know: skipped, the rest of the file still read
+* (`params.index`, `params.kind`). Also a `graphty-sources` entry of a load kind it does not
+* know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
+*/
 | "W_UNKNOWN_KIND"
 /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
 | "W_DATA_DIFFERS"
@@ -3774,11 +3896,90 @@ export type GraphtyWarningCode =
 */
 | "W_DIMENSION_OVERRIDDEN"
 /**
-* A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
-* out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
-* `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
+* A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
+* `node.modelSourceUp` turns it.
+*/
+| "W_MODEL_UP_GUESSED"
+/** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
+| "W_MODEL_HAS_ANIMATIONS"
+/**
+* A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+* `params.layerIds` names the layers that write `node.color`.
+*/
+| "W_MODEL_COLOR_IGNORED"
+/** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+| "W_MODEL_HEAVY"
+/** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+| "W_MODEL_BUDGET"
+/** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+| "W_MODEL_TRANSPARENT"
+/** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+| "W_MODEL_TEXTURES_REDUCED"
+/**
+* A project was saved with a layer naming a model the session does not hold (a URL that never
+* loaded, or an asset id it has no accepted model for), so the file does not carry it.
+* `params.ref` is what the layers named and `params.layerIds` the layers.
+*/
+| "W_MODEL_NOT_EMBEDDED"
+/**
+* A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
+* from a project or style file, an AI command or the data, a reopened project's source load, or
+* a part handed to `assets.supply` by its URL on another host (`by: "supplied"`).
+* `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
+* `params.layerIds`.
+*/
+| "W_URL_NEEDS_APPROVAL"
+/**
+* A project file carries a network approval policy (`graphty-session` `network`), which an
+* older release wrote. It is ignored: nothing saved in a file can make the element fetch
+* without asking. `params.kind` is the member, `"graphty-session"`.
+*/
+| "W_NETWORK_POLICY_IGNORED"
+/**
+* A model or picture a project keeps by URL loaded from that URL, and is not the file the
+* project was saved with: the file at the URL changed. It is drawn. `params.url`,
+* `params.expected` and `params.found` (SHA-256 digests).
+*/
+| "W_MODEL_CHANGED"
+/**
+* A model reference was resolved by case or by base name to the one file of the set that
+* matched. It is drawn. `params.name`, `params.used`, `params.referencedBy`.
+*/
+| "W_MODEL_PART_SUBSTITUTED"
+/**
+* A model is drawn without a picture or `.mtl` the reader chose to skip. `params.name`, `params.role`.
+*/
+| "W_MODEL_PART_SKIPPED"
+/**
+* A file supplied for a model matched none of its missing parts, and was not used. `params.fileName`.
+*/
+| "W_MODEL_PART_UNUSED"
+/**
+* A project was asked to keep a model by its URL, but its parts came from several places
+* (`assets.supply`), so no one URL brings it back: it was embedded instead. `params.url` (no
+* query), `params.reason` (`parts`).
+*/
+| "W_MODEL_NOT_KEPT_BY_URL"
+/**
+* A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
+* `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
+* element's way. Emitted as a `layout-warning` event. `params.reason` is the Graphviz failure
+* reason, such as `graphviz.unavailable` or `graphviz.timeout`.
+*/
+| "W_ROUTES_NOT_LAID"
+/**
+* A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
+* the `graphty-sources` member: query parameters of a URL load's address, or of a network
+* load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
+* names left out. See the project file guide, "What a save leaves out".
 */
 | "W_SOURCE_URL_REDACTED"
+/**
+* A `graphty-sources` entry of an opened project names a network source this release has not
+* registered: its elements are there and the entry is written back, but it is not offered to
+* run. `params.id` is the entry's id and `params.source` the source id.
+*/
+| "W_SOURCE_UNREGISTERED"
 /**
 * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
 * data applied. `params.graph` names the graph, null for the file's one graph.
@@ -4004,6 +4205,7 @@ export abstract class LayoutEngine {
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     // (undocumented)
     abstract get edges(): Iterable<Edge>;
+    protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null;
     // (undocumented)
@@ -4046,7 +4248,7 @@ export abstract class LayoutEngine {
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
-    protected setFollowers(rows: ReadonlySet<number> | null): void;
+    protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // (undocumented)
@@ -4252,7 +4454,7 @@ export interface NeighborSort {
 }
 
 // @public
-class Node_2 {
+class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
@@ -4280,6 +4482,10 @@ class Node_2 {
         z: number;
     };
     getRenderState(): NodeRenderState;
+    // @internal
+    get groupDrawnForAnotherCamera(): boolean;
+    // @internal
+    get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
@@ -4292,8 +4498,20 @@ class Node_2 {
     label?: RichTextLabel;
     // (undocumented)
     mesh: AbstractMesh;
+    // @internal
+    modelDrawn(): {
+        readonly template: ModelTemplate | null;
+        readonly tinted: boolean;
+        readonly colored: boolean;
+    };
     // (undocumented)
     opts: NodeOpts;
+    // @internal
+    get outlineHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -4317,6 +4535,8 @@ class Node_2 {
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get wordedLabel(): RichTextLabel | null;
 }
 export { Node_2 as Node }
 
@@ -4602,6 +4822,26 @@ export const NodeStyle: z.ZodObject<{
         labelPaddingX: z.ZodOptional<z.ZodNumber>;
         labelPaddingY: z.ZodOptional<z.ZodNumber>;
         labelFitSquare: z.ZodOptional<z.ZodBoolean>;
+        model: z.ZodOptional<z.ZodString>;
+        modelSourceUp: z.ZodOptional<z.ZodEnum<{
+            x: "x";
+            y: "y";
+            z: "z";
+            detected: "detected";
+            "-y": "-y";
+            "-z": "-z";
+            "-x": "-x";
+        }>>;
+        modelTurn: z.ZodOptional<z.ZodNumber>;
+        modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">]>>;
+        modelFit: z.ZodOptional<z.ZodEnum<{
+            stretch: "stretch";
+            contain: "contain";
+        }>>;
+        modelCenter: z.ZodOptional<z.ZodEnum<{
+            bounds: "bounds";
+            origin: "origin";
+        }>>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -4621,6 +4861,7 @@ export const NodeStyle: z.ZodObject<{
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         icon: z.ZodOptional<z.ZodString>;
+        image: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     effect: z.ZodOptional<z.ZodObject<{
         glow: z.ZodOptional<z.ZodObject<{
@@ -4885,6 +5126,22 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         weight: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    }, z.core.$strict>>;
+    group: z.ZodOptional<z.ZodObject<{
+        padding: z.ZodOptional<z.ZodNumber>;
+        paddingRatio: z.ZodOptional<z.ZodNumber>;
+        paddingOf: z.ZodOptional<z.ZodEnum<{
+            width: "width";
+            height: "height";
+            min: "min";
+            max: "max";
+            average: "average";
+        }>>;
+        minWidth: z.ZodOptional<z.ZodNumber>;
+        minHeight: z.ZodOptional<z.ZodNumber>;
+        minWidthBiasLeft: z.ZodOptional<z.ZodNumber>;
+        minHeightBiasTop: z.ZodOptional<z.ZodNumber>;
+        includeLabels: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
@@ -5555,6 +5812,7 @@ export interface PendingSourceLoad {
     readonly hasQuery: boolean;
     readonly id: string;
     readonly isLocalNetwork: boolean;
+    readonly params: Readonly<Record<string, unknown>>;
     readonly source: string;
 }
 
@@ -5644,6 +5902,7 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     readonly dirty: boolean;
+    readonly id: string;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -5680,6 +5939,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
 // @public
 export interface ProjectSaveOptions {
+    readonly assets?: Readonly<Record<string, "embed" | "url">>;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
@@ -6321,12 +6581,16 @@ export interface SourceCounts {
 export interface SourceCredentialIdentity {
     readonly kind: CredentialKind;
     readonly origin: string;
+    readonly slot?: string;
     readonly username?: string;
 }
+
+export { SourceCredentialSlot }
 
 // @public
 export interface SourceCredentialTarget {
     readonly endpoint: string | URL;
+    readonly slot?: string;
     readonly source: string;
 }
 
@@ -6430,6 +6694,7 @@ export interface SourceLoadRecord {
     readonly pages: number;
     readonly source: string;
     readonly total?: number;
+    readonly totalEdges?: number;
     readonly validators: SourceValidators;
     readonly version: number;
 }
@@ -6449,7 +6714,6 @@ export { SourceParamType }
 export interface SourcePreview {
     readonly columns: readonly AttributeDescriptor[];
     readonly edges: readonly Readonly<Record<string, unknown>>[];
-    readonly facts: Readonly<Record<string, string>>;
     readonly issues: readonly CodedFact[];
     readonly more: boolean;
     readonly nodes: readonly Readonly<Record<string, unknown>>[];
@@ -6465,7 +6729,7 @@ export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "
 // @public
 export interface SourcePreviewRow {
     readonly id: NodeId;
-    readonly name: string | null;
+    readonly name: string;
 }
 
 export { SourceProbe }
@@ -6580,6 +6844,7 @@ export type StoredCredentialInfo = {
     readonly origin: string;
     readonly kind: CredentialKind;
     readonly username?: string;
+    readonly slot?: string;
 };
 
 // @public

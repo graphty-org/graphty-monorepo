@@ -164,7 +164,9 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   (auto-merge off by rule: breaking, code-owner paths, screenshots), left out of the time members,
   each naming the red member its merge would fix.
 - **CI**: why first attempts failed (shared, an aggregator alone, the change, flaky,
-  infrastructure); Shard times (section 6). Hangs link to the red span they caused.
+  infrastructure); Shard times (section 6); chronically failing jobs; "Allowed to fail, and
+  failing" (the non-gating jobs and their pass rates); benchmark trends (section 4.3). Hangs link to
+  the red span they caused.
 - **Runners**: running and queued jobs over the range on one count axis, with the plan's limit from
   config as a reference line and the observed peak as a label beside it; who holds the runners,
   now and during saturated spans, by repository, workflow and event, as sorted bars; runs still
@@ -270,7 +272,11 @@ Shared definitions:
 - **Excluded checks**, which restate other checks or judge metadata: `All Checks Pass`, `Queue
 Checks Pass`, `Lint PR Title`, `Link PR Issue`, `Visual report`, `Draft state`. They are left out
   while a check they summarize also failed. **One that fails while every check it depends on passed
-  is a failure of its own, with cause shared**, and counts in "Red on the same check".
+  is a failure of its own, with cause shared**, and counts in "Red on the same check". `Queue Checks
+Pass` belonged to the retired Mergify queue and never counts.
+- **Stale pull requests.** A pull request whose newest check started more than 2 days ago is left out
+  of "Red on the same check" and the shared failures: its red (on 2026-10-27, nine pull requests last
+  run on 2026-10-16) says nothing about master now.
 - **The visual gate.** An attempt whose only failure is the gate waiting for the owner's screenshot
   review is owner wait, not a failure. A capture error is a failure.
 - **Failure cause**, in order: infrastructure (startup failure, lost runner, outside 5xx, a timeout
@@ -321,7 +327,7 @@ and were re-derived for one hour, not copied from the 24 h version. (H) marks a 
 | Green time (H)        | share of the hour master's newest commit was green         | 1 h    | --    | >= 92% (<= 5 min red) | < 75% (> 15 min red)     |
 | Red on the same check | most open pull requests failing one check or family        | now    | --    | <= 1                  | >= 3                     |
 | Last full-run verdict | ci lane of the newest judged candidate; names failing jobs | now    | --    | passed                | failed                   |
-| Untested master age   | age of the oldest master commit no full run has judged     | now    | --    | <= 7 h                | > 13 h                   |
+| Untested master age   | age of the oldest master commit no full run has judged     | now    | --    | <= 8 h                | > 13 h                   |
 | Reverts               | reverted merges / merges                                   | slow   | 10    | < 5%                  | > 10% (never sets state) |
 
 Green time's 24 h target of 95% allowed 72 minutes of red a day; over one hour the same 95% would be
@@ -333,16 +339,25 @@ row names that attempt and commit at once, and Releases turns yellow (4.5).
 
 ### 4.2 Pull requests
 
-Times leave out pull requests waiting on the owner (auto-merge off by rule).
+Times, the open count and the oldest open leave out pull requests waiting on the owner: auto-merge off
+by rule (a hold or needs-decision label, a breaking title, a required review), or the owner's own pull
+request with auto-merge off, which `tools/pr-open.sh` leaves for him to merge. They are listed under
+"Waiting on the owner".
 
-| Member             | Measure                                            | Window          | Min n     | Target    | Red    |
-| ------------------ | -------------------------------------------------- | --------------- | --------- | --------- | ------ |
-| Time to merge (H)  | median of merged minus ready, pull requests merged | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
-| Open pull requests | open, not draft                                    | now             | --        | <= 15     | > 25   |
-| Oldest open        | age of the oldest open, not waiting on the owner   | now             | --        | < 24 h    | > 72 h |
-| Merge ratio        | merged / created                                   | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
-| Auto-merge stuck   | armed, green and unmerged 2 h, or armed 6 h        | now             | --        | 0         | >= 3   |
-| Screenshot backlog | oldest pictures waiting for the owner              | now             | --        | < 24 h    | > 72 h |
+| Member                      | Measure                                                  | Window          | Min n     | Target    | Red    |
+| --------------------------- | -------------------------------------------------------- | --------------- | --------- | --------- | ------ |
+| Time to merge (H)           | median of merged minus ready, pull requests merged       | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
+| Open pull requests          | open, not draft, not waiting on the owner                | now             | --        | <= 20     | > 30   |
+| Oldest open                 | age of the oldest open, not waiting on the owner         | now             | --        | < 24 h    | > 72 h |
+| Merge ratio                 | merged / created                                         | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
+| Runs failed by their change | first runs red on a test the change touched / first runs | 7 d             | 20 runs   | < 5 %     | --     |
+| Green but not merging       | auto-merge armed, green and unmerged 2 h                 | now             | --        | 0         | >= 2   |
+| Armed too long              | auto-merge armed 24 h                                    | now             | --        | <= 1      | >= 4   |
+| Screenshot backlog          | oldest pictures waiting for the owner                    | now             | --        | < 24 h    | > 72 h |
+
+The open count's target assumed the quieter repository of early October; at 107 merges on 2026-10-26,
+the agents' open pull requests sat at a median of 12 and a 90th percentile of 22 (31 at most) while
+merging well, so the target is 20 and red past 30.
 
 On a quiet hour (2026-10-25, 22:30 to 23:30: 2 merged, 3 created) both rates are gray "too few"
 with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, is red in CI.
@@ -360,9 +375,11 @@ with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, 
 | PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                     |
 | Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                    |
 | Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                    |
-| Full-run shards over budget  | shards whose median passes their budget (section 6)               | slow, 7 d       | 5 runs   | 0        | >= 3 (never sets state)  |
+| Full-run shards over budget  | shards whose median passes their own budget (section 6)           | slow, 7 d       | 5 runs   | 0        | >= 3 (never sets state)  |
 | Runner-minutes per merge     | job minutes of every run kind / pull requests merged into master  | slow, 7 d       | 10       | <= 400   | > 600 (never sets state) |
 | Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                       |
+| Chronically failing jobs     | jobs, gating or not, failing in their own record (below)          | now             | --       | 0        | any with no open issue   |
+| Benchmark regressions        | benchmarks whose last 3 results regressed (below)                 | now             | --       | 0        | >= 3                     |
 
 Saturated time was "1 h in 24 h"; over one hour a quarter of it saturated is red. Hangs were "any in
 24 h"; over one hour one hang is yellow and two are red, and an earlier hang stays in the episode
@@ -378,7 +395,11 @@ problem is never learned as "the limit". "Runners not being assigned" is the oth
 queue: jobs wait while there is room, so the cause is outside the repository; its row links
 githubstatus.com, so nobody cancels full runs for a GitHub problem. The cost is one jobs call per
 unfinished run each cycle, about 40 calls every 5 minutes on 2026-10-25, well inside the App's
-hourly budget.
+hourly budget. A `pull_request` run whose pull request is no longer open (merged or closed) is left
+out of runner use and longest queued: GitHub can leave one queued for hours holding no runner (run
+40441556963, `Lint PR Title`, still queued 17 h after #3940 merged). GitHub empties a merged pull
+request's runs' `pull_requests`, so a run is matched to an open pull request by number or head
+branch; with a full page of open pull requests (50) nothing is left out.
 
 "Runner-minutes per merge" adds up every job's minutes (completed minus started, unrounded) by the kind of
 run that spent them -- pull request runs (every attempt, including pull requests that never merged), master
@@ -393,6 +414,49 @@ the target and 1.5 times it is red; as a slow measure it never sets CI's state.
 commit, and jobs with `if: always()` still running after their run was cancelled. `ci.yml` and
 `hosts.yml` cancel their own superseded pull request runs. It gets a state once it has fired on
 real data.
+
+**Jobs judged by their own record.** Every other member reads a job's result through its run, its
+lane or its check suite, and a non-gating job (job-level `continue-on-error: true`) cannot fail any
+of those: that is what non-gating means, and the release lanes rightly leave its failure out
+(`parse.ts` `releaseAttempt`). So from 2026-10-21 to 2026-10-27 CI / Performance Benchmarks failed
+on the first attempt of 14 of the 20 full runs that ran it (issue #3413) and the dashboard, which stored every one of
+those job results, showed nothing. Three things now read the jobs themselves; the lane and verdict
+logic is unchanged, so a non-gating job still never fails a lane.
+
+- **Chronically failing jobs** (`ci.chronic_jobs`). Any job of a master push, a full run or another
+  non-pull-request run, gating or not, bins and shards folded into their family, that failed in at
+  least half of its newest 10 finished runs (4 at least), or has failed in every run for 3 days
+  (however few). Cancelled and skipped jobs say nothing about a job and are not runs. A job with no
+  run in 2 days, or in twice its usual gap between runs when that is longer (a weekly job), has
+  stopped -- removed or renamed -- and is not judged. A ci.yml job (run on its own, or called as
+  `CI / ...` by release.yml) that ci.yml on master no longer defines is not judged from the hour the
+  collector reads that ci.yml (Story tests parity, removed on 2026-10-27, stayed red and unfiled for two
+  days before this). Pull
+  request runs are left out, CodeQL's scans of a pull request included (its `All Checks Pass` and
+  `Queue Checks Pass` jobs fail on every pull request scan): their failures may be their own
+  change's, which "Red on the same check" and the failure causes judge. Jobs stored before that
+  rule count CodeQL's pull request scans as other runs until a backfill rewrites their run kind
+  (README, "Backfill"). Each job is listed
+  with its failures, its last pass and the open issue naming it (one GitHub search per job for its
+  name, confirmed in the title or body, as "Flaky in CI with no open issue" matches tests). Yellow
+  while every chronic job has an open issue, red while one has none. Read from the rollup
+  `ci.job_history` (each job's pass and fail times, 14 days), so it needs no new source.
+- **Allowed to fail, and failing** (a CI section, never judged). Every job ci.yml lets fail --
+  job-level `continue-on-error: true`, or an expression for a job `tools/ci-advisory-checks.json`
+  lists in its warning period, read hourly from master's ci.yml -- with its runs, failures and pass
+  rate over 7 days in every run kind, pull requests included (`ci.job_outcome`), worst first, marked
+  red at half or more failed. It makes the class visible; the chronic member is what judges it.
+- **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms)
+  and the T4 lane (webgpu-graph-algorithms) post each benchmark's result after the benchmark passed
+  (`tools/results/post-benchmarks.mjs`, `POST /v1/benchmarks`, OIDC like the flaky feed, fire and
+  forget), only from master's workflows. Each benchmark keeps its newest 20 results, one per run
+  (source `benchmarks`). A benchmark regressed when the median of its last 3 results is over 1.2
+  times the median of the 10 before them, so it is judged only with 13 results and one slow run
+  never counts. The Benchmarks section lists every benchmark with its newest result, that ratio and
+  its results as a line, regressions first. A benchmark job that fails before it produces numbers
+  posts nothing: that is the chronic member's to catch. graphty-element's timing benchmarks print
+  rows of differing shapes and are not posted; the weekly paired T4 benchmark compares against a
+  release and files its own issue.
 
 ### 4.4 Flaky tests
 
@@ -430,7 +494,9 @@ judged like a legacy one; hold issues are read too. Lanes: `ci`, `t4`, `hosts`, 
 
 "Release workflows failing" was a count of failed runs in 24 h. `release.yml` runs four times a day,
 so a 1 h count would drop a failure an hour after it; a workflow whose newest run failed is a state
-that lasts until a run passes.
+that lasts until a run passes. Only runs of the events a workflow declares in its `on:` count: GitHub
+also records a failed run for a push to any branch whose copy of the file it cannot use, which is how
+`promote.yml` (dispatch only) showed "10 failures in a row" on 2026-10-25.
 
 "Train skipped a new commit" is yellow at once, so a skipped candidate is seen hours before
 untested master age passes its target. The channel members (canary, nightly and production age,
@@ -440,14 +506,16 @@ channels exist; until then they are not set up ("channel not built yet, #3418").
 ### 4.6 Costs
 
 Month to date, projected to month end, read now (billing data arrives daily, so an hour window would
-change nothing). Only money sets the state; list-price values and per-run
+change nothing). The projection is what a line cost through yesterday plus, for each day left, its
+average day over the trailing 7 days (today at least what it has cost so far): the month-to-date average carried October's first week, when
+the T4 lane still ran on pull requests and pushes, to the month's end. Only money sets the state; list-price values and per-run
 figures are for comparison (section 7). Budgets are configured; these are sample values. The two
 usage members are not set up until their read-only tokens exist (section 16).
 
 | Member               | Measure                                          | Target     | Red    |
 | -------------------- | ------------------------------------------------ | ---------- | ------ |
 | Spend this month (H) | projected sum of every money line                | <= 300 USD | > 360  |
-| T4 GPU               | projected, machine.dev                           | <= 200 USD | > 240  |
+| T4 GPU               | projected, machine.dev (the 200 USD budget)      | <= 180 USD | > 200  |
 | LLM regression       | projected, Gemini (the owner's ceiling)          | <= 60 USD  | > 75   |
 | AWS                  | month to date, Cost Explorer (the 10 USD Budget) | <= 8 USD   | > 10   |
 | Cloudflare usage     | usage / the plan's allowance                     | < 50%      | > 90%  |
@@ -464,7 +532,9 @@ usage members are not set up until their read-only tokens exist (section 16).
 | GitHub App rate limit           | requests left in the collector App's hour              | now             | --                 | > 50%            | < 20%                            |
 | Daily write budget              | rows written today / the daily limit                   | now             | --                 | < 50%            | > 90%                            |
 
-The stress run is yellow when it found nothing three weeks running, and red when its filing step
+The stress run is yellow when it found nothing three weeks running: a run in each of the last three
+7-day slots and no run in them that found a failure (the last three runs can fall in one week after a
+re-run or a dispatch), and red when its filing step
 failed or it had failing tests and filed fewer issues. It is read from GitHub, because a run that
 crashes before posting posts nothing. Sources that are not set up are not a member: they are
 listed under "Not set up" on this page, each with what unblocks it, out of the status.
@@ -497,7 +567,9 @@ default) and the label "slow measure". It has one row per shard of the **full ru
 train's `ci` lane), worst against budget first: runs (n; shadow trains run at most four a day and
 skip an unchanged master, so expect 5 to 15 in 7 days, and a shard under 5 runs is drawn gray as
 "n=4" and left out of "full-run shards over budget"), median and p90 of the test step (attempt 1,
-successful runs, from the results store's `invocation.secs`), and a bar: median dark, p90 a light
+successful runs, from the results store's `invocation.secs`; the times themselves are kept in the
+rollups, so these are the events' median and p90, not a histogram bin's middle, which read a shard of
+about 880 s as 932 s against its 900 s budget), and a bar: median dark, p90 a light
 extension, the `ci-budgets.json` budget a vertical line. The median is vermillion past the budget;
 the p90 extension is yellow with a dark edge when only it passes; a plain note says which. A shard
 opens its top 20 test files with median, p90 and share of the shard, so a regression points at the
@@ -571,12 +643,16 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 | Host matrix                                         | nightly              | 30 h                |
 | Billing (Cost Explorer, Cloudflare, Sentry)         | daily                | 36 h                |
 | Feed of CI's flaky detections (issue #3610)         | each new flaky entry | not set up          |
+| Benchmark results (CI's benchmark jobs)             | each full run        | 2 d; idle until set |
 | Local writer (test ledger, push log, slot waits)    | each local run       | idle, not judged    |
 
 Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
 results, rows per local run that happened for the local writer, so a quiet week or a retired local
-gate is not a false alarm, while a writer that posts 31% of its usual rows per run is. An
-unreachable source is NO DATA, hatched, never 0; a chart before its source's history is hatched "no
+gate is not a false alarm, while a writer that posts 31% of its usual rows per run is. A
+source that fails while its last good write is within its yellow age keeps its members' values,
+marked stale with that write's time; past the yellow age an unreachable source is NO DATA, hatched,
+never 0. One GitHub request that fails (a 5xx, a timeout, a rate limit) is retried twice with
+backoff and then skipped alone (that run's jobs, read again next cycle), never failing the cycle; a chart before its source's history is hatched "no
 history"; an empty table names what is absent ("no quarantine entries").
 
 ## 10. Backend on AWS
@@ -604,6 +680,8 @@ AWS credential in GitHub at all.
   `graphty-health`. The HTTP API's JWT authorizer checks signature, issuer, audience and expiry
   before any Lambda runs; the ingest Lambda checks the claims (`repository_id`, `job_workflow_ref`,
   `ref`) against the record kinds each workflow may write, as `tools/results-service/` does today.
+  Benchmark results (`POST /v1/benchmarks`) are taken only from master's workflows, never a pull
+  request's, so a branch cannot move master's trend.
 - **Reads are public.** Everything stored is already public on GitHub (runs, pull requests, test
   names, truncated failure messages); no tokens, logs or host names are stored.
 - **The collector** signs in as the read-only GitHub App `graphty-pipeline-health` (actions,
@@ -635,7 +713,9 @@ gzipped.
 raw items idempotently and marks each 5-minute bucket it touches dirty; every 5 minutes the collector
 recomputes those buckets, their 15-minute, hourly and daily parents, the 1 h, 6 h and 24 h values of
 each metric, and the page items whose inputs changed. A bucket holds counts, sums and a 32-bin
-log-scale duration histogram, so medians and p90 come from merged histograms.
+log-scale duration histogram, so medians and p90 come from merged histograms. Its bins are about 44 %
+wide, too coarse to judge a time against a budget, so a metric of few events (full-run shard times, a
+few a day per shard) also keeps the times themselves and takes its medians from them.
 
 **Reads stay small.** A page or an MCP call reads one precomputed item for its view and range (about
 6 KB gzipped, 2 read units), never buckets. The collector reads, per metric and cycle, three
@@ -658,7 +738,9 @@ twenty-four hourly ones (24 h). A slow section reads its own item, built from da
   recorded. A failed post never fails a job.
 - **Backfill**: the last 28 days of runs and jobs, pull requests and issues, as a collector mode
   run by hand (`pnpm run backfill`, default 28 days), throttled under the App's hourly budget and
-  resumable from a cursor; the scheduled recompute rebuilds the rollups. A job behind `needs:` gets
+  resumable from a cursor; the scheduled recompute rebuilds the rollups. GitHub lists at most 1,000
+  runs for one query, so a day with more (1,945 on 2026-10-12) is read an hour at a time; read whole,
+  such a day lost its oldest runs and their T4 jobs (about 50 USD of early October). A job behind `needs:` gets
   its `created_at` when it becomes ready (its last dependency's `completed_at`, to the second,
   checked on runs 40239928447 and 40238975833), not at run creation, so a job's queue wait is
   `started_at - created_at` for every job, skipped jobs left out.
@@ -754,6 +836,12 @@ threshold and page link, once per episode and once when it clears:
 - **Master red: at once.** master-guard is the first alarm; this is the independent backstop for
   when master-guard is wrong, as it was on 2026-10-25.
 - **Any other category red for 30 minutes.**
+
+An episode starts at a member's first red and ends only when the member is judged OK again: a gap
+of NO DATA or a stale source in between neither ends it nor starts another, so a flapping source
+cannot repeat the alert. A member alerts at most once in 6 hours, even when an episode truly ends
+and a new one starts: a new episode's alert waits until 6 hours have passed since the last one and
+is sent then if the member is still red; one that ends before its alert was sent sends no "cleared".
 
 **A dead-man's switch.** The collector both computes the status and sends the alerts, so a paused
 AWS project, the Budget action's deny-all policy or a crashing collector would silence both. A

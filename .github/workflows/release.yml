@@ -32,8 +32,9 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   - a deciding verdict that is not green-clean holds its commit while nothing is held: branch channel/candidate,
 #     the results store's hold and a "Nightly held on <sha12>" issue. While a hold stands, a slot first tests the held
 #     head if no run judged it, else master's newest commit, whose verdict files red issues but never promotes or
-#     replaces the hold. The held candidate promoting ends the hold (land), and so does the owner's
-#     `-f mode=abandon` (environment production, then the abandon job).
+#     replaces the hold. The held candidate promoting ends the hold (land), and so does an abandon: anyone's
+#     nightly-abandon.yml, or candidate_fix's automatic abandon before a full or restart pick (tools/channel/hold.mjs
+#     autoAbandon; owner, 2026-10-27).
 #   - fix forward (tools/channel/candidate-fix.mjs): a held candidate is fixed on branches made from its head, named
 #     for the hold issue. Before every full, restart and candidate pick, the candidate_fix job merges each such fix
 #     that reached master (its last commit before tools/pr-open.sh merged master in; never master itself) into branch
@@ -135,7 +136,7 @@ on:
                 default: ""
                 type: string
             mode:
-                description: "full: the full run on the newest unjudged candidate; a green-clean verdict whose screenshots pass promotes it to nightly (a version merge on master, npm next, nightly.graphty.app). restart: the same on this commit (ci.yml's release-due job). shadow: test and version master's head, publish nothing. legacy (owner only): test, wait for the owner in environment production, then land and publish to npm latest. abandon (owner only, environment production): end the held nightly candidate without promoting it. candidate (ci.yml's release-due job): merge the fixes made for the held candidate and re-test its new head. promote-nightly (ci.yml's release-due job): promote the candidate whose screenshots the owner approved, with its accept commit"
+                description: "full: the full run on the newest unjudged candidate; a green-clean verdict whose screenshots pass promotes it to nightly (a version merge on master, npm next, nightly.graphty.app). restart: the same on this commit (ci.yml's release-due job). shadow: test and version master's head, publish nothing. legacy (owner only): test, wait for the owner in environment production, then land and publish to npm latest. candidate (ci.yml's release-due job): merge the fixes made for the held candidate and re-test its new head. promote-nightly (ci.yml's release-due job): promote the candidate whose screenshots the owner approved, with its accept commit"
                 required: false
                 default: full
                 type: choice
@@ -144,7 +145,6 @@ on:
                     - restart
                     - shadow
                     - legacy
-                    - abandon
                     - candidate
                     - promote-nightly
             candidate:
@@ -157,6 +157,11 @@ on:
                 required: false
                 default: ""
                 type: string
+            sha:
+                description: "restart: the commit to test, the green master build that started it (ci.yml's release-due job); empty: the commit this run started on"
+                required: false
+                default: ""
+                type: string
             fix_pr:
                 description: "candidate: the fix pull requests (comma-separated) whose merges started this run (ci.yml's release-due job); each merge is a fix even when only its description references the hold issue, and every other waiting fix is merged too"
                 required: false
@@ -165,7 +170,8 @@ on:
 
 # One train at a time across all its jobs: a second train waits for the first, which has published (or held the
 # release) by then, so the second finds nothing new to release or tries the newer commit, and never pays for a
-# second T4 run on the same commit. Two master pushes in a row therefore never start two trains.
+# second T4 run on the same commit. Two master pushes in a row therefore never start two trains. Abandoning the held
+# candidate by hand is nightly-abandon.yml, in a group of its own, so it never waits for or holds the train.
 concurrency:
     group: release-train
     cancel-in-progress: false
@@ -182,6 +188,13 @@ env:
     DIST_TAG: ${{ inputs.mode == 'legacy' && 'latest' || 'next' }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
+    # The owner's release policy (release-hold.json, release-approvals.json) is master's, whatever commit a job
+    # checks out: a candidate older than master or a held head must not use the holds and approvals it was cut with
+    # (tools/release-hold.mjs readPolicy). Every job that reads them checks out with fetch-depth 0.
+    RELEASE_POLICY_REF: refs/remotes/origin/master
+    # The package builds ci.yml uploads (its build-<package> artifacts), as one download-artifact pattern for every
+    # job that keeps or publishes them: a package missing here is published with no dist
+    PACKAGE_BUILDS: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
 
 jobs:
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
@@ -202,6 +215,7 @@ jobs:
                 coverage,
                 candidate_site,
                 recapture,
+                recapture_merge,
                 verdict,
                 keep_builds,
                 resume,
@@ -254,9 +268,17 @@ jobs:
     # it (tools/channel/candidate-fix.mjs advance). Every full, restart and candidate run does this, so a candidate
     # run replaced while pending loses nothing. The deploy key pushes channel/candidate; the job runs git, gh and the
     # script only, nothing installed. A failure only leaves the fixes for the next run: the pick still runs.
+    # First, in a full or restart run, the automatic abandon (owner, 2026-10-27; tools/channel/hold.mjs autoAbandon):
+    # a held head judged red or owner-item ends when only a pipeline lane (the screenshot capture or re-capture) held
+    # it and a newer master commit passed that lane, or when the hold is over 24 hours old and master has a newer
+    # green build. Changed screenshots awaiting the owner's review never end it. The pick then picks as usual.
+    # The job runs in every mode on master, and its steps do nothing outside full, restart and candidate: a skipped job
+    # here would skip every job after the pick whose `if` names no status function, because GitHub skips a job when any
+    # ancestor was skipped, not only a direct need (run 40630434337: a promote-nightly pick found the approval, and
+    # resume, version, land, publish and site were all skipped).
     candidate_fix:
         name: Merge fixes into the held candidate
-        if: ${{ github.ref == 'refs/heads/master' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}
+        if: ${{ github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         environment: release # the deploy key
@@ -267,13 +289,33 @@ jobs:
         steps:
             # master's history: the fixes' merges since the held commit
             - uses: actions/checkout@v7
+              if: ${{ inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' }}
               with:
                   ref: ${{ github.sha }}
                   fetch-depth: 0
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
-            # the runner's own Node: nothing is installed next to the deploy key
+            # the runner's own Node: nothing is installed next to the deploy key. Fails open: a failure abandons nothing
+            - name: Abandon a stale or pipeline-made hold
+              id: auto
+              if: ${{ inputs.mode == 'full' || inputs.mode == 'restart' }}
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  node tools/channel/hold.mjs auto | tee "$RUNNER_TEMP/auto.out"
+                  head=$(sed -n 's/^head=//p' "$RUNNER_TEMP/auto.out")
+                  if grep -qx "abandoned=true" "$RUNNER_TEMP/auto.out" && [ -n "$head" ]; then
+                      # only the branch at the head this abandon ended: a newer hold's branch is never deleted
+                      git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$head" origin :refs/heads/channel/candidate ||
+                          echo "::warning::could not delete channel/candidate at ${head}; the hold ended in the results store"
+                  fi
+
             - name: Merge the fixes and move the hold
+              if: ${{ inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' }}
               env:
                   GH_TOKEN: ${{ github.token }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
@@ -289,7 +331,7 @@ jobs:
         name: Pick the release candidate
         needs: candidate_fix
         # !cancelled(): candidate_fix is skipped in most modes, and its failure only leaves the fixes for the next run
-        if: ${{ !cancelled() && github.ref == 'refs/heads/master' && inputs.mode != 'abandon' }}
+        if: ${{ !cancelled() && github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 60
         # Pushover for a legacy run's announcement; a shadow run announces nothing, so it takes no environment
@@ -342,6 +384,9 @@ jobs:
               run: |
                   set -euo pipefail
                   skip() { echo "::notice::$1"; echo "pending=true" >> "$GITHUB_OUTPUT"; exit 0; }
+                  # GitHub answers a 5xx now and then: a read is tried three times before it fails the pick
+                  # (tools/release-held.sh retries its own)
+                  retry() { "$@" || { sleep 5; "$@"; } || { sleep 15; "$@"; }; }
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
                   # A publish hold opened only because npm was slow to list versions it had accepted ends here, once
                   # npm lists them all; one npm refused stays for a person (tools/publish-hold.mjs). npm sends no
@@ -356,7 +401,7 @@ jobs:
                   # Cut-over from the release pull request design (2026-10-11): a release/train-* pull request still
                   # open would, if it merged, put a version commit on master that nothing tags or publishes. This
                   # train releases its commits instead. ponytail: delete this loop once no such pull request is left.
-                  for number in $(gh pr list --state open --limit 200 --json number,headRefName \
+                  for number in $(retry gh pr list --state open --limit 200 --json number,headRefName \
                       --jq '.[] | select(.headRefName | startswith("release/train-")) | .number'); do
                       gh pr close "$number" --delete-branch --comment \
                           "Closed: releases no longer go through a pull request. ${run_url} tests master's newest commit and publishes it directly."
@@ -371,7 +416,7 @@ jobs:
                   # A scheduled shadow run releases nothing, so master's tip stays releasable: without this, an
                   # unchanged master paid for the full suite, the T4, macOS and the LLM lane four times a day.
                   if [ "${MODE:-}" = shadow ] && [ "$TRIGGER" = schedule ]; then
-                      tested=$(gh run list --workflow release.yml --commit "$CANDIDATE" --status success --limit 20 \
+                      tested=$(retry gh run list --workflow release.yml --commit "$CANDIDATE" --status success --limit 20 \
                           --json displayTitle --jq '[.[] | select(.displayTitle == "Release (shadow)")] | length')
                       [ "${tested:-0}" = 0 ] || skip "a shadow run already passed on ${CANDIDATE}; nothing new to test"
                   fi
@@ -421,7 +466,7 @@ jobs:
               id: candidate
               if: ${{ steps.pending.outputs.pending == 'false' && (env.MODE == 'full' || env.MODE == 'restart' || env.MODE == 'candidate') && steps.resume.outputs.resume != 'true' }}
               env:
-                  HEAD_SHA: ${{ github.sha }}
+                  HEAD_SHA: ${{ inputs.mode == 'restart' && inputs.sha || github.sha }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
@@ -431,10 +476,11 @@ jobs:
                       git fetch --quiet origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly
                   fi
                   node tools/full-run.mjs pick
+                  retry() { "$@" || { sleep 5; "$@"; } || { sleep 15; "$@"; }; }
                   sha=$(sed -n 's/^sha=//p' "$GITHUB_OUTPUT" | tail -1)
                   # a held head past its commit is on channel/candidate, not on master
                   git cat-file -e "${sha}^{commit}" 2>/dev/null || git fetch --quiet origin "$sha"
-                  build=$(gh run list --workflow ci.yml --commit "$sha" --event push --status success --limit 1 \
+                  build=$(retry gh run list --workflow ci.yml --commit "$sha" --event push --status success --limit 1 \
                       --json databaseId --jq '.[0].databaseId // empty') || build=""
                   echo "build_run=${build}" >> "$GITHUB_OUTPUT"
 
@@ -503,7 +549,7 @@ jobs:
     ci:
         name: CI
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
             # its release-due job (master pushes only) dispatches release.yml, cancels a red run and notes it on the
@@ -530,7 +576,7 @@ jobs:
     t4:
         name: T4 GPU
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -545,7 +591,7 @@ jobs:
         name: Hosts
         needs: pick
         # a fix forward that reaches neither webgpu-graph-algorithms, graph-format nor the lockfile leaves it out
-        if: ${{ needs.pick.outputs.release == 'true' && needs.pick.outputs.hosts != 'false' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.pick.outputs.hosts != 'false' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -561,7 +607,7 @@ jobs:
         name: Work protection (macOS)
         needs: pick
         # a fix forward that reaches neither graphty-element nor the lockfile leaves it out
-        if: ${{ needs.pick.outputs.release == 'true' && needs.pick.outputs.macos != 'false' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.pick.outputs.macos != 'false' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -578,7 +624,7 @@ jobs:
     audit:
         name: Security audit
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         permissions:
@@ -614,7 +660,7 @@ jobs:
     llm:
         name: LLM regression
         needs: [pick, ci]
-        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         environment: full-run # GOOGLE_API_KEY
@@ -627,6 +673,17 @@ jobs:
             - uses: actions/checkout@v7
               with:
                   ref: ${{ needs.pick.outputs.sha }}
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Decide whether the LLM regression tests are due today
               id: due
@@ -684,7 +741,7 @@ jobs:
     version_dry_run:
         name: Version dry run
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
         # A runaway guard, not a budget: on 2026-10-26 nx release version spent 13 of its 15 minutes before
         # printing its first project, and the lane was cancelled (#3630). Why it is that slow is #3631.
@@ -698,6 +755,17 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
 
@@ -739,7 +807,7 @@ jobs:
     coverage:
         name: Coverage
         needs: [pick, ci]
-        if: ${{ needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && needs.ci.result == 'success' }}
         permissions:
             contents: read
             actions: read
@@ -952,9 +1020,12 @@ jobs:
     # same picture; one that matches its baseline the second time, or draws a third picture (unstable, never
     # approvable), is listed in its flaky.json, which the verdict files as flaky. The verdict, the gate, the review
     # page and the promotion read only visual-final-*. ci.yml's visual job and gate are untouched. The projects are
-    # ci.yml's visual matrix: a test keeps the two lists equal.
+    # ci.yml's visual matrix: a test keeps the two lists equal. A project too large to shoot again in one job (a
+    # change that touches every story of graph-io-fidelity, #4172) runs in legs, as ci.yml's story tests do: each leg
+    # shoots its share of the stories again (recapture.mjs plan --leg) and uploads it, and recapture_merge builds the
+    # project's one visual-final from the legs.
     recapture:
-        name: Re-capture (${{ matrix.project }})
+        name: Re-capture (${{ matrix.project }}${{ matrix.leg && format(' {0}/{1}', matrix.leg, matrix.legs) || '' }})
         needs: [pick, ci]
         if: ${{ !cancelled() && needs.ci.result == 'success' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}
         runs-on: ubuntu-24.04
@@ -978,11 +1049,30 @@ jobs:
                       artifact: build-storybook-app
                     - project: cytoscape-extensions
                       artifact: build-storybook-cytoscape-extensions
+                    # four legs, merged by recapture_merge (its matrix lists every legged project)
                     - project: graph-io-fidelity
                       artifact: build-storybook-graph-io-fidelity
                       storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 1
+                      legs: 4
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 2
+                      legs: 4
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 3
+                      legs: 4
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
+                      leg: 4
+                      legs: 4
         env:
             PROJECT: ${{ matrix.project }}
+            LEG: ${{ matrix.leg && format('{0}/{1}', matrix.leg, matrix.legs) || '' }}
             # a fix forward's re-test (the pick's source_run and capture): the CI lane shot nothing, so this job shoots
             # every story of a Storybook the fixes reach (WHOLE) and carries the others' final captures over from the
             # run that judged the head before (CARRY), shooting their changed and new stories again
@@ -993,14 +1083,17 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's re-capture and
-            # capture code, as of the run's start (channels design, section 5): the picked commit may predate them,
-            # as the first nightly run's did (#3952), and its copy is never what judges it.
-            - name: Use master's re-capture and capture code
+            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's tools, actions,
+            # re-capture and capture code, as of the run's start (channels design, section 5): the picked commit may
+            # predate them, as the first nightly run's did (#3952), and its copy is never what judges it.
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions visual-review/capture visual-review/trusted
               run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"
-                  rm -rf tools/channel visual-review/capture visual-review/trusted
-                  git archive "$GITHUB_SHA" tools/channel visual-review/capture visual-review/trusted | tar -x
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: actions/setup-node@v7
               with:
@@ -1029,23 +1122,27 @@ jobs:
               if: ${{ env.CARRY == 'true' }}
               run: |
                   mkdir -p "$RUNNER_TEMP/first"
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/carried" --prefix visual-final-
                   for d in "$RUNNER_TEMP"/carried/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$RUNNER_TEMP/first/visual-${d##*/visual-final-}"
                   done
                   true
 
             # stories empty: nothing to shoot again; dir empty: the CI lane has no capture, and no final capture is
-            # uploaded, so the verdict says which capture is missing
+            # uploaded, so the verdict says which capture is missing. Every `nest` here: download-artifact extracts a
+            # pattern that matched ONE artifact straight into its path, with no <name>/ directory (#4015)
             - name: Plan the re-capture
               id: plan
               if: ${{ env.WHOLE != 'true' }}
-              run: node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
+              run: |
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/first" --prefix visual-
+                  node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first" ${LEG:+--leg "$LEG"}
 
             # Restore only, in this job and every cache step below: it runs code checked out at the picked commit
             # in a privileged dispatch, so it never writes a cache another run would restore (cache poisoning)
             - name: Restore this project's baseline images
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
@@ -1071,7 +1168,7 @@ jobs:
 
             - name: Restore the cached Playwright browsers
               if: ${{ steps.plan.outputs.stories != '' || env.WHOLE == 'true' }}
-              uses: actions/cache/restore@v4
+              uses: actions/cache/restore@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -1101,7 +1198,7 @@ jobs:
             - name: Plan the re-capture of that capture
               id: whole
               if: ${{ env.WHOLE == 'true' }}
-              run: node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
+              run: node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first" ${LEG:+--leg "$LEG"}
 
             - name: Shoot the changed and new stories again
               if: ${{ steps.plan.outputs.stories != '' || steps.whole.outputs.stories != '' }}
@@ -1109,15 +1206,129 @@ jobs:
                   STORIES: ${{ steps.plan.outputs.stories || steps.whole.outputs.stories }}
               run: pnpm exec visual-review capture --project "$PROJECT" --out "$RUNNER_TEMP/second" --stories "$STORIES"
 
+            # a leg: its share of the stories shot again, and (leg 1) the capture they were planned from, for
+            # recapture_merge; kept one day, only that job reads them
+            - name: Upload this leg's re-capture
+              if: ${{ matrix.leg && (steps.plan.outputs.stories != '' || steps.whole.outputs.stories != '') }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-second-${{ matrix.project }}-leg${{ matrix.leg }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/second/
+                  retention-days: 1
+
+            - name: Upload the capture the legs were planned from
+              if: ${{ matrix.leg == 1 && (steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '') }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-first-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ steps.plan.outputs.dir || steps.whole.outputs.dir }}/
+                  retention-days: 1
+
             - name: Build the final capture
-              if: ${{ steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '' }}
+              if: ${{ !matrix.leg && (steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '') }}
               env:
                   FIRST: ${{ steps.plan.outputs.dir || steps.whole.outputs.dir }}
                   SECOND: ${{ (steps.plan.outputs.stories != '' || steps.whole.outputs.stories != '') && format('{0}/second', runner.temp) || '' }}
               run: node tools/channel/recapture.mjs merge --first "$FIRST" --second "$SECOND" --out "$RUNNER_TEMP/final"
 
             - name: Upload the final capture
-              if: ${{ steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '' }}
+              if: ${{ !matrix.leg && (steps.plan.outputs.dir != '' || steps.whole.outputs.dir != '') }}
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-final-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/final/
+                  retention-days: 30
+
+    # The legged projects' one final capture: the capture leg 1 planned from, with each leg's re-shot stories'
+    # verdicts replaced (recapture.mjs merge, one --second per leg). A leg that shot nothing leaves its stories failed
+    # ("its second shot is missing"), never changed. Each leg's newest attempt is read, so a re-run of only the failed
+    # legs combines with the legs that passed before. No first capture: no final one, as in the recapture job.
+    recapture_merge:
+        name: Re-capture merge (${{ matrix.project }})
+        needs: [pick, recapture]
+        if: ${{ !cancelled() && needs.recapture.result != 'skipped' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        permissions:
+            contents: read
+            actions: read # the legs' artifacts, of this run
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: graph-io-fidelity
+        env:
+            PROJECT: ${{ matrix.project }}
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions visual-review/capture visual-review/trusted
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Download the capture the legs were planned from
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: visual-first-${{ matrix.project }}-*
+                  path: ${{ runner.temp }}/firsts
+
+            - name: Download the legs' re-captures
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: visual-second-${{ matrix.project }}-leg*
+                  path: ${{ runner.temp }}/legs
+
+            # visual-first-<p>-<n> is read as visual-<p>-<n>, the name plan looks for
+            - name: Plan the merge
+              id: plan
+              run: |
+                  mkdir -p "$RUNNER_TEMP/first"
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/firsts" --prefix visual-first-
+                  for d in "$RUNNER_TEMP"/firsts/visual-first-*; do
+                      [ -d "$d" ] && mv "$d" "$RUNNER_TEMP/first/visual-${d##*/visual-first-}"
+                  done
+                  node tools/channel/recapture.mjs plan --project "$PROJECT" --captures "$RUNNER_TEMP/first"
+
+            - uses: pnpm/action-setup@v6
+              if: ${{ steps.plan.outputs.dir != '' }}
+
+            - name: Install dependencies
+              if: ${{ steps.plan.outputs.dir != '' }}
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # Every leg's every attempt, oldest first: merge keeps the last picture of a story, so a leg's newest
+            # attempt wins. The nonexistent legs/none makes a re-shot story with no leg's picture failed, even when no
+            # leg uploaded anything
+            - name: Build the final capture
+              if: ${{ steps.plan.outputs.dir != '' }}
+              env:
+                  FIRST: ${{ steps.plan.outputs.dir }}
+              run: |
+                  set -euo pipefail
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/legs" --prefix visual-second-
+                  args=(--second "$RUNNER_TEMP/legs/none")
+                  for d in $(ls -d "$RUNNER_TEMP"/legs/visual-second-* 2>/dev/null | sort -V); do
+                      args+=(--second "$d")
+                  done
+                  node tools/channel/recapture.mjs merge --first "$FIRST" "${args[@]}" --out "$RUNNER_TEMP/final"
+
+            - name: Upload the final capture
+              if: ${{ steps.plan.outputs.dir != '' }}
               uses: actions/upload-artifact@v7
               with:
                   name: visual-final-${{ matrix.project }}-${{ github.run_attempt }}
@@ -1145,6 +1356,7 @@ jobs:
                 llm,
                 version_dry_run,
                 recapture,
+                recapture_merge,
                 candidate_site,
                 ci_red,
                 t4_red,
@@ -1169,7 +1381,12 @@ jobs:
             promote: ${{ steps.promote.outputs.promote }}
             screenshots: ${{ steps.gate.outputs.screenshots }}
             deferred: ${{ steps.verdict.outputs.deferred }}
-            hold: ${{ steps.verdict.outputs.hold }}
+            # the held head as the store had it when the verdict decided ("" none, "unknown" no answer)
+            held: ${{ steps.verdict.outputs.held }}
+            # what the hold step did, not what the pick's view of the hold asked for: another run may have held its
+            # commit since, and then this one is not held (channel/candidate and the kept builds stay put)
+            hold: ${{ steps.hold.outputs.action || steps.verdict.outputs.hold }}
+            owner: ${{ steps.verdict.outputs.owner }}
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha || github.sha }}
@@ -1231,10 +1448,11 @@ jobs:
                       "hosts": "${{ needs.pick.outputs.hosts == 'false' && 'unaffected' || needs.hosts.result }}",
                       "autosave_macos": "${{ needs.pick.outputs.macos == 'false' && 'unaffected' || needs.autosave_macos.result }}",
                       "audit": "${{ needs.audit.result }}", "version_dry_run": "${{ needs.version_dry_run.result }}",
-                      "recapture": "${{ needs.recapture.result }}"}
+                      "recapture": "${{ (needs.recapture_merge.result == 'failure' || needs.recapture_merge.result == 'cancelled') && 'failure' || needs.recapture.result }}"}
               run: |
                   set -euo pipefail
                   mkdir -p "$CAPTURES" "$(dirname "$RECORD")"
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/final" --prefix visual-final-
                   for d in "$RUNNER_TEMP"/final/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$CAPTURES/visual-${d##*/visual-final-}"
                   done
@@ -1284,7 +1502,8 @@ jobs:
                   STATE: ${{ steps.verdict.outputs.state }}
                   GATE: ${{ steps.gate.outputs.outcome }}
                   FIRST: ${{ steps.gate.outputs.first }}
-                  HELD: ${{ needs.pick.outputs.held }}
+                  # the hold as the store had it at the verdict, not the pick's (a re-run keeps attempt 1's pick)
+                  HELD: ${{ steps.verdict.outputs.held }}
               run: node tools/channel/nightly.mjs decide
 
             # green-images too: it waits for the owner's screenshot review, and without this the run ends green
@@ -1305,6 +1524,20 @@ jobs:
                   node tools/release-status.mjs "$STATE" --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
                       --bisect "$BISECT" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
 
+            # a green-clean run that promotes without the projects the version dry run held: the announcement above
+            # names them in a red or green-images run's WHAT, so only green-clean needs its own owner item
+            - name: Announce the projects held for the owner's approval
+              if: ${{ steps.verdict.outputs.state == 'green-clean' && steps.verdict.outputs.owner != '' }}
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+                  OWNER: ${{ steps.verdict.outputs.owner }}
+              run: |
+                  node tools/release-status.mjs owner-item --sha "$SHA" --what "$OWNER" \
+                      --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+
     # A held green-images head promotes later, after the owner's approval, from this run's builds (the resume job's
     # run uses them): CI keeps its own for a day, so they are kept here for 30 days, as the version job keeps a
     # promoted candidate's.
@@ -1320,7 +1553,7 @@ jobs:
             - name: Download the tested commit's builds
               uses: actions/download-artifact@v8
               with:
-                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+                  pattern: ${{ env.PACKAGE_BUILDS }}
                   path: ${{ runner.temp }}/builds
 
             - name: Keep the builds for the promotion after approval
@@ -1361,7 +1594,7 @@ jobs:
     resume:
         name: Gate the approved candidate
         needs: pick
-        if: ${{ needs.pick.outputs.resume == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.resume == 'true' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         permissions:
@@ -1407,6 +1640,7 @@ jobs:
               run: |
                   set -euo pipefail
                   mkdir -p "$CAPTURES"
+                  node tools/channel/recapture.mjs nest --captures "$RUNNER_TEMP/final" --prefix visual-final-
                   for d in "$RUNNER_TEMP"/final/visual-final-*; do
                       [ -d "$d" ] && mv "$d" "$CAPTURES/visual-${d##*/visual-final-}"
                   done
@@ -1431,60 +1665,15 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/channel/resume.mjs record
 
-    # The owner ends a held nightly candidate without promoting it (design/ci/channels-pipeline.md section 3):
-    # `gh workflow run release.yml --ref master -f mode=abandon`. Environment production, so it waits for the owner's
-    # approval in GitHub whoever dispatched it, as a legacy release does; then the abandon job clears the results
-    # store's hold and closes the "Nightly held on" issue, and candidate_branch deletes branch channel/candidate.
-    # The next slot tests master's newest commit again.
-    abandon_approve:
-        name: Owner approval (abandon the held candidate)
-        if: ${{ inputs.mode == 'abandon' && github.ref == 'refs/heads/master' }}
-        runs-on: ubuntu-24.04
-        timeout-minutes: 10
-        environment: production # the owner's approval
-        permissions: {}
-        steps:
-            - run: echo "the owner approved abandoning the held nightly candidate"
-
-    abandon:
-        name: Abandon the held candidate
-        needs: abandon_approve
-        runs-on: ubuntu-24.04
-        timeout-minutes: 10
-        permissions:
-            contents: read
-            issues: write # close the hold issue
-            id-token: write # the results store
-        outputs:
-            base: ${{ steps.end.outputs.base }}
-        steps:
-            - uses: actions/checkout@v7
-              with:
-                  sparse-checkout: tools
-
-            - uses: actions/setup-node@v7
-              with:
-                  node-version: 22.x
-
-            - name: End the hold
-              id: end
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  WHY: abandoned by the owner
-                  ABANDONED: "true"
-                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-                  RESULTS_URL: ${{ vars.RESULTS_URL }}
-                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
-              run: node tools/channel/hold.mjs end
-
     # Branch channel/candidate (design/ci/channels-pipeline.md section 3), with the deploy key: pushed at the commit a
-    # deciding verdict holds, deleted when the owner abandons the hold (land deletes it in its own push when the held
-    # candidate promotes). It runs git only. The results store's hold is what the slots read, so a refused push (the
-    # deploy-key ruleset does not cover channel/candidate yet: an owner item) only warns.
+    # deciding verdict holds, deleted when the hold is abandoned (nightly-abandon.yml, or candidate_fix's automatic
+    # abandon; land deletes it in its own push when the held candidate promotes). It runs git only. The results store's
+    # hold is what the slots read, so a refused push (the deploy-key ruleset does not cover channel/candidate yet: an
+    # owner item) only warns.
     candidate_branch:
         name: Move branch channel/candidate
-        needs: [pick, verdict, abandon]
-        if: ${{ !cancelled() && (needs.verdict.outputs.hold == 'start' || needs.abandon.result == 'success') }}
+        needs: [pick, verdict]
+        if: ${{ !cancelled() && needs.verdict.outputs.hold == 'start' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         environment: release # the deploy key
@@ -1492,21 +1681,16 @@ jobs:
             contents: read # the push goes over SSH with the deploy key, not with this token
         env:
             SHA: ${{ needs.pick.outputs.sha }}
-            ABANDON: ${{ needs.abandon.result == 'success' }}
         steps:
             - uses: actions/checkout@v7
               with:
                   sparse-checkout: tools
                   ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
-            - name: Push or delete channel/candidate
+            - name: Push channel/candidate
               run: |
-                  if [ "$ABANDON" = true ]; then
-                      ref=:refs/heads/channel/candidate
-                  else
-                      git fetch --quiet origin "$SHA"
-                      ref="${SHA}:refs/heads/channel/candidate"
-                  fi
+                  git fetch --quiet origin "$SHA"
+                  ref="${SHA}:refs/heads/channel/candidate"
                   git push --no-verify origin "$ref" ||
                       echo "::warning::could not push ${ref}: add channel/candidate to the deploy-key ruleset (owner item); the hold stands in the results store"
 
@@ -1706,13 +1890,24 @@ jobs:
                   ref: ${{ needs.pick.outputs.sha }}
                   fetch-depth: 0
 
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
             # The builds of the CI call above, kept for 30 days under the commit's name, so a re-run of a failed
             # publish (gh run rerun <id> --failed) still finds them (CI keeps its own for a day).
             - name: Download the tested commit's builds
               if: ${{ needs.pick.outputs.resume != 'true' }}
               uses: actions/download-artifact@v8
               with:
-                  pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+                  pattern: ${{ env.PACKAGE_BUILDS }}
                   path: ${{ runner.temp }}/builds
 
             # a promotion after approval: the builds the judging run kept for its held head (its keep_builds job);
@@ -1751,11 +1946,16 @@ jobs:
             # release-hold.json is neither versioned nor published -- not even as a dependent of a package that is
             # released. An ad hoc release with `packages` holds every other project too. To stop one package, add
             # it to release-hold.json; never disable this workflow (CLAUDE.md, "Release versioning"). nx tags,
-            # pushes and creates nothing here: the land job pushes the commit with its tags.
+            # pushes and creates nothing here: the land job pushes the commit with its tags. A project the version
+            # dry run held (a major or a first publish with no release-approvals.json entry) is left out the same
+            # way, for this run only (RELEASE_HOLD_ALSO), with every project that depends on it, and every other
+            # project promotes. A promotion after approval runs no dry run: its version commit is checked here, and
+            # versioned again without the projects the check names.
             - name: Version the packages
               id: version
               env:
                   PACKAGES: ${{ inputs.packages }}
+                  RELEASE_HOLD_ALSO: ${{ needs.version_dry_run.outputs.held }}
                   # the changelog renderer looks up commit authors' GitHub handles
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
@@ -1773,6 +1973,18 @@ jobs:
                       # the pick job versioned this same commit and found something to release
                       echo "::error::nx versioned nothing on ${SHA}, although the pick job did"
                       exit 1
+                  fi
+                  if ! GITHUB_OUTPUT="$RUNNER_TEMP/approvals" node tools/release-approvals.mjs dry-run "$SHA" "$commit"; then
+                      more=$(sed -n 's/^held=//p' "$RUNNER_TEMP/approvals" | tail -1)
+                      [ -n "$more" ] || exit 1
+                      git reset --hard --quiet "$SHA"
+                      export RELEASE_HOLD_ALSO="${RELEASE_HOLD_ALSO:+${RELEASE_HOLD_ALSO},}${more}"
+                      commit=$(tools/release-version.sh "$PACKAGES")
+                      if [ -z "$commit" ]; then
+                          echo "::notice::nothing to version on ${SHA} without ${RELEASE_HOLD_ALSO}: nightly moves its site only"
+                          exit 0
+                      fi
+                      node tools/release-approvals.mjs dry-run "$SHA" "$commit"
                   fi
                   node tools/release-diff.mjs "$SHA" "$commit"
                   tags=$(git log -1 --format=%b "$commit" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1@\2/p' | paste -sd, -)
@@ -1800,7 +2012,7 @@ jobs:
     approve:
         name: Owner approval (production)
         needs: [pick, version]
-        if: ${{ inputs.mode == 'legacy' && needs.version.result == 'success' }}
+        if: ${{ !cancelled() && inputs.mode == 'legacy' && needs.version.result == 'success' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         environment: production
@@ -1880,104 +2092,7 @@ jobs:
             # Re-run after a push that landed: master already holds the version commit, and nothing is pushed.
             - name: Push the version commit and its tags to master
               id: push
-              run: |
-                  set -euo pipefail
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
-                  refs=()
-                  # A nightly's merge has its own subject, so deploy-pages.yml (which deploys graphty.app from a
-                  # "chore(release): publish ... onto master" merge) never takes a nightly for a production release.
-                  subject="chore(release): publish ${TAGS//,/, } onto master"
-                  [ "$DIST_TAG" != next ] || subject="chore(release): nightly ${TAGS//,/, } onto master"
-                  if [ -n "$COMMIT" ]; then
-                      git fetch --quiet "$RUNNER_TEMP/release/release.bundle" release
-                      [ "$(git rev-parse FETCH_HEAD)" = "$COMMIT" ] || { echo "::error::the kept version commit is not ${COMMIT}"; exit 1; }
-                  fi
-                  # A nightly promotion (npm next) also pushes the site tag, on the tested commit, which the site
-                  # job's prerelease hangs the commit's built site on, and fast-forwards channel/nightly to the
-                  # version commit, or to the tested commit when nothing was versioned
-                  # (design/ci/channels-pipeline/channels.md section 2). Never forced: a candidate whose history
-                  # lacks the current channel/nightly is refused here, by name, before anything is pushed.
-                  if [ "$DIST_TAG" = next ]; then
-                      target=${COMMIT:-$SHA}
-                      if git ls-remote --exit-code --heads origin refs/heads/channel/nightly >/dev/null; then
-                          git fetch --quiet origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly
-                          git merge-base --is-ancestor origin/channel/nightly "$target" || {
-                              echo "::error::channel/nightly ($(git rev-parse --short origin/channel/nightly)) is not in the history of ${target}: this candidate is older than the current nightly, so nightly cannot move to it. Nothing was pushed or published."
-                              exit 1
-                          }
-                      fi
-                      tested=${TESTED:-$SHA}
-                      site="site-${tested}"
-                      if git ls-remote --exit-code --tags origin "refs/tags/${site}" >/dev/null; then
-                          git fetch --quiet origin "+refs/tags/${site}:refs/tags/${site}"
-                          [ "$(git rev-parse "refs/tags/${site}^{commit}")" = "$tested" ] ||
-                              { echo "::error::tag ${site} exists already on another commit"; exit 1; }
-                      else
-                          git tag "$site" "$tested"
-                      fi
-                      refs+=("refs/tags/${site}:refs/tags/${site}" "${COMMIT:-$SHA}:refs/heads/channel/nightly")
-                      # the held candidate promoting ends its hold (design/ci/channels-pipeline.md section 3): its
-                      # branch goes in the same push; the unhold job clears the store and closes the issue
-                      if [ "${HELD:-}" = "$tested" ] && git ls-remote --exit-code --heads origin refs/heads/channel/candidate >/dev/null; then
-                          refs+=(":refs/heads/channel/candidate")
-                      fi
-                  fi
-                  # Nothing versioned (a nightly only): master does not move, only the site tag and channel/nightly.
-                  if [ -z "$COMMIT" ]; then
-                      [ "$DIST_TAG" = next ] || { echo "::error::no version commit to land"; exit 1; }
-                      git push --atomic --no-verify origin "${refs[@]}"
-                      echo "nightly moves to ${SHA}, with no version commit"
-                      echo "pushed=true" >> "$GITHUB_OUTPUT"
-                      exit 0
-                  fi
-                  node tools/release-diff.mjs "$SHA" "$COMMIT"
-                  for tag in ${TAGS//,/ }; do
-                      refs+=("refs/tags/${tag}:refs/tags/${tag}")
-                  done
-                  for try in 1 2 3 4 5; do
-                      git fetch --quiet origin +refs/heads/master:refs/remotes/origin/master
-                      if git merge-base --is-ancestor "$COMMIT" origin/master; then
-                          echo "master holds ${COMMIT} already"
-                          echo "pushed=true" >> "$GITHUB_OUTPUT"
-                          exit 0
-                      fi
-                      for tag in ${TAGS//,/ }; do
-                          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
-                              [ "$(git rev-parse "refs/tags/${tag}^{commit}")" = "$COMMIT" ] ||
-                                  { echo "::error::tag ${tag} exists already on another commit: these versions were released before"; exit 1; }
-                          else
-                              git tag "$tag" "$COMMIT"
-                          fi
-                      done
-                      git checkout --quiet --detach origin/master
-                      if ! git merge --no-ff --no-verify -m "$subject" "$COMMIT"; then
-                          git merge --abort || true
-                          echo "::error::the version commit ${COMMIT} (versions and changelogs of ${SHA}) does not merge cleanly into master: a commit on master since ${SHA} changed a version field or a CHANGELOG.md line this release also writes. Nothing was pushed or published. Undo that edit on master; the merge of the fix restarts the release."
-                          exit 1
-                      fi
-                      # the merge brings master nothing but versions and changelogs: code reaches master only through
-                      # master's own pull requests (design/ci/channels-pipeline.md section 3, "Nightly promotion")
-                      node tools/release-diff.mjs origin/master HEAD || {
-                          echo "::error::merging ${COMMIT} into master would bring in more than versions and changelogs (above). Nothing was pushed or published."
-                          exit 1
-                      }
-                      if git push --atomic --no-verify origin HEAD:refs/heads/master "${refs[@]}"; then
-                          echo "master now holds ${COMMIT}, tagged ${TAGS}"
-                          echo "pushed=true" >> "$GITHUB_OUTPUT"
-                          exit 0
-                      fi
-                      # a nightly ref the push could not fast-forward is no master race: say so, not "master kept moving"
-                      if [ "$DIST_TAG" = next ] &&
-                          git fetch --quiet origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly 2>/dev/null &&
-                          ! git merge-base --is-ancestor origin/channel/nightly "$COMMIT"; then
-                          echo "::error::channel/nightly moved to $(git rev-parse --short origin/channel/nightly) during the push, and ${COMMIT} lacks it: another promotion won. Nothing was pushed or published."
-                          exit 1
-                      fi
-                      echo "try ${try}: master moved during the push; merging again on its new tip"
-                  done
-                  echo "::error::could not land ${COMMIT} on master in five tries: master kept moving or the push was refused"
-                  exit 1
+              run: tools/channel/land.sh
               env:
                   HUSKY: "0"
 
@@ -2068,6 +2183,17 @@ jobs:
               with:
                   ref: ${{ needs.version.outputs.commit }}
                   fetch-depth: 0
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # A re-run (gh run rerun <id> --failed) tells the owner's phone it is retrying.
             - name: Announce a re-run of the publish
@@ -2170,13 +2296,14 @@ jobs:
                   HUSKY: "0"
 
             # npm can accept a publish and still not serve it, and nx release publish skips any package whose
-            # dependency failed. So the last word is the registry: every non-private package's version at the
-            # version commit must be installable. npm takes a while to serve a fresh version (up to about 7.5
-            # minutes), hence the bounded poll (20 tries, 30 s apart).
+            # dependency failed. So the last word is the registry: every package the version commit versions must be
+            # installable at its new version. Only those: a package this release did not version keeps a version npm
+            # has, or is held in release-hold.json and was never published (graphty, githerd; #4137). npm takes a
+            # while to serve a fresh version (up to about 7.5 minutes), hence the bounded poll (20 tries, 30 s apart).
             - name: Check every version is on npm
               run: |
                   missing() {
-                      pnpm -r ls --depth -1 --json | jq -r '.[] | select(.private != true) | "\(.name)@\(.version)"' |
+                      git diff --name-only "${COMMIT}^1" "$COMMIT" -- '*/package.json' | xargs -r jq -r 'select(.private != true) | "\(.name)@\(.version)"' |
                           while read -r spec; do
                               [ "$(npm view "$spec" version 2>/dev/null)" = "${spec##*@}" ] || echo "$spec"
                           done
@@ -2280,203 +2407,23 @@ jobs:
                   node tools/release-status.mjs "$OUTCOME" --sha "$SHA" --tags "$TAGS" --issue "$ISSUE" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-    # The nightly site (design/ci/channels-pipeline/channels.md, sections 3 and 7, step 4): hangs the candidate's
-    # built site (the site-<sha> artifact its master build's deploy-pages.yml run kept, byte for byte, compressed
-    # as site.tar.zst) and channel.json on a public prerelease on the site-<sha> tag the land job pushed, pushes
-    # deployed.json (tag, sha256, the master commit whose graphty/sites/nightly.json becomes site.json) to
-    # graphty-org/graphty-nightly with that repository's deploy key, and ends on graphty-nightly's deploy
-    # (tools/channel/site-deploy.yml, which refuses an asset whose sha256 is not deployed.json's) or on
-    # nightly.graphty.app's build stamp naming the candidate. Then it records the promotion and both sha256s in
-    # the results store and announces it. A failure files one priority:critical issue and is announced; a re-run
-    # of the run's failed jobs re-runs this job alone. No dependency is installed: it holds a deploy key.
+    # The nightly site: .github/workflows/nightly-site.yml, which a failed deploy can also be dispatched with.
     site:
         name: Deploy the nightly site
         needs: [pick, verdict, resume, version, land, publish]
         if: ${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' || inputs.mode == 'promote-nightly') && needs.land.outputs.pushed == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}
-        runs-on: ubuntu-24.04
-        timeout-minutes: 20
-        environment: nightly # NIGHTLY_SITE_DEPLOY_KEY, Pushover
         permissions:
             actions: read # the deploy-pages.yml run's site artifact; graphty-nightly's deploy run
             contents: write # the prerelease on site-<sha>
             id-token: write # the results store
             issues: write # a failed deploy's issue; the Release status announcement
-        env:
-            GH_TOKEN: ${{ github.token }}
+        uses: ./.github/workflows/nightly-site.yml
+        with:
             # the commit whose built site deploys: the tested one (after the owner's approval, the candidate the accept
-            # commit is parented on, which master built); TARGET is where the land job moved channel/nightly
-            SHA: ${{ needs.pick.outputs.tested || needs.pick.outputs.sha }}
-            TARGET: ${{ needs.version.outputs.commit || needs.pick.outputs.sha }}
-            COMMIT: ${{ needs.version.outputs.commit }}
-            TAGS: ${{ needs.version.outputs.tags }}
-            SCREENSHOTS: ${{ needs.verdict.outputs.screenshots || needs.resume.outputs.screenshots }}
-            SITE_REPO: graphty-org/graphty-nightly
-            SITE_URL: https://nightly.graphty.app
-            RUN_ID: ${{ github.run_id }}
-            RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        steps:
-            # The deploy wait's limit counts from here, not from the wait, so however long the steps before it take
-            # it fails by name before the job's timeout cancels the job (a cancel would skip the failure report).
-            - name: Note the job's start
-              run: echo "JOB_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
-
-            # master's tip: the tools, and graphty/sites/nightly.json, which the site deploys as site.json
-            - uses: actions/checkout@v7
-              with:
-                  ref: master
-                  fetch-depth: 0
-                  filter: blob:none
-                  sparse-checkout: |
-                      tools
-                      graphty/sites
-
-            - uses: actions/setup-node@v7
-              with:
-                  node-version: 22.x
-
-            # Environment `nightly` is filled by the owner; a missing key fails here, by name, after the checkout,
-            # so the failure report at the end can run.
-            - name: Check the site's deploy key
-              env:
-                  KEY: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
-              run: |
-                  [ -n "$KEY" ] || {
-                      echo "::error::secret NIGHTLY_SITE_DEPLOY_KEY is missing from environment nightly: add graphty-nightly's write deploy key (private half) there, then re-run this run's failed jobs"
-                      exit 1
-                  }
-
-            # A re-run of an older run's site job must not roll nightly.graphty.app back: deploy only while
-            # channel/nightly is still this run's commit (the land job moved it; a later promotion moves it on).
-            # Moved on is a skip, not a failure: every later step is skipped and no failed deploy is reported.
-            - name: Check that nightly is still this run's
-              id: current
-              run: |
-                  set -euo pipefail
-                  git fetch --quiet --filter=blob:none origin +refs/heads/channel/nightly:refs/remotes/origin/channel/nightly
-                  at=$(git rev-parse refs/remotes/origin/channel/nightly)
-                  if [ "$at" = "$TARGET" ]; then
-                      echo "ours=true" >> "$GITHUB_OUTPUT"
-                  else
-                      echo "::notice::channel/nightly is at ${at} now, not this run's ${TARGET}: a later promotion moved it, so this run deploys nothing"
-                      echo "ours=false" >> "$GITHUB_OUTPUT"
-                  fi
-
-            - name: Download the candidate's built site
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              run: |
-                  set -euo pipefail
-                  mkdir -p "$RUNNER_TEMP/site" "$RUNNER_TEMP/out"
-                  # by name: deploy-pages.yml keeps a master build's site, and a fix forward's run (candidate_site) a held
-                  # head's; the newest unexpired one
-                  id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=site-${SHA}&per_page=10" \
-                      --jq '[.artifacts[] | select(.expired | not)][0].id // empty')
-                  if [ -n "$id" ] && gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}/zip" > "$RUNNER_TEMP/site.zip" &&
-                      unzip -q "$RUNNER_TEMP/site.zip" -d "$RUNNER_TEMP/site"; then
-                      echo "site-${SHA} from artifact ${id}"
-                      exit 0
-                  fi
-                  echo "::error::no run still keeps the artifact site-${SHA} (kept 14 days)"
-                  exit 1
-
-            - name: Pack the site and write channel.json
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              id: pack
-              run: |
-                  set -euo pipefail
-                  zstd -q -T0 "$RUNNER_TEMP/site/site-${SHA}.tar" -o "$RUNNER_TEMP/out/site.tar.zst"
-                  site_sha=$(sha256sum "$RUNNER_TEMP/out/site.tar.zst" | cut -d' ' -f1)
-                  config_ref=$(git rev-parse HEAD)
-                  SITE_SHA256="$site_sha" CONFIG_REF="$config_ref" node tools/channel/nightly.mjs channel-json > "$RUNNER_TEMP/out/channel.json"
-                  channel_sha=$(sha256sum "$RUNNER_TEMP/out/channel.json" | cut -d' ' -f1)
-                  { echo "site_sha256=${site_sha}"; echo "channel_sha256=${channel_sha}"; echo "config_ref=${config_ref}"; } >> "$GITHUB_OUTPUT"
-
-            # A public prerelease on the tag the land job pushed: never "Latest", which stays production's.
-            - name: Hang the site on the site-<sha> prerelease
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              run: |
-                  set -euo pipefail
-                  tag="site-${SHA}"
-                  gh release view "$tag" >/dev/null 2>&1 ||
-                      gh release create "$tag" --verify-tag --prerelease --latest=false --title "Nightly site ${SHA:0:7}" \
-                          --notes "The built site of ${SHA}, promoted to nightly.graphty.app by ${RUN_URL}."
-                  gh release upload "$tag" "$RUNNER_TEMP/out/site.tar.zst" "$RUNNER_TEMP/out/channel.json" --clobber
-
-            - uses: actions/checkout@v7
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              with:
-                  repository: ${{ env.SITE_REPO }}
-                  path: nightly-site
-                  ssh-key: ${{ secrets.NIGHTLY_SITE_DEPLOY_KEY }}
-
-            # deployed.json's history in graphty-nightly is the audit log of every nightly deploy.
-            - name: Push deployed.json and channel.json to the site repository
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              id: deployed
-              env:
-                  SITE_SHA256: ${{ steps.pack.outputs.site_sha256 }}
-                  CONFIG_REF: ${{ steps.pack.outputs.config_ref }}
-              run: |
-                  set -euo pipefail
-                  [ -f nightly-site/.github/workflows/deploy.yml ] || {
-                      echo "::error::${SITE_REPO} has no .github/workflows/deploy.yml: commit tools/channel/site-deploy.yml there as deploy.yml"
-                      exit 1
-                  }
-                  node tools/channel/nightly.mjs deployed-json > nightly-site/deployed.json
-                  # what nightly serves, read by promote.mjs (--config-only, the rollback check), as promote-push.sh writes it
-                  cp "$RUNNER_TEMP/out/channel.json" nightly-site/channel.json
-                  cd nightly-site
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add deployed.json channel.json
-                  git commit --quiet -m "deploy: nightly site-${SHA}" -m "${RUN_URL}"
-                  git push --quiet origin HEAD
-                  echo "pushed=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-            - name: Wait for the site's deploy
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              env:
-                  PUSHED: ${{ steps.deployed.outputs.pushed }}
-              run: node tools/channel/nightly.mjs wait
-
-            - name: Record the promotion in the results store
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              env:
-                  RESULTS_URL: ${{ vars.RESULTS_URL }}
-                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
-                  SITE_SHA256: ${{ steps.pack.outputs.site_sha256 }}
-                  CHANNEL_SHA256: ${{ steps.pack.outputs.channel_sha256 }}
-              run: node tools/channel/nightly.mjs record
-
-            # a gh error here (a rate limit, a 5xx) must not turn a deploy that worked into a failed one
-            - name: Close the failed-deploy and failed-promotion issues
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              continue-on-error: true
-              run: |
-                  # each runs even when the one before it failed; the step still reports a failure
-                  rc=0
-                  node tools/channel/nightly.mjs deployed || rc=$?
-                  tools/release-held.sh close "Nightly promotion succeeded on ${SHA}: ${RUN_URL}" "Nightly promotion failed:" || rc=$?
-                  tools/release-held.sh close "Nightly promotion succeeded on ${SHA}: ${RUN_URL}" "Nightly blocked:" || rc=$?
-                  exit "$rc"
-
-            - name: Announce the promoted nightly
-              if: ${{ steps.current.outputs.ours == 'true' }}
-              continue-on-error: true
-              env:
-                  GITHUB_TOKEN: ${{ github.token }}
-                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
-                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
-                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
-              run: |
-                  node tools/release-status.mjs nightly --sha "$SHA" --tags "$TAGS" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
-
-            - name: Report a failed nightly deploy
-              if: ${{ failure() }}
-              env:
-                  GITHUB_TOKEN: ${{ github.token }}
-                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
-                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
-                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
-              run: |
-                  issue=$(node tools/channel/nightly.mjs failed)
-                  node tools/release-status.mjs nightly-failed --sha "$SHA" --issue "$issue" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+            # commit is parented on, which master built); target is where the land job moved channel/nightly
+            sha: ${{ needs.pick.outputs.tested || needs.pick.outputs.sha }}
+            target: ${{ needs.version.outputs.commit || needs.pick.outputs.sha }}
+            commit: ${{ needs.version.outputs.commit }}
+            tags: ${{ needs.version.outputs.tags }}
+            screenshots: ${{ needs.verdict.outputs.screenshots || needs.resume.outputs.screenshots }}
+        secrets: inherit

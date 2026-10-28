@@ -563,6 +563,18 @@ export type GraphtyErrorCode =
      */
     | "E_SOURCE_UNKNOWN"
     /**
+     * A load an opened project holds has not been run since it opened, so nothing may fetch for it
+     * yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+     * once the reader approved. Nothing was fetched. `details.id`. Experimental.
+     */
+    | "E_SOURCE_PENDING"
+    /**
+     * No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+     * `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+     * `details.key`, `details.known`. Experimental.
+     */
+    | "E_LOAD_UNKNOWN"
+    /**
      * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
      */
     | "E_SOURCE_UNSUPPORTED"
@@ -579,6 +591,89 @@ export type GraphtyErrorCode =
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
      * message; nothing it can change will avoid it.
      */
+    /**
+     * A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+     */
+    | "E_MODEL_FETCH"
+    /**
+     * A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`; `params.denied` when the reader refused it; `params.part` (the part's name) for a part handed to `assets.supply` by URL. A private, loopback or link-local host is refused for a supplied part whoever asks.
+     */
+    | "E_MODEL_URL_BLOCKED"
+    /**
+     * A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+     */
+    | "E_MODEL_TOO_LARGE"
+    /**
+     * A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+     */
+    | "E_MODEL_STRUCTURE"
+    /**
+     * A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+     * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
+     */
+    | "E_MODEL_FORMAT_UNSUPPORTED"
+    /**
+     * No model format matches the bytes or the name. `params.fileName`.
+     */
+    | "E_MODEL_FORMAT_UNKNOWN"
+    /**
+     * Two different main files in one set, or two paths that differ only in case. `params.candidates`
+     * (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+     * `add`'s `main` option.
+     */
+    | "E_MODEL_AMBIGUOUS"
+    /**
+     * A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+     * part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+     * `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+     * part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+     * `params.tried` (the addresses tried, without queries, at most 4).
+     */
+    | "E_MODEL_MISSING_FILE"
+    /**
+     * A reference matched more than one file of the set by case or base name, so none was used.
+     * `params.name`, `params.referencedBy`, `params.candidates`.
+     */
+    | "E_MODEL_PART_AMBIGUOUS"
+    /**
+     * An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+     * `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+     * address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+     */
+    | "E_MODEL_WEB_PAGE"
+    /**
+     * A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+     */
+    | "E_MODEL_PART_REQUIRED"
+    /**
+     * A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+     */
+    | "E_MODEL_EXTERNAL_URL"
+    /**
+     * A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+     */
+    | "E_MODEL_DECODER_UNAVAILABLE"
+    /**
+     * Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+     */
+    | "E_MODEL_PARSE"
+    /**
+     * A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+     */
+    | "E_MODEL_ZIP"
+    /**
+     * An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+     */
+    | "E_MODEL_NAME_TAKEN"
+    /**
+     * An asset id the session holds no accepted model for. `details.id`.
+     */
+    | "E_MODEL_UNKNOWN_ASSET"
+    /**
+     * A model a project file embeds does not match the digest the file records for it (or its id,
+     * for an unnamed asset), so it was not added. `params.id`.
+     */
+    | "E_MODEL_DIGEST_MISMATCH"
     | "E_INTERNAL";
 
 /**
@@ -590,7 +685,11 @@ export type GraphtyWarningCode =
     | "W_UNKNOWN_MEMBER"
     /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
     | "W_FUTURE_TIME"
-    /** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+    /**
+     * A member of a kind this reader does not know: skipped, the rest of the file still read
+     * (`params.index`, `params.kind`). Also a `graphty-sources` entry of a load kind it does not
+     * know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
+     */
     | "W_UNKNOWN_KIND"
     /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
     | "W_DATA_DIFFERS"
@@ -643,11 +742,90 @@ export type GraphtyWarningCode =
      */
     | "W_DIMENSION_OVERRIDDEN"
     /**
-     * A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
-     * out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
-     * `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
+     * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
+     * `node.modelSourceUp` turns it.
+     */
+    | "W_MODEL_UP_GUESSED"
+    /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
+    | "W_MODEL_HAS_ANIMATIONS"
+    /**
+     * A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+     * `params.layerIds` names the layers that write `node.color`.
+     */
+    | "W_MODEL_COLOR_IGNORED"
+    /** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+    | "W_MODEL_HEAVY"
+    /** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+    | "W_MODEL_BUDGET"
+    /** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+    | "W_MODEL_TRANSPARENT"
+    /** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+    | "W_MODEL_TEXTURES_REDUCED"
+    /**
+     * A project was saved with a layer naming a model the session does not hold (a URL that never
+     * loaded, or an asset id it has no accepted model for), so the file does not carry it.
+     * `params.ref` is what the layers named and `params.layerIds` the layers.
+     */
+    | "W_MODEL_NOT_EMBEDDED"
+    /**
+     * A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
+     * from a project or style file, an AI command or the data, a reopened project's source load, or
+     * a part handed to `assets.supply` by its URL on another host (`by: "supplied"`).
+     * `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
+     * `params.layerIds`.
+     */
+    | "W_URL_NEEDS_APPROVAL"
+    /**
+     * A project file carries a network approval policy (`graphty-session` `network`), which an
+     * older release wrote. It is ignored: nothing saved in a file can make the element fetch
+     * without asking. `params.kind` is the member, `"graphty-session"`.
+     */
+    | "W_NETWORK_POLICY_IGNORED"
+    /**
+     * A model or picture a project keeps by URL loaded from that URL, and is not the file the
+     * project was saved with: the file at the URL changed. It is drawn. `params.url`,
+     * `params.expected` and `params.found` (SHA-256 digests).
+     */
+    | "W_MODEL_CHANGED"
+    /**
+     * A model reference was resolved by case or by base name to the one file of the set that
+     * matched. It is drawn. `params.name`, `params.used`, `params.referencedBy`.
+     */
+    | "W_MODEL_PART_SUBSTITUTED"
+    /**
+     * A model is drawn without a picture or `.mtl` the reader chose to skip. `params.name`, `params.role`.
+     */
+    | "W_MODEL_PART_SKIPPED"
+    /**
+     * A file supplied for a model matched none of its missing parts, and was not used. `params.fileName`.
+     */
+    | "W_MODEL_PART_UNUSED"
+    /**
+     * A project was asked to keep a model by its URL, but its parts came from several places
+     * (`assets.supply`), so no one URL brings it back: it was embedded instead. `params.url` (no
+     * query), `params.reason` (`parts`).
+     */
+    | "W_MODEL_NOT_KEPT_BY_URL"
+    /**
+     * A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
+     * `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
+     * element's way. Emitted as a `layout-warning` event. `params.reason` is the Graphviz failure
+     * reason, such as `graphviz.unavailable` or `graphviz.timeout`.
+     */
+    | "W_ROUTES_NOT_LAID"
+    /**
+     * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
+     * the `graphty-sources` member: query parameters of a URL load's address, or of a network
+     * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
+     * names left out. See the project file guide, "What a save leaves out".
      */
     | "W_SOURCE_URL_REDACTED"
+    /**
+     * A `graphty-sources` entry of an opened project names a network source this release has not
+     * registered: its elements are there and the entry is written back, but it is not offered to
+     * run. `params.id` is the entry's id and `params.source` the source id.
+     */
+    | "W_SOURCE_UNREGISTERED"
     /**
      * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
      * data applied. `params.graph` names the graph, null for the file's one graph.
@@ -782,9 +960,29 @@ const CODE_TABLE = {
     E_SOURCE_PARAM: "E_SOURCE_PARAM",
     E_SOURCE_LIMIT: "E_SOURCE_LIMIT",
     E_SOURCE_UNKNOWN: "E_SOURCE_UNKNOWN",
+    E_SOURCE_PENDING: "E_SOURCE_PENDING",
+    E_LOAD_UNKNOWN: "E_LOAD_UNKNOWN",
     E_SOURCE_UNSUPPORTED: "E_SOURCE_UNSUPPORTED",
     E_SOURCE_INVALID: "E_SOURCE_INVALID",
     E_CREDENTIAL_NOT_STORABLE: "E_CREDENTIAL_NOT_STORABLE",
+    E_MODEL_FETCH: "E_MODEL_FETCH",
+    E_MODEL_URL_BLOCKED: "E_MODEL_URL_BLOCKED",
+    E_MODEL_TOO_LARGE: "E_MODEL_TOO_LARGE",
+    E_MODEL_STRUCTURE: "E_MODEL_STRUCTURE",
+    E_MODEL_FORMAT_UNSUPPORTED: "E_MODEL_FORMAT_UNSUPPORTED",
+    E_MODEL_FORMAT_UNKNOWN: "E_MODEL_FORMAT_UNKNOWN",
+    E_MODEL_AMBIGUOUS: "E_MODEL_AMBIGUOUS",
+    E_MODEL_MISSING_FILE: "E_MODEL_MISSING_FILE",
+    E_MODEL_PART_AMBIGUOUS: "E_MODEL_PART_AMBIGUOUS",
+    E_MODEL_WEB_PAGE: "E_MODEL_WEB_PAGE",
+    E_MODEL_PART_REQUIRED: "E_MODEL_PART_REQUIRED",
+    E_MODEL_EXTERNAL_URL: "E_MODEL_EXTERNAL_URL",
+    E_MODEL_DECODER_UNAVAILABLE: "E_MODEL_DECODER_UNAVAILABLE",
+    E_MODEL_PARSE: "E_MODEL_PARSE",
+    E_MODEL_ZIP: "E_MODEL_ZIP",
+    E_MODEL_NAME_TAKEN: "E_MODEL_NAME_TAKEN",
+    E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",
+    E_MODEL_DIGEST_MISMATCH: "E_MODEL_DIGEST_MISMATCH",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

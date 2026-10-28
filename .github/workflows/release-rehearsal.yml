@@ -132,7 +132,7 @@ jobs:
                       "packages: { '**': { access: \$all, publish: \$authenticated } }" \
                       'log: { type: stdout, format: pretty, level: warn }' > "$RUNNER_TEMP/verdaccio/config.yaml"
                   docker run -d --name verdaccio -p 4873:4873 -v "$RUNNER_TEMP/verdaccio:/verdaccio/conf" verdaccio/verdaccio:6
-                  curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://localhost:4873/-/ping > /dev/null
+                  curl -fsS --retry 30 --retry-all-errors --retry-delay 1 http://localhost:4873/-/ping > /dev/null
                   token=$(curl -fsS -X PUT -H 'content-type: application/json' -d '{"name":"rehearsal","password":"rehearsal"}' \
                       http://localhost:4873/-/user/org.couchdb.user:rehearsal | jq -r .token)
                   echo "::add-mask::$token"

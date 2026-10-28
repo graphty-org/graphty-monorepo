@@ -918,6 +918,19 @@ describe("POST /v1/hold", () => {
         assert.equal((await call("GET", "/v1/candidate", { token: master("release-rerun.yml") })).status, 200);
         assert.deepEqual((await post(master("release-rerun.yml"))).body, { held: true });
     });
+    it("lets nightly-abandon.yml clear only the hold it names and record its head rejected", async () => {
+        const { call } = service();
+        const post = (body, token = master("nightly-abandon.yml")) => call("POST", "/v1/hold", { token, body });
+        await post({ base: C, head: H, issue: 7 }, master("release.yml"));
+        assert.equal((await post({ base: N, head: N })).status, 403, "it never holds");
+        assert.equal((await post({ clear: true })).status, 400, "it names the hold it ends");
+        assert.deepEqual((await post({ clear: true, base: C, head: C })).body, { cleared: false }, "a moved head");
+        assert.deepEqual((await post({ clear: true, base: C, head: H })).body, { cleared: true });
+        const verdict = (state) =>
+            call("POST", "/v1/verdicts", { token: master("nightly-abandon.yml"), body: { sha: H, state } });
+        assert.equal((await verdict("green-clean")).status, 403);
+        assert.deepEqual((await verdict("rejected")).body, { stored: true });
+    });
     it("offers only the held head, once it is green-images, and reports nightly as held", async () => {
         const { call, env } = service();
         const s = seed(env);

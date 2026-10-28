@@ -34,6 +34,8 @@ const MASTER_KINDS = {
     "work-protection-macos.yml": "full",
     // a full run's same-commit re-run decider: files and holds a red attempt 1 it does not re-run
     "release-rerun.yml": "full",
+    // ends the held nightly candidate without promoting it: clears the hold, records its head rejected
+    "nightly-abandon.yml": "full",
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
@@ -420,7 +422,10 @@ const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item", "a
 
 // The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
 async function postVerdict(body, who, db, nowMs) {
-    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+    const ref = String(who.claims?.job_workflow_ref);
+    // nightly-abandon.yml records only the abandoned head's rejection
+    const abandon = ref.includes("/nightly-abandon.yml@") && body?.state === "rejected";
+    if (who.kind !== "full" || !(ref.includes("/release.yml@") || abandon)) {
         refuse(403, "only master's own release.yml records a verdict");
     }
     need(body, { sha: "string", state: "string" });
@@ -515,17 +520,29 @@ async function postChannelMove(body, who, db, nowMs) {
 }
 
 // The held nightly candidate (channels-pipeline.md section 3): release.yml's verdict sets it on a deciding run that
-// is not green-clean, a fix forward moves its head, a promotion or the owner's abandon clears it ({ clear: true }).
-// Only master's own release.yml writes it, and release-rerun.yml for a red run it does not re-run.
+// is not green-clean, a fix forward moves its head, a promotion or an abandon clears it ({ clear: true, base, head }).
+// Only master's own release.yml writes it, release-rerun.yml for a red run it does not re-run, and
+// nightly-abandon.yml, which only clears it.
 async function postHold(body, who, db, nowMs) {
     const ref = String(who.claims?.job_workflow_ref);
-    if (who.kind !== "full" || !(ref.includes("/release.yml@") || ref.includes("/release-rerun.yml@"))) {
+    const abandon = ref.includes("/nightly-abandon.yml@");
+    if (who.kind !== "full" || !(ref.includes("/release.yml@") || ref.includes("/release-rerun.yml@") || abandon)) {
         refuse(403, "only master's own release.yml or release-rerun.yml holds a candidate");
     }
     if (body?.clear === true) {
+        // with base and head, only that hold: an abandon racing a train never clears a hold it did not read
+        if (body.base != null || body.head != null) {
+            const { meta } = await db
+                .prepare("DELETE FROM candidate WHERE id = 1 AND base = ? AND head = ?")
+                .bind(String(body.base), String(body.head))
+                .run();
+            return { cleared: meta.changes === 1 };
+        }
+        if (abandon) refuse(400, "nightly-abandon.yml clears only the hold it names (base and head)");
         const { meta } = await db.prepare("DELETE FROM candidate WHERE id = 1").run();
         return { cleared: meta.changes === 1 };
     }
+    if (abandon) refuse(403, "nightly-abandon.yml only clears a hold");
     if (!SHA.test(body?.base ?? "") || !SHA.test(body?.head ?? ""))
         refuse(400, "base and head must be full commit ids");
     if (body.issue != null && !Number.isInteger(body.issue)) refuse(400, "issue must be an issue number");

@@ -32,7 +32,7 @@
  *
  * A newer master push cancels an unfinished older build (ci.yml's concurrency), and this job runs only in a green
  * build, so it reads every merge since the last green master build, not only this one: a cancelled build's `Fixes #N`
- * or `Refs #N` still restarts (lastGreenBuild).
+ * or `Refs #N` still restarts, and its screenshot approval still promotes (lastGreenBuild).
  *
  * Usage: node tools/release-due.mjs [--dry-run]
  *   env GH_TOKEN, GITHUB_REPOSITORY, RESULTS_URL and the job's OIDC token; the checkout is the master commit, with
@@ -151,12 +151,14 @@ export function cancelNote(issue, url, attempt) {
  * @param store `GET /v1/candidate`'s answer (hold, recent), or null when the store did not answer
  * @param approval the merged pull request's head (the merge's second parent), which promote-nightly checks holds
  *   only accept-only commits on the candidate
+ * @param [promoted] whether channel/nightly holds the approval already: then nothing runs
  * @returns `[{ candidate, accept, run, why, comment }]`: run, dispatch promote-nightly; comment, the hold issue to
  *   tell why not
  */
-export function resumesDue(commits, store, approval) {
+export function resumesDue(commits, store, approval, promoted = false) {
     return acceptsIn(commits).map(({ candidate }) => {
         const accept = approval;
+        if (promoted) return { candidate, accept, ...resumeDecision({ candidate, accept, promoted }) };
         if (!store) return { candidate, accept, run: true, why: "the results store did not answer: the run decides" };
         const latest = (store.recent ?? []).find((v) => v.sha === candidate) ?? null;
         const d = resumeDecision({ candidate, accept, hold: store.hold ?? null, latest });
@@ -254,7 +256,18 @@ async function promoteApproved(range, approval, dryRun) {
     if (acceptsIn(commits).length === 0) return;
     const cfg = config(process.env);
     const r = cfg ? await call(cfg, "GET", "/v1/candidate") : { ok: false };
-    for (const p of resumesDue(commits, r.ok ? r.data : null, approval)) {
+    // nightly holding the approval already means it was promoted; a dispatched run still in flight is refused by the
+    // run itself once the store records the candidate approved
+    let promoted = false;
+    try {
+        execFileSync("git", ["merge-base", "--is-ancestor", approval, "refs/remotes/origin/channel/nightly"], {
+            stdio: "ignore",
+        });
+        promoted = true;
+    } catch {
+        // no nightly branch, or not on it
+    }
+    for (const p of resumesDue(commits, r.ok ? r.data : null, approval, promoted)) {
         console.log(`release-due: the approval ${p.accept} of ${p.candidate}: ${p.why}`);
         if (dryRun) continue;
         if (p.run) {
@@ -429,20 +442,24 @@ async function main() {
     // ponytail: one call per master commit since the base, capped; a longer run of cancelled builds reads the newest 20
     const commits = base ? run("git", ["rev-list", "--first-parent", "-20", `${base}..HEAD`]).split("\n") : [head];
     const { bodies, merges } = readMerges(commits);
-    // this merge alone: a merge commit brings in HEAD^1..HEAD and its pull request's head is HEAD^2
-    let ownRange = ["-1", "HEAD"];
-    let approval = head;
-    try {
-        approval = run("git", ["rev-parse", "--verify", "--quiet", "HEAD^2"]);
-        ownRange = ["HEAD^1..HEAD"];
-    } catch {
-        // not a merge
-    }
-    // an approval merge promotes its candidate whatever the red issues say; its failure never stops the restart
-    try {
-        await promoteApproved(ownRange, approval, dryRun);
-    } catch (error) {
-        console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
+    // An approval merge promotes its candidate whatever the red issues say; its failure never stops the restart.
+    // Every merge since the base, oldest first: one whose own build was cancelled (#4127) is this build's to promote,
+    // and one at or before the base was handled by that green build. Each on its own: a merge commit brings in
+    // <sha>^1..<sha> and its pull request's head is <sha>^2.
+    for (const sha of [...commits].reverse()) {
+        try {
+            let ownRange = ["-1", sha];
+            let approval = sha;
+            try {
+                approval = run("git", ["rev-parse", "--verify", "--quiet", `${sha}^2`]);
+                ownRange = [`${sha}^1..${sha}`];
+            } catch {
+                // not a merge
+            }
+            await promoteApproved(ownRange, approval, dryRun);
+        } catch (error) {
+            console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
+        }
     }
     const messages = `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`;
     // its failure never stops the restart below

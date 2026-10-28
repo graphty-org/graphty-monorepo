@@ -151,34 +151,20 @@ function drawsNoLine(style: EdgeStyleConfig | null | undefined): boolean {
 }
 
 /**
- * The frame each node mesh's world matrix was last recomputed for.
- *
- * Keyed on the MESH rather than on the node, so a node that is given a new mesh -- a reshape --
- * starts with no entry and is recomputed rather than skipped on a stamp its old mesh earned.
- */
-const worldMatrixFrame = new WeakMap<AbstractMesh, number>();
-
-/**
- * Make sure a node mesh's world matrix is this frame's, and only compute it once per frame.
+ * Make sure a node mesh's world matrix is current before an edge intersects it.
  *
  * WHY IT HAS TO BE FRESH. Trimming an edge at the node surface intersects a ray with the node's
  * mesh, and that test reads the mesh's world matrix -- which is stale from the moment the frame
  * moved the node until something recomputes it.
  *
- * WHY IT IS COUNTED. A node with twenty edges on it would otherwise be recomputed twenty times a
- * frame. This used to be paid for by a separate pass over every edge in the graph that collected
- * the meshes into a set first, which cost a set of its own and a walk of every edge whether or
- * not any of them had moved. Asking here means it is paid once per node, and only for the nodes
- * an edge that actually moved is about to intersect.
+ * NOT CACHED BY FRAME ID. It once was, once per node per scene frame id, but the element renders on
+ * demand, so the frame id stands still between renders while a load places, sizes and moves nodes.
+ * An edge freshened a node early, the node moved, and a later edge in the same frame id met the
+ * node's stale world matrix: the arrowhead then sat a fraction of a pixel off, on some loads only
+ * (#4073). Recomputing one matrix is cheap next to the ray-against-mesh test it feeds.
  * @param mesh - The node mesh about to be intersected.
- * @param frame - The scene's current frame id.
  */
-function freshenWorldMatrix(mesh: AbstractMesh, frame: number): void {
-    if (worldMatrixFrame.get(mesh) === frame) {
-        return;
-    }
-
-    worldMatrixFrame.set(mesh, frame);
+function freshenWorldMatrix(mesh: AbstractMesh): void {
     mesh.computeWorldMatrix(true);
 }
 
@@ -2793,10 +2779,8 @@ export class Edge {
         } else {
             // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
             // graph used to do this, once a frame, whether or not the edge had moved.
-            const frame = this.context.getScene().getFrameId();
-
-            freshenWorldMatrix(srcMesh, frame);
-            freshenWorldMatrix(dstMesh, frame);
+            freshenWorldMatrix(srcMesh);
+            freshenWorldMatrix(dstMesh);
 
             // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
             // meshes' world geometry, so the ray runs between their world centres; the line is

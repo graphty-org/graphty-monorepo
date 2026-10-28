@@ -230,6 +230,7 @@ export {
     type CysImportOptions,
 } from "./formats/cys/index.js";
 export {
+    type BendPoint,
     DOT_ISSUE,
     DOT_LOSS,
     DOT_STYLE_BLOCK_ATTRIBUTE,

@@ -84,6 +84,25 @@ const sine = (pts: readonly Pt[]): Pt[] => {
         return [a[0] + dx * t - (dy / L) * off, a[1] + dy * t + (dx / L) * off];
     });
 };
+/** A route turned into a zigzag `amp` of its chord to each side, in `teeth` teeth. */
+const zigzag = (pts: readonly Pt[], amp: number, teeth: number): Pt[] => {
+    const [a, b] = [pts[0], pts[pts.length - 1]];
+    const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+    const L = Math.hypot(dx, dy);
+    if (L < 1e-9) {
+        return [...pts];
+    }
+    return Array.from({ length: 2 * teeth + 1 }, (_, i): Pt => {
+        const t = i / (2 * teeth);
+        const off = i === 0 || i === 2 * teeth ? 0 : (i % 2 === 1 ? 1 : -1) * amp * L;
+        return [a[0] + dx * t - (dy / L) * off, a[1] + dy * t + (dx / L) * off];
+    });
+};
+/** The middle one of a scene's nodes, never a specimen sheet's corner anchor (which fixes its frame) or caption. */
+const middleNode = (s: PScene): PNode | undefined => {
+    const specimens = s.nodes.filter((x) => !x.id.startsWith("anchor-") && !x.id.startsWith("cap-"));
+    return specimens[Math.floor(specimens.length / 2)];
+};
 const RED_BLUE: PGradient = {
     kind: "linear",
     angle: 0,
@@ -920,6 +939,42 @@ const DEFECTS = {
     },
     "whole drawing turned 20deg": (s) => reframe(s, 20, 1),
     "whole drawing zoomed x1.5": (s) => reframe(s, 0, 1.5),
+    // a zigzag a few percent of a long chord high stays within the route's allowance and its bend's (cx-syn-bypass's
+    // 884 px edge, 26 px high), and wherever each program lays the file out itself neither is judged
+    "edges zigzag at 3% of their chord": eachEdge((e) => {
+        if (e.points.length >= 2 && curvature(e.points) <= 0.04) {
+            e.points = zigzag(e.points, 0.03, 8);
+        }
+    }),
+    // every node and label at a fifth of its size, as one drawing at the wrong scale: between unrelated layouts the
+    // size-fitted scale absorbs it (cx-radiation-bibliography's Cytoscape desktop boxes drawn as dots)
+    "nodes and labels drawn at a fifth of their size": (s) => {
+        s.nodes.forEach((n) => {
+            n.w *= 0.2;
+            n.h *= 0.2;
+        });
+        allTexts(s).forEach((t) => {
+            t.sizePx *= 0.2;
+            scaleBox(t, 0.2);
+        });
+        return s;
+    },
+    "one node x2": (s) => {
+        const n = middleNode(s);
+        if (n !== undefined) {
+            n.w *= 2;
+            n.h *= 2;
+        }
+        return s;
+    },
+    "one node label x0.7": (s) => {
+        const t = middleNode(s)?.label ?? null;
+        if (t !== null) {
+            t.sizePx *= 0.7;
+            scaleBox(t, 0.7);
+        }
+        return s;
+    },
     "one node moved twice its size": (s) => {
         // a node in the middle of the list, never a specimen sheet's corner anchor (which fixes its frame) or caption
         const specimens = s.nodes.filter((x) => !x.id.startsWith("anchor-") && !x.id.startsWith("cap-"));
@@ -1051,6 +1106,17 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "arrowhead color changed": ["edge.arrowColor", "edge.arrow"],
     "group fill color changed": ["group.fill"],
     "one node moved twice its size": ["node.position", "node.present", "node.extra"],
+    "edges zigzag at 3% of their chord": ["edge.wiggle", "edge.route", "edge.curve"],
+    "nodes and labels drawn at a fifth of their size": [
+        "node.sizeToSpacing",
+        "node.width",
+        "node.height",
+        "label.size",
+        "label.present",
+        "edge.label",
+    ],
+    "one node x2": ["node.width", "node.height", "node.sizeToSpacing", "node.sizeToExtent"],
+    "one node label x0.7": ["label.size", "label.present"],
     "label lines joined onto one": ["label.lines", "label.align", "label.present", "edge.label", "group.label"],
     "group box grown by half": ["group.box", "group.present"],
     "group outline removed": ["group.stroke", "group.strokeWidth", "group.strokeDash"],
@@ -1090,10 +1156,17 @@ const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle:
         oracle.edges.some((e) =>
             e.arrows.some((a) => 0.25 * a.length > ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1)),
         ),
-    // a bend is judged only where the layouts are related or the file places its nodes (compare-oracle.ts)
-    "curved edges straightened": (base) => base.properties["edge.curve"].passRate !== null,
-    "straight edges bowed": (base) => base.properties["edge.curve"].passRate !== null,
-    "curved edges drawn as sine waves (arc->sine)": (base) => base.properties["edge.curve"].passRate !== null,
+    // a bend is judged edge by edge only where the layouts are related or the file places its nodes; where each program
+    // lays the file out itself, only the drawing's share of bent lines is (compare-oracle.ts), which straightening
+    // every line moves out of its band only where the program bends enough of its own, and bowing every straight one
+    // only where it leaves enough straight; an arc drawn as a wave keeps its share
+    "curved edges straightened": (base, oracle) =>
+        curveByEdge(base) || (curveJudged(base) && bentShare(oracle) > ORACLE_TOLERANCES.curvedShare),
+    "straight edges bowed": (base, oracle) =>
+        curveByEdge(base) || (curveJudged(base) && bentShare(oracle) < 1 - ORACLE_TOLERANCES.curvedShare),
+    "curved edges drawn as sine waves (arc->sine)": (base) => curveByEdge(base),
+    // where each program lays the file out itself, where a node sits is its layout's and is not judged
+    "one node moved twice its size": (base) => base.properties["node.position"].passRate !== null,
     // a bend a twenty-fifth of the chord off is over the route's allowance only where that is more than its end
     // nodes' smaller side, and routes are judged only between related layouts
     "longest straight edge bent off its chord by a twenty-fifth of its length": (base, oracle) => {
@@ -1127,6 +1200,16 @@ const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle:
     "label face swapped within its class (DejaVu<->Liberation)": (_base, oracle) =>
         allTexts(withoutCaptions(oracle)).some((t) => programFace(t.family) !== null),
 };
+
+/** Whether bends are judged at all. */
+const curveJudged = (base: OracleReport): boolean => base.properties["edge.curve"].passRate !== null;
+/** Whether bends are judged edge by edge, not only as the drawing's share of bent lines (its element `edges`). */
+const curveByEdge = (base: OracleReport): boolean => (base.judged["edge.curve"] ?? []).some((id) => id !== "edges");
+/** The share of the program's lines bent over the comparison's bend. */
+const bentShare = (oracle: PScene): number =>
+    oracle.edges.length === 0
+        ? 0
+        : oracle.edges.filter((e) => curvature(e.points) > ORACLE_TOLERANCES.curvature).length / oracle.edges.length;
 
 /** A planted defect: what it does to graphty's drawing, the properties it is for, and where it can be planted. */
 interface Mutation {
@@ -1191,6 +1274,11 @@ export function absorbedByKnownFailures(
         // else of it is judged
         if (oid === undefined) {
             return failing.has(`${k}\u0000graphty:${gid}`);
+        }
+        // a property judged of the edges together (the share of bent lines where each program lays the file out
+        // itself) that the drawing already fails
+        if (k === "edge" && failing.get("graph\u0000edges")?.some((p) => targets.includes(p)) === true) {
+            return true;
         }
         return [oid, `${k}:${oid}`, `${oid}@source`, `${oid}@target`].some(
             (id) => failing.get(`${k}\u0000${id}`)?.some((p) => targets.includes(p)) === true,

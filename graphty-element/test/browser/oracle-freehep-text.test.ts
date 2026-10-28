@@ -33,6 +33,11 @@ describe("the oracle SVG reader on FreeHEP text", () => {
         assert.closeTo(width(FREEHEP, 'font-family="Sans-serif"'), width("", 'font-family="DejaVu Sans"'), 0.5);
     });
 
+    it("measures Calibri, which Java has no font of, in Dialog's DejaVu Sans", () => {
+        // cx-radiation-bibliography's Calibri-Bold labels, centered on their nodes at their DejaVu Sans width
+        assert.closeTo(width(FREEHEP, 'font-family="Calibri-Bold"'), width("", 'font-family="DejaVu Sans"'), 0.5);
+    });
+
     it("measures a Times text of Cytoscape desktop in DejaVu Serif", () => {
         assert.closeTo(width(FREEHEP, 'font-family="Times"'), width("", 'font-family="DejaVu Serif"'), 0.5);
     });

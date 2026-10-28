@@ -72,6 +72,7 @@ export const ORACLE_PROPERTIES = [
     "edge.extra",
     "edge.route",
     "edge.curve",
+    "edge.wiggle",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -128,6 +129,12 @@ export const ORACLE_TOLERANCES = {
      * unrelated the spacing a force layout settles at differs between programs, but not by half or double.
      */
     layoutSizeRatio: [0.5, 2],
+    /**
+     * The same where each program lays the file out itself (`ownLayouts`): two programs' own layouts settle at spacings
+     * further apart, but a node a third of the program's size beside its spacing is drawn as a dot where the program
+     * draws a labeled box (cx-radiation-bibliography, 0.14), whatever the size-fitted scale absorbs.
+     */
+    ownLayoutSizeRatio: [1 / 3, 3],
     colorDeltaE: 3,
     /**
      * A whole canvas is told apart at a smaller difference than one small mark: white against
@@ -191,6 +198,21 @@ export const ORACLE_TOLERANCES = {
      */
     curvature: 0.04,
     curveShare: 0.25,
+    /**
+     * Where each program lays the file out itself, how far a line bends between two nodes is each layout's, but whether
+     * the program draws its lines curved is its style (vis-network's smooth type, Gephi's curved edges): the share of
+     * edges bent over `curvature`, graphty's within this of the oracle's.
+     */
+    curvedShare: 0.15,
+    /**
+     * How often a route turns back the other way, its turns over `wiggleTurnDeg` counted where the next one turns the
+     * other way: graphty's within this many of the oracle's. A zigzag a few percent of a long chord high stays within
+     * the route's allowance and its bend's (cx-syn-bypass edge 0, 26 px high on 884 px), and turns back at every tooth.
+     */
+    wiggleReversals: 2,
+    /** ...or within this share of the oracle's, for a route that turns back often (dot-real-depcruise's splines). */
+    wiggleShare: 0.5,
+    wiggleTurnDeg: 10,
     edgeWidthRatio: [0.9, 1.1],
     /** A linear gradient's direction (an edge's against its own chord) within this many degrees. */
     gradientAngleDeg: 15,
@@ -611,6 +633,87 @@ const UNDRAWN_SIZE = 0.25;
 function sizeMiss(o: number, g: number, range: readonly number[]): number {
     return o < UNDRAWN_SIZE && g < UNDRAWN_SIZE ? 0 : ratioMiss(g / Math.max(o, 1e-9), range);
 }
+
+/**
+ * How many times a route turns back the other way: resampled every `step` pixels along it (64 samples at most), its
+ * turns over `wiggleTurnDeg`, each counted where it turns the other way from the last. A bend or a loop turns one
+ * way; a smooth S, or a line that bends round a node and back, once back; a zigzag at every tooth.
+ * @param pts - the route
+ * @param step - the least distance between samples, so a rounding of a pixel is no turn
+ * @returns the count
+ */
+export function reversalsOf(pts: readonly Pt[], step: number): number {
+    const n = Math.min(64, Math.floor(pathLength(pts) / Math.max(step, 1e-9)));
+    if (n < 3) {
+        return 0;
+    }
+    const q = resample(pts, n + 1);
+    const limit = (ORACLE_TOLERANCES.wiggleTurnDeg * Math.PI) / 180;
+    let last = 0;
+    let count = 0;
+    for (let i = 1; i < q.length - 1; i++) {
+        const a = Math.atan2(q[i][1] - q[i - 1][1], q[i][0] - q[i - 1][0]);
+        const b = Math.atan2(q[i + 1][1] - q[i][1], q[i + 1][0] - q[i][0]);
+        const turn = Math.atan2(Math.sin(b - a), Math.cos(b - a));
+        // a turn of near half a circle is a path drawn back over itself (Cytoscape desktop's line retraced at its
+        // start, cx-syn-bypass 2106 -> 2112), which shows as one line, not a tooth
+        if (Math.abs(turn) >= limit && Math.abs(turn) <= RETRACE) {
+            const sign = Math.sign(turn);
+            count += last !== 0 && sign !== last ? 1 : 0;
+            last = sign;
+        }
+    }
+    return count;
+}
+
+/** A turn over this many radians is a path drawn back over itself, not a turn a reader sees. */
+const RETRACE = (150 * Math.PI) / 180;
+
+/** How far along its line an arrowhead's middle sits from the line's nearer end: in pixels, and as a share of it. */
+const fromEnd = (line: readonly Pt[], q: Pt): { px: number; share: number } => {
+    const { s, length } = placeOnLine(line, q);
+    const px = Math.min(s, length - s);
+    return { px, share: length > 0 ? px / length : 0 };
+};
+
+/**
+ * Whether graphty's end arrowhead sits where the program's does. Most programs draw it at the line's end, and graphty's
+ * is judged there (`capPlaceMiss`, its `misplaced`); one the program draws part-way along the line (Pajek's
+ * `arrowPosition`, at the middle of every line on pajek-graphstream-b) is judged by how far along each line its middle
+ * sits instead, each on its own line, as a share of the line's length; so is one graphty's style draws part-way
+ * (`partWay`), wherever the program draws its own. Part-way is a quarter of the line or more from
+ * its nearer end and over two of its own lengths: a head at the end of a short line between its nodes' outlines sits a
+ * third along it (the specimen sheets' short lines).
+ * @param oLine - the oracle's line, between its nodes' outlines
+ * @param oa - the oracle's arrowhead
+ * @param gLine - graphty's line, between its nodes' outlines
+ * @param ga - graphty's arrowhead, in the same frame
+ * @returns the miss and what each side measured
+ */
+function arrowPlaceMiss(
+    oLine: readonly Pt[],
+    oa: PArrow,
+    gLine: readonly Pt[],
+    ga: PArrow,
+): { miss: number; oracle: number | null; graphty: number } {
+    const o = oa.at === undefined ? null : fromEnd(oLine, oa.at);
+    const oPartWay = o !== null && o.share >= ARROW_PART_WAY && o.px > 2 * oa.length;
+    if (o === null || ga.at === undefined || oa.end === "middle" || (!oPartWay && ga.partWay !== true)) {
+        return { miss: ga.misplaced ?? 0, oracle: null, graphty: ga.misplaced ?? 0 };
+    }
+    const along = o.share;
+    const mine = fromEnd(gLine, ga.at).share;
+    return {
+        miss: Math.max(0, Math.abs(mine - along) - ARROW_ALONG_SHARE) / ARROW_ALONG_SHARE,
+        oracle: R(along),
+        graphty: R(mine),
+    };
+}
+
+/** An arrowhead whose middle sits this share of its line's length or more from either end is drawn part-way along. */
+const ARROW_PART_WAY = 0.25;
+/** How far along its line a part-way arrowhead may sit from the program's, as a share of the line's length. */
+const ARROW_ALONG_SHARE = 0.05;
 
 /** The least a route's allowance is capped at (`edge.route`), in render pixels. */
 const ROUTE_CAP_PIXELS = 10;
@@ -1149,7 +1252,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.position": `center within ${String(ORACLE_TOLERANCES.positionOfSize)} of the node's smaller side (at least ${String(ORACLE_TOLERANCES.pixel)} render px) after the fit`,
     "node.width": `ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
     "node.height": `ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
-    "node.sizeToSpacing": `size over the drawing's median nearest-node spacing, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
+    "node.sizeToSpacing": `size over the drawing's median nearest-node spacing, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}] (where each program lays the file out itself, [${ORACLE_TOLERANCES.ownLayoutSizeRatio.map((v) => String(Math.round(v * 100) / 100)).join(", ")}])`,
     "node.sizeToExtent": `size over the diagonal of the drawing's extent, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
@@ -1183,7 +1286,8 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.present": "every oracle edge is drawn by graphty",
     "edge.extra": "every edge graphty draws is one the oracle draws (no extra, hidden or duplicate edge)",
     "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): its ends where they sit on their own nodes: Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop), but no more than its end nodes' smaller side (or ten render px), and at least ${String(ORACLE_TOLERANCES.pixel)} render px`,
-    "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's, or a pixel deep over the shorter chord`,
+    "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's, or a pixel deep over the shorter chord; where each program lays the file out itself, the share of edges bent over ${String(ORACLE_TOLERANCES.curvature)}, within ${String(ORACLE_TOLERANCES.curvedShare)} of the oracle's`,
+    "edge.wiggle": `how often the route turns back the other way (turns over ${String(ORACLE_TOLERANCES.wiggleTurnDeg)} degrees and under 150, every two render pixels along it), within ${String(ORACLE_TOLERANCES.wiggleReversals)} or ${String(ORACLE_TOLERANCES.wiggleShare)} of the oracle's`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
     "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
@@ -1686,8 +1790,16 @@ export function compareOracle(
         const b = apply(local, v);
         return [b[0] - a[0], b[1] - a[1]];
     };
-    /** One graphty render pixel or so in oracle pixels: the least any distance tolerance allows. */
-    const pixel = T.pixel * lengthScale;
+    // One graphty render pixel or so in oracle pixels: the least any distance tolerance allows. Between unrelated
+    // layouts the size-fitted scale says how much larger the program draws its nodes, not how large a render pixel is:
+    // a drawing at a ninth of the program's size made a render pixel 14 oracle pixels (cx-radiation-bibliography), and
+    // an arrowhead twice the program's size passed. There both drawings fill a canvas, and a render pixel is no larger
+    // than the canvases' ratio.
+    const canvasRatio = Math.max(
+        oracle.width / Math.max(graphty.width, 1e-9),
+        oracle.height / Math.max(graphty.height, 1e-9),
+    );
+    const pixel = T.pixel * (transform?.unrelatedLayout === true ? Math.min(lengthScale, canvasRatio) : lengthScale);
     // the layout's own extent, over the node centers: a node's size against it says how large the node is beside
     // the whole drawing, which node sizes themselves must not inflate
     const centersO = boxOfPoints(pairs.map(([o]): Pt => [o.cx, o.cy]));
@@ -1699,7 +1811,10 @@ export function compareOracle(
     const layoutJudged = !(options.ownLayouts === true && (transform?.unrelatedLayout ?? false));
     /** A size judged against each side's own spacing and extent, which the fitted scale cannot hide. */
     const layoutRelative = (p: "node.sizeToSpacing" | "node.sizeToExtent" | "edge.arrowToSpacing"): number | null => {
-        if (!layoutJudged) {
+        // each program's own layout settles at its own spacing, so the extent and an arrowhead beside the spacing are
+        // its layout's; a node's size beside the spacing is still judged, in a wider band (`ownLayoutSizeRatio`): the
+        // size-fitted scale absorbs any size the whole drawing is drawn at
+        if (!layoutJudged && p !== "node.sizeToSpacing") {
             return null;
         }
         if (p === "node.sizeToExtent") {
@@ -1742,7 +1857,8 @@ export function compareOracle(
             ] as const) {
                 if (scale !== null) {
                     const gSize = Math.max(gw0, gh0) * scale;
-                    j.add(p, "node", id, ratioMiss(gSize / oSize, T.layoutSizeRatio), R(oSize), R(gSize));
+                    const band = layoutJudged ? T.layoutSizeRatio : T.ownLayoutSizeRatio;
+                    j.add(p, "node", id, ratioMiss(gSize / oSize, band), R(oSize), R(gSize));
                 }
             }
         }
@@ -2163,6 +2279,8 @@ export function compareOracle(
     // In the fitted frame, each end of graphty's edge is at a node centered on the oracle's end node; among those, the
     // route nearest the oracle's.
     const framedEdges = fit !== null && !(transform?.unrelatedLayout ?? false);
+    /** Each routed edge's bend, the oracle's and graphty's, where how far each bends is not judged edge by edge. */
+    const bends: [number, number][] = [];
     for (const o of oracleLeft) {
         const gLeft = framedEdges ? [...gRemaining].sort((a, b) => cmp(a.id, b.id)) : [];
         const g = gLeft.length === 0 ? undefined : drawnAlike(o, gLeft);
@@ -2221,6 +2339,15 @@ export function compareOracle(
         // json-vis-siblings the other way round, edge by edge)
         if (routed && layoutJudged) {
             j.add("edge.curve", "edge", id, Math.max(0, Math.abs(gc - oc) - bend) / bend, R(oc), R(gc));
+        } else if (routed) {
+            bends.push([oc, gc]);
+        }
+        // how often each route turns back the other way, a count no frame or layout changes
+        if (routed) {
+            const [ro, rg] = [reversalsOf(vo, 2 * pixel), reversalsOf(vg, 2 * pixel)];
+            // a long spline round many clusters turns back often, and sampled a little apart counts a few more or fewer
+            const allowed = Math.max(T.wiggleReversals, T.wiggleShare * ro);
+            j.add("edge.wiggle", "edge", id, Math.max(0, Math.abs(rg - ro) - allowed), ro, rg);
         }
         if (o.stroke !== null && g.stroke !== null) {
             j.add(
@@ -2306,7 +2433,8 @@ export function compareOracle(
                 oa.shape,
                 gg.shape,
             );
-            j.add("edge.arrowPlace", "edge", at, gg.misplaced ?? 0, null, gg.misplaced ?? 0);
+            const place = arrowPlaceMiss(vo, oa, vg, gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) });
+            j.add("edge.arrowPlace", "edge", at, place.miss, place.oracle, place.graphty);
             j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);
             if (oa.color !== null && gg.color !== null) {
                 j.add(
@@ -2389,6 +2517,22 @@ export function compareOracle(
                 false,
             );
         }
+    }
+
+    // Where each program lays the file out itself, whether it draws its lines curved is its style, though how far one
+    // line bends is its layout's: the share of lines bent, one judgment for the drawing (json-vis-siblings, 59 of 284
+    // edges bent in vis-network's drawing and 3 in graphty's, was judged on no edge)
+    if (bends.length > 0) {
+        const share = (k: 0 | 1): number => bends.filter((b) => b[k] > T.curvature).length / bends.length;
+        const [so, sg] = [share(0), share(1)];
+        j.add(
+            "edge.curve",
+            "graph",
+            "edges",
+            Math.max(0, Math.abs(sg - so) - T.curvedShare) / T.curvedShare,
+            R(so),
+            R(sg),
+        );
     }
 
     // ---- groups: by id, else by box overlap after the fit

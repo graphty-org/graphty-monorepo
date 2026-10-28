@@ -141,11 +141,11 @@ export const MeasureRow: Story = styleStory(async (canvasElement, element, store
     await inspectPageRank(canvasElement, element, store);
 });
 
-/** Effects "+" on the measure row: the effects the row does not draw yet (`#/style-pickers/plus-menu`). */
+/** Shape "+" on the measure row: the options the row does not set yet (`#/style-pickers/plus-menu`). */
 export const PlusMenu: Story = styleStory(async (canvasElement, element, store) => {
     await inspectPageRank(canvasElement, element, store);
     await userEvent.click(
-        await tab(canvasElement).findByRole("button", { name: "Add to node effects" }, storyWaitOptions(1000)),
+        await tab(canvasElement).findByRole("button", { name: "Add to node shape" }, storyWaitOptions(1000)),
     );
 });
 

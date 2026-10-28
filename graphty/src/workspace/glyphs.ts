@@ -6,6 +6,7 @@
 
 import type { ReadableValueKind } from "@graphty/graphty-element/catalog";
 import {
+    Activity,
     ArrowDownToLine,
     ArrowLeftToLine,
     ArrowRight,
@@ -42,7 +43,9 @@ import {
     FlaskConical,
     Folder,
     FolderOpen,
+    Gauge,
     GitCommitHorizontal,
+    GripVertical,
     Group,
     HardDriveDownload,
     Hash,
@@ -51,6 +54,7 @@ import {
     KeyRound,
     Layers,
     LayoutGrid,
+    Lightbulb,
     Link,
     Link2,
     List,
@@ -191,6 +195,12 @@ export const GLYPHS = {
     open: FolderOpen,
     upload: Upload,
     settings: Settings,
+    // A shader's facts in the gallery and its settings: it moves, what it costs, it reacts to light.
+    animates: Activity,
+    cost: Gauge,
+    light: Lightbulb,
+    // A row that reorders by drag.
+    drag: GripVertical,
     menu: Menu,
     more: MoreHorizontal,
     rename: Pencil,

@@ -167,6 +167,7 @@ export default defineConfig({
                         { text: "Custom Layouts", link: "/graphty-element/guide/extending/custom-layouts" },
                         { text: "Custom Algorithms", link: "/graphty-element/guide/extending/custom-algorithms" },
                         { text: "Custom Data Sources", link: "/graphty-element/guide/extending/custom-data-sources" },
+                        { text: "Writing Shaders", link: "/graphty-element/guide/shaders" },
                     ],
                 },
                 {

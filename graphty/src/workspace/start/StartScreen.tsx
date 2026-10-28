@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { RecoveredWork } from "../autosave/RecoveredWork";
+import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { UsageDataCard } from "../privacy/UsageDataCard";
@@ -31,7 +32,7 @@ import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openFiles, openGenerated, openSample, openUrl, pictureOf } from "./open";
+import { openDataset, openFiles, openGenerated, openModel, openSample, openUrl, pictureOf } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -710,10 +711,17 @@ export function StartScreen(): React.JSX.Element {
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window").
+    // The drop target is the whole window ("drop a file anywhere in this window"). graphty-element
+    // says whether it is a model before it is read as graph data.
     const onDrop = useCallback(
         (files: File[]) => {
-            openFiles(workspace, files);
+            void holdsModel(files).then((model) => {
+                if (model) {
+                    openModel(workspace.store, files[0]?.name ?? "Model", files);
+                } else {
+                    openFiles(workspace, files);
+                }
+            });
         },
         [workspace],
     );

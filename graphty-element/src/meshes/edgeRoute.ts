@@ -355,6 +355,85 @@ export function surfaceReach(dir: Xyz, half: Xyz, radius: number | null, ellipti
     return Number.isFinite(reach) ? reach : 0;
 }
 
+/** The fewest pieces a lifted route is drawn with, so its arc reads as a curve. */
+const LIFT_PIECES = 16;
+
+/**
+ * A route lifted out of its layout plane (`edge.lift`): resampled into at least
+ * {@link LIFT_PIECES} pieces, spread over its segments by length, each point raised along +z by
+ * `lift * sin(pi * s)`, where `s` is how far along the route it is by length. The ends stay where
+ * they are, so the route still leaves and meets its nodes, and the highest point is `lift` above
+ * the middle of the route.
+ * @param flat - The route, flat x, y, z, ends included.
+ * @param lift - How far the middle rises, in world units; 0 returns the route as it is.
+ * @returns The lifted route.
+ */
+export function liftRoute(flat: readonly number[], lift: number): number[] {
+    const n = flat.length / 3;
+    if (lift === 0 || n < 2 || !Number.isFinite(lift)) {
+        return [...flat];
+    }
+
+    const lengths: number[] = [];
+    let total = 0;
+    for (let i = 0; i + 1 < n; i++) {
+        const p = i * 3;
+        const length = Math.hypot(flat[p + 3] - flat[p], flat[p + 4] - flat[p + 1], flat[p + 5] - flat[p + 2]);
+        lengths.push(length);
+        total += length;
+    }
+
+    if (total === 0) {
+        return [...flat];
+    }
+
+    const out = [flat[0], flat[1], flat[2]];
+    let walked = 0;
+    for (let i = 0; i + 1 < n; i++) {
+        const p = i * 3;
+        const steps = Math.max(1, Math.round((LIFT_PIECES * lengths[i]) / total));
+        for (let s = 1; s <= steps; s++) {
+            const f = s / steps;
+            const along = (walked + f * lengths[i]) / total;
+            out.push(
+                flat[p] + (flat[p + 3] - flat[p]) * f,
+                flat[p + 1] + (flat[p + 4] - flat[p + 1]) * f,
+                flat[p + 2] + (flat[p + 5] - flat[p + 2]) * f + lift * Math.sin(Math.PI * along),
+            );
+        }
+
+        walked += lengths[i];
+    }
+
+    // The last point is the route's own end, raised by sin(pi) = 0 up to rounding: put it back exactly.
+    out.splice(-3, 3, ...flat.slice(-3));
+    return out;
+}
+
+/**
+ * The points of a route strictly between its ends that lie outside both end nodes' reach, so a
+ * route trimmed at the node surfaces never doubles back inside a node.
+ * @param flat - The route, flat x, y, z, ends (the node centers) included.
+ * @param srcReach - How far from the source center its surface lies.
+ * @param dstReach - The same for the target.
+ * @returns The interior points kept, flat.
+ */
+export function interiorOutside(flat: readonly number[], srcReach: number, dstReach: number): number[] {
+    const n = flat.length / 3;
+    const out: number[] = [];
+    const last = (n - 1) * 3;
+    for (let i = 1; i < n - 1; i++) {
+        const p = i * 3;
+        const fromSrc = Math.hypot(flat[p] - flat[0], flat[p + 1] - flat[1], flat[p + 2] - flat[2]);
+        const fromDst = Math.hypot(flat[p] - flat[last], flat[p + 1] - flat[last + 1], flat[p + 2] - flat[last + 2]);
+        if (fromSrc > srcReach && fromDst > dstReach) {
+            out.push(flat[p], flat[p + 1], flat[p + 2]);
+        }
+    }
+
+    return out;
+}
+
 /** How many pieces a self-loop's teardrop, and the most a fanned edge's arc, is drawn with. */
 const BUNDLE_STEPS = 24;
 

@@ -13,7 +13,7 @@ import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
-import { dataBlocks, keyBlocks } from "./legendWords";
+import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -62,7 +62,9 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             const { nodeCount, edgeCount } = session.data.statistics();
             const blocks = keyBlocks(dataBlocks(session));
             setReading({ blocks, nodeCount, edgeCount, load });
-            const keyHasEntries = blocks.length > 0;
+            // An effect is listed in a key that shows, and never opens it: a style write of an
+            // effect is no reason for the key to appear.
+            const keyHasEntries = blocks.some((block) => !isEffectBlock(block));
             if (store.get().keyHasEntries !== keyHasEntries) {
                 store.set({ keyHasEntries });
             }
@@ -323,6 +325,8 @@ export function CanvasOverlays(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
+    // Effects alone do not show the key: the reader asks for it (Legend), or another row keys.
+    const keyed = blocks.some((block) => !isEffectBlock(block));
 
     let card: React.ReactNode = null;
     if (load !== null) {
@@ -366,9 +370,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     return (
         <>
             {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {legendShown && (blocks.length > 0 || legendAsked) ? (
-                <LegendCard blocks={blocks} session={session} />
-            ) : null}
+            {legendShown && (keyed || legendAsked) ? <LegendCard blocks={blocks} session={session} /> : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>
     );

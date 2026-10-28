@@ -46,6 +46,7 @@ import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { Styles } from "../Styles";
+import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
@@ -431,8 +432,21 @@ interface BuildOptions {
      * cannot be laid out is inactive instead.
      */
     readonly explicitScope?: boolean;
+    /** Whether this build changes the layout, so the graph's `layoutTransition` moves the nodes. */
+    readonly transition?: boolean;
     /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
     readonly fromSeed?: boolean;
+}
+
+/**
+ * Whether two values of the `layout` slice draw the same arrangement: the same layout, options and
+ * scope, whatever the dimension.
+ * @param a - One value.
+ * @param b - The other.
+ * @returns True when only the dimension can differ.
+ */
+function sameArrangement(a: LayoutChoice, b: LayoutChoice): boolean {
+    return a.engine === b.engine && a.options === b.options && a.scope === b.scope;
 }
 
 /**
@@ -1263,6 +1277,9 @@ export class LayoutManager implements Manager {
         const previousMembers = this.members;
         const previousDriver = this.runningDriver;
         const previousDriverOptions = this.driverOptions;
+        // Where the nodes are drawn now, taken before the new engine can place any of them.
+        const transitions = how.transition === true ? transitionsOf(this) : undefined;
+        transitions?.begin(transitions.snapshot());
 
         // THE CONSUMER'S OPTIONS, not the merged ones: a driver rebuild builds the layout
         // again from these, and the element re-derives the dimension options itself.
@@ -1317,6 +1334,7 @@ export class LayoutManager implements Manager {
             // with the call; a plugin that opened a worker, a socket or a GPU buffer in its
             // constructor would otherwise leak one per failed attempt.
             engine.dispose();
+            transitions?.end();
 
             // Restore previous layout engine if initialization failed
             this.engine = previousEngine;
@@ -1664,6 +1682,7 @@ export class LayoutManager implements Manager {
                 restoring: false,
                 live: () => true,
                 explicitScope: scope !== undefined && this.carriedScope !== undefined,
+                transition: this.engine !== undefined,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -1781,6 +1800,9 @@ export class LayoutManager implements Manager {
                 restoring,
                 live,
                 explicitScope: options.explicitScope === true,
+                // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
+                transition:
+                    !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),
             });
         } catch (error) {
             this.carriedScope = previous;

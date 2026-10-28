@@ -200,7 +200,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
 
 - **To take a change back out of master**, revert its merge on a branch (`git revert -m 1 <merge sha>`) and open that
   branch's pull request with `tools/pr-open.sh`.
-- **The retired Mergify checks** (`Queue Checks Pass`) on a pull request are not required; ignore them.
+- **The retired Mergify check** `Queue Checks Pass`, which CI no longer reports, can still sit on an older pull
+  request head; it is not required, so ignore it.
 - **npm `previously staged version` (409).** The publish succeeded and is propagating (minutes). Not a failure.
 - **The baseline seed pull request** from `visual-seed.yml` merges into master directly; it is not a stray.
 - **The results store is down:** every job fails open (longer and stricter, never looser). Read red issues and runs

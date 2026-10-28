@@ -160,6 +160,8 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
     // (undocumented)
+    "ongraphty-model-change"?: (event: GraphtyElementEventMap["graphty-model-change"]) => void;
+    // (undocumented)
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;
     // (undocumented)
     "ongraphty-node-drag-end"?: (event: GraphtyElementEventMap["graphty-node-drag-end"]) => void;
@@ -296,6 +298,7 @@ export interface GraphtyElementJSXProps {
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];
+    shaderSettings?: Graphty["shaderSettings"];
     startingCameraDistance?: Graphty["startingCameraDistance"];
     viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];

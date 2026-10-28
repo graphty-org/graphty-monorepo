@@ -281,14 +281,15 @@ const OFF_SHARDS = [
     // graphty-element's autosave lifecycle (design/work-protection/plan.md, step 6): the "lifecycle" project
     // launches Chromium, Firefox and WebKit itself through Playwright's library API, and Chrome for Testing
     // over the raw DevTools protocol, and reloads, closes, discards, freezes, crashes and kills pages and
-    // browsers; "autosave-engines" runs the in-page autosave tests in Firefox and WebKit. No coverage: the
+    // browsers; "autosave-engines" runs the in-page autosave tests in Firefox and WebKit, and "models-webkit"
+    // the model chunk's no-request test in WebKit (Chromium runs it in the browser shards). No coverage: the
     // pages run the built ./bundle. A few minutes, beside the other shards. GRAPHTY_LIFECYCLE_FULL=1
     // (the release train) adds the 50,000- and 100,000-node runs. "browsers" asks ci.yml for Firefox and
     // WebKit and their system packages.
     {
         shard: "graphty-element-lifecycle",
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines --project=models-webkit ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         browsers: "chromium firefox webkit",
         // Minutes of three engines for a change a pull request rarely makes: the 6-hour full run tests it

@@ -34,7 +34,7 @@ import {
     writeLine,
 } from "./row";
 import { AddButton, type AddOption } from "./Section";
-import { focusLineNext, focusSectionNext, lineTarget } from "./useFocusLine";
+import { focusLineNext, focusSectionNext, headerBottom, lineTarget } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
 import { failureWords, labelStatement, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
 
@@ -65,14 +65,6 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
     tail: "At source",
 };
 
-/**
- * The bottom of the app header, so a tall pop-out starts below it and never covers it.
- * @returns its bottom in viewport pixels, or 0 when there is no header.
- */
-function headerBottom(): number {
-    return document.querySelector(".ws-header")?.getBoundingClientRect().bottom ?? 0;
-}
-
 /** Where a label can sit, in the order the position select lists them. */
 const LOCATIONS = [
     "top",
@@ -94,7 +86,7 @@ const LOCATIONS = [
  */
 function styleOf(line: Line | undefined): LabelStyle {
     const value = line?.value;
-    return typeof value === "object" && !("r" in value) ? value : {};
+    return typeof value === "object" && !Array.isArray(value) && !("r" in value) ? (value as LabelStyle) : {};
 }
 
 /**

@@ -29,7 +29,7 @@ import { ownRows } from "../styles/tree";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
 import type { Counted } from "./History";
-import type { LayoutChoice, NoteEntry, ProjectState, RunEntry, VisibilityState } from "./state";
+import type { LayoutChoice, NoteEntry, ProjectShaderEntry, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
 /** Stands for "the key had no value": a map key that was not there. */
@@ -37,7 +37,17 @@ export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
 type ValueSlice =
-    "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
+    | "config"
+    | "layout"
+    | "runs"
+    | "styles"
+    | "visibility"
+    | "sets"
+    | "views"
+    | "notes"
+    | "attributes"
+    | "valueLabels"
+    | "shaders";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -335,6 +345,7 @@ export interface Draft {
     readonly notes: KeyedWriter<string, NoteEntry>;
     readonly attributes: KeyedWriter<string, MeasurementDeclaration>;
     readonly valueLabels: KeyedWriter<string, string>;
+    readonly shaders: KeyedWriter<string, ProjectShaderEntry>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
@@ -443,6 +454,7 @@ export function createProjectStore(
         notes: state.notes as Map<string, unknown>,
         attributes: state.attributes as Map<string, unknown>,
         valueLabels: state.valueLabels as Map<string, unknown>,
+        shaders: state.shaders as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
@@ -604,6 +616,7 @@ export function createProjectStore(
                 notes: keyed(draft, "notes"),
                 attributes: keyed(draft, "attributes"),
                 valueLabels: keyed(draft, "valueLabels"),
+                shaders: keyed(draft, "shaders"),
                 visibility: {
                     set: (key, value) => {
                         write(draft, "visibility", key, value);

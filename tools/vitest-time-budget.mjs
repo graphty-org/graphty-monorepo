@@ -200,7 +200,13 @@ export default class TimeBudgetReporter {
 
 function storeOf(history) {
     const cfg = config();
-    return cfg ? { cfg, path: `/v1/durations/tests/${encodeURIComponent(basename(history, ".json"))}` } : null;
+    // No retry: the history file is the fallback, and a dead store must cost a shard one timeout, not three.
+    return cfg
+        ? {
+              cfg: { ...cfg, retryMs: [] },
+              path: `/v1/durations/tests/${encodeURIComponent(basename(history, ".json"))}`,
+          }
+        : null;
 }
 
 function writeHistory(file, history) {

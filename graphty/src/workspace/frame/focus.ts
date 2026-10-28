@@ -106,6 +106,33 @@ export function focusInspectorTitle(): void {
     document.getElementById(INSPECTOR_TITLE_ID)?.focus();
 }
 
+/**
+ * Puts focus on the workspace's main heading, the inspector's title, which names what is open:
+ * where a reopened tab starts, so a screen reader hears where the reader left off. The title is
+ * drawn after the place it names comes back, so focus waits for it, unless the reader has moved
+ * focus somewhere first.
+ */
+export function focusMainHeading(): void {
+    const title = (): HTMLElement | null => document.getElementById(INSPECTOR_TITLE_ID);
+    if (title() !== null) {
+        title()?.focus();
+        return;
+    }
+    const observer = new MutationObserver(() => {
+        const drawn = title();
+        if (drawn !== null) {
+            stop();
+            drawn.focus();
+        }
+    });
+    const stop = (): void => {
+        observer.disconnect();
+        document.removeEventListener("focusin", stop);
+    };
+    document.addEventListener("focusin", stop);
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
 /** Everything that can take focus, before the checks `canFocus` makes. */
 const FOCUSABLE = 'a[href], button, input, select, textarea, summary, [tabindex], [contenteditable="true"]';
 

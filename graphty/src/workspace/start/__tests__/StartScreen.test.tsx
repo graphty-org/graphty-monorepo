@@ -9,7 +9,7 @@ import { userEvent } from "vitest/browser";
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
-import { render, screen, within } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
@@ -269,7 +269,10 @@ describe("the start screen", () => {
         assert.isNotNull(await screen.findByText("Drop to open"));
         screenRoot?.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
 
-        assert.equal(store.get().project?.name, "my network");
+        // graphty-element is asked first whether it is a model, which reads the file's first bytes.
+        await waitFor(() => {
+            assert.equal(store.get().project?.name, "my network");
+        });
     });
 
     it("welcomes a returning reader with Resume and the next three recent projects", async () => {

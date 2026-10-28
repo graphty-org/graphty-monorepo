@@ -1311,6 +1311,15 @@ describe("ci.yml", () => {
         );
     });
 
+    it("has no retired Queue Checks Pass anywhere a check is defined or read (#3477)", () => {
+        assert.equal(parseJobs(ci)["queue-checks"], undefined, "no queue-checks job");
+        assert.ok(!/Queue Checks Pass/.test(ci), "ci.yml never names Queue Checks Pass");
+        const action = readFileSync(new URL("../.github/actions/early-verdict/action.yml", import.meta.url), "utf8");
+        assert.ok(!/Queue Checks Pass/.test(action), "early-verdict never reads Queue Checks Pass");
+        const advisory = readFileSync(new URL("./ci-advisory-checks.json", import.meta.url), "utf8");
+        assert.ok(!/Queue Checks Pass/.test(advisory), "no advisory entry for Queue Checks Pass");
+    });
+
     it("gates every pull request that affects graphty-element on the cost estimates", () => {
         assert.match(
             job(ci, "cost-accuracy"),

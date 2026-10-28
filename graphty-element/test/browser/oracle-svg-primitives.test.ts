@@ -24,6 +24,73 @@ describe("the oracle SVG reader", () => {
         );
     });
 
+    it("reads a label drawn under a pixel high with its font's line box, not one rounded to whole pixels", () => {
+        // dot-real-depcruise: Graphviz's 9 pt labels in a drawing scaled to 0.0885, about 0.8 px on screen, whose box
+        // the browser rounded to 1.88 em tall and wholly above the baseline
+        const label = (k: number): string => `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <g transform="scale(${String(k)})">
+                <text x="${String(100 / k)}" y="${String(50 / k)}" text-anchor="middle" font-family="Helvetica,sans-Serif" font-size="9.00">graph-format.js</text>
+            </g>
+        </svg>`;
+        const read = (k: number): { height: number; middle: number } => {
+            const t = readSvgPrimitives(label(k)).prims.flatMap((p) => (p.text ? [p.text] : []))[0];
+            // in em, the middle measured from the baseline (y down)
+            return { height: (t.box.y1 - t.box.y0) / t.sizePx, middle: ((t.box.y0 + t.box.y1) / 2 - 50) / t.sizePx };
+        };
+        const large = read(4);
+        const small = read(0.0885);
+        assert.closeTo(small.height, large.height, 0.1);
+        assert.closeTo(small.middle, large.middle, 0.1);
+    });
+
+    it("reads the open outline vis-network writes over a filled shape as that shape's outline", () => {
+        // vis-network's database cylinder: its fill, then its outline as an open stroke-only path of the same geometry
+        const d =
+            "M 60 30 C 60 33 50 35 40 35 C 30 35 20 33 20 30 C 20 27 30 25 40 25 C 50 25 60 27 60 30 " +
+            "L 60 60 C 60 63 50 65 40 65 C 30 65 20 63 20 60 L 20 30";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <path fill="rgb(200,200,200)" stroke="none" d="${d}" />
+            <path fill="none" stroke="rgb(80,80,80)" d="${d}" />
+        </svg>`;
+        const [fill, outline] = readSvgPrimitives(svg).prims;
+        assert.strictEqual(outline.stroke?.color, "#505050");
+        assert.isTrue(outline.closed);
+        assert.strictEqual(outline.kind, "shape");
+        assert.isTrue(fill.closed);
+        // and the node it draws has that outline
+        const node = (id: string, cx: number, cy: number): PScene["nodes"][number] => ({
+            id,
+            cx,
+            cy,
+            w: 40,
+            h: 40,
+            shape: "ellipse",
+            fill: { color: "#c8c8c8", opacity: 1, gradient: null },
+            stroke: null,
+            label: null,
+        });
+        const guide: PScene = {
+            side: "graphty",
+            width: 200,
+            height: 100,
+            background: null,
+            nodes: [node("db", 40, 45), node("far", 150, 50)],
+            edges: [],
+            groups: [],
+            texts: [],
+            strays: [],
+        };
+        const withFar = svg.replace("</svg>", '<circle cx="150" cy="50" r="20" fill="rgb(200,200,200)" /></svg>');
+        const { scene } = associate(readSvgPrimitives(withFar).prims, 200, 100, guide);
+        assert.strictEqual(scene.nodes.find((n) => n.id === "db")?.stroke?.color, "#505050");
+        // an open stroke of another geometry stays a line
+        const line = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <path fill="rgb(200,200,200)" stroke="none" d="${d}" />
+            <path fill="none" stroke="rgb(80,80,80)" d="M 100 30 L 180 60" />
+        </svg>`;
+        assert.isFalse(readSvgPrimitives(line).prims[1].closed);
+    });
+
     it("reads no shape for a rect of no width or no height, which SVG does not draw", () => {
         // OGDF's GraphIO::drawSVG writes its root cluster as a stroked rect at 0, 0 of no size
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">

@@ -63,7 +63,8 @@ async function forward(req) {
         if (!put) clearTimeout(timer);
         return { status: response.status, body: await readBody(response, controller) };
     } catch (error) {
-        log(`${req.method} ${req.url}: ${error.name === "AbortError" ? `no answer in ${limit} ms` : error.message}`);
+        const why = error.name === "AbortError" ? `no answer in ${limit} ms` : error.message;
+        log(`${req.method} ${req.url}: ${why}`);
         return { status: put ? 403 : 404, body: Buffer.from("nx-cache-proxy: upstream stalled or failed") };
     } finally {
         clearTimeout(timer);

@@ -168,7 +168,7 @@ describe("the site-<sha> release (immutable releases, #4149)", () => {
         git(["init", "-q"]);
         writeFileSync(join(dir, "a.txt"), "a\n");
         git(["add", "a.txt"]);
-        git(["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-qm", "c"]);
+        git(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "c"]);
         const sha = git(["rev-parse", "HEAD"]);
         const carrier = carrierCommit(sha, git);
         assert.match(carrier, /^[0-9a-f]{40}$/);

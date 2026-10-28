@@ -75,7 +75,7 @@ import { GLTFLoaderAnimationStartMode } from "@babylonjs/loaders/glTF/glTFFileLo
 import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 
-import { pinShadersLoaded } from "../meshes/bundledStandardShaders";
+import { pinShadersLoaded } from "../meshes/pinShadersLoaded";
 import { NEUTRAL_ENVIRONMENT_URL } from "./environment";
 
 /** The file extensions this chunk loads, each naming the loader plugin that reads it. */

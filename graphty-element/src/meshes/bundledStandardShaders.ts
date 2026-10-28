@@ -19,18 +19,12 @@ import "@babylonjs/core/Shaders/default.fragment";
 import "@babylonjs/core/ShadersWGSL/default.vertex";
 import "@babylonjs/core/ShadersWGSL/default.fragment";
 
-import { type Material, type Scene, ShaderStore, StandardMaterial } from "@babylonjs/core";
+import { type Scene, ShaderStore, StandardMaterial } from "@babylonjs/core";
+
+import { pinShadersLoaded } from "./pinShadersLoaded";
 
 /** The shaders StandardMaterial would otherwise import lazily, by ShaderStore key. */
 const DEFAULT_SHADERS = ["defaultVertexShader", "defaultPixelShader"] as const;
-
-/** A Babylon material class, by the prototype its instances share. */
-interface MaterialClass {
-    readonly prototype: Material;
-}
-
-/** The scenes whose materials of a class skip the lazy import, by the class's prototype. */
-const pinnedScenes = new WeakMap<object, WeakSet<Scene>>();
 
 /**
  * Whether both shader languages' default shaders are in the ShaderStore.
@@ -38,40 +32,6 @@ const pinnedScenes = new WeakMap<object, WeakSet<Scene>>();
  */
 function defaultShadersStored(): boolean {
     return DEFAULT_SHADERS.every((key) => key in ShaderStore.ShadersStore && key in ShaderStore.ShadersStoreWGSL);
-}
-
-/**
- * Make every material of `materialClass` in `scene` report its shaders as loaded from the moment
- * it is constructed, so Babylon never runs its lazy shader `import()` for it.
- *
- * Babylon keeps the flag in a private field, `_shadersLoaded`, that the class's constructor sets
- * to false and the first compile reads. Pinning it from `scene.onNewMaterialAddedObservable` is too
- * late: Babylon 8 announces a new material with `Tools.SetImmediate`, a later task, and a material
- * made in an update pass is compiled by the render that follows in the same task -- with the flag
- * still false, so it imported anyway and was not ready for that frame. So the flag is an accessor
- * on the class's prototype instead, which the constructor's write already goes through: it reads
- * true for a material of a pinned scene and keeps Babylon's own value for every other scene.
- * @param materialClass - The material class, whose prototype gets the accessor once.
- * @param scene - The scene whose materials are pinned.
- */
-export function pinShadersLoaded(materialClass: MaterialClass, scene: Scene): void {
-    let scenes = pinnedScenes.get(materialClass.prototype);
-    if (scenes === undefined) {
-        const pinned = new WeakSet<Scene>();
-        const own = new WeakMap<Material, boolean>();
-        scenes = pinned;
-        pinnedScenes.set(materialClass.prototype, pinned);
-        Object.defineProperty(materialClass.prototype, "_shadersLoaded", {
-            configurable: true,
-            get(this: Material): boolean {
-                return pinned.has(this.getScene()) || own.get(this) === true;
-            },
-            set(this: Material, value: boolean) {
-                own.set(this, value);
-            },
-        });
-    }
-    scenes.add(scene);
 }
 
 /**

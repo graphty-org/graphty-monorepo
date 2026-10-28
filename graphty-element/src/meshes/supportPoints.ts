@@ -260,7 +260,7 @@ export function stepSupportPoints(
     points: Float64Array,
     velocities: Float64Array,
     steps: number,
-    calm: { steps: number } = { steps: 0 },
+    calm?: { steps: number },
 ): boolean {
     const m = edges.length;
     if (m === 0) {
@@ -283,6 +283,7 @@ export function stepSupportPoints(
         (e) => [e.src.x / unit, e.src.y / unit, e.dst.x / unit, e.dst.y / unit] as [number, number, number, number],
     );
     let moving = false;
+    const counted = calm ?? { steps: 0 };
     for (let step = 0; step < steps; step++) {
         for (let j = 0; j < m; j++) {
             xs[n + j] = points[2 * j] / unit;
@@ -300,8 +301,8 @@ export function stepSupportPoints(
             const speedY = integrate(velocities, points, 2 * j + 1, py + sy, damping, unit);
             fastest = Math.max(fastest, speedX, speedY);
         }
-        calm.steps = fastest > REST_SPEED ? 0 : calm.steps + 1;
-        moving = calm.steps < CALM_STEPS;
+        counted.steps = fastest > REST_SPEED ? 0 : counted.steps + 1;
+        moving = counted.steps < CALM_STEPS;
         if (!moving) {
             break;
         }

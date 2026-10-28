@@ -12,6 +12,7 @@ import { Box } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
+import { freshStore, storeOf } from "../../stories/freshStore";
 import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { createRegistry } from "../commands/registry";
@@ -73,19 +74,6 @@ async function runToEnd(element: GraphtyElement, algorithm: string): Promise<str
     await element.session.styles.settled();
     await element.waitForStableFrame();
     return run.id;
-}
-
-/**
- * A story whose store the play function can write, as another package's row would.
- * @param initial - the chrome state to start from.
- * @returns the story's args and its store.
- */
-function withStore(initial: Partial<WorkspaceState> = OPEN): {
-    args: { store: WorkspaceStore };
-    store: WorkspaceStore;
-} {
-    const store = createWorkspaceStore(initial);
-    return { args: { store }, store };
 }
 
 /**
@@ -204,40 +192,40 @@ export const SeveralElementsSummary: Story = {
     },
 };
 
-const measure = withStore();
 /** PageRank's row: Values with the caption, Top 10 and Made with (`#/inspector-measure-row/data`). */
 export const MeasureRowData: Story = {
-    args: measure.args,
-    play: async ({ canvasElement }) => {
+    ...freshStore(OPEN),
+    play: async (context) => {
+        const { canvasElement } = context;
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
-        measure.store.set({ inspected: { kind: "measure-row", id } });
+        storeOf(context).set({ inspected: { kind: "measure-row", id } });
         await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Top 10" }, storyWaitOptions(1000));
     },
 };
 
-const groups = withStore();
 /** Louvain's row: Summary, Sizes and Made with (`#/inspector-run-row/data`). */
 export const RunRowData: Story = {
-    args: groups.args,
-    play: async ({ canvasElement }) => {
+    ...freshStore(OPEN),
+    play: async (context) => {
+        const { canvasElement } = context;
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "louvain");
-        groups.store.set({ inspected: { kind: "run-row", id } });
+        storeOf(context).set({ inspected: { kind: "run-row", id } });
         await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Sizes" }, storyWaitOptions(1000));
     },
 };
 
-const retuned = withStore();
 /** A setting changed in Made with: the state bar's Rerun and Revert (`#/inspector-run-row/settings-changed`). */
 export const RunRowSettingsChanged: Story = {
-    args: retuned.args,
-    play: async ({ canvasElement }) => {
+    ...freshStore(OPEN),
+    play: async (context) => {
+        const { canvasElement } = context;
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
-        retuned.store.set({ inspected: { kind: "measure-row", id } });
+        storeOf(context).set({ inspected: { kind: "measure-row", id } });
         await openValues(canvasElement);
         const field = await inspector(canvasElement).findByRole(
             "spinbutton",
@@ -251,16 +239,16 @@ export const RunRowSettingsChanged: Story = {
     },
 };
 
-const community = withStore();
 /** One of Louvain's groups: its size and first members (`#/inspector-group-set-path-row/community-3`). */
 export const GroupSetPathRowCommunity: Story = {
-    args: community.args,
-    play: async ({ canvasElement }) => {
+    ...freshStore(OPEN),
+    play: async (context) => {
+        const { canvasElement } = context;
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "louvain");
         const first = element.session.runs.get(id)?.result?.summary().groups?.[0];
         if (first !== undefined) {
-            community.store.set({ inspected: { kind: "group-row", id: groupKey(id, first.group) } });
+            storeOf(context).set({ inspected: { kind: "group-row", id: groupKey(id, first.group) } });
         }
         await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Members" }, storyWaitOptions(1000));

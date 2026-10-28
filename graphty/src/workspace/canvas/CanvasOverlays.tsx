@@ -11,7 +11,7 @@ import { selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { KeyRoom, LegendCard } from "./LegendCard";
+import { LegendCard } from "./LegendCard";
 import { dataBlocks, keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
@@ -363,7 +363,6 @@ export function CanvasOverlays(): React.JSX.Element | null {
 
     return (
         <>
-            {legendShown && blocks.length > 0 ? <KeyRoom /> : null}
             {/* Asked for over nothing, the card says nothing is styled yet. */}
             {legendShown && (blocks.length > 0 || legendAsked) ? (
                 <LegendCard blocks={blocks} session={session} />

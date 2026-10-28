@@ -13,7 +13,7 @@ compact-mantine draws and behaves exactly as Figma does. The only departures are
 - The owner's approval is a `Figma-Approved: <reason>` trailer on the commit that makes the change.
   Only the owner adds it; never add it yourself.
 
-`tools/check-figma-lock.mjs` enforces this in the pre-push gate and in CI's Checks job. The Figma
+`tools/check-figma-lock.mjs` enforces this in CI's Checks job. The Figma
 browser tests (`tests/figma/*.browser.test.tsx`) compare every component with the Figma study in
 `design/ui/figma`, which is outside git, through `tests/figma/figma-fixture.json`: exactly the
 fields of the study's captures the tests read. The token tests (`tests/theme/tokens.test.ts`) read

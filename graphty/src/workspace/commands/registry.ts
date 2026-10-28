@@ -313,15 +313,14 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
 
     const all = [...byId.values()];
     const live = all.filter((command) => command.stub !== true);
+    // A stable sort keeps registration order among equals.
+    sourceRow.sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 
     return {
         all,
         live,
         kinds,
-        // A stable sort keeps registration order among equals.
-        sourceRow: sourceRow.sort(
-            (a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER),
-        ),
+        sourceRow,
         columnHeader,
         get: (id) => byId.get(id),
         built: (id) => {

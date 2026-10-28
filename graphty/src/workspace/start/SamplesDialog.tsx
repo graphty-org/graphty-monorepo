@@ -119,7 +119,7 @@ function bringGraph(ctx: CommandContext, name: string, load: GraphLoad, target: 
         return;
     }
     unlessUnsaved(ctx, () => {
-        openProject(ctx.workspace, name, (session) => load(session, "replace"));
+        openProject(ctx.workspace, name, (session) => load(session, { mode: "replace", history: "start" }));
     });
 }
 
@@ -191,7 +191,7 @@ function sampleEntries(
                         bringGraph(
                             ctx,
                             sample.plainName,
-                            (session, mode) => session.data.loadSample(sample.id, { mode }),
+                            (session, load) => session.data.loadSample(sample.id, load),
                             target,
                         );
                     },
@@ -244,7 +244,7 @@ function bringDataset(ctx: CommandContext, dataset: DatasetMeta, target: Target)
     bringGraph(
         ctx,
         dataset.title,
-        (session, mode) => session.data.loadDataset(dataset.name, { ...datasetBase(), mode }),
+        (session, load) => session.data.loadDataset(dataset.name, { ...datasetBase(), ...load }),
         target,
     );
 }
@@ -257,7 +257,7 @@ function bringDataset(ctx: CommandContext, dataset: DatasetMeta, target: Target)
  * @param props.separable - whether to offer Open as a separate graph
  * @returns the tile
  */
-function SampleTile({ entry, separable }: { entry: SampleEntry; separable: boolean }): React.JSX.Element {
+function SampleTile({ entry, separable }: Readonly<{ entry: SampleEntry; separable: boolean }>): React.JSX.Element {
     const counted = entry.nodes !== undefined || entry.edges !== undefined;
     return (
         <div className="ws-samples-tile">
@@ -425,7 +425,7 @@ export function SamplesDialog(): React.JSX.Element {
                     bringGraph(
                         ctx,
                         generator.plainName,
-                        (session, mode) => session.data.generate(generator.name, params, { mode }),
+                        (session, load) => session.data.generate(generator.name, params, load),
                         target,
                     );
                 }}

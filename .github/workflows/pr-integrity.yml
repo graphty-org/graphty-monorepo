@@ -1,0 +1,48 @@
+name: PR Integrity
+
+# The rules agents cannot be trusted to keep by themselves (design/ci/channels-pipeline.md section 6.4,
+# tools/pr-integrity.mjs): no test weakened, the owned closure, no unapproved breaking change, baselines
+# signed by the owner, and for the agent account's pull requests a Proof and a fresh review of the
+# branch's own diff. A code owner's approval of the head clears test integrity and the breaking-change
+# rule, so review events re-run it: an approval needs no push. Never on comment events, whose runs attach
+# to master's head and cannot satisfy a pull request's required check. No concurrency group, for
+# pr-title.yml's reason.
+on:
+    pull_request:
+        types: [opened, synchronize, edited, reopened]
+    pull_request_review:
+        types: [submitted, dismissed]
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    integrity:
+        name: PR Integrity
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        steps:
+            # The head itself, not the merge ref: every rule is measured from the merge base with master.
+            # Full history, for the merge base, the commits and the revert check.
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ github.event.pull_request.head.sha }}
+                  fetch-depth: 0
+                  lfs: false
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Fetch master
+              run: git fetch --no-tags origin master:refs/remotes/origin/master
+
+            # The title, description and author come from the event file, never from the script text or an
+            # environment variable (pr-issue-link.yml's reasons). The baselines signature is checked with
+            # master's own visual-review/trusted (git archive inside the script), never this checkout's.
+            - name: Check the pull request
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: node tools/pr-integrity.mjs --base origin/master

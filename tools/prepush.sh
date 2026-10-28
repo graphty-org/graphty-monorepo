@@ -65,8 +65,8 @@ if [ -n "$GLOBAL_PNPM" ] && [ "$(printf '%s\n' "$GLOBAL_PNPM" 10.29.1 | sort -V 
     echo "WARNING: the pnpm on PATH is $GLOBAL_PNPM, older than 10.29.1, so a pnpm exec killed by a signal exits 0; run pnpm self-update"
 fi
 
-# The gate runs at normal priority: other work yields to it (tools/low-priority.sh, and the low lanes of the
-# test and browser slots while it runs its shards), never the other way round. A gate started from a niced
+# The gate runs at normal priority: other work yields to it (tools/low-priority.sh), never the other way
+# round. A gate started from a niced
 # shell inherits the niceness and cannot lower it again without privilege, so say so.
 if [ "$(nice)" != 0 ]; then
     echo "WARNING: the gate runs at niceness $(nice), not 0: it was started from a lowered shell (tools/low-priority.sh?), so other work gets the CPU first"
@@ -150,9 +150,6 @@ affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 # The same packages as directories (nx names remote-logger by its package name).
 DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
 
-# The packages with an API reference in the documentation site (a root `docs:api:<package>` script).
-DOCS_API_PACKAGES=$(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")')
-
 # The documentation site, built as CI's Docs job builds it (npm run docs:build: docs:content, every
 # docs:api, vitepress build docs). TypeDoc writes whatever a doc comment holds, and only VitePress's
 # Vue compiler rejects a page that is not valid template: a code span split across two lines of a
@@ -162,13 +159,7 @@ DOCS_API_PACKAGES=$(node -p 'Object.keys(require("./package.json").scripts).filt
 # assemble the site. It reuses the API pages the "API docs" steps generated and builds only the other
 # packages' ones, so a dead link VitePress finds fails here too. Needs the build. About 3 minutes
 # (2026-10-22, a busy machine): the other API pages 30 seconds, vitepress build 2.5 minutes.
-docs_site_affected() {
-    local p
-    for p in $DOCS_API_PACKAGES; do affected "$p" && return 0; done
-    [ -z "${BASE:-}" ] && return 0
-    ! git diff --quiet "$BASE" HEAD -- docs/ $(sed -nE 's#^ *src: "([^"]+)".*#\1/#p' tools/copy-docs-content.js) \
-        tools/copy-docs-content.js tools/sanitize-api-docs.js
-}
+source "$SCRIPT_DIR/docs-affected.sh"
 docs_site_step() {
     docs_site_affected || return 0
     local cmd="pnpm run docs:content" p
@@ -240,14 +231,13 @@ fi
 # only work: it starts once the capture holds its lock, and each Storybook's capture starts its share
 # once it holds a browser slot, so a long wait behind the test shards' browsers never fails it (its log
 # says when it waits and when it works). Its own process group, killed by the EXIT trap,
-# so a step that stops the gate stops the capture with it. TEST_SLOT_GATE: it is the gate's own work, so it
-# never takes the low lane that every browser command outside a gate takes while a gate runs its shards.
+# so a step that stops the gate stops the capture with it.
 # The light gate (PREPUSH_LIGHT=1) captures nothing: CI's visual job on the cut pull request is the capture.
 if [ "$LIGHT" != 1 ] && [ -n "$PROJECT_LIST" ]; then
     SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
     mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
     echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
-    setsid env TEST_SLOT_GATE="$$" VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
+    setsid env VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
     SCREENSHOTS_PGID=$!
     SCREENSHOTS_STAGED=1
     echo ""

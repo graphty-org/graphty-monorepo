@@ -205,9 +205,9 @@ type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
  * layout's cost estimate gives before it is chosen.
  */
 export class LocationMapLayout extends SnapshotLayoutEngine {
-    static type = "location-map";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = locationMapOptionsSchema;
+    static readonly type = "location-map";
+    static readonly maxDimensions = 3;
+    static readonly zodOptionsSchema: OptionsSchema = locationMapOptionsSchema;
 
     config: LocationMapLayoutConfigType;
     protected readonly dimensions: 2 | 3;

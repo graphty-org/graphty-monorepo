@@ -825,7 +825,12 @@ export function TableDock(): React.JSX.Element {
     return (
         // Escape in the grid leaves it for the toolbar's Table button, which opened it: a key that
         // always does its job, where nothing in the grid has an Escape of its own.
-        <div className="ws-table" ref={root} onKeyDown={leaveGrid} data-maximized={maximized ? "" : undefined}>
+        <div // NOSONAR(S6848): catches Escape as it bubbles from the grid's own focusable cells; the div takes no focus
+            className="ws-table"
+            ref={root}
+            onKeyDown={leaveGrid}
+            data-maximized={maximized ? "" : undefined}
+        >
             {maximized ? <MaximizedPanel /> : null}
             {table}
         </div>

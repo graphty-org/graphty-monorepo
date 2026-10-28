@@ -19,10 +19,8 @@ const ICON = 14;
  * @returns the icons
  */
 export function HeaderIcons({ column }: Readonly<{ column: TableColumnChoice }>): React.JSX.Element {
-    const Type =
-        column.group === "key"
-            ? GLYPHS.key
-            : (TYPE_ICONS[column.descriptor?.type ?? (column.numeric ? "number" : "category")] ?? GLYPHS.mixed);
+    const typeName = column.descriptor?.type ?? (column.numeric ? "number" : "category");
+    const Type = column.group === "key" ? GLYPHS.key : (TYPE_ICONS[typeName] ?? GLYPHS.mixed);
     const origin = column.group === "result" ? "computed" : column.descriptor?.origin;
     const pill = rolePill(column);
     return (
@@ -66,7 +64,7 @@ export function HeaderWarning({
     return (
         <HoverCard openDelay={100} closeDelay={250} position="bottom-start" shadow="md">
             <HoverCard.Target>
-                <span
+                <span // NOSONAR(S6819): a glyph inside a hover target, named by aria-label; an <img> cannot hold the icon component
                     className="ws-th-warning"
                     role="img"
                     aria-label={`Issues in ${header}`}

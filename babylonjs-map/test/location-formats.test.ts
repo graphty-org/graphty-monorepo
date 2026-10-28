@@ -128,6 +128,11 @@ describe("plus codes", () => {
         expect(result.lon).toBeCloseTo((lonLo + lonHi) / 2, 6);
     });
 
+    it("refuses a long run of zeros or an over-long code without reading it", () => {
+        expect(parseLocation(`22${"0".repeat(50_000)}`, "plus-code")).toMatchObject({ code: "syntax" });
+        expect(parseLocation(`7FG49QCJ+${"2".repeat(40)}`, "plus-code")).toMatchObject({ code: "syntax" });
+    });
+
     it("refuses codes beyond the poles or the antimeridian", () => {
         expect(parseLocation("D2220000+", "plus-code")).toMatchObject({ code: "syntax" });
         expect(parseLocation("2W220000+", "plus-code")).toMatchObject({ code: "syntax" });
@@ -282,6 +287,13 @@ describe("latLonFromColumns with text", () => {
         ["", "12.5"],
     ])("refuses %s, %s", (lat, lon) => {
         expect(isLocationError(latLonFromColumns(lat, lon))).toBe(true);
+    });
+
+    it("reads text with long whitespace runs, and refuses hostile ones", () => {
+        expect(angleFromColumn("  51.5 \t\t  N  ", "lat")).toBe(51.5);
+        expect(isLocationError(parseLocation("18T    603254 \t mE   4499489  mN", "utm"))).toBe(false);
+        expect(angleFromColumn(`0${" ".repeat(50_000)}x`, "lat")).toBeNaN();
+        expect(parseLocation(`18T 1${" ".repeat(50_000)}x`, "utm")).toMatchObject({ code: "syntax" });
     });
 
     it("reads one angle of a column, in range for its axis", () => {

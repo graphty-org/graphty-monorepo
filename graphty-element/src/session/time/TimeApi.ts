@@ -727,19 +727,21 @@ function binBounds(from: number, to: number, options: TimeBinsOptions, ordinal: 
         return bounds;
     }
 
-    if (!isCalendarStep(step) && !(step > 0)) {
+    if (!isCalendarStep(step) && (Number.isNaN(step) || step <= 0)) {
         throw tooManyBins(options, step);
     }
 
     const first = ordinal && !isCalendarStep(step) ? Math.floor(from / step) * step : alignTo(from, step);
     let at = first;
-    for (let bins = 0; at < to; bins++) {
+    let bins = 0;
+    while (at < to) {
         if (bins === MAX_BINS) {
             throw tooManyBins(options, step);
         }
 
         bounds.push(at);
-        at = ordinal && !isCalendarStep(step) ? first + (bins + 1) * step : addSteps(at, step, 1);
+        bins++;
+        at = ordinal && !isCalendarStep(step) ? first + bins * step : addSteps(at, step, 1);
     }
 
     bounds.push(options.maxCount === undefined ? to : at);
@@ -887,7 +889,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         for (const kind of [built.node, built.edge]) {
             if (kind !== null && kind.sorted.length > 0) {
                 from = Math.min(from, kind.sorted[0]);
-                last = Math.max(last, kind.sorted[kind.sorted.length - 1]);
+                last = Math.max(last, kind.sorted[kind.sorted.length - 1]); // NOSONAR(S7755): noUncheckedIndexedAccess is off, so [length - 1] keeps the element type that .at() widens to undefined
             }
         }
 
@@ -1774,7 +1776,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 }
             }
 
-            return Object.freeze(found.sort((a, b) => b.parsed / b.total - a.parsed / a.total || b.parsed - a.parsed));
+            found.sort((a, b) => b.parsed / b.total - a.parsed / a.total || b.parsed - a.parsed);
+            return Object.freeze(found);
         },
 
         notices(): readonly CodedFact<TimeNoticeCode>[] {
@@ -1845,7 +1848,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     return into;
                 }
 
-                const last = bounds[bounds.length - 1];
+                const last = bounds[bounds.length - 1]; // NOSONAR(S7755): noUncheckedIndexedAccess is off, so [length - 1] keeps the element type that .at() widens to undefined
                 for (
                     let at = lowerBound(parsed.sorted, bounds[0]);
                     at < parsed.sorted.length && parsed.sorted[at] < last;
@@ -2163,7 +2166,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     const internals: TimeInternals = {
         instants(path: Path) {
             const built = indexNow();
-            if (built === null || columnOf(path) !== built.path) {
+            if (built?.path !== columnOf(path)) {
                 return null;
             }
 

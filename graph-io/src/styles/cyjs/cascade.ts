@@ -1354,6 +1354,7 @@ function evaluateTarget(
     if (kind === "node") {
         const read: DrawnRead = { kind, els, cells, order, rendered: input.rendered, notes };
         nodeSizes(graph, read, drawn);
+        groupBoxes(graph, read, drawn);
         mixedLabelPlaces(graph, read, drawn);
     }
     if (kind === "edge") {
@@ -1787,6 +1788,8 @@ const CYJS_EDGE_ONLY: ReadonlySet<string> = new Set([
     "target-text-margin-y",
     "source-text-rotation",
     "target-text-rotation",
+    "source-distance-from-node",
+    "target-distance-from-node",
 ]);
 
 /**
@@ -2837,6 +2840,146 @@ function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (St
             col(p)[k] = (typeof v === "number" ? v : 30) + 2 * pad;
         }
     }
+}
+
+/** The words of a compound parent's sizing properties. */
+const PADDING_OF_PART: CyjsPropertySpec = {
+    property: "_paddingOf",
+    type: "enum",
+    enums: ["width", "height", "average", "min", "max"],
+};
+const LABELS_PART: CyjsPropertySpec = { property: "_compoundLabels", type: "enum", enums: ["include", "exclude"] };
+
+/**
+ * A length or a percentage as Cytoscape.js spells it.
+ * @param text - the value, or null
+ * @returns the number and whether it is a percentage, or null for none or a non-number
+ */
+function measureOf(text: StyleValue | null | undefined): { value: number; percent: boolean } | null {
+    if (typeof text !== "string" && typeof text !== "number") {
+        return null;
+    }
+    const value = Number.parseFloat(String(text));
+    return Number.isFinite(value) ? { value, percent: String(text).trim().endsWith("%") } : null;
+}
+
+/**
+ * The share of a minimum's growth on the near side (left, top), as Cytoscape.js 3.34.3 `updateCompoundBounds`
+ * splits it: each bias a percentage, a length read as its percentage of the minimum, the near side's share of
+ * their sum; no bias on either side grows both sides alike.
+ * @param near - the near side's bias
+ * @param far - the far side's bias
+ * @param min - the minimum
+ * @returns the near side's share, or null for half
+ */
+function biasShare(
+    near: StyleValue | null | undefined,
+    far: StyleValue | null | undefined,
+    min: number,
+): number | null {
+    const percent = (text: StyleValue | null | undefined): number => {
+        const m = measureOf(text);
+        if (m === null || m.value <= 0) {
+            return 0;
+        }
+        return m.percent ? m.value : (m.value * 100) / min;
+    };
+    const a = percent(near);
+    const total = a + percent(far);
+    return total > 0 ? a / total : null;
+}
+
+/**
+ * How Cytoscape.js sizes a compound parent round its children (cytoscape.js 3.34.3 `updateCompoundBounds`): its
+ * `padding` past their box (a percentage is of the box, `padding-relative-to`), at least `min-width` by `min-height`
+ * before the padding, grown by the biases' shares, its children's labels counted unless `compound-sizing-wrt-labels`
+ * is `exclude`. Written for every compound parent, so the group is drawn as Cytoscape.js draws it.
+ * @param graph - the core's elements
+ * @param read - the nodes' cells
+ * @param values - the nodes' values; changed in place
+ */
+function groupBoxes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
+    const word = (name: string, spec: CyjsPropertySpec = TEXT_PART): (StyleValue | null | undefined)[] =>
+        drawnColumn(read, name, spec);
+    const padding = word("padding");
+    const paddingOf = word("padding-relative-to", PADDING_OF_PART);
+    const labels = word("compound-sizing-wrt-labels", LABELS_PART);
+    const axes = [
+        { min: word("min-width"), near: word("min-width-bias-left"), far: word("min-width-bias-right") },
+        { min: word("min-height"), near: word("min-height-bias-top"), far: word("min-height-bias-bottom") },
+    ];
+    const names = [
+        ["groupMinWidth", "groupMinWidthBiasLeft"],
+        ["groupMinHeight", "groupMinHeightBiasTop"],
+    ];
+    const n = read.order.length;
+    const put = (p: string, k: number, v: StyleValue): void => {
+        const column = values[p] ?? new Array<StyleValue | null>(n).fill(null);
+        values[p] = column;
+        column[k] = v;
+    };
+    for (let k = 0; k < n; k++) {
+        const core = read.order[k];
+        if (core < 0 || graph.children[core].length === 0) {
+            continue;
+        }
+        for (const [p, v] of groupPaddingValues(padding[k], paddingOf[k])) {
+            put(p, k, v);
+        }
+        put("groupIncludeLabels", k, labels[k] !== "exclude");
+        axes.forEach((axis, a) => {
+            for (const [p, v] of groupMinValues(axis.min[k], axis.near[k], axis.far[k], names[a])) {
+                put(p, k, v);
+            }
+        });
+    }
+}
+
+/**
+ * A compound parent's padding as neutral values: a length, or a fraction of the side `padding-relative-to` names.
+ * @param padding - the padding as Cytoscape.js spells it
+ * @param of - its `padding-relative-to`
+ * @returns the properties and their values
+ */
+function groupPaddingValues(
+    padding: StyleValue | null | undefined,
+    of: StyleValue | null | undefined,
+): [string, StyleValue][] {
+    const pad = measureOf(padding);
+    if (pad?.percent !== true) {
+        return [["groupPadding", Math.max(0, pad?.value ?? 0)]];
+    }
+    return [
+        ["groupPaddingRatio", Math.max(0, pad.value / 100)],
+        ["groupPaddingOf", typeof of === "string" ? of : "width"],
+    ];
+}
+
+/**
+ * A compound parent's minimum size on one axis and the share of its growth on the near side, as neutral values.
+ * @param min - the minimum as Cytoscape.js spells it
+ * @param near - the near side's bias (left, top)
+ * @param far - the far side's bias
+ * @param names - the neutral names of the minimum and of the near side's share
+ * @returns the properties and their values; none without a minimum
+ */
+function groupMinValues(
+    min: StyleValue | null | undefined,
+    near: StyleValue | null | undefined,
+    far: StyleValue | null | undefined,
+    names: readonly string[],
+): [string, StyleValue][] {
+    const m = measureOf(min);
+    if (m === null || m.percent || m.value <= 0) {
+        return [];
+    }
+    const share = biasShare(near, far, m.value);
+    return share === null
+        ? [[names[0], m.value]]
+        : [
+              [names[0], m.value],
+              [names[1], share],
+          ];
 }
 
 /** The label alignments read as Cytoscape.js's words. */

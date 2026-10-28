@@ -75,6 +75,29 @@ export function focusOpenedGraph(): void {
 }
 
 /**
+ * For a graph that opens after a wait (a sample read, a file opened): watches, from now, for the
+ * reader's own keys and presses. The function it returns puts focus on the graph's heading
+ * (`focusOpenedGraph`) only when the reader did nothing meanwhile or focus has fallen to the page,
+ * so focus never jumps away from where the reader went while the graph was loading.
+ * @returns Stops watching; with `focus` (the default) it then moves focus as above.
+ */
+export function focusOpenedGraphLater(): (focus?: boolean) => void {
+    let acted = false;
+    const onInput = (event: Event): void => {
+        acted ||= event.isTrusted;
+    };
+    document.addEventListener("keydown", onInput, true);
+    document.addEventListener("pointerdown", onInput, true);
+    return (focus = true) => {
+        document.removeEventListener("keydown", onInput, true);
+        document.removeEventListener("pointerdown", onInput, true);
+        if (focus && (!acted || focusIsLost())) {
+            focusOpenedGraph();
+        }
+    };
+}
+
+/**
  * Puts focus on the inspector's title after an action filled the inspector (a run, a find pick):
  * the ring says "here is what you asked for" without marking a value row as chosen, and the next
  * Enter opens nothing. Single-key shortcuts (n for a note) still work from there.

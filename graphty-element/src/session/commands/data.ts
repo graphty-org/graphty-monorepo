@@ -29,10 +29,10 @@
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import jmespath from "jmespath";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
+import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
@@ -173,6 +173,8 @@ export interface DataImportCommand {
     };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
+    /** Starts the history: see `ImportOptions.history`. */
+    readonly startsHistory?: boolean;
     /**
      * Imports with the same key coalesce while the first waits its turn: the element's two
      * properties assigned one after the other are one load.
@@ -550,7 +552,7 @@ export function replaceNodesCommand(
     idPath: string,
     setup = false,
 ): BatchCommand {
-    const named = new Map(records.map((record) => [jmespath.search(record, idPath) as unknown, record]));
+    const named = new Map(records.map((record) => [searchRecord(record, idPath), record]));
     const gone = [...held.keys()].filter((id) => !named.has(id));
     const changed: RowUpdate<NodeId>[] = [];
     for (const [id, prior] of held) {
@@ -902,9 +904,8 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
         const resize = scale ?? 1;
         // A Graphviz engine lays the file out in inches, and the file's lengths (its node sizes)
         // are points, 72 to the inch: drawn at the scale its styles were, so its nodes keep their
-        // size against the spaces Graphviz leaves between them.
-        // ponytail: no scale when lengths are kept as the file has them (`lengths: "file"`), where
-        // an inch should be 72 scene units; pass it when that option is used with a Graphviz file.
+        // size against the spaces Graphviz leaves between them (with `lengths: "file"`, one point is
+        // one scene unit, so an inch is 72).
         const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
         const options =
             (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;

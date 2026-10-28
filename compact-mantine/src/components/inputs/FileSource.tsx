@@ -83,7 +83,7 @@ function useWidth(ref: React.RefObject<HTMLElement | null>, on: boolean): number
  * @param props - see FileSourceProps.
  * @returns the file source.
  */
-export function FileSource(props: FileSourceProps): React.JSX.Element {
+export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element {
     const {
         variant = "auto",
         accept,

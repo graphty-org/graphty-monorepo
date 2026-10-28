@@ -17,6 +17,10 @@ installCaughtErrors();
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
 // A plain global rather than an import, so this file reaches nothing under src/ at setup time.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+// Draw on demand: a graph that never set `renderOnDemand` stops drawing once its picture is still,
+// instead of redrawing every frame in software (SwiftShader) for the whole test. Not the
+// consumer's default; a test that needs continuous frames sets `renderOnDemand = false`.
+(globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true;
 
 // Mock CreateScreenshotAsync to return a valid 1x1 PNG data URL
 // This allows testing screenshot logic without requiring actual WebGL rendering

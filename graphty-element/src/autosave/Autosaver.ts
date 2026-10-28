@@ -7,8 +7,9 @@
  *   fails puts every part it carried back.
  * - **Schedule.** While visible, a 500 ms trailing debounce, at most 2000 ms after the first
  *   unwritten change. A write that carries the `data` part waits for an idle moment, at most
- *   `dataMaxWaitMs`; other changes join it. A finished run is written at once, and so is
- *   everything when `flush()` is called. One write at a time.
+ *   `dataMaxWaitMs`; other changes join it. While hidden (`hidden`), every change is written at
+ *   once, since the browser throttles or stops timers then. A finished run is written at once,
+ *   and so is everything when `flush()` is called. One write at a time.
  * - **Boundaries.** When the project is about to be replaced, what this entry has not committed is
  *   built at once and written, and the entry is marked `ended: "replaced"` in the same commit as
  *   the new entry's first write, so a kill in between leaves the old entry restorable.
@@ -22,6 +23,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
+import { supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
@@ -150,6 +152,8 @@ export interface AutosaverOptions {
     readonly keep?: number;
     readonly clock?: AutosaveClock;
     readonly locks?: AutosaveLocks;
+    /** Whether the page is hidden now: a change made then is written at once, with no timer. */
+    readonly hidden?: () => boolean;
 }
 
 /** What the restore at the start is told. */
@@ -377,6 +381,7 @@ export class Autosaver {
     readonly #delayMs: number;
     readonly #maxWaitMs: number;
     readonly #dataMaxWaitMs: number;
+    readonly #hidden: () => boolean;
     readonly #keep: number;
     readonly #clock: AutosaveClock;
     readonly #locks: AutosaveLocks;
@@ -441,6 +446,7 @@ export class Autosaver {
         this.#delayMs = options.delayMs ?? 500;
         this.#maxWaitMs = options.maxWaitMs ?? 2000;
         this.#dataMaxWaitMs = options.dataMaxWaitMs ?? 10_000;
+        this.#hidden = options.hidden ?? (() => false);
         this.#keep = options.keep ?? 10;
         this.#clock = options.clock ?? realClock;
         this.#locks = options.locks ?? noLocks;
@@ -1032,7 +1038,8 @@ export class Autosaver {
      * @param discard - Open it over changes never saved to a file.
      * @returns The project-open report.
      * @throws {GraphtyError} `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
-     *     `E_AUTOSAVE_ENTRY_TAKEN`, or the code the entry could not be opened with.
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_SUPERSEDED` when a clear asked for while the restore waited
+     *     cancelled it (the entry is left as it was), or the code the entry could not be opened with.
      */
     async restore(id: string, discard = false): Promise<AutosaveRestored["report"]> {
         if (!discard && this.#session.project.dirty) {
@@ -1060,6 +1067,11 @@ export class Autosaver {
         if (restored === "next" && failed === null) {
             // Another tab claimed it between the listing and the claim.
             throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
+        }
+
+        if (restored === null && failed === null) {
+            // A clear cancelled the open: the entry is intact, and nothing failed.
+            throw supersededError();
         }
 
         if (restored === "next" || restored === null) {
@@ -1205,6 +1217,40 @@ export class Autosaver {
     }
 
     /**
+     * Report a restore whose open failed. One a clear cancelled (`E_SUPERSEDED`, asked for while
+     * the restore waited) left the work intact: its attempt is taken back and nothing is reported.
+     * @param current - The entry, with the attempt recorded.
+     * @param untried - The entry as it was before the attempt.
+     * @param error - Why the open failed.
+     * @param copied - Whether `current` is a copy this restore made, which a cancelled one removes.
+     */
+    async #restoreFailed(
+        current: AutosaveEntryMeta,
+        untried: AutosaveEntryMeta,
+        error: unknown,
+        copied: boolean,
+    ): Promise<void> {
+        if (!isGraphtyError(error) || error.code !== "E_SUPERSEDED") {
+            this.#available(current, true, "restore-failed", {
+                code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
+                params: { name: errorName(error) },
+            });
+            return;
+        }
+        // The reader cleared the page on purpose: nothing failed, so nothing is announced, and the
+        // entry is written back as it was before the attempt, to be offered on the next load. A
+        // copy this restore made is removed instead: the entry it copied is still there.
+        if (copied) {
+            await this.#store.remove(current.id).catch(() => undefined);
+            return;
+        }
+        // ponytail: a commit that loses to another tab leaves the attempt counted; it only costs one.
+        await this.#store
+            .commit([{ id: untried.id, expectedGen: current.gen, meta: { ...untried, gen: current.gen }, parts: {} }])
+            .catch(() => undefined);
+    }
+
+    /**
      * Copy an entry another tab holds into a new entry of this tab's, claimed.
      * @param meta - The entry.
      * @param parts - Its parts.
@@ -1278,6 +1324,8 @@ export class Autosaver {
         };
 
         let current: AutosaveEntryMeta;
+        // The entry as it was before this attempt was recorded, which a cancelled restore puts back.
+        let untried: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
         let sizes: Map<string, number>;
@@ -1301,6 +1349,7 @@ export class Autosaver {
                 ({ meta: current, release } = await this.#copyEntry(current, entry.parts));
             }
 
+            untried = current;
             current = await this.#recordAttempt(current);
         } catch (error) {
             return giveUp({
@@ -1314,11 +1363,9 @@ export class Autosaver {
         try {
             report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
         } catch (error) {
+            // Before the lock goes, so no other tab commits over the entry meanwhile.
+            await this.#restoreFailed(current, untried, error, copy);
             release?.();
-            this.#available(current, true, "restore-failed", {
-                code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
-                params: { name: errorName(error) },
-            });
             return null;
         } finally {
             this.#restoring = false;
@@ -1484,7 +1531,10 @@ export class Autosaver {
         }
 
         tags.forEach((tag) => entry.unwritten.add(tag));
-        if (now) {
+        // Hidden, a timer may fire late or never (issue #3485): write it right after the write in
+        // flight instead. Not left to the status listener, which hears nothing when the change
+        // leaves the status as it was, as a change made during a write does.
+        if (now || this.#hidden()) {
             this.#kick();
         } else {
             this.#schedule();

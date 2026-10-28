@@ -100,6 +100,7 @@ import {
     NO_ISSUE_STATE,
 } from "./issues";
 import { frozen, type JoinGraph, type JoinPlan, joinReport, planJoin } from "./join";
+import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -205,8 +206,11 @@ type ColumnScalar = string | number | boolean;
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
-    /** Dispatch `data.apply`. */
-    dispatch(mutation: DataMutation): Promise<unknown>;
+    /**
+     * Where a `data.apply` made now would go -- the session, or the transaction a routed verb
+     * runs in -- held for an edit that dispatches once the loads ahead of it have.
+     */
+    applier(): (mutation: DataMutation) => Promise<unknown>;
     /**
      * Where a `data.import` made now would go -- the session, or the transaction a routed verb
      * runs in -- held for a verb that dispatches it after an await.
@@ -228,6 +232,8 @@ interface DataWrites {
     valueLabels(): ReadonlyMap<string, string>;
     /** Publish a progress change as the session's `progress:changed`. */
     progress?(change: ProgressChange): void;
+    /** The session's load line, shared with the graph's own loads, so loads land in call order. */
+    readonly loadLine: LoadLine;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
     send?(command: SessionCommand): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
@@ -682,6 +688,8 @@ export class SessionData implements SessionDataApi {
         null;
     /** What click-to-expand keeps beside the graph. */
     private readonly expansions = new ExpansionState();
+    /** The loads asked for and not yet dispatched, so they land in the order they were asked for. */
+    private readonly loadLine: LoadLine;
 
     /**
      * Build the data surface.
@@ -705,6 +713,7 @@ export class SessionData implements SessionDataApi {
         this.records = records;
         this.readConfig = readConfig;
         this.writes = writes;
+        this.loadLine = writes.loadLine;
         this.pages = pages;
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
@@ -718,7 +727,7 @@ export class SessionData implements SessionDataApi {
      */
     async addNodes(records: readonly NodeRecordInput[]): Promise<void> {
         this.requireLive("addNodes");
-        await this.writes.dispatch({ kind: "add-nodes", records });
+        await this.edit({ kind: "add-nodes", records });
     }
 
     /**
@@ -728,7 +737,7 @@ export class SessionData implements SessionDataApi {
      */
     async addEdges(records: readonly EdgeRecordInput[]): Promise<void> {
         this.requireLive("addEdges");
-        await this.writes.dispatch({ kind: "add-edges", records });
+        await this.edit({ kind: "add-edges", records });
     }
 
     /**
@@ -738,7 +747,7 @@ export class SessionData implements SessionDataApi {
      */
     async updateNodes(rows: readonly RowUpdate<NodeId>[]): Promise<void> {
         this.requireLive("updateNodes");
-        await this.writes.dispatch({ kind: "update-rows", target: "node", rows });
+        await this.edit({ kind: "update-rows", target: "node", rows });
     }
 
     /**
@@ -748,7 +757,7 @@ export class SessionData implements SessionDataApi {
      */
     async updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void> {
         this.requireLive("updateEdges");
-        await this.writes.dispatch({ kind: "update-rows", target: "edge", rows });
+        await this.edit({ kind: "update-rows", target: "edge", rows });
     }
 
     /**
@@ -758,7 +767,7 @@ export class SessionData implements SessionDataApi {
      */
     async removeNodes(ids: readonly NodeId[]): Promise<void> {
         this.requireLive("removeNodes");
-        await this.writes.dispatch({ kind: "remove-nodes", ids });
+        await this.edit({ kind: "remove-nodes", ids });
     }
 
     /**
@@ -768,7 +777,7 @@ export class SessionData implements SessionDataApi {
      */
     async removeEdges(ids: readonly EdgeId[]): Promise<void> {
         this.requireLive("removeEdges");
-        await this.writes.dispatch({ kind: "remove-edges", ids });
+        await this.edit({ kind: "remove-edges", ids });
     }
 
     /**
@@ -777,10 +786,26 @@ export class SessionData implements SessionDataApi {
      */
     async clear(): Promise<void> {
         this.requireLive("clear");
-        await this.writes.dispatch({ kind: "clear" });
+        // A load still reading when the clear is asked for is cancelled: it rejects with
+        // E_SUPERSEDED and adds nothing, so the cleared graph does not come back (issue #3524). An
+        // edit still waiting resolves and adds nothing either.
+        const send = this.writes.applier();
+        await this.loadLine.clear(() => send({ kind: "clear" }));
         // Nothing a source load brought is left, so `loads()` lists none of them and a saved
         // project does not offer to fetch them again; undo brings the rows and the records back.
         this.pendingLoads.clear();
+    }
+
+    /**
+     * Dispatch an edit in the session's load line, behind every load asked for before it, so it
+     * lands on what they load instead of under them (issue #3526).
+     * A clear asked for while it waits cancels it: it resolves without applying.
+     * @param mutation - The edit.
+     * @returns Settles once it is applied, or cancelled by a clear.
+     */
+    private edit(mutation: DataMutation): Promise<unknown> {
+        const send = this.writes.applier();
+        return this.loadLine.edit(() => send(mutation), undefined);
     }
 
     /**
@@ -794,16 +819,20 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
-        if (source.source !== undefined) {
-            await (
-                await import("./sources/load")
-            ).importSource(this.sourceHost(), { ...source, source: source.source }, options);
-            return;
-        }
+        // A network source's read honours the signal, so its wait for its turn does too.
+        const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
+        try {
+            if (source.source !== undefined) {
+                await (await import("./sources/load")).importSource(this.hostInTurn(turn), { ...source, source: source.source }, options);
+                return;
+            }
 
-        // Taken before the first await: a transaction routes only what a verb dispatches
-        // synchronously, and detecting the format may have to read the file or fetch the URL.
-        await this.importVia(this.keeping(this.writes.importer(), source), source, options);
+            // Taken before the first await: a transaction routes only what a verb dispatches
+            // synchronously, and detecting the format may have to read the file or fetch the URL.
+            await this.importVia(this.keeping(this.writes.importer(), source), source, options, turn);
+        } finally {
+            turn.leave();
+        }
     }
 
     /**
@@ -875,14 +904,20 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(
-            send,
-            recordsSource(graph, name),
-            options,
-            "sample",
-            { generator: name, params: { ...params } },
-            sampleLabelOf(graph),
-        );
+        const turn = this.loadLine.join();
+        try {
+            await this.importVia(
+                send,
+                recordsSource(graph, name),
+                options,
+                turn,
+                "sample",
+                { generator: name, params: { ...params } },
+                sampleLabelOf(graph),
+            );
+        } finally {
+            turn.leave();
+        }
     }
 
     /**
@@ -904,27 +939,35 @@ export class SessionData implements SessionDataApi {
                 details: { name, available: DATASET_NAMES },
             });
         }
-        let snapshot: GraphSnapshot;
+        // Its place in line is taken now, so a load asked for later waits for this download; an
+        // abort while it waits for its turn stops it there and lets the next load through.
+        const turn = this.loadLine.join(signal);
         try {
-            snapshot = await fetchDataset(name, { baseUrl, signal });
-        } catch (error) {
-            throw new GraphtyError({
-                code: "E_FETCH_FAILED",
-                message: `The dataset "${name}" could not be downloaded.`,
-                source: "data",
-                recoverable: true,
-                details: { name, ...(baseUrl === undefined ? {} : { baseUrl }) },
-                cause: error,
-            });
+            let snapshot: GraphSnapshot;
+            try {
+                snapshot = await fetchDataset(name, { baseUrl, signal });
+            } catch (error) {
+                throw new GraphtyError({
+                    code: "E_FETCH_FAILED",
+                    message: `The dataset "${name}" could not be downloaded.`,
+                    source: "data",
+                    recoverable: true,
+                    details: { name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                    cause: error,
+                });
+            }
+            await this.importVia(
+                send,
+                recordsSource(snapshot, name),
+                load,
+                turn,
+                "sample",
+                { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                sampleLabelOf(snapshot),
+            );
+        } finally {
+            turn.leave();
         }
-        await this.importVia(
-            send,
-            recordsSource(snapshot, name),
-            load,
-            "sample",
-            { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
-            sampleLabelOf(snapshot),
-        );
     }
 
     /**
@@ -932,6 +975,8 @@ export class SessionData implements SessionDataApi {
      * @param dispatch - The importer, taken when the verb was called.
      * @param source - What `import` takes.
      * @param options - What `import` takes.
+     * @param turn - The load's place in line, taken when the verb was called: it dispatches only
+     *   once every load asked for before it has.
      * @param origin - What `data.sources()` says the load came from; read from the source's type when absent.
      * @param sample - For a generated graph or a dataset: what it was, for the project file.
      * @param sampleLabel - For a generated graph or a dataset: the column that names its nodes.
@@ -941,16 +986,20 @@ export class SessionData implements SessionDataApi {
         dispatch: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+        turn: LoadTurn,
         origin?: LoadedSourceKind,
         sample?: LoadFacts["sample"],
         sampleLabel?: string,
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
-        const send = this.noting(
+        const noted = this.noting(
             dispatch,
             () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample })),
             choiceOptions(options),
         );
+        const mark = historyMark(options);
+        const send = (command: DataImportCommand | BatchCommand): ReturnType<typeof noted> =>
+            noted({ ...command, ...mark });
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.
@@ -965,7 +1014,8 @@ export class SessionData implements SessionDataApi {
         ) {
             const draft = await this.prepare(source);
             try {
-                await draft.loadVia(send, options);
+                await turn.wait();
+                await draft.loadVia((command) => turn.issue(() => send(command)), options);
             } finally {
                 draft.dispose();
             }
@@ -978,33 +1028,37 @@ export class SessionData implements SessionDataApi {
         const resolving = resolveImportSource(source);
         const resolved = resolving instanceof Promise ? await resolving : resolving;
         resolvedConfig = resolved.config ?? source.config;
-        const step: DataImportCommand = {
-            ...importCommand(resolved, options),
-            ...(origin === undefined ? {} : { origin }),
-        };
-        // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
-        // ponytail: only this door and the draft reset it; another replace route keeps the old one.
-        const { knownFields } = this.readConfig();
-        const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
-        // A new graph from a graph file names its nodes by the file's label column, as a draft's
-        // load of it does, and a dataset by the label, name or title its nodes carry, unless a
-        // label path is configured already. A node without one is still named by its id. A merge
-        // keeps how the graph it joins names its nodes.
-        const graphFile = step.source.type !== undefined && step.source.type !== "csv";
-        const fileLabel = graphFile ? "label" : undefined;
-        const label = origin === "sample" ? sampleLabel : fileLabel;
-        const names = step.mode !== "merge" && knownFields.nodeLabelPath === null && label !== undefined;
-        const before: BatchCommand["steps"] = [
-            ...(resets
-                ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
-                : []),
-            ...(names
-                ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: label } } } } as const]
-                : []),
-        ];
-        // The batch is the import in the history, so it carries the import's fact: a page load's
-        // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
-        await send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] });
+        // Waited for only when a load asked for earlier is still reading, so one with nothing
+        // ahead of it dispatches before this call returns, as it did before the line existed.
+        await turn.take(() => {
+            const step: DataImportCommand = {
+                ...importCommand(resolved, options),
+                ...(origin === undefined ? {} : { origin }),
+            };
+            // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
+            // ponytail: only this door and the draft reset it; another replace route keeps the old one.
+            const { knownFields } = this.readConfig();
+            const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
+            // A new graph from a graph file names its nodes by the file's label column, as a draft's
+            // load of it does, and a dataset by the label, name or title its nodes carry, unless a
+            // label path is configured already. A node without one is still named by its id. A merge
+            // keeps how the graph it joins names its nodes.
+            const graphFile = step.source.type !== undefined && step.source.type !== "csv";
+            const fileLabel = graphFile ? "label" : undefined;
+            const label = origin === "sample" ? sampleLabel : fileLabel;
+            const names = step.mode !== "merge" && knownFields.nodeLabelPath === null && label !== undefined;
+            const before: BatchCommand["steps"] = [
+                ...(resets
+                    ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
+                    : []),
+                ...(names
+                    ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: label } } } } as const]
+                    : []),
+            ];
+            // The batch is the import in the history, so it carries the import's fact: a page load's
+            // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
+            return send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] });
+        });
     }
 
     /**
@@ -1086,8 +1140,10 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
-        const host = this.sourceHost();
-        return import("./sources/expand").then((module) => module.expandNodes(host, ids, options));
+        // In line, as a load: its rows are dispatched after every load asked for before it, and a
+        // load asked for after it waits for all of them, so it never adds to the graph that load
+        // replaced (issue #3382).
+        return this.inLine(options.signal, (host) => import("./sources/expand").then((module) => module.expandNodes(host, ids, options)), true);
     }
 
     /**
@@ -1126,8 +1182,18 @@ export class SessionData implements SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
-        const host = this.sourceHost();
-        return import("./sources/expand").then((module) => module.collapseNode(host, id));
+        // In line, as an edit: it removes what the graph holds once the loads ahead of it landed.
+        // A clear asked for while it waits cancels it: it removes nothing, and the clear removes all.
+        return this.inLine(
+            undefined,
+            (host) => import("./sources/expand").then((module) => module.collapseNode(host, id)),
+            false,
+            () => ({
+                removedNodes: [],
+                removedEdges: 0,
+                kept: [],
+            }),
+        );
     }
 
     /**
@@ -1137,8 +1203,7 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
-        const host = this.sourceHost();
-        return import("./sources/load").then((module) => module.more(host, options));
+        return this.inLine(options.signal, (host) => import("./sources/load").then((module) => module.more(host, options)));
     }
 
     /**
@@ -1185,7 +1250,12 @@ export class SessionData implements SessionDataApi {
      */
     async loadSample(id: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("loadSample");
-        await (await import("./sources/load")).loadSample(this.sourceHost(), id, options);
+        const turn = this.loadLine.join(options.signal);
+        try {
+            await (await import("./sources/load")).loadSample(this.hostInTurn(turn), id, options);
+        } finally {
+            turn.leave();
+        }
     }
 
     /**
@@ -1230,8 +1300,7 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
-        const host = this.sourceHost();
-        return import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options));
+        return this.inLine(options.signal, (host) => import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)));
     }
 
     /**
@@ -1272,6 +1341,88 @@ export class SessionData implements SessionDataApi {
 
         for (const record of this.ledger.loads()) {
             this.pendingLoads.add(record.key);
+        }
+    }
+
+    /**
+     * What a source load works through when it holds a place in line: it waits its turn once
+     * it has read, and gives the place up as it dispatches.
+     * @param turn - The load's place.
+     * @param hold - Keep the place past the first dispatch, for a verb that dispatches more than
+     *   once and gives it up when it settles.
+     * @returns The host.
+     */
+    private hostInTurn(turn: LoadTurn, hold = false): SourceHost {
+        const host = this.sourceHost();
+        return {
+            ...host,
+            waitTurn: () => turn.wait(),
+            dispatch: (command) =>
+                hold
+                    ? (turn.wait()?.then(() => host.dispatch(command)) ?? host.dispatch(command))
+                    : turn.take(() => host.dispatch(command)),
+        };
+    }
+
+    /**
+     * Run a door that works out its change from the graph in the session's load line, as an
+     * edit: it takes its place when called and reads the graph once every load asked for before
+     * it has landed, so it changes what they loaded instead of what was there before them. A
+     * clear asked for while it waits cancels it: it resolves with `skipped`, or by default
+     * rejects with `E_SUPERSEDED`, since what it names is gone.
+     * @param run - The door's work.
+     * @param skipped - What a cancelled door resolves with; rejects when not given.
+     * @returns What `run` returned.
+     */
+    private afterLoads<T>(run: () => Promise<T>, skipped?: () => T): Promise<T> {
+        return this.inLine(
+            undefined,
+            run,
+            false,
+            skipped ??
+                ((): T => {
+                    throw supersededError();
+                }),
+        );
+    }
+
+    /**
+     * Run a network-source verb in the session's load line: its place taken now, its dispatch
+     * made once every load asked for before it has dispatched.
+     * @param signal - Aborting it while the verb waits for its turn gives up its place.
+     * @param run - The verb, given a host whose dispatch waits for the turn.
+     * @param hold - Keep the place until the verb settles, for a verb that dispatches more than
+     *   once; otherwise it is given up at the first dispatch.
+     * @param skipped - Given for an edit: it takes an edit's place in line, reads the graph only
+     *   once the loads ahead of it have landed, and a clear asked for while it waits cancels it,
+     *   so it resolves with this instead of rejecting.
+     * @returns What the verb returned.
+     */
+    private async inLine<T>(
+        signal: AbortSignal | undefined,
+        run: (host: SourceHost) => Promise<T>,
+        hold = false,
+        skipped?: () => T,
+    ): Promise<T> {
+        const turn = this.loadLine.join(signal, skipped === undefined ? "load" : "edit");
+        try {
+            if (skipped !== undefined) {
+                // An edit works out what to change from the graph: it reads it once the loads
+                // ahead of it have landed. With none ahead it goes on at once, so a transaction
+                // still routes its dispatch.
+                const ahead = turn.wait();
+                if (ahead !== undefined) {
+                    await ahead;
+                }
+            }
+            return await run(this.hostInTurn(turn, hold));
+        } catch (error) {
+            if (skipped !== undefined && turn.superseded) {
+                return skipped();
+            }
+            throw error;
+        } finally {
+            turn.leave();
         }
     }
 
@@ -1384,8 +1535,17 @@ export class SessionData implements SessionDataApi {
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
-                importer: () =>
-                    this.noting(this.keeping(this.writes.importer(), source), () => bytesFacts(source.config)),
+                inLine: async (run) => {
+                    const send = this.noting(this.keeping(this.writes.importer(), source), () =>
+                        bytesFacts(source.config),
+                    );
+                    const turn = this.loadLine.join();
+                    try {
+                        await run((command) => turn.take(() => send(command)));
+                    } finally {
+                        turn.leave();
+                    }
+                },
                 measure: (command, config) => this.writes.measure(command, config),
                 released: (released) => {
                     if (this.draft === released) {
@@ -2373,6 +2533,17 @@ export class SessionData implements SessionDataApi {
      */
     async fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult> {
         this.requireLive("fix");
+        return this.afterLoads(() => this.fixNow(issue, fix));
+    }
+
+    /**
+     * fix, once the loads asked for before it have landed.
+     * @param issue - as fix takes it
+     * @param fix - as fix takes it
+     * @returns what fix returns
+     */
+    private async fixNow(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult> {
+        this.requireLive("fix");
         const { issue: found, plan } = this.issueNamed(issue);
         if (!found.fixes.includes(fix) && found.current !== fix) {
             throw new GraphtyError({
@@ -2390,7 +2561,7 @@ export class SessionData implements SessionDataApi {
             ...planned,
             fixed: [...(planned.fixed ?? []).filter((each) => each.id !== found.id), { ...facts, fixedBy: fix }],
         };
-        await this.sendIssues(
+        await this.send(
             {
                 op: "batch",
                 label: `Fixed ${found.code}`,
@@ -2424,7 +2595,7 @@ export class SessionData implements SessionDataApi {
             this.issueNamed(id);
         }
 
-        await this.sendIssues(
+        await this.send(
             {
                 op: "batch",
                 label: ignored ? `Ignored ${id}` : `Stopped ignoring ${id}`,
@@ -2465,7 +2636,7 @@ export class SessionData implements SessionDataApi {
         }
 
         const changed = new Set(ids);
-        await this.sendIssues(
+        await this.send(
             {
                 op: "batch",
                 label: ignored ? `Ignored ${ids.join(", ")}` : `Stopped ignoring ${ids.join(", ")}`,
@@ -2487,31 +2658,22 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * Dispatch an issue verb's step. ponytail: the same as the column commands' private `send`;
-     * keep one once both have landed.
-     * @param command - the step
-     * @param verb - the verb asking, for the error
-     * @returns settles once it is recorded
-     */
-    private async sendIssues(command: SessionCommand, verb: string): Promise<void> {
-        if (this.writes.send === undefined) {
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: `This session cannot dispatch commands, so it cannot ${verb}.`,
-                source: "data",
-            });
-        }
-
-        await this.writes.send(command);
-    }
-
-    /**
      * Take one load out of the graph, keeping what another load also supplied. One undoable step.
      * @param key - the load's key
      * @returns how many nodes and edges went and stayed
      * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for a key `sources()` does not list.
      */
     async removeSource(key: SourceKey): Promise<RemoveSourceResult> {
+        this.requireLive("removeSource");
+        return this.afterLoads(() => this.removeSourceNow(key));
+    }
+
+    /**
+     * removeSource, once the loads asked for before it have landed.
+     * @param key - as removeSource takes it
+     * @returns what removeSource returns
+     */
+    private async removeSourceNow(key: SourceKey): Promise<RemoveSourceResult> {
         this.requireLive("removeSource");
         const sources = this.sources();
         const entry = sources.find((each) => each.key === key);
@@ -2580,6 +2742,22 @@ export class SessionData implements SessionDataApi {
      * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
      */
     async replaceSource(key: SourceKey, source: DataSourceInput, choices: LoadChoices = {}): Promise<ReplaceReport> {
+        this.requireLive("replaceSource");
+        return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
+    }
+
+    /**
+     * replaceSource, once the loads asked for before it have landed.
+     * @param key - as replaceSource takes it
+     * @param source - as replaceSource takes it
+     * @param choices - as replaceSource takes it
+     * @returns what replaceSource returns
+     */
+    private async replaceSourceNow(
+        key: SourceKey,
+        source: DataSourceInput,
+        choices: LoadChoices = {},
+    ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
         const send = this.sender("replace a load");
         const stored = this.storedSources();
@@ -2807,6 +2985,17 @@ export class SessionData implements SessionDataApi {
      */
     async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
         this.requireLive("reloadSource");
+        return this.afterLoads(() => this.reloadSourceNow(key, choices));
+    }
+
+    /**
+     * reloadSource, once the loads asked for before it have landed.
+     * @param key - as reloadSource takes it
+     * @param choices - as reloadSource takes it
+     * @returns what reloadSource returns
+     */
+    private async reloadSourceNow(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
+        this.requireLive("reloadSource");
         const entry = this.sources().find((each) => each.key === key);
         const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
             ?.input;
@@ -2829,7 +3018,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return this.replaceSource(key, input, overChoices(entry.choices ?? {}, choices));
+        return this.replaceSourceNow(key, input, overChoices(entry.choices ?? {}, choices));
     }
 
     /**
@@ -2906,6 +3095,20 @@ export class SessionData implements SessionDataApi {
      * @returns settles once the step is recorded
      */
     async editJoin(source: SourceKey, choices: JoinChoices): Promise<void> {
+        this.requireLive("editJoin");
+        return this.afterLoads(
+            () => this.editJoinNow(source, choices),
+            () => undefined,
+        );
+    }
+
+    /**
+     * editJoin, once the loads asked for before it have landed.
+     * @param source - as editJoin takes it
+     * @param choices - as editJoin takes it
+     * @returns what editJoin returns
+     */
+    private async editJoinNow(source: SourceKey, choices: JoinChoices): Promise<void> {
         this.requireLive("editJoin");
         const send = this.sender("edit a join");
         const previous = this.joinedSource(source);
@@ -3874,6 +4077,20 @@ export class SessionData implements SessionDataApi {
      */
     async setType(column: ColumnRef, type: ValueType): Promise<void> {
         this.requireLive("setType");
+        return this.afterLoads(
+            () => this.setTypeNow(column, type),
+            () => undefined,
+        );
+    }
+
+    /**
+     * setType, once the loads asked for before it have landed.
+     * @param column - as setType takes it
+     * @param type - as setType takes it
+     * @returns what setType returns
+     */
+    private async setTypeNow(column: ColumnRef, type: ValueType): Promise<void> {
+        this.requireLive("setType");
         const { kind, name } = resolveColumn(this.attributes(), column);
         SessionData.checkType(type);
         const rows: RowUpdate<NodeId | EdgeId>[] = [];
@@ -3924,6 +4141,20 @@ export class SessionData implements SessionDataApi {
      * @returns settles once the step is recorded
      */
     async renameColumn(column: ColumnRef, name: string): Promise<void> {
+        this.requireLive("renameColumn");
+        return this.afterLoads(
+            () => this.renameColumnNow(column, name),
+            () => undefined,
+        );
+    }
+
+    /**
+     * renameColumn, once the loads asked for before it have landed.
+     * @param column - as renameColumn takes it
+     * @param name - as renameColumn takes it
+     * @returns what renameColumn returns
+     */
+    private async renameColumnNow(column: ColumnRef, name: string): Promise<void> {
         this.requireLive("renameColumn");
         const attributes = this.attributes();
         const { kind, name: from } = resolveColumn(attributes, column);

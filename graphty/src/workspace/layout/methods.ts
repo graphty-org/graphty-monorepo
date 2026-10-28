@@ -276,8 +276,8 @@ export const LAYOUT_SECTIONS: readonly { readonly family: string; readonly title
  * @returns the section's heading.
  */
 export function sectionOf(family: string): string {
-    return (LAYOUT_SECTIONS.find((section) => section.family === family) ?? LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1])
-        .title;
+    const last = LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1]; // NOSONAR(S7755): .at() would widen the type to undefined
+    return (LAYOUT_SECTIONS.find((section) => section.family === family) ?? last).title;
 }
 
 /**

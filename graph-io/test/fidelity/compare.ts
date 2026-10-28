@@ -55,6 +55,8 @@ export interface PropertyResult {
     passRate: number | null;
     /** The five failing elements furthest from passing. */
     worst: Judged[];
+    /** Every failing element's id, sorted; empty when nothing was judged. */
+    failing: string[];
     /** Why the status is not a plain pass or fail, or the aggregate value (zOrder's tau). */
     note?: string;
 }
@@ -760,7 +762,14 @@ const EDGE_JUDGES: Partial<Record<Property, EdgeJudge>> = {
 
 const summarize = (items: { id: string; v: Verdict; requested?: unknown }[]): PropertyResult => {
     if (items.length === 0) {
-        return { status: "unjudged", n: 0, passRate: null, worst: [], note: "nothing comparable on either side" };
+        return {
+            status: "unjudged",
+            n: 0,
+            passRate: null,
+            worst: [],
+            failing: [],
+            note: "nothing comparable on either side",
+        };
     }
     const passed = items.filter((i) => i.v.pass).length;
     const worst = items
@@ -779,6 +788,7 @@ const summarize = (items: { id: string; v: Verdict; requested?: unknown }[]): Pr
         n: items.length,
         passRate: passed / items.length,
         worst,
+        failing: [...new Set(items.filter((i) => !i.v.pass).map((i) => i.id))].sort(),
     };
 };
 
@@ -856,6 +866,7 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
                 n: 0,
                 passRate: null,
                 worst: [],
+                failing: [],
                 note: `the ${ref.provenance.route} route cannot carry it (${carry})`,
             };
             continue;
@@ -867,13 +878,21 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
                 n: 0,
                 passRate: null,
                 worst: [],
+                failing: [],
                 note: `reference gap: ${refReason}`,
             };
             continue;
         }
         const subReason = subGap.get(p);
         if (subReason !== undefined && subject.provenance.side === "reference") {
-            properties[p] = { status: "unjudged", n: 0, passRate: null, worst: [], note: `route gap: ${subReason}` };
+            properties[p] = {
+                status: "unjudged",
+                n: 0,
+                passRate: null,
+                worst: [],
+                failing: [],
+                note: `route gap: ${subReason}`,
+            };
             continue;
         }
         if (subReason !== undefined) {
@@ -881,7 +900,14 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
             if (p === "groups") {
                 n = ref.groups.length;
             }
-            properties[p] = { status: "gap", n, passRate: 0, worst: [], note: `unmeasurable (API gap): ${subReason}` };
+            properties[p] = {
+                status: "gap",
+                n,
+                passRate: 0,
+                worst: [],
+                failing: [],
+                note: `unmeasurable (API gap): ${subReason}`,
+            };
             continue;
         }
         if (SCALE_ONLY.has(p) && (transform === null ? !positionsUsable : transform.rms > THRESHOLDS.unrelatedLayout)) {
@@ -895,6 +921,7 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
                       n: 0,
                       passRate: null,
                       worst: [],
+                      failing: [],
                       note:
                           m.nodes.length < 2
                               ? "no alignment: fewer than 2 nodes matched"
@@ -905,6 +932,7 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
                       n: 0,
                       passRate: null,
                       worst: [],
+                      failing: [],
                       note: "no alignment: one side's positions are not comparable",
                   };
             continue;
@@ -943,7 +971,14 @@ function judgedBySizes(
         .map(([r, s]) => Math.sqrt((r.w * r.h) / (s.w * s.h)))
         .sort((a, b) => a - b);
     if (ratios.length === 0) {
-        return { status: "unjudged", n: 0, passRate: null, worst: [], note: "no node has a size on both sides" };
+        return {
+            status: "unjudged",
+            n: 0,
+            passRate: null,
+            worst: [],
+            failing: [],
+            note: "no node has a size on both sides",
+        };
     }
     const scale = ratios[Math.floor(ratios.length / 2)];
     const result = judge(
@@ -1004,6 +1039,7 @@ function judge(
                     n: 0,
                     passRate: null,
                     worst: [],
+                    failing: [],
                     note: "no overlapping nodes at different depths",
                 };
             }
@@ -1012,6 +1048,7 @@ function judge(
                 n: z.n,
                 passRate: (z.tau + 1) / 2,
                 worst: [],
+                failing: [],
                 note: `Kendall tau ${String(round(z.tau))}`,
             };
         }
@@ -1094,7 +1131,14 @@ function judge(
                 ? summarize([])
                 : summarize([{ id: "background", v: color(ref.background, subject.background ?? null) }]);
         default:
-            return { status: "unjudged", n: 0, passRate: null, worst: [], note: "no metric for this property" };
+            return {
+                status: "unjudged",
+                n: 0,
+                passRate: null,
+                worst: [],
+                failing: [],
+                note: "no metric for this property",
+            };
     }
 }
 
@@ -1197,6 +1241,7 @@ export function compareSample(
                 n: 0,
                 passRate: null,
                 worst: [],
+                failing: [],
                 note: `no reference carries it (${why.join("; ")})`,
             };
         } else {

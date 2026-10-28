@@ -417,7 +417,23 @@ try {
                     net.canvas.getContext = real;
                 }
                 const s = net.getViewPosition();
+                // where vis-network drew each node, in the SVG's pixels: its own position (getPositions, canvas
+                // units) through its own view (canvasToDOM), and its own bounding box the same way. A file with no
+                // positions and labels too small to draw (json-vis-siblings) names its nodes nowhere else.
+                const positions = net.getPositions();
+                const nodes = net.body.nodeIndices.flatMap((nid) => {
+                    const at = positions[nid];
+                    if (at === undefined) return [];
+                    const c = net.canvasToDOM(at);
+                    const b = net.getBoundingBox(nid);
+                    const [p0, p1] = [
+                        net.canvasToDOM({ x: b.left, y: b.top }),
+                        net.canvasToDOM({ x: b.right, y: b.bottom }),
+                    ];
+                    return [{ id: String(nid), x: c.x, y: c.y, w: p1.x - p0.x, h: p1.y - p0.y }];
+                });
                 return {
+                    drawn: { nodes },
                     svg: C.getSerializedSvg(),
                     observed: {
                         nodes: net.body.nodeIndices.length,
@@ -435,6 +451,8 @@ try {
             },
             { doc, W, H },
         );
+        result.drawnAbout =
+            "vis-network's own account of where it drew each node, for naming the SVG's shapes: each node's id, its center (net.getPositions() through net.canvasToDOM) and its bounding box's width and height (net.getBoundingBox through net.canvasToDOM), in the SVG's pixels";
         result.program = "vis-network";
         result.version = `vis-network ${versionOf("vis-network")} (standalone), svgcanvas ${versionOf("svgcanvas")}`;
         result.command = `new vis.Network(<div 1200x900>, { nodes: file.nodes, edges: file.edges }, file.options); ${result.observed.physics ? `once("${result.observed.snapshotAt}"); stopSimulation(); ` : ""}net.renderer._redraw() onto an svgcanvas Context`;
@@ -600,7 +618,9 @@ const meta = {
     ...(result.drawn
         ? {
               drawn: {
-                  about: "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+                  about:
+                      result.drawnAbout ??
+                      "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
                   nodes: result.drawn.nodes,
                   edges: result.drawn.edges,
               },

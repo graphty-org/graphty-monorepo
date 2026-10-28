@@ -29,7 +29,7 @@ const ICON = 12;
  * @param props.kind - node or edge
  * @returns the 12px icon
  */
-function EntityIcon({ kind }: { kind: EntityKind }): React.JSX.Element {
+function EntityIcon({ kind }: Readonly<{ kind: EntityKind }>): React.JSX.Element {
     return (
         <svg className="cm-entity-icon" width={ICON} height={ICON} viewBox="0 0 12 12" aria-hidden="true">
             {kind === "node" ? (
@@ -71,7 +71,13 @@ function EntityIcon({ kind }: { kind: EntityKind }): React.JSX.Element {
  * <EntityChip kind="node" onClick={openFilters}>140 of 900</EntityChip>
  * ```
  */
-export function EntityChip({ kind, children, onClick, className, style }: EntityChipProps): React.JSX.Element {
+export function EntityChip({
+    kind,
+    children,
+    onClick,
+    className,
+    style,
+}: Readonly<EntityChipProps>): React.JSX.Element {
     const labels = useLabels();
     const classes = ["cm-entity-chip", className].filter(Boolean).join(" ");
     const body = (

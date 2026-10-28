@@ -134,7 +134,8 @@ function copyDefault(value: unknown): unknown {
  */
 export function fillDefaults<T>(bag: Record<string, unknown>, base: T): T {
     for (const key of Object.keys(base as object)) {
-        if (UNSAFE_KEYS.has(key)) {
+        // Spelled out rather than UNSAFE_KEYS.has(key), so static analysis sees the guard too.
+        if (key === "__proto__" || key === "constructor" || key === "prototype") {
             continue;
         }
 

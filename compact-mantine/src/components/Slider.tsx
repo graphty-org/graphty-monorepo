@@ -18,7 +18,8 @@ function applyValueText(root: HTMLElement | null, thumbProps: ThumbProps): void 
     }
 
     root.querySelectorAll<HTMLElement>('[role="slider"]').forEach((thumb, index) => {
-        const props = typeof thumbProps === "function" ? thumbProps(index === 0 ? 0 : 1) : thumbProps;
+        const which = index === 0 ? 0 : 1;
+        const props = typeof thumbProps === "function" ? thumbProps(which) : thumbProps;
         const text = props?.["aria-valuetext"];
         if (typeof text === "string" || typeof text === "number") {
             thumb.setAttribute("aria-valuetext", String(text));

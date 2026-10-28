@@ -835,6 +835,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     seededNodeCount: READ,
     status: READ,
     catalog: READ,
+    features: READ,
     config: READ,
     capabilities: READ,
     acceleration: MACHINE,
@@ -1333,6 +1334,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             autosaveRestore: AUTOSAVE_SETTING,
             autosaveOptions: AUTOSAVE_SETTING,
             autosaver: READ,
+            features: exempt("Which experiments the page switches on; not part of the work a project saves."),
+            enabledFeatures: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1584,6 +1587,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setStartingCameraDistance: CAMERA,
             getAutoFrame: READ,
             isCameraPlaced: READ,
+            saveCameraPlacement: READ,
             setAutoFrame: CAMERA,
             getZoomToPointer: READ,
             setZoomToPointer: CAMERA,
@@ -1715,9 +1719,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             borderReach: READ,
             framingHalf: READ,
             drawnHalfExtents: READ,
+            outlineHalfExtents: READ,
+            groupSizing: READ,
+            wordedLabel: READ,
             decorationPieces: READ,
             shapeTextLabels: RENDER,
             isDrawnAsGroup: READ,
+            groupDrawnForAnotherCamera: READ,
         },
     },
     {
@@ -1766,6 +1774,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             transformEdgeMesh: RENDER,
             transformArrowCap: RENDER,
             getInterceptPoints: READ,
+            supportEdge: READ,
         },
     },
     {
@@ -1833,6 +1842,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgesByIndex: READ,
             isLoading: READ,
             heldCounts: READ,
+            rankSets: READ,
+            supportPoints: RENDER,
             // Written only by a plugin while `algo.legacy` runs it, and then into that step.
             graphResults: READ,
             meshCache: RENDER,
@@ -1955,6 +1966,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             scopeUser: READ,
             releaseDetachedScope: DERIVED,
         },
+    },
+    {
+        name: "SupportPoints",
+        file: "src/meshes/supportPoints.ts",
+        half: "renderer",
+        whole: RENDER,
     },
     {
         name: "UpdateManager",
@@ -3356,6 +3373,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
             setPixelRatio: RENDER,
+            resize: RENDER,
             drawHeld: RENDER,
             drawNow: RENDER,
             requestFrame: RENDER,
@@ -3442,4 +3460,94 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.setFileStyles":
         "Opening a project file that holds file style values (project.open, src/session/projectFile.ts); " +
         "checked by test/session/styles/file-style-store.test.ts.",
+};
+
+/**
+ * How a session door that changes the graph is ordered against a load still reading, by
+ * `Root.member`: every such door goes through the session's load line (`session/loadLine.ts`).
+ *
+ * - `load`: it takes its place in line when called, and lands after every door asked for before
+ *   it; a clear asked for after it, while it still reads, cancels it with `E_SUPERSEDED`.
+ * - `edit`: it takes its place in line when called, and lands on what the loads ahead of it
+ *   loaded; a clear asked for after it while it waits cancels it.
+ * - `clear`: it cancels every load and edit still waiting, and lands at once.
+ * - `{ direct: issue }`: it still dispatches at once, outside the line, until that issue routes it.
+ *
+ * `test/session/load-entry.test.ts` fails on any row, of either half, that dispatches a graph op
+ * and has no entry here, and calls every session entry with a load held in line to check the door
+ * keeps to it.
+ */
+export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear" | { readonly direct: number }>> = {
+    "SessionDataApi.addNodes": "edit",
+    "SessionDataApi.addEdges": "edit",
+    "SessionDataApi.updateNodes": "edit",
+    "SessionDataApi.updateEdges": "edit",
+    "SessionDataApi.removeNodes": "edit",
+    "SessionDataApi.removeEdges": "edit",
+    "SessionDataApi.collapse": "edit",
+    "SessionDataApi.clear": "clear",
+    // Doors that work out their change from the graph read it once the loads ahead have landed.
+    "SessionDataApi.fix": "edit",
+    "SessionDataApi.removeSource": "edit",
+    "SessionDataApi.replaceSource": "edit",
+    "SessionDataApi.reloadSource": "edit",
+    "SessionDataApi.editJoin": "edit",
+    "SessionDataApi.setType": "edit",
+    "SessionDataApi.renameColumn": "edit",
+    "SessionDataApi.import": "load",
+    "SessionDataApi.generate": "load",
+    "SessionDataApi.loadDataset": "load",
+    "SessionDataApi.loadSample": "load",
+    "SessionDataApi.more": "load",
+    "SessionDataApi.runPendingSourceLoad": "load",
+    "SessionDataApi.expand": "load",
+    "LoadDraft.load": "load",
+    // The autosave restore opens through it.
+    "ProjectApi.open": "load",
+    // The renderer half: its loads and clear take the line; its edits do not yet.
+    "Graph.addDataFromSource": "load",
+    "Graph.loadFromFile": "load",
+    "Graph.loadFromUrl": "load",
+    "Graph.clearData": "clear",
+    "Graphty.addDataFromSource": "load",
+    "Graphty.loadFromFile": "load",
+    "Graphty.loadFromUrl": "load",
+    "Graphty.loadFromSource": "load",
+    "Graphty.dataSource": "load",
+    "Graphty.dataSourceConfig": "load",
+    "Graphty.clearData": "clear",
+    "Graphty.nodeData": "edit",
+    "Graphty.edgeData": "edit",
+    "Graph.addNode": { direct: 3604 },
+    "Graph.addNodes": { direct: 3604 },
+    "Graph.addEdge": { direct: 3604 },
+    "Graph.addEdges": { direct: 3604 },
+    "Graph.removeNodes": { direct: 3604 },
+    "Graph.removeEdges": { direct: 3604 },
+    "Graph.updateNodes": { direct: 3604 },
+    "Graph.updateEdges": { direct: 3604 },
+    "Graph.batchOperations": { direct: 3604 },
+    "Graph.setData": { direct: 3604 },
+    "Graph.setNodes": { direct: 3604 },
+    "Graph.setEdges": { direct: 3604 },
+    "Graphty.addNode": { direct: 3604 },
+    "Graphty.addNodes": { direct: 3604 },
+    "Graphty.addEdge": { direct: 3604 },
+    "Graphty.addEdges": { direct: 3604 },
+    "Graphty.removeNodes": { direct: 3604 },
+    "Graphty.removeEdges": { direct: 3604 },
+    "Graphty.updateNodes": { direct: 3604 },
+    "Graphty.updateEdges": { direct: 3604 },
+    "Graphty.batchOperations": { direct: 3604 },
+    "Graphty.setData": { direct: 3604 },
+    "DataManager.addNode": { direct: 3604 },
+    "DataManager.addNodes": { direct: 3604 },
+    "DataManager.addEdge": { direct: 3604 },
+    "DataManager.addEdges": { direct: 3604 },
+    "DataManager.removeEdge": { direct: 3604 },
+    "DataManager.removeNodeAndIncidentEdges": { direct: 3604 },
+    "DataManager.setNodes": { direct: 3604 },
+    "DataManager.setEdges": { direct: 3604 },
+    "DataManager.clear": { direct: 3604 },
+    "DataManager.addDataFromSource": { direct: 3604 },
 };

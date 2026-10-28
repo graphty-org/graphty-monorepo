@@ -38,14 +38,26 @@ async function click(canvasElement: HTMLElement, parameters: Record<string, unkn
  * @param canvasElement - the story's root.
  */
 async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
+    const started = performance.now();
     await waitFor(() => {
         expect(canvasElement.querySelector(".ws-land-said")?.textContent).toContain("Colored by community");
     }, storyWaitOptions(30_000));
+    const captionMs = Math.round(performance.now() - started);
     const element = canvasElement.querySelector("graphty-element");
     if (element === null) {
         throw new Error("the start page drew no <graphty-element>");
     }
-    await element.waitForStableFrame();
+    // Diagnosis for #3766 (cause not yet seen): the element's own deadline ends before the test's (30 s,
+    // graphty/vitest.config.ts), so a frame that never settles fails with the element's account of what is
+    // still owed and how long the caption took, not a bare test timeout. A bare timeout now means the caption
+    // (the sample load and Louvain) never appeared.
+    try {
+        await element.waitForStableFrame({ timeoutMs: Math.max(1_000, 25_000 - captionMs) });
+    } catch (error) {
+        throw new Error(
+            `hero caption shown after ${String(captionMs)} ms, then: ${error instanceof Error ? error.message : String(error)}`,
+        );
+    }
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -133,6 +145,26 @@ export const NetworkData: Story = {
             () => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull(),
             storyWaitOptions(1000),
         );
+
+        // The dialog focuses its close button once it has opened, which draws a focus ring only when
+        // the click that opened it was not a pointer's (a replayed click in Storybook's own UI). A
+        // reader who clicked sees no ring, so the story waits for that focus and ends the same either
+        // way: with nothing focused.
+        const doc = canvasElement.ownerDocument;
+        const focused = await waitFor(() => {
+            const active = doc.activeElement;
+            if (!(active instanceof HTMLElement) || active.closest('[role="dialog"]') === null) {
+                throw new Error("the dialog has not taken focus yet");
+            }
+            return active;
+        }, storyWaitOptions(1000));
+        // Mantine's focus trap focuses from two zero-delay timers queued together when the dialog
+        // mounts, so the first focus can be seen before the second timer has run. A zero-delay timer
+        // queued now runs after both: blur then, or the second timer would focus the button again.
+        await new Promise((resolve) => {
+            setTimeout(resolve, 0);
+        });
+        focused.blur();
     },
 };
 
@@ -152,8 +184,17 @@ export const DropTarget: Story = {
                 storyWaitOptions(1000),
             );
         } else {
-            // In Storybook's own UI a page script cannot make a trusted drag, so it is replayed.
-            root.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: new DataTransfer() }));
+            // In Storybook's own UI a page script cannot make a trusted drag, so it is replayed: a
+            // drag that enters carrying a file, as the drop hook only lights for files.
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(new File(["{}"], "graph.json", { type: "application/json" }));
+            for (const type of ["dragenter", "dragover"]) {
+                root.dispatchEvent(new DragEvent(type, { bubbles: true, dataTransfer }));
+            }
+            await waitFor(
+                () => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull(),
+                storyWaitOptions(1000),
+            );
         }
     },
 };

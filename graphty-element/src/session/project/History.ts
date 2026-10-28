@@ -618,6 +618,29 @@ export class History<P> {
     }
 
     /**
+     * Start the history again over the oldest steps: they are dropped as eviction drops them (what
+     * they did stays, folded into the baseline, and they can no longer be undone; undone ones go
+     * with the rest), and the change is published as a clear, even when there were none.
+     * @param count - How many, from the oldest.
+     */
+    dropOldest(count: number): void {
+        for (const [index, step] of this.entries.slice(0, count).entries()) {
+            const done = index < this.cursor;
+            this.total -= this.size(step, done);
+            if (done) {
+                this.fold(step);
+            }
+        }
+
+        this.entries.splice(0, count);
+        this.cursor = Math.max(0, this.cursor - count);
+        this.counted = null;
+        // A boundary, as `clear()` is: the next edit does not coalesce into a step before it.
+        this.mergeable = false;
+        this.changed("clear");
+    }
+
+    /**
      * Merge a patch into a done top step: the first prior, the last written value.
      * @param top - The top step.
      * @param input - The patch and what describes it.

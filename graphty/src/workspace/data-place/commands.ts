@@ -66,11 +66,10 @@ export async function pickEnd(
  */
 function hasMore(ctx: CommandContext, source: LoadedSource): boolean {
     const load = loadOf(ctx.session, source);
-    return (
-        load !== undefined &&
-        load.next !== null &&
-        sourceDescriptors().some((each) => each.id === load.source && each.features.more)
-    );
+    if (load === undefined) {
+        return false;
+    }
+    return load.next !== null && sourceDescriptors().some((each) => each.id === load.source && each.features.more);
 }
 
 /**

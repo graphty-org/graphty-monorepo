@@ -710,6 +710,14 @@ export type Channel =
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.groupPadding"
+    | "node.groupPaddingRatio"
+    | "node.groupPaddingOf"
+    | "node.groupMinWidth"
+    | "node.groupMinHeight"
+    | "node.groupMinWidthBiasLeft"
+    | "node.groupMinHeightBiasTop"
+    | "node.groupIncludeLabels"
     | "edge.color"
     | "edge.width"
     | "edge.minScreenWidth"
@@ -740,9 +748,17 @@ export type Channel =
     | "edge.fanned"
     | "edge.bendCurve"
     | "edge.arcRadius"
+    | "edge.supportModel"
+    | "edge.supportSpringLength"
+    | "edge.supportSpringConstant"
+    | "edge.supportRepulsion"
+    | "edge.supportCentralGravity"
+    | "edge.supportUnit"
     | "edge.route"
     | "edge.arcHeight"
     | "edge.nodeGap"
+    | "edge.sourceNodeGap"
+    | "edge.targetNodeGap"
     | "edge.sourcePort"
     | "edge.targetPort"
     | "edge.arrowHead"
@@ -1970,7 +1986,7 @@ export type RuleTree =
 export type RuleSide = "nodes" | "edges";
 
 /** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
-export type SourceKey = string; // NOSONAR(S6564): a named public type for load keys, used across the API and its docs
+export type SourceKey = string; // NOSONAR(S6564): a named public type in the API report; removing it breaks consumers
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.

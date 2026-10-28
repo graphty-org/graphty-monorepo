@@ -51,6 +51,10 @@ npm run datasets:pack    # dist/data/v1/ and src/datasets/packed.ts (sizes, chec
 npm run datasets:hosted  # build public-data/v1/ and src/datasets/hosted.ts (needs unzip, graph-format/dist and a built graph-samples)
 ```
 
+### Test projects
+
+- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+
 ## The determinism contract (do not break it)
 
 - Every random draw comes from `RandomStream(seed, domain, block)` in `src/random/stream.ts`.

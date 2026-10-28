@@ -79,6 +79,43 @@ describe("an oracle node drawn under another", () => {
         );
     });
 
+    it("moves an edge's end at a covered node to the node drawn over it (json-cyjs-tokyo's stacked stations)", () => {
+        const far = { ...node("far", 0, 20), cx: 300 };
+        const edge = (id: string, source: string, target: string) => ({
+            id,
+            source,
+            target,
+            points: [] as [number, number][],
+            stroke: null,
+            arrows: [],
+            label: null,
+        });
+        const out = withoutCovered({
+            ...scene([node("under", 1, 20), node("over", 2, 20), far]),
+            edges: [edge("e1", "under", "far"), edge("e2", "under", "over"), edge("e3", "over", "far")],
+        });
+        assert.deepEqual(
+            out.edges.map((e) => [e.id, e.source, e.target]),
+            [
+                ["e1", "over", "far"],
+                // between a node and the node over it: no loop of the node in front
+                ["e2", "under", "over"],
+                ["e3", "over", "far"],
+            ],
+        );
+        assert.deepEqual(out.edges[0].ownEnds, { source: "under", target: "far" });
+        // one inside a bigger node's box but off its center keeps its ends (json-cyjs-perf n309 under n318): which
+        // node is over which is a half pixel each side measures alike only by chance
+        const off = withoutCovered({
+            ...scene([{ ...node("small", 1, 10), cx: 112 }, node("big", 2, 40), far]),
+            edges: [edge("e4", "small", "far")],
+        });
+        assert.deepEqual(
+            off.edges.map((e) => [e.id, e.source, e.target]),
+            [["e4", "small", "far"]],
+        );
+    });
+
     it("is kept when drawn in front, when the node over it is see-through, or when it pokes out", () => {
         assert.lengthOf(withoutCovered(scene([node("big", 1, 40), node("small", 2, 20)])).nodes, 2);
         assert.lengthOf(withoutCovered(scene([node("a", 1, 20), node("b", 2, 20, 0.4)])).nodes, 2);

@@ -659,6 +659,13 @@ export type GraphtyWarningCode =
      */
     | "W_DIMENSION_OVERRIDDEN"
     /**
+     * A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
+     * `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
+     * element's way. Emitted as a `layout-warning` event. `params.reason` is the Graphviz failure
+     * reason, such as `graphviz.unavailable` or `graphviz.timeout`.
+     */
+    | "W_ROUTES_NOT_LAID"
+    /**
      * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
      * the `graphty-sources` member: query parameters of a URL load's address, or of a network
      * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the

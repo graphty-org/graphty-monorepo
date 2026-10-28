@@ -21,6 +21,7 @@ import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
 import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { type JoinGraph, joinReport, type JoinTable, suggestJoin } from "./join";
+import { historyMark } from "./loadLine";
 import { HELD_KINDS, isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
@@ -48,14 +49,20 @@ import type {
     TableMappingRead,
 } from "./types";
 
+/** Dispatches a command as the session's next step. */
+type DraftSend = (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+
 /** What a draft needs from the session it loads into. */
 interface DraftHost {
     /** The data configuration now. */
     config(): SessionDataConfig;
     /** The node ids the graph holds, its edge count and its edges' endpoint pairs, for a merge. */
     graph(): NonNullable<DataImportCommand["measure"]>;
-    /** Taken synchronously: dispatches a command as the session's next step. */
-    importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    /**
+     * Runs a load in the session's load line: `run` gets the dispatch, taken synchronously, which
+     * sends its command once every load asked for earlier has dispatched (issue #3382).
+     */
+    inLine(run: (send: DraftSend) => Promise<void>): Promise<void>;
     /** Runs an import in a scratch session with this configuration and returns its report. */
     measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** The draft has been disposed. */
@@ -384,7 +391,7 @@ const NEARLY_UNIQUE = 0.95;
 const REPEATING_MIN = 3;
 
 /** Column names whose numbers measure how alike or how strongly tied two ends are. */
-const SIMILARITY_COLUMNS: readonly string[] = ["confidence", "score", "strength"];
+const SIMILARITY_COLUMNS: ReadonlySet<string> = new Set(["confidence", "score", "strength"]);
 
 /** Column names a node's label is read from when no label path is configured. */
 export const LABEL_COLUMNS: readonly string[] = ["label", "Label", "name", "Name", "title", "Title"];
@@ -497,7 +504,7 @@ function guessedWeight(held: HeldTable, ends: readonly string[] | undefined): st
     const numeric = held.table.columns
         .filter((column) => (column.type === "number" || column.type === "integer") && !ends?.includes(column.name))
         .map((column) => column.name);
-    const named = numeric.find((name) => SIMILARITY_COLUMNS.includes(name.toLowerCase()));
+    const named = numeric.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
     return named ?? (numeric.length === 1 ? numeric[0] : null);
 }
 
@@ -806,7 +813,8 @@ export class Draft implements LoadDraft {
     }
 
     /**
-     * Load the held rows as one undoable step.
+     * Load the held rows as one undoable step, or as where the history starts
+     * (`history: "start"`).
      * @param choices - The column roles and the rest.
      * @returns Settles once the rows are in the graph.
      */
@@ -820,7 +828,7 @@ export class Draft implements LoadDraft {
             return;
         }
 
-        await this.loadVia(this.host.importer(), choices);
+        await this.host.inLine((send) => this.loadVia(send, choices));
     }
 
     /**
@@ -889,7 +897,7 @@ export class Draft implements LoadDraft {
      * @param choices - The column roles and the rest.
      * @returns Settles once the rows are in the graph.
      */
-    async loadVia(send: ReturnType<DraftHost["importer"]>, choices: LoadChoices = {}): Promise<void> {
+    async loadVia(send: DraftSend, choices: LoadChoices = {}): Promise<void> {
         const read = this.live("load");
         const plan = this.plan(read, choices);
         // One entry per table name, the first table of a name giving what it held.
@@ -899,6 +907,7 @@ export class Draft implements LoadDraft {
                 named.set(held.table.name, plan.mapping.tables[held.table.id].rowsAre);
             }
         }
+        const starts = historyMark(choices);
         const command: DataImportCommand = {
             ...importCommand(read.source, choices, plan.held),
             tables: [...named.keys()],
@@ -907,6 +916,7 @@ export class Draft implements LoadDraft {
             ...keptChoices(choices),
             // A graph file's tables are the format's own, so only a table's roles are worth keeping.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { mapping: plan.mapping }),
+            ...starts,
         };
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),
@@ -915,7 +925,7 @@ export class Draft implements LoadDraft {
         await send(
             Object.keys(data).length === 0
                 ? command
-                : { op: "batch", steps: [{ op: "config.set", values: { data } }, command] },
+                : { op: "batch", steps: [{ op: "config.set", values: { data } }, command], ...starts },
         );
         this.dispose();
     }
@@ -1059,7 +1069,7 @@ export class Draft implements LoadDraft {
             (choices.mode === "merge" ? this.host.config().knownFields.edgeWeightMeaning : null);
         const similar =
             typeof named.edgeWeightPath === "string" &&
-            SIMILARITY_COLUMNS.includes(named.edgeWeightPath.toLowerCase()) &&
+            SIMILARITY_COLUMNS.has(named.edgeWeightPath.toLowerCase()) &&
             meaning === null;
         const knownFields = similar ? { ...labelled, edgeWeightMeaning: "strength" as const } : labelled;
         if (read.tables.every((held) => held.table.fixed)) {

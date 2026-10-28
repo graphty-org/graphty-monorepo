@@ -1,7 +1,7 @@
 import { ActionIcon, Stack, Tabs, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import React, { useId, useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { QuickActions, type QuickActionsProps } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

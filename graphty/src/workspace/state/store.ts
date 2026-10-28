@@ -7,7 +7,7 @@
  * tests each get their own.
  */
 
-import type { AutosaveEntry, Graphty as GraphtyElement, Lighting, ViewInsets } from "@graphty/graphty-element";
+import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
@@ -157,11 +157,6 @@ export interface WorkspaceState {
     /** Graph settings, Outline width: every outline's width, or null for the element's own. */
     readonly outlineWidth: number | null;
     /**
-     * The canvas margins the legend card covers, reported by the card and handed to the element
-     * so a fit never puts a node under it. Empty while no card is drawn.
-     */
-    readonly viewInsets: ViewInsets;
-    /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. The table dock's Export... sets the table that is showing.
      */
@@ -243,7 +238,6 @@ const INITIAL: WorkspaceState = {
     sameSizeAtAnyDepth: null,
     lighting: "studio",
     outlineWidth: null,
-    viewInsets: {},
     exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,

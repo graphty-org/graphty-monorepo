@@ -874,6 +874,7 @@ export class DataManager implements Manager {
     // @internal
     notePainted(dirty: ReadonlySet<string> | null): void;
     get positions(): ReadonlyElementPositions;
+    get rankSets(): readonly RankSet[];
     reconcile(slice: GraphSlice, dirty: ReadonlySet<string>, cause: HistoryCause): {
         added: number;
         removed: number;
@@ -889,6 +890,8 @@ export class DataManager implements Manager {
     get snapshotStale(): boolean;
     startLabelAnimations(): void;
     supersedeLoads(): void;
+    // @internal
+    readonly supportPoints: SupportPoints<Edge>;
     // @internal
     takeLateEdgeRows(): number[];
     throwIfSuperseded(generation: number, type: string): void;
@@ -1057,6 +1060,8 @@ export class Edge {
     readonly srcId: NodeIdType;
     // (undocumented)
     srcNode: Node_2;
+    // @internal
+    supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
@@ -1137,6 +1142,7 @@ export interface EdgeLabelCounts {
 
 // @public (undocumented)
 export interface EdgePosition {
+    bends?: readonly number[];
     // (undocumented)
     dst: Position;
     // (undocumented)
@@ -1786,6 +1792,15 @@ export const EdgeStyle: z.ZodObject<{
             arc: "arc";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
+        supportModel: z.ZodOptional<z.ZodEnum<{
+            barnesHut: "barnesHut";
+            forceAtlas2: "forceAtlas2";
+        }>>;
+        supportSpringLength: z.ZodOptional<z.ZodNumber>;
+        supportSpringConstant: z.ZodOptional<z.ZodNumber>;
+        supportRepulsion: z.ZodOptional<z.ZodNumber>;
+        supportCentralGravity: z.ZodOptional<z.ZodNumber>;
+        supportUnit: z.ZodOptional<z.ZodNumber>;
         route: z.ZodOptional<z.ZodEnum<{
             arc: "arc";
             straight: "straight";
@@ -1793,6 +1808,8 @@ export const EdgeStyle: z.ZodObject<{
         }>>;
         arcHeight: z.ZodOptional<z.ZodNumber>;
         nodeGap: z.ZodOptional<z.ZodNumber>;
+        sourceNodeGap: z.ZodOptional<z.ZodNumber>;
+        targetNodeGap: z.ZodOptional<z.ZodNumber>;
         sourcePort: z.ZodOptional<z.ZodString>;
         targetPort: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
@@ -2022,6 +2039,12 @@ export type ElementAtResult = {
 };
 
 // @public
+export interface EnabledFeatures {
+    readonly enabled: readonly FeatureId[];
+    readonly unknown: readonly string[];
+}
+
+// @public
 export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
@@ -2145,6 +2168,9 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 
 // @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+// @public
+export type FeatureId = "data-management" | "timeline" | "location-map";
 
 // @public
 export interface FindAtLeastRow {
@@ -2462,6 +2488,8 @@ export class Graph implements GraphContext {
     runAlgorithmsFromTemplate(): Promise<void>;
     get runAlgorithmsOnLoad(): boolean;
     set runAlgorithmsOnLoad(value: boolean);
+    // @internal
+    saveCameraPlacement(): () => void;
     saveCameraPreset(name: string, camera?: CameraState): void;
     // (undocumented)
     scene: Scene;
@@ -2807,10 +2835,13 @@ export class Graphty extends LitElement {
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
+    get enabledFeatures(): EnabledFeatures;
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     exitXR(): Promise<void>;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
+    get features(): readonly string[] | undefined;
+    set features(value: readonly string[] | string | null | undefined);
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
@@ -3780,10 +3811,16 @@ export type GraphtyWarningCode =
 */
 | "W_DIMENSION_OVERRIDDEN"
 /**
-* A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
-* the `graphty-sources` member: query parameters of a URL load's address, or of a network
-* load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
-* names left out. See the project file guide, "What a save leaves out".
+* A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
+* `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
+* element's way. Emitted as a `layout-warning` event. `params.reason` is the Graphviz failure
+* reason, such as `graphviz.unavailable` or `graphviz.timeout`.
+*/
+| "W_ROUTES_NOT_LAID"
+/**
+* A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
+* out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
+* `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
 */
 | "W_SOURCE_URL_REDACTED"
 /**
@@ -4017,6 +4054,7 @@ export abstract class LayoutEngine {
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     // (undocumented)
     abstract get edges(): Iterable<Edge>;
+    protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null;
     // (undocumented)
@@ -4059,7 +4097,7 @@ export abstract class LayoutEngine {
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
-    protected setFollowers(rows: ReadonlySet<number> | null): void;
+    protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // (undocumented)
@@ -4293,6 +4331,10 @@ class Node_2 {
         z: number;
     };
     getRenderState(): NodeRenderState;
+    // @internal
+    get groupDrawnForAnotherCamera(): boolean;
+    // @internal
+    get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
@@ -4307,6 +4349,12 @@ class Node_2 {
     mesh: AbstractMesh;
     // (undocumented)
     opts: NodeOpts;
+    // @internal
+    get outlineHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -4330,6 +4378,8 @@ class Node_2 {
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get wordedLabel(): RichTextLabel | null;
 }
 export { Node_2 as Node }
 
@@ -4898,6 +4948,22 @@ export const NodeStyle: z.ZodObject<{
         size: z.ZodOptional<z.ZodNumber>;
         weight: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    }, z.core.$strict>>;
+    group: z.ZodOptional<z.ZodObject<{
+        padding: z.ZodOptional<z.ZodNumber>;
+        paddingRatio: z.ZodOptional<z.ZodNumber>;
+        paddingOf: z.ZodOptional<z.ZodEnum<{
+            width: "width";
+            height: "height";
+            min: "min";
+            max: "max";
+            average: "average";
+        }>>;
+        minWidth: z.ZodOptional<z.ZodNumber>;
+        minHeight: z.ZodOptional<z.ZodNumber>;
+        minWidthBiasLeft: z.ZodOptional<z.ZodNumber>;
+        minHeightBiasTop: z.ZodOptional<z.ZodNumber>;
+        includeLabels: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
@@ -5523,6 +5589,7 @@ export class OperationQueueManager implements Manager {
     };
     // (undocumented)
     hasLayoutEngine?: () => boolean;
+    get hasWork(): boolean;
     init(): Promise<void>;
     isInBatchMode(): boolean;
     markCategoryCompleted(category: OperationCategory): void;
@@ -5671,6 +5738,7 @@ export function projectFileName(name: string | null | undefined): string;
 export interface ProjectOpenOptions {
     readonly discard?: boolean;
     readonly fileName?: string;
+    readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
@@ -5800,6 +5868,8 @@ export class RenderManager implements Manager {
     holdFrames(): () => void;
     init(): Promise<void>;
     requestFrame(): void;
+    // @internal
+    resize(): void;
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;
@@ -6656,6 +6726,10 @@ export class UpdateManager implements Manager {
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
+    nothingIsOwed(): boolean;
+    onceNothingIsOwed(callback: () => void): () => void;
+    operationsPending: (() => boolean) | null;
+    picturesLoading: (() => boolean) | null;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;
@@ -6666,6 +6740,7 @@ export class UpdateManager implements Manager {
     thawActiveMeshes(): void;
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
+    viewMoved(): void;
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }

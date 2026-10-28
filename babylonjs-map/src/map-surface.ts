@@ -578,8 +578,8 @@ export abstract class MapSurface {
             }
             const samples = this.samplesOf(layer, rect);
             if (tile.z >= this.cullFromZoom) {
-                const min = samples.reduce((a, b) => Vector3.Minimize(a, b));
-                const max = samples.reduce((a, b) => Vector3.Maximize(a, b));
+                const min = samples.reduce((a, b) => Vector3.Minimize(a, b), samples[0]);
+                const max = samples.reduce((a, b) => Vector3.Maximize(a, b), samples[0]);
                 const info = new BoundingInfo(min, max, world);
                 if (!info.isInFrustum(planes) || this.occluded(samples, eye)) {
                     continue;

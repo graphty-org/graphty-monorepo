@@ -49,7 +49,11 @@ function rowName(row: Readonly<Record<string, unknown>>): string {
 export function PreviewRows({ preview }: Readonly<{ preview: SourcePreview }>): React.JSX.Element {
     const more = preview.more ? "+" : "";
     return (
-        <div className="sv-preview" role="group" aria-label="Preview">
+        <div // NOSONAR(S6819): a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
+            className="sv-preview"
+            role="group"
+            aria-label="Preview"
+        >
             <div className="sv-chips">
                 <EntityChip kind="node">{`${formatNumber(preview.nodes.length)}${more}`}</EntityChip>
                 <EntityChip kind="edge">{formatNumber(preview.edges.length)}</EntityChip>

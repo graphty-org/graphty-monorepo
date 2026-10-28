@@ -35,6 +35,13 @@ export interface LabelPlaceContext {
     readonly center: (n: number) => BendPoint | null;
     /** A node's attribute. */
     readonly node: (n: number, name: string) => string | null;
+    /**
+     * Whether the layout engine places an edge label it was not given as an external label (every engine but `dot`,
+     * which ranks a label as a node of its own): lib/common/postproc.c `addXLabels` takes each unplaced edge label as
+     * an xlabel of the edge's middle, and lib/label/xlabels.c puts it, where nothing else is drawn, up and to the left
+     * of that point, its box's lower right corner on it.
+     */
+    readonly external: boolean;
 }
 
 /**
@@ -49,11 +56,17 @@ export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, 
     const s = snapshot.edgeSource(e);
     const t = snapshot.edgeTarget(e);
     const [source, target] = [cx.center(s), cx.center(t)];
-    if (source === null || target === null || s === t) {
+    const route = source === null || target === null ? null : edgeRoute(source, target, get("pos"));
+    const lp = (route?.start ?? null) === null ? null : point(get("lp"));
+    if (lp === null && cx.external && s !== t && (get("label") ?? get("xlabel")) !== null) {
+        // ponytail: the first place xlabels.c tries; one that would cover another label or node moves elsewhere
+        put("labelPosition", "center");
+        put("labelShiftX", -0.5);
+        put("labelShiftY", -0.5);
+    }
+    if (route === null || source === null || target === null || s === t) {
         return;
     }
-    const route = edgeRoute(source, target, get("pos"));
-    const lp = route.start === null ? null : point(get("lp"));
     if (lp !== null && get("label") !== null) {
         const mid = routeMiddle(route.points);
         put("labelOffsetX", num6(lp[0] - mid[0]));

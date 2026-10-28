@@ -1178,12 +1178,13 @@ const ciSections: Section[] = [
             ] as const
         ).map(([job, n, failed]) => {
             const rate = { t: "num" as const, n: n ? Math.round(((n - failed) / n) * 100) : 0, unit: "pct" as const };
+            const shown = failed * 2 >= n ? cell.bad(rate) : rate;
             return {
                 cells: {
                     job: cell.name(job),
                     runs: { t: "num", n },
                     failed: { t: "num", n: failed },
-                    rate: n === 0 ? { t: "none" } : failed * 2 >= n ? cell.bad(rate) : rate,
+                    rate: n === 0 ? { t: "none" } : shown,
                 },
                 ...(n ? {} : { past: true }),
             };

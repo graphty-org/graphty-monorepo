@@ -183,9 +183,9 @@ export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
             job = { id };
             continue;
         }
-        const key = /^ {8}(name|continue-on-error):\s*(.*?)\s*$/.exec(line);
+        const key = /^ {8}(name|continue-on-error):(.*)$/.exec(line);
         if (!job || !key) continue;
-        const value = key[2].replace(/^(["'])(.*)\1$/, "$2");
+        const value = key[2].trim().replace(/^(["'])(.*)\1$/, "$2");
         if (key[1] === "name") job.name = value;
         else job.non = value === "true" || (value.startsWith("${{") && advisory.includes(job.id));
     }

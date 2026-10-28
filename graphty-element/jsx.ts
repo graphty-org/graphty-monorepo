@@ -29,6 +29,10 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Sets the ids: an array, or a space-separated string as the attribute carries them.
+     */
+    features?: Graphty["features"];
+    /**
      * Turns autosave on (a key, `""` or `true`) or off (`null`, `false`).
      */
     autosave?: Graphty["autosave"];
@@ -88,6 +92,22 @@ export interface GraphtyElementJSXProps {
      * Sets the JMESPath for an edge's weight. Updates graph configuration.
      */
     edgeWeightPath?: Graphty["edgeWeightPath"];
+    /**
+     * Sets the edge time column. Updates graph configuration.
+     */
+    edgeTimePath?: Graphty["edgeTimePath"];
+    /**
+     * Sets the node time column. Updates graph configuration.
+     */
+    nodeTimePath?: Graphty["nodeTimePath"];
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     */
+    edgeTimeUnit?: Graphty["edgeTimeUnit"];
+    /**
+     * Sets how the node time column's numbers are read. Updates graph configuration.
+     */
+    nodeTimeUnit?: Graphty["nodeTimeUnit"];
     /**
      * Sets the record-units-to-scene-units multiplier. Updates graph configuration.
      */
@@ -165,6 +185,14 @@ export interface GraphtyElementJSXProps {
      * element that never rendered. A wrong colour in markup must not take the graph down.
      */
     background?: Graphty["background"];
+    /**
+     * Moves the map's credits up from the corner.
+     */
+    attributionOffset?: Graphty["attributionOffset"];
+    /**
+     * Sets how long camera moves take.
+     */
+    cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
     /**
      * Sets the starting camera distance.
      */
@@ -285,6 +313,22 @@ export interface GraphtyElementJSXProps {
      */
     "edge-weight-path"?: string;
     /**
+     * Sets the edge time column. Updates graph configuration.
+     */
+    "edge-time-path"?: string;
+    /**
+     * Sets the node time column. Updates graph configuration.
+     */
+    "node-time-path"?: string;
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     */
+    "edge-time-unit"?: string;
+    /**
+     * Sets how the node time column's numbers are read. Updates graph configuration.
+     */
+    "node-time-unit"?: string;
+    /**
      * Sets the record-units-to-scene-units multiplier. Updates graph configuration.
      */
     "position-scale"?: string;
@@ -323,6 +367,14 @@ export interface GraphtyElementJSXProps {
      * Sets 2D mode (deprecated). Converts boolean to viewMode internally.
      */
     "layout-2d"?: boolean;
+    /**
+     * Moves the map's credits up from the corner.
+     */
+    "attribution-offset"?: string;
+    /**
+     * Sets how long camera moves take.
+     */
+    "camera-transition-duration"?: string;
     /**
      * Sets the starting camera distance.
      */
@@ -401,6 +453,10 @@ export interface GraphtyElementJSXProps {
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
+    /**
+     * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
+     */
+    "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
     "ondata-added"?: (event: CustomEvent<EventOfType<"data-added">>) => void;
     /**
@@ -428,6 +484,7 @@ export interface GraphtyElementJSXProps {
     "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
     "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
+    "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;

@@ -127,7 +127,15 @@ function Stateful({ first }: Readonly<{ first: DataChoices }>): React.JSX.Elemen
  * @param first - the choices it opens on; edits are kept.
  */
 function renderData(element: Partial<GraphtyElement>, first: DataChoices = DEFAULT_DATA): void {
-    const session = { catalog: { formats: () => FORMATS } } as unknown as GraphSession;
+    const session = {
+        catalog: { formats: () => FORMATS },
+        data: {
+            attributes: () => [],
+            resultColumns: () => [],
+            statistics: () => ({ nodeCount: 0, edgeCount: 0 }),
+        },
+        selection: { nodes: [], edges: [] },
+    } as unknown as GraphSession;
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 } });
     const value = makeWorkspaceValue(
         store,
@@ -158,7 +166,8 @@ describe("the Data output", () => {
         const exportGraph = vi.fn(() =>
             Promise.resolve({ format: "graphty", losses: [], lossNotes: [], text, bytes: manyLines() }),
         );
-        renderData({ exportGraph });
+        // Graphty JSON: the dialog now opens on the CSV node table (the data prototype's default).
+        renderData({ exportGraph }, { format: "graphty", values: {}, scope: "all" });
 
         const preview = screen.getByLabelText("Preview of the exported data");
         await waitFor(() => {
@@ -177,7 +186,8 @@ describe("the Data output", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Export" }));
         const alert = await screen.findByRole("alert");
-        assert.include(alert.textContent, "The file was not written");
+        // The data prototype's short title; the words still come from the code.
+        assert.include(alert.textContent, "Not written");
         assert.include(alert.textContent, "Something went wrong (E_X).");
         assert.notInclude(alert.textContent, "boom");
     });
@@ -192,6 +202,7 @@ describe("the Data output", () => {
                 format: "csv",
                 variant: "gephi",
                 values: {},
+                scope: "all",
             },
         );
 

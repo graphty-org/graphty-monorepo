@@ -39,8 +39,7 @@ async function loadKarate(canvasElement: HTMLElement): Promise<GraphtyElement> {
     await element.session.layout.set("fixed");
     await element.session.data.addNodes(KARATE.nodes);
     await element.session.data.addEdges(KARATE.edges);
-    // New data frames the camera on later frames, and a framing still pending takes the
-    // view insets in force when it lands (the legend card's, once a layer exists), so wait for it.
+    // New data frames the camera on later frames: wait for the framing to land.
     await element.waitForStableFrame();
     return element;
 }

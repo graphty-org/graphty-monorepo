@@ -12,6 +12,8 @@ import { Ray, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
+import type { UpdateManager } from "../../src/managers/UpdateManager";
 
 const DOT = `digraph {
   a -> b;
@@ -289,6 +291,81 @@ describe("a group with no stored position follows its members", () => {
             "the line starts at the outline",
         );
         assert.isAbove(line?.length ?? 0, between - 1.6 * half, "and not far inside the gap");
+    });
+
+    // A repaint reaches the meshes after the frame that last placed the groups when the layout has
+    // stopped and nothing is framing: the frames that apply it place no group. A member it grew left
+    // its group's box short of it, and a group it rebuilt was drawn unstretched -- the cytoscape.js
+    // groups specimen drew a third of its groups without their padding, depending on which frame
+    // the paint landed on (issue #3478).
+    it("draws a group over its members' new box when a repaint lands after the layout has stopped", async () => {
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 0 } },
+                ],
+                edges: [],
+            },
+            style: [{ selector: ":parent", style: { "border-width": 2, "border-color": "#505050" } }],
+        });
+        await graph.getSession().data.import({ type: "json", config: { data: saved } }, { styles: "file" });
+        await operationQueueOf(graph).waitForCompletion();
+        // Every frame below is drawn by hand, so the live loop cannot draw one in between.
+        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        try {
+            await graph.setLayout("fixed");
+            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            const layout = graph.getLayoutManager();
+            layout.running = false;
+            updates.stepFrames(5);
+            const group = graph.getDataManager().nodes.get("group");
+            assert.isDefined(group);
+            assert.isTrue(group.isDrawnAsGroup);
+
+            await graph.getSession().styles.add({
+                name: "Bigger",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 30 },
+            });
+            await graph.getSession().styles.settled();
+            const painter = graph.getStylePainter();
+            for (let frame = 0; frame < 10 && painter.hasPending; frame++) {
+                updates.update(16);
+            }
+            assert.isFalse(painter.hasPending, "the repaint was drawn");
+            const drawn = group.drawnHalfExtents.x;
+
+            // Where the group belongs, placed and drawn now from the members as they are drawn.
+            layout.placeGroups();
+            group.update();
+            assert.closeTo(drawn, group.drawnHalfExtents.x, 1e-6, "the group was drawn over its members' box");
+
+            // A later repaint prunes the mesh cache: the group's outline must keep its material.
+            await graph.getSession().styles.add({
+                name: "Red members",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#ff0000" },
+            });
+            await graph.getSession().styles.settled();
+            for (let frame = 0; frame < 10 && painter.hasPending; frame++) {
+                updates.update(16);
+            }
+            const outline = group.mesh.getChildMeshes(true).find((m) => m.name === "node-border" && m.isEnabled());
+            assert.isDefined(
+                outline,
+                `the group is drawn with an outline: ${group.mesh
+                    .getChildMeshes(true)
+                    .map((m) => m.name)
+                    .join(", ")}`,
+            );
+            assert.isOk(outline.material, "the outline is drawn with its material, not stripped by the cache");
+        } finally {
+            release();
+        }
     });
 
     it("lays a group out like any node when behavior.layout.groupsFollowMembers is false", async () => {

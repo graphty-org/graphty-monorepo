@@ -74,6 +74,10 @@ export { Node } from "./src/Node";
 // Style configuration types
 export type {
     AdHocData,
+    // The map under the location map layout, as `element.basemap` takes it, and what it is doing
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
     EdgeStyleConfig,
     // The room `element.fitInsets` keeps clear when the graph is framed
     FitInsets,
@@ -82,6 +86,8 @@ export type {
     ImageData,
     // How the 3D nodes are lit, as `element.lighting` takes it
     Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -102,6 +108,7 @@ export type { PartialXRConfig } from "./src/config/xr-config-schema";
 
 // Style configuration values and helpers
 export {
+    Basemap,
     colorToHex,
     DEFAULT_LIGHTING,
     DEFAULT_VIEW_MODE,
@@ -128,6 +135,9 @@ export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSugg
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+// Which experiments an element switched on (element.enabledFeatures)
+export type { FeatureId } from "./src/features/registry";
+export type { EnabledFeatures } from "./src/features/resolve";
 // How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
 // one node's label as drawn (element.labelOf)
 export type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
@@ -227,6 +237,7 @@ export type {
     ExportLoss,
     ExportLossCode,
     ExportResult,
+    ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
 
@@ -268,6 +279,7 @@ export { definePalette } from "./src/simple/definePalette";
 // =============================================================================
 export type {
     AiEventType,
+    BasemapStatusEvent,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,

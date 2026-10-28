@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { baseTest, localVerbose } from "../vitest.base.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
-import { ciReporters } from "../vitest.ci-junit.mjs";
 
 const src = fileURLToPath(new URL("./src/", import.meta.url));
 
@@ -16,8 +16,7 @@ const config = defineConfig({
         alias: [{ find: /^@graphty\/graph-io$/, replacement: `${src}index.ts` }],
     },
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs", "./test/sources/browser/cors-server.ts"],
+        ...baseTest({ reporters: [localVerbose()], globalSetup: ["./test/sources/browser/cors-server.ts"] }),
         name: "browser",
         maxWorkers: 1,
         browser: {
@@ -27,7 +26,6 @@ const config = defineConfig({
             instances: [{ browser: "chromium" }],
         },
         include: ["test/sources/browser/**/*.test.ts"],
-        reporters: [...(process.env.CI ? ["default"] : ["verbose"]), ...ciReporters()],
     },
 });
 

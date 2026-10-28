@@ -6,8 +6,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { findRecovered } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { focusIsLost, focusOpenedGraph, installFocusGuard } from "./frame/focus";
+import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
+import { NoticeSlot } from "./frame/NoticeSlot";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
@@ -15,9 +16,14 @@ import { notReadSentence, openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { useDropToOpen } from "./start/open";
+import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import { createWorkspaceStore, useStoreValue, type WorkspaceState, type WorkspaceStore } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
+
+/** The look a new project gives a pinned node: a thin gray ring. */
+const PINNED_LOOK = { color: "#868e96", scale: 1.3, opacity: 1 } as const;
 
 /** Props for Workspace. */
 interface WorkspaceProps {
@@ -28,6 +34,13 @@ interface WorkspaceProps {
     /** The registrations; every package's by default. */
     registrations?: readonly WorkspaceRegistration[];
 }
+
+/** The start screen's first way in (Resume, else Open a file), read when focus goes to it. */
+const firstDoor = {
+    get current(): HTMLElement | null {
+        return document.querySelector<HTMLElement>(".ws-land-go, .ws-land-tint");
+    },
+};
 
 /**
  * The reader's workspace: the new graphty app shell (design/ui/tier1-real-app/tier1-design.md).
@@ -65,6 +78,7 @@ export function Workspace({
     // A project opened from the start screen loads its sample or file once its element is up. If
     // the load fails, the project was never really opened: back to the start screen, with the
     // reason staying until it is dismissed.
+    useDropToOpen(value);
     useEffect(() => {
         const { opening, project } = store.get();
         const { session, element: host } = element;
@@ -72,32 +86,38 @@ export function Workspace({
             return;
         }
         // The app's choice for every project it opens (graphty-element's defaults stay neutral):
-        // the style tree starts with Everything, Selected and Hovered, Everything holds the base
-        // look as values a reader edits, and a finished run's layer lands on top, where the reader
-        // sees it. Set before anything loads, so the rows are there from the first frame.
+        // the style tree starts with Everything, Selected, Pinned and Hovered, Everything holds the
+        // base look as values a reader edits, a pinned node wears a thin gray ring (under Selected,
+        // which wins), and a finished run's layer lands on top, where the reader sees it. Set
+        // before anything loads, so the rows are there from the first frame.
         const defaults =
             project?.id === startProjectId ||
             (session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top")
                 ? Promise.resolve()
-                : session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
+                : session.config.set({
+                      startingRows: true,
+                      editableBase: true,
+                      runPlacement: "top",
+                      pinnedStyle: PINNED_LOOK,
+                  });
         if (opening === null) {
             void defaults.catch(() => undefined);
             return;
         }
         store.set({ opening: null });
         loading.current = true;
+        // Focus goes to the graph's heading once it is read, so its size is heard, unless the
+        // reader went somewhere else meanwhile.
+        const focusLater = focusOpenedGraphLater();
         defaults
             .then(() => opening.load(session, host))
-            // A graph opened as a new project starts its history: Undo has nothing to take back
-            // until the reader changes something, so one Undo too many never unloads the graph.
-            // Focus goes to the graph's heading once it is read, so its size is heard.
+            // Each load starts the project's history itself (open.ts passes the element's
+            // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
-                session.history.clear({ pending: "keep" });
-                if (store.get().page === "panels") {
-                    focusOpenedGraph();
-                }
+                focusLater(store.get().page === "panels");
             })
             .catch((error: unknown) => {
+                focusLater(false);
                 const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
                 store.set((state) =>
                     state.project?.id === project?.id
@@ -162,9 +182,6 @@ export function Workspace({
     // Focus never falls to the page, on the start screen or in a project: Tab wraps, and a
     // control that goes while it holds focus hands it on (focus.ts).
     useEffect(() => installFocusGuard(), []);
-    const startDoor = useRef<HTMLButtonElement>(null);
-    const lastDoor = useRef<string | null>(null);
-    const projectWasOpen = useRef(false);
     useEffect(() => {
         // A project that opens on the Data page (New from data...) keeps focus on that page; one
         // with a sample or file to read takes focus once it is read (focusOpenedGraph).
@@ -175,22 +192,21 @@ export function Workspace({
             focusOpenedGraph();
         }
     }, [element, store, startProjectId]);
+    const projectWasOpen = useRef(false);
     useEffect(() => {
         if (projectOpen) {
             projectWasOpen.current = true;
         } else if (projectWasOpen.current && focusIsLost()) {
-            // Back to the way in that opened the project (New from data..., a sample), else the first.
-            const door = [...document.querySelectorAll<HTMLElement>("[data-start-door]")].find(
-                (candidate) => candidate.dataset.startDoor === lastDoor.current,
-            );
-            (door ?? startDoor.current)?.focus();
+            firstDoor.current?.focus();
         }
     }, [projectOpen]);
 
     return (
         <WorkspaceContext.Provider value={value}>
             {projectOpen && Frame !== null ? <Frame onElementReady={onElementReady} /> : null}
-            {projectOpen ? null : <StartScreen openRef={startDoor} lastDoor={lastDoor} />}
+            {projectOpen ? null : <StartScreen />}
+            {/* A failed open lands on the start screen with its reason: the one notice slot, there too. */}
+            {projectOpen ? null : <NoticeSlot returnFocus={firstDoor} />}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />
@@ -203,6 +219,7 @@ export function Workspace({
             <VisuallyHidden role="status" aria-live="polite">
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
+            <SamplesDialog />
         </WorkspaceContext.Provider>
     );
 }

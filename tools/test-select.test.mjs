@@ -5,21 +5,29 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { SHARDS } from "./ci-test-matrix.mjs";
+import { plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
 import {
     advisoryMisses,
     buildInput,
+    changedImporters,
     estimate,
     failingFiles,
     globToRe,
+    graphCacheKey,
+    lightPlan,
+    planSummary,
+    lockMoves,
     literalPaths,
     loadRules,
     measuredOf,
     outsideOf,
+    packBins,
+    BIN_LIMIT_MS,
+    FILE_OVERHEAD_MS,
     rootImportGraph,
     sameOutside,
     planRuns,
@@ -28,6 +36,12 @@ import {
     selectInGraph,
     selectPackages,
     selectShards,
+    selectStories,
+    storyBins,
+    STORY_BIN_LIMIT_MS,
+    STORY_FILE_MS,
+    STORY_MS,
+    storyCount,
     selectedCommand,
     shardRuns,
     sourceOf,
@@ -35,12 +49,22 @@ import {
     testRefs,
     useNamesRoot,
     wholePackageRule,
+    withLockfile,
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
+import { applyBudgets, keyOf, percentile, replayRecord, SETUP_MS, summarize } from "./light-check-replay.mjs";
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
-import { mutant, seededPick, unexplained } from "./test-select-mutate.mjs";
+import {
+    mutant,
+    runPaths,
+    seededPick,
+    storiesMissed,
+    storyCandidates,
+    storyFiles,
+    unexplained,
+} from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // the fixtures below live under the checkout so that they resolve its installed vitest
@@ -255,6 +279,10 @@ describe("shards", () => {
         assert.ok(projectSelected("browser (chromium)", ["browser"]));
         assert.ok(!projectSelected("storybook (chromium)", ["!storybook"]));
         assert.ok(projectSelected("real-element (chromium)", ["!storybook"]));
+        // an On twin only by its own name (it exists only under GRAPHTY_FEATURES_ON=1)
+        assert.ok(!projectSelected("storybook-features-on (chromium)", ["!storybook"]));
+        assert.ok(!projectSelected("default-features-on", []));
+        assert.ok(projectSelected("storybook-features-on (chromium)", ["storybook-features-on"]));
         assert.ok(projectSelected("", []));
     });
 
@@ -332,8 +360,15 @@ describe("the replay's log parsing", () => {
 describe("the rules file", () => {
     const real = loadRules(ROOT);
 
-    it("runs everything for any change under .github/, the actions CI's shards use included", () => {
-        assert.ok(real.everything.some((re) => re.test(".github/actions/early-verdict/action.yml")));
+    it("runs the smoke shards, not everything, for ci.yml and the actions CI's shards use", () => {
+        for (const f of [".github/workflows/ci.yml", ".github/actions/early-verdict/action.yml", "pnpm-lock.yaml"]) {
+            assert.ok(!real.everything.some((re) => re.test(f)), f);
+        }
+        assert.ok(real.smoke.patterns.some((re) => re.test(".github/actions/early-verdict/action.yml")));
+        assert.ok(
+            real.smoke.shards.every((sh) => SHARDS.some((s) => s.shard === sh)),
+            "every smoke shard exists",
+        );
     });
 
     it("judges code under src/ by the import graph, never by a data-folder rule", () => {
@@ -342,13 +377,27 @@ describe("the rules file", () => {
         assert.ok(wholePackageRule("test/fixtures/k.ts", real));
     });
 
-    it("allows file-level selection only in the packages the design starts with", () => {
+    it("allows file-level selection only in the packages a clean mutation run admitted", () => {
         assert.deepEqual([...real.fileLevel].sort(), [
+            "algorithms",
             "compact-mantine",
+            "cytoscape-extensions",
+            "githerd",
             "graph-format",
+            "graph-io",
+            "graph-samples",
             "graphty",
             "graphty-element",
+            "layout",
             "remote-logger",
+            "visual-review",
+        ]);
+        assert.deepEqual([...real.fileLevelBrowser].sort(), [
+            "algorithms",
+            "compact-mantine",
+            "graph-io",
+            "graphty",
+            "graphty-element",
         ]);
     });
 });
@@ -382,6 +431,17 @@ describe("file-level selection, allowed and measured", () => {
         const [browser] = selectShards([shard], pkgs, graphs, new Set(["pa"]));
         assert.equal(browser.mode, "all", "a project without the browser flag counts as a browser project");
         assert.match(browser.reasons[0], /browser/u);
+        assert.ok(s.measured.untrusted && browser.measured.untrusted, "the light check does not rely on either answer");
+        const [smoked] = selectShards(
+            [shard],
+            pkgs,
+            g,
+            new Set(["pa"]),
+            new Set(),
+            new Map([["pa-unit", "a smoke pattern"]]),
+        );
+        assert.equal(smoked.mode, "all");
+        assert.equal(smoked.measured.untrusted, true);
     });
 
     it("selects a browser shard file by file only where fileLevelBrowser allows it", () => {
@@ -766,6 +826,91 @@ describe("mutation testing of the selection", () => {
         ]);
         assert.deepEqual(unexplained(["t/d"], ["z.ts"], chosen), [], "a whole-shard selection explains anything");
     });
+
+    it("--stories: maps story ids to their files and finds the changed stories a selection did not run", () => {
+        const index = {
+            entries: {
+                "a--one": { type: "story", id: "a--one", importPath: "./stories/A.stories.ts" },
+                "a--docs": { type: "docs", id: "a--docs", importPath: "./stories/A.mdx" },
+                "b--two": { type: "story", id: "b--two", importPath: "./stories/B.stories.ts" },
+            },
+        };
+        const files = storyFiles(index, "layout");
+        assert.deepEqual(
+            [...files],
+            [
+                ["a--one", "layout/stories/A.stories.ts"],
+                ["b--two", "layout/stories/B.stories.ts"],
+            ],
+        );
+        const of = (id) => files.get(id);
+        const sel = (mode, f = [], baselines = []) => ({ mode, files: f, baselines });
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("all"), of), []);
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("none"), of), ["a--one", "b--two"]);
+        assert.deepEqual(storiesMissed(["a--one", "b--two"], sel("files", ["layout/stories/A.stories.ts"]), of), [
+            "b--two",
+        ]);
+        assert.deepEqual(storiesMissed(["b--two"], sel("none", [], ["b--two"]), of), [], "a changed baseline runs");
+    });
+
+    it("--stories: breaks the package's source and story files and its workspace dependencies' source", () => {
+        const files = storyCandidates(ROOT, "layout");
+        const has = (re) => files.some((f) => re.test(f));
+        assert.ok(has(/^layout\/src\//u), "the package's source");
+        assert.ok(has(/^layout\/stories\/.+\.stories\.ts$/u), "its story files");
+        assert.ok(has(/^graph-samples\/src\//u) && has(/^graph-format\/src\//u), "its dependencies' source");
+        assert.ok(!has(/\/(test|\.storybook)\//u), "never a test or the Storybook setup");
+        assert.ok(!has(/^layout\/[^/]+$/u), "never a root file of the package (package.json, tsconfig)");
+        assert.ok(!has(/^graph-samples\/(?!src\/)/u), "only a dependency's source");
+    });
+
+    it("--stories: follows dependencies through other packages and adds the packages that draw the project", () => {
+        const app = storyCandidates(ROOT, "graphty");
+        assert.ok(
+            app.some((f) => f.startsWith("algorithms/src/")) && app.some((f) => f.startsWith("layout/src/")),
+            "graphty-element's dependencies",
+        );
+        const fidelity = storyCandidates(ROOT, "graph-io", ["graph-io", "graphty-element"]);
+        const test = (f) => /\.(test|spec)\./u.test(f);
+        assert.ok(!app.some(test) && !fidelity.some(test), "never a test file under stories/");
+        assert.ok(
+            fidelity.some((f) => f.startsWith("graphty-element/src/")),
+            "a drawnBy package's source",
+        );
+        // the fidelity stories draw with test-side helpers and corpus files: breaking them must count too
+        assert.ok(fidelity.includes("graph-io/fidelity-stories/stories/fidelity.ts"), "the shared story helper");
+        assert.ok(
+            fidelity.some((f) => f.startsWith("graphty-element/test/fidelity/")),
+            "a test-side helper a story imports",
+        );
+        assert.ok(
+            fidelity.some((f) => /^graph-io\/test\/corpus\/.+\.cx2$/u.test(f)),
+            "a corpus file a story imports with ?url",
+        );
+        assert.ok(fidelity.includes("graphty-element/index.ts"), "a bare side-effect import");
+        assert.ok(!fidelity.some((f) => f.includes("/.storybook/")), "never the Storybook setup");
+        assert.equal(new Set(fidelity).size, fidelity.length, "each file once");
+    });
+
+    it("gives runs with different names their own worktree and report", () => {
+        const a = runPaths("/r", "graph-io", null);
+        const b = runPaths("/r", "layout", null);
+        assert.deepEqual(a, {
+            worktree: "/r/.worktrees/select-mutate-graph-io",
+            report: "/r/tmp/select-mutate/graph-io/report.txt",
+        });
+        assert.notEqual(a.worktree, b.worktree);
+        assert.notEqual(a.report, b.report);
+        assert.deepEqual(runPaths("/r", null, null), {
+            worktree: "/r/.worktrees/select-mutate",
+            report: "/r/tmp/select-mutate/default/report.txt",
+        });
+        assert.equal(runPaths("/r", "x", "mine").worktree, "/r/.worktrees/mine");
+        // the worktree is reset and cleaned, so a name must not reach outside .worktrees
+        assert.throws(() => runPaths("/r", "/../..", null), /--name/);
+        assert.throws(() => runPaths("/r", "..", null), /--name/);
+        assert.throws(() => runPaths("/r", null, "a/b"), /--worktree/);
+    });
 });
 
 // Each case below is a miss the adversarial mutation run of 2026-10-22 found (issue #3276): a change that
@@ -836,7 +981,7 @@ describe("misses found by mutation testing", () => {
         assert.deepEqual([...sel.specs.keys()], ["graphty/src/a.test.tsx"]);
     });
 
-    it("a design/ file a test names in a string runs its package whole (graph-io's style defaults record)", () => {
+    it("a design/ file a test names in a string runs that test (graph-io's style defaults record)", () => {
         const g = {
             ...empty("graph-io")[0],
             projects: { unit: { specs: ["graph-io/test/styles/core.test.ts"], setup: [] } },
@@ -845,7 +990,8 @@ describe("misses found by mutation testing", () => {
         const sel = run(["design/graph-io/style-tool-defaults.md"], ["graph-io"], {
             graphs: new Map([["graph-io", [g]]]),
         }).packages.get("graph-io");
-        assert.equal(sel.mode, "all");
+        assert.equal(sel.mode, "files");
+        assert.deepEqual([...sel.specs.keys()], ["graph-io/test/styles/core.test.ts"]);
         assert.ok(
             [...run(["design/graph-io/other-notes.md"], ["graph-io"]).packages.values()].every(
                 (p) => p.mode === "none",
@@ -1178,5 +1324,930 @@ describe("reads of another package's files, path by path", () => {
         } finally {
             rmSync(fixture, { recursive: true, force: true });
         }
+    });
+});
+
+describe("visual-review files only the story setups load", () => {
+    const pkgs = ["visual-review", "algorithms", "layout", "graphty", "graphty-element"];
+    const real = new Map(pkgs.map((d) => [d, d]));
+    const deps = new Map(pkgs.map((d) => [d, new Set(d === "visual-review" ? [] : ["visual-review"])]));
+    const noGraphs = new Map(pkgs.map((d) => [d, []]));
+    const run = (changed) => {
+        const sel = selectPackages({
+            changed,
+            packages: real,
+            deps,
+            refs: new Map(),
+            graphs: noGraphs,
+            rules: loadRules(ROOT),
+        });
+        const shards = SHARDS.filter((s) => real.has(s.package));
+        return selectShards(shards, sel.packages, noGraphs, undefined, undefined, sel.smoke)
+            .filter((s) => s.mode !== "none")
+            .map((s) => s.shard);
+    };
+
+    it("a story-test-setup.mjs change runs only visual-review and the shards that run the story setup", () => {
+        const picked = run(["visual-review/capture/story-test-setup.mjs"]);
+        const story = SHARDS.filter((s) => /^graphty(-element)?-storybook/u.test(s.shard)).map((s) => s.shard);
+        const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
+        // algorithms-browser and layout gate ci.yml's story-tests job for those two projects
+        assert.deepEqual([...picked].sort(), [...own, ...story, "algorithms-browser", "layout"].sort());
+        assert.ok(story.length === 6, story.join(", "));
+    });
+
+    it("a dependent without an import graph still runs whole on a change to visual-review's other code", () => {
+        // testRefs' fallback for a package whose graph could not be built: it may read any file of the package
+        const refs = new Map(
+            pkgs
+                .filter((d) => d !== "visual-review")
+                .map((d) => [d, [{ target: "visual-review", prefix: "visual-review/", holder: null }]]),
+        );
+        for (const f of ["visual-review/trusted/cli.mjs", "visual-review/capture/story-test.mjs"]) {
+            const sel = selectPackages({
+                changed: [f],
+                packages: real,
+                deps,
+                refs,
+                graphs: noGraphs,
+                rules: loadRules(ROOT),
+            });
+            for (const d of ["algorithms", "layout", "graphty", "graphty-element"]) {
+                assert.equal(sel.packages.get(d).mode, "all", `${f}: ${d}`);
+            }
+        }
+    });
+});
+
+describe("visual-review has no build: its dependents run only what loads the changed file (#3850)", () => {
+    const pkgs = ["visual-review", "algorithms", "webgpu-graph-algorithms", "graphty-element", "githerd", "layout"];
+    const real = new Map(pkgs.map((d) => [d, d]));
+    const deps = new Map([
+        ["visual-review", new Set()],
+        ["algorithms", new Set(["visual-review"])],
+        ["layout", new Set(["visual-review"])],
+        ["webgpu-graph-algorithms", new Set(["algorithms", "layout"])],
+        ["graphty-element", new Set(["algorithms", "layout", "visual-review"])],
+        ["githerd", new Set(["visual-review"])],
+    ]);
+    const STORY_TEST = "visual-review/capture/story-test.mjs";
+    const COMPARE = "visual-review/trusted/lib/compare.mjs";
+    const g = (pkg, specs, imports = {}, config = null) => ({
+        package: pkg,
+        config,
+        projects: { unit: { specs, setup: [] } },
+        imports: { ...Object.fromEntries(specs.map((s) => [s, []])), ...imports },
+        opaque: [],
+    });
+    const graphs = new Map([
+        [
+            "visual-review",
+            [
+                g("visual-review", ["visual-review/test/compare.test.mjs"], {
+                    "visual-review/test/compare.test.mjs": [COMPARE],
+                }),
+            ],
+        ],
+        ["algorithms", [g("algorithms", ["algorithms/test/a.test.ts"])]],
+        ["layout", [g("layout", ["layout/test/l.test.ts"])]],
+        ["webgpu-graph-algorithms", [g("webgpu-graph-algorithms", ["webgpu-graph-algorithms/test/w.test.ts"])]],
+        // graphty-element's vitest.config.ts imports story-test.mjs, and a config test imports the config
+        [
+            "graphty-element",
+            [
+                g("graphty-element", ["graphty-element/test/config.test.ts", "graphty-element/test/b.test.ts"], {
+                    "graphty-element/test/config.test.ts": ["graphty-element/vitest.config.ts"],
+                    "graphty-element/vitest.config.ts": [STORY_TEST],
+                    [STORY_TEST]: [COMPARE],
+                    [COMPARE]: [],
+                }),
+            ],
+        ],
+        [
+            "githerd",
+            [
+                g("githerd", ["githerd/test/merge.test.mjs", "githerd/test/other.test.mjs"], {
+                    "githerd/test/merge.test.mjs": ["visual-review/test/helpers.mjs"],
+                    "visual-review/test/helpers.mjs": [],
+                }),
+            ],
+        ],
+    ]);
+    // the Storybook configs no shard runs name story-test.mjs and what it imports (testRefs)
+    const refs = new Map([
+        [
+            "algorithms",
+            [STORY_TEST, COMPARE].map((f) => ({
+                target: "visual-review",
+                prefix: f.replace(/\.mjs$/u, ""),
+                holder: "algorithms/vitest.storybook.config.ts",
+                build: false,
+            })),
+        ],
+        [
+            "graphty-element",
+            [
+                {
+                    target: "visual-review",
+                    prefix: "visual-review/capture/story-test",
+                    holder: "graphty-element/vitest.config.ts",
+                    build: false,
+                },
+            ],
+        ],
+    ]);
+    const run = (changed) =>
+        selectPackages({ changed, packages: real, deps, refs, graphs, rules: loadRules(ROOT) }).packages;
+
+    it("a change to code no dependent loads runs none of them, and no package downstream of them", () => {
+        const sel = run(["visual-review/trusted/cli.mjs"]);
+        for (const d of ["algorithms", "layout", "webgpu-graph-algorithms", "graphty-element", "githerd"]) {
+            assert.equal(sel.get(d).mode, "none", `${d}: ${sel.get(d).reasons.join("; ")}`);
+        }
+    });
+
+    it("a file a vitest config loads runs the shards of that config whole, and never webgpu-graph-algorithms", () => {
+        for (const f of [STORY_TEST, COMPARE]) {
+            const sel = run([f]);
+            assert.equal(sel.get("graphty-element").mode, "all", f);
+            assert.match(
+                sel.get("graphty-element").reasons.join("; "),
+                /vitest config graphty-element\/vitest\.config\.ts/u,
+            );
+            // a config no shard's graph was built with: the package runs whole (the story-tests job needs its shard)
+            assert.equal(sel.get("algorithms").mode, "all", f);
+            assert.equal(sel.get("layout").mode, "none", f);
+            assert.equal(
+                sel.get("webgpu-graph-algorithms").mode,
+                "none",
+                `${f}: ${sel.get("webgpu-graph-algorithms").reasons}`,
+            );
+        }
+    });
+
+    it("a visual-review test helper runs only the dependents' tests that import it", () => {
+        const sel = run(["visual-review/test/helpers.mjs"]);
+        assert.deepEqual([...sel.get("githerd").specs.keys()], ["githerd/test/merge.test.mjs"]);
+        assert.equal(sel.get("graphty-element").mode, "none");
+    });
+
+    it("a package not listed in noBuild keeps its dependents' build answer", () => {
+        const rules = { ...loadRules(ROOT), noBuild: new Set() };
+        const sel = selectPackages({
+            changed: ["visual-review/trusted/cli.mjs"],
+            packages: real,
+            deps,
+            refs,
+            graphs,
+            rules,
+        });
+        assert.equal(sel.packages.get("webgpu-graph-algorithms").mode, "all");
+    });
+});
+
+describe("workflow and lockfile changes (design/ci/channels-pipeline/merging.md section 4.3)", () => {
+    const real = new Map([
+        ["graph-format", "graph-format"],
+        ["graph-io", "graph-io"],
+        ["algorithms", "algorithms"],
+        ["layout", "layout"],
+    ]);
+    const realDeps = new Map([
+        ["graph-format", new Set()],
+        ["graph-io", new Set(["graph-format"])],
+        ["algorithms", new Set(["graph-format"])],
+        ["layout", new Set(["graph-format"])],
+    ]);
+    const noGraphs = new Map([...real.values()].map((d) => [d, []]));
+    const run = (changed, lockfile) => {
+        const sel = selectPackages({
+            changed,
+            packages: real,
+            deps: realDeps,
+            refs: new Map(),
+            graphs: noGraphs,
+            rules: loadRules(ROOT),
+            lockfile,
+        });
+        const shards = SHARDS.filter((s) => real.has(s.package));
+        const picked = selectShards(shards, sel.packages, noGraphs, undefined, undefined, sel.smoke);
+        return { everything: sel.everything, shards: picked.filter((s) => s.mode !== "none").map((s) => s.shard) };
+    };
+
+    it("a ci.yml change runs only the smoke shards, and another workflow none", () => {
+        assert.deepEqual(run([".github/workflows/ci.yml"]), {
+            everything: null,
+            shards: ["graph-format", "algorithms-browser"],
+        });
+        assert.deepEqual(run([".github/actions/early-verdict/action.yml"]).shards, [
+            "graph-format",
+            "algorithms-browser",
+        ]);
+        assert.deepEqual(run([".github/workflows/release.yml", ".github/dependabot.yml"]), {
+            everything: null,
+            shards: [],
+        });
+    });
+
+    it("a lockfile change runs the packages whose importers changed and their dependents", () => {
+        assert.deepEqual(run(["pnpm-lock.yaml"], ["layout"]), { everything: null, shards: ["layout"] });
+        const fmt = run(["pnpm-lock.yaml"], ["graph-format"]).shards;
+        for (const sh of ["graph-format", "graph-io", "algorithms-default", "layout"]) {
+            assert.ok(fmt.includes(sh), `${sh} in ${fmt.join(", ")}`);
+        }
+        assert.equal(run(["pnpm-lock.yaml"], ["."]).everything, "package.json", "the root importer runs everything");
+        assert.equal(run(["pnpm-lock.yaml"], null).everything, "pnpm-lock.yaml", "unknown importers run everything");
+        assert.equal(run(["pnpm-lock.yaml"]).everything, "pnpm-lock.yaml");
+    });
+
+    it("withLockfile puts the lockfile on the changed importers' package.json", () => {
+        assert.deepEqual(withLockfile(["pnpm-lock.yaml", "a.md"], ["layout", "."]), [
+            "a.md",
+            "layout/package.json",
+            "package.json",
+        ]);
+        assert.deepEqual(withLockfile(["pnpm-lock.yaml"], null), ["pnpm-lock.yaml"]);
+        assert.deepEqual(withLockfile(["a.md"], ["layout"]), ["a.md"]);
+    });
+
+    it("changedImporters reads which importers changed, and null when it cannot tell", () => {
+        const lock = (fmtVer, extra = "") =>
+            [
+                "lockfileVersion: '9.0'",
+                "",
+                `settings:${extra}`,
+                "  autoInstallPeers: true",
+                "",
+                "importers:",
+                "",
+                "  .:",
+                "    devDependencies:",
+                "      vitest: 4.0.0",
+                "",
+                "  graph-format:",
+                "    devDependencies:",
+                `      tsx: ${fmtVer}`,
+                "",
+                "  layout:",
+                "    devDependencies:",
+                "      tsx: 1.0.0",
+                "",
+                "packages:",
+                "",
+                `  tsx@${fmtVer}:`,
+                "    resolution: {}",
+                "",
+            ].join("\n");
+        assert.deepEqual(changedImporters(lock("1.0.0"), lock("1.1.0")), ["graph-format"]);
+        assert.deepEqual(changedImporters(lock("1.0.0"), lock("1.0.0")), []);
+        assert.equal(changedImporters(lock("1.0.0"), lock("1.0.0", " # x")), null, "settings change every package");
+        assert.equal(changedImporters(lock("1.0.0"), lock("1.0.0").replace("resolution: {}", "resolution: {x}")), null);
+        assert.equal(changedImporters(null, lock("1.0.0")), null);
+        // graph-format's bump also re-resolved a package layout installs too: layout's own block is unchanged,
+        // but what it installs is not, so the change cannot be put on graph-format alone
+        const withShared = (fmtVer, sharedDep) =>
+            `${lock(fmtVer)}\nsnapshots:\n\n  shared@1.0.0:\n    dependencies:\n      dep: ${sharedDep}\n`;
+        assert.deepEqual(changedImporters(withShared("1.0.0", "1.0.0"), withShared("1.1.0", "1.0.0")), [
+            "graph-format",
+        ]);
+        assert.equal(changedImporters(withShared("1.0.0", "1.0.0"), withShared("1.1.0", "1.1.0")), null);
+    });
+});
+
+describe("packBins", () => {
+    const MIN = 60_000;
+    const ms = new Map([
+        ["p/a.test.ts", 5 * MIN],
+        ["p/b.test.ts", 4 * MIN],
+        ["p/c.test.ts", 3 * MIN],
+        ["p/d.test.ts", 1 * MIN],
+    ]);
+
+    it("packs the longest files first into bins of at most 8 minutes", () => {
+        const bins = packBins(["p/d.test.ts", "p/c.test.ts", "p/b.test.ts", "p/a.test.ts"], ms, BIN_LIMIT_MS, 0);
+        assert.deepEqual(bins, [
+            { files: ["p/a.test.ts", "p/c.test.ts"], ms: 8 * MIN },
+            { files: ["p/b.test.ts", "p/d.test.ts"], ms: 5 * MIN },
+        ]);
+    });
+
+    it("counts a file with no recorded time as the family's longest", () => {
+        const bins = packBins(["p/new.test.ts", "p/d.test.ts"], ms, BIN_LIMIT_MS, 0);
+        assert.deepEqual(bins, [{ files: ["p/d.test.ts", "p/new.test.ts"], ms: 6 * MIN }]);
+    });
+
+    it("gives a file over the limit a bin of its own, and a family with no history 30 s a file", () => {
+        assert.deepEqual(
+            packBins(["p/x.test.ts", "p/y.test.ts"], new Map([["p/x.test.ts", 9 * MIN]]), BIN_LIMIT_MS, 0),
+            [
+                { files: ["p/x.test.ts"], ms: 9 * MIN },
+                { files: ["p/y.test.ts"], ms: 9 * MIN },
+            ],
+        );
+        assert.deepEqual(packBins(["p/x.test.ts", "p/x.test.ts"], new Map(), BIN_LIMIT_MS, 0), [
+            { files: ["p/x.test.ts"], ms: 30_000 },
+        ]);
+        assert.deepEqual(packBins([], ms), []);
+    });
+
+    it("counts Vitest's per-file setup and import, so many short files are split (#3645)", () => {
+        const files = Array.from({ length: 300 }, (_, i) => `p/f${i}.test.ts`);
+        const short = new Map(files.map((f) => [f, 300]));
+        const bins = packBins(files, short);
+        assert.ok(bins.length > 1);
+        for (const b of bins) {
+            assert.ok(b.ms <= BIN_LIMIT_MS);
+            assert.equal(b.ms, b.files.length * (300 + FILE_OVERHEAD_MS));
+        }
+        assert.equal(bins.flatMap((b) => b.files).length, 300);
+    });
+});
+
+describe("light-check-replay", () => {
+    const MIN = 60_000;
+    const fileLevel = new Set(["graphty-element", "graphty"]);
+    const sel = (shard, pkg, mode, files = [], extra = {}) => ({
+        shard,
+        package: pkg,
+        mode,
+        total: extra.total ?? files.length,
+        files: files.map((file) => ({ file })),
+        reasons: extra.reasons ?? [],
+    });
+    const durations = new Map([
+        [
+            "graphty",
+            new Map([
+                ["graphty/a.test.ts", 6 * MIN],
+                ["graphty/b.test.ts", 3 * MIN],
+            ]),
+        ],
+        ["graph-io", new Map([["graph-io/x.test.ts", 2 * MIN]])],
+    ]);
+
+    it("merges a family's slices and runs its longest bin after the setup", () => {
+        const record = {
+            at: "2026-10-23T00:00:00Z",
+            selection: [
+                sel("graphty-1", "graphty", "files", ["graphty/a.test.ts"]),
+                sel("graphty-2", "graphty", "files", ["graphty/a.test.ts", "graphty/b.test.ts"]),
+                sel("graph-format", "graph-format", "none"),
+            ],
+        };
+        const r = replayRecord(record, durations, fileLevel);
+        assert.deepEqual(r, {
+            key: "run:ci.yml:pr",
+            at: record.at,
+            bins: 2,
+            testMs: 6 * MIN + FILE_OVERHEAD_MS,
+            runMs: SETUP_MS + 6 * MIN + FILE_OVERHEAD_MS,
+            overLimit: false,
+        });
+    });
+
+    it("runs a whole family with its unrecorded files at the family's longest", () => {
+        const record = { selection: [sel("graph-io", "graph-io", "all", [], { total: 5 })] };
+        const r = replayRecord(record, durations, fileLevel);
+        assert.equal(r.key, "run:ci.yml:pr-graph-io", "a package off fileLevel has its own key");
+        assert.equal(r.bins, 2, "five 2-minute files plus their overhead make bins of three and two files");
+        assert.equal(r.testMs, 6 * MIN + 3 * FILE_OVERHEAD_MS);
+    });
+
+    it("keys a global input or a graphty-element build change as pr-wide", () => {
+        assert.equal(keyOf({ everything: "package.json", selection: [] }, [], fileLevel), "run:ci.yml:pr-wide");
+        const dependent = sel("graphty-1", "graphty", "all", [], {
+            reasons: ["depends on graphty-element, whose build changed"],
+        });
+        assert.equal(keyOf({ selection: [dependent] }, [], fileLevel), "run:ci.yml:pr-wide");
+        const byFile = sel("graphty-1", "graphty", "files", []);
+        byFile.files = [
+            { file: "graphty/src/App.test.tsx", why: "imports graphty-element/src/a.ts, from graphty-element's build" },
+        ];
+        assert.equal(
+            keyOf({ selection: [byFile] }, [], fileLevel),
+            "run:ci.yml:pr-wide",
+            "a dependent selected file by file",
+        );
+        const own = sel("graphty-element-1", "graphty-element", "files", []);
+        own.files = [{ file: "graphty-element/test/a.test.ts", why: "imports graphty-element/src/a.ts" }];
+        assert.equal(keyOf({ selection: [own] }, [], fileLevel), "run:ci.yml:pr", "graphty-element's own tests alone");
+        const longest = [
+            { package: "graphty", ms: 9 },
+            { package: "layout", ms: 3 },
+        ];
+        assert.equal(keyOf({ selection: [] }, longest, fileLevel), "run:ci.yml:pr-layout");
+    });
+
+    it("summarizes p50 and p90 per key and writes them as budgets", () => {
+        assert.equal(percentile([5, 1, 4, 2, 3], 0.5), 3);
+        assert.equal(percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9), 9);
+        assert.equal(percentile([], 0.9), 0);
+        const row = (runMs, at) => ({ key: "run:ci.yml:pr", at, bins: 2, runMs, overLimit: false });
+        const table = summarize([row(10 * MIN, "2026-10-22T01:00:00Z"), row(12.5 * MIN, "2026-10-23T01:00:00Z")]);
+        assert.deepEqual(table, [
+            {
+                key: "run:ci.yml:pr",
+                n: 2,
+                p50: 10,
+                p90: 12.5,
+                bins50: 2,
+                bins90: 2,
+                overLimit: 0,
+                from: "2026-10-22",
+                to: "2026-10-23",
+            },
+        ]);
+        const before = { version: 1, budgets: { "run:ci.yml:pr": { minutes: 20, owner: "pipeline" } } };
+        const after = applyBudgets(before, table);
+        assert.equal(before.budgets["run:ci.yml:pr"].minutes, 20, "the input is not changed");
+        assert.deepEqual(after.budgets["run:ci.yml:pr"], {
+            minutes: 13,
+            owner: "pipeline",
+            why: "light-check replay of 2 advisory records (2026-10-22 to 2026-10-23): p50 10 min, p90 12.5 min; table on #3418",
+        });
+    });
+});
+
+describe("the light check's plan (design/ci/channels-pipeline/merging.md section 4.1)", () => {
+    const MIN = 60_000;
+    const byName = (name) => SHARDS.find((s) => s.shard === name);
+    const sel = (shard, mode, files = []) => ({ shard, mode, files: files.map((file) => ({ file })), reasons: [] });
+    const many = (n) => Array.from({ length: n }, (_, i) => `graphty/src/t${i}.test.tsx`);
+
+    it("packs a one-package change into bins of at most 8 minutes, one vitest run of its files each", () => {
+        const app = many(10);
+        const shards = ["graphty-1", "graphty-2", "layout", "githerd"].map(byName);
+        const selection = [
+            sel("graphty-1", "files", app),
+            sel("graphty-2", "files", app),
+            sel("layout", "none"),
+            sel("githerd", "all"),
+        ];
+        const durations = { graphty: Object.fromEntries(app.map((f) => [f, 3 * MIN])) };
+        const out = lightPlan(ROOT, shards, selection, durations);
+        assert.deepEqual(out.whole, ["githerd"]);
+        assert.deepEqual(out.none, ["layout"]);
+        assert.deepEqual(
+            out.bins.map((b) => b.name),
+            ["graphty-1", "graphty-2", "graphty-3", "graphty-4", "graphty-5"],
+        );
+        assert.ok(
+            out.bins.every((b) => b.ms <= 8 * MIN),
+            "every bin is under 8 minutes",
+        );
+        assert.deepEqual(out.bins.flatMap((b) => b.files).sort(), [...app].sort(), "every file runs once");
+        for (const b of out.bins) {
+            assert.equal(b.shard, "graphty-1");
+            assert.doesNotMatch(b.command, /--coverage|--shard/u);
+            assert.ok(b.files.every((f) => b.command.includes(`'${f.slice("graphty/".length)}'`)));
+        }
+        const include = matrixPlan(["graphty"], ["graphty-1", "graphty-2"], out);
+        assert.deepEqual(
+            include.map((e) => e.shard).filter((s) => /^graphty-\d+$/u.test(s)),
+            ["graphty-1", "graphty-2", "graphty-3", "graphty-4", "graphty-5"],
+            "no slice the bins stand in for runs whole beside them",
+        );
+    });
+
+    it("runs a family whole when one of its shards runs whole", () => {
+        const shards = ["graphty-1", "graphty-2"].map(byName);
+        const whole = { ...sel("graphty-2", "all"), reasons: ["graphty/vite.config.ts changed"] };
+        const out = lightPlan(ROOT, shards, [sel("graphty-1", "files", many(2)), whole]);
+        // the files the import graphs selected stay touched for the pull request rules, though the family runs whole
+        // graphty-2 has no file-level answer, so every graphty file counts as touched
+        assert.deepEqual(out, {
+            bins: [],
+            whole: ["graphty-1", "graphty-2"],
+            none: [],
+            touched: [...many(2)].sort(),
+            unknown: ["graphty"],
+            why: {
+                graphty: {
+                    package: "graphty",
+                    shards: ["graphty-1", "graphty-2"],
+                    reasons: ["graphty/vite.config.ts changed"],
+                },
+            },
+        });
+    });
+
+    it("counts every file of a family touched when a shard runs whole on a file-level answer it does not rely on", () => {
+        const shards = ["graphty-1", "graphty-2"].map(byName);
+        const measured = (shard, why) => ({
+            ...sel(shard, "all"),
+            reasons: [why],
+            measured: { mode: "none", files: [], untrusted: true },
+        });
+        for (const why of ["a smoke pattern", "it runs a browser project, which runs whole (measured only)"]) {
+            const out = lightPlan(ROOT, shards, [measured("graphty-1", why), measured("graphty-2", why)]);
+            assert.deepEqual(out.unknown, ["graphty"], why);
+        }
+        // a trusted answer whose command only cannot be narrowed keeps its files
+        const trusted = { ...sel("graphty-1", "all"), measured: { mode: "none", files: [] } };
+        assert.deepEqual(lightPlan(ROOT, [byName("graphty-1")], [trusted]).unknown, []);
+    });
+
+    it("says in the job summary what each bin runs and why, what runs whole and why, and what runs nothing", () => {
+        const files = [
+            { file: "graphty/src/a.test.tsx", why: "imports graphty/src/a.ts" },
+            { file: "graphty/src/b.test.tsx", why: "changed" },
+        ];
+        const shards = ["graphty-1", "layout", "githerd"].map(byName);
+        const out = lightPlan(ROOT, shards, [
+            { shard: "graphty-1", mode: "files", files, reasons: [] },
+            sel("layout", "none"),
+            { ...sel("githerd", "all"), reasons: ["githerd/package.json changed"] },
+        ]);
+        assert.deepEqual(out.bins[0].why, {
+            "graphty/src/a.test.tsx": "imports graphty/src/a.ts",
+            "graphty/src/b.test.tsx": "changed",
+        });
+        const md = planSummary(out);
+        assert.match(md, /^### Light check: 1 test bins, 1 shards whole, 1 shards with nothing selected/u);
+        assert.match(md, /\*\*githerd\*\* runs whole: githerd\/package.json changed/u);
+        assert.match(md, /nothing selected, not run: layout/u);
+        assert.match(md, /graphty-1: 2 files/u);
+        assert.match(md, /`graphty\/src\/a.test.tsx`: imports graphty\/src\/a.ts/u);
+        assert.match(planSummary({ ...out, everything: "pnpm-lock.yaml changed" }), /runs whole: pnpm-lock.yaml/u);
+        const scoped = planSummary(out, ["graphty"]);
+        assert.match(
+            scoped,
+            /1 test bins, 0 shards whole/u,
+            "a whole shard of an unaffected package is not in the matrix",
+        );
+        assert.doesNotMatch(scoped, /githerd/u);
+        assert.match(
+            planSummary({ ...out, everything: "a <details> tag" }),
+            /a &lt;details&gt; tag/u,
+            "reasons are escaped",
+        );
+    });
+
+    it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {
+        const light = {
+            bins: [
+                {
+                    name: "graph-io-1",
+                    shard: "graph-io",
+                    files: ["graph-io/test/a.test.ts"],
+                    command: "cd graph-io && pnpm exec vitest run 'test/a.test.ts'",
+                },
+            ],
+            whole: ["graph-format"],
+            none: ["layout"],
+        };
+        const include = matrixPlan(["graph-io", "graph-format", "layout"], undefined, light);
+        assert.equal(
+            include.find((e) => e.shard === "graph-io"),
+            undefined,
+            "the binned shard does not run whole",
+        );
+        const bin = include.find((e) => e.shard === "graph-io-1");
+        assert.deepEqual(bin.files, ["graph-io/test/a.test.ts"]);
+        assert.equal(bin.coverage, undefined, "a bin uploads no coverage");
+        assert.equal(bin["needs-browser"], false);
+        assert.match(bin["test-command"], /^node tools\/results\/run-group\.mjs graph-io-1 'cd graph-io && /u);
+        const group = include.find((e) => e.shard === "small-node");
+        assert.match(group["test-command"], /graph-format/u, "a whole shard runs as today");
+        assert.doesNotMatch(group["test-command"], /==> layout/u, "a shard with nothing selected is left out");
+        assert.throws(
+            () => matrixPlan(["graph-io"], undefined, { bins: [{ name: "x-1", shard: "nope" }] }),
+            /names no shard/u,
+        );
+    });
+});
+
+describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md section 5)", () => {
+    const projects = JSON.parse(readFileSync(join(ROOT, "visual-review.config.json"), "utf8")).projects;
+    // every project as if proven, so these tests judge the selection itself
+    const stories = { ...loadRules(ROOT).stories, selectProjects: Object.keys(projects) };
+    const byName = (name) => SHARDS.find((s) => s.shard === name);
+    const shards = [
+        "graphty-storybook",
+        "graphty-1",
+        "layout",
+        "graph-io",
+        "graphty-element-storybook-1",
+        "graphty-element-storybook-2",
+    ].map(byName);
+    const pick = (selection, changed = [], extra = {}) =>
+        Object.fromEntries(
+            selectStories({
+                projects,
+                changed,
+                everything: null,
+                shards,
+                selection,
+                rules: stories,
+                lockMoved: false,
+                ...extra,
+            }).map((p) => [p.project, p]),
+        );
+    const sel = (shard, mode, files = []) => ({
+        shard,
+        mode,
+        files: files.map((file) => ({ file })),
+        reasons: [`${shard} ${mode}`],
+    });
+    const none = shards.map((s) => sel(s.shard, "none"));
+
+    it("runs the story files whose import closure reaches the change, from the storybook shards", () => {
+        const story = "graphty-element/stories/Basic.stories.ts";
+        const selection = [
+            ...none.filter((s) => !s.shard.startsWith("graphty-element-storybook")),
+            sel("graphty-element-storybook-1", "files", [story]),
+            sel("graphty-element-storybook-2", "files", [story]),
+        ];
+        const out = pick(selection, ["graphty-element/src/a.ts"]);
+        assert.equal(out["graphty-element"].mode, "files");
+        assert.deepEqual(out["graphty-element"].files, [story]);
+        assert.equal(out.graphty.mode, "none");
+        assert.equal(out.layout.mode, "none");
+    });
+
+    it("runs every story of a project with no story graph when a package that draws it is selected", () => {
+        const selection = none.map((s) => (s.shard === "graphty-element-storybook-1" ? sel(s.shard, "all") : s));
+        const out = pick(selection);
+        assert.equal(out["graph-io-fidelity"].mode, "all", "graph-io-fidelity draws with graphty-element");
+        assert.equal(out.layout.mode, "none");
+        assert.equal(
+            pick(none.map((s) => (s.shard === "layout" ? sel("layout", "files", ["layout/test/a.test.ts"]) : s))).layout
+                .mode,
+            "all",
+        );
+    });
+
+    it("runs no story for a change only to CI and tool files no story reads, proven project or not", () => {
+        const unproven = { ...stories, selectProjects: [] };
+        const ciOnly = [".github/workflows/release.yml", "tools/ci-workflows.test.mjs"];
+        const run = (changed, selection = none) =>
+            selectStories({
+                projects,
+                changed,
+                everything: null,
+                shards,
+                selection,
+                rules: unproven,
+                lockMoved: false,
+            });
+        assert.ok(run(ciOnly).every((p) => p.mode === "none"));
+        assert.ok(
+            run([...ciOnly, "graphty/src/App.tsx"]).every((p) => p.mode === "all"),
+            "a package file runs them",
+        );
+        assert.ok(
+            run(["tools/features-on.mjs"]).every((p) => p.mode === "all"),
+            "a tool a Storybook imports",
+        );
+        assert.ok(
+            run(["visual-review/capture/capture.mjs"]).every((p) => p.mode === "all"),
+            "the capture code",
+        );
+        const named = none.map((s) => (s.shard === "graphty-storybook" ? sel(s.shard, "all") : s));
+        assert.ok(
+            run(ciOnly, named).every((p) => p.mode === "none"),
+            "a test naming the file selects no story",
+        );
+        for (const job of [
+            ".github/workflows/ci.yml",
+            ".github/actions/playwright-system-deps/action.yml",
+            "tools/test-select.mjs",
+            "tools/ci-test-matrix.mjs",
+            "tools/results/run-group.mjs",
+        ]) {
+            assert.ok(
+                run([job]).every((p) => p.mode === "all"),
+                `${job} defines the Stories job, so it runs it`,
+            );
+        }
+        const baseline = run([...ciOnly, "visual-baselines/graphty/a--b.png"]);
+        assert.ok(
+            baseline.every((p) => p.mode === "all"),
+            "a baseline is not a CI file",
+        );
+    });
+
+    it("keeps every tools/ file a Storybook, story-test config or story code imports out of storyless", () => {
+        const storyless = loadRules(ROOT).stories.storyless;
+        // every file of a project's package that imports from tools/, but its tests and lint config: Storybook and vitest configs,
+        // stories and the code they draw
+        const dirs = Object.values(projects).map((cfg) => cfg.storybook.replace(/\/storybook-static$/u, ""));
+        const configs = execFileSync("git", ["grep", "-l", "-E", String.raw`from ['"](\.\./)+tools/`, "--", ...dirs], {
+            cwd: ROOT,
+            encoding: "utf8",
+        })
+            .split("\n")
+            .filter((f) => f && !/\.test\.|\/tests?\/|eslint\.config\./u.test(f));
+        const seen = new Set();
+        const walk = (file) => {
+            for (const [, spec] of readFileSync(join(ROOT, file), "utf8").matchAll(
+                /from\s+["'](\.{1,2}\/[^"']+)["']/gu,
+            )) {
+                const target = relative(ROOT, resolve(ROOT, dirname(file), spec));
+                if (target.startsWith("tools/") && !seen.has(target)) {
+                    seen.add(target);
+                    walk(target);
+                }
+            }
+        };
+        for (const f of ["vitest.shared.config.ts", ...configs]) walk(f);
+        assert.ok(seen.has("tools/test-slots.mjs"), "the walk finds the configs' tools");
+        assert.deepEqual(
+            [...seen].filter((f) => storyless.some((re) => re.test(f))),
+            [],
+        );
+    });
+
+    it("runs every story on a global input, the project's own Storybook setup, the theme or a lockfile move", () => {
+        assert.ok(Object.values(pick(none, ["visual-fonts/fonts.conf"])).every((p) => p.mode === "all"));
+        const own = pick(none, ["graphty/.storybook/preview.tsx"]);
+        assert.equal(own.graphty.mode, "all");
+        assert.equal(own["graphty-element"].mode, "none");
+        assert.equal(pick(none, ["graph-io/fidelity-stories/.storybook/main.ts"])["graph-io-fidelity"].mode, "all");
+        const theme = pick(none, ["compact-mantine/src/theme/tokens.ts"]);
+        assert.equal(theme.graphty.mode, "all");
+        assert.equal(theme.layout.mode, "none");
+        assert.ok(Object.values(pick(none, ["pnpm-lock.yaml"], { lockMoved: true })).every((p) => p.mode === "all"));
+        assert.ok(Object.values(pick(none, [], { everything: "nx.json" })).every((p) => p.mode === "all"));
+    });
+
+    it("runs every story of a project not yet proven by test-select-mutate --stories, on any change", () => {
+        assert.ok(Array.isArray(loadRules(ROOT).stories.selectProjects), "the rules list the proven projects");
+        const out = pick(none, ["graphty-element/src/a.ts"], { rules: { ...stories, selectProjects: ["layout"] } });
+        assert.equal(out.layout.mode, "none", "a proven project is selected as before");
+        assert.equal(out["graphty-element"].mode, "all");
+        assert.match(out["graphty-element"].reasons[0], /test-select-mutate --stories/u);
+        assert.equal(out.graphty.mode, "all", "even with nothing of it changed");
+    });
+
+    it("runs a story whose baseline changed", () => {
+        const out = pick(none, [
+            "visual-baselines/layout/layout-circular--default.png",
+            "visual-baselines/layout/x.json",
+        ]);
+        assert.deepEqual(out.layout.baselines, ["layout-circular--default"]);
+        assert.equal(out.layout.mode, "none");
+    });
+
+    it("counts a lockfile change as moving every picture only when it moves Playwright, Storybook, Vitest or a font", () => {
+        const lock = (pkgs) =>
+            `lockfileVersion: '9.0'\n\npackages:\n\n${pkgs.map((p) => `  ${p}:\n    resolution: {integrity: x}\n`).join("\n")}`;
+        const re = stories.lockfile;
+        assert.equal(
+            lockMoves(lock(["lodash@4.17.20", "vitest@3.2.3"]), lock(["lodash@4.17.21", "vitest@3.2.3"]), re),
+            false,
+        );
+        assert.equal(lockMoves(lock(["vitest@3.2.3"]), lock(["vitest@3.2.4"]), re), true);
+        assert.equal(lockMoves(lock(["a@1.0.0"]), lock(["a@1.0.0", "'@playwright/test@1.56.0'"]), re), true);
+        assert.equal(lockMoves(null, lock([]), re), true, "an unreadable lockfile counts as moved");
+    });
+});
+
+describe("the import graphs' cache key", () => {
+    it("follows the packages, root configs and lockfile, not the commit", () => {
+        const repo = mkdtempSync(join(ROOT, "tmp", "graph-key-"));
+        try {
+            const git = (...a) =>
+                execFileSync("git", a, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+            git("init", "-q");
+            git("config", "commit.gpgsign", "false");
+            for (const [f, t] of [
+                ["pkg/a.ts", "1"],
+                ["pnpm-lock.yaml", "a"],
+                ["docs/x.md", "x"],
+                ["README.md", "r"],
+                ["tools/test-select.mjs", ""],
+                ["tools/test-select-rules.json", "{}"],
+            ]) {
+                mkdirSync(dirname(join(repo, f)), { recursive: true });
+                writeFileSync(join(repo, f), t);
+            }
+            const commit = () => git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "c", "--no-verify");
+            git("add", ".");
+            commit();
+            const k1 = graphCacheKey(repo, ["pkg"]);
+            writeFileSync(join(repo, "docs/x.md"), "y");
+            writeFileSync(join(repo, "README.md"), "s");
+            commit();
+            assert.equal(graphCacheKey(repo, ["pkg"]), k1, "docs and a new commit keep the key");
+            writeFileSync(join(repo, "pnpm-lock.yaml"), "b");
+            commit();
+            const k2 = graphCacheKey(repo, ["pkg"]);
+            assert.notEqual(k2, k1, "the lockfile is a graph input");
+            writeFileSync(join(repo, "pkg/a.ts"), "2");
+            commit();
+            assert.notEqual(graphCacheKey(repo, ["pkg"]), k2, "a package's tree is a graph input");
+        } finally {
+            rmSync(repo, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("the light check's story bins (merging.md section 4.1, #3443 part b)", () => {
+    const projects = {
+        "graphty-element": { storybook: "graphty-element/storybook-static" },
+        layout: { storybook: "layout/storybook-static" },
+        "graph-io-fidelity": { storybook: "graph-io/fidelity-stories/storybook-static" },
+        graphty: { storybook: "graphty/storybook-static" },
+    };
+    const entry = (project, mode, files = [], baselines = []) => ({ project, mode, files, baselines, reasons: [] });
+    const list = (dir) =>
+        ({
+            layout: ["layout/stories/A.stories.ts", "layout/stories/helpers.ts", "layout/src/x.ts"],
+            "graph-io/fidelity-stories": ["graph-io/fidelity-stories/F.stories.tsx"],
+        })[dir] ?? [];
+
+    it("packs selected story files into bins of at most 4 minutes by their storybook family's times", () => {
+        const files = ["graphty-element/stories/A.stories.ts", "graphty-element/stories/B.stories.ts"];
+        const durations = {
+            "graphty-element-storybook": {
+                "graphty-element/stories/A.stories.ts": 300_000,
+                "graphty-element/stories/B.stories.ts": 300_000,
+            },
+        };
+        const bins = storyBins([entry("graphty-element", "files", files)], projects, list, durations);
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files, b.ms]),
+            [
+                ["graphty-element-1", ["graphty-element/stories/A.stories.ts"], 300_000],
+                ["graphty-element-2", ["graphty-element/stories/B.stories.ts"], 300_000],
+            ],
+        );
+        assert.ok(bins.every((b) => b.storybook === "graphty-element/storybook-static"));
+    });
+
+    it("splits a story file longer than a bin into parts by story, so no bin is the long pole", () => {
+        const slow = "graphty/src/workspace/start/StartScreen.stories.tsx";
+        const other = "graphty/src/workspace/Other.stories.tsx";
+        const bins = storyBins([entry("graphty", "files", [slow, other])], projects, list, {}, (f) =>
+            f === slow ? 12 : 3,
+        );
+        const parts = bins.flatMap((b) => b.files).filter((f) => f.startsWith(`${slow}#`));
+        const n = Math.ceil((12 * STORY_FILE_MS[slow]) / STORY_BIN_LIMIT_MS);
+        assert.ok(n > 1, "the Start screen is longer than one bin");
+        assert.deepEqual(parts.sort(), Array.from({ length: n }, (_, i) => `${slow}#${i + 1}/${n}`).sort());
+        assert.ok(
+            bins.every((b) => b.ms <= STORY_BIN_LIMIT_MS),
+            "every bin fits",
+        );
+        assert.ok(bins.flatMap((b) => b.files).includes(other), "a short file stays whole");
+    });
+
+    it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {
+        const files = Array.from({ length: 5 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
+        const perFile = 20 * STORY_MS["graph-io-fidelity"];
+        const bins = storyBins(
+            [entry("graph-io-fidelity", "files", files)],
+            projects,
+            list,
+            { "graph-io-storybook": { [files[0]]: 1_000 } },
+            () => 20,
+        );
+        // 20 stories a file: two files fit in 4 minutes, a third starts the next bin
+        assert.ok(2 * perFile <= STORY_BIN_LIMIT_MS && 3 * perFile > STORY_BIN_LIMIT_MS);
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files.length, b.ms]),
+            [
+                ["graph-io-fidelity-1", 2, 2 * perFile],
+                ["graph-io-fidelity-2", 2, 2 * perFile],
+                ["graph-io-fidelity-3", 1, perFile],
+            ],
+        );
+    });
+
+    it("counts a story file's capitalized exports as its stories, at least one", () => {
+        const src =
+            "export default meta;\nexport const One = {};\nexport const Two: Story = {};\nexport const helper = 1;\n";
+        assert.equal(storyCount(src), 2);
+        assert.equal(storyCount("export default {};\n"), 1);
+    });
+
+    it("bins every story file of a project selected whole, and nothing for one selected none", () => {
+        const bins = storyBins(
+            [entry("layout", "all"), entry("graph-io-fidelity", "all"), entry("graphty-element", "none")],
+            projects,
+            list,
+        );
+        assert.deepEqual(
+            bins.map((b) => [b.name, b.files]),
+            [
+                ["layout-1", ["layout/stories/A.stories.ts"]],
+                ["graph-io-fidelity-1", ["graph-io/fidelity-stories/F.stories.tsx"]],
+            ],
+        );
+    });
+
+    it("captures a story whose baseline changed even when no file selects it", () => {
+        const bins = storyBins([entry("graphty-element", "none", [], ["a--one"])], projects, list);
+        assert.deepEqual(bins, [
+            {
+                name: "graphty-element-1",
+                project: "graphty-element",
+                storybook: "graphty-element/storybook-static",
+                files: [],
+                ids: ["a--one"],
+                ms: 0,
+            },
+        ]);
     });
 });

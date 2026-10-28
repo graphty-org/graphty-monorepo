@@ -45,9 +45,10 @@ async function warningsFor(
     const { lossNotes } = await element.exportGraph(format, options);
     assert.isNotEmpty(lossNotes, `${format} reports what it cannot hold`);
     const note = await within(dialog).findByRole("note", {});
+    // Each row's words; its column and count chips name the file's own columns.
     const lines = within(note)
         .getAllByRole("listitem")
-        .map((item) => item.textContent);
+        .map((item) => item.querySelector("span")?.textContent ?? "");
     const text = dialog.textContent;
     for (const { message } of lossNotes) {
         assert.notInclude(text, message, "the element's own sentence never reaches the screen");
@@ -78,11 +79,14 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
         await userEvent.click(within(dialog).getByText("Data"));
 
         await pick(dialog, "Format", "CSV");
+        await pick(dialog, "Table", "Edges");
         const edges = await warningsFor(dialog, element, "csv", { table: "edges" });
-        // Include Styles is on: the styles go along as each element's values, and say so.
-        assert.include(edges, "1 style rule is written as each element's values, not as rules.");
-        assert.isTrue(
-            edges.some((line) => line.startsWith("This table has no room for values about nodes:")),
+        // Include Styles is on: the styles go along as each element's values, and say so. The
+        // data prototype's compact rows: a few words, the columns and counts as chips.
+        assert.include(edges, "Style rules written as values");
+        assert.include(
+            edges,
+            "Nodes table only",
             `the edge table names what is in the Nodes table: ${edges.join(" | ")}`,
         );
         // Node colors and edge colors say the same thing in words: one line, not two.

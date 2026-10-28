@@ -17,6 +17,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
+import { addStepCondition } from "../../data-place/__tests__/stepCards";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -228,8 +229,7 @@ describe("the app's lists", () => {
             session.data.addNodes(names.map((name, i) => ({ id: `n${String(i)}`, name }))),
         );
         await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }));
-        await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
-        await userEvent.click(await screen.findByRole("option", { name: "name" }));
+        await addStepCondition("name");
         const is = await screen.findByRole("combobox", { name: "name: text to match" });
         await userEvent.type(is, "Mme");
         await waitFor(() => {

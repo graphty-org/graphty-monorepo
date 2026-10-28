@@ -7,6 +7,7 @@
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { pickSample } from "../../../test/samples-dialog";
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
@@ -59,7 +60,7 @@ describe("the workspace frame", () => {
         renderWorkspace();
 
         assert.isNull(screen.queryByRole("banner", { name: "Project" }));
-        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        await pickSample("Florentine families");
 
         assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Places" }));
@@ -69,7 +70,16 @@ describe("the workspace frame", () => {
     it("draws every region", () => {
         renderWorkspace(OPEN);
 
-        assert.isNotNull(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        // The privacy chip reports state, so it sits in the status bar along the bottom, not the header.
+        const bar = screen.getByRole("contentinfo", { name: "Status" });
+        assert.isNotNull(within(bar).getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        assert.isNull(
+            within(screen.getByRole("banner", { name: "Project" })).queryByRole("button", {
+                name: /^(Local only|Usage data on, content masked)$/,
+            }),
+        );
+        const frame = document.querySelector(".ws-app");
+        assert.strictEqual(frame?.lastElementChild, bar, "the bar is the frame's bottom row");
         assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
         assert.isNotNull(document.querySelector('[data-element-host="loading"]'));
         // The one main landmark needs no name, so the rail's Graph button is the only "Graph".
@@ -199,23 +209,6 @@ describe("the workspace frame", () => {
         await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
         assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
         assert.isNull(screen.queryByRole("menu"));
-    });
-
-    it("draws the start screen's shorter menu, without the rows that need a project", async () => {
-        renderWorkspace();
-
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        const rows = within(await screen.findByRole("menu"))
-            .getAllByRole("menuitem")
-            .map(rowLabel);
-        assert.deepEqual(rows, [
-            "New project",
-            "Open project or file...",
-            "Open sample",
-            "Settings...",
-            "Keyboard shortcuts",
-            "Help",
-        ]);
     });
 
     it("shows a disabled command with its reason and keeps it focusable", async () => {

@@ -129,6 +129,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "nodeId",
     "edgeId",
     "runId",
+    // the credential slot a source load filled, as the project file names it (PendingSourceLoad)
+    "credentialSlot",
     "field",
     "column",
     // the column a load read (the weight's attribute, the columns an edge's ends came from)
@@ -165,6 +167,11 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "text",
     // a BCP 47 locale tag the consumer chose to print numbers in (BindingNumberFormat.locale)
     "locale",
+    // the names of the consumer's columns the location map reads (LocationColumns)
+    "location",
+    "latitude",
+    "longitude",
+    "within",
 ]);
 
 const DECLARATION =
@@ -253,6 +260,13 @@ export function sessionReachable(declarations) {
 }
 
 /**
+ * Types whose every plain string property is a column name of the consumer's table, whatever the
+ * property is called: a table's column roles (TableMapping, where `kind` names the column holding
+ * each row's kind) and a join key's incoming column (JoinKey.file).
+ */
+const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
+
+/**
  * Whether a result type may hold a plain string under this property name.
  * @param type - the declaring type's name
  * @param property - the property's name
@@ -260,6 +274,7 @@ export function sessionReachable(declarations) {
  */
 function allowedPlainString(type, property) {
     if (PLAIN_STRING_ALLOWLIST.has(property) || /[a-z](Id|Key)$/.test(property)) return true;
+    if (COLUMN_NAME_TYPES.has(type)) return true;
     // catalog descriptions describe the thing registered, not the consumer's graph (#1604)
     return property === "description" && type.endsWith("Descriptor");
 }

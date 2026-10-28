@@ -6,14 +6,10 @@
  * - a graph opened (a sample, a recent project): the graph's heading in the inspector, which says
  *   its name and size, once it is read (never the drawing's outline, never a pinned layer row); the
  *   style tree's Tab stop is then Everything;
- * - Tab past the start screen's last control, or Shift+Tab before its first: the other end;
- * - the usage data card answered: Open a file, the first way in;
  * - a file refused: Open a file, beside the reason that stays;
  * - Escape from a dialog opened from the drawing: the drawing again;
- * - a Recent projects row removed: the row now in its place, or Open a file;
- * - Open a file with a data file (the start screen goes): the Data page's Load, never the rail,
- *   with what it will make as its description; Load (the Data page goes): the graph's heading;
- *   Cancel: Open a file again;
+ * - Open a file with a data file (the start screen goes, the graph is drawn at once): the graph's
+ *   heading, never the rail;
  * - the table closed, or a notice closed from inside it: the drawing.
  */
 
@@ -23,12 +19,11 @@ import "@graphty/graphty-element";
 import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { userEvent as realKeys } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { forgetUsageAnswer } from "../../privacy/usageData";
-import { clearRecent, refreshStored, rememberRecent } from "../../project/recent";
+import { clearRecent, refreshStored } from "../../project/recent";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -83,19 +78,6 @@ function assertFocusOnGraphHeading(nodes: number, edges: number): void {
 }
 
 /**
- * The text an element's description names (`aria-describedby`).
- * @param element - the element.
- * @returns the words.
- */
-function describedBy(element: Element): string {
-    return (element.getAttribute("aria-describedby") ?? "")
-        .split(" ")
-        .map((id) => document.getElementById(id)?.textContent ?? "")
-        .join(" ")
-        .trim();
-}
-
-/**
  * The start screen's first way in.
  * @returns Open a file
  */
@@ -126,37 +108,12 @@ describe("focus after the control holding it goes away, on the real element", ()
     it("a sample opened with Enter hands focus to the graph's heading, which says its size", async () => {
         const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
         const sample = screen.getByRole("button", { name: "Open the Florentine families sample" });
-        // The tile's size line is the button's description.
-        assert.include(describedBy(sample), "15 nodes");
         sample.focus();
         await userEvent.keyboard("{Enter}");
         const { session } = await loaded(15);
         await waitFor(() => {
             assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
         });
-        unmount();
-    });
-
-    it("Tab and Shift+Tab round the start screen, never to the page", async () => {
-        forgetUsageAnswer();
-        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-        const menu = screen.getByRole("button", { name: "Main menu" });
-        menu.focus();
-        await realKeys.keyboard("{Shift>}{Tab}{/Shift}");
-        assert.notStrictEqual(document.activeElement, document.body, "Shift+Tab dropped focus to the page");
-        assert.notStrictEqual(document.activeElement, menu);
-        await realKeys.keyboard("{Tab}");
-        assert.strictEqual(document.activeElement, menu, "Tab from the last control comes back round");
-        unmount();
-    });
-
-    it("No thanks on the usage data card hands focus to Open a file", async () => {
-        forgetUsageAnswer();
-        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-        screen.getByRole("button", { name: "No thanks" }).focus();
-        await userEvent.keyboard("{Enter}");
-        assert.isNull(screen.queryByRole("button", { name: "No thanks" }));
-        assert.strictEqual(document.activeElement, openButton());
         unmount();
     });
 
@@ -226,53 +183,7 @@ describe("focus after the control holding it goes away, on the real element", ()
         });
         unmount();
     });
-    it("removing Recent projects rows hands focus to the row now in its place, then to Open a file", async () => {
-        for (const [i, name] of ["Older file", "Newer file"].entries()) {
-            await rememberRecent({ id: name, name, nodes: 10, at: 1000 + i });
-        }
-        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-        for (const name of ["Newer file", "Older file"]) {
-            const more = await screen.findByRole("button", { name: `More for ${name}` });
-            more.focus();
-            await userEvent.keyboard("{Enter}");
-            (await screen.findByRole("menuitem", { name: "Remove from list" })).focus();
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("gridcell", { name: new RegExp(`^${name}`) }));
-            });
-            await waitFor(() => {
-                const expected =
-                    name === "Newer file" ? screen.getByRole("gridcell", { name: /^Older file/ }) : openButton();
-                assert.strictEqual(document.activeElement, expected, `after removing ${name}`);
-            });
-        }
-        unmount();
-    });
-
-    it("removing a project kept in this browser, after its question, hands focus on too", async () => {
-        const first = render(<Workspace store={createWorkspaceStore()} />);
-        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-        const { session } = await loaded(15);
-        await browserProjects.save(session);
-        await refreshStored();
-        first.unmount();
-
-        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-        (await screen.findByRole("button", { name: /^More for / })).focus();
-        await userEvent.keyboard("{Enter}");
-        (await screen.findByRole("menuitem", { name: "Remove from this browser" })).focus();
-        await userEvent.keyboard("{Enter}");
-        const dialog = await screen.findByRole("dialog");
-        within(dialog).getByRole("button", { name: "Remove" }).focus();
-        await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog"));
-            assert.strictEqual(document.activeElement, openButton());
-        });
-        unmount();
-    });
-
-    it("Open a file with a data file hands focus to Load on the Data page, and Load to the graph's heading", async () => {
+    it("Open a file with a data file draws it and hands focus to the graph's heading", async () => {
         const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
         // Every control focus reaches from here on: never the rail, while the file is read.
         const reached: Element[] = [];
@@ -283,21 +194,13 @@ describe("focus after the control holding it goes away, on the real element", ()
         };
         document.addEventListener("focusin", onFocusIn);
 
-        // The file is read with focus on Load, which says what it will make; Load takes the
-        // Data page away: focus goes to the graph's heading.
+        // The file is drawn at once (the data prototype's first load), and the start screen goes:
+        // focus goes to the graph's heading.
         chooseCsv();
         openButton().focus();
         await userEvent.keyboard("{Enter}");
-        const load = await screen.findByRole("button", { name: "Load" });
-        await waitFor(() => {
-            assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
-            assert.strictEqual(document.activeElement, load);
-        });
-        assert.include(describedBy(load), "abc: 3 nodes, 2 edges");
-        await userEvent.keyboard("{Enter}");
         await loaded(3);
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "Data page" }));
             assertFocusOnGraphHeading(3, 2);
         });
         document.removeEventListener("focusin", onFocusIn);
@@ -307,20 +210,6 @@ describe("focus after the control holding it goes away, on the real element", ()
             ),
             "focus passed the rail or a layer row",
         );
-        unmount();
-    });
-
-    it("Cancel on the Data page opened by Open a file hands focus back to Open a file", async () => {
-        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-        chooseCsv();
-        openButton().focus();
-        await userEvent.keyboard("{Enter}");
-        // A chosen file keeps the page open on Esc (DataPage.tsx), so Cancel is the way out.
-        (await screen.findByRole("button", { name: "Cancel" })).focus();
-        await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, openButton());
-        });
         unmount();
     });
 

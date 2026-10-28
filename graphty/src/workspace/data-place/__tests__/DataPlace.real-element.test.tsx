@@ -1,43 +1,30 @@
 /**
- * The Data place on the REAL graphty-element: what it lists is what the element reports
- * (`data.source()`, `data.lastImport()`, `data.attributes()`), it follows undo, and its menus act
- * through the element. Every assertion reads the element or the chrome store, never pixels.
+ * The Data place's left sidebar on the REAL graphty-element: Sources rows with node and edge
+ * chips and their menu, the Fields dropdowns (each change one undo step the element records), the
+ * kinds of an event table's two ends, and the Data source condition that appears with a second
+ * source. Every change is made by real input; every assertion reads the element or what is drawn.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession, Layer } from "@graphty/graphty-element/session";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import type { WorkspaceRegistration } from "../../commands/registry";
-import { REGISTRATIONS } from "../../registrations";
-import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { GRAPH_FILE_GML, WIDE_JSON } from "../fixtures";
-
-/**
- * Every registration with the Table dock's commands built, so the attribute menus offer Show in
- * table whether or not the Table dock package has replaced its stubs yet.
- */
-const TABLE_BUILT: readonly WorkspaceRegistration[] = REGISTRATIONS.map((registration) =>
-    registration.owner === "table"
-        ? { ...registration, commands: registration.commands.map((command) => ({ ...command, stub: false })) }
-        : registration,
-);
+import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
+import { addStepCondition } from "./stepCards";
 
 /**
  * Renders the workspace on the Data place with a project open and waits for the session.
- * @param registrations - the registrations; every package's by default.
- * @returns the session and the chrome store.
+ * @returns the session.
  */
-async function openDataPlace(
-    registrations: readonly WorkspaceRegistration[] = REGISTRATIONS,
-): Promise<{ session: GraphSession; store: WorkspaceStore }> {
-    const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
-    render(<Workspace store={store} registrations={registrations} />);
+async function openDataPlace(): Promise<GraphSession> {
+    const store = createWorkspaceStore({ project: { name: "Auth", id: 1 }, place: "data" });
+    render(<Workspace store={store} />);
     let session: GraphSession | undefined;
     await waitFor(() => {
         session = document.querySelector("graphty-element")?.session;
@@ -46,324 +33,369 @@ async function openDataPlace(
     if (session === undefined) {
         throw new Error("the element never came up");
     }
-    return { session, store };
+    return session;
 }
 
 /**
- * Imports the small graph file through the element's own import.
+ * Drops files as the browser does, on the window. A synthetic DragEvent, the one exception to
+ * real input here: a page cannot start a drag of a file from the operating system.
+ * @param files - the files.
+ */
+function drop(...files: File[]): void {
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+        dataTransfer.items.add(file);
+    }
+    for (const type of ["dragover", "drop"]) {
+        globalThis.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
+}
+
+/**
+ * Queries inside the Data place: a maximized table dock shows another Sources list and Fields
+ * section beside the table.
+ * @returns the queries.
+ */
+const place = (): ReturnType<typeof within> => within(screen.getByRole("region", { name: "Data place" }));
+
+/**
+ * The Data place's Fields section.
+ * @returns the section.
+ */
+const fieldsGroup = (): HTMLElement => place().getByRole("group", { name: "Fields" });
+
+/**
+ * Picks an option of a Fields dropdown by clicking it open and clicking the option.
+ * @param label - the dropdown's label.
+ * @param option - the option's text.
+ */
+async function pick(label: string, option: string): Promise<void> {
+    await userEvent.click(within(fieldsGroup()).getByRole("combobox", { name: label }));
+    await userEvent.click(await screen.findByRole("option", { name: option }));
+}
+
+/**
+ * The value a Fields dropdown shows.
+ * @param label - the dropdown's label.
+ * @returns its text.
+ */
+const shown = (label: string): string =>
+    within(fieldsGroup()).getByRole<HTMLInputElement>("combobox", { name: label }).value;
+
+/**
+ * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the list that
+ * opens.
+ * @param side - node or edge.
+ * @param kind - the kind of field, as "+" lists it.
+ * @param column - the column.
+ */
+async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
+    await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} fields` }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
+    await userEvent.click(await screen.findByRole("option", { name: column }));
+}
+
+/**
+ * Drops the auth log, whose ends the element cannot find from its values, and reads it as edges
+ * from user to host in Fields, as a reader does.
  * @param session - the session.
  */
-async function importGraphFile(session: GraphSession): Promise<void> {
-    await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: GRAPH_FILE_GML } });
+async function loadLog(session: GraphSession): Promise<void> {
+    drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
+    await waitFor(() => {
+        assert.equal(shown("Rows are"), "edges");
+    });
+    await pick("Source", "user");
+    await pick("Target", "host");
+    await waitFor(() => {
+        assert.lengthOf(session.data.edges(), 4);
+        assert.equal(shown("Source"), "user");
+    });
 }
 
-/**
- * The tree with this name.
- * @param name - "Sources" or "Attributes".
- * @returns the tree.
- */
-const tree = (name: string): HTMLElement => screen.getByRole("tree", { name });
-
-/**
- * A row's accessible description: the text its aria-describedby names.
- * @param row - the tree row.
- * @returns the description, or null.
- */
-const describedBy = (row: HTMLElement): string | null =>
-    document.getElementById(row.getAttribute("aria-describedby") ?? "")?.textContent ?? null;
-
-/**
- * Opens a row's context menu from the keyboard, as a reader without a mouse would.
- * @param row - the tree row.
- * @returns the menu.
- */
-async function menuOf(row: HTMLElement): Promise<HTMLElement> {
-    row.focus();
-    await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-    return screen.findByRole("menu");
-}
-
-describe("the Data place on the real element", () => {
+describe("the Data place's sidebar on the real element", () => {
     beforeAll(async () => {
-        await page.viewport(1366, 768);
+        await page.viewport(1366, 900);
     });
 
-    it("lists the graph file as one source holding a node table and an edge table, and follows undo", async () => {
-        const { session } = await openDataPlace();
-        const place = screen.getByRole("region", { name: "Data place" });
-        assert.isNotNull(within(place).getByRole("heading", { name: "Les Miserables" }));
-        // Nothing loaded: no source rows.
-        assert.isNull(within(place).queryByRole("tree", { name: "Sources" }));
+    it("lists a source with its chips, its special fields, and no list of other fields", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
 
-        await importGraphFile(session);
-
-        const file = await within(place).findByRole("treeitem", { name: "les-miserables.gml" });
-        const { counts } = session.data.lastImport() ?? assert.fail("no import report");
-        assert.include(file.textContent, `${String(counts.nodes)} nodes, ${String(counts.edges)} edges`);
-        const nodes = within(tree("Sources")).getByRole("treeitem", { name: "Node table" });
-        const quiet = `${String(counts.nodeRecords)} rows, ${String(counts.nodes)} nodes`;
-        assert.include(nodes.textContent, quiet);
-        // The quiet line reaches a screen reader too.
-        assert.equal(describedBy(nodes), quiet);
-        assert.isNotNull(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
-
-        await session.undo();
+        const row = await place().findByRole("listitem", { name: "auth-log.csv" });
+        const [source] = session.data.sources();
+        assert.include(row.textContent, `Node ${String(source.counts.nodes)}`);
+        assert.include(row.textContent, `Edge ${String(source.counts.edges)}`);
         await waitFor(() => {
-            assert.isNull(within(place).queryByRole("tree", { name: "Sources" }));
+            assert.equal(shown("Source"), "user");
+            assert.equal(shown("Target"), "host");
+        });
+        // The kinds of the ends are not set, so they are not listed: "+" offers them.
+        assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Kind of source" }));
+        assert.isNull(screen.queryByRole("tree", { name: "Attributes" }));
+        // The section names the load it edits, and shows only that load's edge rows, under an edge chip.
+        const fields = fieldsGroup();
+        assert.include(fields.textContent, "auth-log.csv");
+        assert.isNotNull(fields.querySelector('[data-kind="edge"]'));
+        assert.isNull(fields.querySelector('[data-kind="node"]'));
+        within(fields).getByRole("button", { name: "Add to edge fields" });
+        assert.isNull(within(fields).queryByRole("button", { name: "Add to node fields" }));
+    });
+
+    it("reads an event table as nodes until the reader says its rows are edges, one undo step", async () => {
+        const session = await openDataPlace();
+        drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
+        await waitFor(() => {
+            assert.equal(shown("Rows are"), "edges");
+            assert.lengthOf(session.data.edges(), 0);
+        });
+        // Back to nodes: the node rows, with no ends to pick.
+        await pick("Rows are", "nodes");
+        await waitFor(() => {
+            assert.equal(shown("Rows are"), "nodes");
+            within(fieldsGroup()).getByRole("button", { name: "Add to node fields" });
+        });
+        assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Source" }));
+
+        await pick("Rows are", "edges");
+        const before = session.history.steps.length;
+        await pick("Source", "user");
+        // One end is held; nothing is read again yet.
+        assert.lengthOf(session.data.edges(), 0);
+        await pick("Target", "host");
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 4);
+            assert.equal(session.history.steps.length, before + 1);
+            assert.equal(shown("Rows are"), "edges");
+        });
+
+        await pick("Rows are", "nodes");
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 0);
         });
     });
 
-    it("lists every attribute the element describes, with its fill when some elements lack a value", async () => {
-        const { session } = await openDataPlace();
-        await importGraphFile(session);
-
-        const attributes = await screen.findByRole("tree", { name: "Attributes" });
-        for (const a of session.data.attributes()) {
-            const row = within(attributes).getByRole("treeitem", { name: `${a.name}, ${a.kind} attribute` });
-            if (a.completeness < 1) {
-                const fill = `${String(Math.floor(a.completeness * 100))}%`;
-                assert.include(row.textContent, fill, a.name);
-                assert.include(describedBy(row), fill, a.name);
+    it("reads an event table as edges from two node columns' Role menus", async () => {
+        const session = await openDataPlace();
+        drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
+        const header = async (name: string): Promise<HTMLElement> => {
+            const label = (await screen.findAllByTestId("data-table-header-label", {})).find(
+                (each) => each.textContent === name,
+            );
+            const cell = label?.closest<HTMLElement>('[data-testid="data-table-header"]');
+            if (cell === null || cell === undefined) {
+                throw new Error(`no header ${name}`);
             }
+            return cell;
+        };
+        for (const [column, role] of [
+            ["user", "Source"],
+            ["host", "Target"],
+        ]) {
+            await userEvent.click(within(await header(column)).getByRole("button", { name: `Options for ${column}` }));
+            await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+            await userEvent.click(await screen.findByRole("menuitemradio", { name: role }));
         }
-        const born = session.data.attributes().find((a) => a.kind === "node" && a.name === "born");
-        assert.equal(born?.completeness, 0.25);
-        // Subheads in the design's order.
-        assert.deepEqual(
-            within(attributes)
-                .getAllByRole("treeitem")
-                .filter((row) => row.getAttribute("aria-level") === "1")
-                .map((row) => row.getAttribute("aria-label")),
-            ["Node attributes", "Edge attributes"],
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 4);
+        });
+    });
+
+    it("offers only number columns as the weight", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge fields" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
+        const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+        assert.includeMembers(options, ["time", "bytes"]);
+        assert.notInclude(options, "user");
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("names a two-file drop after both files", async () => {
+        const session = await openDataPlace();
+        drop(
+            new File([HOSTS_CSV], "hosts.csv"),
+            new File(["source,target\nweb1,db1\n"], "logins.csv"),
+            new File(["x"], "extra.csv"),
         );
-        // No two rows of the place share an accessible name (section 4).
-        const names = within(screen.getByRole("region", { name: "Data place" }))
-            .getAllByRole("treeitem")
-            .map((row) => row.getAttribute("aria-label"));
-        assert.equal(new Set(names).size, names.length, names.join(" | "));
-    });
-
-    it("opens an attribute's inspector on a click, and Edit source... opens the Data page", async () => {
-        const { session, store } = await openDataPlace();
-        await importGraphFile(session);
-
-        await userEvent.click(await screen.findByRole("treeitem", { name: "group, node attribute" }));
-        // The id is the attribute's path, as the inspector and the Style tab read it.
-        assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.group" });
+        await screen.findByText("Not added: extra.csv", {});
         await waitFor(() => {
-            const row = within(tree("Attributes")).getByRole("treeitem", { name: "group, node attribute" });
-            assert.equal(row.getAttribute("aria-selected"), "true", "the open attribute's row stays selected");
-        });
-        // A click on the fill's second line is a click on the row.
-        await userEvent.click(within(tree("Attributes")).getByText(/25% have a value$/));
-        assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.born" });
-
-        const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
-        // Rename waits for the element (#894). One load of one file can be replaced.
-        assert.deepEqual(
-            within(menu)
-                .getAllByRole("menuitem")
-                .map((item) => item.textContent),
-            ["Edit source...", "Replace with file..."],
-        );
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
-        assert.equal(store.get().page, "data-page");
-    });
-
-    it("gives the source's inspector a \"...\" holding the row menu's verbs, and none on two loads", async () => {
-        const { session, store } = await openDataPlace();
-        await importGraphFile(session);
-
-        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
-        assert.equal(store.get().inspected?.kind, "source");
-        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
-        const menu = await screen.findByRole("menu");
-        assert.deepEqual(
-            within(menu)
-                .getAllByRole("menuitem")
-                .map((item) => item.textContent),
-            ["Edit source...", "Replace with file..."],
-        );
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
-        assert.equal(store.get().page, "data-page");
-
-        // A second load: neither verb can replace one source among two, so neither menu holds any.
-        store.set({ page: "panels", place: "data" });
-        await session.data.import(
-            { type: "gml", name: "second.gml", config: { data: GRAPH_FILE_GML } },
-            { mode: "merge" },
-        );
-        await waitFor(() => {
-            assert.equal(within(tree("Sources")).getAllByRole("treeitem", { name: /\.gml$/ }).length, 2);
-        });
-        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "second.gml" }));
-        assert.equal(store.get().inspected?.kind, "source");
-        assert.isNull(screen.queryByRole("button", { name: "Source actions" }));
-    });
-
-    it("shows a clicked source table in the table dock on its tab, never the Data page", async () => {
-        const { session, store } = await openDataPlace(TABLE_BUILT);
-        await importGraphFile(session);
-
-        await userEvent.click(await screen.findByRole("treeitem", { name: "Edge table" }));
-        assert.equal(store.get().page, "panels");
-        assert.isTrue(store.get().dockOpen);
-        await waitFor(() => {
-            const edges = screen.getByRole("tab", { name: "Edges" });
-            assert.equal(edges.getAttribute("aria-selected"), "true");
-        });
-
-        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Node table" }));
-        await waitFor(() => {
-            const nodes = screen.getByRole("tab", { name: "Nodes" });
-            assert.equal(nodes.getAttribute("aria-selected"), "true");
-        });
-        assert.equal(store.get().page, "panels");
-    });
-
-    it("opens the edge table when the source row of an edge list, which has no children, is clicked", async () => {
-        const { session, store } = await openDataPlace(TABLE_BUILT);
-        // A dropped edge list, opened as the start page opens it.
-        const csv = "source,target,weight\nAva,Ben,3\nBen,Cy,5\nCy,Ava,1\n";
-        const opened = await session.project.open(new File([csv], "friends.csv"), { fileName: "friends.csv" });
-        await opened.draft?.load({ mode: "replace" });
-        assert.isFalse(store.get().dockOpen);
-
-        const row = await screen.findByRole("treeitem", { name: "friends.csv" });
-        assert.isNull(row.getAttribute("aria-expanded"), "a single-table source has nothing to expand");
-        await userEvent.click(row);
-        assert.isTrue(store.get().dockOpen);
-        assert.equal(store.get().dockTab, "edges");
-        await waitFor(() => {
-            assert.equal(screen.getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+            assert.equal(session.data.sources()[0]?.name, "hosts.csv + logins.csv");
         });
     });
 
-    it("Add label line binds Everything's node label to the attribute and shows Everything, as one undoable step", async () => {
-        const { session, store } = await openDataPlace();
-        await importGraphFile(session);
-        const before = session.styles.list().length;
+    it('adds a column as the weight from "+" and says a higher weight means farther, each one undo step', async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        const steps = (): number => session.history.steps.length;
+        const before = steps();
 
-        const menu = await menuOf(await screen.findByRole("treeitem", { name: "label, node attribute" }));
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
-
-        // The Text "+" label line on Everything (its first line adds its layer), shown.
-        const labeled = (): Layer | undefined =>
-            session.styles.list().find((l) => l.encode?.["node.label"] !== undefined);
+        await addField("edge", "Weight", "bytes");
         await waitFor(() => {
-            assert.equal(session.styles.list().length, before + 1);
-            assert.isDefined(labeled());
+            assert.equal(steps(), before + 1);
+            assert.include(
+                session.data.attributes().find((a) => a.kind === "edge" && a.name === "bytes")?.roles ?? [],
+                "weight",
+            );
+            assert.equal(shown("Edge weight"), "bytes");
         });
-        const layer = labeled();
-        assert.equal(layer?.name, "Everything");
-        assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
-        assert.isUndefined(layer?.set?.["node.labelStyle"], "no look");
+
+        await pick("Higher weight means", "farther");
         await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "everything-row" });
+            assert.equal(steps(), before + 2);
+            assert.equal(session.config.data.knownFields.edgeWeightMeaning, "distance");
+        });
+
+        await session.undo();
+        await session.undo();
+        await waitFor(() => {
+            assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Edge weight" }));
+        });
+    });
+
+    it("gives the ends kinds by reading the load again, and splits a shared id on request", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        const before = session.history.steps.length;
+
+        await addField("edge", "Kind of source", "user");
+        await waitFor(() => {
+            assert.equal(session.history.steps.length, before + 1);
+            assert.equal(session.data.node("alice")?.kind, "user");
+            assert.equal(shown("Kind of source"), "user");
+        });
+        await addField("edge", "Kind of target", "host");
+        // The shared-ids row appears once the load is read again with both kinds.
+        await within(fieldsGroup()).findByRole("combobox", { name: "Shared ids" });
+        await pick("Shared ids", "Different nodes");
+        await waitFor(() => {
+            assert.isDefined(session.data.node("user:admin"));
+            assert.isDefined(session.data.node("host:admin"));
         });
 
         await session.undo();
         await waitFor(() => {
-            assert.equal(session.styles.list().length, before);
+            assert.isUndefined(session.data.node("user:admin"));
+            assert.isDefined(session.data.node("admin"));
         });
     });
 
-    it("Show in table on an edge attribute opens the table dock", async () => {
-        const { session, store } = await openDataPlace(TABLE_BUILT);
-        await importGraphFile(session);
+    it("offers the Data source condition only once two sources are loaded", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        // Tier 3's filter step editor: Add filter step, then its Which nodes' Add a condition list.
+        await userEvent.click(await place().findByRole("button", { name: "Add filter step" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
+        await screen.findAllByRole("option");
+        assert.isNull(screen.queryByRole("option", { name: "Data source" }));
+        await userEvent.keyboard("{Escape}{Escape}");
 
-        const value = within(await screen.findByRole("tree", { name: "Attributes" })).getByRole("treeitem", {
-            name: "value, edge attribute",
-        });
-        const menu = await menuOf(value);
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
-
-        await waitFor(() => {
-            assert.isTrue(store.get().dockOpen);
-        });
-        const dock = await screen.findByRole("region", { name: "Table" });
-        // On the table that holds the attribute, and the ask is spent once it is shown.
-        assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
-        await waitFor(() => {
-            assert.isNull(store.get().dockColumn);
-        });
-    });
-
-    it("Show in table brings a column off the right edge into view", async () => {
-        const { session } = await openDataPlace(TABLE_BUILT);
-        await session.data.import({ type: "json", name: "wide.json", config: { data: WIDE_JSON } });
-
-        const menu = await menuOf(await screen.findByRole("treeitem", { name: "m16, node attribute" }));
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
-
-        const dock = await screen.findByRole("region", { name: "Table" });
-        await waitFor(() => {
-            const viewport = within(dock).getByTestId("data-table-viewport");
-            assert.isAbove(viewport.scrollLeft, 0, "the table scrolled toward the column");
-            const header = within(dock)
-                .getAllByTestId("data-table-header")
-                .find((cell) => cell.textContent === "m16");
-            const shown = header?.getBoundingClientRect();
-            const box = viewport.getBoundingClientRect();
-            assert.isTrue(shown !== undefined && shown.right <= box.right + 1 && shown.left >= box.left - 1);
-        });
-    });
-
-    it("the attribute inspector's ... holds the same Add label line, Filter to... and Show in table", async () => {
-        const { session, store } = await openDataPlace(TABLE_BUILT);
-        await importGraphFile(session);
-        const before = session.styles.list().length;
-
-        await userEvent.click(await screen.findByRole("treeitem", { name: "label, node attribute" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
-        const menu = await screen.findByRole("menu");
-        assert.deepEqual(
-            within(menu)
-                .getAllByRole("menuitem")
-                .map((item) => item.textContent),
-            ["Add label line", "Filter to...", "Show in table"],
+        await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
+        await place().findByRole("listitem", { name: "hosts.csv" });
+        await userEvent.click(place().getByRole("button", { name: "Add filter step" }));
+        await addStepCondition("Data source");
+        const card = await screen.findByRole("group", { name: "Data source values" });
+        const [first] = session.data.sources();
+        await userEvent.click(
+            within(card).getByRole("checkbox", {
+                name: new RegExp(`^auth-log\\.csv, ${String(first.counts.nodes)} nodes$`),
+            }),
         );
-        await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
+        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
         await waitFor(() => {
-            assert.equal(session.styles.list().length, before + 1);
-        });
-        const layer = session.styles.list().find((l) => l.encode?.["node.label"] !== undefined);
-        assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
-        await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "everything-row" });
+            assert.deepEqual(session.visibility.steps[0]?.rule, { kind: "source", sources: [first.key] });
         });
     });
 
-    it("opens the table dock on the nodes tab from Node table and on the edges tab from Edge table", async () => {
-        const { session, store } = await openDataPlace(TABLE_BUILT);
-        await importGraphFile(session);
+    it("removes a source from its row menu, and renames one in place", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        const row = await place().findByRole("listitem", { name: "auth-log.csv" });
 
-        await userEvent.click(await within(tree("Sources")).findByRole("treeitem", { name: "Node table" }));
-        const dock = await screen.findByRole("region", { name: "Table" });
-        assert.equal(within(dock).getByRole("tab", { name: "Nodes" }).getAttribute("aria-selected"), "true");
-        assert.equal(store.get().page, "panels");
-
-        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
+        await userEvent.hover(row);
+        await userEvent.click(within(row).getByRole("button", { name: "auth-log.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
+        // The field opens focused on the name.
+        const input = await screen.findByRole("textbox", { name: "Source name" });
         await waitFor(() => {
-            assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+            assert.strictEqual(document.activeElement, input);
+        });
+        await userEvent.clear(input);
+        await userEvent.type(input, "logins{Enter}");
+        await waitFor(() => {
+            assert.equal(session.data.sources()[0]?.name, "logins");
+        });
+
+        const renamed = await place().findByRole("listitem", { name: "logins" });
+        renamed.querySelector("button")?.focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+        await waitFor(() => {
+            assert.lengthOf(session.data.sources(), 0);
         });
     });
 
-    it("shows Find past 15 attributes, and Find narrows the list by name", async () => {
-        const { session } = await openDataPlace();
-        await session.data.import({ type: "json", name: "wide.json", config: { data: WIDE_JSON } });
-
-        const find = await screen.findByRole("searchbox", { name: "Find attribute" });
-        const attributes = tree("Attributes");
-        assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m01, node attribute" }));
-        await userEvent.type(find, "m16");
+    it("draws no chip for a count of 0, keeps the name readable, and swaps the chips for the actions on hover", async () => {
+        await openDataPlace();
+        const name = "a-node-table-with-a-rather-long-file-name-for-a-narrow-sidebar.csv";
+        drop(new File([HOSTS_CSV], name));
+        const row: HTMLElement = await place().findByRole("listitem", { name });
+        // A drop takes focus to the new row.
         await waitFor(() => {
-            assert.isNull(within(attributes).queryByRole("treeitem", { name: "m01, node attribute" }));
+            assert.strictEqual(document.activeElement, row.querySelector(".dp-source-main"));
         });
-        assert.isNotNull(within(attributes).getByRole("treeitem", { name: "m16, node attribute" }));
+        assert.isNotNull(row.querySelector('[data-kind="node"]'));
+        assert.isNull(row.querySelector('[data-kind="edge"]'), "no edge chip for 0 edges");
+        const label = row.querySelector<HTMLElement>(".dp-source-name");
+        assert.isAtLeast(label?.getBoundingClientRect().width ?? 0, 40);
 
-        // Nothing matches: one gray line says so.
-        await userEvent.type(find, "x");
-        assert.isNotNull(await screen.findByText('No match for "m16x"'));
+        await userEvent.hover(row);
+        const chips = row.querySelector<HTMLElement>(".dp-source-chips");
+        const menu = within(row).getByRole("button", { name: `${name} menu` });
+        await waitFor(() => {
+            assert.equal(chips === null ? "" : getComputedStyle(chips).display, "none");
+            assert.isAbove(menu.getBoundingClientRect().width, 0);
+        });
+    });
+
+    it("selects a source's nodes from its row menu, and only picks the row on a press", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
+        const row: HTMLElement = await place().findByRole("listitem", { name: "hosts.csv" });
+        const [, hosts] = session.data.sources();
+
+        const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
+        await userEvent.click(within(log).getByRole("button", { pressed: false }));
+        await waitFor(() => {
+            assert.include(fieldsGroup().textContent, "auth-log.csv");
+        });
+        assert.lengthOf(session.selection.nodes, 0, "a press picks the row; it selects nothing");
+
+        await userEvent.hover(row);
+        await userEvent.click(within(row).getByRole("button", { name: "hosts.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Select nodes" }));
+        await waitFor(() => {
+            assert.sameMembers([...session.selection.nodes], ["web1", "db1"]);
+            assert.lengthOf(session.selection.nodes, hosts.counts.nodes);
+        });
+    });
+
+    it("hands focus to the dialog a + menu item opens, by keyboard", async () => {
+        await openDataPlace();
+        const add = await place().findByRole("button", { name: "Add source" });
+        add.focus();
+        await userEvent.keyboard("{Enter}");
+        const item = await screen.findByRole("menuitem", { name: "Samples..." });
+        for (let step = 0; step < 10 && document.activeElement !== item; step++) {
+            await userEvent.keyboard("{ArrowDown}");
+        }
+        await userEvent.keyboard("{Enter}");
+        const dialog = await screen.findByRole("dialog", { name: "Samples" });
+        await waitFor(() => {
+            assert.isTrue(dialog.contains(document.activeElement), "focus is in the dialog");
+        });
+        await userEvent.keyboard("{Escape}");
     });
 });

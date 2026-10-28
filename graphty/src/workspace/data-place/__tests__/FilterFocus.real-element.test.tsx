@@ -13,11 +13,13 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
+import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML } from "../fixtures";
+import { openStepPicker } from "./stepCards";
 
 /**
  * Renders the workspace on the Data place and loads the small graph file (8 nodes; edge `value`
@@ -58,10 +60,7 @@ describe("Filters focus and keys on the real element", () => {
         const { session, store } = await openWithGraph();
 
         // Add: Enter in the value field adds the step, and focus goes to its row.
-        const attribute = await screen.findByRole("treeitem", { name: "value, edge attribute" });
-        attribute.focus();
-        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
+        await columnVerb("edge", "value", "Filter to...");
         const from = await screen.findByRole("textbox", { name: FROM });
         await userEvent.clear(from);
         await userEvent.type(from, "9{Enter}");
@@ -74,8 +73,9 @@ describe("Filters focus and keys on the real element", () => {
         });
         assert.isNull(store.get().inspected);
 
-        // Edit: Enter saves, and the new count is the element's.
+        // Edit: Enter saves, and the new count is the element's. The card is in Which edges.
         await userEvent.click(row);
+        await openStepPicker("edge");
         const value = await screen.findByRole("textbox", { name: FROM });
         await userEvent.clear(value);
         await userEvent.type(value, "10{Enter}");
@@ -99,10 +99,11 @@ describe("Filters focus and keys on the real element", () => {
         });
 
         // Escape closes the editor and returns focus to the step's row; the selection stays. (Escape
-        // in a number box holding text keeps the text and the editor, so it is pressed on Keep.)
+        // in a number box holding text keeps the text and the editor, so it is pressed on Filter by.)
         await userEvent.click(saved);
+        await openStepPicker("edge");
         await screen.findByRole("textbox", { name: FROM });
-        screen.getByRole("combobox", { name: "Keep" }).focus();
+        screen.getByRole("combobox", { name: "Filter by" }).focus();
         await userEvent.keyboard("{Escape}");
         assert.isNull(store.get().inspected);
         assert.strictEqual(document.activeElement, saved);
@@ -111,8 +112,8 @@ describe("Filters focus and keys on the real element", () => {
         // Escape in a new step's editor returns focus to "+".
         const plus = screen.getByRole("button", { name: "Add filter step" });
         await userEvent.click(plus);
-        await screen.findByRole("combobox", { name: "Keep" });
-        screen.getByRole("combobox", { name: "Keep" }).focus();
+        await screen.findByRole("combobox", { name: "Filter by" });
+        screen.getByRole("combobox", { name: "Filter by" }).focus();
         await userEvent.keyboard("{Escape}");
         assert.isNull(store.get().inspected);
         assert.strictEqual(document.activeElement, plus);
@@ -124,11 +125,14 @@ describe("Filters focus and keys on the real element", () => {
             { id: "a", on: true, rule: { kind: "range", attribute: "data.value", min: 2, nodes: "ends" } },
         ]);
         await userEvent.click(await within(filters()).findByRole("treeitem", { name: "value is at least 2" }));
+        await openStepPicker("edge");
         const value = await screen.findByRole("textbox", { name: FROM });
         await userEvent.clear(value);
         await userEvent.type(value, "9");
-        // The card's To box is the editor's last field before Save step, which waits for a change:
-        // two Tabs go to Save step, the next leaves the editor.
+        // Past the card's To box, Add a condition and Done to Save step, which waits for a change;
+        // the next Tab leaves the editor.
+        await userEvent.tab();
+        await userEvent.tab();
         await userEvent.tab();
         await userEvent.tab();
         assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Save step" }));
@@ -146,14 +150,15 @@ describe("Filters focus and keys on the real element", () => {
 
         // Escape after another change leaves the step as it was, and the status line says so. In
         // the box, Escape keeps what was typed and the editor open, as in every card; from the
-        // editor's Keep menu it closes the editor, saving nothing.
+        // editor's Filter by menu it closes the editor, saving nothing.
+        await openStepPicker("edge");
         const again = screen.getByRole("textbox", { name: FROM });
         await userEvent.clear(again);
         await userEvent.type(again, "10");
         await userEvent.keyboard("{Escape}");
         assert.equal((again as HTMLInputElement).value, "10");
         assert.isNotNull(store.get().inspected);
-        screen.getByRole("combobox", { name: "Keep" }).focus();
+        screen.getByRole("combobox", { name: "Filter by" }).focus();
         await userEvent.keyboard("{Escape}");
         assert.isNull(store.get().inspected);
         assert.equal(store.get().announcement, 'Not saved: "value is at least 9" is as it was.');
@@ -182,6 +187,7 @@ describe("Filters focus and keys on the real element", () => {
         ]);
         // An edited step's editor would save it on leaving.
         await userEvent.click(await within(filters()).findByRole("treeitem", { name: "value is at least 2" }));
+        await openStepPicker("edge");
         const value = await screen.findByRole("textbox", { name: FROM });
         await userEvent.clear(value);
         await userEvent.type(value, "9");
@@ -192,7 +198,7 @@ describe("Filters focus and keys on the real element", () => {
             assert.lengthOf(session.visibility.steps, 0);
         });
         // Something else selected closes the editor: the deleted step is not written back.
-        await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
+        await columnVerb("edge", "value", "Details");
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "attribute");
         });

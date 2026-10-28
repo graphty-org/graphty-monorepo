@@ -1,0 +1,119 @@
+name: Results service
+
+# Deploys the Cloudflare Workers from master: the test results store (tools/results-service/, with its D1
+# database and migrations), the release scheduler (tools/release-scheduler/) and the nx remote cache
+# (tools/nx-cache-worker/, with its R2 bucket). Each Worker's tests run
+# first; a red test deploys nothing. The first run creates the D1 database graphty-results (location enam).
+# Secrets: CLOUDFLARE_API_TOKEN (Workers Scripts, D1 and R2 edit only) and CLOUDFLARE_ACCOUNT_ID.
+# Design: design/ci/channels-pipeline/results-service.md, section 2.
+
+on:
+    push:
+        branches: [master]
+        paths:
+            - "tools/results-service/**"
+            - "tools/release-scheduler/**"
+            - "tools/nx-cache-worker/**"
+            - ".github/workflows/results-service.yml"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: results-service
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        name: Test and deploy the Workers
+        if: github.ref == 'refs/heads/master'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        env:
+            CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            WRANGLER: npx --yes wrangler@4.149.0
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with: { node-version: 22.x }
+
+            - name: Test both Workers
+              run: |
+                  node tools/results-service/test/index.test.mjs
+                  node tools/release-scheduler/test/index.test.mjs
+
+            - name: Find or create the D1 database
+              working-directory: tools/results-service
+              run: |
+                  find_id() { $WRANGLER d1 list --json | jq -r '.[] | select(.name == "graphty-results") | .uuid'; }
+                  id="$(find_id)"
+                  if [ -z "$id" ]; then
+                    $WRANGLER d1 create graphty-results --location enam
+                    id="$(find_id)"
+                  fi
+                  [ -n "$id" ] || { echo "::error::no D1 database graphty-results after creating it"; exit 1; }
+                  sed -i "s/00000000-0000-0000-0000-000000000000/$id/" wrangler.toml
+
+            - name: Apply the migrations and deploy the results Worker
+              working-directory: tools/results-service
+              run: |
+                  $WRANGLER d1 migrations apply graphty-results --remote
+                  $WRANGLER deploy
+
+            - name: Deploy the release scheduler
+              working-directory: tools/release-scheduler
+              run: $WRANGLER deploy
+
+            - name: Check /v1/health
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  url="$RESULTS_URL"
+                  if [ -z "$url" ]; then
+                    echo "::warning::repository variable RESULTS_URL is not set; set it to the graphty-results URL wrangler printed above"
+                    exit 0
+                  fi
+                  curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$url/v1/health"
+
+    nx-cache:
+        name: Test and deploy the nx cache Worker
+        if: github.ref == 'refs/heads/master'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        env:
+            CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            WRANGLER: npx --yes wrangler@4.149.0
+        defaults:
+            run:
+                working-directory: tools/nx-cache-worker
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with: { node-version: 22.x }
+
+            - name: Test the Worker
+              run: node test/index.test.mjs
+
+            # The bucket and its 14-day expiry rule are created once; later runs find them.
+            - name: Find or create the R2 bucket and its expiry rule
+              run: |
+                  $WRANGLER r2 bucket info graphty-nx-cache > /dev/null 2>&1 || $WRANGLER r2 bucket create graphty-nx-cache --location enam
+                  $WRANGLER r2 bucket lifecycle list graphty-nx-cache | grep -q expire-14-days ||
+                      $WRANGLER r2 bucket lifecycle add graphty-nx-cache expire-14-days --expire-days 14 --force
+
+            - name: Deploy the Worker
+              run: $WRANGLER deploy
+
+            - name: Check /v1/health
+              env:
+                  NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
+              run: |
+                  if [ -z "$NX_CACHE_URL" ]; then
+                    echo "::warning::repository variable NX_CACHE_URL is not set; set it to the graphty-nx-cache URL wrangler printed above"
+                    exit 0
+                  fi
+                  curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$NX_CACHE_URL/v1/health"

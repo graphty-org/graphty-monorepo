@@ -18,6 +18,10 @@ configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 // only through the element's dispatcher. Set before any test file loads the element, which reads
 // it once. A plain global, so this file imports nothing from the element.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+// Draw on demand: a graph that never set `renderOnDemand` stops drawing once its picture is still,
+// instead of redrawing every frame in software (SwiftShader) for the whole test. Not the
+// consumer's default; a test that needs continuous frames sets `renderOnDemand = false`.
+(globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true;
 
 // These tests drive the page with real input (userEvent from vitest/browser, through the DevTools
 // protocol), so every update it causes lands outside act() by design, and React, told this is an act

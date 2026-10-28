@@ -58,6 +58,49 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
+/**
+ * Mounts a new project, loads the six nodes (each with a score) and runs Degree.
+ * @returns the element's session.
+ */
+async function openScoredGraph(): Promise<GraphSession> {
+    render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+    let session: GraphSession | undefined;
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
+    if (session === undefined) {
+        throw new Error("the element never came up");
+    }
+    await session.data.addNodes(NODES.map((node, i) => ({ ...node, score: i })));
+    await session.data.addEdges(EDGES);
+    await session.runs.start("degree");
+    return session;
+}
+
+/**
+ * Mod+E, and checks every output is listed.
+ * @returns the dialog.
+ */
+async function openExport(): Promise<HTMLElement> {
+    await userEvent.keyboard("{Control>}e{/Control}");
+    const dialog = await screen.findByRole("dialog", { name: "Export" });
+    const outputs = within(dialog).getByRole("grid", { name: "What to export" });
+    for (const name of ["Image", "Video", "Data", "Styles", "Recipe", "Project"]) {
+        assert.isNotNull(within(outputs).getByText(name), `${name} is listed`);
+    }
+    return dialog;
+}
+
+/**
+ * Picks an output from the dialog's list.
+ * @param dialog - the dialog.
+ * @param name - the output.
+ */
+async function pick(dialog: HTMLElement, name: string): Promise<void> {
+    await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText(name));
+}
+
 describe("Export: save a picture and the numbers (task T13)", () => {
     it("saves the drawing as a PNG and the node table with the run's result columns", async () => {
         const saved = catchDownloads();
@@ -92,14 +135,6 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await userEvent.keyboard("{Control>}e{/Control}");
         const again = await screen.findByRole("dialog", { name: "Export" });
         await userEvent.click(within(again).getByText("Data"));
-        // Data opens on the project file; the node table is the CSV row.
-        const format = within(again).getByLabelText("Format");
-        assert.equal((format as HTMLInputElement).value, "Graphty JSON");
-        await userEvent.click(format);
-        await userEvent.click(await screen.findByRole("option", { name: "CSV" }));
-        await userEvent.click(within(again).getByLabelText("Table", { selector: "input" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Nodes" }));
-        assert.isNotNull(within(again).getByText(/^One row for every node, with every computed value/));
         const header = session.results.path(root.runId, "value");
         // The preview and the saved file both wait on exportGraph, which first waits for the
         // element's whole operation queue to drain: wait on what they show, with no deadline of
@@ -141,7 +176,9 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         ] as const) {
             await userEvent.keyboard("{Control>}e{/Control}");
             const dialog = await screen.findByRole("dialog", { name: "Export" });
-            await userEvent.click(within(dialog).getByText("Data"));
+            await userEvent.click(
+                within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"),
+            );
             await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
             await userEvent.click(await screen.findByRole("option", { name: label }));
             await waitFor(() => {
@@ -160,5 +197,100 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             const head = new TextDecoder("latin1").decode(new Uint8Array(await blob.arrayBuffer()).slice(0, 16));
             assert.match(head, sniff);
         }
+    });
+
+    it("writes what is shown, the layers alone and a recipe without node ids (flow 10)", async () => {
+        const saved = catchDownloads();
+        const session = await openScoredGraph();
+        // A filter that keeps 4 of the 6 nodes (scores 2 to 5).
+        await session.visibility.set({ kind: "threshold", path: "data.score", above: 1.5 });
+
+        // Data, Shown 4 of 6: four node rows under one header.
+        let dialog = await openExport();
+        await pick(dialog, "Data");
+        await userEvent.click(within(dialog).getByRole("combobox", { name: "Scope" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Shown 4 of 6" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        const warning = await within(dialog).findByRole("alertdialog", {});
+        await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
+        await screen.findByText("Exported untitled_nodes.csv", TOAST);
+        const table = saved.find(({ name }) => name === "untitled_nodes.csv");
+        const rows = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];
+        assert.lengthOf(rows, 4 + 1, "the shown nodes, under one header");
+
+        // Styles: a style file of layers only.
+        dialog = await openExport();
+        await pick(dialog, "Styles");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await screen.findByText("Exported untitled_styles.style.json", TOAST);
+        const styles = JSON.parse(
+            (await saved.find(({ name }) => name === "untitled_styles.style.json")?.blob.text()) ?? "{}",
+        ) as Record<string, unknown>;
+        assert.equal(styles.kind, "graphty-style");
+        assert.isArray(styles.layers);
+        assert.notProperty(styles, "nodes");
+        assert.notProperty(styles, "data");
+
+        // Recipe: names the score column, never a node id.
+        dialog = await openExport();
+        await pick(dialog, "Recipe");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
+        await screen.findByText("Exported untitled_recipe.json", TOAST);
+        const recipe = (await saved.find(({ name }) => name === "untitled_recipe.json")?.blob.text()) ?? "";
+        assert.include(recipe, '"score"');
+        for (const node of NODES) {
+            assert.notInclude(recipe, `"${node.id}"`, "no node id in the recipe");
+        }
+    });
+
+    it("offers no edge table without edges, and names a tour's views by their plain names", async () => {
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.addNodes(NODES);
+
+        let dialog = await openExport();
+        await pick(dialog, "Data");
+        const preview = within(dialog).getByLabelText("Preview of the exported data");
+        await waitFor(() => {
+            assert.notEqual(preview.textContent, "Writing the preview...");
+        });
+        assert.isNull(within(dialog).queryByText("Table"), "no Nodes / Edges toggle without edges");
+        assert.isNull(within(dialog).queryByRole("radio", { name: "Edges" }));
+
+        await userEvent.keyboard("{Escape}");
+        dialog = await openExport();
+        await pick(dialog, "Video");
+        const views = within(dialog).getByRole("textbox", { name: "Views" }).closest(".mantine-MultiSelect-root");
+        assert.isNotNull(views);
+        assert.include(views?.textContent, "From the front");
+        assert.notInclude(views?.textContent, "frontView", "no camera id is shown");
+    });
+
+    it("records a short tour of views, and lists it under Recent (flow 10)", async () => {
+        const saved = catchDownloads();
+        await openScoredGraph();
+
+        // Video: a short tour through three camera views.
+        let dialog = await openExport();
+        await pick(dialog, "Video");
+        await userEvent.click(within(dialog).getByText("3 s"));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Record" }));
+        const notice = await screen.findByText(/^Exported untitled_tour\.(webm|mp4)/, {});
+        const video = saved.find(({ name }) => notice.textContent?.includes(name) ?? false);
+        assert.isDefined(video, "the video was saved");
+        assert.match(video?.blob.type ?? "", /^video\//);
+
+        // Recent lists what was exported in this visit.
+        dialog = await openExport();
+        assert.isNotNull(
+            within(within(dialog).getByRole("grid", { name: "Recent exports" })).getByText(video?.name ?? ""),
+        );
     });
 });

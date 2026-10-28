@@ -82,7 +82,7 @@ export const Nodes: Story = {
         const table = await dock(canvasElement);
         await expect(await table.findByText("12 nodes", {})).toBeVisible();
         await expect(table.getByText("In the order loaded")).toBeVisible();
-        await expect(await table.findByRole("button", { name: /^PageRank/ })).toBeVisible();
+        await expect(await table.findByRole("button", { name: /^number, computed PageRank/ })).toBeVisible();
     },
 };
 
@@ -91,7 +91,7 @@ export const SortedByResult: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadAndRun(canvasElement);
-        await press(canvasElement, "button", /^PageRank/);
+        await press(canvasElement, "button", /^number, computed PageRank/);
         const table = await dock(canvasElement);
         await expect(await table.findByText("Sorted by PageRank, highest first", {})).toBeVisible();
     },

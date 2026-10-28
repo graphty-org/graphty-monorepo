@@ -4,6 +4,8 @@
  * that draws a graph calls this and then waits for the tag to be defined.
  */
 
+import { loadSiteConfig } from "./siteConfig";
+
 let loading: Promise<void> | null = null;
 
 /**
@@ -12,7 +14,9 @@ let loading: Promise<void> | null = null;
  * that fails to load does not reject it: the graph is drawn either way.
  */
 export function loadGraphtyElement(): Promise<void> {
-    loading ??= import("@graphty/graphty-element").then(() => {
+    // The site's configuration first, so the element's first session has the site's experiments.
+    loading ??= loadSiteConfig().then(async () => {
+        await import("@graphty/graphty-element");
         // The element's optional GPU peer, switched on. This is the whole integration: the
         // element probes, constructs, attaches, applies its threshold and recovers, and reports
         // through `capabilities.acceleration` -- including a peer that never loaded, as

@@ -1,0 +1,751 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "28d",
+    "page": "costs",
+    "state": "nodata",
+    "setBy": {
+        "member": "costs.spend",
+        "state": "nodata",
+        "value": null,
+        "fact": {
+            "code": "short.nodata",
+            "params": {
+                "reason": "billing_late"
+            }
+        }
+    },
+    "others": [],
+    "notes": [
+        {
+            "code": "costs.note.nodata",
+            "params": {
+                "source": "billing",
+                "h": 41
+            }
+        }
+    ],
+    "members": [
+        {
+            "state": "nodata",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 300,
+                    "unit": "usd"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 360,
+                    "unit": "usd"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.spend",
+            "value": null,
+            "spark": {
+                "step": "15m",
+                "ctx": [
+                    232, 231.88, 231.76, 231.65, 231.53, 231.41, 231.29, 231.18, 231.06, 230.94, 230.82, 230.71, 230.59,
+                    230.47, 230.35, 230.24, 230.12, 230
+                ],
+                "trend": [
+                    230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230, 230,
+                    230, 230, 230, 230
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "target": 300
+            },
+            "reason": {
+                "code": "nodata.token_rejected",
+                "params": {
+                    "since": "2026-10-24T06:30:00Z"
+                }
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 200,
+                    "unit": "usd"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 240,
+                    "unit": "usd"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.t4",
+            "value": {
+                "n": 160,
+                "unit": "usd"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 60,
+                    "unit": "usd"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 75,
+                    "unit": "usd"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.llm",
+            "value": {
+                "n": 29,
+                "unit": "usd"
+            }
+        },
+        {
+            "state": "nodata",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 8,
+                    "unit": "usd"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 10,
+                    "unit": "usd"
+                }
+            },
+            "link": "/costs",
+            "id": "costs.aws",
+            "value": null,
+            "reason": {
+                "code": "nodata.token_rejected",
+                "params": {
+                    "since": "2026-10-24T06:30:00Z"
+                }
+            }
+        },
+        {
+            "state": "notsetup",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 90,
+                    "unit": "pct"
+                }
+            },
+            "link": "/data-sources/not-set-up",
+            "id": "costs.cloudflare_usage",
+            "value": null,
+            "reason": {
+                "code": "unblock.cloudflare_token"
+            }
+        },
+        {
+            "state": "notsetup",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 80,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 100,
+                    "unit": "pct"
+                }
+            },
+            "link": "/data-sources/not-set-up",
+            "id": "costs.sentry_usage",
+            "value": null,
+            "reason": {
+                "code": "unblock.sentry_token"
+            }
+        }
+    ],
+    "sections": [
+        {
+            "kind": "table",
+            "id": "money",
+            "sub": {
+                "code": "costs.money.sub",
+                "params": {
+                    "month_end": "2026-10-31"
+                }
+            },
+            "rows": [
+                {
+                    "cells": {
+                        "line": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.t4"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.t4.rate",
+                                    "params": {
+                                        "usd_min": 0.018,
+                                        "boot_min": 1
+                                    }
+                                }
+                            }
+                        },
+                        "projected": {
+                            "t": "num",
+                            "n": 160,
+                            "unit": "usd",
+                            "bold": true
+                        },
+                        "sofar": {
+                            "t": "budget",
+                            "so": 129,
+                            "budget": 200,
+                            "unit": "usd"
+                        },
+                        "spark": {
+                            "t": "spark",
+                            "spark": {
+                                "step": "1d",
+                                "ctx": [],
+                                "trend": [
+                                    150, 150.37, 150.74, 151.11, 151.48, 151.85, 152.22, 152.59, 152.96, 153.33, 153.7,
+                                    154.07, 154.44, 154.81, 155.19, 155.56, 155.93, 156.3, 156.67, 157.04, 157.41,
+                                    157.78, 158.15, 158.52, 158.89, 159.26, 159.63, 160
+                                ],
+                                "breach": [
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null
+                                ]
+                            }
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "line": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.llm"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.llm.rate",
+                                    "params": {
+                                        "usd": 0.94
+                                    }
+                                }
+                            }
+                        },
+                        "projected": {
+                            "t": "num",
+                            "n": 29,
+                            "unit": "usd",
+                            "bold": true
+                        },
+                        "sofar": {
+                            "t": "budget",
+                            "so": 23,
+                            "budget": 60,
+                            "unit": "usd"
+                        },
+                        "spark": {
+                            "t": "spark",
+                            "spark": {
+                                "step": "1d",
+                                "ctx": [],
+                                "trend": [
+                                    29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29,
+                                    29, 29, 29, 29, 29, 29, 29
+                                ],
+                                "breach": [
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null
+                                ]
+                            }
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "line": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.sentry"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.plan"
+                                }
+                            }
+                        },
+                        "projected": {
+                            "t": "num",
+                            "n": 26,
+                            "unit": "usd",
+                            "bold": true
+                        },
+                        "sofar": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "cost.flat"
+                            }
+                        },
+                        "spark": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "line": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.github"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.github.plan",
+                                    "params": {
+                                        "seats": 2
+                                    }
+                                }
+                            }
+                        },
+                        "projected": {
+                            "t": "num",
+                            "n": 8,
+                            "unit": "usd",
+                            "bold": true
+                        },
+                        "sofar": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "cost.flat"
+                            }
+                        },
+                        "spark": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "line": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.cloudflare"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.cloudflare.plan"
+                                }
+                            }
+                        },
+                        "projected": {
+                            "t": "num",
+                            "n": 5,
+                            "unit": "usd",
+                            "bold": true
+                        },
+                        "sofar": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "cost.flat"
+                            }
+                        },
+                        "spark": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "line": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.aws"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.aws.credits",
+                                    "params": {
+                                        "usd": 119.38
+                                    }
+                                }
+                            }
+                        },
+                        "projected": {
+                            "t": "none"
+                        },
+                        "sofar": {
+                            "t": "none"
+                        },
+                        "spark": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "state",
+                            "state": "nodata"
+                        }
+                    }
+                },
+                {
+                    "total": true,
+                    "cells": {
+                        "line": {
+                            "t": "label",
+                            "code": "cost.total"
+                        },
+                        "projected": {
+                            "t": "num",
+                            "n": 229,
+                            "unit": "usd",
+                            "bold": true
+                        },
+                        "sofar": {
+                            "t": "budget",
+                            "so": 185,
+                            "budget": 300,
+                            "unit": "usd"
+                        },
+                        "spark": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "line": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.sentry_usage"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.usage.events"
+                                }
+                            }
+                        },
+                        "projected": {
+                            "t": "none"
+                        },
+                        "sofar": {
+                            "t": "none"
+                        },
+                        "spark": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "state",
+                            "state": "notsetup",
+                            "link": "/data-sources/not-set-up"
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "line": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.cloudflare_usage"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.usage.requests"
+                                }
+                            }
+                        },
+                        "projected": {
+                            "t": "none"
+                        },
+                        "sofar": {
+                            "t": "none"
+                        },
+                        "spark": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "state",
+                            "state": "notsetup",
+                            "link": "/data-sources/not-set-up"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "unit",
+            "rows": [
+                {
+                    "cells": {
+                        "measure": {
+                            "t": "label",
+                            "code": "unit.train"
+                        },
+                        "value": {
+                            "t": "num",
+                            "n": 0.92,
+                            "unit": "usd",
+                            "bold": true
+                        },
+                        "note": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "unit.train.note",
+                                "params": {
+                                    "days": 28
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "measure": {
+                            "t": "label",
+                            "code": "unit.pr_value"
+                        },
+                        "value": {
+                            "t": "num",
+                            "n": 2.4,
+                            "unit": "usd",
+                            "bold": true
+                        },
+                        "note": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "unit.pr_value.note"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "bars",
+            "id": "by-workflow",
+            "groups": [
+                {
+                    "head": {
+                        "code": "costs.money_by_workflow"
+                    },
+                    "items": [
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "release.yml (with gpu.yml)"
+                            },
+                            "n": 140.3,
+                            "unit": "usd"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "release.yml, LLM step"
+                            },
+                            "n": 23.4,
+                            "unit": "usd"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "gpu-weekly-paired.yml"
+                            },
+                            "n": 11.3,
+                            "unit": "usd"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "gpu-rerun-on-runner-loss.yml"
+                            },
+                            "n": 2.1,
+                            "unit": "usd"
+                        }
+                    ]
+                },
+                {
+                    "head": {
+                        "code": "costs.value_by_workflow"
+                    },
+                    "items": [
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "ci.yml"
+                            },
+                            "n": 2310,
+                            "unit": "usd",
+                            "tone": "value"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "release.yml"
+                            },
+                            "n": 1240,
+                            "unit": "usd",
+                            "tone": "value"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "CodeQL"
+                            },
+                            "n": 412,
+                            "unit": "usd",
+                            "tone": "value"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "hosts.yml"
+                            },
+                            "n": 182,
+                            "unit": "usd",
+                            "tone": "value"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "work-protection-macos.yml"
+                            },
+                            "n": 141,
+                            "unit": "usd",
+                            "tone": "value"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

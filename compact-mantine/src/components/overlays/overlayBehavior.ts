@@ -7,6 +7,8 @@
  *   the pointer leaves the window. The open tooltip element is marked `data-cm-dismissed` (CSS
  *   hides it); the mark lives exactly as long as that tooltip does, so it stays hidden while the
  *   pointer rests on its trigger and the next tooltip shows normally.
+ * - An Escape pressed while no tooltip shows reaches the page, even when a hidden one is open:
+ *   only a visible tooltip takes the Escape that closes it.
  * - A dismissed tooltip whose trigger then turns off (Undo pressed until nothing is left) shows
  *   again, now with its reason ("Nothing to undo"): Mantine keeps the same tooltip element and only
  *   changes its words, so the dismissal would otherwise hide the reason too.
@@ -176,6 +178,38 @@ function dismissTooltips(pressedOn: EventTarget | null = null): void {
             }
         }
     }
+}
+
+/**
+ * Let an Escape through when no tooltip is showing. A tooltip this file hides (dismissed, still,
+ * held, not yet seen) is still open to floating-ui, whose dismiss stops every Escape at its
+ * trigger and at the document while its tooltip is open, so a page shortcut on the window
+ * ("Escape clears the selection") never ran: a tooltip the reader could not see took the key
+ * (#3380). floating-ui leaves an Escape alone while an input method is composing, and it learns
+ * that from `compositionstart` and `compositionend` on the document, so this Escape is framed by
+ * the two: the hidden tooltips stay as they are (hidden), and the key goes on. A visible tooltip
+ * still takes the Escape that closes it, as a menu does. Read before `dismissTooltips` marks the
+ * visible one dismissed. That composition handling is floating-ui's own, not an API it promises:
+ * checked against @floating-ui/react 0.27.20 (Mantine 8.3.18), and the test "a tooltip kept hidden
+ * under a resting pointer does not take the page's Escape" fails if an upgrade changes it.
+ * ponytail: a visible HoverCard (floating-ui too) beside a hidden tooltip would let this Escape
+ * through as well; no HoverCard is used today.
+ * @param event - a keydown anywhere in the document, in the capture phase
+ */
+function passEscapeOfHiddenTooltips(event: KeyboardEvent): void {
+    if (
+        event.key !== "Escape" ||
+        event.isComposing ||
+        anotherTooltipVisible() ||
+        document.querySelector(".cm-tooltip") === null
+    ) {
+        return;
+    }
+    document.dispatchEvent(new CompositionEvent("compositionstart"));
+    // After this key's dispatch: a microtask would run between its listeners.
+    globalThis.setTimeout(() => {
+        document.dispatchEvent(new CompositionEvent("compositionend"));
+    }, 0);
 }
 
 /**
@@ -504,6 +538,7 @@ export function installOverlayBehavior(): void {
         (event) => {
             keyLast = true;
             if (!MODIFIER_KEYS.has(event.key)) {
+                passEscapeOfHiddenTooltips(event);
                 navigating = NAVIGATION_KEYS.has(event.key);
                 dismissTooltips(event.key === "Enter" || event.key === " " ? event.target : null);
             }
@@ -538,7 +573,12 @@ export function installOverlayBehavior(): void {
             return;
         }
         if (event.target.classList.contains("cm-tooltip")) {
-            holdIfFocusOpened(event.target);
+            // Only a mount is decided. The animation also starts again on a tooltip that is
+            // already open when its style is recomputed, and holding it then hid it for another
+            // open delay while its trigger kept focus.
+            if (event.target.dataset.cmSeen === undefined) {
+                holdIfFocusOpened(event.target);
+            }
         } else if (event.target.classList.contains("cm-menu")) {
             updateScrollEnds(event.target);
             menuResize?.observe(event.target);

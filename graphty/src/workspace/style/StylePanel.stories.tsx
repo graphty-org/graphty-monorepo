@@ -5,8 +5,8 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { freshStore } from "../../stories/freshStore";
 import { fixWallClock } from "../../test/fixedWallClock";
-import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
@@ -54,8 +54,7 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     expect(session.config.editableBase).toBe(true);
     await session.layout.setDimension("2d");
     await session.layout.set("circular");
-    // A layout change frames the camera on later frames, and a framing still pending takes the
-    // view insets in force when it lands (the legend card's, once a layer exists), so wait for it.
+    // A layout change frames the camera on later frames: wait for the framing to land.
     await element.waitForStableFrame();
     const idOf = (name: string): string => {
         const node = session.data.nodes().find((n) => n.name === name);
@@ -195,7 +194,7 @@ type Story = StoryObj<typeof meta>;
  */
 function sceneStory(play: (scene: Scene) => Promise<void>): Story {
     return {
-        args: { store: createWorkspaceStore() },
+        ...freshStore(),
         play: async ({ canvasElement }) => {
             const scene = await loadScene(canvasElement);
             await play(scene);
@@ -540,8 +539,7 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");
     await element.session.styles.settled();
-    // A layout change frames the camera on later frames, and a framing still pending takes the
-    // view insets in force when it lands (the legend card's, once a layer exists), so wait for it.
+    // A layout change frames the camera on later frames: wait for the framing to land.
     await element.waitForStableFrame();
     return element;
 }
@@ -552,7 +550,7 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
  * "One color per value". The binding popover is left open.
  */
 export const FootballConference: Story = {
-    args: { store: createWorkspaceStore() },
+    ...freshStore(),
     play: async ({ canvasElement }) => {
         const element = await loadFootball(canvasElement);
         const { session } = element;
@@ -596,15 +594,6 @@ export const FootballConference: Story = {
             expect(binding !== undefined && "by" in binding ? binding.scale : undefined).toBe("ordinal");
         });
         await within(popover).findByRole("combobox", { name: /^Palette/ });
-        // The key card the binding brings up reserves room at the canvas's left edge. The circular
-        // layout's own framing lands on a later frame, before or after that room exists depending
-        // on the machine's speed, and a framing that lands after it keeps clear of it: two pictures
-        // of one story (#3360). The frame the story ends on is made the same everywhere: the room
-        // in force, then one framing asked for inside it.
-        await waitFor(() => {
-            expect(element.viewInsets.left).toBeGreaterThan(0);
-        });
-        element.zoomToFit();
         await element.waitForStableFrame();
     },
 };

@@ -1225,7 +1225,11 @@ export async function assertDistinctPicture(scene: Drawn, family: string, extra 
 
     pictures.set(family, drawnHere);
 
-    const twin = [...drawnHere.entries()].find(([, existing]) => existing === digest)?.[0];
+    // A story drawn a second time (visual review renders a story again to confirm a changed
+    // picture, and once per mode) is not its own sibling: compare only with the other stories.
+    const twin = [...drawnHere.entries()].find(
+        ([story, existing]) => story !== scene.story && existing === digest,
+    )?.[0];
 
     await holds(
         twin === undefined,
@@ -1314,7 +1318,9 @@ export async function assertDistinctArrangement(scene: Drawn, family: string, mi
 
     arrangements.set(family, arrangedHere);
 
+    // A story arranged again (a confirming render, another mode) is not its own sibling.
     const offenders = [...arrangedHere.entries()]
+        .filter(([story]) => story !== scene.story)
         .map(([story, other]) => [story, arrangementDistance(cloud, other)] as const)
         .filter(([, distance]) => distance < minimum);
 
@@ -1541,6 +1547,24 @@ export async function assertArrowVariety(scene: Drawn, atLeast: number): Promise
  * @returns How many pixels are within tolerance of it.
  */
 export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: number = COLOUR_TOLERANCE): Promise<number> {
+    const [found] = await pixelsOfColours(scene, [hex], tolerance);
+
+    return found;
+}
+
+/**
+ * How many pixels of each of several colours are on the canvas, from one render and one read.
+ * `pixelsOfColour` for a list: the canvas is warmed and copied once, not once per colour.
+ * @param scene - What the story drew.
+ * @param hexes - The colours to count, each as `#rrggbb`.
+ * @param tolerance - How far one channel may be from a colour and still count as it; see `pixelsOfColour`.
+ * @returns The count for each colour, in the order given.
+ */
+export async function pixelsOfColours(
+    scene: Drawn,
+    hexes: readonly string[],
+    tolerance: number = COLOUR_TOLERANCE,
+): Promise<number[]> {
     const { engine } = scene.graph;
 
     // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
@@ -1553,25 +1577,27 @@ export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: numbe
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();
     const pixels = (await engine.readPixels(0, 0, width, height)) as unknown as Uint8Array;
-    const want = [
-        Number.parseInt(hex.slice(1, 3), 16),
-        Number.parseInt(hex.slice(3, 5), 16),
-        Number.parseInt(hex.slice(5, 7), 16),
-    ];
 
-    let found = 0;
+    return hexes.map((hex) => {
+        const want = [
+            Number.parseInt(hex.slice(1, 3), 16),
+            Number.parseInt(hex.slice(3, 5), 16),
+            Number.parseInt(hex.slice(5, 7), 16),
+        ];
+        let found = 0;
 
-    for (let offset = 0; offset < pixels.length; offset += 4) {
-        if (
-            Math.abs(pixels[offset] - want[0]) <= tolerance &&
-            Math.abs(pixels[offset + 1] - want[1]) <= tolerance &&
-            Math.abs(pixels[offset + 2] - want[2]) <= tolerance
-        ) {
-            found++;
+        for (let offset = 0; offset < pixels.length; offset += 4) {
+            if (
+                Math.abs(pixels[offset] - want[0]) <= tolerance &&
+                Math.abs(pixels[offset + 1] - want[1]) <= tolerance &&
+                Math.abs(pixels[offset + 2] - want[2]) <= tolerance
+            ) {
+                found++;
+            }
         }
-    }
 
-    return found;
+        return found;
+    });
 }
 
 /**

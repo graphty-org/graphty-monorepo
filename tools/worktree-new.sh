@@ -25,8 +25,7 @@
 # Usage:
 #   ./tools/worktree-new.sh <branch> [base] [name] [--issue N | --new-issue "<title>"] [--owner O]
 #     <branch>  an existing local or origin branch is checked out; a new name is created from base
-#     [base]    the start point of a new branch (default origin/golden-verified, the newest golden commit
-#               verification passed, else origin/master; fetched first)
+#     [base]    the start point of a new branch (default origin/master; fetched first)
 #     [name]    the worktree's directory name (default: the branch, with / replaced by -)
 #     the issue, one of: a number of three or more digits in <branch> (fix/1234-scroll), --issue N, or
 #               --new-issue "<title>", which opens one labelled with a type (from the branch's prefix:
@@ -102,7 +101,6 @@ fi
 retry git -C "$MAIN" fetch --quiet origin
 if [ -z "$BASE" ]; then
     BASE=origin/master
-    git -C "$MAIN" rev-parse -q --verify origin/golden-verified >/dev/null && BASE=origin/golden-verified
 fi
 # git-lfs's smudge filter writes the pointer instead of the image for a path lfs.fetchexclude matches.
 # Given with -c, the exclude applies to this checkout only, never to the repository's config.

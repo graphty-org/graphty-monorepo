@@ -55,6 +55,10 @@ if (args[1] === "graphql") {
             comments: { nodes: i.comments.map((c) => ({ databaseId: c.id, body: c.body })) } };
     }
     out = JSON.stringify({ data: { repository } });
+} else if (args[0] === "pr" && args[1] === "list") {
+    if (s.prListFails) process.exit(1);
+    const head = args[args.indexOf("--head") + 1];
+    out = JSON.stringify((s.openPrs ?? []).includes(head) ? [{ number: 1 }] : []);
 } else if ((m = /issues\\/(\\d+)\\/comments$/.exec(path))) {
     const id = ++s.nextId;
     s.issues[m[1]].comments.push({ id, body: field("body") });
@@ -231,7 +235,7 @@ describe("the post-commit push", () => {
         assert.equal(gh().calls.length, calls, "no GitHub call");
     });
 
-    it("merges the branch's newer commits on GitHub (the nightly sync's merge) before it pushes", async () => {
+    it("merges the branch's newer commits on GitHub (the owner's Finish, a merge of master) before it pushes", async () => {
         const other = join(dir, "push-other");
         git(dir, "clone", "-q", "-b", "feat/512-thing", join(dir, "push.git"), other);
         writeFileSync(join(other, "synced.txt"), "from golden\n");
@@ -275,6 +279,68 @@ describe("the post-commit push", () => {
         // The hook returns before it starts anything in the background for these.
         assert.equal(logText(), before);
         assert.equal(run(repo, "git", "rev-parse", "-q", "--verify", "origin/golden").status, 1);
+    });
+});
+
+describe("the post-commit push of a branch with an open pull request", () => {
+    let repo;
+    let log;
+    before(() => {
+        repo = repoWith("open", ["post-commit"]);
+        log = join(repo, "tmp/branch-push.log");
+        mkdirSync(join(repo, "tmp/pr-status"), { recursive: true });
+    });
+    const logText = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
+    const finished = (n) => () => (logText().match(/^finished /gm) ?? []).length >= n;
+    const status = (ageMs, heads) =>
+        writeFileSync(
+            join(repo, "tmp/pr-status/status.json"),
+            JSON.stringify({
+                fetchedAt: new Date(Date.now() - ageMs).toISOString(),
+                pullRequests: heads.map((head, i) => ({ number: i + 1, head, base: "master" })),
+            }),
+        );
+    const setGh = (patch) => writeFileSync(state, JSON.stringify({ ...gh(), ...patch }));
+    const prLists = () => gh().calls.filter((a) => a[0] === "pr" && a[1] === "list").length;
+    const remoteHas = (b) => run(repo, "git", "ls-remote", "--exit-code", "origin", `refs/heads/${b}`).status === 0;
+    let commits = 0;
+    const commit = async (b) => {
+        git(repo, "checkout", "-q", "-B", b);
+        commits += 1;
+        writeFileSync(join(repo, `o${commits}.txt`), "x\n");
+        git(repo, "add", ".");
+        const r = run(repo, "git", "commit", "-q", "-m", `feat: o${commits}`);
+        assert.equal(r.status, 0, r.stderr);
+        await until(dirname(log), finished(commits));
+        return r.stdout + r.stderr; // git hands a hook's output to stderr
+    };
+
+    it("does not push when the status broker's fresh file lists one, says so, and still refreshes the note", async () => {
+        status(0, ["feat/512-open"]);
+        const out = await commit("feat/512-open");
+        assert.match(out, /did not push feat\/512-open: it has an open pull request.*tools\/pr-open\.sh/);
+        assert.ok(!remoteHas("feat/512-open"));
+        assert.equal(prLists(), 0, "the fresh file answers; no GitHub call");
+        assert.match(gh().issues[512].comments[0].body, /^<!-- branch-note: feat\/512-open -->/);
+    });
+
+    it("asks gh once when the file is stale, and keeps its answer for five minutes", async () => {
+        status(10 * 60 * 1000, []);
+        setGh({ openPrs: ["feat/512-stale"] });
+        await commit("feat/512-stale");
+        await commit("feat/512-stale");
+        assert.ok(!remoteHas("feat/512-stale"));
+        assert.equal(prLists(), 1);
+    });
+
+    it("pushes as before when no pull request is open, or when neither the file nor gh can tell", async () => {
+        status(0, ["feat/512-open"]);
+        await commit("feat/512-none");
+        assert.ok(remoteHas("feat/512-none"));
+        status(10 * 60 * 1000, []);
+        setGh({ prListFails: true });
+        await commit("feat/512-unsure");
+        assert.ok(remoteHas("feat/512-unsure"));
     });
 });
 
@@ -331,14 +397,23 @@ describe("tools/worktree-new.sh", () => {
         assert.match(r.stdout, new RegExp(`issue #${n}`));
     });
 
-    it("starts a new branch from golden-verified when GitHub has it, measured as a branch of golden", () => {
+    it("starts a new branch from master even when GitHub has golden-verified", () => {
         git(repo, "commit", "-q", "--allow-empty", "-m", "verified on golden");
         git(repo, "push", "-q", "origin", "HEAD:golden-verified");
-        const verified = git(repo, "rev-parse", "HEAD");
-        const r = make("feat/513-on-verified");
+        const r = make("feat/513-on-master");
         assert.equal(r.status, 0, r.stderr);
-        assert.equal(git(join(repo, ".worktrees/feat-513-on-verified"), "rev-parse", "HEAD"), verified);
-        assert.equal(git(repo, "config", "branch.feat/513-on-verified.prBase"), "golden");
+        const master = git(repo, "rev-parse", "origin/master");
+        const wt = join(repo, ".worktrees/feat-513-on-master");
+        assert.equal(git(wt, "merge-base", "HEAD", "origin/master"), master);
+        assert.equal(git(repo, "config", "--default", "", "branch.feat/513-on-master.prBase"), "");
+    });
+
+    it("starts from golden-verified when asked, measured as a branch of golden", () => {
+        const verified = git(repo, "rev-parse", "origin/golden-verified");
+        const r = make("feat/516-on-verified", "origin/golden-verified");
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(git(join(repo, ".worktrees/feat-516-on-verified"), "rev-parse", "HEAD"), verified);
+        assert.equal(git(repo, "config", "branch.feat/516-on-verified.prBase"), "golden");
     });
 
     it("hands itself to the live copy with the same arguments and directory, passing its exit code", () => {
@@ -427,20 +502,23 @@ describe("tools/branch-note.mjs", () => {
         assert.equal(fields.left, undefined);
     });
 
-    it("busy marks the branch busy until a time and clear ends it, keeping the rest of the note", () => {
+    it("has no busy command, and drops a note's old busy and sync lines on its next write", () => {
         const wt = join(dir, "wt/.worktrees/feat-512-thing");
-        const comments = [{ id: 1, body: noteBody("feat/512-thing", { owner: "session s1" }) }];
-        writeFileSync(state, JSON.stringify({ calls: [], nextId: 1, issues: { 512: { ...issue("t"), comments } } }));
-        const r = run(wt, process.execPath, note, "busy", "--until", "24h", "--reason", "a design study");
-        assert.equal(r.status, 0, r.stderr);
-        const fields = () => parseNote(gh().issues[512].comments[0].body);
-        assert.match(fields().busy, /^until \d{4}-\d\d-\d\dT\S+Z -- a design study$/);
-        assert.equal(Date.parse(fields().busy.split(" ")[1]) > Date.now() + 23 * 3600e3, true);
-        assert.equal(fields().owner, "session s1");
-        assert.equal(run(wt, process.execPath, note, "busy", "--until", "clear").status, 0);
-        assert.equal(fields().busy, undefined);
-        assert.equal(fields().owner, "session s1");
-        assert.equal(run(wt, process.execPath, note, "busy", "--until", "soon", "--reason", "x").status, 1);
+        const old = `${noteBody("feat/512-thing", { owner: "session s1" })}- busy: until 2099-01-01T00:00:00Z -- x\n- sync: synced\n`;
+        writeFileSync(
+            state,
+            JSON.stringify({
+                calls: [],
+                nextId: 1,
+                issues: { 512: { ...issue("t"), comments: [{ id: 1, body: old }] } },
+            }),
+        );
+        assert.equal(run(wt, process.execPath, note, "busy", "--until", "24h", "--reason", "x").status, 1);
+        assert.equal(run(wt, process.execPath, note, "update", "--done", "d").status, 0);
+        const body = gh().issues[512].comments[0].body;
+        assert.doesNotMatch(body, /^- (busy|sync):/m);
+        assert.equal(parseNote(body).owner, "session s1");
+        assert.equal(parseNote(body).done, "d");
     });
 
     it("finds the issue number in a branch's name", () => {

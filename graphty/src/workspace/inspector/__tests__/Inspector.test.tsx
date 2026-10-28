@@ -260,8 +260,8 @@ describe("the inspector", () => {
         assert.equal(command.getAttribute("data-variant"), "default");
         assert.isNull(command.getAttribute("aria-pressed"));
         await userEvent.hover(command);
-        // The tooltip mounts after the theme's 1000 ms open delay: wait longer than that, not the
-        // default 1000 ms, which races the delay.
+        // The tooltip mounts after the theme's 1000 ms open delay, so a deadline of its own would race
+        // the delay on a busy machine: the wait has none, and the test's own timeout is the backstop.
         const tip = await screen.findByText(
             "Hide every node outside this neighborhood. Its step in Filters turns it off",
             {},
@@ -321,10 +321,14 @@ describe("the inspector", () => {
         assert.include(origin.textContent, "From the file");
         const kind = screen.getByRole("group", { name: "Value type" });
         const word = within(kind).getByText("Number");
+        // A tooltip opens only when the pointer moves onto its trigger, and the pointer is where
+        // an earlier test left it -- in a full run that can be this very spot, so a hover there
+        // is no move. Move it off first, as a reader's pointer comes from elsewhere.
+        await userEvent.unhover(word);
         await userEvent.hover(word);
         // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
         // was already in the page with this text (testing-library judged it inaccessible). It mounts
-        // after the theme's 1000 ms open delay: wait longer than that, not the default 1000 ms.
+        // after the theme's 1000 ms open delay, so the wait has no deadline of its own to race it.
         const tip = await screen.findByText(/quantity/, {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
     });
@@ -493,8 +497,8 @@ describe("the inspector", () => {
 
         // The three-dot button names itself on hover, as every icon button does.
         await userEvent.hover(screen.getByRole("button", { name: "Edge actions" }));
-        // The tooltip mounts after the theme's 1000 ms open delay: wait longer than that, not the
-        // default 1000 ms, which races the delay.
+        // The tooltip mounts after the theme's 1000 ms open delay, so the wait has no deadline of its
+        // own to race it.
         const tip = await screen.findByText("Edge actions", {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
         await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));

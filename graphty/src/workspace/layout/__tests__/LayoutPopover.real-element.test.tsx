@@ -7,6 +7,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import { layoutEntry } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
@@ -98,12 +99,23 @@ describe("the Layout popover", () => {
         await userEvent.click(screen.getByRole("button", { name: "Layout" }));
         let popover = await screen.findByRole("dialog", { name: "Layout" });
         const rows = within(popover).getAllByRole("option");
-        assert.strictEqual(rows.length, session.catalog.layouts().length, "every catalog layout is listed");
+        const engines = session.catalog
+            .layouts()
+            .map((layout) => layoutEntry(layout.id)?.implementations.length ?? 1)
+            .reduce((sum, count) => sum + count, 0);
+        assert.strictEqual(rows.length, engines, "every catalog layout and each of its engines is listed");
+        for (const row of rows) {
+            const line = row.querySelector('[data-testid="layout-description"]')?.textContent ?? "";
+            assert.isNotEmpty(line.trim(), `${row.textContent} has a description`);
+        }
         assert.isFalse(
-            rows.some((row) => /flat/i.test(row.textContent)),
+            rows.some((row) => {
+                const description = row.querySelector('[data-testid="layout-description"]')?.textContent ?? "";
+                return /flat/i.test(row.textContent.replace(description, ""));
+            }),
             "no separate flat force",
         );
-        const force = within(popover).getByRole("option", { name: /^Force/ });
+        const force = within(popover).getByRole("option", { name: /^Force(?!Atlas)/ });
         assert.strictEqual(force.getAttribute("aria-selected"), "true", "the current layout is checked");
         const rings = within(popover).getByRole("option", { name: /^Rings around a node/ });
         assert.strictEqual(rings.getAttribute("aria-disabled"), "true");
@@ -121,7 +133,7 @@ describe("the Layout popover", () => {
         await userEvent.click(within(popover).getByRole("button", { name: "Back to layouts" }));
 
         // Force: Shape reads what is drawn, and nothing differs yet.
-        await userEvent.click(within(popover).getByRole("option", { name: /^Force/ }));
+        await userEvent.click(within(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
         const shape = within(popover).getByRole("radiogroup", { name: "Shape" });
         assert.isTrue(within(shape).getByRole<HTMLInputElement>("radio", { name: "3D" }).checked);
         const applied = within(popover).getByRole("button", { name: "Applied" });
@@ -143,7 +155,7 @@ describe("the Layout popover", () => {
         });
         await userEvent.click(screen.getByRole("button", { name: "Layout" }));
         popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Force/ }));
+        await userEvent.click(within(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
         assert.isTrue(
             within(within(popover).getByRole("radiogroup", { name: "Shape" })).getByRole<HTMLInputElement>("radio", {
                 name: "2D",
@@ -168,8 +180,24 @@ describe("the Layout popover", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Layout" }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Force/ }));
-        const shape = within(popover).getByRole("radiogroup", { name: "Shape" });
-        assert.isTrue(within(shape).getByRole<HTMLInputElement>("radio", { name: "2D" }).checked);
+        // The old flat force is Force drawn by its ARF engine: that engine's own row is checked.
+        const arf = within(popover).getByRole("option", { name: /^ARF/ });
+        assert.strictEqual(arf.getAttribute("aria-selected"), "true");
+        await userEvent.click(arf);
+        within(popover).getByText("Draws flat");
+    });
+
+    it("lists Force's other engines under Force-directed, and choosing ForceAtlas2 runs force with that engine", async () => {
+        const session = await openK5();
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        const row = within(popover).getByRole("option", { name: /^ForceAtlas2/ });
+        assert.strictEqual(row.closest('[role="group"]')?.getAttribute("aria-label"), "Force-directed");
+        await userEvent.click(row);
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.strictEqual(session.layout.id, "force");
+            assert.strictEqual(session.layout.engine, "forceatlas2");
+        });
     });
 });

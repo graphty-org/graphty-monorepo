@@ -1,4 +1,4 @@
-import { expect, waitFor } from "@storybook/test";
+import { expect, waitFor } from "storybook/test";
 
 /**
  * Waits until a story's floating parts have stopped moving: the page's web fonts have loaded,

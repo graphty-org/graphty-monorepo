@@ -142,8 +142,8 @@ describe("Export warns before the graph's styles are lost", () => {
         await chooseCsvNodes(dialog);
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         const warning = await within(dialog).findByRole("alertdialog", {});
-        assert.match(warning.textContent, /Node fill color on 8 nodes is not written/);
-        assert.match(warning.textContent, /gives none of the styles back/);
+        assert.match(warning.textContent, /Node fill color not written/);
+        assert.match(warning.textContent, /Reopened: no styles/);
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 
         await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
@@ -213,8 +213,8 @@ describe("Export warns before the graph's styles are lost", () => {
         });
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         const warning = await within(dialog).findByRole("alertdialog", {});
-        assert.match(warning.textContent, /Node label color on 8 nodes is not written/);
-        assert.match(warning.textContent, /rebuilds the style layers as layers/);
+        assert.match(warning.textContent, /Node label color not written/);
+        assert.match(warning.textContent, /Reopened: layers as layers/);
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 
         await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));

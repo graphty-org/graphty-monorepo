@@ -420,8 +420,6 @@ describe("the start page's ways in", () => {
             JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
         );
         await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
-        // A data file opens on the Data page as a new graph; Load reads it.
-        await userEvent.click(await screen.findByRole("button", { name: "Load" }));
 
         await waitFor(() => {
             assert.equal(store.get().project?.name, "triangle");

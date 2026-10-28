@@ -117,27 +117,6 @@ describe("summaries and cards that say true, complete things", () => {
         assert.isNull(screen.queryByRole("menu"));
     });
 
-    it("says every Data place row's type and fill, and draws a category's own icon", async () => {
-        const session = await open((s) =>
-            s.data.import({ type: "graphml", name: "volunteers.graphml", config: { data: VOLUNTEERS } }),
-        );
-        await waitFor(() => {
-            assert.equal(session.data.statistics().nodeCount, 6);
-        });
-        await userEvent.click(screen.getByRole("button", { name: "Data" }));
-        for (const name of ["email", "hours", "kind", "name"]) {
-            const row = await screen.findByRole("treeitem", { name: `${name}, node attribute` });
-            assert.isTrue(row.hasAttribute("data-two-line"), `${name} has a second line`);
-            assert.match(row.textContent ?? "", /have a value/, name);
-        }
-        const kind = screen.getByRole("treeitem", { name: "kind, node attribute" });
-        assert.include(kind.textContent ?? "", "Category, all have a value");
-        assert.isNotNull(kind.querySelector(".lucide-boxes"), "kind wears the category icon");
-        const email = screen.getByRole("treeitem", { name: "email, node attribute" });
-        assert.include(email.textContent ?? "", "Text, 50% have a value");
-        assert.isNull(email.querySelector(".lucide-boxes"), "free text keeps the text icon");
-    });
-
     it("says on a Size line added to a selection that the first size picked makes the layer", async () => {
         const session = await open((s) =>
             s.data.import({ type: "graphml", name: "volunteers.graphml", config: { data: VOLUNTEERS } }),
@@ -197,7 +176,7 @@ describe("summaries and cards that say true, complete things", () => {
         await session.selection.apply({ nodes: allIds(session).slice(0, 1) });
         await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         await userEvent.hover(await screen.findByRole("button", { name: /^Degree/ }));
-        // A hang guard past the theme's one-second hover delay, not a timing under test.
+        // It opens after the theme's one-second hover delay, so the wait has no deadline to race it.
         const tip = await screen.findByRole("tooltip", {});
         assert.include(tip.textContent ?? "", "Select this node and its neighbors");
     });

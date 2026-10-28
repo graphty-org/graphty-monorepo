@@ -1,0 +1,3 @@
+{"kind":"test-slot","start":"2026-10-22T14:28:16.738Z","end":"2026-10-22T14:28:18.741Z","ms":2003,"waiter":"webgpu-graph-algorithms: run-browser-project.js","pid":3236649,"heldBy":["pid 3236648 holder (0s)"]}
+{"kind":"browser-slot","start":"2026-10-22T14:30:00.000Z","end":"2026-10-22T14:30:01.000Z","ms":1000,"waiter":"capture","pid":1,"heldBy":[]}
+{"kind":"gpu-slot","start":"2026-10-22T14:28:14.693Z","end":"2026-10-22T14:28:16.696Z","ms":2003,"waiter":"verify-short-lock: node /home/someone/x.mjs","pid":3236579,"heldBy":["pid 3236559 (0s)"]}

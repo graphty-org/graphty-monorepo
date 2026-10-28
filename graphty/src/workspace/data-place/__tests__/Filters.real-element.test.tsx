@@ -12,11 +12,13 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
+import { columnVerb } from "../../../test/column-header";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML } from "../fixtures";
+import { addStepCondition, openStepPicker, stepPicker } from "./stepCards";
 
 /**
  * Renders the workspace on the Data place, waits for the session and loads the small graph file
@@ -51,13 +53,9 @@ describe("Filters on the real element", () => {
         const filters = (): HTMLElement =>
             within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", { name: "Filters" });
 
-        const row = await screen.findByRole("treeitem", { name: "value, edge attribute" });
-        row.focus();
-        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
+        // Filter to... from the column's header in the table (the Data place lists no attributes).
+        await columnVerb("edge", "value", "Filter to...");
         assert.deepEqual(store.get().inspected, { kind: "filter-step", id: "new:edge:data.value" });
-        // The attribute it was opened from stays marked.
-        assert.equal(row.getAttribute("aria-selected"), "true");
 
         // The editor says what an edge-attribute step keeps.
         await screen.findByText("Keeps edges that pass and the nodes at their ends.");
@@ -137,6 +135,8 @@ describe("Filters on the real element", () => {
             store.set({ inspected: { kind: "filter-step", id: step.id } });
         });
         const save = await inspector.findByRole("button", { name: "Save and turn on" });
+        // The step's card is in its Which edges picker, folded to a chip until clicked.
+        await openStepPicker("edge");
         const value = inspector.getByRole("textbox", { name: FROM });
         await userEvent.clear(value);
         await userEvent.type(value, "10");
@@ -186,24 +186,27 @@ describe("Filters on the real element", () => {
 
         // Hover names the missing attribute; a click adds nothing.
         await userEvent.hover(add);
-        await screen.findByText("Choose an attribute first", {});
+        await screen.findByText("Add a condition first", {});
         await userEvent.click(add);
         assert.lengthOf(session.visibility.steps, 0);
         await userEvent.unhover(add);
 
-        // With an attribute and no text, focus names the missing value; Enter adds nothing.
-        await userEvent.click(screen.getByRole("combobox", { name: "Attribute" }));
-        await userEvent.click(await screen.findByRole("option", { name: "label" }));
+        // With a condition and no text, focus names the missing value; Enter adds nothing.
+        await addStepCondition("label");
         await userEvent.click(screen.getByRole("combobox", { name: "label: text to match" }));
         await userEvent.keyboard("{Enter}");
         assert.lengthOf(session.visibility.steps, 0);
-        // Past the card's Match case, to Add step.
+        // Enter folded the cards to the Which nodes row; past Which edges, to Add step.
+        await waitFor(() => {
+            assert.match(document.activeElement?.getAttribute("aria-label") ?? "", /^Which nodes/);
+        });
         await userEvent.tab();
         await userEvent.tab();
         assert.equal(document.activeElement, add);
         await screen.findByText("Type a value first", {});
 
         // A whole rule enables it, and it adds the step.
+        await openStepPicker("node");
         await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
         assert.isNull(add.getAttribute("aria-disabled"));
         await userEvent.click(add);
@@ -212,11 +215,58 @@ describe("Filters on the real element", () => {
         });
     });
 
+    it("builds a step from a node card and an edge card, Hide hides what they keep, and Undo turns it back on", async () => {
+        const { session } = await openWithGraph();
+        await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+        // The cards a style layer's Which nodes and Which edges pickers draw.
+        await addStepCondition("label");
+        await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
+        await addStepCondition("value", "edge");
+        const from = await screen.findByRole("textbox", { name: FROM });
+        await userEvent.clear(from);
+        await userEvent.type(from, "9");
+        await userEvent.click(screen.getByText("Hide"));
+        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+
+        await waitFor(() => {
+            assert.deepEqual(session.visibility.steps[0]?.rule, {
+                kind: "not",
+                of: {
+                    kind: "all",
+                    of: [
+                        { kind: "text", reads: "data.label", mode: "substring", text: "Cos" },
+                        { kind: "range", attribute: "data.value", min: 9, max: 31, nodes: "ends" },
+                    ],
+                },
+            });
+        });
+        const name = "not: label contains Cos and value is between 9 and 31";
+        await screen.findByRole("treeitem", { name });
+
+        // Its box turns it off; Undo turns it back on.
+        await userEvent.click(screen.getByRole("checkbox", { name: `Apply step: ${name}` }));
+        await waitFor(() => {
+            assert.isFalse(session.visibility.steps[0]?.on);
+        });
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await waitFor(() => {
+            assert.isTrue(session.visibility.steps[0]?.on);
+        });
+
+        // Its editor reads the cards back into their pickers, Hide still chosen.
+        await userEvent.click(screen.getByRole("treeitem", { name }));
+        const nodes = await stepPicker("node");
+        const edges = await stepPicker("edge");
+        assert.match(within(nodes).getByRole("button").getAttribute("aria-label") ?? "", /label contains Cos/);
+        assert.match(within(edges).getByRole("button").getAttribute("aria-label") ?? "", /value/);
+        assert.isTrue(screen.getByRole<HTMLInputElement>("radio", { name: "Hide" }).checked);
+    });
+
     it("adds a largest-component step from the section's +", async () => {
         const { session } = await openWithGraph();
         await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-        await userEvent.click(screen.getByRole("combobox", { name: "Keep" }));
-        await userEvent.click(await screen.findByRole("option", { name: "the largest component" }));
+        await userEvent.click(screen.getByRole("combobox", { name: "Filter by" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Largest component" }));
         await userEvent.click(screen.getByRole("button", { name: "Add step" }));
         await waitFor(() => {
             assert.deepEqual(session.visibility.steps[0]?.rule, { kind: "member", of: "largest-component" });
@@ -225,28 +275,25 @@ describe("Filters on the real element", () => {
     });
     it("drops a new step left without Add step, says so, and never writes it", async () => {
         const { session, store } = await openWithGraph();
-        const attribute = (): HTMLInputElement => screen.getByRole<HTMLInputElement>("combobox", { name: "Attribute" });
         await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-        await userEvent.click(attribute());
-        await userEvent.click(await screen.findByRole("option", { name: "label" }));
+        await addStepCondition("label");
 
-        // Selecting the attribute's row moves the inspector off the editor: the half-made
+        // Opening an attribute's Details moves the inspector off the editor: the half-made
         // step adds nothing, the notice says so, and "+" starts again.
-        await userEvent.click(await screen.findByRole("treeitem", { name: "value, edge attribute" }));
+        await columnVerb("edge", "value", "Details");
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "attribute");
         });
         assert.lengthOf(session.visibility.steps, 0);
         assert.equal(store.get().notice?.message, "Filter step not added. Press Add step to use a step.");
         await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-        await waitFor(() => {
-            assert.equal(attribute().value, "");
-        });
+        // A fresh editor: no card.
+        await screen.findByRole("button", { name: "Add a condition" });
+        assert.isNull(screen.queryByRole("group", { name: /^label/ }));
 
         // Escape in the editor cancels it and says so once.
-        await userEvent.click(attribute());
-        await userEvent.click(await screen.findByRole("option", { name: "label" }));
-        screen.getByRole("combobox", { name: "Keep" }).focus();
+        await addStepCondition("label");
+        screen.getByRole("combobox", { name: "Filter by" }).focus();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(store.get().inspected);
@@ -255,11 +302,10 @@ describe("Filters on the real element", () => {
 
         // A whole rule is not added when a click leaves the editor either: it is named.
         await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-        await userEvent.click(attribute());
-        await userEvent.click(await screen.findByRole("option", { name: "label" }));
+        await addStepCondition("label");
         await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
         await screen.findByText("8 to 1 nodes");
-        await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
+        await columnVerb("edge", "value", "Details");
         await waitFor(() => {
             assert.equal(
                 store.get().notice?.message,
@@ -275,8 +321,7 @@ describe("Filters on the real element", () => {
         const { session, store } = await openWithGraph();
         const chooseLabel = async (): Promise<HTMLElement> => {
             await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }));
-            await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
+            await addStepCondition("label");
             return screen.findByRole("combobox", { name: "label: text to match" });
         };
 
@@ -285,15 +330,20 @@ describe("Filters on the real element", () => {
         const box = await chooseLabel();
         await userEvent.type(box, "Zzz");
         await screen.findByText("8 to 0 nodes");
+        const spoken: string[] = [];
+        const stop = store.subscribe(() => {
+            spoken.push(store.get().announcement ?? "");
+        });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
-            assert.equal(store.get().announcement, "No node matches this step");
+            assert.include(spoken, "No node matches this step");
         });
+        stop();
         assert.equal(session.visibility.steps.length, 0);
         assert.equal(screen.getByRole("button", { name: "Add step" }).getAttribute("aria-disabled"), "true");
         // Escape in a box holding text keeps the text and the editor; from the editor's other
         // controls, with no list open, Escape closes the editor.
-        screen.getByRole("combobox", { name: "Keep" }).focus();
+        screen.getByRole("combobox", { name: "Filter by" }).focus();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(store.get().inspected);

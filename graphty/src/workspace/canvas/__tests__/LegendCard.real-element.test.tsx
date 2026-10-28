@@ -19,21 +19,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/**
- * Waits until the element holds the room the store reserves, so the camera has the insets to frame
- * with before the next stable frame is read.
- * @param element - the element.
- * @param store - the workspace store.
- */
-async function insetsInForce(element: HTMLElementTagNameMap["graphty-element"], store: WorkspaceStore): Promise<void> {
-    await waitFor(() => {
-        const held = element.viewInsets;
-        for (const [side, room] of Object.entries(store.get().viewInsets)) {
-            assert.strictEqual(held[side as keyof typeof held], room, `the ${side} inset reached the element`);
-        }
-    });
-}
-
 /** Where the pictures for the owner's review go, relative to this file. */
 const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
 
@@ -255,23 +240,32 @@ describe("the canvas key on the real element", () => {
     });
 
     it("at 900 x 700 leaves the drawing at least half the canvas's width", async () => {
-        const { session, element, store } = await longKey();
+        const { session, element } = await longKey();
         const canvas = element.closest<HTMLElement>(".ws-canvas");
         assert.isNotNull(canvas);
         const ids = session.data.nodes().map((node) => node.id);
-        // The key's room is reserved and the graph framed clear of it: wait for the inset, then for
-        // the frame after it to land and settle, and measure the drawing as it stays.
-        await waitFor(() => {
-            assert.isNotEmpty(Object.keys(store.get().viewInsets));
-        });
-        await insetsInForce(element, store);
+        // The key floats over the drawing, which is framed in the whole canvas: measure it as it stays.
         await element.waitForStableFrame();
-        const xs = ids.flatMap((id) => {
-            const at = element.nodeScreenPosition(id);
-            return at === null || at === undefined ? [] : [at.x];
-        });
-        const span = Math.max(...xs) - Math.min(...xs);
-        assert.isAtLeast(span, (canvas?.clientWidth ?? 0) / 2, "the drawing's width on the canvas");
+        const measure = (): { count: number; min: number; max: number; span: number } => {
+            const xs = ids.flatMap((id) => {
+                const at = element.nodeScreenPosition(id);
+                return at === null || at === undefined ? [] : [at.x];
+            });
+            const min = Math.min(...xs);
+            const max = Math.max(...xs);
+            return { count: xs.length, min, max, span: max - min };
+        };
+        const first = measure();
+        const width = canvas?.clientWidth ?? 0;
+        if (first.span < width / 2) {
+            // Diagnostics for #3767 (passed on retry in CI, never reproduced locally): whether the
+            // "stable" frame was still moving shows in a second measurement after another wait.
+            await element.waitForStableFrame();
+            const again = measure();
+            assert.fail(
+                `the drawing's width on the canvas: ${JSON.stringify({ first, again, canvasWidth: width, nodes: ids.length })}`,
+            );
+        }
         await page.screenshot({ path: `${SHOTS}/key-900x700.png` });
     });
 
@@ -387,13 +381,7 @@ describe("the canvas key on the real element", () => {
             selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
             set: { "node.haloColor": "#ff00ff" },
         });
-        await waitFor(() => {
-            assert.isDefined(
-                store.get().viewInsets.left ?? store.get().viewInsets.top,
-                "the key came up and reserved its room",
-            );
-        });
-        await insetsInForce(element, store);
+        await screen.findByRole("region", { name: "Legend" });
         await element.waitForStableFrame();
 
         const now = drawn();
@@ -427,8 +415,12 @@ describe("the canvas key on the real element", () => {
             });
         const framed = drawn();
         const unmoved = async (what: string): Promise<void> => {
-            await insetsInForce(element, store);
             await element.waitForStableFrame();
+            assert.deepEqual(
+                element.viewInsets,
+                { top: 0, right: 0, bottom: 0, left: 0 },
+                "the key is an overlay, never a view inset",
+            );
             const now = drawn();
             assert.strictEqual(now.length, framed.length);
             now.forEach((value, at) => {
@@ -444,12 +436,6 @@ describe("the canvas key on the real element", () => {
             set: { "node.color": "#ff00ff" },
         });
         await screen.findByRole("region", { name: "Legend" });
-        await waitFor(() => {
-            assert.isDefined(
-                store.get().viewInsets.left ?? store.get().viewInsets.top,
-                "the key came up and reserved its room",
-            );
-        });
         await unmoved("the key coming up moved the drawing");
 
         await session.runs.start("louvain");

@@ -67,16 +67,24 @@ describe("the start screen", () => {
             "Open the College football sample",
             "Open the Florentine families sample",
         ]);
-        // Then graph-samples' other datasets, the large ones too, without a second copy of the four,
-        // and without the three past graphty-element's ceilings (road-ny, com-dblp, ogbn-arxiv).
-        assert.lengthOf(names, 19);
+        // Then the four timed samples, then graph-samples' other datasets, the large ones too, without a
+        // second copy of the four, and without the three past graphty-element's ceilings (road-ny,
+        // com-dblp, ogbn-arxiv).
+        assert.deepEqual(names.slice(4, 8), [
+            "Open the Campus contacts sample",
+            "Open the Graph researchers sample",
+            "Open the Marvel films sample",
+            "Open the Paper citations sample",
+        ]);
+        assert.lengthOf(names, 24);
+        assert.include(names, "Open the Venice public transport sample");
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
         // Each shows the picture graph-samples publishes of its graph, the large ones and every
         // generator too, and the picture loads: no tile shows the plain stand-in.
         const pictures = samples.map((button) => button.querySelector<HTMLImageElement>("img.ws-land-sample-pic"));
         for (const [i, picture] of pictures.entries()) {
-            assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/[a-z0-9-]+\.webp$/, names[i] ?? "");
+            assert.match(picture?.src ?? "", /\/(data\/graph-samples\/v1|samples)\/[a-z0-9-]+\.webp$/, names[i] ?? "");
         }
         const generators = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
             name: /^Generate a graph: /,
@@ -128,7 +136,7 @@ describe("the start screen", () => {
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
         await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 19);
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 24);
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {
@@ -212,7 +220,7 @@ describe("the start screen", () => {
         assert.isTrue(scrolled);
     });
 
-    it("lists the network sources that are on the way, and opens a graph from a link", async () => {
+    it("lists the network sources, and opens a graph from a link", async () => {
         const store = renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
@@ -222,21 +230,29 @@ describe("the start screen", () => {
         }
         // Memgraph cannot be reached from an https page without a server, so it is not offered.
         assert.isNull(within(dialog).queryByText("Memgraph"));
-        assert.isNotNull(within(dialog).getByText(/on the way/));
-        const open = within(dialog).getByRole("button", { name: "Open" });
-        // Open with no address asks for one, and opens nothing.
-        await userEvent.click(open);
-        assert.isNotNull(within(dialog).getByText("Paste the web address of a graph file first."));
+        const field = within(dialog).getByRole("textbox", { name: "Web address of a graph file" });
+        // Enter on something that is not a web address opens nothing.
+        await userEvent.type(field, "trade routes{Enter}");
         assert.isNull(store.get().project);
 
-        await userEvent.type(
-            within(dialog).getByRole("textbox", { name: "Web address of a graph file" }),
-            "https://example.com/data/trade%20routes.graphml",
-        );
-        await userEvent.click(open);
+        await userEvent.clear(field);
+        await userEvent.type(field, "https://example.com/data/trade%20routes.graphml{Enter}");
 
         assert.equal(store.get().project?.name, "trade routes");
         assert.equal(store.get().opening?.name, "trade routes");
+    });
+
+    it("opens the server form on the Data place for a network source", async () => {
+        const store = renderStart();
+
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
+        await userEvent.click(within(dialog).getByText("Neo4j"));
+
+        const state = store.get();
+        assert.equal(state.project?.name, "Untitled");
+        assert.equal(state.place, "data");
+        assert.equal(state.dialog, "server");
     });
 
     it("opens a dropped file as a project named after it", async () => {
@@ -248,6 +264,7 @@ describe("the start screen", () => {
         assert.isNotNull(screenRoot);
         // A file dragged in from the desktop: userEvent drags only elements of the page, so the
         // browser's own drag events for an outside file are dispatched as the browser sends them
+        screenRoot?.dispatchEvent(new DragEvent("dragenter", { bubbles: true, dataTransfer: transfer }));
         screenRoot?.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: transfer }));
         assert.isNotNull(await screen.findByText("Drop to open"));
         screenRoot?.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
@@ -278,11 +295,10 @@ describe("the start screen", () => {
 });
 
 describe("Settings", () => {
-    it("opens on General from the main menu and from Mod+,", async () => {
+    it("opens on General from the gear and from Mod+,", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Settings\.\.\./ }));
+        await userEvent.click(screen.getByRole("button", { name: "Settings..." }));
         let dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Theme" }));
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Number format" }));
@@ -291,15 +307,6 @@ describe("Settings", () => {
 
         await userEvent.keyboard("{Control>},{/Control}");
         dialog = await screen.findByRole("dialog", { name: "Settings" });
-        assert.isNotNull(within(dialog).getByRole("heading", { name: "General" }));
-    });
-
-    it("opens on General from the Settings button in the start screen's header", async () => {
-        renderStart();
-
-        const header = screen.getByRole("banner");
-        await userEvent.click(within(header).getByRole("button", { name: "Settings..." }));
-        const dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByRole("heading", { name: "General" }));
     });
 

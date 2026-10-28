@@ -328,6 +328,89 @@ describe("renderOnDemand", () => {
         });
     }
 
+    // A full-page screenshot on a software GPU (#3704): the screenshot shrinks the page and
+    // restores it in two quick steps while the GPU is still drawing an earlier frame. The second
+    // resize clears the canvas again, and the frame the screenshot caught was empty.
+    describe("while the GPU is still drawing an earlier frame", () => {
+        /**
+         * Holds the element's GPU behind for the rest of the test, as a software GPU under load
+         * is: what the fence of the last frame says cannot be made slow on purpose.
+         * @param element - The element.
+         */
+        function gpuStaysBehind(element: Graphty): void {
+            const manager = (element.graph as unknown as { renderManager: { gpuBehind: () => boolean } }).renderManager;
+            const spy = vi.spyOn(manager, "gpuBehind").mockReturnValue(true);
+            cleanups.push(() => {
+                spy.mockRestore();
+            });
+        }
+
+        /**
+         * Whether the canvas's drawing buffer holds a frame rather than the empty buffer a resize
+         * leaves.
+         * @param canvas - The element's canvas.
+         * @returns True when any pixel is drawn.
+         */
+        function holdsAFrame(canvas: HTMLCanvasElement): boolean {
+            const copy = document.createElement("canvas");
+            copy.width = canvas.width;
+            copy.height = canvas.height;
+            const context = copy.getContext("2d");
+            assert.isNotNull(context);
+            context.drawImage(canvas, 0, 0);
+            return context
+                .getImageData(0, 0, copy.width, copy.height)
+                .data.some((value, i) => i % 4 === 3 && value !== 0);
+        }
+
+        it("holds a drawn graph in the frame of each of two resizes in a row", async () => {
+            const element = await mounted(true);
+            await untilResting(element);
+            gpuStaysBehind(element);
+            const { canvas } = element.graph;
+
+            // Each size is read in the rendering step its resize is painted in, by an observer
+            // created after the element's, so the element has resized (and drawn) first.
+            for (const height of [HEIGHT - 100, HEIGHT]) {
+                const painted = new Promise<boolean>((resolve) => {
+                    const observer = new ResizeObserver(([entry]) => {
+                        if (entry.contentRect.height !== height) {
+                            return;
+                        }
+
+                        observer.disconnect();
+                        resolve(holdsAFrame(canvas));
+                    });
+                    observer.observe(element);
+                    cleanups.push(() => {
+                        observer.disconnect();
+                    });
+                });
+                element.style.height = `${String(height)}px`;
+
+                assert.isTrue(await painted, `the canvas holds a frame at height ${String(height)}`);
+                // The next size in the next rendering step, as the screenshot's restore comes.
+                await nextFrame();
+            }
+        });
+
+        it("holds a drawn graph after a resize the window's resize event makes", async () => {
+            const element = await mounted(true);
+            await untilResting(element);
+            gpuStaysBehind(element);
+            const { canvas, engine } = element.graph;
+            const width = engine.getRenderWidth();
+
+            // The window's resize event can reach the element before its ResizeObserver does,
+            // and then it is the call that assigns the new size.
+            element.style.width = `${String(WIDTH + 100)}px`;
+            globalThis.dispatchEvent(new Event("resize"));
+
+            assert.isAbove(engine.getRenderWidth(), width, "the window's resize event resized the canvas");
+            assert.isTrue(holdsAFrame(canvas), "the canvas holds a frame, not the buffer the resize cleared");
+        });
+    });
+
     it("draws a style change and still reaches a stable frame", async () => {
         const element = await mounted(true);
         await untilResting(element);

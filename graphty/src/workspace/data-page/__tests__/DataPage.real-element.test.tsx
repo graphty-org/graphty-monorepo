@@ -15,7 +15,6 @@ import { page, userEvent } from "vitest/browser";
 import POSTER from "../../../../../design/ui/studio/tool/files/lesmis-poster.graphty.json?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
-import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -97,11 +96,20 @@ async function pick(label: string, option: string): Promise<void> {
 }
 
 /**
- * Hands files to the page as the file picker does.
+ * Drops files on the Data page as the browser does. A synthetic DragEvent, the one exception to
+ * real input here: a page cannot start a drag of a file from the operating system, and
+ * Playwright's drag-and-drop moves page elements, never files.
  * @param files - the files.
  */
 async function chooseFiles(...files: File[]): Promise<void> {
-    await userEvent.upload(screen.getByTestId("data-page-file-input"), files);
+    const page = await screen.findByRole("region", { name: "Data page" });
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+        dataTransfer.items.add(file);
+    }
+    for (const type of ["dragenter", "dragover", "drop"]) {
+        page.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
 }
 
 /**
@@ -242,6 +250,7 @@ describe("the Data page on the real element", () => {
         assert.equal(session.data.lastImport()?.counts.nodes, 4);
         assert.deepEqual(session.data.lastImport()?.unmatched, { rows: 1, values: 1 });
         assert.equal(session.data.node("a")?.name, "Ann");
+        assert.isFalse(session.canUndo, "a new graph starts its history: its load is not a change to undo");
     });
 
     it("a table with a row the load leaves out wears a warning with the count, and only the way back shows", async () => {
@@ -437,9 +446,10 @@ describe("the Data page on the real element", () => {
         act(() => {
             store.set({ place: "data" });
         });
-        const sources = await screen.findByRole("tree", { name: "Sources" });
-        within(sources).getByRole("treeitem", { name: "ties.csv" }).focus();
-        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        // The source's row opens it in the inspector, whose "..." holds Edit source....
+        const row = await screen.findByRole("listitem", { name: "ties.csv" });
+        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
         await screen.findByRole("heading", { name: "Replace: ties.csv" });
         await waitFor(() => {
@@ -485,20 +495,15 @@ describe("the Data page on the real element", () => {
         assert.isDefined(region);
         assert.isNull(region?.closest("[hidden]"));
 
+        assert.equal(store.get().project?.name, "people and passes", "named after both files");
+
+        // The Data place's Sources row (the data prototype's rows replace tier 3's tree): a press
+        // opens the load in the inspector, with what it added and what it left out.
         act(() => {
             store.set({ place: "data" });
         });
-        const sources = await screen.findByRole("tree", { name: "Sources" });
-        const row = within(sources).getByRole("treeitem", { name: "people.csv and passes.csv" });
-        assert.include(row.textContent, "3 nodes, 2 edges");
-        // The counts are a second line, never sharing (and cutting) the name's line.
-        assert.isNotNull(row.querySelector(".cm-tree-description"));
-        assert.isNull(row.querySelector("[data-testid='tree-count']"));
-        // Its own row under the source, so a narrow panel cannot cut it off.
-        assert.isNotNull(within(sources).getByRole("treeitem", { name: "1 row left out" }));
-        assert.equal(store.get().project?.name, "people and passes", "named after both files");
-
-        await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
+        const row = await screen.findByRole("listitem", { name: /people/ });
+        await userEvent.click(within(row).getAllByRole("button")[0]);
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         await within(inspector).findByText("1 edge row was left out: it names a node missing from the node rows.");
         // The row itself, kept by the element with the load: no file to reopen.
@@ -510,59 +515,9 @@ describe("the Data page on the real element", () => {
             within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
         );
 
-        // The left-out child names its load, not "Source", and shows only what it names: the
-        // sentence and the row, never the load's counts under its title; a table child its own
-        // count and its table in the dock.
-        await userEvent.click(within(sources).getByText("1 row left out"));
-        await waitFor(() => {
-            assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "1 row left out");
-        });
-        await within(inspector).findByText("Left out of people.csv and passes.csv");
-        assert.isNull(within(inspector).queryByText("Source"));
-        // The heading draws the icon of the row it was opened from, in the row's color.
-        const headingIcon = (): SVGElement | null | undefined =>
-            document.getElementById(INSPECTOR_TITLE_ID)?.parentElement?.querySelector("svg");
-        const rowIcon = (name: string): SVGElement | null =>
-            within(sources).getByRole("treeitem", { name }).querySelector("svg");
-        assert.include(headingIcon()?.getAttribute("class"), "lucide-triangle-alert");
-        assert.equal(headingIcon()?.getAttribute("class"), rowIcon("1 row left out")?.getAttribute("class"));
-        assert.equal(headingIcon()?.getAttribute("stroke"), "var(--cm-text-danger)");
-        await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
-        assertInOrder(
-            within(inspector).getByText("Left out"),
-            within(inspector).getByText("1 edge row was left out: it names a node missing from the node rows."),
-            within(inspector).getByText("Line 4: z has no node row; source c, target z, weight 1"),
-        );
-        assert.isNull(within(inspector).queryByText("Loaded"));
-        assert.isNull(within(inspector).queryByText("Nodes"));
-        assert.isNull(within(inspector).queryByText("Edges"));
-        await userEvent.click(within(sources).getByText("passes.csv"));
-        await waitFor(() => {
-            assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "passes.csv");
-        });
-        assert.isNull(within(inspector).queryByText("Nodes"));
-        assert.isNotNull(within(inspector).getByText("Edges"));
-        assert.deepInclude(store.get(), { dockOpen: true, dockTab: "edges" });
-        assert.equal(headingIcon()?.getAttribute("class"), rowIcon("passes.csv")?.getAttribute("class"));
-        assert.include(headingIcon()?.getAttribute("class"), "lucide-spline");
-        await userEvent.click(within(sources).getByText("people.csv"));
-        await waitFor(() => {
-            assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "people.csv");
-        });
-        assert.include(headingIcon()?.getAttribute("class"), "lucide-circle-dot");
-        await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
-        await waitFor(() => {
-            assert.include(headingIcon()?.getAttribute("class"), "lucide-file-text");
-        });
-        await userEvent.click(within(sources).getByText("passes.csv"));
-        await waitFor(() => {
-            assert.equal(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "passes.csv");
-        });
-
         // The Graph place shows no source: switching to it closes the source's inspector.
         await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         assert.isNull(store.get().inspected);
-        assert.notEqual(document.getElementById(INSPECTOR_TITLE_ID)?.textContent, "passes.csv");
     });
 
     it("Sources says nothing was left out when a load kept every row", async () => {
@@ -578,10 +533,9 @@ describe("the Data page on the real element", () => {
         act(() => {
             store.set({ place: "data" });
         });
-        const sources = await screen.findByRole("tree", { name: "Sources" });
-        const row = within(sources).getByRole("treeitem", { name: "people.csv and passes.csv" });
+        const row = await screen.findByRole("listitem", { name: /people/ });
         assert.notInclude(row.textContent, "left out");
-        await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
+        await userEvent.click(within(row).getAllByRole("button")[0]);
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         await within(inspector).findByText("Loaded");
         assert.notInclude(inspector.textContent, "left out");
@@ -762,8 +716,7 @@ describe("the Data page on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"));
         await screen.findByRole("grid", { name: "Rows of people.csv" });
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "File..." }));
+        // A drop on the page joins the table on it, as Tables "+" File... does.
         await chooseFiles(new File([TIES], "ties.csv"));
         await screen.findByRole("grid", { name: "Rows of ties.csv" });
         assert.include(screen.getByRole("button", { current: true }).textContent, "Edges: ties.csv");

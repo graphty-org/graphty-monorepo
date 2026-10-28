@@ -9,6 +9,7 @@ import type {
     DataSourceInput,
     DraftRow,
     GraphSession,
+    LoadChoices,
     LoadDraft,
     LoadReport,
     RecordPage,
@@ -108,10 +109,11 @@ export interface LoadDraftState {
     setFilter: (filter: RowFilter) => void;
     /**
      * Loads the draft with the reader's choices.
+     * @param history - "start" when the load makes a new graph, which starts its history.
      * @returns true once the rows are in the graph; false when the element refused the load,
      *     which `loadError` then holds.
      */
-    load: () => Promise<boolean>;
+    load: (history?: LoadChoices["history"]) => Promise<boolean>;
 }
 
 /**
@@ -251,24 +253,30 @@ export function useLoadDraft(
         };
     }, [draft, tableId, filter, choices, mode]);
 
-    const load = useCallback(async (): Promise<boolean> => {
-        if (draft === null) {
-            return false;
-        }
-        setLoading(true);
-        loadingDraft.current = draft;
-        try {
-            await draft.load(loadChoices(draft, choices, mode));
-            return true;
-        } catch (error: unknown) {
-            setLoadError(error);
-            return false;
-        } finally {
-            // A refused load leaves the draft on the page, which disposes it as usual.
-            loadingDraft.current = null;
-            setLoading(false);
-        }
-    }, [draft, choices, mode]);
+    const load = useCallback(
+        async (history?: LoadChoices["history"]): Promise<boolean> => {
+            if (draft === null) {
+                return false;
+            }
+            setLoading(true);
+            loadingDraft.current = draft;
+            try {
+                await draft.load({
+                    ...loadChoices(draft, choices, mode),
+                    ...(history === undefined ? {} : { history }),
+                });
+                return true;
+            } catch (error: unknown) {
+                setLoadError(error);
+                return false;
+            } finally {
+                // A refused load leaves the draft on the page, which disposes it as usual.
+                loadingDraft.current = null;
+                setLoading(false);
+            }
+        },
+        [draft, choices, mode],
+    );
 
     return {
         source,

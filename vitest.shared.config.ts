@@ -3,21 +3,8 @@
 
 import { defineConfig, type UserConfig } from "vitest/config";
 
-import { workerShare } from "./tools/test-slots.mjs";
+import { baseTest } from "./vitest.base.mjs";
 import { withTestGuards } from "./tools/test-wait-guard.mjs";
-import { ciReporters } from "./vitest.ci-junit.mjs";
-
-// Every Playwright browser the test projects launch inherits this process's environment. Chromium
-// 143 (Playwright's chromium_headless_shell-1200) calls setenv("FC_FONTATIONS", "1") from a font
-// worker thread after its other threads are running. When the environment array has to grow for
-// that entry, glibc reallocates it and Chrome's allocator frees the old copy; a D-Bus thread that is
-// inside strerror -> getenv("LANGUAGE") at that moment (it is, on a machine with no system D-Bus
-// socket) reads the freed array and the browser dies at startup with a general protection fault
-// (SIGSEGV, ip in getenv). It only happens when the environment has one of the sizes at which the
-// array moves (79, 95, 111, 127, ... entries), which is why it came and went between shells:
-// 30 crashes in 800 launches on 2026-09-25, 0 in 800 with the value preset. Presetting the
-// variable Chrome sets anyway makes its setenv an in-place overwrite, so nothing is freed.
-process.env.FC_FONTATIONS ??= "1";
 
 export interface VitestConfigOptions {
     projectName: string;
@@ -25,27 +12,25 @@ export interface VitestConfigOptions {
 }
 
 export function createVitestConfig(options: VitestConfigOptions): UserConfig {
-    return withTestGuards(
-        defineConfig({
-            test: {
-                globals: true,
-                environment: "happy-dom",
-                setupFiles: options.setupFiles,
-                coverage: {
-                    provider: "v8",
-                    reporter: ["text", "json", "html", "lcov"],
-                    exclude: ["node_modules", "dist", "**/*.d.ts", "**/*.config.*", "**/mockData", "**/__tests__"],
-                    thresholds: {
-                        lines: 80,
-                        functions: 80,
-                        branches: 75,
-                        statements: 80,
-                    },
+    const config = defineConfig({
+        test: {
+            ...baseTest(),
+            globals: true,
+            environment: "happy-dom",
+            setupFiles: options.setupFiles,
+            coverage: {
+                provider: "v8",
+                reporter: ["text", "json", "html", "lcov"],
+                exclude: ["node_modules", "dist", "**/*.d.ts", "**/*.config.*", "**/mockData", "**/__tests__"],
+                thresholds: {
+                    lines: 80,
+                    functions: 80,
+                    branches: 75,
+                    statements: 80,
                 },
-                reporters: ["default", ...ciReporters()],
-                // At most this run's share of the cores (tools/test-slots.mjs; undefined on GitHub Actions).
-                maxWorkers: workerShare(),
             },
-        }),
-    );
+        },
+    });
+    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+    return withTestGuards(config);
 }

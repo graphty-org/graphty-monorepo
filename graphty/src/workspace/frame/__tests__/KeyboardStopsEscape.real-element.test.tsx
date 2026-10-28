@@ -101,10 +101,10 @@ describe("Keyboard stops and Escape (real element)", () => {
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
         const heading = await within(inspector).findByRole("heading", { name: new RegExp(String(first.id)) });
         // The pointer rests where the last test left it: on the Table tool, whose tooltip opens a
-        // second later under a still pointer. An open tooltip takes the next Escape for itself
-        // (it closes first), so the pointer moves to the heading and the tooltip, which stays its
-        // close delay after the pointer leaves, is gone first. The theme's tooltips are
-        // inaccessible to a role query by default, hence hidden: true.
+        // second later under a still pointer, hidden. Only a visible tooltip takes an Escape for
+        // itself, so this one would not; the pointer still moves to the heading and the test waits
+        // until no tooltip is open, so the Escape below meets the page alone. The theme's tooltips
+        // are inaccessible to a role query by default, hence hidden: true.
         await userEvent.hover(heading);
         await waitFor(() => {
             assert.isNull(screen.queryByRole("tooltip", { hidden: true }), "a tooltip is still open");

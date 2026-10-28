@@ -12,7 +12,8 @@
                 "production",
                 "^production",
                 { "runtime": "git rev-parse HEAD" },
-                { "runtime": "node --version" }
+                { "runtime": "node --version" },
+                { "env": "SENTRY_RELEASE" }
             ],
             "options": {
                 "command": "npm run build",

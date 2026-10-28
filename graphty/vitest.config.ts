@@ -8,9 +8,12 @@ import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
-import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
+import { withFeaturesOn } from "../tools/features-on.mjs";
+import { shardCacheDir } from "../tools/test-slots.mjs";
+import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
+import { baseTest } from "../vitest.base.mjs";
+import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
-import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -18,6 +21,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
+/** Serves map tiles from a local fixture in every browser project (vitest.map-tiles.mjs). */
+const MAP_TILES_SETUP = "../vitest.map-tiles-setup.ts";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
 
 /**
@@ -33,6 +38,20 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
     ctx.page.once("filechooser", (chooser) => {
         void chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
     });
+};
+
+/**
+ * Makes every request whose URL holds `fragment` fail with 404, as a code file does on a page
+ * whose build was replaced under it; `false` lets them through again.
+ * @param ctx - the browser command context.
+ * @param fragment - a piece of the URL.
+ * @param failing - whether they fail.
+ */
+const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async (ctx, fragment, failing) => {
+    const glob = `**/*${fragment}*`;
+    await (failing
+        ? ctx.page.route(glob, (route) => route.fulfill({ status: 404, body: "gone" }))
+        : ctx.page.unroute(glob));
 };
 
 /**
@@ -80,6 +99,17 @@ const testStandIns = (): Plugin => {
 };
 
 /**
+ * Screenshots taken inside the story tests (@graphty/visual-review/vitest), off unless
+ * VISUAL_REVIEW_STORY_OUT names the directory this run's partial capture goes to: the storybook
+ * project then runs with production semantics, shoots every story and mode at the end of its test
+ * and compares it with its baseline, as `visual-review capture` does with the built Storybook.
+ * `visual-review merge-results` turns the partials into the capture the review page and the gate read.
+ */
+const VISUAL = process.env.VISUAL_REVIEW_STORY_OUT
+    ? visualStoryTest({ project: "graphty", out: path.resolve(process.env.VISUAL_REVIEW_STORY_OUT) })
+    : null;
+
+/**
  * A fresh headless Chromium config per project: vitest writes each instance's name into the
  * object it is handed, so two projects must not share one.
  * @returns the browser config.
@@ -87,9 +117,10 @@ const testStandIns = (): Plugin => {
 const chromium = () => ({
     enabled: true,
     headless: true,
-    provider: playwright(),
+    // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
+    provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile },
+    commands: { chooseNextFile, failRequests, ...mapTileCommands },
 });
 
 const config = defineConfig({
@@ -104,7 +135,12 @@ const config = defineConfig({
     // Vitest puts each project's bundle under <cacheDir>/vitest/<project hash>.
     cacheDir: shardCacheDir(),
     optimizeDeps: {
-        include: ["@mantine/hooks"],
+        // react-dom/client and eruda are imported only by src/main.tsx, which no test imports, so
+        // the scan never finds them. A request the dev server answers with its index.html fallback
+        // makes Vite pre-transform main.tsx, which finds both mid-run: Vite re-bundled, reloaded the
+        // test page, and the shard hung (CI run 40235438577) or the next file failed (#3762). Tests
+        // must never fetch a missing path from the test server; stub fetch instead.
+        include: ["@mantine/hooks", "react-dom/client", "eruda"],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
         // bundle under node_modules/.vite and trusts it while the lockfile and this config are
         // unchanged -- it does not notice a SOURCE change that imports a dependency the cache
@@ -115,12 +151,7 @@ const config = defineConfig({
         force: true,
     },
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
-        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
-        // projects keep their own maxWorkers or fileParallelism.
-        maxWorkers: workerShare(),
-        reporters: ["default", ...ciReporters()],
+        ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
         globals: true,
         exclude: BASE_EXCLUDE,
         // The tests that mount the real graphty-element get a project of their own, run after
@@ -143,7 +174,8 @@ const config = defineConfig({
                     // Vitest refuses two projects with different maxWorkers in one group order.
                     sequence: { groupOrder: 2 },
                     browser: chromium(),
-                    setupFiles: ["./src/test/setup.ts"],
+                    // Map tiles from a local fixture, never a tile server (vitest.map-tiles.mjs).
+                    setupFiles: [MAP_TILES_SETUP, "./src/test/setup.ts"],
                 },
             },
             {
@@ -155,7 +187,7 @@ const config = defineConfig({
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
-                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./src/test/setup.ts"],
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", MAP_TILES_SETUP, "./src/test/setup.ts"],
                     // One file at a time. Every file mounts a real element, and the files share
                     // the renderer's main thread: in parallel, nine files took 158 s and single
                     // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
@@ -169,6 +201,7 @@ const config = defineConfig({
                 // only inside the visual capture. Its own shard (tools/ci-test-matrix.mjs).
                 extends: true,
                 plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+                ...(VISUAL && PRODUCTION),
                 // Pre-bundled up front, with the rest of the app's dependencies. Storybook's renderer
                 // imports react-dom/client only when the first story mounts, so on a cold cache (CI)
                 // Vite found it mid-run, re-bundled and reloaded the page, and the re-bundle deleted
@@ -180,8 +213,23 @@ const config = defineConfig({
                     // The size the visual capture draws every story at (visual-review captures a
                     // 1200 x 900 viewport): the shell lays out differently in a narrow frame, and
                     // the plays are written against the layout the reader and the capture see.
-                    browser: { ...chromium(), viewport: { width: 1200, height: 900 } },
-                    setupFiles: [".storybook/vitest.setup.ts"],
+                    browser: {
+                        ...(VISUAL
+                            ? {
+                                  ...chromium(),
+                                  provider: playwright(VISUAL.providerOptions),
+                                  viewport: VISUAL.viewport,
+                                  commands: { chooseNextFile, ...mapTileCommands, ...VISUAL.commands },
+                              }
+                            : { ...chromium(), viewport: { width: 1200, height: 900 } }),
+                        // addon-vitest 9.1.21 turns write and exec off unless set; real-input cdp() needs them. Loopback only: the project's server.host is true.
+                        api: { host: "127.0.0.1", allowWrite: true, allowExec: true },
+                    },
+                    setupFiles: [
+                        MAP_TILES_SETUP,
+                        ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),
+                        ".storybook/vitest.setup.ts",
+                    ],
                     // One story file at a time, as graphty-element's storybook project: in parallel
                     // every file mounts a real element at once, and on a machine already busy with
                     // other test runs the stories' own waits ran out.
@@ -250,6 +298,17 @@ const config = defineConfig({
         },
     },
 });
+
+// Each listed project again as "<name>-features-on", with every experiment switched on, once
+// graphty-element declares one (tools/features-on.mjs); until then the list is exactly the one above.
+config.test = {
+    ...config.test,
+    projects: withFeaturesOn(
+        config.test?.projects ?? [],
+        ["browser", "real-element", "storybook"],
+        "./src/test/setup-features-on.ts",
+    ),
+};
 
 // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
 export default withTestGuards(config);

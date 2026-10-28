@@ -4,12 +4,11 @@
  * title the header cuts short shows whole in the shared tooltip.
  */
 import { MantineProvider } from "@mantine/core";
-import { act, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { compactTheme, ControlSection, PANEL_GRID } from "../../src";
-import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
 import { renderThemed, resetHarness } from "../harness/measure";
 
 describe("ControlSection summary layout", () => {
@@ -41,26 +40,7 @@ describe("ControlSection summary layout", () => {
     });
 });
 
-afterEach(async () => {
-    vi.useRealTimers();
-    await resetHarness();
-});
-
-/**
- * Hovers `target` and checks that no tooltip opens: the tooltip's open delay runs on a fake
- * setTimeout stepped past it, so "none opened" is decided by the delay the code asks for, not by
- * how long a busy machine took (as tests/figma/overlays.browser.test.tsx does).
- * @param target - the element to hover
- */
-async function expectNoTooltipOnHover(target: HTMLElement): Promise<void> {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    await userEvent.hover(target);
-    // act: React has committed whatever the timer's state change scheduled.
-    await act(async () => {
-        vi.advanceTimersByTime(TOOLTIP_OPEN_DELAY);
-    });
-    expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
-}
+afterEach(resetHarness);
 
 describe("ControlSection title cut short", () => {
     const LONG = "Medici and 11 connections within 2 hops of the selected node";
@@ -91,7 +71,8 @@ describe("ControlSection title cut short", () => {
                 </ControlSection>
             </div>,
         );
-        await expectNoTooltipOnHover(screen.getByTestId("control-section-name"));
+        await userEvent.hover(screen.getByTestId("control-section-name"));
+        await expect(screen.findByRole("tooltip", {})).rejects.toThrow();
     });
 
     it("wraps a wrapLabel title onto a second line, whole, with no tooltip", async () => {
@@ -109,7 +90,8 @@ describe("ControlSection title cut short", () => {
         expect(screen.getByTestId("control-section-header").getBoundingClientRect().height).toBeGreaterThan(
             PANEL_GRID.SECTION_HEADER,
         );
-        await expectNoTooltipOnHover(name);
+        await userEvent.hover(name);
+        await expect(screen.findByRole("tooltip", {})).rejects.toThrow();
     });
 
     it("draws a short wrapLabel title at the one-line header height", async () => {

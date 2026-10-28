@@ -106,7 +106,8 @@ function drawnSizes(element: Graphty, id: string): { border: number; label: numb
         const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
         return { x: max.x - min.x, y: max.y - min.y };
     };
-    const ring = node.mesh.getChildMeshes().find((mesh) => mesh.name.startsWith("node-border"));
+    // The drawn ring: a group keeps the cached border its ring replaced, hidden, beside it.
+    const ring = node.mesh.getChildMeshes().find((mesh) => mesh.name.startsWith("node-border") && mesh.isEnabled());
     assert.isDefined(ring, `${id} has a border`);
     const label = node.label?.labelMesh;
     assert.isDefined(label ?? undefined, `${id} has a label`);

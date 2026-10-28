@@ -47,6 +47,9 @@
 
 export type { RegisterOptions } from "./src/catalog/pluginRegistry";
 
+// The experiments every element and session on the page switches on unless it names its own.
+export { setDefaultFeatures } from "./src/features/resolve";
+
 // ---------------------------------------------------------------------------------------------
 // Options: one mechanism for all six points
 // ---------------------------------------------------------------------------------------------
@@ -160,6 +163,7 @@ export type {
     ExportLoss,
     ExportLossCode,
     ExportResult,
+    ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
 export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";

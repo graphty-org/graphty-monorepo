@@ -1,0 +1,455 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "24h",
+    "page": "pull-requests",
+    "state": "ok",
+    "others": [],
+    "notes": [
+        {
+            "code": "prs.note.few",
+            "params": {
+                "merged": 2,
+                "created": 3
+            }
+        },
+        {
+            "code": "prs.note.owner"
+        }
+    ],
+    "members": [
+        {
+            "state": "few",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 60,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 180,
+                    "unit": "min"
+                },
+                "needs6h": true
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.time_to_merge",
+            "value": {
+                "n": 74,
+                "unit": "min"
+            },
+            "value6h": {
+                "n": 74,
+                "unit": "min"
+            },
+            "n": 30,
+            "minN": 5,
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    48,
+                    55,
+                    57.5,
+                    64.25,
+                    66.75,
+                    68,
+                    73.5,
+                    77.25
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn"
+                ],
+                "target": 60
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 15
+                },
+                "red": {
+                    "op": ">",
+                    "n": 25
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.open",
+            "value": {
+                "n": 14
+            },
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    6,
+                    10,
+                    10.9,
+                    12.77,
+                    14.63,
+                    15.4,
+                    14.11,
+                    14
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "warn",
+                    "warn",
+                    null,
+                    null
+                ],
+                "target": 15
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 24,
+                    "unit": "h"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 72,
+                    "unit": "h"
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.oldest_open",
+            "value": {
+                "n": 6.1,
+                "unit": "h"
+            }
+        },
+        {
+            "state": "few",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 0.9,
+                    "unit": "ratio"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 0.7,
+                    "unit": "ratio"
+                },
+                "needs6h": true
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.merge_ratio",
+            "value": {
+                "n": 0.64,
+                "unit": "ratio"
+            },
+            "value6h": {
+                "n": 0.64,
+                "unit": "ratio"
+            },
+            "n": 30,
+            "minN": 5
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 5,
+                    "unit": "pct"
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.caused_failures",
+            "value": {
+                "n": 9,
+                "of": 112
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 3
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.automerge_stuck",
+            "value": {
+                "n": 0
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 24,
+                    "unit": "h"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 72,
+                    "unit": "h"
+                }
+            },
+            "link": "/pull-requests/owner",
+            "id": "pull-requests.screenshot_backlog",
+            "value": {
+                "n": 2.1,
+                "unit": "h"
+            }
+        }
+    ],
+    "sections": [
+        {
+            "kind": "bars",
+            "id": "time",
+            "groups": [
+                {
+                    "items": [
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "stage.runners"
+                            },
+                            "n": 21,
+                            "unit": "min"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "stage.checks"
+                            },
+                            "n": 18,
+                            "unit": "min"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "stage.red"
+                            },
+                            "n": 9,
+                            "unit": "min"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "stage.merging"
+                            },
+                            "n": 4,
+                            "unit": "min"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "owner",
+            "rows": [
+                {
+                    "cells": {
+                        "pr": {
+                            "t": "list",
+                            "sep": "space",
+                            "items": [
+                                {
+                                    "t": "pr",
+                                    "n": 3577
+                                },
+                                {
+                                    "t": "name",
+                                    "v": "fix(ci): promote.yml sets WORK in a step"
+                                }
+                            ]
+                        },
+                        "why": {
+                            "t": "list",
+                            "sep": "comma",
+                            "items": [
+                                {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "owner.why",
+                                        "params": {
+                                            "paths": [".github/"]
+                                        }
+                                    }
+                                },
+                                {
+                                    "t": "mark",
+                                    "state": "bad",
+                                    "cell": {
+                                        "t": "fact",
+                                        "fact": {
+                                            "code": "owner.fixes",
+                                            "params": {
+                                                "member": "releases.workflows_failing",
+                                                "workflow": "promote.yml"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "waiting": {
+                            "t": "dur",
+                            "s": 2640
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "pr": {
+                            "t": "list",
+                            "sep": "space",
+                            "items": [
+                                {
+                                    "t": "pr",
+                                    "n": 3576
+                                },
+                                {
+                                    "t": "name",
+                                    "v": "fix(visual-review): scroll the body"
+                                }
+                            ]
+                        },
+                        "why": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "owner.why",
+                                "params": {
+                                    "paths": ["visual-review"]
+                                }
+                            }
+                        },
+                        "waiting": {
+                            "t": "dur",
+                            "s": 3300
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "pr": {
+                            "t": "list",
+                            "sep": "space",
+                            "items": [
+                                {
+                                    "t": "pr",
+                                    "n": 3565
+                                },
+                                {
+                                    "t": "name",
+                                    "v": "ci(visual-review): quarantine unstable story tests"
+                                }
+                            ]
+                        },
+                        "why": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "owner.why",
+                                "params": {
+                                    "paths": ["visual-review", ".github/"]
+                                }
+                            }
+                        },
+                        "waiting": {
+                            "t": "dur",
+                            "s": 6840
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

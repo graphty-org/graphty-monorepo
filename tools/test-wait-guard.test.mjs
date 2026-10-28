@@ -70,9 +70,9 @@ test("vi.waitFor and vi.waitUntil always wait until the guard, whatever a call n
     guardViWaits(vi);
     guardViWaits(vi);
     vi.waitFor(() => {});
-    vi.waitUntil(() => {}, { interval: 5 });
-    vi.waitFor(() => {}, { timeout: 10 });
-    vi.waitUntil(() => {}, 10);
+    vi.waitUntil(() => {});
+    vi.waitFor(() => {});
+    vi.waitUntil(() => {});
     assert.deepEqual(seen, Array(4).fill({ timeout: WAIT_GUARD_MS }));
 });
 

@@ -746,6 +746,47 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await waitFor(() => isVisible(next));
     });
 
+    /**
+     * How many Escape keydowns reach the window, where a page shortcut listens, while `run` runs.
+     * @param run - what presses the keys
+     * @returns the count
+     */
+    async function escapesAtWindow(run: () => Promise<void>): Promise<number> {
+        let heard = 0;
+        const hear = (event: KeyboardEvent): void => {
+            if (event.key === "Escape") {
+                heard++;
+            }
+        };
+        globalThis.addEventListener("keydown", hear);
+        try {
+            await run();
+        } finally {
+            globalThis.removeEventListener("keydown", hear);
+        }
+        return heard;
+    }
+
+    it("a tooltip kept hidden under a resting pointer does not take the page's Escape", async () => {
+        const { getByRole } = await renderFigma(<Toggle />);
+        // The click's tooltip mounts later under the still pointer, open to floating-ui but hidden.
+        const mounted = tooltipMount("Showing only these");
+        await userEvent.click(getByRole("button", { name: "Filter" }));
+        const tip = await mounted;
+        expect(isVisible(tip)).toBe(false);
+        const heard = await escapesAtWindow(() => userEvent.keyboard("{Escape}"));
+        expect(heard).toBe(1);
+    });
+
+    it("a visible tooltip still takes the Escape that closes it", async () => {
+        const { getByRole } = await renderFigma(<Tips />);
+        await userEvent.hover(getByRole("button", { name: "1" }));
+        await waitFor(visibleTip);
+        const heard = await escapesAtWindow(() => userEvent.keyboard("{Escape}"));
+        expect(heard).toBe(0);
+        await waitFor(hiddenTip);
+    });
+
     /** A tree row whose caret toggles it open, its tooltip saying what the next click does. */
     function CaretRow(): React.JSX.Element {
         const [open, setOpen] = useState(false);

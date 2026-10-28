@@ -1399,17 +1399,10 @@ export function lightPlan(root, shards, selection, durations = {}) {
     const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
         const fileMs = new Map(Object.entries(durations[family] ?? {}));
-        if (runs.some((r) => r.mode === "all") && packWhole(root, family, runs, fileMs, out)) {
-            continue;
-        }
         if (runs.some((r) => r.mode === "all")) {
-            out.whole.push(...runs.flatMap((r) => r.covers));
-            const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
-            out.why[family] = {
-                package: runs[0].shard.package,
-                shards: runs.flatMap((r) => r.covers),
-                reasons: reasons.length > 0 ? reasons : ["the selector gave no reason"],
-            };
+            if (!packWhole(root, family, runs, fileMs, out)) {
+                runWhole(family, runs, out);
+            }
             continue;
         }
         let n = 0;
@@ -1438,6 +1431,22 @@ export function lightPlan(root, shards, selection, durations = {}) {
         }
     }
     return out;
+}
+
+/**
+ * A family that runs every shard of it with the shard's own command.
+ * @param family the family name
+ * @param runs its planRuns() entries
+ * @param out lightPlan()'s output, which gets the shards and the reasons
+ */
+function runWhole(family, runs, out) {
+    out.whole.push(...runs.flatMap((r) => r.covers));
+    const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
+    out.why[family] = {
+        package: runs[0].shard.package,
+        shards: runs.flatMap((r) => r.covers),
+        reasons: reasons.length > 0 ? reasons : ["the selector gave no reason"],
+    };
 }
 
 /**

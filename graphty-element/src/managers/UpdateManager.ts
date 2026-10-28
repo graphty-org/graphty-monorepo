@@ -380,6 +380,17 @@ export class UpdateManager implements Manager {
 
     /** Watches the scene for a frame being drawn, so a finished state can be promoted. */
     private drawWatcher: Nullable<Observer<Scene>> = null;
+    private drawPhaseWatcher: Nullable<Observer<Scene>> = null;
+    /**
+     * Whether every drawn mesh had its shader when the frame now being drawn started drawing.
+     *
+     * Asked at the start of the draw, not after it: work done inside the frame before the draw --
+     * a `node.texture` picture landing repaints its nodes with a fresh material from
+     * `onBeforeRenderObservable` -- can hand a mesh a shader that is not compiled yet, so the
+     * frame silently skips it, and by the time the frame has drawn the shader is ready and the
+     * frame without the mesh would be called final (issue #4237).
+     */
+    private drewWithEveryShader = false;
 
     /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
     private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
@@ -476,6 +487,10 @@ export class UpdateManager implements Manager {
         this.drawWatcher = scene.onAfterRenderObservable.add(() => {
             this.noteFrameDrawn();
         });
+        this.drawPhaseWatcher = scene.onBeforeDrawPhaseObservable.add(() => {
+            this.drewWithEveryShader =
+                !this.stateIsFinished || this.drawnFrameIsFinished || this.everyDrawnMeshIsReady();
+        });
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
             this.viewMoved();
         });
@@ -497,6 +512,7 @@ export class UpdateManager implements Manager {
     dispose(): void {
         const scene = this.graphContext.getScene();
         scene.onAfterRenderObservable.remove(this.drawWatcher);
+        scene.onBeforeDrawPhaseObservable.remove(this.drawPhaseWatcher);
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
     }
 
@@ -1505,6 +1521,11 @@ export class UpdateManager implements Manager {
         // `viewMoved()`, drew a frame of unplaced meshes and called it final (issue #3517).
         if (!this.pictureIsFinished()) {
             this.stateIsFinished = false;
+            return;
+        }
+
+        // A mesh this frame skipped for want of a shader: the next frame draws it.
+        if (!this.drewWithEveryShader) {
             return;
         }
 

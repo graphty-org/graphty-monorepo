@@ -293,9 +293,11 @@ jobs:
             # API takes them only from master's workflows, so a dispatch on a branch posts nothing it keeps.
             # the workflow's tools/, not the checked-out candidate's (tools/own-tools-overlay.test.mjs): a candidate
             # older than the poster has none. Last in the job, so nothing before it runs the workflow's copy.
+            # continue-on-error here and on the post: the numbers are a report, never a reason to fail the lane.
             - name: Use the workflow's own tools and actions
               if: ${{ !cancelled() && steps.bench.outcome == 'success' }}
-              working-directory: ${{ github.workspace }}
+              continue-on-error: true
+              working-directory: .
               env:
                   OVERLAY: tools
               run: |
@@ -306,6 +308,7 @@ jobs:
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
             - name: Post the benchmark results to the health dashboard
               if: ${{ !cancelled() && steps.bench.outcome == 'success' }}
+              continue-on-error: true
               env:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node ../tools/results/post-benchmarks.mjs webgpu-graph-algorithms benchmarks/out/gpu-linux-t4.json

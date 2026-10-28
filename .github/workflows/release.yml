@@ -2152,13 +2152,14 @@ jobs:
                   HUSKY: "0"
 
             # npm can accept a publish and still not serve it, and nx release publish skips any package whose
-            # dependency failed. So the last word is the registry: every non-private package's version at the
-            # version commit must be installable. npm takes a while to serve a fresh version (up to about 7.5
-            # minutes), hence the bounded poll (20 tries, 30 s apart).
+            # dependency failed. So the last word is the registry: every package the version commit versions must be
+            # installable at its new version. Only those: a package this release did not version keeps a version npm
+            # has, or is held in release-hold.json and was never published (graphty, githerd; #4137). npm takes a
+            # while to serve a fresh version (up to about 7.5 minutes), hence the bounded poll (20 tries, 30 s apart).
             - name: Check every version is on npm
               run: |
                   missing() {
-                      pnpm -r ls --depth -1 --json | jq -r '.[] | select(.private != true) | "\(.name)@\(.version)"' |
+                      git diff --name-only "${COMMIT}^1" "$COMMIT" -- '*/package.json' | xargs -r jq -r 'select(.private != true) | "\(.name)@\(.version)"' |
                           while read -r spec; do
                               [ "$(npm view "$spec" version 2>/dev/null)" = "${spec##*@}" ] || echo "$spec"
                           done

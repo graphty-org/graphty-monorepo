@@ -3174,6 +3174,16 @@ describe("apt in the workflows", () => {
         }
         assert.ok(checked >= 4, `found the apt jobs (${checked})`);
     });
+
+    it("makes apt drop a stalled connection and retry", () => {
+        // Run 40555956340: apt stalled up to 148 s per connection and spent 24 minutes on 114 MB.
+        const action = readFileSync(
+            new URL("../.github/actions/drop-microsoft-apt-source/action.yml", import.meta.url),
+            "utf8",
+        );
+        assert.match(action, /tee \/etc\/apt\/apt\.conf\.d\/99-ci-timeouts/);
+        assert.match(action, /Acquire::http::Timeout "20";.*Acquire::https::Timeout "20";.*Acquire::Retries "5";/);
+    });
 });
 
 describe("actions/cache in the workflows", () => {

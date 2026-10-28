@@ -505,6 +505,44 @@ function readResult(file) {
 }
 
 /**
+ * What runShard() judges a group by: on a pull request with the store's answer, its quarantine and prJudge(); with
+ * only what the pull request touched, the committed list and newFlakyJudge(); else the committed list.
+ * @param o the group
+ * @param o.root the checkout
+ * @param o.env the environment
+ * @param o.plan the store's plan, or null
+ * @param o.touchedPlan the plan file with what the pull request touched, or null
+ * @param o.shardName the shard
+ * @param o.family its family
+ * @param o.variant its variant
+ * @param o.base the pull request's base commit, when the plan names none
+ * @returns runShard()'s `list`, `judge` and `family`
+ */
+function judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, base }) {
+    const rules =
+        env.GITHUB_EVENT_NAME === "pull_request" && plan
+            ? {
+                  list: storeList(plan),
+                  judge: prJudge(plan, {
+                      shard: shardName,
+                      family,
+                      variant,
+                      base: plan.base ?? base,
+                      out: env.RESULTS_BASE_CHECKS_OUT,
+                  }),
+              }
+            : {};
+    rules.family = family;
+    rules.list ??= activeList(committedList(root), emptyState());
+    // the gate never writes a screenshot run's own family (`<family>-shots`; only the store's plan holds it), so
+    // the shard's committed quarantine counts for it too
+    const own = familyOf(shardName);
+    if (family !== own) rules.list = rules.list.map((q) => (q.family === own ? { ...q, family } : q));
+    if (!rules.judge && touchedPlan) rules.judge = newFlakyJudge(touchedPlan, family, rules.list);
+    return rules;
+}
+
+/**
  * Runs the group and posts its records.
  * @param shardName the shard
  * @param [command] a narrower command (run shape `selected`)
@@ -537,26 +575,7 @@ export async function runGroup(
     if (plan?.unavailable || (plan?.families && !plan.families.includes(family))) plan = null;
     if (plan && Number(env.GITHUB_RUN_ATTEMPT ?? 1) > 1)
         plan = await refreshPlan(plan, { cfg: config(env, root), sha: head.commit, family, variant });
-    const rules =
-        env.GITHUB_EVENT_NAME === "pull_request" && plan
-            ? {
-                  list: storeList(plan),
-                  judge: prJudge(plan, {
-                      shard: shardName,
-                      family,
-                      variant,
-                      base: plan.base ?? head.base,
-                      out: env.RESULTS_BASE_CHECKS_OUT,
-                  }),
-              }
-            : {};
-    rules.family = family;
-    rules.list ??= activeList(committedList(root), emptyState());
-    // the gate never writes a screenshot run's own family (`<family>-shots`; only the store's plan holds it), so
-    // the shard's committed quarantine counts for it too
-    const base = familyOf(shardName);
-    if (family !== base) rules.list = rules.list.map((q) => (q.family === base ? { ...q, family } : q));
-    if (!rules.judge && touchedPlan) rules.judge = newFlakyJudge(touchedPlan, family, rules.list);
+    const rules = judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, base: head.base });
     // the list this run judges by, for a later step (ci.yml's merge-results) that must judge by the same one
     if (env.RESULTS_QUARANTINE_OUT) {
         const quarantine = rules.list.filter((q) => q.family === family);

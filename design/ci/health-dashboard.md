@@ -349,7 +349,8 @@ request with auto-merge off, which `tools/pr-open.sh` leaves for him to merge. T
 | Oldest open                 | age of the oldest open, not waiting on the owner         | now             | --        | < 24 h    | > 72 h |
 | Merge ratio                 | merged / created                                         | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
 | Runs failed by their change | first runs red on a test the change touched / first runs | 7 d             | 20 runs   | < 5 %     | --     |
-| Auto-merge stuck            | armed, green and unmerged 2 h, or armed 6 h              | now             | --        | 0         | >= 3   |
+| Green but not merging       | auto-merge armed, green and unmerged 2 h                 | now             | --        | 0         | >= 2   |
+| Armed too long              | auto-merge armed 24 h                                    | now             | --        | <= 1      | >= 4   |
 | Screenshot backlog          | oldest pictures waiting for the owner                    | now             | --        | < 24 h    | > 72 h |
 
 The open count's target assumed the quieter repository of early October; at 107 merges on 2026-10-26,
@@ -467,7 +468,7 @@ usage members are not set up until their read-only tokens exist (section 16).
 | Member               | Measure                                          | Target     | Red    |
 | -------------------- | ------------------------------------------------ | ---------- | ------ |
 | Spend this month (H) | projected sum of every money line                | <= 300 USD | > 360  |
-| T4 GPU               | projected, machine.dev                           | <= 200 USD | > 240  |
+| T4 GPU               | projected, machine.dev (the 200 USD budget)      | <= 180 USD | > 200  |
 | LLM regression       | projected, Gemini (the owner's ceiling)          | <= 60 USD  | > 75   |
 | AWS                  | month to date, Cost Explorer (the 10 USD Budget) | <= 8 USD   | > 10   |
 | Cloudflare usage     | usage / the plan's allowance                     | < 50%      | > 90%  |

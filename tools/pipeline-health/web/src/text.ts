@@ -259,10 +259,15 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "first runs red on a test the change touched, 7 d",
         nOf: "runs",
     },
-    "pull-requests.automerge_stuck": {
-        name: "Auto-merge stuck",
-        short: "auto-merge stuck",
-        def: "armed, green, unmerged 2 h",
+    "pull-requests.automerge_green_stuck": {
+        name: "Green but not merging",
+        short: "green but not merging",
+        def: "auto-merge armed, green, unmerged 2 h",
+    },
+    "pull-requests.automerge_armed_long": {
+        name: "Armed too long",
+        short: "armed too long",
+        def: "auto-merge armed 24 h",
     },
     "pull-requests.screenshot_backlog": {
         name: "Screenshot backlog",

@@ -71,7 +71,8 @@ export const SPEC: Record<string, Spec> = {
     "pr.oldest_open": { id: "pull-requests.oldest_open", unit: "h", k: toH, link: "/pull-requests" },
     "pr.merge_ratio": { id: "pull-requests.merge_ratio", unit: "ratio", link: "/pull-requests" },
     "pr.caused_failures": { id: "pull-requests.caused_failures", unit: "pct", k: PCT, link: "/pull-requests" },
-    "pr.automerge_stuck": { id: "pull-requests.automerge_stuck", link: "/pull-requests" },
+    "pr.automerge_green_stuck": { id: "pull-requests.automerge_green_stuck", link: "/pull-requests" },
+    "pr.automerge_armed_long": { id: "pull-requests.automerge_armed_long", link: "/pull-requests" },
     "pr.screenshot_backlog": {
         id: "pull-requests.screenshot_backlog",
         unit: "h",

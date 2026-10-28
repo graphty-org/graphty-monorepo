@@ -553,6 +553,33 @@ describe("pull requests waiting on the owner", () => {
     });
 });
 
+describe("auto-merge stocks", () => {
+    const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] } } } }>("gql-pr.json");
+    const base = { ...page.data.repository.open.nodes[0], state: "OPEN", isDraft: false, labels: { nodes: [] } };
+    const at = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
+    const pr = (armedH: number | null, rollup: "SUCCESS" | "FAILURE" | "PENDING"): GqlPr => ({
+        ...base,
+        autoMergeRequest: armedH === null ? null : { enabledAt: at(armedH) },
+        commits: { nodes: [{ commit: { statusCheckRollup: { state: rollup, contexts: { nodes: [] } } } }] },
+    });
+
+    it("counts green-but-not-merging after 2 h armed and armed-too-long after 24 h, separately", () => {
+        const s = prStocks(
+            [
+                pr(1, "SUCCESS"), // armed too recently for either
+                pr(3, "SUCCESS"), // green 3 h: not merging
+                pr(8, "PENDING"), // armed 8 h, not green: neither (the old 6 h rule counted it)
+                pr(30, "FAILURE"), // armed 30 h: too long
+                pr(30, "SUCCESS"), // both
+                pr(null, "SUCCESS"), // not armed
+            ],
+            NOW,
+        );
+        expect(s.autoMergeGreenStuck).toBe(2);
+        expect(s.autoMergeArmedLong).toBe(2);
+    });
+});
+
 describe("ghost runs", () => {
     const ghost = fixture<GhRun>("run-ghost-40441556963.json");
     const open = (branch: string) => [{ number: 4000, headRefName: branch }] as unknown as GqlPr[]; // only what the match reads

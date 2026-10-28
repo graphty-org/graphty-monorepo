@@ -362,6 +362,20 @@ describe("group outlines", () => {
         assert.isFalse(background?.owesDraw, "and owes no draw once the frame is stable");
     });
 
+    it("hold the stable frame until the outline and background shaders are drawn", async () => {
+        // The outline pass and the background load, resolve and compile after the graph is
+        // otherwise drawn; a stable frame before that has no outline and no tint (issue #4243).
+        const element = await mounted(nodes, [outer]);
+        element.background = { backgroundType: "color", shader: { id: "e6/tinted" } };
+        await element.graph.waitForStableFrame();
+        const renderManager = renderManagerOf(element);
+        const { outline, background } = renderManager.shaderPasses();
+        assert.lengthOf(outline?.tints(4) ?? [], 1, "the outline is laid out in the stable frame");
+        assert.isFalse(renderManager.shaderPicturePending(), "no shader picture is on its way once it is stable");
+        assert.isAbove(background?.draws ?? 0, 0, "the background is drawn in the stable frame");
+        assert.isFalse(background?.owesDraw, "and drawn with the outline's tint");
+    });
+
     it("follow a running force layout", async () => {
         const element = await mounted(nodes, [outer]);
         const renderManager = renderManagerOf(element);

@@ -1322,9 +1322,9 @@ export class Graph implements GraphContext {
             },
         );
         // A picture the frame on screen does not show yet: an image annotation still loading, or a
-        // background that has not been drawn with the group outlines laid out since (issue #4243).
+        // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
         this.updateManager.picturesLoading = () =>
-            this.#annotations?.isLoading === true || this.renderManager.shaderPasses().background?.owesDraw === true;
+            this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };

@@ -782,9 +782,10 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
     if (attrs === null) {
         return null;
     }
-    // Graphviz's ranges (lib/common/htmllex.c); a value outside one is ignored, so the default holds
+    // Graphviz reads each as a whole number (strtol, so "1.5" is 1) in its range (lib/common/htmllex.c); an empty
+    // value or one outside the range is ignored, so the default holds
     const length = (name: string, fallback: number, min = 0, max = 255): number => {
-        const v = Number(attrs.get(name) ?? Number.NaN);
+        const v = Number.parseInt(attrs.get(name) ?? "", 10);
         return Number.isFinite(v) && v >= min && v <= max ? v : fallback;
     };
     const border = length("border", 1);
@@ -793,7 +794,7 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
         return v > 0 ? v : null;
     };
     const inset =
-        border + length("cellspacing", 2, -128, 127) + length("cellborder", border) + length("cellpadding", 2);
+        border + length("cellspacing", 2, -128, 127) + length("cellborder", border, 0, 127) + length("cellpadding", 2);
     return {
         border,
         // a cell's border is the table's unless CELLBORDER is given; a negative CELLSPACING overlaps the cells, but
@@ -853,10 +854,19 @@ function drawsTableOutline(n: NodeRead): n is NodeRead & { readonly table: HtmlT
     }
     // ponytail: with a margin or a least size larger than the table, Graphviz draws the border inside the node's
     // box, which graphty cannot draw yet (it draws the node's box), so it draws none
-    // no margin is Graphviz's 8 by 4 points
-    const margin = (get("margin") ?? "1").split(",").map(Number);
+    // no margin (or an empty one) is Graphviz's 8 by 4 points
+    const margin = (get("margin") ?? "")
+        .split(",")
+        .filter((text) => text.trim() !== "")
+        .map(Number)
+        .filter(isLength);
     const least = nodeLeastSize(get, shape);
-    return margin.every((m) => m === 0) && least.w <= (table.width ?? 0) && least.h <= (table.height ?? 0);
+    return (
+        margin.length > 0 &&
+        margin.every((m) => m === 0) &&
+        least.w <= (table.width ?? 0) &&
+        least.h <= (table.height ?? 0)
+    );
 }
 
 /**
@@ -3053,7 +3063,8 @@ function exactFromBlock(
     const notes = new StyleNotes();
     takeFromBlock(snapshot, text, "dot", (target) => ({
         values: read[target],
-        properties: DOT_STYLE_CAPABILITIES[target],
+        properties:
+            target === "node" ? [...DOT_STYLE_CAPABILITIES.node, ...LABEL_PADDINGS] : DOT_STYLE_CAPABILITIES[target],
         writes: DOT_STYLE_CAPABILITIES[target],
         readBack: (i, want) => {
             const raw: Attr = (name) => cellText(target === "node" ? snapshot.nodes : snapshot.edges, name, i);
@@ -3062,6 +3073,15 @@ function exactFromBlock(
         },
     }));
 }
+
+/**
+ * The label padding the reader derives from a node's `margin` and the frame of a table label. The writer writes the
+ * label as text, so a table's frame is lost and the padding comes back from the block.
+ */
+const LABEL_PADDINGS = ["labelPaddingX", "labelPaddingY"] as const;
+
+/** Attributes the writer leaves in an element's data, which the reader reads back as they were. */
+const KEPT_AS_DATA: ReadonlySet<string> = new Set(["labelloc", "labeljust", "margin"]);
 
 /**
  * An element's values written as the writer writes them and read back as the reader reads them.
@@ -3093,8 +3113,9 @@ function writtenAndReadBack(
     if (target === "node") {
         const ncx = cx.node(i);
         const attrs = nodeAttributes(want, ncx, raw, ignore, notes);
-        // a cluster's label position stays in its data (`labelloc`, `labeljust`), which the writer leaves alone
-        const kept = (name: string): string | null => (name === "labelloc" || name === "labeljust" ? raw(name) : null);
+        // a cluster's label position (`labelloc`, `labeljust`) and a node's `margin` stay in its data, which the
+        // writer leaves alone
+        const kept = (name: string): string | null => (KEPT_AS_DATA.has(name) ? raw(name) : null);
         readNode((name) => (attrs.has(name) ? textOf(attrs.get(name)) : kept(name)), ncx, put, at);
     } else {
         const ecx = cx.edge(i);

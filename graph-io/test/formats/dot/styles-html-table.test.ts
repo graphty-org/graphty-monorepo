@@ -78,7 +78,7 @@ describe("DOT styles: an HTML-like table label", () => {
         wplain [shape=plain, label=<<TABLE WIDTH="20" HEIGHT="10"><TR><TD>a</TD></TR></TABLE>>];
         none0 [shape=none, margin=0, width=0, height=0, label=<<TABLE><TR><TD>a</TD></TR></TABLE>>];
         nonem [shape=none, width=0, height=0, label=<<TABLE><TR><TD>a</TD></TR></TABLE>>];
-        huge [shape=plain, label=<<TABLE BORDER="1e300" CELLPADDING="1000" WIDTH="1e9"><TR><TD>a</TD></TR></TABLE>>];
+        huge [shape=plain, label=<<TABLE BORDER="300" CELLPADDING="1000" WIDTH="100000"><TR><TD>a</TD></TR></TABLE>>];
         neg [shape=plain, label=<<TABLE CELLSPACING="-5"><TR><TD>a</TD></TR></TABLE>>];
     }`;
 
@@ -109,5 +109,23 @@ describe("DOT styles: an HTML-like table label", () => {
         expect((await byId(sized, "labelPaddingX")).get("neg")).toBe(0);
         // WIDTH over 65535 is ignored: the plain node keeps its size 0 and grows to its text
         expect((await byId(sized, "width")).get("huge")).toBe(0);
+    });
+
+    it("reads a table attribute as Graphviz does: a whole number, an empty one ignored, CELLBORDER up to 127", async () => {
+        const read = `digraph {
+            node [shape=plain];
+            empty [label=<<TABLE BORDER=""><TR><TD>a</TD></TR></TABLE>>];
+            frac [label=<<TABLE BORDER="2.5" CELLSPACING="0" CELLPADDING="0"><TR><TD>a</TD></TR></TABLE>>];
+            cb [label=<<TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0" CELLBORDER="200"><TR><TD>a</TD></TR></TABLE>>];
+            gap [shape=none, margin="", label=<<TABLE WIDTH="80" HEIGHT="40"><TR><TD>a</TD></TR></TABLE>>];
+        }`;
+        const width = await byId(read, "borderWidth");
+        expect([width.get("empty"), width.get("frac")]).toEqual([1, 2]);
+        // 2 border + 0 + 2 (the cells take the table's border) + 0
+        expect((await byId(read, "labelPaddingX")).get("frac")).toBe(4);
+        // CELLBORDER 200 is out of range: the table's border (0) holds
+        expect((await byId(read, "labelPaddingX")).get("cb")).toBe(0);
+        // an empty margin is Graphviz's default 8 by 4, so the border is inside the node's box
+        expect(width.get("gap")).toBe(0);
     });
 });

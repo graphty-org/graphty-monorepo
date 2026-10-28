@@ -10,7 +10,7 @@
 
 import type { RankSet } from "../../data/groups";
 import type { NodeIdType } from "../../Node";
-import type { DotEdge, DotStructure } from "./toDot";
+import { type DotEdge, type DotStructure, isHtmlLabel } from "./toDot";
 
 /**
  * The edge attributes that move dot's nodes -- how hard an edge pulls, how many ranks it spans, whether it ranks its
@@ -121,7 +121,8 @@ function attributesOf(
  */
 function labelSizedAttributes(data: Readonly<Record<string, unknown>>, id: NodeIdType): Record<string, string> | null {
     const out = attributesOf(data, NODE_SIZE_ATTRIBUTES, true);
-    const label = out.label ?? NODE_NAME_ESCAPE;
+    // an empty label draws no text (Graphviz's blank node), not the node's name
+    const label = data.label === "" ? "" : (out.label ?? NODE_NAME_ESCAPE);
     if (label.includes(GRAPH_NAME_ESCAPE)) {
         return null;
     }
@@ -151,7 +152,7 @@ function attributeText(name: string, value: string): string {
  * @returns the text
  */
 function labelText(label: string): string {
-    return label.startsWith("<") && label.endsWith(">") ? label.slice(1, -1).replaceAll(MARKUP, "") : label;
+    return isHtmlLabel(label) ? label.slice(1, -1).replaceAll(MARKUP, "") : label;
 }
 
 /**

@@ -76,19 +76,45 @@ function quote(value: string): string {
 }
 
 /**
+ * Whether a label is an HTML-like label, as Graphviz's lexer reads one: its first `<` closes exactly at its last
+ * character, with the angle brackets between balanced. A quoted record label (`<f0>|<f1>`) or a stray bracket
+ * (`<x < y>`) is not one. graph-io stores a quoted label and an HTML one alike, so this is the only test there is.
+ * @param label - the label
+ * @returns true for an HTML-like label
+ */
+export function isHtmlLabel(label: string): boolean {
+    if (label.length < 2 || !label.startsWith("<") || !label.endsWith(">")) {
+        return false;
+    }
+    let depth = 0;
+    for (let i = 0; i < label.length; i++) {
+        if (label[i] === "<") {
+            depth++;
+        } else if (label[i] === ">" && --depth === 0 && i !== label.length - 1) {
+            return false;
+        }
+    }
+
+    return depth === 0;
+}
+
+/**
  * A label as Graphviz reads it: an HTML-like label (`<...>`) as it is, any other quoted with its escapes (`\n`,
  * `\l`) kept, so Graphviz lays it out in lines as the file wrote it.
  * @param label - the label as the file gave it (graph-io keeps a quoted label's backslashes as written)
  * @returns the DOT value
  */
 function labelValue(label: string): string {
-    if (label.length >= 2 && label.startsWith("<") && label.endsWith(">")) {
+    if (isHtmlLabel(label)) {
         return label;
     }
 
+    // a quote after an even run of backslashes (none included) would end the string: escape it; one after an odd
+    // run is escaped already
+    const quoted = label.replaceAll(/(\\*)"/g, (_, run: string) => (run.length % 2 === 0 ? `${run}\\"` : `${run}"`));
     // a trailing lone backslash would escape the closing quote
     const trailing = /\\+$/.exec(label)?.[0].length ?? 0;
-    return `"${label.replaceAll('"', String.raw`\"`)}${trailing % 2 === 1 ? "\\" : ""}"`;
+    return `"${quoted}${trailing % 2 === 1 ? "\\" : ""}"`;
 }
 
 /**

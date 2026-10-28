@@ -832,6 +832,45 @@ describe("nodes Graphviz sizes to their labels (nodeSize: label)", () => {
         assert.strictEqual(option?.default, "drawn");
     });
 
+    it("never turns a quoted label into a syntax error: record ports, stray angle brackets, odd backslashes", async () => {
+        const labels = [
+            "<f0>|<f1>",
+            "<in> left|<out> right",
+            "<x < y>",
+            "<b>x</b>",
+            String.raw`a\"b`,
+            String.raw`a\\"b`,
+            "<<b>bold</b>>",
+        ];
+        const ids = labels.map((_, k) => `v${k}`);
+        const snapshot = graph(
+            true,
+            ids.slice(1).map((id, k) => [ids[k], id]),
+        );
+        const dot = toDot(snapshot, {}, undefined, undefined, new Map(), {
+            labelSized: true,
+            nodeAttributes: new Map(
+                labels.map((label, k): [number, Record<string, string>] => [
+                    snapshot.ids.requireIndex(ids[k]),
+                    k < 2 ? { label, shape: "record" } : { label },
+                ]),
+            ),
+        });
+
+        const result = await layout(dot, "dot");
+        assert.isTrue(result.ok, `Graphviz read every label: ${result.ok ? "" : JSON.stringify(result)}`);
+        assert.include(dot, 'label="<f0>|<f1>"', "a record label is quoted, not read as HTML");
+        assert.include(dot, "label=<<b>bold</b>>", "an HTML label stays HTML");
+    });
+
+    it("hands over an empty label as empty, not as the node's name", () => {
+        const structure = graphvizStructure(rowOf, [], new Map(), [], new Map([[0, { label: "" }]]), {
+            idOf: (row) => ids[row],
+        });
+
+        assert.deepEqual(structure.nodeAttributes?.get(0), { label: "" });
+    });
+
     it("hands over a cluster's label place, which a graph's labelloc gives its clusters too", () => {
         const structure = graphvizStructure(rowOf, [], new Map([[3, { label: "g", labelloc: "b" }]]), []);
 

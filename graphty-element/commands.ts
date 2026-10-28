@@ -55,6 +55,7 @@ export const COMMANDS = Object.freeze({
     "style.patch": { undo: "undoable" },
     "style.encode": { undo: "undoable" },
     "style.template": { undo: "undoable" },
+    "shader.set": { undo: "undoable" },
     "visibility.set": { undo: "undoable" },
     "visibility.window": { undo: "undoable" },
     "visibility.context": { undo: "undoable" },

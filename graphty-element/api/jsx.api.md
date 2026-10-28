@@ -297,6 +297,7 @@ export interface GraphtyElementJSXProps {
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];
+    shaderSettings?: Graphty["shaderSettings"];
     startingCameraDistance?: Graphty["startingCameraDistance"];
     viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];

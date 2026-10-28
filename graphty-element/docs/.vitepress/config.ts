@@ -123,6 +123,7 @@ export default defineConfig({
                         { text: "Custom Layouts", link: "/guide/extending/custom-layouts" },
                         { text: "Custom Algorithms", link: "/guide/extending/custom-algorithms" },
                         { text: "Custom Log Destinations", link: "/guide/extending/custom-log-destinations" },
+                        { text: "Writing Shaders", link: "/guide/shaders" },
                     ],
                 },
             ],

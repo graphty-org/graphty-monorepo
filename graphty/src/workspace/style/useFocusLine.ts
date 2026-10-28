@@ -227,3 +227,12 @@ export function openListNext(channel: Channel | null): void {
 export function listOpensNext(channel: Channel): boolean {
     return listNext === channel;
 }
+
+/**
+ * The bottom of the app header, so a tall pop-out beside the panel starts below it and never
+ * covers it.
+ * @returns its bottom in viewport pixels, or 0 when there is no header.
+ */
+export function headerBottom(): number {
+    return document.querySelector(".ws-header")?.getBoundingClientRect().bottom ?? 0;
+}

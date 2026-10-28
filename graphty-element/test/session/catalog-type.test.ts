@@ -28,6 +28,8 @@ const IMPLEMENTED = [
     "palettes",
     "scales",
     "screenshotPresets",
+    "shaders",
+    "transitions",
 ] as const satisfies readonly (keyof SessionCatalogApi)[];
 
 describe("session.catalog", () => {

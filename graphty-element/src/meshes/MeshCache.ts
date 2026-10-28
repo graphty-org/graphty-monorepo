@@ -63,9 +63,17 @@ export class MeshCache {
      * @param name - Cache key for the batch, which is also the name its mesh carries.
      * @param creator - Function to build the batch's line mesh if there is no batch yet.
      * @param scene - The scene that renders it.
+     * @param make - Builds the batch on the mesh, for a batch that draws more than a line (a
+     *     shader); defaults to a plain {@link EdgeLineBatch}.
      * @returns The batch to take a slot in.
      */
-    getBatch(name: string, creator: MeshCreatorFn, scene: Scene): EdgeLineBatch {
+    getBatch(
+        name: string,
+        creator: MeshCreatorFn,
+        scene: Scene,
+        make: (mesh: Mesh, scene: Scene, retire: () => void) => EdgeLineBatch = (mesh, at, retire) =>
+            new EdgeLineBatch(mesh, at, retire),
+    ): EdgeLineBatch {
         const existing = this.batchCacheMap.get(name);
 
         if (existing) {
@@ -76,7 +84,7 @@ export class MeshCache {
         this.misses++;
         const mesh = creator();
         mesh.name = name;
-        const batch: EdgeLineBatch = new EdgeLineBatch(mesh, scene, () => {
+        const batch: EdgeLineBatch = make(mesh, scene, () => {
             if (this.batchCacheMap.get(name) === batch) {
                 this.batchCacheMap.delete(name);
             }

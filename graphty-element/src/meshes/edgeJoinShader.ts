@@ -19,6 +19,19 @@
  * rectangle covers it. Both pieces compute that line from the same three points with the same
  * arithmetic, so the two tests are exact complements. A translucent line stays one even tint.
  *
+ * WIDENED BATCHES (`EDGE_WIDENED`). A batch that draws a shader or a taper reads five more
+ * instanced attributes per piece, from a second buffer of static values written on a repaint (the
+ * end colors, the varying shader parameters, seed, parameter row, state bits and taper, and the
+ * state stamps), and one more dynamic value beside the corners: the whole edge's length, so a
+ * piece knows how far along the edge it is. A batch without either define is the plain line,
+ * reading exactly the attributes it always read.
+ *
+ * THE EDGE-SURFACE HOOK (`EDGE_SHADED`). With it the fragment's color is not the uniform color but
+ * `graphty_edgeShade(t, side, lengthPx, widthPx, coverage)`, declared here and defined by the
+ * shader runtime after this text (`src/shaders/runtime/edgePrograms.ts`), which fills `EdgeInput`
+ * and calls the shader's body. Width, taper, corners and the arrowheads (drawn by their own
+ * batches) are unchanged: a surface replaces only the color of the pixels the line already covers.
+ *
  * DASHES FOLLOW THE WHOLE EDGE. A fragment's distance is measured along its own piece from the
  * edge's start; in the overlap on the inside of a bend it is drawn when either piece's dash covers
  * it, which is what dashing the centre line and then stroking each dash would draw.
@@ -32,6 +45,25 @@ export const EDGE_MITER_LIMIT = 4;
  * the edge to the start (1) and the pattern's element spacing (1).
  */
 export const JOIN_FLOATS_PER_PIECE = 14;
+
+/**
+ * Floats per piece in a widened batch's dynamic buffer: the plain piece's fourteen, the whole
+ * edge's length along its pieces, and one unused float, so a slot stays a whole number of vec4s.
+ */
+export const WIDENED_FLOATS_PER_PIECE = 16;
+
+/**
+ * The static attributes of a widened batch, each a vec4, in their buffer's order: the line color
+ * at the source and at the target (alpha the opacity), the shader's varying parameters, then
+ * (seed, parameter-set row, state bits, taper) and the (entered, exited, changed) stamps.
+ */
+export const EDGE_STATIC_ATTRIBUTES = ["edgeColorA", "edgeColorB", "edgeParams", "edgeMeta", "edgeTimes"] as const;
+
+/** Floats per piece in a widened batch's static buffer. */
+export const EDGE_STATIC_FLOATS = EDGE_STATIC_ATTRIBUTES.length * 4;
+
+/** The state bits an edge shader reads from `edgeMeta.z`. */
+export const EDGE_STATE_BITS = { selected: 1, hovered: 2, sourceSelected: 4, targetSelected: 8 } as const;
 
 /**
  * The template every piece is drawn from: seven vertices at each end -- the centre, one on each
@@ -83,6 +115,23 @@ varying vec4 vNbA;
 varying vec4 vEndB;
 varying vec4 vNbB;
 varying vec3 vWidth;
+
+#ifdef EDGE_WIDENED
+attribute vec2 runTotal;
+attribute vec4 edgeColorA;
+attribute vec4 edgeColorB;
+attribute vec4 edgeParams;
+attribute vec4 edgeMeta;
+attribute vec4 edgeTimes;
+// How many times the line's own width this batch draws: an edge effect's reach, 1 otherwise.
+uniform float edgeReach;
+varying vec4 vEdgeColorA;
+varying vec4 vEdgeColorB;
+varying vec4 vEdgeParams;
+varying vec4 vEdgeMeta;
+varying vec4 vEdgeTimes;
+varying vec2 vEdgeTotal;
+#endif
 
 const float EPS = 1e-4;
 
@@ -158,6 +207,20 @@ void main() {
 
     float rawA = halfWidthAt(cA);
     float rawB = halfWidthAt(cB);
+#ifdef EDGE_WIDENED
+    // The taper: the width at each end of the piece, by how far along the whole edge it is.
+    float total = runTotal.x;
+    float alongA = total > 0.0 ? clamp(run.x / total, 0.0, 1.0) : 0.0;
+    float alongB = total > 0.0 ? clamp((run.x + length(pB - pA)) / total, 0.0, 1.0) : 1.0;
+    rawA *= mix(1.0, edgeMeta.w, alongA) * edgeReach;
+    rawB *= mix(1.0, edgeMeta.w, alongB) * edgeReach;
+    vEdgeColorA = edgeColorA;
+    vEdgeColorB = edgeColorB;
+    vEdgeParams = edgeParams;
+    vEdgeMeta = edgeMeta;
+    vEdgeTimes = edgeTimes;
+    vEdgeTotal = vec2(total, edgeReach);
+#endif
     float hwA = drawnHalfWidth(rawA);
     float hwB = drawnHalfWidth(rawB);
 
@@ -239,6 +302,20 @@ varying vec4 vEndB;
 varying vec4 vNbB;
 varying vec3 vWidth;
 
+#ifdef EDGE_WIDENED
+varying vec4 vEdgeColorA;
+varying vec4 vEdgeColorB;
+varying vec4 vEdgeParams;
+varying vec4 vEdgeMeta;
+varying vec4 vEdgeTimes;
+varying vec2 vEdgeTotal;
+#endif
+
+#ifdef EDGE_SHADED
+// Defined after this text by the shader runtime: the shader's color for one pixel of the line.
+vec4 graphty_edgeShade(float t, float side, float lengthPx, float widthPx, float coverage);
+#endif
+
 bool inRect(vec2 u, vec2 dir, float len, float hw) {
     float a = dot(u, dir);
     float c = dot(u, vec2(-dir.y, dir.x));
@@ -296,6 +373,18 @@ void main() {
         }
     }
 
+#ifdef EDGE_SHADED
+    // Where this pixel is on the whole edge: t along it from its source, side across the line's
+    // own width (beyond +-1 on an effect's wider ribbon), and the edge's length on screen.
+    vec2 uS = x - vOwn.xy;
+    float alongS = clamp(dot(uS, vOwn.zw), 0.0, vOwn2.x);
+    float tS = vEdgeTotal.x > 0.0 ? clamp((vOwn2.z + alongS * vOwn2.y) / vEdgeTotal.x, 0.0, 1.0) : 0.0;
+    float hwLine = max(vScreen.w / max(vEdgeTotal.y, 1.0), 1e-3);
+    float sideS = clamp(dot(uS, vec2(-vOwn.w, vOwn.z)) / hwLine, -vEdgeTotal.y, vEdgeTotal.y);
+    float pxPerWorld = vOwn2.y > 0.0 ? 1.0 / vOwn2.y : 0.0;
+    gl_FragColor = graphty_edgeShade(tS, sideS, vEdgeTotal.x * pxPerWorld, 2.0 * hwLine, vWidth.z);
+#else
     gl_FragColor = vec4(color, opacity * vWidth.z);
+#endif
 }
 `;

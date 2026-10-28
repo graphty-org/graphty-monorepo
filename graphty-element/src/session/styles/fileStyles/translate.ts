@@ -2118,7 +2118,7 @@ class KindTranslation {
             ...(given.kind === undefined ? {} : { kind: given.kind }),
             selector: this.#scoped(moved),
             ...(given.set === undefined ? {} : { set: given.set }),
-            ...(given.encode === undefined ? {} : { encode: encode }),
+            ...(given.encode === undefined ? {} : { encode: encode as LayerSpec["encode"] }),
             ...(given.userData === undefined ? {} : { userData: given.userData }),
         };
     }

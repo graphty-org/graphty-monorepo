@@ -244,6 +244,10 @@ const LineStyle = z.strictObject({
      * a loop whose points all lie inside its node is drawn as the usual loop.
      */
     bends: z.string().optional(),
+    /** The width at the target as a multiple of the width at the source; 1 draws no taper. */
+    taper: z.number().min(0).max(4).optional(),
+    /** How far the route's middle rises out of a flat layout's plane in the 3D view, world units. */
+    lift: z.number().optional(),
     /**
      * How far apart, at their middle, neighboring curved edges between the same two nodes are drawn,
      * in the scene's units. Unset, they are two node radii apart (the larger node's), closer when the

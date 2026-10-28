@@ -45,6 +45,7 @@ import type {
 } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
 import { defaultEdgeStyle } from "../config/EdgeStyle";
+import { backgroundColorOf } from "../config/GraphStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, EDGE_ID_COLUMN, edgeIdOf, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
@@ -141,6 +142,7 @@ import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf, scopeSignature } from "./sets/signature";
 import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
+import { bindShadersController, createSessionShaders, type SessionShaders, type ShadersController } from "./shaders";
 import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
 import {
     createAutoApplyPolicy,
@@ -187,6 +189,7 @@ import type {
     FindResult,
     GraphSession,
     GraphSettingKey,
+    GroupOutlineClick,
     HistoryClearOptions,
     HistoryOutcome,
     LocationColumns,
@@ -347,6 +350,7 @@ const TX_PARTS = [
     "selection",
     "visibility",
     "styles",
+    "shaders",
     "views",
     "positions",
     "config",
@@ -401,6 +405,8 @@ interface SessionParts {
     readonly stopTime: () => void;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
+    /** The project's shaders, and whether each may run. */
+    readonly shaders: ShadersController;
     /** Cancels every style edit still pending, for `dispose()`. */
     readonly stopStyleEdits: () => void;
     /** What the last style pass painted, which is what a renderer draws from. */
@@ -500,6 +506,7 @@ class Session implements ElementSession {
     readonly visibility: SessionVisibilityApi;
     readonly time: TimeApi;
     readonly styles: SessionStylesApi;
+    readonly shaders: SessionShaders;
     readonly views: SessionViews;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
@@ -516,6 +523,8 @@ class Session implements ElementSession {
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
+    /** The shaders' controller: the host, the trust settings. */
+    private readonly shadersController: ShadersController;
     /** Stops playback. */
     private readonly stopTime: () => void;
     private readonly sessionRuns: SessionRunsApi;
@@ -589,6 +598,9 @@ class Session implements ElementSession {
         this.time = parts.time;
         this.stopTime = parts.stopTime;
         this.styles = parts.styles;
+        this.shaders = parts.shaders.api;
+        this.shadersController = parts.shaders;
+        bindShadersController(this, parts.shaders);
         this.stopStyleEdits = parts.stopStyleEdits;
         this.paint = parts.paint;
         this.planning = parts.planning;
@@ -1141,6 +1153,18 @@ class Session implements ElementSession {
     }
 
     /**
+     * Publishes `canvas:group-outline-click`.
+     * @param target - The outline's layer, shader and group.
+     */
+    groupOutlineClick(target: GroupOutlineClick): void {
+        publish(this.watchers, "canvas:group-outline-click", {
+            layer: target.layer,
+            shader: target.shader,
+            group: target.group,
+        });
+    }
+
+    /**
      * Watch the session.
      * @param event - Which event.
      * @param handler - Called with the event's detail.
@@ -1207,6 +1231,7 @@ class Session implements ElementSession {
         this.sessionRuns.dispose();
         // Style edits are runs the runs list does not hold, so they are cancelled on their own.
         this.stopStyleEdits();
+        this.shadersController.dispose();
         // The last event: a host drops the session here, before anything re-reads it.
         publish(this.watchers, "session:disposed", {});
         this.watchers.clear();
@@ -1502,6 +1527,9 @@ function configOf(
         get background() {
             return read().background;
         },
+        get backgroundColor() {
+            return backgroundColorOf(read().background);
+        },
         get selectionStyle() {
             return read().selectionStyle;
         },
@@ -1525,6 +1553,9 @@ function configOf(
         },
         get name() {
             return read().name;
+        },
+        get layoutTransition() {
+            return read().layoutTransition;
         },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
@@ -3280,6 +3311,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 }
             });
     };
+    // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
+    dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
+        const nodes = [...dirty].flatMap((key) => {
+            const at = key.startsWith("n:") ? nodeIndex(nodeOfKey(key)) : undefined;
+            return at === undefined ? [] : [at];
+        });
+        repaintStates({ node: nodes, edge: [] });
+    });
     // The selection as last repainted, so a change repaints what moved: one byte per element.
     let paintedSelection: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
     const changedBytes = (before: Uint8Array | undefined, after: Uint8Array): number[] => {
@@ -3420,6 +3459,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         directed: () => snapshot().directed,
+        // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
+        liftDrawn: () => {
+            const layout = dispatcher.state.layout ?? DEFAULT_LAYOUT;
+            return layout.dimension === "3d" && arrangedDimension(layout) === "2d";
+        },
         paths,
         scales,
         runs: encodingSourceOf(runs),
@@ -3665,6 +3709,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
 
+    const shaders = createSessionShaders({
+        dispatcher,
+        styles,
+        publish: (event, detail) => {
+            publish(watchers, event, detail);
+        },
+    });
     const session = new Session({
         store: store.store,
         ownedStore: store.owned,
@@ -3680,6 +3731,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
             attributes: () => data.attributes(),
             results: () => results,
+            projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
         }),
         features: options.features ?? (() => undefined),
@@ -3704,6 +3756,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             teardown.abort(new DOMException("The session was disposed.", "AbortError"));
         },
         paint: painter.paint,
+        shaders,
         planning,
         watchers,
         dispatcher,

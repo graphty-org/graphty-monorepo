@@ -1,6 +1,7 @@
 # .github/workflows/work-protection-macos.yml -- graphty-element's autosave on Apple's engines, which no Linux
 # runner has: Playwright's WebKit on macOS, real Safari through safaridriver, and Safari on iOS in the iOS
-# Simulator (design/work-protection/design.md section 9, plan.md step 7). The Linux half of the same checks is
+# Simulator, including a return to a discarded tab that must keep its session storage and its own autosave entry
+# (design/work-protection/design.md section 9, plan.md step 7). The Linux half of the same checks is
 # ci.yml's graphty-element-lifecycle shard, on every pull request that affects graphty-element.
 #
 # Where it runs: the release train calls it on the commit it is about to release, beside hosts.yml, and a red run
@@ -148,7 +149,7 @@ jobs:
               env: { HUSKY: "0" }
             - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
-            - name: App switch, memory warning, Safari or its web content process killed
+            - name: App switch, memory warning, Safari or its web content process killed, return to a discarded tab
               timeout-minutes: 30
               # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them (vitest's
               # lifecycle project allows them with GRAPHTY_LIFECYCLE_MACOS set).

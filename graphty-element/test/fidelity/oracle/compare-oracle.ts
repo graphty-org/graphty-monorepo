@@ -669,15 +669,11 @@ export function reversalsOf(pts: readonly Pt[], step: number): number {
 /** A turn over this many radians is a path drawn back over itself, not a turn a reader sees. */
 const RETRACE = (150 * Math.PI) / 180;
 
-/**
- * How far along its line an arrowhead's middle sits: from the line's nearer end in pixels and as a share of it, and from
- * the end the arrowhead belongs to as a share (`own`), so a head mirrored about the middle is not read as in place.
- */
-const fromEnd = (line: readonly Pt[], q: Pt, end: PArrow["end"]): { px: number; share: number; own: number } => {
+/** How far along its line an arrowhead's middle sits from the line's nearer end: in pixels, and as a share of it. */
+const fromEnd = (line: readonly Pt[], q: Pt): { px: number; share: number } => {
     const { s, length } = placeOnLine(line, q);
     const px = Math.min(s, length - s);
-    const share = (d: number): number => (length > 0 ? d / length : 0);
-    return { px, share: share(px), own: share(end === "source" ? s : length - s) };
+    return { px, share: length > 0 ? px / length : 0 };
 };
 
 /**
@@ -700,13 +696,13 @@ function arrowPlaceMiss(
     gLine: readonly Pt[],
     ga: PArrow,
 ): { miss: number; oracle: number | null; graphty: number } {
-    const o = oa.at === undefined ? null : fromEnd(oLine, oa.at, oa.end);
+    const o = oa.at === undefined ? null : fromEnd(oLine, oa.at);
     const oPartWay = o !== null && o.share >= ARROW_PART_WAY && o.px > 2 * oa.length;
     if (o === null || ga.at === undefined || oa.end === "middle" || (!oPartWay && ga.partWay !== true)) {
         return { miss: ga.misplaced ?? 0, oracle: null, graphty: ga.misplaced ?? 0 };
     }
-    const along = o.own;
-    const mine = fromEnd(gLine, ga.at, ga.end).own;
+    const along = o.share;
+    const mine = fromEnd(gLine, ga.at).share;
     return {
         miss: Math.max(0, Math.abs(mine - along) - ARROW_ALONG_SHARE) / ARROW_ALONG_SHARE,
         oracle: R(along),

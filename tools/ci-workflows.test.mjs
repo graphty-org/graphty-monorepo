@@ -4299,7 +4299,7 @@ describe("release.yml", () => {
             version,
             /if ! GITHUB_OUTPUT="\$RUNNER_TEMP\/approvals" node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"; then[\s\S]*?git reset --hard --quiet "\$SHA"[\s\S]*?commit=\$\(tools\/release-version.sh "\$PACKAGES"\)[\s\S]*?node tools\/release-approvals.mjs dry-run "\$SHA" "\$commit"\n\s+fi\n\s+node tools\/release-diff.mjs/,
         );
-        assert.match(land, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
+        assert.match(landSh, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         // land and publish follow only a version commit made after every lane passed, and the owner's approval
         // (legacy) or the verdict's decision to promote (a nightly; the land and site tests below)
         assert.match(
@@ -4402,7 +4402,7 @@ describe("release.yml", () => {
         // and the land job pushes exactly the commit the version job made
         assert.match(version, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(land, /name: release-commit-\$\{\{ needs.pick.outputs.sha \}\}/);
-        assert.match(land, /\[ "\$\(git rev-parse FETCH_HEAD\)" = "\$COMMIT" \]/);
+        assert.match(landSh, /\[ "\$\(git rev-parse FETCH_HEAD\)" = "\$COMMIT" \]/);
         // one issue naming what failed: found by its title prefix and updated, else created with the labels
         // githerd and triage read
         for (const [result, name] of [

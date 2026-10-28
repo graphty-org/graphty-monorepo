@@ -217,10 +217,14 @@ describe("the graph's shader settings", () => {
 
     it("the Background shader gallery starts with New shader..., whose Add sets the background as one step", async () => {
         const element = await openGraphSettings();
-        // The background template with a comment added, so it is a text of its own. Not a copy of Nebula: Add
-        // waits for the element's test frame, which refuses a shader over its time budget, and Nebula is near
-        // that budget on a busy machine (#4301).
-        const text = `${shaderTemplate({ target: "background" })}\n// pasted\n`;
+        // The background template under an id only the pasted text names, so the id read back proves the paste
+        // reached the dialog (it opens on the template itself). Not a copy of Nebula: Add waits for the element's
+        // test frame, which refuses a shader over its time budget, and Nebula is near that budget on a busy
+        // machine (#4301).
+        const text = shaderTemplate({ target: "background" }).replace(
+            '"user/my-background"',
+            '"user/pasted-background"',
+        );
         await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
         const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
@@ -240,7 +244,7 @@ describe("the graph's shader settings", () => {
         await waitFor(
             () => {
                 const { background } = element.session.config;
-                assert.strictEqual(background.shader?.id, "user/my-background");
+                assert.strictEqual(background.shader?.id, "user/pasted-background");
             },
             { timeout: TIMEOUT_MS },
         );

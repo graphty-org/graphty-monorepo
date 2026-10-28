@@ -176,7 +176,7 @@ async function runAlgorithm(
     if (!estimate.available) {
         throw new ToolRefusal("AI_NOT_AVAILABLE", {
             name: descriptor.key,
-            requirement: estimate.reason ?? "unavailable",
+            requirement: estimate.refusal?.code ?? "unavailable",
         });
     }
 

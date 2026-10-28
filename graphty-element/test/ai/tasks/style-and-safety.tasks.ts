@@ -2,11 +2,19 @@
  * @file Tasks: direct styling checked by end state, and undo, validation, refusal and safety.
  */
 
-import { karate } from "@graphty/graph-samples/datasets/karate";
 import { assert } from "vitest";
 
 import { largeServerNetworkFixture, serverNetworkFixture } from "../llm-regression/fixtures/test-graph-fixtures";
-import { assertSameMembers, assistantLayers, defineTask, type GraphRecords, runOf, setMembers, styleOf } from "./kit";
+import {
+    assertSameMembers,
+    assistantLayers,
+    datasetRecords,
+    defineTask,
+    type GraphRecords,
+    runOf,
+    setMembers,
+    styleOf,
+} from "./kit";
 
 /**
  * A regression fixture as records.
@@ -26,13 +34,17 @@ const SERVERS = recordsOf(serverNetworkFixture);
  * Zachary's karate club as the graphty app loads karate.gml: integer ids 1 to 34, which the GML
  * importer keeps as numbers.
  */
-const KARATE_GML: GraphRecords = (() => {
-    const graph = karate();
+const KARATE_GML = async (): Promise<GraphRecords> => {
+    const graph = await datasetRecords("karate");
+    const index = new Map(graph.nodes.map((node, row) => [node.id, row]));
     return {
-        nodes: Array.from({ length: graph.nodeCount }, (_, index) => ({ id: index + 1 })),
-        edges: Array.from(graph.src, (source, edge) => ({ source: source + 1, target: graph.dst[edge] + 1 })),
+        nodes: graph.nodes.map((_, row) => ({ id: row + 1 })),
+        edges: graph.edges.map((edge) => ({
+            source: (index.get(edge.source) ?? 0) + 1,
+            target: (index.get(edge.target) ?? 0) + 1,
+        })),
     };
-})();
+};
 const LARGE_SERVERS = recordsOf(largeServerNetworkFixture);
 
 /** A graph whose data carries an instruction, which must stay data. */

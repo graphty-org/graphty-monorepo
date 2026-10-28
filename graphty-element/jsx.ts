@@ -506,7 +506,7 @@ export interface GraphtyElementJSXProps {
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     /**
-     * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
+     * Emitted when the map under the location map layout changes state: drawn, loading, or fallen back to the bundled world image because its tiles failed (`error` then carries `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the browser reveals one and null otherwise; an image load never does). The fields are those of `basemapStatus`. A code and facts, never a sentence.
      */
     "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
@@ -611,7 +611,7 @@ export interface GraphtyElementJSXProps {
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
     /**
-     * Emitted when a layout could not do everything it was asked.
+     * Emitted when a layout could not do everything it was asked. The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does not take (`W_UNKNOWN_OPTION`), or a 2D view replaced its dimension options (`W_DIMENSION_OVERRIDDEN`). It carries a warning code and its parameters, never a sentence.
      */
     "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;

@@ -125,7 +125,7 @@
         ],
         "storyless": [
             "^\\.github/(?!workflows/ci\\.yml$|actions/)",
-            "^tools/(?!(features-on|storybook-brand-theme|test-slots|wait-log|ci-test-matrix|ci-reuse-plan|test-select)\\.mjs$|results/)"
+            "^tools/(?!(ai-framework-packages|features-on|storybook-brand-theme|test-slots|wait-log|ci-test-matrix|ci-reuse-plan|test-select)\\.mjs$|results/)"
         ],
         "projectGlobal": ["^{dir}/\\.storybook/", "^{dir}/vitest(\\.[\\w-]+)?\\.config\\.[cm]?[jt]s$"],
         "lockfile": "playwright|chromium|storybook|vitest|font",

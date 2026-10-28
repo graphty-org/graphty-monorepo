@@ -11,7 +11,10 @@
 import "../../../src/algorithms";
 
 import { appendFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 
+import type { GraphSnapshot } from "@graphty/graph-format";
+import type { FetchDatasetOptions } from "@graphty/graph-samples";
 import { assert } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
@@ -105,7 +108,7 @@ export interface AssistantTask {
     /** The workflows (W01-W25) and use cases it is drawn from. */
     readonly source: readonly string[];
     readonly tier: readonly Tier[];
-    readonly dataset: DatasetName | GraphRecords;
+    readonly dataset: TaskDataset;
     /** The reader's messages, in order. */
     readonly prompts: readonly string[];
     /**
@@ -136,6 +139,12 @@ export function defineTask(task: AssistantTask): AssistantTask {
 /** The most records any tool result may carry (the tools' page cap). */
 const PAGE_CAP = 50;
 
+/** A task's data: a graph-samples dataset, records, or records built from one when the task runs. */
+export type TaskDataset = DatasetName | GraphRecords | (() => Promise<GraphRecords>);
+
+/** graph-samples' built dataset files. */
+const LOCAL_DATASETS = new URL("../../../../graph-samples/dist/data/v1/", import.meta.url);
+
 /**
  * A graph-samples dataset as records: ids where the dataset names its nodes (else the row index),
  * every node column, and the edge weights.
@@ -144,22 +153,20 @@ const PAGE_CAP = 50;
  */
 export async function datasetRecords(name: DatasetName): Promise<GraphRecords> {
     const module = (await import(`@graphty/graph-samples/datasets/${name}`)) as Record<string, unknown>;
-    const load = Object.values(module).find((value) => typeof value === "function") as () => {
-        directed: boolean;
-        nodeCount: number;
-        src: Uint32Array;
-        dst: Uint32Array;
-        weights?: Float32Array;
-        ids?: readonly string[];
-        nodeColumns?: Record<string, unknown>;
-    };
-    const graph = load();
+    const load = Object.values(module).find((value) => typeof value === "function") as (
+        options: FetchDatasetOptions,
+    ) => Promise<GraphSnapshot>;
+    // Never downloaded: read from graph-samples' build output, the files graphty.app publishes.
+    const graph = await load({
+        baseUrl: LOCAL_DATASETS.href,
+        fetch: async (input) => new Response(await readFile(new URL(input instanceof Request ? input.url : input))),
+    });
+    const columns = graph.nodes.names();
     const nodes: Record<string, unknown>[] = [];
     for (let index = 0; index < graph.nodeCount; index++) {
-        const record: Record<string, unknown> = { id: graph.ids?.[index] ?? String(index) };
-        for (const [column, input] of Object.entries(graph.nodeColumns ?? {})) {
-            const values = ((input as { data?: ArrayLike<unknown> }).data ?? input) as ArrayLike<unknown>;
-            const value = values[index];
+        const record: Record<string, unknown> = { id: String(graph.ids.idOf(index)) };
+        for (const column of columns) {
+            const value = graph.nodes.isSet(column, index) ? graph.nodes.value(column, index) : undefined;
             // A missing value is absent from the record, as an importer leaves it.
             if (value !== null && value !== undefined && value !== "" && !Number.isNaN(value)) {
                 record[column] = value;
@@ -169,10 +176,11 @@ export async function datasetRecords(name: DatasetName): Promise<GraphRecords> {
         nodes.push(record);
     }
 
-    const edges = Array.from(graph.src, (source, edge) => ({
+    const { src, dst, weights } = graph.edgeList();
+    const edges = Array.from(src, (source, edge) => ({
         source: nodes[source].id,
-        target: nodes[graph.dst[edge]].id,
-        ...(graph.weights === undefined ? {} : { weight: graph.weights[edge] }),
+        target: nodes[dst[edge]].id,
+        ...(weights === null ? {} : { weight: weights[edge] }),
     }));
     return { nodes, edges, directed: graph.directed };
 }
@@ -182,11 +190,12 @@ export async function datasetRecords(name: DatasetName): Promise<GraphRecords> {
  * cannot run them (every algorithm is built from the renderer's Graph), so this hands the element's
  * AlgorithmManager the few members of a Graph it reads: the session, its snapshot store, and an
  * accelerator that is never attached.
- * @param dataset - A dataset name or records.
+ * @param dataset - A dataset name, records, or what builds them.
  * @returns The session, loaded.
  */
-export async function taskSession(dataset: DatasetName | GraphRecords): Promise<GraphSession> {
-    const records = typeof dataset === "string" ? await datasetRecords(dataset) : dataset;
+export async function taskSession(dataset: TaskDataset): Promise<GraphSession> {
+    const built = typeof dataset === "function" ? await dataset() : dataset;
+    const records = typeof built === "string" ? await datasetRecords(built) : built;
     const holder: { session?: GraphSession } = {};
     // ponytail: reads the session's private store, the one the renderer's data manager would hand
     // the algorithms; replace with a public headless executor if graphty-element grows one.

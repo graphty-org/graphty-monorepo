@@ -14,7 +14,7 @@ import { userEvent } from "vitest/browser";
 import type { Graphty } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 import { FakeRecognition } from "../../helpers/fake-speech";
-import { click, hover, nextFrame, type Point } from "../../helpers/real-input";
+import { click, hover, type Point } from "../../helpers/real-input";
 
 const HEARD = "color these red";
 
@@ -22,6 +22,7 @@ let element: Graphty;
 let talk: HTMLButtonElement;
 let recognizers: FakeRecognition[];
 let finished: number;
+let hovered: string[];
 
 beforeEach(async () => {
     recognizers = [];
@@ -57,6 +58,10 @@ beforeEach(async () => {
     await element.waitForStableFrame();
     await element.enableAiControl({ provider: "mock", voice: {}, history: "memory" });
     finished = 0;
+    hovered = [];
+    element.addEventListener("graphty-node-hover", (event) => {
+        hovered.push(String(event.detail.nodeId));
+    });
     for (const type of ["ai-command-complete", "ai-command-error"]) {
         element.addEventListener(type, () => {
             finished++;
@@ -99,13 +104,17 @@ function at(id: string): Point {
 }
 
 /**
- * Move the real mouse to a point and let the frame that reads it land.
+ * Move the real mouse to a point and, on a node, wait until the element reports the pointer on it.
  * @param point - Where.
+ * @param node - The node drawn there, if any.
  */
-async function moveTo(point: Point): Promise<void> {
+async function moveTo(point: Point, node?: string): Promise<void> {
+    const seen = hovered.length;
     await hover(element, point);
-    for (let frame = 0; frame < 3; frame++) {
-        await nextFrame();
+    if (node !== undefined) {
+        await vi.waitFor(() => {
+            assert.include(hovered.slice(seen), node, `the pointer reached node ${node}`);
+        });
     }
 }
 
@@ -117,9 +126,9 @@ describe("pointing while talk is held", () => {
         await vi.waitFor(() => {
             assert.lengthOf(recognizers, 1, "a recognizer started");
         });
-        await moveTo(at("b"));
+        await moveTo(at("b"), "b");
         await moveTo({ x: 200, y: 280 });
-        await moveTo(at("a"));
+        await moveTo(at("a"), "a");
         await userEvent.keyboard("[/Space]");
         await vi.waitFor(() => {
             assert.strictEqual(finished, 1, "the spoken message ended");
@@ -145,9 +154,9 @@ describe("pointing while talk is held", () => {
         await vi.waitFor(() => {
             assert.lengthOf(recognizers, 1, "the key started a recognizer");
         });
-        await moveTo(at("a"));
+        await moveTo(at("a"), "a");
         await moveTo({ x: 200, y: 280 });
-        await moveTo(at("b"));
+        await moveTo(at("b"), "b");
         await userEvent.keyboard("{/v}");
         await vi.waitFor(() => {
             assert.strictEqual(finished, 1, "the spoken message ended");

@@ -17,14 +17,6 @@ afterEach(() => {
 });
 
 /**
- * Wait for the next animation frame.
- * @returns When it ran.
- */
-function nextFrame(): Promise<void> {
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-}
-
-/**
  * A WAV clip of silence, as a provider's speech comes back.
  * @param samples - How many 8 kHz 16-bit samples.
  * @returns The clip.
@@ -79,8 +71,11 @@ describe("provider transcription on the real microphone", () => {
             assert.isAtLeast(levels.length, 10, "levels while held");
         });
         assert.isTrue(levels.every((level) => level >= 0 && level <= 1));
+        const cancels = vi.spyOn(window, "cancelAnimationFrame");
         talk.stop();
         const atRelease = levels.length;
+        // The level's pending frame is cancelled on release, so no frame can report another one.
+        assert.isAtLeast(cancels.mock.calls.length, 1, "release cancelled the level's frame");
         assert.strictEqual(trackStops.mock.calls.length, 1, "release stopped the microphone's track");
 
         const end = await ended;
@@ -88,10 +83,6 @@ describe("provider transcription on the real microphone", () => {
         assert.strictEqual(clips.length, 1);
         assert.isAbove(clips[0]?.size ?? 0, 0, "a real recording");
         assert.match(clips[0]?.type ?? "", /^audio\//);
-
-        for (let i = 0; i < 5; i++) {
-            await nextFrame();
-        }
 
         assert.strictEqual(levels.length, atRelease, "no level after release");
     });

@@ -51,7 +51,13 @@ beforeAll(async () => {
         root: dir,
         configFile: false,
         logLevel: "silent",
-        build: { write: false, minify: false, rollupOptions: { input: join(dir, "main.js") } },
+        // unminified to read the code, with no comments: Rolldown keeps the package's doc comments, which name the
+        // GPU and Node code they describe
+        build: {
+            write: false,
+            minify: false,
+            rollupOptions: { input: join(dir, "main.js"), output: { comments: false } },
+        },
     });
 });
 
@@ -91,7 +97,7 @@ describe("a browser bundle", () => {
 });
 
 /**
- * Runs a built page under Node, as a module whose top-level await Node reports when it never settles.
+ * Runs a built page under Node, as a module whose top-level await Node reports (exit 13) when it never settles.
  * @param file - the built entry
  * @param page - which part of the page to run
  * @returns the exit code and everything printed
@@ -106,8 +112,9 @@ function runPage(file: string, page: string): Promise<{ code: number; out: strin
 }
 
 describe("a Vite production build whose entry module awaits a loading method at its top level", () => {
-    // The entry chunk holds the page and the package; the lazy chunks import @graphty/graph-format from it, so they
-    // cannot run until the page's await settles. Node, unlike a browser, reports the stuck await and exits with 13.
+    // Vite 6 and 7 (Rollup) put the page and the package in one entry chunk that the lazy chunks import, so a
+    // top-level await of a loading method never settled (the stall warning in src/lazy.ts, tested in lazy.test.ts,
+    // names the fix). Vite 8 (Rolldown) puts the shared code in a chunk of its own, so the same page loads.
     let entry = "";
 
     beforeAll(async () => {
@@ -126,9 +133,11 @@ describe("a Vite production build whose entry module awaits a loading method at 
                 "const page = globalThis.process.argv[2];",
                 'if (page === "dataset") {',
                 '    await cy.graphtyDataset("karate");',
+                '    console.log("nodes " + cy.nodes().length);',
                 '} else if (page === "async") {',
                 '    cy.add([{ data: { id: "a" } }, { data: { id: "b" } }, { data: { source: "a", target: "b" } }]);',
                 "    await cy.graphtyPageRankAsync();",
+                '    console.log("pagerank done");',
                 "} else {",
                 // one string: console.log colors a number argument when the runner sets FORCE_COLOR, as CI does
                 '    void cy.graphtyDataset("karate").then(() => console.log("nodes " + cy.nodes().length));',
@@ -157,21 +166,18 @@ describe("a Vite production build whose entry module awaits a loading method at 
         };
     });
 
-    it("warns, naming the method and the fix, instead of stopping with no message", async () => {
+    it("loads, with no stall warning", async () => {
         const [dataset, gpu, then] = await Promise.all([
             runPage(entry, "dataset"),
             runPage(entry, "async"),
             runPage(entry, "then"),
         ]);
-        expect(dataset.code, dataset.out).toBe(13);
-        expect(dataset.out).toContain(
-            "graphty: graphtyDataset has waited 5 s for part of @graphty/cytoscape-extensions to load. If a module awaits graphtyDataset at its top level, a Vite 6 or 7 production build never loads it",
-        );
-        expect(gpu.code, gpu.out).toBe(13);
-        expect(gpu.out).toContain("graphty: an ...Async method or a simulation layout has waited 5 s");
-        // the same call from .then() loads the dataset
-        expect(then.code, then.out).toBe(0);
+        for (const run of [dataset, gpu, then]) {
+            expect(run.code, run.out).toBe(0);
+            expect(run.out).not.toContain("graphty:");
+        }
+        expect(dataset.out).toContain("nodes 34");
+        expect(gpu.out).toContain("pagerank done");
         expect(then.out).toContain("nodes 34");
-        expect(then.out).not.toContain("graphty:");
     });
 });

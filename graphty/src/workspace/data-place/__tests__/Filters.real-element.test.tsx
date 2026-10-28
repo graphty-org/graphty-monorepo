@@ -190,6 +190,13 @@ describe("Filters on the real element", () => {
         await userEvent.click(add);
         assert.lengthOf(session.visibility.steps, 0);
         await userEvent.unhover(add);
+        // The click took focus out of the open Which nodes cards, which fold a frame later.
+        // Wait for the fold: read before it, Add a condition is still drawn, and the click
+        // below lands on it after the fold has removed it, so no list opens (#4150).
+        const nodes = await stepPicker();
+        await waitFor(() => {
+            assert.isNull(nodes.querySelector("[data-add]"));
+        });
 
         // With a condition and no text, focus names the missing value; Enter adds nothing.
         await addStepCondition("label");

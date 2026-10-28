@@ -19,6 +19,7 @@ import {
     type GraphSource,
     type RecordBatch,
     type SourceContext,
+    type SourceCredentialSlot,
     type SourceCursor,
     type SourceDescriptor,
     type SourceFinish,
@@ -698,6 +699,29 @@ export type RestSourceInfo = {
 } & Partial<SourceDescriptor>;
 
 /**
+ * The credential slot a mapping's `auth` describes: an API key's slot is named by the query
+ * parameter or header it is sent in (`{ query: "api_key" }` is the slot `api_key`), a bearer
+ * token's is `default`. Optional, as a mapping cannot say a key is required.
+ * @param mapping - the mapping
+ * @returns the slots
+ */
+function mappingSlots(mapping: RestMapping): readonly SourceCredentialSlot[] {
+    const { auth } = mapping;
+    if (auth === undefined) {
+        return [];
+    }
+    if (auth.kind === "bearer") {
+        return [{ name: "default", kind: "bearer", required: false }];
+    }
+    const { header } = auth;
+    if (header !== undefined) {
+        return [{ name: header.toLowerCase(), kind: "api-key", required: false, send: { header } }];
+    }
+    const query = auth.query ?? "api_key";
+    return [{ name: query, kind: "api-key", required: false, send: { query } }];
+}
+
+/**
  * Where a mapping's API key goes, as a descriptor says it.
  * @param auth - the mapping's auth
  * @returns `{ apiKey }`, or nothing when the mapping takes no key or does not say where
@@ -748,6 +772,7 @@ export function restSource(mapping: RestMapping, info: RestSourceInfo): GraphSou
         defaultEndpoint: mapping.endpoint,
         auth,
         authRequired: auth.length === 0 ? "none" : "optional",
+        credentials: mappingSlots(mapping),
         ...apiKeyOf(mapping.auth),
         ...(mapping.rateLimit === undefined ? {} : { rateLimit: mapping.rateLimit }),
         ...fields,

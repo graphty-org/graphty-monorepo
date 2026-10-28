@@ -125,12 +125,11 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
-import * as sourceExpand from "./sources/expand";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
 import { isSourceFactKey, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
-import * as sourceLoad from "./sources/load";
 import { type LoadFacts, type SourcesRead, type SourcesWrite, writeSourcesMember } from "./sources/member";
+import { pendingSourceLoads } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
 import type {
     CollapseResult,
@@ -824,7 +823,9 @@ export class SessionData implements SessionDataApi {
         const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
         try {
             if (source.source !== undefined) {
-                await sourceLoad.importSource(this.hostInTurn(turn), { ...source, source: source.source }, options);
+                await (
+                    await import("./sources/load")
+                ).importSource(this.hostInTurn(turn), { ...source, source: source.source }, options);
                 return;
             }
 
@@ -1112,7 +1113,8 @@ export class SessionData implements SessionDataApi {
      */
     testSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceProbe> {
         this.requireLive("testSource");
-        return sourceLoad.testSource(this.sourceHost(), source, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.testSource(host, source, options));
     }
 
     /**
@@ -1128,7 +1130,8 @@ export class SessionData implements SessionDataApi {
         options: SourceLoadOptions = {},
     ): Promise<SourceListing> {
         this.requireLive("listSource");
-        return sourceLoad.listSource(this.sourceHost(), source, query, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.listSource(host, source, query, options));
     }
 
     /**
@@ -1142,7 +1145,11 @@ export class SessionData implements SessionDataApi {
         // In line, as a load: its rows are dispatched after every load asked for before it, and a
         // load asked for after it waits for all of them, so it never adds to the graph that load
         // replaced (issue #3382).
-        return this.inLine(options.signal, (host) => sourceExpand.expandNodes(host, ids, options), true);
+        return this.inLine(
+            options.signal,
+            (host) => import("./sources/expand").then((module) => module.expandNodes(host, ids, options)),
+            true,
+        );
     }
 
     /**
@@ -1185,7 +1192,7 @@ export class SessionData implements SessionDataApi {
         // A clear asked for while it waits cancels it: it removes nothing, and the clear removes all.
         return this.inLine(
             undefined,
-            (host) => sourceExpand.collapseNode(host, id),
+            (host) => import("./sources/expand").then((module) => module.collapseNode(host, id)),
             false,
             () => ({
                 removedNodes: [],
@@ -1202,7 +1209,9 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
-        return this.inLine(options.signal, (host) => sourceLoad.more(host, options));
+        return this.inLine(options.signal, (host) =>
+            import("./sources/load").then((module) => module.more(host, options)),
+        );
     }
 
     /**
@@ -1213,7 +1222,8 @@ export class SessionData implements SessionDataApi {
      */
     previewSource(source: SourceInput, options: SourcePreviewOptions = {}): Promise<SourcePreview> {
         this.requireLive("previewSource");
-        return sourceLoad.previewSource(this.sourceHost(), source, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.previewSource(host, source, options));
     }
 
     /**
@@ -1224,7 +1234,8 @@ export class SessionData implements SessionDataApi {
      */
     checkSource(load: string, options: SourceLoadOptions = {}): Promise<SourceCheck> {
         this.requireLive("checkSource");
-        return sourceLoad.checkSource(this.sourceHost(), load, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.checkSource(host, load, options));
     }
 
     /**
@@ -1235,7 +1246,8 @@ export class SessionData implements SessionDataApi {
      */
     refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
-        return sourceLoad.refreshSource(this.sourceHost(), load, options);
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.refreshSource(host, load, options));
     }
 
     /**
@@ -1248,7 +1260,7 @@ export class SessionData implements SessionDataApi {
         this.requireLive("loadSample");
         const turn = this.loadLine.join(options.signal);
         try {
-            await sourceLoad.loadSample(this.hostInTurn(turn), id, options);
+            await (await import("./sources/load")).loadSample(this.hostInTurn(turn), id, options);
         } finally {
             turn.leave();
         }
@@ -1285,7 +1297,7 @@ export class SessionData implements SessionDataApi {
      * @returns One entry per waiting load.
      */
     pendingSourceLoads(): readonly PendingSourceLoad[] {
-        return sourceLoad.pendingSourceLoads(this.sourceHost());
+        return pendingSourceLoads(this.sourceHost());
     }
 
     /**
@@ -1296,7 +1308,9 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
-        return this.inLine(options.signal, (host) => sourceLoad.runPendingSourceLoad(host, id, options));
+        return this.inLine(options.signal, (host) =>
+            import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)),
+        );
     }
 
     /**
@@ -1435,6 +1449,7 @@ export class SessionData implements SessionDataApi {
             expansions: this.expansions,
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
+            labelPath: () => this.readConfig().knownFields.nodeLabelPath,
             credentialSlotOf: (load) => {
                 const key = this.sources().find((each) => each.loadKey === load)?.key;
                 return key === undefined ? undefined : this.loadFacts.get(key)?.credentialSlot;
@@ -2656,7 +2671,7 @@ export class SessionData implements SessionDataApi {
      * Take one load out of the graph, keeping what another load also supplied. One undoable step.
      * @param key - the load's key
      * @returns how many nodes and edges went and stayed
-     * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @throws A `GraphtyError` with `E_LOAD_UNKNOWN` for a key `sources()` does not list.
      */
     async removeSource(key: SourceKey): Promise<RemoveSourceResult> {
         this.requireLive("removeSource");
@@ -2674,7 +2689,7 @@ export class SessionData implements SessionDataApi {
         const entry = sources.find((each) => each.key === key);
         if (entry === undefined) {
             throw new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
+                code: "E_LOAD_UNKNOWN",
                 message: `No load still in the graph has key ${JSON.stringify(key)}.`,
                 source: "data",
                 details: { key, known: sources.map((each) => each.key) },
@@ -5054,7 +5069,7 @@ function choiceOptions(
 function loadFacts(
     record: SourceLoadRecord | undefined,
     catalog: ReadonlyMap<string, SourceFeatures>,
-): Pick<LoadedSource, "features" | "total"> {
+): Pick<LoadedSource, "features" | "total" | "totalEdges"> {
     if (record === undefined) {
         return {};
     }
@@ -5067,5 +5082,6 @@ function loadFacts(
             refresh: declared?.refresh === true,
         }),
         ...(record.total === undefined ? {} : { total: record.total }),
+        ...(record.totalEdges === undefined ? {} : { totalEdges: record.totalEdges }),
     };
 }

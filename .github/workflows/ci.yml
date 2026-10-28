@@ -517,10 +517,11 @@ jobs:
                   # the base, and the test files the change touched: the ones it changed and the ones whose imports
                   # reach a changed file (not the ones a rule runs), and the families with no file-level answer
                   # (every file of those counts as touched). An everything plan gets only the base, so every test
-                  # counts as touched and a re-run still reads the store again; an unavailable one stays as it is,
-                  # and an outage leaves the committed quarantine list in force.
+                  # counts as touched and a re-run still reads the store again. An unavailable one (a store outage)
+                  # gets them too: the committed quarantine list stays in force, and the [NEW-FLAKY] rule still
+                  # fails a test the change touched that failed and then passed (run-group.mjs newFlakyJudge, #4146).
                   jq -s --arg base "$(git rev-parse HEAD^1)" --rawfile changed "$RUNNER_TEMP/changed.txt" \
-                      'if .[0].unavailable then .[0] elif .[1].everything then .[0] + {base: $base} else .[0] + {base: $base,
+                      '.[0] + if .[1].everything then {base: $base} else {base: $base,
                           affected: ((.[1].touched // []) + ($changed | split("\n") | map(select(. != ""))) | unique),
                           unknownFamilies: (.[1].unknown // [])} end' \
                       "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \
@@ -927,6 +928,11 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        # lint is an nx-cached target (nx.json), so a project whose lint inputs equal master's (a pull request
+        # that touches nx.json or a project.json marks every project affected) replays master's result from
+        # the remote cache instead of linting again (graphty-element alone takes about 3.5 minutes). Only
+        # master writes the cache, through the same environment as the Build job.
+        environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && 'nx-cache-write' || '' }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -963,6 +969,23 @@ jobs:
               with:
                   name: build-packages
                   path: .
+
+            - name: Probe the nx remote cache
+              env:
+                  NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
+                  NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
+                  WRITES: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+              run: |
+                  if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
+                      echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
+                  elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
+                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
+                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
+                      echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
+                  fi
 
             - name: Note when lint starts
               continue-on-error: true
@@ -1081,11 +1104,15 @@ jobs:
             # paths). knip reads source; the production pass counts only published entry points. The published-deps
             # check packs each package and compares what it ships with what it declares, so it
             # must run after the build. The same three steps run in tools/prepush.sh.
-            - name: Knip (dead code detection)
-              run: pnpm run lint:knip
-
-            - name: Knip (production dependencies)
-              run: pnpm run lint:knip:prod
+            # The two knip passes share nothing and each is mostly single-threaded, so they run side by side
+            # (47 s + 16 s in a row on a runner); the step fails when either does.
+            - name: Knip (dead code detection and production dependencies)
+              run: |
+                  pnpm run lint:knip & dead=$!
+                  pnpm run lint:knip:prod & prod=$!
+                  a=0; wait $dead || a=$?
+                  b=0; wait $prod || b=$?
+                  exit $(( a || b ))
 
             - name: Published dependencies
               run: pnpm run check:published-deps
@@ -1810,6 +1837,10 @@ jobs:
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
+        # id-token: write is the health API's credential (tools/results/post-benchmarks.mjs posts the numbers)
+        permissions:
+            contents: read
+            id-token: write
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1848,10 +1879,21 @@ jobs:
                   path: .
 
             - name: Run the algorithms benchmarks
+              id: algorithms-bench
               run: pnpm exec nx run algorithms:benchmark
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
+
+            # Each result to the pipeline health dashboard, which keeps every benchmark's trend and flags a
+            # sustained regression (design/ci/health-dashboard.md, section 4.3). Fire and forget: it never fails
+            # the job. Only after the benchmark passed, which rewrote the session file: the copy in git is not
+            # this run's numbers.
+            - name: Post the algorithms benchmark results to the health dashboard
+              if: steps.algorithms-bench.outcome == 'success'
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/results/post-benchmarks.mjs algorithms algorithms/benchmark-results/benchmark-sessions-*-comprehensive.json
 
             # Both benchmark projects launch browsers: browser-bench runs in Chromium, and bench's
             # test/lifecycle/autosave-engines.bench.test.ts launches Chromium, Firefox and WebKit
@@ -1972,7 +2014,7 @@ jobs:
 
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
-    # packed into bins of about 4 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
+    # packed into bins of about 3 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
     # each captured with visual-review capture (the built-Storybook capture), but only those stories
     # (--stories). A broken story blocks its pull request: one that
     # fails to render or whose play function throws (`failed` in results.json), one that draws two different
@@ -2205,9 +2247,22 @@ jobs:
             fail-fast: false
             matrix:
                 include:
+                    # Two legs (vitest --shard=N/2), merged by story-tests-merge: one job was 31 minutes, the longest
+                    # of the run, and the full run's re-capture waits for the whole CI lane. Vitest splits by file hash,
+                    # not duration: with run 40616061520's per-file times (28.0 minutes of tests, StartScreen alone
+                    # 14.2) the legs are about 6 and 22 minutes, under graphty-element's 25-minute capture (#4109).
                     - project: graphty
+                      name: graphty-1
+                      part: 1
+                      parts: 2
                       shard: graphty-storybook
-                      command: cd graphty && pnpm exec vitest run --project=storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook --shard=1/2
+                    - project: graphty
+                      name: graphty-2
+                      part: 2
+                      parts: 2
+                      shard: graphty-storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook --shard=2/2
                     # One job for the whole project: without coverage its story tests do not slow down as
                     # they run, which is why the coverage shards split it in five.
                     - project: graphty-element
@@ -2462,7 +2517,7 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # The parts of a project the story-tests job splits in legs (graph-io-fidelity), combined into the one capture the
+    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty), combined into the one capture the
     # project's single leg would have uploaded (visual-<project>-<attempt>):
     # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
     story-tests-merge:
@@ -2475,7 +2530,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graph-io-fidelity]
+                project: [graph-io-fidelity, graphty]
         steps:
             - name: Download the parts
               id: parts

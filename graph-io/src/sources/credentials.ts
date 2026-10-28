@@ -7,7 +7,13 @@
  */
 
 import { failAlone } from "./fail.js";
-import { type AwsCredentials, type Credential, type CredentialKind } from "./types.js";
+import {
+    type AwsCredentials,
+    type Credential,
+    type CredentialKind,
+    type SourceCredentialSlot,
+    type SourceDescriptor,
+} from "./types.js";
 
 /**
  * Where a credential may go: the load's endpoint origin by default. Experimental.
@@ -146,6 +152,63 @@ function base64(text: string): string {
 }
 
 /**
+ * The plain value a slot's credential is made from: a key or a token, or a user name and password.
+ * @category Network sources
+ */
+export type SlotValue =
+    | string
+    | {
+          /** A basic slot's user name. */
+          readonly username: string;
+          /** A basic slot's password. */
+          readonly password: string;
+      };
+
+/**
+ * The credential a slot describes, from its plain value.
+ * @param slot - the slot
+ * @param value - the key or token, or a basic slot's user name and password
+ * @param bind - the origins it may be sent to
+ * @returns the credential
+ */
+function forSlot(slot: SourceCredentialSlot, value: SlotValue, bind?: CredentialBind): Credential {
+    if (typeof value !== "string") {
+        if (slot.kind === "basic") {
+            return new SourceCredential({ kind: "basic", username: value.username, password: value.password }, bind);
+        }
+    } else if (slot.kind === "bearer") {
+        return new SourceCredential({ kind: "bearer", token: value }, bind);
+    } else if (slot.kind === "api-key") {
+        const send = slot.send ?? { query: slot.name };
+        const header = "header" in send ? send.header : null;
+        const query = "query" in send ? send.query : null;
+        return new SourceCredential({ kind: "api-key", header, query, value }, bind);
+    }
+    return failAlone("E_SOURCE_PARAM", `a ${slot.kind} slot cannot take this value`, {
+        name: "credential",
+        reason: "type",
+    });
+}
+
+/**
+ * The credential slots a source takes: the ones its descriptor declares, else one slot `default`
+ * of its first credential kind when it takes a credential (`auth`), else none. Experimental.
+ * @param descriptor - the source's descriptor
+ * @returns the slots
+ * @category Network sources
+ */
+export function credentialSlots(descriptor: SourceDescriptor | undefined): readonly SourceCredentialSlot[] {
+    if (descriptor?.credentials !== undefined) {
+        return descriptor.credentials;
+    }
+    const kind = descriptor?.auth?.[0];
+    if (kind === undefined || descriptor?.authRequired === "none") {
+        return [];
+    }
+    return [{ name: "default", kind, required: descriptor?.authRequired === "required" }];
+}
+
+/**
  * The factories that make credentials. Pass the result as the `credential` option of a load; it is
  * sent only to the load's endpoint origin, or to `bind.origins` when you give them. Experimental.
  * @example
@@ -213,6 +276,21 @@ export const credentials = Object.freeze({
     custom(apply: (request: Request) => Promise<Request> | Request, kind: string, bind?: CredentialBind): Credential {
         return new SourceCredential({ kind: "custom", name: kind, apply }, bind);
     },
+    /**
+     * The credential a source's slot describes (`credentialSlots(descriptor)`), from its plain
+     * value: an API key sent as the slot says, a bearer token, or a basic slot's user name and
+     * password.
+     * @example
+     * ```ts
+     * const [slot] = credentialSlots(openalex.descriptor); // api_key, sent as ?api_key=
+     * const credential = credentials.forSlot(slot, key);
+     * ```
+     * @param slot - the slot
+     * @param value - the key or token, or `{ username, password }` for a basic slot
+     * @param bind - the origins it may be sent to
+     * @returns the credential
+     */
+    forSlot,
 });
 
 /**
@@ -246,6 +324,17 @@ export function credentialHeader(credential: Credential): string | null {
     return secret?.kind === "bearer" || secret?.kind === "basic" || secret?.kind === "aws-sigv4"
         ? "authorization"
         : null;
+}
+
+/**
+ * The query parameter a credential is sent in, so a cursor can leave it out; null for one sent in
+ * a header or not at all.
+ * @param credential - the credential
+ * @returns the parameter's name
+ */
+export function credentialQuery(credential: Credential): string | null {
+    const secret = secretOf(credential);
+    return secret?.kind === "api-key" && secret.header === null ? (secret.query ?? "api_key") : null;
 }
 
 /**

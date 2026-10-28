@@ -151,7 +151,7 @@ describe("source provenance", () => {
         await session.data.removeSource("s9").then(
             () => assert.fail("expected a refusal"),
             (error: unknown) => {
-                assert.propertyVal(error, "code", "E_SOURCE_UNKNOWN");
+                assert.propertyVal(error, "code", "E_LOAD_UNKNOWN");
             },
         );
         session.dispose();

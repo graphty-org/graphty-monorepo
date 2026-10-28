@@ -426,6 +426,12 @@ when both are green): Dawn-node and Chromium on Metal on `macos-latest` (plus a 
 Dawn-node on D3D12 / WARP and Chromium on SwiftShader on `windows-latest` -- the other shader compilers, added after
 the WebKit pipeline-constants finding below.
 
+### Test projects in short
+
+- `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
+- `node-limits` - the GPU lane only (real device limits)
+- `browser` - Playwright Chromium with the `GRAPHTY_BROWSER_GPU` flag set (swiftshader in CI) through `scripts/run-browser-project.js`
+
 ## Verified Platform Facts
 
 Settled by the review probes (spec R-22, [M] = measured; the probes live in `docs/research/review/probes/`):

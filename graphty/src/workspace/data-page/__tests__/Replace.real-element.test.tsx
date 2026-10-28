@@ -32,10 +32,10 @@ function source(tables: string[]): LoadedSource {
     return {
         key: "s1",
         kind: "file",
-        counts: { nodes: 4, edges: 4 },
         name: "friends.csv",
         tables,
         added: { nodes: 4, edges: 4 },
+        counts: { nodes: 4, edges: 4 },
     };
 }
 

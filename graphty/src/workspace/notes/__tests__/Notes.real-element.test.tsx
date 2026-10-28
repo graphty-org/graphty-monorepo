@@ -14,6 +14,7 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent as realInput } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { clearRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -45,8 +46,11 @@ async function openSample(store: WorkspaceStore): Promise<GraphSession> {
     render(<Workspace store={store} />);
     await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
     const session = await elementSession();
+    // Open is finished when the app hands focus to the graph's heading, after the sample is read:
+    // the node count arrives first, and a later focus move would land on a test's keys.
     await waitFor(() => {
         assert.equal(session.data.statistics().nodeCount, 15);
+        assert.equal(document.activeElement?.id, INSPECTOR_TITLE_ID);
     });
     return session;
 }

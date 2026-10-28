@@ -87,8 +87,8 @@ function useOutcomes(session: GraphSession | null, version: number): Outcomes | 
         let live = true;
         session.plan({ op: "visibility.steps", steps: session.visibility.steps }).then(
             (plan) => {
-                if (live && plan.effect.kind === "steps") {
-                    const { start, steps } = plan.effect;
+                if (live && plan.effect.kind === "match" && plan.effect.steps !== undefined) {
+                    const { start, steps } = plan.effect.steps;
                     setOutcomes({ start, after: new Map(steps.map((s) => [s.id, s])) });
                 }
             },

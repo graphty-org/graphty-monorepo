@@ -19,6 +19,7 @@ import {
     EVENT_MS,
     flushHealth,
     postFailures,
+    postBenchmarks,
     postFlaky,
     postInvocation,
     readPlan,
@@ -28,6 +29,7 @@ import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
+import { benchmarkRows } from "./post-benchmarks.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
@@ -37,6 +39,7 @@ import {
     groupKeys,
     groupFamily,
     junitOf,
+    newFlakyJudge,
     postRecords,
     prJudge,
     recordsOf,
@@ -567,6 +570,74 @@ describe("planRead", () => {
         assert.equal(q.get("variants"), "layout|flags=off|whole,layout|flags=off|selected");
         assert.equal(q.get("inputs"), "-,-");
         assert.equal(q.get("files"), "layout/src/x.ts");
+    });
+});
+
+describe("the [NEW-FLAKY] rule without the store's answer (#4146)", () => {
+    const FILE = "graphty/src/a.test.ts";
+    const T = { file: FILE, name: "flips" };
+    const OTHER = { file: "graphty/src/b.test.ts", name: "other" };
+    const flaky = { pass: true, flaky: [T, OTHER], excused: [], failing: [] };
+
+    it("fails a flaky test the pull request touched and leaves an untouched or quarantined one flaky", () => {
+        const d = newFlakyJudge({ base: "b1", affected: [FILE] }, "graphty", [])(flaky);
+        assert.equal(d.pass, false);
+        assert.deepEqual(d.caused, [T]);
+        assert.deepEqual(d.failing, [T]);
+        assert.deepEqual(d.flaky, [OTHER]);
+        const q = [{ family: "graphty", file: FILE, name: "flips", issue: 9 }];
+        assert.equal(newFlakyJudge({ base: "b1", affected: [FILE] }, "graphty", q)(flaky).pass, true);
+        assert.equal(newFlakyJudge({ base: "b1", affected: ["x.ts"] }, "graphty", [])(flaky).pass, true);
+        // no file-level answer for the family: every test counts as touched
+        const unknown = { base: "b1", affected: [], unknownFamilies: ["graphty"] };
+        assert.equal(newFlakyJudge(unknown, "graphty", [])(flaky).caused.length, 2);
+    });
+
+    // A checkout whose one shard fails FILE's test, then passes it when the retry runs the file alone
+    // (bin/pnpm stands in for vitest).
+    function flakyCheckout(name) {
+        const root = join(TMP, name);
+        mkdirSync(join(root, "tools"), { recursive: true });
+        mkdirSync(join(root, "graphty"));
+        mkdirSync(join(root, "bin"));
+        mkdirSync(join(root, "test-results"));
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "graphty-1", package: "graphty", "test-command": "cd graphty && pnpm exec vitest run --project=x" }];\n`,
+        );
+        const junit = (failed) =>
+            `<testsuites><testsuite><testcase classname="src/a.test.ts" name="flips">${failed ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase></testsuite></testsuites>`;
+        writeFileSync(join(root, "first.xml"), junit(true));
+        writeFileSync(join(root, "retry.xml"), junit(false));
+        writeFileSync(
+            join(root, "bin/pnpm"),
+            "#!/bin/sh\ncp ../retry.xml ../test-results/junit-graphty-2.xml; echo ' Test Files  1 passed (1)'\n",
+            { mode: 0o755 },
+        );
+        execFileSync("git", ["init", "-q"], { cwd: root });
+        execFileSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: root });
+        const first =
+            "cp first.xml test-results/junit-graphty-1.xml; echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1";
+        return { root, first };
+    }
+
+    it("fails a pull request's shard on a test it made flaky when the store gave no answer", async () => {
+        const verdict = async (name, plan, event = "pull_request") => {
+            const c = flakyCheckout(name);
+            writeFileSync(join(c.root, "plan.json"), JSON.stringify(plan));
+            const env = {
+                PATH: `${join(c.root, "bin")}:${process.env.PATH}`,
+                GRAPHTY_RESULTS: "0",
+                GITHUB_EVENT_NAME: event,
+                RESULTS_PLAN: join(c.root, "plan.json"),
+            };
+            return runGroup("graphty-1", c.first, { root: c.root, env });
+        };
+        const outage = { unavailable: "no answer", base: "b1", affected: [FILE], unknownFamilies: [] };
+        assert.equal(await verdict("nf-touched", outage), 1, "touched: [NEW-FLAKY] fails the shard");
+        assert.equal(await verdict("nf-untouched", { ...outage, affected: ["graphty/src/z.ts"] }), 0);
+        assert.equal(await verdict("nf-no-diff", { unavailable: "the test selector failed" }), 0, "no answer at all");
+        assert.equal(await verdict("nf-push", outage, "push"), 0, "only a pull request");
     });
 });
 
@@ -1182,6 +1253,51 @@ describe("health API fan-out", () => {
             ],
         });
         assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
+    });
+    it("sends a benchmark job's results to the health API as one post", async () => {
+        const h = await serveHealth();
+        const env = { ...healthEnv("http://store", h.url), GITHUB_SHA: "abc" };
+        assert.equal(postBenchmarks(env, "algorithms", []), false);
+        assert.equal(postBenchmarks({ ...env, HEALTH_API_URL: "" }, "algorithms", [{ name: "x", value: 1 }]), false);
+        assert.equal(postBenchmarks(env, "algorithms", [{ name: "PageRank n=1000", value: 4.5 }]), true);
+        await flushHealth();
+        const post = await h.posted;
+        assert.equal(post.url, "/v1/benchmarks");
+        assert.deepEqual(post.body, {
+            source: "algorithms",
+            unit: "ms",
+            sha: "abc",
+            rows: [{ name: "PageRank n=1000", value: 4.5 }],
+        });
+    });
+    it("reads the newest session of the algorithms and the harness result files", () => {
+        // algorithms/benchmark-results/benchmark-sessions-linux-comprehensive.json
+        const algorithms = [
+            { timestamp: "old", results: [{ algorithm: "GRSBM", graphSize: 50, executionTime: 9 }] },
+            {
+                timestamp: "new",
+                results: [
+                    { algorithm: "GRSBM", graphSize: 50, edges: 98, executionTime: 4.18, memoryUsage: 0 },
+                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, memoryUsage: 0 },
+                ],
+            },
+        ];
+        assert.deepEqual(benchmarkRows(algorithms), [
+            { name: "GRSBM n=50", value: 4.18 },
+            { name: "GRSBM n=100", value: 15.75 },
+        ]);
+        // webgpu-graph-algorithms/benchmarks/out/gpu-linux-t4.json (benchmarks/harness.ts)
+        const harness = [
+            {
+                runnerClass: "gpu-linux-t4",
+                results: [
+                    { group: "upload", name: "residency.core 100k/1M", medianMs: 14.46, minMs: 14.17, runs: 5 },
+                    { group: "upload", name: "no median", minMs: 1 },
+                ],
+            },
+        ];
+        assert.deepEqual(benchmarkRows(harness), [{ name: "upload / residency.core 100k/1M", value: 14.46 }]);
+        assert.deepEqual(benchmarkRows([]), []);
     });
     it("is off without HEALTH_API_URL, and without an OIDC token to sign in with", async () => {
         const h = await serveHealth();

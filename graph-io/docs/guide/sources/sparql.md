@@ -29,7 +29,7 @@ const params = {
     query,
     pageSize: 100,
     language: "en",
-    predicates: ["http://www.wikidata.org/prop/direct/"],
+    predicates: ["http://www.wikidata.org/prop/direct/"], // NOSONAR(S5332): an RDF namespace IRI, not a URL that is fetched
 };
 const endpoint = "https://query.wikidata.org/sparql";
 
@@ -103,10 +103,20 @@ Pass the endpoint as `endpoint`; there is no default. A credential (`credentials
 - Checking for changes (`validateSource`): a hash of the first page, compared with the one the load
   recorded.
 
+## What the source sends
+
+The source sends only a `CONSTRUCT` or `DESCRIBE` query: the first keyword after the `PREFIX` and
+`BASE` declarations names the form, and a text holding a SPARQL Update keyword (`INSERT`, `DELETE`,
+`LOAD`, `CLEAR`, `DROP`, `CREATE`, `ADD`, `MOVE`, `COPY`, `WITH`) or a `;` outside braces is
+refused before any request, whatever names surround it. That check is about the text; it is no
+read-only guarantee from the endpoint, which runs what it is sent with the credential it is given.
+A `SERVICE` clause in a query makes the endpoint itself fetch from another service, so a query
+you did not write -- one in a project file someone sent -- deserves a look before it runs.
+
 ## Errors
 
-| Code                | When                                                                                                      |
-| ------------------- | --------------------------------------------------------------------------------------------------------- |
-| `E_SOURCE_PARAM`    | a `SELECT` or `ASK` query (`reason: "form"`), a seed that is not an IRI (`"iri"`), a malformed `language` |
-| `E_SOURCE_QUERY`    | the endpoint refused the query; `serverMessage` holds the start of its answer                             |
-| `E_SOURCE_RESPONSE` | the endpoint did not answer N-Triples                                                                     |
+| Code                | When                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `E_SOURCE_PARAM`    | a `SELECT`, `ASK` or update (`reason: "form"`), a seed that is not an IRI (`"iri"`), a malformed `language` |
+| `E_SOURCE_QUERY`    | the endpoint refused the query; `serverMessage` holds the start of its answer                               |
+| `E_SOURCE_RESPONSE` | the endpoint did not answer N-Triples                                                                       |

@@ -14,6 +14,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { HeroTurns } from "../../start/heroTurns";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -37,11 +38,30 @@ function forgetAutosave(): Promise<void> {
 }
 
 /**
- * Mounts the workspace on its start screen with autosave on, as the application does.
+ * Mounts the workspace on its start screen with autosave on, as the application does, with the
+ * start screen's graph holding still as in Storybook: turning, it draws a frame forever, and every
+ * real click on the page waits behind each frame (issue #4139).
  * @returns the render result.
  */
 function mountWorkspace(): ReturnType<typeof render> {
-    return render(<Workspace store={createWorkspaceStore({ autosave: true })} />);
+    return render(
+        <HeroTurns.Provider value={false}>
+            <Workspace store={createWorkspaceStore({ autosave: true })} />
+        </HeroTurns.Provider>,
+    );
+}
+
+/**
+ * Waits for the start screen's graph to come up and its picture to come to rest, so a click on the
+ * start screen does not wait behind its layout being drawn.
+ */
+async function startScreenStill(): Promise<void> {
+    const hero = await waitFor(() => {
+        const found = document.querySelector<ElementUnderTest>("graphty-element[data-start-page]");
+        assert.isDefined(found?.session);
+        return found;
+    });
+    await hero.waitForStableFrame();
 }
 
 /**
@@ -61,17 +81,24 @@ async function openElement(): Promise<ElementUnderTest> {
 }
 
 /**
- * Opens a sample from the start screen by clicking it, and waits for its nodes.
+ * Brings a sample into the open project through the Data place's own door, Sources "+" >
+ * Samples..., and waits for its nodes.
  * @param name - the sample's name.
  * @param nodes - how many nodes it has.
  * @returns the element.
  */
-async function openSample(name: string, nodes: number): Promise<ElementUnderTest> {
-    await userEvent.click(await screen.findByRole("button", { name: `Open the ${name} sample` }));
+async function loadSample(name: string, nodes: number): Promise<ElementUnderTest> {
     const element = await openElement();
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
+    const samples = await screen.findByRole("dialog", { name: "Samples" });
+    await userEvent.click(within(samples).getByRole("button", { name: new RegExp(`^${name}`) }));
     await waitFor(() => {
         assert.equal(element.session.data.statistics().nodeCount, nodes);
     });
+    // A real click waits behind every frame drawn while the layout moves: start clicking once the
+    // picture is at rest, as a reader would.
+    await element.waitForStableFrame();
     return element;
 }
 
@@ -146,17 +173,28 @@ describe("Data > Fields as a + list on the real element", () => {
     afterEach(forgetAutosave);
 
     it("lists the airline sample's label, location and weight with no action from the reader", async () => {
-        const view = mountWorkspace();
-        await openSample("OpenFlights airline routes", 3214);
+        // The sample comes in through the Data place's own door, Sources "+" > Samples..., in an
+        // empty project, and the list is read as the load lands. Every click here is made while
+        // the element draws nothing: a real click is several round trips to the page, and each
+        // waits behind the frame being drawn. Through the start screen, one click waited on the
+        // turning start-page graph and one on the airline's 36,906 edges laying out; on a
+        // software GPU each frame held the page for 100 to 600 ms, so on a loaded runner each
+        // click took 3 to 6 s and the test passed its 15 s limit (issue #3981).
+        render(<Workspace store={createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" })} />);
+        const element = await openElement();
         const section = await fields();
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
+        const samples = await screen.findByRole("dialog", { name: "Samples" });
+        await userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ }));
         await waitFor(() => {
+            assert.equal(element.session.data.statistics().nodeCount, 3214);
             assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
             assert.include(entries(section, "edges"), "weight");
         });
         assert.equal(shown(section, "Node label"), "label");
         assert.equal(shown(section, "Node latitude column"), "latitude");
         assert.equal(shown(section, "Node longitude column"), "longitude");
-        view.unmount();
     });
 
     it("shows an empty list for a CSV with nothing to detect", async () => {
@@ -170,8 +208,14 @@ describe("Data > Fields as a + list on the real element", () => {
     });
 
     it("adds Time from +, removes it with the minus, and it stays gone after a reload", async () => {
-        const first = mountWorkspace();
-        const element = await openSample("Paper citations", 159);
+        // The sample comes in through the Data place's own door, as in the airline test above, so
+        // no click waits behind the start screen's turning graph or the sample's layout.
+        const first = render(
+            <Workspace
+                store={createWorkspaceStore({ autosave: true, project: { name: "Fields", id: 1 }, place: "data" })}
+            />,
+        );
+        const element = await loadSample("Paper citations", 159);
         let section = await fields();
         await waitFor(() => {
             section.getByRole("button", { name: "Add to node fields" });
@@ -201,11 +245,13 @@ describe("Data > Fields as a + list on the real element", () => {
         });
         first.unmount();
         const second = mountWorkspace();
+        await startScreenStill();
         await userEvent.click(await screen.findByRole("button", { name: "Restore" }));
         const restored = await openElement();
         await waitFor(() => {
             assert.equal(restored.session.data.statistics().nodeCount, 159);
         });
+        await restored.waitForStableFrame();
         section = await fields();
         await waitFor(() => {
             section.getByRole("button", { name: "Add to node fields" });

@@ -61,6 +61,13 @@ relationships and paths, also inside lists and maps; each node and relationship 
 query that returns only scalars (`RETURN count(n)`) fails with `E_SOURCE_NOT_A_GRAPH` and
 `params.columns`. Add a `LIMIT` to your own queries: they are not paged.
 
+With `limits: { maxNodes: n }`, your own query is sent as `CALL { <query> } RETURN * LIMIT n`:
+the cap counts result rows, not nodes. When every row came back, `report.source.next` is
+`{ rows: 2n }`, and continuing from it runs the whole query again with twice the rows, from the
+start, so a caller merges the new rows over the old. A server that cannot run your query inside
+`CALL { }` fails the load with `E_SOURCE_PARAM` (`name: "maxNodes"`, `reason: "uncappable"`); it is
+never run without the cap you set. Load it without `maxNodes` to run it as written.
+
 `"all"` pages by the node id (never with `SKIP`), so a page costs the same however deep it is. With
 `limits: { maxNodes }` a load stops after the page that reached the cap, keeps what came first and
 gives `report.source.next`; pass it back as `cursor` to continue.

@@ -1,3 +1,16 @@
+## 1.4.8 (2026-10-28)
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **graph-format:** keep the staging reservation growth constants module-private ([4f5da0fe17](https://github.com/graphty-org/graphty-monorepo/commit/4f5da0fe17))
+- **graph-format:** reserve staging address space in proportion to use ([26b32bef16](https://github.com/graphty-org/graphty-monorepo/commit/26b32bef16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 1.4.7 (2026-10-21)
 
 ### 🚀 Features

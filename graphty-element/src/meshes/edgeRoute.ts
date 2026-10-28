@@ -133,6 +133,42 @@ export function fileRoute(
 }
 
 /**
+ * A route's inner points without those an end cap covers: each point nearer an end than that end's
+ * reach is dropped, so the cap points along the stretch of route it lies over, not along a stub. A
+ * route laid round a node of another shape than the one drawn (Graphviz's spline, which ends on the
+ * outline Graphviz was handed) can leave its last point a hair outside the drawn node, and the stub
+ * from there to the outline points the cap anywhere.
+ * @param mid - The inner points, flat x, y, z, from the start.
+ * @param start - Where the line starts.
+ * @param end - Where the line ends.
+ * @param reach - How near each end a point may not lie: 0 for an end without a cap.
+ * @param reach.start - At the start.
+ * @param reach.end - At the end.
+ * @returns The points kept, flat.
+ */
+export function clearOfCaps(
+    mid: readonly number[],
+    start: Xyz,
+    end: Xyz,
+    reach: { readonly start: number; readonly end: number },
+): number[] {
+    const n = mid.length / 3;
+    const near = (i: number, to: Xyz, limit: number): boolean =>
+        Math.hypot(mid[3 * i] - to.x, mid[3 * i + 1] - to.y, mid[3 * i + 2] - to.z) < limit;
+    let first = 0;
+    while (first < n && near(first, start, reach.start)) {
+        first++;
+    }
+
+    let last = n - 1;
+    while (last >= first && near(last, end, reach.end)) {
+        last--;
+    }
+
+    return mid.slice(3 * first, 3 * (last + 1));
+}
+
+/**
  * Which part of a stored route is drawn: from its first point outside the source node to its last
  * outside the target -- what a tool draws when it clips a line at the outlines -- except that an end
  * at a port is drawn from the port itself, wherever it lies.

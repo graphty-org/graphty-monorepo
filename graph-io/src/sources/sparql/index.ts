@@ -231,12 +231,27 @@ function write(graphed: Graphed, sink: GraphSink, ctx: SourceContext): void {
 }
 
 /**
+ * Order strings by UTF-16 code units, as `Array.prototype.sort` does with no compare function, so
+ * a content hash never depends on the locale.
+ * @param a - one string
+ * @param b - the other
+ * @returns negative, zero or positive
+ */
+function byCodeUnits(a: string, b: string): number {
+    if (a === b) {
+        return 0;
+    }
+
+    return a < b ? -1 : 1;
+}
+
+/**
  * The content hash of some triples, in any order.
  * @param triples - the triples
  * @returns the SHA-256, hex
  */
 function hashOf(triples: readonly Triple[]): Promise<string> {
-    return sha256Hex(triples.map(canonicalTriple).sort().join("\n")); // NOSONAR(S2871): code-unit order is the point: a locale-free, stable order for the hash
+    return sha256Hex(triples.map(canonicalTriple).sort(byCodeUnits).join("\n"));
 }
 
 /**

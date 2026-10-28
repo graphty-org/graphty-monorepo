@@ -46,7 +46,11 @@ describe("vitest.base.mjs", () => {
         const { baseTest } = await import(pathToFileURL(BASE).href);
         assert.equal(process.env.FC_FONTATIONS, "1");
         const test = baseTest({ reporters: ["verbose"], globalSetup: ["own.mjs"] });
-        assert.deepEqual(test.globalSetup, [join(ROOT, "tools/test-slots.mjs"), "own.mjs"]);
+        assert.deepEqual(test.globalSetup, [
+            join(ROOT, "tools/test-slots.mjs"),
+            join(ROOT, "tools/vitest-deps-reload.mjs"),
+            "own.mjs",
+        ]);
         assert.equal(test.reporters[0], "verbose");
         assert.ok(test.reporters.some((r) => Array.isArray(r) && r[0] === "junit"));
     });

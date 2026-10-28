@@ -284,6 +284,7 @@ describe("optionsFromZod", () => {
                     "stripes",
                     "chart",
                     "glyph",
+                    "group",
                     "label",
                     "tooltip",
                     "visible",

@@ -1099,6 +1099,8 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
         const gs = graphs.get(shard.package) ?? [];
         const own = runs && gs.length > 0 && !gs.includes(null) ? shardSpecs(runs, gs) : null;
         const base = { shard: shard.shard, package: shard.package, total: own ? own.specs.size : null };
+        // a shard that runs whole keeps its test files, so a pull request can pack them into bins (lightPlan())
+        const all = own ? { specs: [...own.specs].sort() } : {};
         const sel = measuredShard(p, own);
         if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
             return {
@@ -1107,18 +1109,19 @@ export function selectShards(shards, packages, graphs, allowed, browserAllowed =
                 mode: "all",
                 files: [],
                 reasons: [smoke.get(shard.shard)],
+                ...all,
                 measured: { mode: sel.mode, files: sel.files, untrusted: true },
             };
         }
         if (!p.fileLevel || sel.mode === "all") {
-            return { ...base, ...sel };
+            return { ...base, ...sel, ...(sel.mode === "all" ? all : {}) };
         }
         const why = notAllowed(shard.package, own, allowed, browserAllowed);
         if (!why) {
             return { ...base, ...sel };
         }
         const measured = { mode: sel.mode, files: sel.files, untrusted: true };
-        return { ...base, mode: "all", files: [], reasons: [why], measured };
+        return { ...base, mode: "all", files: [], reasons: [why], measured, ...all };
     });
 }
 
@@ -1320,6 +1323,7 @@ export function planRuns(root, shards, selection) {
             command,
             covers: [shard.shard],
             measured: s.measured,
+            ...(s.specs && { specs: s.specs }),
         });
     }
     return plan;
@@ -1375,7 +1379,8 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
 /**
  * The light check's test plan (design/ci/channels-pipeline/merging.md section 4.1): each shard family's
  * selected files packed into bins of at most BIN_LIMIT_MS, each bin one `vitest run` of its files. A family
- * with a shard that runs whole runs every shard of it as today.
+ * with a shard that runs whole has all its test files packed the same way (packWhole()), or, when they cannot be
+ * listed or run by file, runs every shard of it as today.
  * @param root the checkout
  * @param shards SHARDS entries
  * @param selection selectShards() for them
@@ -1402,17 +1407,13 @@ export function lightPlan(root, shards, selection, durations = {}) {
     out.unknown = [...new Set(unknown.map((r) => familyOf(r.shard.shard)))].sort();
     const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
+        const fileMs = new Map(Object.entries(durations[family] ?? {}));
         if (runs.some((r) => r.mode === "all")) {
-            out.whole.push(...runs.flatMap((r) => r.covers));
-            const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
-            out.why[family] = {
-                package: runs[0].shard.package,
-                shards: runs.flatMap((r) => r.covers),
-                reasons: reasons.length > 0 ? reasons : ["the selector gave no reason"],
-            };
+            if (!packWhole(root, family, runs, fileMs, out)) {
+                runWhole(family, runs, out);
+            }
             continue;
         }
-        const fileMs = new Map(Object.entries(durations[family] ?? {}));
         let n = 0;
         for (const run of runs) {
             if (run.mode === "none") {
@@ -1442,6 +1443,61 @@ export function lightPlan(root, shards, selection, durations = {}) {
 }
 
 /**
+ * A family that runs every shard of it with the shard's own command.
+ * @param family the family name
+ * @param runs its planRuns() entries
+ * @param out lightPlan()'s output, which gets the shards and the reasons
+ */
+function runWhole(family, runs, out) {
+    out.whole.push(...runs.flatMap((r) => r.covers));
+    const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
+    out.why[family] = {
+        package: runs[0].shard.package,
+        shards: runs.flatMap((r) => r.covers),
+        reasons: reasons.length > 0 ? reasons : ["the selector gave no reason"],
+    };
+}
+
+/**
+ * A family that runs whole in a pull request, packed into bins of at most BIN_LIMIT_MS like a selection (#4160):
+ * every test file of its shards, each bin one `vitest run` without coverage (the full run measures coverage), and
+ * `whole` naming its package (tools/ci-test-matrix.mjs plan() keeps it only when nx calls that affected). A
+ * family whose files are not known (no import graph) or whose command is not a plain vitest run stays whole.
+ * @param root the checkout
+ * @param family the family name
+ * @param runs its planRuns() entries
+ * @param fileMs Map(file -> recorded ms) of the family
+ * @param out lightPlan()'s output, which gets the bins
+ * @returns whether the family was packed
+ */
+function packWhole(root, family, runs, fileMs, out) {
+    const shard = runs[0].shard;
+    const files = [...new Set(runs.flatMap((r) => r.specs ?? r.files.map((f) => f.file)))];
+    // slices of one shard differ only by --shard, which selectedCommand() drops
+    const one = new Set(runs.map((r) => selectedCommand(root, r.shard, null))).size === 1;
+    if (!one || runs.some((r) => r.mode === "all" && !r.specs) || !selectedCommand(root, shard, files)) {
+        return false;
+    }
+    const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
+    const why = `its shard runs whole, packed into bins: ${reasons.join("; ") || "the selector gave no reason"}`;
+    const covers = runs.flatMap((r) => r.covers);
+    packBins(files, fileMs).forEach((bin, i) => {
+        out.bins.push({
+            name: `${family}-${i + 1}`,
+            family,
+            shard: shard.shard,
+            covers,
+            // a whole family, like a shard that runs whole, runs only when nx calls its package affected
+            whole: shard.package,
+            ...bin,
+            command: selectedCommand(root, shard, bin.files),
+            why: Object.fromEntries(bin.files.map((f) => [f, why])),
+        });
+    });
+    return true;
+}
+
+/**
  * The light check's plan as Markdown for a CI job summary: what each test bin runs and why, which shards run
  * whole and why, and which run nothing.
  * @param plan lightPlan() output (or the `--plan` JSON)
@@ -1466,7 +1522,7 @@ export function planSummary(plan, affected) {
     if (plan.none.length > 0) {
         lines.push(`- nothing selected, not run: ${plan.none.join(", ")}`);
     }
-    for (const bin of plan.bins) {
+    for (const bin of plan.bins.filter((b) => !b.whole || !affected || affected.includes(b.whole))) {
         lines.push("", `<details><summary>${bin.name}: ${bin.files.length} files</summary>`, "");
         for (const f of bin.files) {
             lines.push(`- \`${f}\`: ${esc(bin.why?.[f] ?? "selected")}`);
@@ -1610,9 +1666,11 @@ const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
 
 /**
  * The longest a light-check Stories bin's capture is planned to take: the job's setup (about 1.5 min) comes on
- * top, so a bin's job ends about 5.5 min after the Storybooks job (#3418, step 5).
+ * top. At 4 min, six PR runs of 2026-10-28 (40613759747 to 40620698652) captured the fullest bins in up to 1.23
+ * times their plan (graphty-element-3: 329 s, graphty-3: 318 s), so 3 min keeps a bin's capture under about 4 min
+ * of real time, at 33 bins for a change that runs every story (27 at 4 min) (#3448).
  */
-export const STORY_BIN_LIMIT_MS = 4 * 60_000;
+export const STORY_BIN_LIMIT_MS = 3 * 60_000;
 
 /**
  * A story's capture time, per project (all of its modes, the job's browsers): the light check's own Stories jobs'
@@ -1629,10 +1687,12 @@ export const STORY_MS = {
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
-    "cytoscape-extensions": 1_600,
+    // the same 2026-10-28 runs captured its bins at 0.77 times their plan at 1.6 s
+    "cytoscape-extensions": 1_300,
     // the same runs: graphty-element's two bins captured at 1.6 to 2.1 times their plan at 1.4 s (447 s and 460 s
-    // for graphty-element-1, the pull request's last job in 7 of 19 runs), so it is 2.5 s
-    "graphty-element": 2_500,
+    // for graphty-element-1, the pull request's last job in 7 of 19 runs), so it was 2.5 s; six PR runs of
+    // 2026-10-28 (40613759747 to 40620698652) captured its bins at 1.11 times their plan at 2.5 s, so it is 2.8 s
+    "graphty-element": 2_800,
     "compact-mantine": 1_000,
     algorithms: 1_200,
     layout: 900,

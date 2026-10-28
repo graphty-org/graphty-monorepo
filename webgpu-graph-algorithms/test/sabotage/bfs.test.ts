@@ -49,6 +49,9 @@ const BFS_KERNELS = [
 ] as const;
 
 /** The rows this suite measures: the seven BFS kernels' own that name the BFS test (sssp-pred's f32-mode rows name the SSSP test), and the selector rows by name. */
+/** The samples of the whole check on the real kernels, set by its test below. */
+let fullCheckSamples = 0;
+
 const MEASURED: readonly { readonly id: KernelId; readonly rows: readonly Mutation[] }[] = [
     ...BFS_KERNELS.map((id) => ({ id, rows: (SABOTAGE[id] ?? []).filter((m) => m.test === BFS_TEST) })),
     {
@@ -131,6 +134,7 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
             const report = await bfsReport(ctx);
             expect(report.worst).toBe(0);
             assertCheckPasses(report);
+            fullCheckSamples = report.samples;
         } finally {
             ctx.dispose();
         }
@@ -147,6 +151,21 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
             });
         }
     }
+
+    // issue #4188: bfsReport stops at its first mismatch, so a mutant caught on the grid's first traversal does not
+    // pay for the rest of the check; the verdict and the label are the first mismatch's either way
+    it("a mutant caught on the first fixture stops the check there: fewer samples than the full check, the same label", async (t) => {
+        requireGpu(t);
+        expect(fullCheckSamples, "the real-kernel check above ran").toBeGreaterThan(0);
+        const mutation = (SABOTAGE["bfs-contract"] ?? []).find((m) => m.name === "claim-not-a-min");
+        if (mutation === undefined) {
+            throw new Error("bfs-contract/claim-not-a-min is not in SABOTAGE");
+        }
+        const report = await withSabotage("bfs-contract", mutation, (ctx) => bfsReport(ctx));
+        expect(report.worst).toBe(Infinity);
+        expect(report.worstLabel.startsWith("grid30/two-phase.")).toBe(true);
+        expect(report.samples).toBeLessThan(fullCheckSamples / 4);
+    });
 
     it("the normative bodies are restored after every mutation", () => {
         for (const { id } of MEASURED) {

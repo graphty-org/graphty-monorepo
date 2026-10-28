@@ -6187,7 +6187,7 @@ describe("the commit and push hooks", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
         for (const step of [...steps, "SonarQube (changed lines)"]) {
-            assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[()]/g, "\\$&")}"`), step);
+            assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[\\()]/g, "\\$&")}"`), step);
         }
         // The two commonest failures start first, in the background, before any other check.
         const firstRun = checks.indexOf('    run_step "');
@@ -6711,7 +6711,7 @@ describe("pnpm-lock.yaml", () => {
         // every browser shard then fails to find its browser. pnpm-workspace.yaml's overrides pin it.
         const lock = readFileSync(new URL("../pnpm-lock.yaml", import.meta.url), "utf8");
         for (const name of ["playwright", "playwright-core", "@playwright/test"]) {
-            const escaped = name.replace(/[/@]/g, "\\$&");
+            const escaped = name.replace(/[\\/@]/g, "\\$&");
             const versions = new Set(
                 [...lock.matchAll(new RegExp(`^  '?${escaped}@(\\d[^:'(]*)'?:`, "gm"))].map((m) => m[1]),
             );
@@ -6804,7 +6804,7 @@ describe("a run reuses an earlier run's results when only screenshot records cha
             });
             const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
             assert.equal(r.reuse, null, `${name} ${conclusion}`);
-            assert.match(r.skipped[0], new RegExp(`${name.replace(/[()]/g, "\\$&")} `));
+            assert.match(r.skipped[0], new RegExp(`${name.replace(/[\\()]/g, "\\$&")} `));
         }
     });
 

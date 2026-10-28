@@ -208,12 +208,9 @@ describe("the Data page on the real element", () => {
         assert.equal(session.data.lastImport()?.counts.edges, 2);
         // The import is recorded before page.load() resolves, and the page turns to the panels
         // only after Load's handler resumes from that await: wait for the turn, not the import.
-        await waitFor(
-            () => {
-                assert.equal(store.get().page, "panels");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(store.get().page, "panels");
+        });
         assert.equal(store.get().place, "graph");
         assert.equal(store.get().project?.name, "les-miserables");
     });

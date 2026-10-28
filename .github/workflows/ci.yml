@@ -927,6 +927,11 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        # lint is an nx-cached target (nx.json), so a project whose lint inputs equal master's (a pull request
+        # that touches nx.json or a project.json marks every project affected) replays master's result from
+        # the remote cache instead of linting again (graphty-element alone takes about 3.5 minutes). Only
+        # master writes the cache, through the same environment as the Build job.
+        environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && 'nx-cache-write' || '' }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -963,6 +968,23 @@ jobs:
               with:
                   name: build-packages
                   path: .
+
+            - name: Probe the nx remote cache
+              env:
+                  NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
+                  NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
+                  WRITES: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+              run: |
+                  if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
+                      echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
+                  elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
+                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
+                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
+                      echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
+                  fi
 
             - name: Note when lint starts
               continue-on-error: true
@@ -1081,11 +1103,15 @@ jobs:
             # paths). knip reads source; the production pass counts only published entry points. The published-deps
             # check packs each package and compares what it ships with what it declares, so it
             # must run after the build. The same three steps run in tools/prepush.sh.
-            - name: Knip (dead code detection)
-              run: pnpm run lint:knip
-
-            - name: Knip (production dependencies)
-              run: pnpm run lint:knip:prod
+            # The two knip passes share nothing and each is mostly single-threaded, so they run side by side
+            # (47 s + 16 s in a row on a runner); the step fails when either does.
+            - name: Knip (dead code detection and production dependencies)
+              run: |
+                  pnpm run lint:knip & dead=$!
+                  pnpm run lint:knip:prod & prod=$!
+                  a=0; wait $dead || a=$?
+                  b=0; wait $prod || b=$?
+                  exit $(( a || b ))
 
             - name: Published dependencies
               run: pnpm run check:published-deps

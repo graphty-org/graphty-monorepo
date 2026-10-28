@@ -421,7 +421,9 @@ export const ModelAndTextureByUrl: Story = {
                               instances: src.instances.length,
                               srcActive: list.includes(src as never),
                               material: src.material?.name ?? null,
-                              matReady: src.material?.isReady() ?? null,
+                              matId: src.material?.uniqueId ?? null,
+                              matReady: src.material?.isReady(src, true) ?? null,
+                              srcReady: src.isReady(true, true),
                           }
                         : null,
                 };
@@ -429,7 +431,15 @@ export const ModelAndTextureByUrl: Story = {
             // eslint-disable-next-line no-console
             console.log("PROBE4237", when, g.scene.getFrameId(), JSON.stringify(info));
         };
+        let after = -1;
+        probed.graph.scene.onAfterRenderObservable.add(() => {
+            if (after >= 0 && after < 30) {
+                after++;
+                probe(`after-render-${after}`);
+            }
+        });
         probed.graph.on("graph-frame-stable", () => {
+            after = 0;
             probe("stable");
         });
         const wait = probed.waitForStableFrame.bind(probed);

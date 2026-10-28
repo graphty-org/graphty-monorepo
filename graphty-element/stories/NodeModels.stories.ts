@@ -376,6 +376,71 @@ export const ModelAndTextureByUrl: Story = {
         ],
     },
     play: async ({ canvasElement }) => {
+        // Probe for issue #4237 (throwaway branch, never merged): the person meshes at every frame called final.
+        const probed = await renderedElement(canvasElement, "probe 4237");
+        const probe = (when: string): void => {
+            const g = probed.graph;
+            const active = g.scene.getActiveMeshes();
+            const list = active.data.slice(0, active.length);
+            const info = ["p1", "p2"].map((id) => {
+                const m = g.getNodeMesh(id) as unknown as
+                    | (Record<string, unknown> & {
+                          name: string;
+                          isEnabled(): boolean;
+                          isVisible: boolean;
+                          isDisposed(): boolean;
+                          position: { x: number; y: number; z: number };
+                          sourceMesh?: {
+                              name: string;
+                              isEnabled(): boolean;
+                              isVisible: boolean;
+                              isDisposed(): boolean;
+                              instances: unknown[];
+                              material: { name: string; isReady(): boolean } | null;
+                          };
+                      })
+                    | undefined;
+                if (!m) {
+                    return { id, mesh: null };
+                }
+                const src = m.sourceMesh;
+                return {
+                    id,
+                    name: m.name,
+                    active: list.includes(m as never),
+                    enabled: m.isEnabled(),
+                    visible: m.isVisible,
+                    disposed: m.isDisposed(),
+                    pos: [m.position.x, m.position.y, m.position.z].map((v) => Math.round(v * 100) / 100),
+                    src: src
+                        ? {
+                              name: src.name,
+                              enabled: src.isEnabled(),
+                              visible: src.isVisible,
+                              disposed: src.isDisposed(),
+                              instances: src.instances.length,
+                              srcActive: list.includes(src as never),
+                              material: src.material?.name ?? null,
+                              matReady: src.material?.isReady() ?? null,
+                          }
+                        : null,
+                };
+            });
+            // eslint-disable-next-line no-console
+            console.log("PROBE4237", when, g.scene.getFrameId(), JSON.stringify(info));
+        };
+        probed.graph.on("graph-frame-stable", () => {
+            probe("stable");
+        });
+        const wait = probed.waitForStableFrame.bind(probed);
+        probed.waitForStableFrame = async (...args: Parameters<typeof wait>) => {
+            await wait(...args);
+            probe("waitForStableFrame");
+            requestAnimationFrame(() => {
+                probe("next-raf");
+            });
+        };
+        probe("play-start");
         const crate = await settled(canvasElement, CRATE_GLTF, ["drawn", "rejected", "failed"]);
         await holds(crate.state === "drawn", `the crate ended ${crate.state}: ${JSON.stringify(crate.problems)}`);
         const stripes = await settled(canvasElement, STRIPES_PNG, ["drawn", "rejected", "failed"]);
@@ -384,6 +449,7 @@ export const ModelAndTextureByUrl: Story = {
             `the stripes ended ${stripes.state}: ${JSON.stringify(stripes.problems)}`,
         );
         const scene = await drawn(canvasElement, "Styles/Node Models ModelAndTextureByUrl");
+        probe("play-end");
         await assertGraphLoaded(scene, { nodes: 5, edges: 3 });
     },
 };

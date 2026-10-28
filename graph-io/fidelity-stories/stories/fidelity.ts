@@ -12,8 +12,9 @@
  * (`captureScreenshot`) at the oracle canvas size, so touch and scroll cannot move the camera; the `live` arg
  * shows the interactive canvas instead.
  *
- * The story root has `whenDone()`, which settles once the table is drawn; visual-review waits on it before the
- * capture. A failure is printed as "fidelity story failed: <reason>", which the capture treats as a failed story.
+ * The story root has `whenDone()`, which settles once the table is drawn and, unless `live`, the element is gone (only
+ * its screenshot stays); visual-review waits on it before the capture. A failure is printed as "fidelity story failed:
+ * <reason>", which the capture treats as a failed story.
  */
 import "../../../graphty-element/index.ts";
 
@@ -278,6 +279,11 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
             if (live) {
                 graphtyImg.hidden = true;
                 host.classList.add("live");
+            } else {
+                // Its screenshot is all the story shows, so the element goes, and its scene with it. Left on the page
+                // off to the side, it went on drawing every frame in the software-rendered capture browser, and every
+                // screenshot waited for those frames: 10 s of hsk-chars' 27 s shoot hook, against 1.7 s without (#4314).
+                host.remove();
             }
             await Promise.all(decoded);
         } catch (e) {

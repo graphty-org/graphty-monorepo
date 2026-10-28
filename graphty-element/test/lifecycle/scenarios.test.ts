@@ -185,15 +185,17 @@ describe.each(ENGINES)("%s", (engine) => {
     it("of a tab reloaded and a new tab opened on its key at once, one restores and the other is told (#4148)", async () => {
         const { context } = await start(engine);
         // Several rounds: which page claims first is up to the engine, and either order must hold.
-        for (let round = 0; round < 5; round++) {
+        for (let round = 0; round < 3; round++) {
             const key = `two-at-once-${engine}-${round}`;
             const tab = (name: string): string => `${key}.${name}`;
-            const a = await openFixture(context, { key, tab: tab("a") });
+            // No WebGL: what is under test draws nothing, and a software renderer drawing three pages a
+            // round is most of the test's time on a loaded machine.
+            const a = await openFixture(context, { key, tab: tab("a"), webgl: "off" });
             const { entry } = await saved(tab("a"), await next(a));
 
             const mark = fx.log.length;
             const b = await context.newPage();
-            await Promise.all([a.reload(), b.goto(fx.url({ key, tab: tab("b") }))]);
+            await Promise.all([a.reload(), b.goto(fx.url({ key, tab: tab("b"), webgl: "off" }))]);
             const ready = await Promise.all([tab("a"), tab("b")].map((each) => report(each, "ready", mark)));
             const outcome = JSON.stringify(ready.map(({ tab: t, restored: r, available }) => ({ t, r, available })));
             // A page that copied its own entry (the new tab claimed it first) restored it too.

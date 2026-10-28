@@ -40,6 +40,7 @@ const doc = `digraph {
     pt [shape=plaintext, color=darkgreen, label=<<TABLE><TR><TD>a</TD></TR></TABLE>>];
     w [label=<<TABLE WIDTH="80" HEIGHT="40"><TR><TD>a</TD></TR></TABLE>>];
     txt [label=<a<B>b</B>>];
+    m [margin="0.5", label=<<TABLE><TR><TD>a</TD></TR></TABLE>>];
     box [shape=box, penwidth=2, label=<<TABLE BORDER="3"><TR><TD>a</TD></TR></TABLE>>];
 }`;
 
@@ -64,6 +65,8 @@ describe("DOT styles: an HTML-like table label", () => {
         // 1 border + 2 spacing + 1 cell border + 2 padding; BORDER=3 is the cells' border too; plaintext adds its
         // margin (8)
         expect(["t", "b3", "pt", "txt"].map((id) => padX.get(id))).toEqual([6, 10, 14, 0]);
+        // plain forces the margin to 0, whatever it is given
+        expect(padX.get("m")).toBe(6);
         // TABLE WIDTH and HEIGHT are the least size
         expect((await byId(doc, "width")).get("w")).toBe(80);
         expect((await byId(doc, "height")).get("w")).toBe(40);

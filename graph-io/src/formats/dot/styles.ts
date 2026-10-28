@@ -1718,8 +1718,10 @@ function readLabelFit(
         .filter(isLength);
     // plain is plaintext with a margin of 0
     const pad = shape === "plain" ? { x: 0, y: 0 } : LABEL_PAD;
-    const marginX = margin.length > 0 ? margin[0] * DOT_POINTS_PER_INCH : pad.x;
-    const marginY = margin.length > 0 ? (margin[1] ?? margin[0]) * DOT_POINTS_PER_INCH : pad.y;
+    // plain forces its margin to 0 too, whatever `margin` says
+    const given = shape === "plain" ? [] : margin;
+    const marginX = given.length > 0 ? given[0] * DOT_POINTS_PER_INCH : pad.x;
+    const marginY = given.length > 0 ? (given[1] ?? given[0]) * DOT_POINTS_PER_INCH : pad.y;
     const padX = marginX + (table?.inset ?? 0);
     const padY = marginY + (table?.inset ?? 0);
     // a table's WIDTH and HEIGHT are its least size, the margin round it

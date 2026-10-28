@@ -33,7 +33,14 @@ export const MONTHLY_BUDGET_USD = 10;
  * account must get its own project, or this Budget's limit and deny action must be revisited.
  */
 export const COST_TAG = { key: "graphty-cost", value: "graphty-health" };
-export const CI_ROUTES = ["/v1/invocations", "/v1/failures", "/v1/durations", "/v1/verdicts", "/v1/sites"];
+export const CI_ROUTES = [
+    "/v1/invocations",
+    "/v1/failures",
+    "/v1/durations",
+    "/v1/verdicts",
+    "/v1/sites",
+    "/v1/benchmarks",
+];
 /** The page's Vite dev server, allowed beside the live origin. */
 export const DEV_ORIGIN = "http://localhost:5173";
 

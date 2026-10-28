@@ -347,6 +347,86 @@ describe("patterns a program drew as fills", () => {
         assert.isNull(bandPaintedAsFill([rect(0, 0, 40, 40)]));
     });
 
+    it("reads a wide sine wave drawn a period at a time as a sine wave, not a row of arrows", () => {
+        // Cytoscape desktop's sine wave on a wide edge (cys-syn-mappings 432->450, as its SVG draws it): each piece a
+        // whole period, a crest and a trough, which lies off its mirror image across the line by less than its
+        // thickness, though by far more than an arrow drawn square on the line does
+        const period: Pt[] = [
+            [0, 0],
+            [0, 1],
+            [0.1, 2],
+            [0.1, 3],
+            [0.1, 4],
+            [0.1, 5],
+            [0.6, 5.9],
+            [1.1, 6.8],
+            [1.7, 7.5],
+            [2.5, 8.2],
+            [3.4, 8.6],
+            [4.4, 8.5],
+            [5.2, 8],
+            [5.9, 7.3],
+            [6.5, 6.5],
+            [7, 5.6],
+            [7.4, 4.7],
+            [7.6, 3.7],
+            [7.8, 2.7],
+            [8, 1.7],
+            [8.2, 0.8],
+            [8.5, -0.2],
+            [8.8, -1.2],
+            [9.1, -2.1],
+            [9.6, -3],
+            [10.2, -3.7],
+            [11.2, -3.7],
+            [11.9, -3],
+            [12.4, -2.1],
+            [12.8, -1.2],
+            [13.1, -0.3],
+            [13.4, 0.7],
+            [13.7, 1.7],
+            [14, 2.6],
+            [14.2, 3.6],
+            [14.5, 4.6],
+            [14.5, 4],
+            [14.5, 3],
+            [14.4, 2],
+            [14.4, 1],
+            [14.4, -0.1],
+            [14.2, -1],
+            [13.8, -2],
+            [13.5, -2.9],
+            [13.1, -3.8],
+            [12.6, -4.7],
+            [12, -5.6],
+            [11.3, -6.2],
+            [10.4, -6.4],
+            [9.5, -5.9],
+            [9, -5.1],
+            [8.5, -4.2],
+            [8.1, -3.2],
+            [7.8, -2.3],
+            [7.5, -1.3],
+            [7.2, -0.4],
+            [7, 0.6],
+            [6.7, 1.6],
+            [6.4, 2.5],
+            [6, 3.5],
+            [5.6, 4.4],
+            [5, 5.2],
+            [4.3, 5.9],
+            [3.3, 6],
+            [2.5, 5.4],
+            [1.9, 4.6],
+            [1.5, 3.7],
+            [1, 2.8],
+            [0.7, 1.9],
+            [0.3, 1],
+        ];
+        const pieces = Array.from({ length: 30 }, (_, k) => period.map(([x, y]): Pt => [x + 14.4 * k, y]));
+        assert.strictEqual(bandPaintedAsFill(pieces)?.dashClass, "sinewave");
+    });
+
     it("reads a ring border's pattern: a star of spikes is a zigzag, a ring of loops a sine wave", () => {
         const ring = (r: (a: number) => number, n = 720): Pt[] =>
             Array.from({ length: n }, (_, i) => {
@@ -695,6 +775,45 @@ describe("arrowheads", () => {
                 right,
             ),
             "vee",
+        );
+        // draw.io's classic (mxMarker): its back pressed in a quarter of its length, which reads exactly 0.75 covered
+        // a fifth of the way from its back -- a vee, not a triangle
+        assert.strictEqual(
+            arrowShapeOf(
+                poly([
+                    [0, -4],
+                    [12, 0],
+                    [0, 4],
+                    [3, 0],
+                ]),
+                right,
+            ),
+            "vee",
+        );
+        // Pajek's arrow, its back pressed in a sixth of its length, and vis-network's, a tenth: triangles
+        assert.strictEqual(
+            arrowShapeOf(
+                poly([
+                    [-1, -2.5],
+                    [5, 0],
+                    [-1, 2.5],
+                    [0, 0],
+                ]),
+                right,
+            ),
+            "triangle",
+        );
+        assert.strictEqual(
+            arrowShapeOf(
+                poly([
+                    [-10, -3],
+                    [0, 0],
+                    [-10, 3],
+                    [-9, 0],
+                ]),
+                right,
+            ),
+            "triangle",
         );
         // Cytoscape.js's chevron: two thick arms, a notch half its length deep
         assert.strictEqual(
@@ -1244,6 +1363,18 @@ describe("a line a program stops at its arrowhead's base", () => {
         });
         const prims = [
             ...NODES.map(([, x, y]) => prim({ tag: "ellipse", points: disc(x, y, 20), fill: fill("#cccccc") })),
+            // drawn before either line: drawn right after a line, a cap is that line's (Cytoscape desktop draws each
+            // edge's arrowheads right after its line), which would decide it here
+            prim({
+                tag: "polygon",
+                points: [
+                    [255, 92],
+                    [280, 100],
+                    [255, 108],
+                    [255, 92],
+                ],
+                fill: fill("#0000ff"),
+            }),
             prim({
                 kind: "path",
                 closed: false,
@@ -1261,16 +1392,6 @@ describe("a line a program stops at its arrowhead's base", () => {
                     [264, 101],
                 ],
                 stroke: stroke("#ff0000"),
-            }),
-            prim({
-                tag: "polygon",
-                points: [
-                    [255, 92],
-                    [280, 100],
-                    [255, 108],
-                    [255, 92],
-                ],
-                fill: fill("#0000ff"),
             }),
         ];
         const guide = scene("graphty", [
@@ -1323,6 +1444,97 @@ describe("a line a program stops at its arrowhead's base", () => {
                     [280, 100],
                 ],
             ],
+        );
+    });
+});
+
+describe("edges whose ends the two sides name differently", () => {
+    // graphty draws "x" on "b" (another line's station at the same place, which the oracle's reader names "b")
+    const stacked = (over: Partial<PEdge> = {}): PScene =>
+        scene(
+            "graphty",
+            [edge({ target: "x", ...over })],
+            [...NODES.map(([id, x, y]) => node(id, x, y)), node("x", 301, 100)],
+        );
+
+    it("are paired by where graphty draws them, and judged (json-cyjs-tokyo's stacked stations)", () => {
+        const o = scene("oracle", [edge()]);
+        const r = compareOracle("t", o, stacked());
+        assert.strictEqual(r.properties["edge.present"].passRate, 1);
+        assert.strictEqual(r.properties["edge.extra"].passRate, 1);
+        // the pair is judged: a line three times as wide fails its width
+        const wide = compareOracle("t", o, stacked({ stroke: stroke("#0000ff", 6) }));
+        assert.strictEqual(wide.properties["edge.width"].passRate, 0);
+        // drawn the other way round, it is the same edge
+        const back = compareOracle(
+            "t",
+            o,
+            stacked({
+                source: "x",
+                target: "a",
+                points: [
+                    [280, 100],
+                    [120, 100],
+                ],
+            }),
+        );
+        assert.strictEqual(back.properties["edge.present"].passRate, 1);
+        assert.strictEqual(back.properties["edge.route"].passRate, 1);
+    });
+
+    it("are paired by the nodes their files name first, where two stack on one node (gexf-cns-wos n5, n100 on n109)", () => {
+        // both sides see two edges a - b; the files name their sources x and y, drawn under a
+        const own = (id: string, from: string, width: number): PEdge =>
+            edge({ id, ownEnds: { source: from, target: "b" }, stroke: stroke("#0000ff", width) });
+        const o = scene("oracle", [own("e1", "x", 2), own("e2", "y", 6)]);
+        const g = scene("graphty", [own("e1", "y", 6), own("e2", "x", 2)]);
+        const r = compareOracle("t", o, g);
+        assert.strictEqual(r.properties["edge.present"].passRate, 1);
+        assert.strictEqual(r.properties["edge.width"].passRate, 1);
+    });
+
+    it("stay apart where graphty's end is at another node", () => {
+        // an edge drawn to the wrong node is missing and extra, never paired by its route
+        const o = scene("oracle", [edge()]);
+        const g = scene("graphty", [
+            edge({
+                target: "e",
+                points: [
+                    [120, 100],
+                    [300, 280],
+                ],
+            }),
+        ]);
+        assert.includeMembers(failing(o, g), ["edge.present", "edge.extra"]);
+    });
+});
+
+describe("parallel edges found by geometry", () => {
+    // Two edges between one pair drawn over one another: only their looks tell which is which (cx2-signor-aml 26->27)
+    const solidBox = edge({ arrows: [arrow({ shape: "box" })] });
+    const dashed = edge({ stroke: stroke("#0000ff", 2, { dashClass: "dashed" }) });
+    const g = (e: PEdge, id: string): PEdge => ({ ...structuredClone(e), id });
+    const o = (e: PEdge, k: number): PEdge => ({ ...structuredClone(e), id: `a->b#g${String(k)}` });
+
+    it("pairs each with the edge drawn like it, its line and its arrowheads, whatever order graphty lists them in", () => {
+        const oracle = scene("oracle", [o(dashed, 0), o(solidBox, 1)]);
+        assert.deepEqual(failing(oracle, scene("graphty", [g(solidBox, "x"), g(dashed, "y")])), []);
+        assert.deepEqual(failing(oracle, scene("graphty", [g(dashed, "y"), g(solidBox, "x")])), []);
+    });
+
+    it("never gives an edge's exact twin to an edge it only half matches", () => {
+        // the oracle's first edge is solid with no arrowhead, which neither of graphty's is; its second is solid with a
+        // box: paired one at a time, the first took that twin (only its arrowhead differs) and left the second the
+        // dashed line
+        const plain = edge();
+        const report = compareOracle(
+            "t",
+            scene("oracle", [o(plain, 0), o(solidBox, 1)]),
+            scene("graphty", [g(solidBox, "x"), g(dashed, "y")]),
+        );
+        assert.deepEqual(
+            report.elements.filter((e) => e.id.startsWith("a->b#g1")),
+            [],
         );
     });
 });

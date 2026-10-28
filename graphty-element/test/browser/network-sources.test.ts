@@ -123,13 +123,17 @@ describe("network sources on the element", () => {
         assert.strictEqual(element.session.data.loads()[0].key, key);
     });
 
-    it("answers a load given no credential from element.credentials, by source and origin", async () => {
+    it("answers a load given no credential from element.credentials, by source, origin and slot", async () => {
         const element = await page();
         const endpoint = "https://people.example.com";
         await element.credentials.remember({ source: "people-page-locked", endpoint }, credentials.bearer("t-123"));
         await element.loadFromSource("people-page-locked", { team: "core" }, { endpoint });
         assert.isTrue(replay.calls[0].credential, "the remembered credential was sent");
-        assert.deepEqual(element.session.data.loads()[0].credential, { kind: "bearer", origin: endpoint });
+        assert.deepEqual(element.session.data.loads()[0].credential, {
+            kind: "bearer",
+            origin: endpoint,
+            slot: "default",
+        });
         await element.credentials.forgetAll();
     });
 });

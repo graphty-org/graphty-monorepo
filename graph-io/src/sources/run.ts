@@ -15,7 +15,7 @@ import { type FormatRegistry } from "../registry.js";
 import { SNIFF_HEAD_BYTES } from "../sniff.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../types.js";
 import { type CreatedContext, createSourceContext, detectRuntime, LimitStop } from "./context.js";
-import { originOf } from "./credentials.js";
+import { credentialQuery, originOf } from "./credentials.js";
 import { checkParams } from "./define.js";
 import { failOn, warnOn } from "./fail.js";
 import { SOURCE_FORMAT_PREFIX } from "./ids.js";
@@ -60,6 +60,8 @@ interface Prepared {
     readonly params: Record<string, unknown>;
     /** The sink wrapper's counters, set once the sink is known. */
     readonly counts: { nodes: Set<number>; edgesAtStart: number; sink: GraphSink | null };
+    /** The query parameter the call's credential is sent in, which a cursor never keeps; null for none. */
+    readonly secretQuery: string | null;
 }
 
 /**
@@ -131,7 +133,8 @@ function prepare(
             edges: counts.sink === null ? 0 : counts.sink.edgeCount - counts.edgesAtStart,
         }),
     });
-    return { report, created, params, counts };
+    const secretQuery = options.credential === undefined ? null : credentialQuery(options.credential);
+    return { report, created, params, counts, secretQuery };
 }
 
 /**
@@ -721,6 +724,7 @@ export async function runMethod<T>(
  */
 export function withSource(report: ImportReport, prepared: Prepared, next: SourceCursor | null): ImportReport {
     const own = prepared.report.finish();
+    const cursor = prepared.secretQuery === null || next === null ? next : withoutParam(next, prepared.secretQuery);
     // issues the context recorded (retries, limits) that a source's own report does not hold
     const missing = own.issues.filter((i) => !report.issues.includes(i));
     return Object.freeze({
@@ -728,8 +732,36 @@ export function withSource(report: ImportReport, prepared: Prepared, next: Sourc
         issues: missing.length === 0 ? report.issues : Object.freeze([...report.issues, ...missing]),
         warningCount: report.warningCount + missing.filter((i) => i.severity === "warning").length,
         errorCount: report.errorCount + missing.filter((i) => i.severity === "error").length,
-        source: prepared.created.info(next),
+        source: prepared.created.info(cursor),
     });
+}
+
+/**
+ * A cursor without a query parameter in any URL it holds: a next-page link a service returns
+ * repeats the API key the request carried, and a cursor is saved where a credential never is.
+ * The credential is sent again with every request, so the next page does not need it there.
+ * @param value - the cursor, or a value inside it
+ * @param name - the parameter
+ * @returns the value without it
+ */
+function withoutParam<T>(value: T, name: string): T {
+    if (typeof value === "string" && /^https?:\/\//i.test(value)) {
+        const url = new URL(value);
+        if (!url.searchParams.has(name)) {
+            return value;
+        }
+        url.searchParams.delete(name);
+        return url.href as T;
+    }
+    if (Array.isArray(value)) {
+        return Object.freeze(value.map((each: unknown) => withoutParam(each, name))) as T;
+    }
+    if (typeof value === "object" && value !== null) {
+        return Object.freeze(
+            Object.fromEntries(Object.entries(value).map(([key, each]) => [key, withoutParam(each, name)])),
+        ) as T;
+    }
+    return value;
 }
 
 /**

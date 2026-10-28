@@ -57,9 +57,13 @@ export function PreviewRows({ preview }: Readonly<{ preview: SourcePreview }>): 
             <div className="sv-chips">
                 <EntityChip kind="node">{`${formatNumber(preview.nodes.length)}${more}`}</EntityChip>
                 <EntityChip kind="edge">{formatNumber(preview.edges.length)}</EntityChip>
-                {Object.entries(preview.facts).map(([key, value]) => (
-                    <span key={key} className="sv-fact" title={`${key}: ${value}`}>
-                        {value}
+                {preview.serverFacts.map(({ code, params }) => (
+                    <span
+                        key={code}
+                        className="sv-fact"
+                        title={`${code.replace(/^source\./, "")}: ${String(params.value)}`}
+                    >
+                        {String(params.value)}
                     </span>
                 ))}
                 {preview.issues.map((issue, i) => (

@@ -231,7 +231,7 @@ describe("session.data.import from a network source", () => {
                 assert.notInclude(text, '"write"', `the write flag leaked into ${where}`);
             }
             const [record] = session.data.loads();
-            assert.deepEqual(record.credential, { kind: "bearer", origin: ENDPOINT });
+            assert.deepEqual(record.credential, { kind: "bearer", origin: ENDPOINT, slot: "default" });
             for (const off of offs) {
                 off();
             }
@@ -332,6 +332,7 @@ describe("a saved project with source loads", () => {
                 id: session.data.loads()[0].key,
                 source: "people-load",
                 endpoint: `${ENDPOINT}/`,
+                params: { team: "core" },
                 hasQuery: false,
                 isLocalNetwork: false,
                 authRequired: "none",

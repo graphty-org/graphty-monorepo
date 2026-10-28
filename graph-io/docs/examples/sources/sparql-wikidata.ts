@@ -14,7 +14,7 @@ const params = {
     query,
     pageSize: 100,
     language: "en",
-    predicates: ["http://www.wikidata.org/prop/direct/"],
+    predicates: ["http://www.wikidata.org/prop/direct/"], // NOSONAR(S5332): an RDF namespace IRI, not a URL that is fetched
 };
 const endpoint = "https://query.wikidata.org/sparql";
 

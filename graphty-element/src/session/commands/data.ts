@@ -197,7 +197,7 @@ export interface DataImportCommand {
     readonly joinedOnto?: SourceKey;
     /** For a joined table: the join, kept with the load in `data.sources()`. */
     readonly join?: JoinRecord;
-    /** The load's key, in place of the next one: an edited join keeps its key. */
+    /** The load's key, in place of the next one: a next page or refresh adds to its entry, an edited join keeps it. */
     readonly key?: SourceKey;
     /** The choices the rows were read with, kept with the load in `data.sources()`. */
     readonly choices?: LoadChoices;
@@ -904,9 +904,8 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
         const resize = scale ?? 1;
         // A Graphviz engine lays the file out in inches, and the file's lengths (its node sizes)
         // are points, 72 to the inch: drawn at the scale its styles were, so its nodes keep their
-        // size against the spaces Graphviz leaves between them.
-        // ponytail: no scale when lengths are kept as the file has them (`lengths: "file"`), where
-        // an inch should be 72 scene units; pass it when that option is used with a Graphviz file.
+        // size against the spaces Graphviz leaves between them (with `lengths: "file"`, one point is
+        // one scene unit, so an inch is 72).
         const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
         const options =
             (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;

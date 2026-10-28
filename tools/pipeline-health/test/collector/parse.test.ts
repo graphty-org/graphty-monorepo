@@ -22,7 +22,9 @@ import {
     releaseTags,
     runnerFlags,
     runnerUse,
+    STRESS_FOUND,
     stressQuiet,
+    stressRunState,
     suiteNotes,
     t4Cost,
     taggedNotOnNpm,
@@ -91,6 +93,21 @@ describe("runs and jobs", () => {
         expect(at("bisect.yml", "workflow_dispatch", "master")).toBe("other");
         expect(at("ci.yml", "push", "dependabot/npm/x")).toBe("other");
         expect(at("restricted-cpu-stress.yml", "schedule", "master")).toBe("other");
+        // CodeQL's default setup scanning pull request #4096 (run 40614293039), and scanning master
+        expect(
+            loadKind({
+                path: "dynamic/github-code-scanning/codeql",
+                event: "dynamic",
+                head_branch: "refs/pull/4096/head",
+            }),
+        ).toBe("pr");
+        expect(
+            loadKind({
+                path: "dynamic/github-code-scanning/codeql",
+                event: "dynamic",
+                head_branch: "refs/heads/master",
+            }),
+        ).toBe("other");
         const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
         expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
         expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");
@@ -550,6 +567,67 @@ describe("pull requests waiting on the owner", () => {
         );
         expect(s.open).toBe(2);
         expect(s.oldestOpenMs).toBe(5 * 3_600_000);
+    });
+});
+
+describe("auto-merge stocks", () => {
+    const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] } } } }>("gql-pr.json");
+    const base = { ...page.data.repository.open.nodes[0], state: "OPEN", isDraft: false, labels: { nodes: [] } };
+    const at = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
+    const pr = (armedH: number | null, rollup: "SUCCESS" | "FAILURE" | "PENDING"): GqlPr => ({
+        ...base,
+        autoMergeRequest: armedH === null ? null : { enabledAt: at(armedH) },
+        commits: { nodes: [{ commit: { statusCheckRollup: { state: rollup, contexts: { nodes: [] } } } }] },
+    });
+
+    it("counts green-but-not-merging after 2 h armed and armed-too-long after 24 h, separately", () => {
+        const s = prStocks(
+            [
+                pr(1, "SUCCESS"), // armed too recently for either
+                pr(3, "SUCCESS"), // green 3 h: not merging
+                pr(8, "PENDING"), // armed 8 h, not green: neither (the old 6 h rule counted it)
+                pr(30, "FAILURE"), // armed 30 h: too long
+                pr(30, "SUCCESS"), // both
+                pr(null, "SUCCESS"), // not armed
+            ],
+            NOW,
+        );
+        expect(s.autoMergeGreenStuck).toBe(2);
+        expect(s.autoMergeArmedLong).toBe(2);
+    });
+});
+
+describe("stress run state", () => {
+    // The shape of restricted-cpu-stress.yml run 40177689577 (2026-10-25): every shard job concluded success
+    // because its test step has continue-on-error, though 27 tests failed; the filing job failed.
+    const quota = {
+        name: "Run tests under the CPU quota",
+        conclusion: "success",
+        started_at: null,
+        completed_at: null,
+    };
+    const job = (name: string, conclusion: string, steps = [quota]) =>
+        ({ name, conclusion, steps }) as unknown as GhJob; // only what stressRunState reads
+    const shards = ["graphty-1", "graphty-element-browser-1", "small-node"].map((s) =>
+        job(`Restricted CPU (${s})`, "success"),
+    );
+    const marker = { ...quota, name: STRESS_FOUND };
+
+    it("finds failures from the marker step, though every shard job concluded success", () => {
+        const failed = [...shards];
+        failed[1] = job("Restricted CPU (graphty-element-browser-1)", "success", [quota, marker]);
+        const run = [job("Build", "success"), ...failed, job("File the load-sensitive tests", "failure")];
+        expect(stressRunState(run)).toEqual({
+            state: 2,
+            foundFailures: true,
+            failedJob: "File the load-sensitive tests",
+        });
+    });
+
+    it("finds nothing when no marker step ran (a skipped marker is not a failure)", () => {
+        const skipped = shards.map((j) => ({ ...j, steps: [quota, { ...marker, conclusion: "skipped" }] }));
+        const run = [job("Build", "success"), ...skipped, job("File the load-sensitive tests", "success")];
+        expect(stressRunState(run)).toEqual({ state: 0, foundFailures: false });
     });
 });
 

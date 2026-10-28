@@ -196,15 +196,23 @@ describe("the drawing is framed in the canvas alone", () => {
         assert.isAtLeast(canvas.top, header.bottom, "the canvas starts under the header");
     });
 
-    it("lands a layout change on the bare canvas's fit, whenever the key card comes up", async () => {
-        const bare = await circleWithKey("none");
-        assert.isNotEmpty(bare.at);
-        for (const key of ["before", "pending", "after"] as const) {
+    // One test per moment the key card comes up, each against the bare canvas's picture taken once
+    // before them. All four pictures in one test (four workspaces, each mounted, loaded and laid
+    // out) took 14 to 18 s of its 15 s on CI before #3757 and 6.6 s after it, and every flaky
+    // failure of it was that test running out of time, never a node that moved (#4107).
+    describe("lands a layout change on the bare canvas's fit, whenever the key card comes up", () => {
+        let bare: Picture;
+        beforeAll(async () => {
+            bare = await circleWithKey("none");
+            assert.isNotEmpty(bare.at);
+        });
+
+        it.each(["before", "pending", "after"] as const)("key card %s", async (key) => {
             const now = await circleWithKey(key);
             assert.strictEqual(now.at.length, bare.at.length, key);
             // `!(<= 1)` and not `> 1`, so a NaN fails too
             const moved = now.at.some((value, i) => !(Math.abs(value - (bare.at[i] ?? Number.NaN)) <= 1));
             assert.isFalse(moved, `key card ${key}: the nodes moved: ${difference(bare, now)}`);
-        }
+        });
     });
 });

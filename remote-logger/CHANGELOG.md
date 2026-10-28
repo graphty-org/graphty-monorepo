@@ -1,3 +1,16 @@
+## 2.0.24 (2026-10-28)
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **remote-logger:** put the console capture button on its own compositing layer ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **deps:** take zod 4.6.7 and body-parser 2.4.0 so the release audit passes ([#3393](https://github.com/graphty-org/graphty-monorepo/issues/3393), [#3318](https://github.com/graphty-org/graphty-monorepo/issues/3318))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 2.0.23 (2026-10-21)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

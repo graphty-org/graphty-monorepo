@@ -124,6 +124,13 @@ The element records each change and owns the history; the app never keeps its ow
 - Use `assert` instead of `expect` for assertions
 - Store temporary files in `./tmp`
 
+### Test projects
+
+- `browser` - Browser-based tests (Playwright)
+- `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
+- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`); in CI each story's screenshot is also taken and compared with its baseline inside its test (`VISUAL_REVIEW_STORY_OUT`, `@graphty/visual-review/vitest`): that is the project's screenshot capture
+- `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
+
 ## Storybook
 
 - Requires HTTPS: start it through servherd with protocol "https", env PORT={{port}} and

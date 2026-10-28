@@ -19,6 +19,7 @@ import {
     EVENT_MS,
     flushHealth,
     postFailures,
+    postBenchmarks,
     postFlaky,
     postInvocation,
     readPlan,
@@ -28,6 +29,7 @@ import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
+import { benchmarkRows } from "./post-benchmarks.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
@@ -1182,6 +1184,51 @@ describe("health API fan-out", () => {
             ],
         });
         assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
+    });
+    it("sends a benchmark job's results to the health API as one post", async () => {
+        const h = await serveHealth();
+        const env = { ...healthEnv("http://store", h.url), GITHUB_SHA: "abc" };
+        assert.equal(postBenchmarks(env, "algorithms", []), false);
+        assert.equal(postBenchmarks({ ...env, HEALTH_API_URL: "" }, "algorithms", [{ name: "x", value: 1 }]), false);
+        assert.equal(postBenchmarks(env, "algorithms", [{ name: "PageRank n=1000", value: 4.5 }]), true);
+        await flushHealth();
+        const post = await h.posted;
+        assert.equal(post.url, "/v1/benchmarks");
+        assert.deepEqual(post.body, {
+            source: "algorithms",
+            unit: "ms",
+            sha: "abc",
+            rows: [{ name: "PageRank n=1000", value: 4.5 }],
+        });
+    });
+    it("reads the newest session of the algorithms and the harness result files", () => {
+        // algorithms/benchmark-results/benchmark-sessions-linux-comprehensive.json
+        const algorithms = [
+            { timestamp: "old", results: [{ algorithm: "GRSBM", graphSize: 50, executionTime: 9 }] },
+            {
+                timestamp: "new",
+                results: [
+                    { algorithm: "GRSBM", graphSize: 50, edges: 98, executionTime: 4.18, memoryUsage: 0 },
+                    { algorithm: "GRSBM", graphSize: 100, edges: 198, executionTime: 15.75, memoryUsage: 0 },
+                ],
+            },
+        ];
+        assert.deepEqual(benchmarkRows(algorithms), [
+            { name: "GRSBM n=50", value: 4.18 },
+            { name: "GRSBM n=100", value: 15.75 },
+        ]);
+        // webgpu-graph-algorithms/benchmarks/out/gpu-linux-t4.json (benchmarks/harness.ts)
+        const harness = [
+            {
+                runnerClass: "gpu-linux-t4",
+                results: [
+                    { group: "upload", name: "residency.core 100k/1M", medianMs: 14.46, minMs: 14.17, runs: 5 },
+                    { group: "upload", name: "no median", minMs: 1 },
+                ],
+            },
+        ];
+        assert.deepEqual(benchmarkRows(harness), [{ name: "upload / residency.core 100k/1M", value: 14.46 }]);
+        assert.deepEqual(benchmarkRows([]), []);
     });
     it("is off without HEALTH_API_URL, and without an OIDC token to sign in with", async () => {
         const h = await serveHealth();

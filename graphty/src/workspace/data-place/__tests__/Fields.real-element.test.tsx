@@ -160,11 +160,23 @@ describe("Data > Fields as a + list on the real element", () => {
     afterEach(forgetAutosave);
 
     it("lists the airline sample's label, location and weight with no action from the reader", async () => {
-        const view = mountWorkspace();
-        await openSample("OpenFlights airline routes", 3214);
+        // The sample comes in through the Data place's own door, Sources "+" > Samples..., in an
+        // empty project, and the list is read as the load lands. Every click here is made while
+        // the element draws nothing: a real click is several round trips to the page, and each
+        // waits behind the frame being drawn. Through the start screen, one click waited on the
+        // turning start-page graph and one on the airline's 36,906 edges laying out; on a
+        // software GPU each frame held the page for 100 to 600 ms, so on a loaded runner each
+        // click took 3 to 6 s and the test passed its 15 s limit (issue #3981).
+        render(<Workspace store={createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" })} />);
+        const element = await openElement();
         const section = await fields();
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
+        const samples = await screen.findByRole("dialog", { name: "Samples" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ }));
         await waitFor(
             () => {
+                assert.equal(element.session.data.statistics().nodeCount, 3214);
                 assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
                 assert.include(entries(section, "edges"), "weight");
             },
@@ -173,7 +185,6 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.equal(shown(section, "Node label"), "label");
         assert.equal(shown(section, "Node latitude column"), "latitude");
         assert.equal(shown(section, "Node longitude column"), "longitude");
-        view.unmount();
     });
 
     it("shows an empty list for a CSV with nothing to detect", async () => {

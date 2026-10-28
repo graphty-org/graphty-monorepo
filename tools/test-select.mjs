@@ -1601,9 +1601,11 @@ const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
 
 /**
  * The longest a light-check Stories bin's capture is planned to take: the job's setup (about 1.5 min) comes on
- * top, so a bin's job ends about 5.5 min after the Storybooks job (#3418, step 5).
+ * top. At 4 min, six PR runs of 2026-10-28 (40613759747 to 40620698652) captured the fullest bins in up to 1.23
+ * times their plan (graphty-element-3: 329 s, graphty-3: 318 s), so 3 min keeps a bin's capture under about 4 min
+ * of real time, at 33 bins for a change that runs every story (27 at 4 min) (#3448).
  */
-export const STORY_BIN_LIMIT_MS = 4 * 60_000;
+export const STORY_BIN_LIMIT_MS = 3 * 60_000;
 
 /**
  * A story's capture time, per project (all of its modes, the job's browsers): the light check's own Stories jobs'
@@ -1620,10 +1622,12 @@ export const STORY_MS = {
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
-    "cytoscape-extensions": 1_600,
+    // the same 2026-10-28 runs captured its bins at 0.77 times their plan at 1.6 s
+    "cytoscape-extensions": 1_300,
     // the same runs: graphty-element's two bins captured at 1.6 to 2.1 times their plan at 1.4 s (447 s and 460 s
-    // for graphty-element-1, the pull request's last job in 7 of 19 runs), so it is 2.5 s
-    "graphty-element": 2_500,
+    // for graphty-element-1, the pull request's last job in 7 of 19 runs), so it was 2.5 s; six PR runs of
+    // 2026-10-28 (40613759747 to 40620698652) captured its bins at 1.11 times their plan at 2.5 s, so it is 2.8 s
+    "graphty-element": 2_800,
     "compact-mantine": 1_000,
     algorithms: 1_200,
     layout: 900,

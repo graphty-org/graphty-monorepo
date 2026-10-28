@@ -80,5 +80,7 @@ export const REPO_FILES_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     quarantine: object(expression: "HEAD:tools/test-quarantine.json") { ... on Blob { text } }
     codeowners: object(expression: "HEAD:.github/CODEOWNERS") { ... on Blob { text } }
+    ci: object(expression: "HEAD:.github/workflows/ci.yml") { ... on Blob { text } }
+    advisory: object(expression: "HEAD:tools/ci-advisory-checks.json") { ... on Blob { text } }
   }
 }`;

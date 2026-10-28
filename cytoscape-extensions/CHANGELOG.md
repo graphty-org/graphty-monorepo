@@ -1,3 +1,31 @@
+## 0.0.29 (2026-10-28)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** show the venice-transit dataset on a map in the gallery ([e3989e34ee](https://github.com/graphty-org/graphty-monorepo/commit/e3989e34ee))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** freeze only the finishing story's own cores in a capture ([#4071](https://github.com/graphty-org/graphty-monorepo/issues/4071), [#4072](https://github.com/graphty-org/graphty-monorepo/issues/4072))
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **cytoscape-extensions:** keep datasets over 1,000 nodes out of the Datasets Overview ([#3846](https://github.com/graphty-org/graphty-monorepo/issues/3846))
+- **compact-mantine:** take only the storybook 8.6.19 security fix ([#3492](https://github.com/graphty-org/graphty-monorepo/issues/3492))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.62
+- Updated graph-samples to 0.1.40
+- Updated visual-review to 0.2.36
+- Updated graph-format to 1.4.8
+- Updated algorithms to 3.4.15
+- Updated graph-io to 0.3.49
+- Updated layout to 2.5.11
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 0.0.28 (2026-10-21)
 
 ### 🚀 Features

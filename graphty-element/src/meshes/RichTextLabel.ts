@@ -2215,6 +2215,25 @@ export class RichTextLabel {
     }
 
     /**
+     * The label's font size times its line count, as a fraction of the plane's height: how tall Cytoscape.js bounds
+     * its words, where {@link textBounds} gives the line boxes they are drawn in.
+     * @returns The fraction.
+     */
+    public get emHeight(): number {
+        const { height } = this.actualDimensions;
+        return height > 0 ? (this.options.fontSize * Math.max(1, this.parsedContent.length)) / height : 0;
+    }
+
+    /**
+     * One pixel of the label's font as a fraction of the plane's height, in the units {@link emHeight} measures.
+     * @returns The fraction.
+     */
+    public get pixelHeight(): number {
+        const { height } = this.actualDimensions;
+        return height > 0 ? 1 / height : 0;
+    }
+
+    /**
      * Where a click reaches the label's close button, as fractions of the plane (as
      * {@link textBounds} measures), or undefined when the label has none.
      * @returns The hit area.

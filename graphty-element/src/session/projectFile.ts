@@ -39,7 +39,14 @@ import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecut
 import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
 import { SOURCE_RECORD_MEMBER, sourceLoadsOf, SOURCES_MEMBER_VERSION } from "./sources/ids";
-import { readSourcesMember, redactUrl, savedLoads, type SourcesRead, type SourcesWrite } from "./sources/member";
+import {
+    readSourcesMember,
+    redactedParams,
+    redactUrl,
+    savedLoads,
+    type SourcesRead,
+    type SourcesWrite,
+} from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
 import {
     asFileStyleStore,
@@ -599,16 +606,23 @@ export function graphIdsOf(session: GraphSession): GraphIds {
 }
 
 /**
- * A load's description as a file keeps it: a URL without its user name, password, fragment or
+ * A load's description as a file keeps it: its configuration as the sources member writes a
+ * load's params ({@link redactedParams}), and a URL without its user name, password, fragment or
  * the query parameters whose names mark a credential.
  * @param described - The description.
- * @returns It, or a copy with its URL redacted.
+ * @returns It, or a copy with its secrets left out.
  */
 function withoutSecrets<T extends { readonly config?: Readonly<Record<string, unknown>> }>(described: T): T {
-    const url = described.config?.url;
-    return typeof url === "string"
-        ? { ...described, config: { ...described.config, url: redactUrl(url).address } }
-        : described;
+    const { config } = described;
+    if (config === undefined) {
+        return described;
+    }
+
+    const { url } = config;
+    return {
+        ...described,
+        config: { ...redactedParams(config), ...(typeof url === "string" ? { url: redactUrl(url).address } : {}) },
+    };
 }
 
 /** The version of the column declarations the session member carries. */
@@ -1235,6 +1249,21 @@ interface NodeLink {
     readonly directed?: unknown;
     readonly nodes: readonly Record<string, unknown>[];
     readonly links: readonly Record<string, unknown>[];
+}
+
+/**
+ * The refusal of a steps-only project: one whose graph is rebuilt by running its loads again
+ * (sources.md, "Embedded data and steps only"), which this release does not do yet.
+ * @returns the error
+ */
+function stepsOnly(): GraphtyError {
+    return new GraphtyError({
+        code: "E_UNSUPPORTED",
+        message:
+            "The project holds its loads but not its data, and this graphty-element cannot rebuild a graph from its loads.",
+        source: "data",
+        details: { kind: SOURCE_RECORD_MEMBER, data: "steps" },
+    });
 }
 
 /**
@@ -2139,8 +2168,9 @@ export function projectOf(
         refuseUnsaved(isDirty(), discard);
 
         const data = doc.members.get("graphty-data")?.[0];
+        const member = doc.members.get(SOURCE_RECORD_MEMBER)?.[0];
         if (data === undefined) {
-            throw badDocument({ member: "graphty-data" });
+            throw member?.data === "steps" ? stepsOnly() : badDocument({ member: "graphty-data" });
         }
 
         const graph = nodeLinkOf(data);
@@ -2152,7 +2182,6 @@ export function projectOf(
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
         };
-        const member = doc.members.get(SOURCE_RECORD_MEMBER)?.[0];
         const loads = readSourcesMember(member, {
             pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
             data,
@@ -2207,6 +2236,7 @@ export function projectOf(
                     "graphty-arrangement",
                     "graphty-results",
                     "graphty-view-state",
+                    SOURCE_RECORD_MEMBER,
                 ] as const) {
                     if (doc.members.has(kind)) {
                         problems.push({ code: "E_UNSUPPORTED", params: { kind } });

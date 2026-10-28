@@ -257,13 +257,32 @@
                 },
                 "red": {
                     "op": ">=",
-                    "n": 3
+                    "n": 2
                 }
             },
             "link": "/pull-requests",
-            "id": "pull-requests.automerge_stuck",
+            "id": "pull-requests.automerge_green_stuck",
             "value": {
                 "n": 0
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 1
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 4
+                }
+            },
+            "link": "/pull-requests",
+            "id": "pull-requests.automerge_armed_long",
+            "value": {
+                "n": 1
             }
         },
         {

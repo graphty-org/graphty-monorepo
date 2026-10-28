@@ -2525,6 +2525,19 @@ jobs:
         assert.ok(lint.indexOf("- name: Probe the nx remote cache") < lint.indexOf("- name: Lint affected (PR)"));
         const nx = JSON.parse(readFileSync(new URL("../nx.json", import.meta.url), "utf8"));
         assert.equal(nx.targetDefaults.lint.cache, true);
+        // A replayed lint is only right when its key holds everything lint reads: the files eslint.config.js
+        // imports (its own rules) and the dependencies' source a project's tsc checks against.
+        const inputs = nx.targetDefaults.lint.inputs;
+        const config = readFileSync(new URL("../eslint.config.js", import.meta.url), "utf8");
+        for (const [, dir] of config.matchAll(/from "\.\/(.+)\/[^/]+"/g)) {
+            assert.ok(inputs.includes(`{workspaceRoot}/${dir}/**/*`), dir);
+        }
+        const root = new URL("../", import.meta.url);
+        for (const dir of readdirSync(root)) {
+            const file = new URL(`${dir}/project.json`, root);
+            const own = existsSync(file) && JSON.parse(readFileSync(file, "utf8")).targets?.lint?.inputs;
+            if (own) assert.ok(own.includes("^production"), dir);
+        }
     });
 
     it("runs both knip passes in the Checks job and fails when either fails", () => {

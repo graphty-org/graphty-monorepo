@@ -87,6 +87,94 @@ describe("Pajek Bezier arcs", () => {
         expect(c1[1]).toBeCloseTo(-28.95 / 76, 2);
         expect(c2[0]).toBeCloseTo(25.65 / 76, 2);
         expect(c2[1]).toBeCloseTo(33.12 / 76, 2);
+        // and runs on to the arrowhead's tip at (350.85, 127.53), (-7.15, -0.97) from the target's center 12 across
+        const port = resolveStyles(result.styles, "edge", "targetPort", result.snapshot)[0] as string;
+        const [x, y] = port.split(",").map(Number);
+        expect(x).toBeCloseTo(-7.15 / 6, 2);
+        expect(y).toBeCloseTo(0.97 / 6, 2);
+        // the tip stops there, with no gap of its own
+        expect(resolveStyles(result.styles, "edge", "targetArrowGap", result.snapshot)[0]).toBeNull();
+    });
+});
+
+describe("Pajek arcs between the same two vertices", () => {
+    it("bows each as a1 15 k1 0.25 a2 15 k2 0.25, the first of two the same way the other way round", async () => {
+        // pajek-synth-lines 20 -> 30 and 30 -> 20; pajek-iliad 250 -> 123 twice: a1 -15 and then a1 15; an arc
+        // alone, an edge, and an arc that sets its own route are not bowed
+        const result = await registry.importGraph(
+            "*Vertices 3\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.5 0.5\n" +
+                "*Arcs\n1 2\n2 1\n2 3\n2 3\n1 3\n3 1 a1 30 k1 1\n*Edges\n1 2\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        const bends = resolveStyles(result.styles, "edge", "bends", result.snapshot) as (string | null)[];
+        const across = (i: number): number | null => {
+            const b = bends[i];
+            return b === null ? null : Number(b.split(" ")[0].split(",")[1]);
+        };
+        // a1 15 k1 0.25 measured on the line to the arrowhead's back: the first control point 0.125 out at 15 degrees
+        // to the right of the line (y down), a little more of the line between the centers
+        expect(across(0)).toBeLessThan(-0.03);
+        expect(across(1)).toBeLessThan(-0.03);
+        expect(across(2)).toBeGreaterThan(0.03);
+        expect(across(3)).toBeLessThan(-0.03);
+        expect(across(4)).toBeLessThan(-0.03);
+        // its own a1 30 k1 1: 0.5 out at 30 degrees
+        expect(across(5)).toBeLessThan(-0.2);
+        // the edge, kept as a pair of directed edges, is drawn straight
+        expect(bends.slice(6)).toEqual([null, null]);
+    });
+
+    it("draws them straight under Straight Lines, as Pajek does (pajek-specimen-edges-lines-p4)", async () => {
+        const result = await registry.importGraph("*Vertices 2\n1 a 0.1 0.1\n2 b 0.5 0.1\n*Arcs\n1 2\n2 1\n", {
+            format: "pajek",
+            styles: true,
+            pajekDraw: { ini: { "Form10.StraightLinesOnly1": "" } },
+        });
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(result.styles, "edge", "bends", result.snapshot)).toEqual([null, null]);
+    });
+
+    it("leaves an arc alone between its two vertices straight", async () => {
+        const result = await registry.importGraph("*Vertices 2\n1 a 0.1 0.1\n2 b 0.5 0.1\n*Arcs\n1 2\n", {
+            format: "pajek",
+            styles: true,
+        });
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(result.styles, "edge", "bends", result.snapshot)).toEqual([null]);
+    });
+});
+
+describe("Pajek arrowhead places", () => {
+    it("moves only the arrowhead of the line that sets ap, not the lines after it", async () => {
+        // pajek-synth-lines: arc 11 12 after `10 11 ... ap 0.5` has its arrowhead at its target
+        const result = await registry.importGraph(
+            "*Vertices 3\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.5 0.5\n*Arcs\n1 2 1 ap 0.5\n2 3\n3 1 ap 0.25\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.5, null, 0.25]);
+    });
+
+    it("reads ap above 1 as a distance from the target's center, a share of a placed line", async () => {
+        // pajek-synth-lines arc 3 4 ap 20: the arrowhead's back 20 px from the target's center; here on a line 200 px
+        // long (0.4 of Pajek's 500 px square)
+        const result = await registry.importGraph("*Vertices 2\n1 a 0.1 0.1\n2 b 0.5 0.1\n*Arcs\n1 2 1 ap 20\n", {
+            format: "pajek",
+            styles: true,
+        });
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.1]);
     });
 });
 

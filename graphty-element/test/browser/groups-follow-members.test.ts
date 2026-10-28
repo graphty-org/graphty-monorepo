@@ -12,6 +12,8 @@ import { Ray, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
+import type { UpdateManager } from "../../src/managers/UpdateManager";
 
 const DOT = `digraph {
   a -> b;
@@ -167,6 +169,43 @@ describe("a group with no stored position follows its members", () => {
         assert.isUndefined(layout.groupBox("free"), "an ordinary node keeps its saved position");
     });
 
+    it("sizes a Cytoscape.js compound by its padding, minimum width and bias, as Cytoscape.js does", async () => {
+        // three compounds round the same two 20 px nodes 100 apart (120 px across their outlines): no padding, 20 px of
+        // padding (160 across), and none with a 300 px minimum width that all grows to the left
+        const pair = (g: string, y: number): unknown[] => [
+            { data: { id: g } },
+            { data: { id: `${g}-a`, parent: g }, position: { x: 0, y } },
+            { data: { id: `${g}-b`, parent: g }, position: { x: 100, y } },
+        ];
+        const sized = JSON.stringify({
+            elements: { nodes: [...pair("g0", 0), ...pair("g1", 200), ...pair("g2", 400)], edges: [] },
+            style: [
+                { selector: "node", style: { width: 20, height: 20, "border-width": 0 } },
+                { selector: ":parent", style: { padding: 0 } },
+                { selector: "#g1", style: { padding: "20px" } },
+                { selector: "#g2", style: { "min-width": "300px", "min-width-bias-left": "100%" } },
+            ],
+        });
+        // read with its styles and its positions, as a reader of the file sees it
+        await graph
+            .getSession()
+            .data.import({ type: "json", config: { data: sized } }, { styles: "file", layout: "recommended" });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.getSession().styles.settled();
+        await graph.waitForStableFrame();
+        const layout = graph.getLayoutManager();
+        layout.placeGroups();
+        const box = (id: string): { left: number; right: number; width: number } => {
+            const b = layout.groupBox(id);
+            assert.isDefined(b, `${id} follows its members`);
+            return { left: b.center.x - b.half.x, right: b.center.x + b.half.x, width: 2 * b.half.x };
+        };
+        const [g0, g1, g2] = [box("g0"), box("g1"), box("g2")];
+        assert.closeTo(g1.width / g0.width, 160 / 120, 0.02, "padded 20 px on each side");
+        assert.closeTo(g2.width / g0.width, 300 / 120, 0.02, "at least its minimum width");
+        assert.closeTo(g2.right, g0.right, 1e-6, "grown to the left only");
+    });
+
     it("draws a group around a group it holds alone, its margin wide on every side, not over it", async () => {
         const nested = JSON.stringify({
             elements: [
@@ -244,6 +283,44 @@ describe("a group with no stored position follows its members", () => {
         assert.closeTo(near, far, 1e-9, "the drawn width does not follow the camera's distance");
     });
 
+    it("frames a 3D group the same wherever the camera stood, and redraws it for the camera that frames it", async () => {
+        // In perspective a group's face is grown for the camera it was drawn under. The framing counted that growth,
+        // so where the camera stood before decided the zoom, and nothing redrew the group once the layout rested, so
+        // it stayed sized for the camera before the last framing: the same file drew two pictures (issue #4088).
+        await follows("dot", DOT, { clusterC: ["m1", "m2"] });
+        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        try {
+            graph.getLayoutManager().running = false;
+            const group = graph.getDataManager().nodes.get("clusterC");
+            assert.isDefined(group);
+            const camera = graph.getScene().activeCamera;
+            assert.isNotNull(camera);
+            const framed = (z: number): number => {
+                camera.position.z = z;
+                group.update();
+                return group.framingHalf("x");
+            };
+            const near = framed(-10);
+            const far = framed(-1000);
+            assert.isAbove(near, 0);
+            assert.closeTo(near, far, 1e-9, "the framed width does not follow the camera's distance");
+
+            // Drawn for a near camera, then the camera moves away: the next frame draws it for the camera now.
+            camera.position.z = -10;
+            group.update();
+            const nearWidth = group.drawnHalfExtents.x;
+            camera.position.z = -1000;
+            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            updates.update(16);
+            const after = group.drawnHalfExtents.x;
+            group.update();
+            assert.notStrictEqual(nearWidth, group.drawnHalfExtents.x, "the two cameras grow the face differently");
+            assert.closeTo(after, group.drawnHalfExtents.x, 1e-9, "the frame redrew the group for the camera now");
+        } finally {
+            release();
+        }
+    });
+
     it("ends an uncapped edge to a group at the group's outline, not under it at its middle", async () => {
         // Cytoscape.js ends an edge to a compound node on the compound's box; the region is drawn behind the
         // edge, so a line from its middle would show across it
@@ -289,6 +366,81 @@ describe("a group with no stored position follows its members", () => {
             "the line starts at the outline",
         );
         assert.isAbove(line?.length ?? 0, between - 1.6 * half, "and not far inside the gap");
+    });
+
+    // A repaint reaches the meshes after the frame that last placed the groups when the layout has
+    // stopped and nothing is framing: the frames that apply it place no group. A member it grew left
+    // its group's box short of it, and a group it rebuilt was drawn unstretched -- the cytoscape.js
+    // groups specimen drew a third of its groups without their padding, depending on which frame
+    // the paint landed on (issue #3478).
+    it("draws a group over its members' new box when a repaint lands after the layout has stopped", async () => {
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 0 } },
+                ],
+                edges: [],
+            },
+            style: [{ selector: ":parent", style: { "border-width": 2, "border-color": "#505050" } }],
+        });
+        await graph.getSession().data.import({ type: "json", config: { data: saved } }, { styles: "file" });
+        await operationQueueOf(graph).waitForCompletion();
+        // Every frame below is drawn by hand, so the live loop cannot draw one in between.
+        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        try {
+            await graph.setLayout("fixed");
+            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            const layout = graph.getLayoutManager();
+            layout.running = false;
+            updates.stepFrames(5);
+            const group = graph.getDataManager().nodes.get("group");
+            assert.isDefined(group);
+            assert.isTrue(group.isDrawnAsGroup);
+
+            await graph.getSession().styles.add({
+                name: "Bigger",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 30 },
+            });
+            await graph.getSession().styles.settled();
+            const painter = graph.getStylePainter();
+            for (let frame = 0; frame < 10 && painter.hasPending; frame++) {
+                updates.update(16);
+            }
+            assert.isFalse(painter.hasPending, "the repaint was drawn");
+            const drawn = group.drawnHalfExtents.x;
+
+            // Where the group belongs, placed and drawn now from the members as they are drawn.
+            layout.placeGroups();
+            group.update();
+            assert.closeTo(drawn, group.drawnHalfExtents.x, 1e-6, "the group was drawn over its members' box");
+
+            // A later repaint prunes the mesh cache: the group's outline must keep its material.
+            await graph.getSession().styles.add({
+                name: "Red members",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#ff0000" },
+            });
+            await graph.getSession().styles.settled();
+            for (let frame = 0; frame < 10 && painter.hasPending; frame++) {
+                updates.update(16);
+            }
+            const outline = group.mesh.getChildMeshes(true).find((m) => m.name === "node-border" && m.isEnabled());
+            assert.isDefined(
+                outline,
+                `the group is drawn with an outline: ${group.mesh
+                    .getChildMeshes(true)
+                    .map((m) => m.name)
+                    .join(", ")}`,
+            );
+            assert.isOk(outline.material, "the outline is drawn with its material, not stripped by the cache");
+        } finally {
+            release();
+        }
     });
 
     it("lays a group out like any node when behavior.layout.groupsFollowMembers is false", async () => {

@@ -137,6 +137,11 @@ For complete type definitions auto-generated from TypeScript source:
 - [Algorithm](./generated/index/classes/Algorithm.md)
 - [DataSource](./generated/index/classes/DataSource.md)
 
+## Stability
+
+API marked `@experimental` belongs to an [experiment](../guide/experiments) and may change or
+disappear in a minor release. Everything else changes in a breaking way only in a major release.
+
 ## Related Guides
 
 - [Getting Started](../guide/getting-started) - Quick introduction

@@ -31,6 +31,12 @@ const config: KnipConfig = {
                 // The release scheduler Worker (deployed by wrangler, not imported) and its tests
                 "tools/release-scheduler/src/worker.js",
                 "tools/release-scheduler/test/*.test.mjs",
+                // The results Worker (deployed by wrangler) and its tests
+                "tools/results-service/src/worker.js",
+                "tools/results-service/test/*.test.mjs",
+                // The nx cache Worker (deployed by wrangler) and its tests
+                "tools/nx-cache-worker/src/worker.js",
+                "tools/nx-cache-worker/test/*.test.mjs",
             ],
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignoreDependencies: [
@@ -129,6 +135,8 @@ const config: KnipConfig = {
                 "test/**/*.test.ts",
                 // compiled by test/consumer-types.test.ts as a consumer would compile it
                 "test/consumer/consumer.ts",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
             // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
@@ -184,6 +192,8 @@ const config: KnipConfig = {
         // Algorithms package
         algorithms: {
             entry: [
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 "algorithms.ts!",
                 "src/index.ts!",
                 "test/**/*.test.ts",
@@ -216,6 +226,8 @@ const config: KnipConfig = {
         // Layout package
         layout: {
             entry: [
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
@@ -237,6 +249,8 @@ const config: KnipConfig = {
         // graphty-element package
         "graphty-element": {
             entry: [
+                // Loaded by its storybook vitest project only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 // The published entry points. Each has a subpath in package.json's exports map,
                 // so each is a door a consumer comes through and nothing reachable from one is
                 // dead. A default run derives them from the exports map (and hints a repeat as
@@ -324,8 +338,13 @@ const config: KnipConfig = {
                 "src/stories/**/*.stories.tsx",
                 "eslint-rules/**/*.test.ts",
                 "scripts/**/*.ts",
+                // Loaded by vitest.config.ts only when VISUAL_REVIEW_STORY_OUT is set (issue #3471).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts", "scripts/**/*.ts"],
+            // ci.yml's Sentry upload runs it as `timeout 60 pnpm exec sentry-cli ...` (bounded so a hang
+            // cannot cancel the build), and knip does not read a command behind `timeout`.
+            ignoreDependencies: ["@sentry/cli"],
         },
 
         // remote-logger package
@@ -356,6 +375,8 @@ const config: KnipConfig = {
                 "src/theme/css/*.css.ts!",
                 "tests/**/*.test.{ts,tsx}",
                 "stories/**/*.stories.tsx",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
             ignoreDependencies: [
@@ -384,6 +405,9 @@ const config: KnipConfig = {
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
+
+    // A standalone package with its own dependencies and lockfile, outside the pnpm workspace
+    ignore: ["tools/pipeline-health/**"],
 
     // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
     // every named type in a published signature to be exported -- the parameter and return types

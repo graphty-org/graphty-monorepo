@@ -7,6 +7,7 @@
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { storyWaitOptions } from "../../../stories/wait";
 import { pickSample } from "../../../test/samples-dialog";
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
@@ -221,7 +222,7 @@ describe("the workspace frame", () => {
         assert.notStrictEqual(undo.tabIndex, -1);
         assert.notStrictEqual(screen.getByRole("button", { name: "Redo" }).tabIndex, -1);
         await userEvent.hover(undo);
-        assert.isNotNull(await screen.findByText("Nothing to undo", undefined, { timeout: 3000 }));
+        assert.isNotNull(await screen.findByText("Nothing to undo", undefined, storyWaitOptions(3000)));
     });
 
     it("says what the Main menu holds and where the privacy chip leads, in tooltips", async () => {
@@ -229,11 +230,11 @@ describe("the workspace frame", () => {
 
         await userEvent.hover(screen.getByRole("button", { name: "Main menu" }));
         assert.isNotNull(
-            await screen.findByText("Main menu: open, save, export, settings", undefined, { timeout: 3000 }),
+            await screen.findByText("Main menu: open, save, export, settings", undefined, storyWaitOptions(3000)),
         );
         await userEvent.unhover(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.hover(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
-        assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined, { timeout: 3000 }));
+        assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined, storyWaitOptions(3000)));
     });
 
     it("renames the project with F2 and with a tap on its name", async () => {

@@ -5,5 +5,6 @@ main = "src/worker.js"
 compatibility_date = "2026-10-01"
 
 [triggers]
-# UTC: the release train's 00:00, 06:00, 12:00 and 18:00 slots
-crons = ["0 0,6,12,18 * * *"]
+# UTC: the full run's 00:00, 06:00, 12:00 and 18:00 slots, and the daily deploy key check at 03:17
+# (KEY_CHECK_CRON in src/worker.js)
+crons = ["0 0,6,12,18 * * *", "17 3 * * *"]

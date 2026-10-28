@@ -105,6 +105,27 @@ describe("label checks", () => {
         assert.deepEqual(labelPair({}), {});
     });
 
+    it("shows a label under a node-size rule where the oracle's framing would, not graphty's own", () => {
+        // json-gephi-worldcup: sigma shows a label on a node 12.22 px across; graphty frames the graph 0.9 times as
+        // large, draws the node 11.02 px across and hides the label under sigma's 12 px rule
+        const small = (sized: PNode["sizedLabel"], label: PText | null): PScene => ({
+            ...scene("graphty"),
+            nodes: GRID.map(([id, x, y]) =>
+                node(id, 0.9 * x, 0.9 * y, { w: 36, h: 36, ...(id === "a" ? { label, sizedLabel: sized } : {}) }),
+            ),
+        });
+        const o = scene("oracle", {}, { a: text("A", 100, 100) });
+        const a = text("A", 90, 90, {}, 27, 9);
+        assert.deepEqual(failures(o, small({ label: a, acrossPx: 11.02, min: 12 }, null))["label.present"], undefined);
+        // and hides one graphty shows whose node, at the oracle's scale, is under the rule
+        assert.deepEqual(failures(o, small({ label: a, acrossPx: 10, min: 12 }, a))["label.present"], ["a"]);
+        // a node on its rule's edge at the oracle's scale may show the label or not (sigma's grid: a label ranked
+        // second in its cell shows once the view zooms past the first framing)
+        const edge = { label: a, acrossPx: 0.9 * 12.001, min: 12 };
+        assert.deepEqual(failures(o, small(edge, a))["label.present"], undefined);
+        assert.deepEqual(failures(scene("oracle"), small(edge, a))["label.present"], undefined);
+    });
+
     it("fails a label drawn at half the program's opacity", () => {
         assert.deepEqual(labelPair({ opacity: 0.5 }), { "label.opacity": ["a"] });
     });
@@ -704,6 +725,36 @@ describe("what the association reads as a label's own and a node's own", () => {
         const { scene: o } = associate(prims, 600, 400, withEdge);
         const [e] = o.edges;
         assert.deepEqual([e.arrows.length, e.label?.background?.fill?.color], [0, "#ffff00"]);
+    });
+
+    it("gives each of two lines drawn one over another its own label (json-cyjs-tokyo's two lines between stations)", () => {
+        const prims = drawing(() => []);
+        const along: Pt[] = [
+            [120, 100],
+            [280, 100],
+        ];
+        for (const color of ["#00ff33", "#ffffff"]) {
+            prims.push(prim({ kind: "path", closed: false, points: along, stroke: stroke(color, 1) }));
+        }
+        for (const words of ["first line", "second line"]) {
+            const t = text(words, 200, 92);
+            prims.push(prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t }));
+        }
+        const edge = (id: string, color: string, words: string): PEdge => ({
+            id,
+            source: "a",
+            target: "b",
+            points: along,
+            stroke: stroke(color, 1),
+            arrows: [],
+            label: text(words, 200, 92),
+        });
+        const twoLines: PScene = {
+            ...guide,
+            edges: [edge("e1", "#00ff33", "first line"), edge("e2", "#ffffff", "second line")],
+        };
+        const { scene: o } = associate(prims, 600, 400, twoLines);
+        assert.deepEqual(o.edges.map((e) => e.label?.content ?? null).sort(), ["first line", "second line"]);
     });
 
     it("leaves a box graphty draws as an annotation round a label to that annotation", () => {

@@ -6,6 +6,7 @@ import { UnstyledButton } from "@mantine/core";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
+import { siteConfig } from "../../siteConfig";
 import { GLYPHS } from "../glyphs";
 import { HeroTurns } from "./heroTurns";
 import { Groups, Path, Star } from "./icons";
@@ -627,6 +628,8 @@ export function HeroGraph({
                         pixelRatio="device"
                         layoutBehavior={HERO_LAYOUT_BEHAVIOR}
                         selectionStyle={HERO_SELECTION_STYLE}
+                        // The site's experiments, as on the workspace's element.
+                        features={siteConfig().features}
                         style={{ display: "block", width: "100%", height: "100%" }}
                     />
                 ) : null}

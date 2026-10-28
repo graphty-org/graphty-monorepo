@@ -154,6 +154,8 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     // (undocumented)
+    "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
+    // (undocumented)
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     // (undocumented)
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
@@ -269,6 +271,7 @@ export interface GraphtyElementJSXProps {
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
+    features?: Graphty["features"];
     fitInsets?: Graphty["fitInsets"];
     globeLook?: Graphty["globeLook"];
     historyKeys?: Graphty["historyKeys"];

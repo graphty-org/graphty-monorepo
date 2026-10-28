@@ -10,7 +10,7 @@ import { after, describe, it } from "node:test";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
 import { rankPlan } from "./test-changed.mjs";
-import { budget, rank, rankFiles, replay, score, UNMEASURED_MS, writeMiss } from "./test-history.mjs";
+import { budget, rank, rankFiles, replay, score, scoreFromPlan, UNMEASURED_MS, writeMiss } from "./test-history.mjs";
 import { failureHashes, openLedger, rebuild, relFile, writeRecord } from "./test-ledger.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "test-history-"));
@@ -222,5 +222,20 @@ describe("test:changed", () => {
         assert.match(r.lines.join("\n"), /\[OUT\] layout\/test\/a\.test\.ts/);
         const none = rankPlan(plan, [], 10, () => ({ ranked: fake([A, B]).ranked, why: "no database yet" }));
         assert.match(none.lines[0], /history: unavailable \(no database yet\); ranking by import selection only/);
+    });
+});
+
+describe("scoreFromPlan", () => {
+    it("ranks by edits and the plan's recent failures, with the plan's durations", () => {
+        const plan = { order: ["b.test.ts"], fileMs: { "b.test.ts": 900 } };
+        const { scores, why } = scoreFromPlan(plan, ["a.test.ts", "b.test.ts", "c.test.ts"], ["a.test.ts"]);
+        assert.equal(why, null);
+        assert.deepEqual(scores.get("a.test.ts"), { score: 2, ms: UNMEASURED_MS, why: ["edited by this change"] });
+        assert.deepEqual(scores.get("b.test.ts"), { score: 1, ms: 900, why: ["failed on master in 7 days"] });
+        const { ranked } = rankFiles(["c.test.ts", "b.test.ts"], [], {}, dir, plan);
+        assert.deepEqual(
+            ranked.map((r) => r.file),
+            ["b.test.ts", "c.test.ts"],
+        );
     });
 });

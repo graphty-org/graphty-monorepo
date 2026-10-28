@@ -16,6 +16,10 @@
 // VITEST_DURATION_HISTORY names the history file (JSON: "<project>\0<file>\0<test>" -> the last KEEP
 // durations in ms). The reporter reads it, judges, adds this run's durations and writes it back. ci.yml's
 // test job keeps one file per shard in the Actions cache. Without it, only the SLOW_MS line applies.
+// With the results store configured (tools/results/client.mjs: RESULTS_URL and a credential), the same JSON
+// is read from and written to `/v1/durations/tests/<history file name>` first (only master's own runs may
+// write it; a pull request's write is refused and changes nothing); the file stays the fallback
+// and is still written, so a store that does not answer within 5 s costs nothing but the wait.
 //
 // On when VITEST_BUDGET_CHECK=1: ci.yml's test job sets it, and a local run can set it. Every package's
 // vitest config adds it through ciReporters() (vitest.ci-junit.mjs); a shard command that passes its own
@@ -26,9 +30,11 @@
 //
 //   node --test tools/vitest-time-budget.test.mjs
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, sep } from "node:path";
+import { basename, dirname, join, relative, sep } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+
+import { call, config } from "./results/client.mjs";
 
 export const SLOW_MS = 10_000;
 export const MEDIAN_RATIO = 3;
@@ -163,11 +169,14 @@ export default class TimeBudgetReporter {
     }
 
     /** Prints the report and adds this run to the history; never changes the exit code. */
-    onTestRunEnd() {
+    async onTestRunEnd() {
         if (!this.on) {
             return;
         }
-        const history = this.history ? readHistory(this.history) : {};
+        const store = this.history ? storeOf(this.history) : null;
+        const read = store ? await call(store.cfg, "GET", store.path) : null;
+        const fromStore = read?.ok && read.data && Object.keys(read.data).length > 0 ? read.data : null;
+        const history = fromStore ?? (this.history ? readHistory(this.history) : {});
         const slow = judge(this.tests, history);
         const text = format(slow);
         if (text) {
@@ -179,14 +188,28 @@ export default class TimeBudgetReporter {
             }
         }
         if (this.history) {
-            try {
-                mkdirSync(dirname(this.history), { recursive: true });
-                const tmp = `${this.history}.${process.pid}`;
-                writeFileSync(tmp, JSON.stringify(remember(history, this.tests)));
-                renameSync(tmp, this.history);
-            } catch (e) {
-                console.error(`[time-budget] could not write ${this.history}: ${e.message}`);
-            }
+            const next = remember(history, this.tests);
+            writeHistory(this.history, next);
+            // A store that did not answer the read is not asked again: one timeout at most. A pull request's
+            // run never writes (the store refuses it), so it sends nothing.
+            if (read?.ok && process.env.GITHUB_EVENT_NAME !== "pull_request")
+                await call(store.cfg, "PUT", store.path, next);
         }
+    }
+}
+
+function storeOf(history) {
+    const cfg = config();
+    return cfg ? { cfg, path: `/v1/durations/tests/${encodeURIComponent(basename(history, ".json"))}` } : null;
+}
+
+function writeHistory(file, history) {
+    try {
+        mkdirSync(dirname(file), { recursive: true });
+        const tmp = `${file}.${process.pid}`;
+        writeFileSync(tmp, JSON.stringify(history));
+        renameSync(tmp, file);
+    } catch (e) {
+        console.error(`[time-budget] could not write ${file}: ${e.message}`);
     }
 }

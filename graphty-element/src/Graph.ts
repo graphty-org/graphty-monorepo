@@ -25,7 +25,6 @@ import {
     Vector3,
     WebGPUEngine,
     WebXRDefaultExperience,
-    WebXRState,
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
@@ -40,6 +39,12 @@ import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
+
+/** One {@link Graph.waitForStableFrame} call: whether it gave up, and how to stop its current round. */
+interface StableFrameWait {
+    gaveUp: boolean;
+    stop: (() => void) | undefined;
+}
 
 /**
  * How long {@link Graph.waitForStableFrame} waits before it gives up and says so.
@@ -217,6 +222,7 @@ import {
     sessionRunsOf,
     setsNotifierOfSession,
 } from "./session/GraphSession";
+import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
     cancelReasonOf,
@@ -257,6 +263,17 @@ interface RunnableAlgorithm {
     readonly descriptor: { readonly key: AlgorithmKey };
     /** The parameters that reproduce what the address being translated used to do. */
     readonly params: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Whether a graph whose `rendering.onDemand` was never set draws on demand. Off, as documented,
+ * unless the test-only global `globalThis.__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true` is set: the
+ * test setups set it so a still graph in a headless (software-rendered) browser stops drawing every
+ * frame. A test that needs continuous frames sets `renderOnDemand = false` explicitly.
+ * @returns True when an unset `onDemand` means on.
+ */
+function onDemandWhenUnset(): boolean {
+    return (globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: unknown }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ === true;
 }
 
 /** The configuration document at its defaults: what the frozen view is merged over. */
@@ -408,6 +425,14 @@ const BATCH_VERBS: Readonly<Record<string, string>> = {
     applySuggestedStyles: "tx.run with applySuggestedStyles: true",
 };
 
+/** A load's id and its places: in the data manager's generations and in the session's load line. */
+interface Reservation {
+    readonly loadId: number;
+    readonly generation: number;
+    readonly replace: boolean;
+    readonly turn: LoadTurn;
+}
+
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
 
@@ -469,6 +494,19 @@ const loadsAhead = new WeakMap<Graph, () => Promise<void>>();
  */
 export function waitFirstFor(graph: Graph, pending: () => Promise<void>): void {
     loadsAhead.set(graph, pending);
+}
+
+/** Where each graph's session reads the experiments its element asked for; see {@link featuresFrom}. */
+const requestedFeatures = new WeakMap<Graph, () => readonly string[] | undefined>();
+
+/**
+ * Make the graph's session read its experiments from the element's `features`, when the session
+ * first settles them. No entry point exports it.
+ * @param graph - The graph.
+ * @param read - The ids the element asked for; `undefined` takes the page default.
+ */
+export function featuresFrom(graph: Graph, read: () => readonly string[] | undefined): void {
+    requestedFeatures.set(graph, read);
 }
 
 /**
@@ -611,12 +649,10 @@ export class Graph implements GraphContext {
     private wasSettled = false; // Track previous settlement state
     /** How many loads `addDataFromSource` has started; the last one's id. */
     private loadCount = 0;
+    /** This graph's loads still holding a place in the session's load line. */
+    private readonly turns = new Set<LoadTurn>();
     private readonly resizeHandler = (): void => {
-        this.engine.resize();
-        // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
-        // if (this.updateManager.zoomToFitCompleted) {
-        //     this.updateManager.enableZoomToFit();
-        // }
+        this.renderManager.resize();
     };
 
     /**
@@ -626,19 +662,7 @@ export class Graph implements GraphContext {
      * @internal
      */
     resize(): void {
-        const width = this.engine.getRenderWidth();
-        const height = this.engine.getRenderHeight();
-        this.engine.resize();
-        // The camera's projection follows the new aspect ratio before the frame is drawn.
-        this.camera.onResize();
-        // Only a canvas whose size changed was cleared; the observer's first delivery, a box
-        // change that keeps the render size, or a window resize the loop already drew are not.
-        // An XR session draws in its own frames, so nothing is drawn outside them.
-        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
-        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
-        if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
-            this.renderManager.drawNow();
-        }
+        this.renderManager.resize();
     }
 
     /**
@@ -710,7 +734,8 @@ export class Graph implements GraphContext {
      * Whether drawing on demand is switched on (`layoutBehavior.rendering.onDemand`).
      * @returns True when the render loop may skip frames.
      */
-    private readonly drawsOnDemand = (): boolean => this.viewSettings.behavior.rendering?.onDemand === true;
+    private readonly drawsOnDemand = (): boolean =>
+        this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
@@ -875,6 +900,7 @@ export class Graph implements GraphContext {
                 acceleration: this.acceleration,
                 xr: this.xrAvailability,
                 store: laneStoreOf(this.dataManager),
+                features: () => requestedFeatures.get(this)?.(),
                 runs: {
                     // The element's own queue, so a run takes its turn among the loads, the layouts
                     // and the style passes rather than interleaving with them.
@@ -1262,6 +1288,10 @@ export class Graph implements GraphContext {
         // after the graph and layout hooks it awaits, so until the pass ends the framing a
         // settling layout ends with, and the finished picture, wait for it (issue #3378).
         this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
+        // A queued operation, or a queued command waiting beside the queue for a key, is going to
+        // change the picture, so the frame is not final until it has run (issue #3528).
+        this.updateManager.operationsPending = () =>
+            this.operationQueue.hasWork || dispatcherOf(this.session).hasWaiters;
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -2476,11 +2506,33 @@ export class Graph implements GraphContext {
      *
      * `loadFromFile` and `loadFromUrl` read before they load, so taking the place when the read
      * finished would let an earlier, slower read overtake a later load. Ids rise in call order.
+     *
+     * The place is also one in the session's load line, which `session.data`'s loads share, so a
+     * load dispatches only once every load asked for before it, through either door, has (issue
+     * #3382). A replacing load supersedes this graph's earlier loads, which will never dispatch,
+     * so it takes their places in the line at once rather than waiting for their reads.
      * @param replace - Whether the load replaces the graph
-     * @returns The reservation to hand to `loadReserved`
+     * @returns The reservation to hand to `loadReserved`, which gives the place up
      */
-    private reserveLoad(replace = false): { loadId: number; generation: number; replace: boolean } {
-        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace };
+    private reserveLoad(replace = false): Reservation {
+        if (replace) {
+            for (const superseded of this.turns) {
+                superseded.leave();
+            }
+            this.turns.clear();
+        }
+        const turn = loadLineOf(dispatcherOf(this.session)).join();
+        this.turns.add(turn);
+        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace, turn };
+    }
+
+    /**
+     * Give up a load's place in line: it dispatched, or it failed before it could.
+     * @param load - The reservation
+     */
+    private leaveLine(load: Reservation): void {
+        load.turn.leave();
+        this.turns.delete(load.turn);
     }
 
     /**
@@ -2491,15 +2543,20 @@ export class Graph implements GraphContext {
      * @param load.loadId - The load's id
      * @param load.generation - The load's place in line
      * @param load.replace - Whether the load replaces the graph
+     * @param load.turn - Its place in the session's load line
      * @returns The load's id
      */
-    private async loadReserved(
-        type: string,
-        opts: object,
-        load: { loadId: number; generation: number; replace: boolean },
-    ): Promise<{ loadId: number }> {
+    private async loadReserved(type: string, opts: object, load: Reservation): Promise<{ loadId: number }> {
         // Read before the first await: a pair load's extras are set only for the call that made it.
-        await this.dataManager.addDataFromSource(type, opts, { ...load, ...pairImports.get(this) });
+        const { turn, ...place } = load;
+        const extras = pairImports.get(this);
+        try {
+            // Waited for only when an earlier load still reads, so one with nothing ahead of it
+            // dispatches before this call returns, as it did before the line existed.
+            await turn.take(() => this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }));
+        } finally {
+            this.leaveLine(load);
+        }
         return { loadId: load.loadId };
     }
 
@@ -2541,40 +2598,45 @@ export class Graph implements GraphContext {
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
-        const { detectFormat } = await import("./data/format-detection.js");
+        try {
+            const { detectFormat } = await import("./data/format-detection.js");
 
-        // Detect format if not explicitly provided
-        let format = options?.format;
+            // Detect format if not explicitly provided
+            let format = options?.format;
 
-        if (!format) {
-            // Read first 2KB for format detection
-            const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
-            this.dataManager.throwIfSuperseded(load.generation, file.name);
-            const detected = detectFormat(file.name, sample);
+            if (!format) {
+                // Read first 2KB for format detection
+                const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
+                this.dataManager.throwIfSuperseded(load.generation, file.name);
+                const detected = detectFormat(file.name, sample);
 
-            if (!detected) {
-                throw undetectedFormat(file.name, 'loadFromFile(file, { format: "graphml" })');
+                if (!detected) {
+                    throw undetectedFormat(file.name, 'loadFromFile(file, { format: "graphml" })');
+                }
+
+                format = detected;
             }
 
-            format = detected;
+            // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
+            // declaration), and a binary format such as a zip would not survive a text read.
+            const content = new Uint8Array(await file.arrayBuffer());
+
+            // Load using appropriate DataSource
+            const { replace: _replace, ...sourceOptions } = options ?? {};
+            return await this.loadReserved(
+                format,
+                {
+                    data: content,
+                    filename: file.name,
+                    size: file.size,
+                    ...sourceOptions,
+                },
+                load,
+            );
+        } finally {
+            // A read that failed gives up its place, so the loads behind it are not held back.
+            this.leaveLine(load);
         }
-
-        // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
-        // declaration), and a binary format such as a zip would not survive a text read.
-        const content = new Uint8Array(await file.arrayBuffer());
-
-        // Load using appropriate DataSource
-        const { replace: _replace, ...sourceOptions } = options ?? {};
-        return this.loadReserved(
-            format,
-            {
-                data: content,
-                filename: file.name,
-                size: file.size,
-                ...sourceOptions,
-            },
-            load,
-        );
     }
 
     /**
@@ -2630,38 +2692,42 @@ export class Graph implements GraphContext {
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
-        const { format, fetchedContent } = options?.format
-            ? { format: options.format, fetchedContent: undefined }
-            : await this.urlFormat(url, load.generation);
+        try {
+            const { format, fetchedContent } = options?.format
+                ? { format: options.format, fetchedContent: undefined }
+                : await this.urlFormat(url, load.generation);
 
-        // Merge graph config with explicit options (explicit options take precedence)
-        // A key is only carried when there is something to say. `edgeSource: undefined` would
-        // reach the load as a declared-and-empty override and turn the probe off for a file that
-        // named nothing, which is the failure this release exists to remove.
-        const configured = this.styles.config.data.knownFields;
-        const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
-        const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
-        const { graphIndex, graphName, styles, styleOptions } = options ?? {};
-        const mergedOptions = {
-            nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
-            ...presentOnly({
-                edgeSource,
-                edgeTarget,
-                graphIndex,
-                graphName,
-                layout: options?.layout,
-                styles,
-                styleOptions,
-            }),
-        };
+            // Merge graph config with explicit options (explicit options take precedence)
+            // A key is only carried when there is something to say. `edgeSource: undefined` would
+            // reach the load as a declared-and-empty override and turn the probe off for a file that
+            // named nothing, which is the failure this release exists to remove.
+            const configured = this.styles.config.data.knownFields;
+            const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
+            const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
+            const { graphIndex, graphName, styles, styleOptions } = options ?? {};
+            const mergedOptions = {
+                nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
+                ...presentOnly({
+                    edgeSource,
+                    edgeTarget,
+                    graphIndex,
+                    graphName,
+                    layout: options?.layout,
+                    styles,
+                    styleOptions,
+                }),
+            };
 
-        // If we already fetched content for detection, pass it as data to avoid double-fetch
-        // Otherwise pass URL and let DataSource handle the fetch
-        if (fetchedContent !== undefined) {
-            return this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
+            // If we already fetched content for detection, pass it as data to avoid double-fetch
+            // Otherwise pass URL and let DataSource handle the fetch
+            if (fetchedContent !== undefined) {
+                return await this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
+            }
+
+            return await this.loadReserved(format, { url, ...mergedOptions }, load);
+        } finally {
+            this.leaveLine(load);
         }
-
-        return this.loadReserved(format, { url, ...mergedOptions }, load);
     }
 
     /**
@@ -3752,6 +3818,10 @@ export class Graph implements GraphContext {
      * The verb the data guide has always taught -- as `graph.clear()`, which has never existed.
      * `<graphty-element>` has had `clearData()` throughout; a consumer holding a `Graph` had to
      * reach through `graph.getDataManager().clear()`, which is the element's own internals.
+     *
+     * The graph is empty when this returns, except while a project open is writing: then the
+     * clear lands once the open has written, and a read right after this call still sees the
+     * graph as it was. A load still reading is abandoned: it rejects with `E_SUPERSEDED`.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -3759,9 +3829,23 @@ export class Graph implements GraphContext {
      * ```
      */
     clearData(): void {
-        // A load still in flight would otherwise put its data back after the graph was closed.
+        // A load still in flight would otherwise put its data back after the graph was closed:
+        // the graph's own, dispatched or not, and every session load or edit still waiting in line
+        // (issue #3524). The clear itself happens before this returns, as it always has; only
+        // while a project open writes does it wait for the open, which it would otherwise land in.
         this.dataManager.supersedeLoads();
-        this.dataManager.clear();
+        loadLineOf(dispatcherOf(this.session))
+            .clear(() => {
+                this.dataManager.clear();
+                return Promise.resolve();
+            })
+            .catch((error: unknown) => {
+                this.eventManager.emitGraphError(
+                    this,
+                    error instanceof Error ? error : new Error(String(error)),
+                    "other",
+                );
+            });
     }
 
     /**
@@ -4328,6 +4412,21 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Remember whether the camera counts as placed, for a camera set only for a moment -- a
+     * screenshot's own view -- that must not count as the reader placing it.
+     * @returns Puts back the placement and the first-settlement framing as they were.
+     * @internal
+     */
+    saveCameraPlacement(): () => void {
+        const placed = this.#cameraPlaced;
+        const initialOwed = this.#initialCameraStateOwed;
+        return () => {
+            this.#cameraPlaced = placed;
+            this.#initialCameraStateOwed = initialOwed;
+        };
+    }
+
+    /**
      * Whether the camera frames the graph on its own after a data load or a layout change.
      * @returns True (the default) when it does
      */
@@ -4388,8 +4487,8 @@ export class Graph implements GraphContext {
         return engine?.config?.map ?? undefined;
     }
 
-    /** Whether the graph is now drawn over a map: edges under nodes. */
-    #overMap = false;
+    /** Whether the graph is now drawn over a map (edges under nodes); null before the first frame. */
+    #overMap: boolean | null = null;
 
     /** The meshes the edge lines are drawn from, refreshed each frame while a map is drawn. */
     readonly #edgeMeshes = new Set<AbstractMesh>();
@@ -4404,6 +4503,11 @@ export class Graph implements GraphContext {
      * While a map is drawn, nodes are drawn after edges with edges writing no depth, so an arc
      * passing in front of a node never hides it. Undone when the map goes. Nodes and edges look as
      * their style layers paint them, as in every layout: a map adds no outline of its own.
+     *
+     * With or without a map, the opaque and alpha-tested edges are drawn after every other mesh (but
+     * the nodes over a map): in 2D an edge and a group's border lie in one plane and the later drawn
+     * wins where they cross, and Babylon's own order follows material creation, which for the node
+     * and group shapes is async and so varied between loads, drawing a different picture each time.
      * @param frame - The active geographic frame, or null.
      */
     #drawOverMap(frame: LocationMapFrame | null): void {
@@ -4452,17 +4556,18 @@ export class Graph implements GraphContext {
 
             return this.#nodeMeshes.has(mesh) ? 4 : 0;
         };
-        // Everything else in Babylon's own order (as with no map), then the map, then the edges'
-        // bands, their lines, then the nodes over them -- in the blended pass too, where the edge
-        // lines (antialiased) and their outlines are drawn.
+        // Everything else in Babylon's own order, then the map, then the edges' bands, their lines,
+        // then the nodes over them (nodes rank with everything else when no map is drawn) -- in the
+        // blended pass too over a map, where the edge lines (antialiased) and their outlines are drawn.
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>
                 rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
+        const opaque = byRank((a, b) => RenderingGroup.PainterSortCompare(a, b));
         this.scene.setRenderingOrder(
             0,
-            mapped ? byRank((a, b) => RenderingGroup.PainterSortCompare(a, b)) : null,
-            null,
+            opaque,
+            opaque,
             mapped ? byRank((a, b) => RenderingGroup.defaultTransparentSortCompare(a, b)) : null,
         );
         this.renderManager.requestFrame();
@@ -5406,8 +5511,13 @@ export class Graph implements GraphContext {
      * @param options - How the wait is bounded.
      * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
+     * It also rejects, at once, when the graph is shut down -- the element was removed from the page
+     * -- before the picture came to rest, or had been already when the wait started: a graph that
+     * is gone will never draw again, so there is nothing to wait for.
      * @throws Error when the picture is still changing when the timeout expires; the message names
      *   what was still unfinished and how many frames were drawn while it waited.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the graph is shut down (the element left the
+     *   page) before or during the wait.
      * @since 2.0.0
      * @example
      * ```typescript
@@ -5423,13 +5533,32 @@ export class Graph implements GraphContext {
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.
         const firstFrame = this.scene.getRenderId();
-        let listenerId: symbol | undefined;
+        const wait: StableFrameWait = { gaveUp: false, stop: undefined };
         let timer: ReturnType<typeof setTimeout> | undefined;
+        let onTeardown: (() => void) | undefined;
+        const teardown = this.#teardown.signal;
 
         try {
             await Promise.race([
-                this.untilFrameIsStable((id) => {
-                    listenerId = id;
+                this.untilFrameIsStable(wait),
+                // A shut-down graph never draws again: end the wait now rather than at the timeout.
+                new Promise<never>((_resolve, reject) => {
+                    onTeardown = () => {
+                        reject(
+                            new GraphtyError({
+                                code: "E_DISPOSED",
+                                message: "waitForStableFrame(): the graph was shut down (its element left the page)",
+                                source: "view",
+                                details: { disposed: "graph" },
+                            }),
+                        );
+                    };
+
+                    if (teardown.aborted) {
+                        onTeardown();
+                    } else {
+                        teardown.addEventListener("abort", onTeardown, { once: true });
+                    }
                 }),
                 new Promise<never>((_resolve, reject) => {
                     timer = setTimeout(() => {
@@ -5449,36 +5578,43 @@ export class Graph implements GraphContext {
                 clearTimeout(timer);
             }
 
-            if (listenerId !== undefined) {
-                this.eventManager.removeListener(listenerId);
+            if (onTeardown !== undefined) {
+                teardown.removeEventListener("abort", onTeardown);
             }
+
+            // A wait that ended, timed out or was torn down starts no further round (issue #3528).
+            wait.gaveUp = true;
+            wait.stop?.();
         }
     }
 
     /**
      * The unbounded half of {@link Graph.waitForStableFrame}.
-     * @param track - Told the listener id, so the caller can remove it if it stops waiting.
+     * @param wait - Whether the caller gave up, and how to stop the round waiting now.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      */
-    private async untilFrameIsStable(track: (id: symbol) => void): Promise<void> {
-        // The queue first: a layout change or a data load that has not run yet is going to move
-        // the picture, so a frame that is final right now is final about the wrong graph. Suggested
-        // styles before the queue, because they queue their reordering only once they are due.
-        // Loads not queued yet (the element's, held behind the autosave restore) before both.
-        await loadsAhead.get(this)?.();
-        await this.#suggestionsStacked;
-        await this.untilQueueDrained();
+    private async untilFrameIsStable(wait: StableFrameWait): Promise<void> {
+        // Until one round finds nothing owed: an operation queued while a round waited -- after its
+        // queue drain, or while the label counts were announced -- is waited for by the next one
+        // (issue #3528).
+        do {
+            // The queue first: a layout change or a data load that has not run yet is going to move
+            // the picture, so a frame that is final right now is final about the wrong graph.
+            // Suggested styles before the queue, because they queue their reordering only once
+            // they are due. Loads not queued yet (the element's, held behind the autosave restore)
+            // before both.
+            await loadsAhead.get(this)?.();
+            await this.#suggestionsStacked;
+            await this.untilQueueDrained();
+            await this.untilNothingIsOwed(wait);
 
-        if (!this.updateManager.frameIsStable) {
-            await this.untilFrameStableEvent(track);
-        }
-
-        // The picture is final, but the label counts it drew are announced a few frames later
-        // (`graphty-label-change`); a page that shows them is not final until they are.
-        const declutter: unknown = this.scene.metadata?.labelDeclutter;
-        if (declutter instanceof LabelDeclutter) {
-            await declutter.whenPublished();
-        }
+            // The picture is final, but the label counts it drew are announced a few frames later
+            // (`graphty-label-change`); a page that shows them is not final until they are.
+            const declutter: unknown = this.scene.metadata?.labelDeclutter;
+            if (declutter instanceof LabelDeclutter) {
+                await declutter.whenPublished();
+            }
+        } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
     }
 
     /**
@@ -5493,25 +5629,18 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Wait for the `graph-frame-stable` event.
-     * @param track - Told the listener id, so the caller can remove it if it stops waiting.
-     * @returns Promise that resolves on the event, or at once when the frame became stable first.
+     * Wait until nothing is owed to the picture, asked after every pass rather than on the edge the
+     * `graph-frame-stable` event marks; see `UpdateManager.onceNothingIsOwed`.
+     * @param wait - Whether the caller gave up, and where to leave how to stop waiting.
+     * @returns Promise that resolves once nothing is owed, soon when nothing already is.
      */
-    private async untilFrameStableEvent(track: (id: symbol) => void): Promise<void> {
+    private async untilNothingIsOwed(wait: StableFrameWait): Promise<void> {
+        if (wait.gaveUp) {
+            return;
+        }
+
         await new Promise<void>((resolve) => {
-            const id = this.eventManager.addListener("graph-frame-stable", () => {
-                this.eventManager.removeListener(id);
-                resolve();
-            });
-
-            track(id);
-
-            // A frame can be drawn between the check above and the listener being attached, and
-            // an event nobody was listening for is not coming back.
-            if (this.updateManager.frameIsStable) {
-                this.eventManager.removeListener(id);
-                resolve();
-            }
+            wait.stop = this.updateManager.onceNothingIsOwed(resolve);
         });
     }
 
@@ -5520,10 +5649,12 @@ export class Graph implements GraphContext {
      * @returns One phrase naming what has not finished.
      */
     private whyTheFrameIsNotStable(): string {
-        const queue = this.operationQueue.getStats();
-
-        if (queue.pending > 0 || queue.size > 0) {
-            return `${String(queue.pending + queue.size)} queued operations have not finished`;
+        if (this.updateManager.operationsPending?.() === true) {
+            const queue = this.operationQueue.getStats();
+            const count = queue.pending + queue.size;
+            return count > 0
+                ? `${String(count)} queued operations have not finished`
+                : "a queued operation has not finished";
         }
 
         if (this.updateManager.frameIsStable) {
@@ -6098,6 +6229,9 @@ export class Graph implements GraphContext {
         if (!camera) {
             return;
         }
+
+        // Nothing a pass tracks moves with the camera, so the last frame would still count as final.
+        this.updateManager.viewMoved();
 
         // Get the active camera controller
         const controller = this.camera.getActiveController();
@@ -7919,7 +8053,11 @@ export class Graph implements GraphContext {
      */
     private drawAnnotations(value: unknown): void {
         if (this.#annotations?.scene !== this.scene) {
-            this.#annotations = new AnnotationMeshes(this.scene);
+            // a picture that arrives after the frame was called final has to be drawn, on demand too
+            this.#annotations = new AnnotationMeshes(this.scene, () => {
+                this.renderManager.requestFrame();
+            });
+            this.updateManager.picturesLoading = () => this.#annotations?.isLoading === true;
         }
 
         this.#annotations.update(value);

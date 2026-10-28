@@ -304,6 +304,13 @@ export interface RepaintEngine extends ElementPaint {
     /** What `createStylesApi` takes as its `repaint`. */
     readonly repaint: LayerRepaint;
     /**
+     * Resolve once every pass asked for so far has finished, painted or failed. What
+     * `styles.settled()` waits on for the passes nobody awaits: a selection or pointer change
+     * asks for one and returns, and the pass yields to the event loop when a slice runs out.
+     * @returns A promise that never rejects.
+     */
+    idle(): Promise<void>;
+    /**
      * What one layer was last painted FROM.
      *
      * THE READ THAT MAKES A LEGEND HONEST. `styles.legend()` tells a reader what the picture
@@ -2106,6 +2113,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     null,
                 ),
             );
+        },
+
+        idle(): Promise<void> {
+            return inFlight;
         },
 
         painting(): boolean {

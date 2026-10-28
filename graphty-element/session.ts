@@ -63,6 +63,8 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
+export type { FeatureId } from "./src/features/registry";
+export type { EnabledFeatures } from "./src/features/resolve";
 export type {
     ColumnHistogram,
     ColumnRole,
@@ -163,7 +165,6 @@ export type {
     SessionViews,
     SettingEffect,
     SettingEffectCode,
-    SourceEntry,
     StyleProblem,
     TableMapping,
     TableMappingRead,

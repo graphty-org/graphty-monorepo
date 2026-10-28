@@ -67,6 +67,18 @@ async function settled(graph: Graph): Promise<void> {
 }
 
 /**
+ * Wait until the layout's answer is published. A placed DOT file's fixed layout has Graphviz route its edges, so its
+ * answer arrives later and is published in a frame, which the stopped render loop does not draw by itself.
+ * @param graph - The graph.
+ */
+async function published(graph: Graph): Promise<void> {
+    await vi.waitFor(() => {
+        graph.update();
+        assert.isTrue(graph.getLayoutManager().isSettled, "the layout's answer is published");
+    });
+}
+
+/**
  * Assert each node sits at its expected coordinate.
  * @param graph - The graph.
  * @param expected - Coordinates by node id.
@@ -177,6 +189,7 @@ describe("a file's stored positions", () => {
                 layout: "recommended",
             });
             await settled(graph);
+            await published(graph);
 
             assert.strictEqual(graph.getSession().layout.id, "fixed", "every node placed: the fixed layout");
             assertAt(graph, sample.expected);

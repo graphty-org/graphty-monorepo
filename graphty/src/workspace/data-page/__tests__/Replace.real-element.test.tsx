@@ -32,7 +32,14 @@ const FRIENDS_V2 = "source,target,weight\nAva,Ben,1\nBen,Chloe,2\nChloe,Ava,1\nC
  * @returns the source.
  */
 function source(tables: string[]): LoadedSource {
-    return { key: "s1", kind: "file", counts: { nodes: 4, edges: 4 }, name: "friends.csv", tables, added: { nodes: 4, edges: 4 } };
+    return {
+        key: "s1",
+        kind: "file",
+        name: "friends.csv",
+        tables,
+        added: { nodes: 4, edges: 4 },
+        counts: { nodes: 4, edges: 4 },
+    };
 }
 
 describe("Replace with file...", () => {

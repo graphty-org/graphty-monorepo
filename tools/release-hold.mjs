@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Holds individual packages back from a release, so one package that must not ship never stops
- * the others (or the graphty.app deploy, which runs only after a release).
+ * the others.
  *
  * release-hold.json at the repository root lists the held packages:
  *
@@ -21,6 +21,13 @@
  * every project not named is held for that run as well, on top of the holds in the file, which
  * still apply. Nothing is written to release-hold.json.
  *
+ * RELEASE_HOLD_ALSO (comma separated nx project names) holds those projects for this run only, exactly like a
+ * release-hold.json entry, without writing the file: release.yml's version job passes the projects the version dry
+ * run held (a major or a first publish with no release-approvals.json entry), so they wait and every other
+ * project still releases. Every project that depends on one of them (nx's project graph, transitively) is held with
+ * it: published without it, a dependent would name a version npm does not have (a first publish) or ship code
+ * written against changes that are not released (a major).
+ *
  * Both modes also check that nx can resolve a current version for every project in nx.json's
  * release.projects: its last `{projectName}@{version}` tag, else the version in its package.json
  * (release.version.fallbackCurrentVersionResolver "disk"). A project with neither stops the whole
@@ -30,9 +37,15 @@
  * (owner decision, 2026-10-23), and npm refuses to publish a private package. The workspace root's
  * package.json is not an nx release project and stays private.
  *
+ * RELEASE_POLICY_REF (a git ref; release.yml sets origin/master) makes this read release-hold.json, and
+ * tools/release-approvals.mjs read release-approvals.json, from that ref instead of the checkout: a release run
+ * checks out the tested candidate, which may be older than master or a held head, and the owner's holds and
+ * approvals are master's, whatever commit is versioned.
+ *
  * Usage: node tools/release-hold.mjs check   (exit 1 when release-hold.json is invalid)
  *        node tools/release-hold.mjs apply   (check, then leave the held projects out of nx.json)
  *        node tools/release-hold.mjs apply --only <project>[,<project>...]
+ *        RELEASE_HOLD_ALSO=<project>[,<project>...] node tools/release-hold.mjs apply [--only ...]
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -40,6 +53,21 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * A release policy file at the repository root, parsed: from RELEASE_POLICY_REF when it is set, else the checkout.
+ * @param name - the file name, e.g. release-hold.json
+ * @param [env] - the environment
+ * @param [root] - the repository
+ * @returns the parsed file
+ */
+export function readPolicy(name, env = process.env, root = ROOT) {
+    const ref = env.RELEASE_POLICY_REF;
+    const text = ref
+        ? execFileSync("git", ["show", `${ref}:${name}`], { cwd: root, encoding: "utf8" })
+        : readFileSync(join(root, name), "utf8");
+    return JSON.parse(text);
+}
 
 /**
  * Everything wrong with a parsed release-hold.json.
@@ -70,7 +98,7 @@ export function problems(hold, projects) {
         }
     }
     if (projects.length > 0 && projects.every((p) => seen.has(p))) {
-        out.push("every project is held, which stops the release and the graphty.app deploy; hold fewer");
+        out.push("every project is held, which stops the release; hold fewer");
     }
     return out;
 }
@@ -110,6 +138,38 @@ export function holdAllBut(hold, projects, only, since) {
 }
 
 /**
+ * The hold list with the named projects held for this run too (RELEASE_HOLD_ALSO), each once.
+ * @param hold - the parsed, valid release-hold.json (possibly widened by --only)
+ * @param also - the project names to hold as well
+ * @param since - today, YYYY-MM-DD
+ * @returns the widened hold list
+ */
+export function holdAlso(hold, also, since) {
+    const held = new Set(hold.hold.map((h) => h.project));
+    const reason =
+        "a major or a first publish with no release-approvals.json entry, or a dependent of one (RELEASE_HOLD_ALSO, this run only)";
+    const extra = [...new Set(also)].filter((name) => !held.has(name)).map((project) => ({ project, reason, since }));
+    return { hold: [...hold.hold, ...extra] };
+}
+
+/**
+ * The named projects and every project that depends on one of them, directly or not.
+ * @param names - the project names
+ * @param dependencies - nx's graph.dependencies: { project: [{ target }] }
+ * @returns the names, then their dependents, each once
+ */
+export function withDependents(names, dependencies) {
+    const out = [...new Set(names)];
+    // an array's for-of also visits what is pushed during the loop: the dependents' dependents
+    for (const name of out) {
+        for (const [project, deps] of Object.entries(dependencies)) {
+            if (!out.includes(project) && deps.some((d) => d.target === name)) out.push(project);
+        }
+    }
+    return out;
+}
+
+/**
  * The projects nx cannot resolve a current version for, so cannot version.
  * @param released - each project in release.projects: its name, its package.json version, and
  *   whether a `{name}@...` tag exists
@@ -142,15 +202,15 @@ export function privateProjects(released) {
 
 /**
  * The projects in nx.json's release.projects, read from nx, their package.json and git tags.
- * @returns the input `unversionable` and `privateProjects` take
+ * @returns `released`, the input `unversionable` and `privateProjects` take, and nx's graph.dependencies
  */
 function releasedProjects() {
     const nx = (...args) => execFileSync("pnpm", ["exec", "nx", ...args], { cwd: ROOT, encoding: "utf8" });
     const patterns = JSON.parse(readFileSync(join(ROOT, "nx.json"), "utf8")).release.projects;
     const names = JSON.parse(nx("show", "projects", "--json", "-p", patterns.join(",")));
-    const nodes = JSON.parse(nx("graph", "--file=stdout")).graph.nodes;
+    const { nodes, dependencies } = JSON.parse(nx("graph", "--file=stdout")).graph;
     const tags = execFileSync("git", ["tag", "-l"], { cwd: ROOT, encoding: "utf8" }).split("\n");
-    return names.map((name) => {
+    const list = names.map((name) => {
         let pkg = {};
         try {
             pkg = JSON.parse(readFileSync(join(ROOT, nodes[name].data.root, "package.json"), "utf8"));
@@ -164,6 +224,7 @@ function releasedProjects() {
             tagged: tags.some((tag) => tag.startsWith(`${name}@`)),
         };
     });
+    return { released: list, dependencies };
 }
 
 function fail(found) {
@@ -171,12 +232,12 @@ function fail(found) {
     process.exit(1);
 }
 
-function main(mode, only) {
-    let hold = JSON.parse(readFileSync(join(ROOT, "release-hold.json"), "utf8"));
+function main(mode, only, also) {
+    let hold = readPolicy("release-hold.json");
     const projects = JSON.parse(
         execFileSync("pnpm", ["exec", "nx", "show", "projects", "--json"], { cwd: ROOT, encoding: "utf8" }),
     );
-    const released = releasedProjects();
+    const { released, dependencies } = releasedProjects();
     let found = [...problems(hold, projects), ...unversionable(released), ...privateProjects(released)];
     if (found.length > 0) fail(found);
     if (only) {
@@ -184,6 +245,11 @@ function main(mode, only) {
         found = widened.problems.length > 0 ? widened.problems : problems(widened.hold, projects);
         if (found.length > 0) fail(found);
         hold = widened.hold;
+    }
+    if (also.length > 0) {
+        hold = holdAlso(hold, withDependents(also, dependencies), new Date().toISOString().slice(0, 10));
+        found = problems(hold, projects);
+        if (found.length > 0) fail(found);
     }
     for (const { project, reason, since } of hold.hold) {
         // a workflow annotation in a release run, a plain line anywhere else
@@ -207,11 +273,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         console.error("usage: node tools/release-hold.mjs [check|apply [--only <project>,...]]");
         process.exit(2);
     }
-    const only = onlyGiven
-        ? (list ?? "")
-              .split(",")
-              .map((name) => name.trim())
-              .filter(Boolean)
-        : undefined;
-    main(mode, only);
+    const names = (text) =>
+        (text ?? "")
+            .split(",")
+            .map((name) => name.trim())
+            .filter(Boolean);
+    main(mode, onlyGiven ? names(list) : undefined, names(process.env.RELEASE_HOLD_ALSO));
 }

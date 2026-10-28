@@ -142,6 +142,29 @@ export function score(ledger, files, changed, at = new Date().toISOString()) {
 }
 
 /**
+ * score() from the results store's plan instead of the ledger (results-service.md 5.3): 2 when the change edits
+ * the file, 1 when it failed in a full run, bisect or base check in the last 7 days (`order`), its median
+ * duration from `fileMs`.
+ * @param plan the plan: `{ order: [file], fileMs: { file: ms } }`
+ * @param files candidate test files
+ * @param changed the change's files
+ * @returns `{ scores, why: null }`
+ */
+export function scoreFromPlan(plan, files, changed) {
+    const edits = new Set(changed);
+    const recent = new Set(plan.order ?? []);
+    const scores = new Map();
+    for (const f of files) {
+        const why = [];
+        if (edits.has(f)) why.push("edited by this change");
+        if (recent.has(f)) why.push("failed on master in 7 days");
+        const score = (edits.has(f) ? 2 : 0) + (recent.has(f) ? 1 : 0);
+        scores.set(f, { score, ms: plan.fileMs?.[f] ?? UNMEASURED_MS, why });
+    }
+    return { scores, why: null };
+}
+
+/**
  * Files in rank order: score, then the shorter file (more fit in a budget), then the name.
  * @param scores score().scores
  * @returns `[{ file, score, ms, why }]`
@@ -174,9 +197,14 @@ export function budget(ranked, secs) {
  * @param changed the change's files
  * @param [env] the environment
  * @param [cwd] a directory of the repository
+ * @param [plan] the results store's plan (readPlan()); when given it ranks instead of the ledger
  * @returns `{ ranked, why }`
  */
-export function rankFiles(files, changed, env = process.env, cwd = process.cwd()) {
+export function rankFiles(files, changed, env = process.env, cwd = process.cwd(), plan = null) {
+    if (plan && env.TEST_HISTORY !== "0") {
+        const { scores, why } = scoreFromPlan(plan, files, changed);
+        return { ranked: rank(scores), why };
+    }
     const ledger = env.TEST_HISTORY === "0" ? { why: "TEST_HISTORY=0" } : openLedger(env, cwd);
     try {
         const { scores, why } = score(ledger, files, changed);

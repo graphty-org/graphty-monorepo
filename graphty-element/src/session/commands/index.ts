@@ -38,6 +38,8 @@ export interface BatchCommand {
     readonly fact?: CodedFact<HistoryCode>;
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
+    /** Starts the history: see `ImportOptions.history`. */
+    readonly startsHistory?: boolean;
 }
 
 /**

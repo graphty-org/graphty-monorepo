@@ -216,14 +216,14 @@ function stringRenamer(from: string, to: string): (text: string, literal: boolea
     const old = `data.${from}`;
     const quotedNew = quotePath(`data.${to}`);
     // Quoted always matches; unquoted only when the old name can be written without quotes.
-    const forms = [`data\\.${escapeRegExp(JSON.stringify(from))}`];
+    const forms = [String.raw`data\.${escapeRegExp(JSON.stringify(from))}`];
     if (quotePath(old) === old) {
-        forms.push(`data\\.${escapeRegExp(from)}(?![\\w$])`);
+        forms.push(String.raw`data\.${escapeRegExp(from)}(?![\w$])`);
     }
 
     // ponytail: a quoted string literal inside an expression that spells the path is rewritten
     // too; parse the expression if that ever matters.
-    const pattern = new RegExp(`(?<![\\w$."])(?:${forms.join("|")})`, "gu");
+    const pattern = new RegExp(String.raw`(?<![\w$."])(?:${forms.join("|")})`, "gu");
     return (text, literal) => {
         if (literal) {
             return text === old || text.startsWith(`${old}.`) ? `data.${to}${text.slice(old.length)}` : text;

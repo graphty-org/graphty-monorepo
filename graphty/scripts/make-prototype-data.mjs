@@ -382,7 +382,8 @@ function accounts() {
 function transfers() {
     const next = stream(450);
     const rows = [];
-    for (let at = 0; rows.length < 450; at++) {
+    // One row per pass, so `at` is also the number of rows written.
+    for (let at = 0; at < 450; at++) {
         const line = rows.length + 2;
         const from = account(at);
         // Each pair once: (k, k + 1) for the first lap, (k, k + 2) after.

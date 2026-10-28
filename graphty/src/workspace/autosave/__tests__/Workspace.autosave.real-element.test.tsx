@@ -9,7 +9,7 @@ import "@graphty/graphty-element";
 
 import { type GraphSession, listAutosaves } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -112,8 +112,8 @@ async function openElement(): Promise<{ element: ElementUnderTest; session: Grap
 }
 
 /**
- * Opens the sample, renames it with the keyboard (unless told not to), waits until autosave has
- * written it, and unmounts the workspace: the visit a reload ends.
+ * Opens the sample, renames it with the keyboard (or, told not to, changes its layout), waits
+ * until autosave has written it, and unmounts the workspace: the visit a reload ends.
  * @param rename - whether the reader renames the project.
  * @returns the entry id autosave wrote.
  */
@@ -145,6 +145,26 @@ async function workThenLeave(rename = true): Promise<string> {
         await waitFor(() => {
             assert.equal(session.project.name, RENAMED);
         });
+    } else {
+        // An untouched sample is not unsaved work, so the reader makes one real change that is not
+        // a rename: a circle layout, through the toolbar's Layout popover. In the project's default
+        // narrow frame the side panels cover the toolbar, so the frame is the reader's desktop.
+        await page.viewport(1440, 900);
+        const tool = screen.getByRole("button", { name: "Layout" });
+        await waitFor(() => {
+            assert.isFalse(tool.hasAttribute("aria-disabled"));
+        });
+        await userEvent.click(tool);
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(
+            () => {
+                assert.strictEqual(session.layout.id, "circular");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await userEvent.keyboard("{Escape}");
     }
 
     // Work is saved: the element says so, and the status bar's chip shows it.

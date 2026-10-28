@@ -150,6 +150,16 @@ function geojson(value: unknown): LatLon | LocationError {
     return checked(toNumber(coordinates[1]), toNumber(coordinates[0]), value);
 }
 
+/**
+ * Collapses every run of whitespace to one space, so a pattern's adjacent `\s*` and `\s+` cannot
+ * backtrack over a long run. No pattern here needs two whitespace characters in a row.
+ * @param text - The text.
+ * @returns The text with single spaces.
+ */
+function singleSpaced(text: string): string {
+    return text.trim().split(/\s+/).join(" ");
+}
+
 function fromString(value: unknown, read: (text: string) => LatLon | LocationError): LatLon | LocationError {
     return typeof value === "string" ? read(value.trim()) : locationError("syntax", value);
 }
@@ -265,11 +275,8 @@ export function parseLocation(value: unknown, format: LocationFormat | "auto" = 
     return best;
 }
 
-/**
- * A number with an optional hemisphere letter before or after it, and a decimal point or comma,
- * matched against trimmed text so no two whitespace runs can compete for the same spaces.
- */
-const HEMISPHERE_NUMBER = /^([NSEW])?\s*([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))(?:\s*\u00b0)?(?:\s*([NSEW]))?$/i;
+/** A number with an optional hemisphere letter before or after it, and a decimal point or comma. */
+const HEMISPHERE_NUMBER = /^([NSEW])? ?([+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)) ?\u00b0? ?([NSEW])?$/i; // matched only against singleSpaced text
 
 /**
  * Reads one angle of a latitude or longitude column: a number, or text holding a number with an
@@ -283,7 +290,7 @@ function angleOf(value: unknown, axis: "lat" | "lon"): number {
     if (typeof value === "number") {
         return value;
     }
-    const match = typeof value === "string" ? HEMISPHERE_NUMBER.exec(value.trim()) : null;
+    const match = typeof value === "string" ? HEMISPHERE_NUMBER.exec(singleSpaced(value)) : null;
     if (match === null) {
         return Number.NaN;
     }

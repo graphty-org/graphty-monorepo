@@ -32,8 +32,10 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { withFeaturesOn } from "../tools/features-on.mjs";
+import { shardCacheDir } from "../tools/test-slots.mjs";
+import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
+import { baseTest } from "../vitest.base.mjs";
 import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
@@ -280,6 +282,16 @@ function appendBenchRow(log: string): undefined {
 }
 
 /**
+ * Screenshots taken inside the story tests (visual-review's story-test harness), off unless
+ * VISUAL_REVIEW_STORY_OUT names the directory this run's partial capture goes to: the storybook
+ * project then runs with production semantics, shoots every story and mode at the end of its test
+ * and compares it with its baseline, as `visual-review capture` does with the built Storybook.
+ */
+const VISUAL = process.env.VISUAL_REVIEW_STORY_OUT
+    ? visualStoryTest({ project: "graphty-element", out: path.resolve(process.env.VISUAL_REVIEW_STORY_OUT) })
+    : null;
+
+/**
  * The version a project file's `generator` names (src/session/runs/engine.ts), as the builds set
  * it. Every project sets it, since an inline project does not inherit the root's `define`, and each
  * gets its own copy, since vitest deletes the keys from the object it is handed.
@@ -290,14 +302,9 @@ const define = {
     ),
 };
 
-export default defineConfig({
+const config = defineConfig({
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
-        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
-        // projects keep their own maxWorkers or fileParallelism.
-        maxWorkers: workerShare(),
-        reporters: ["default", ...ciReporters()],
+        ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
@@ -742,13 +749,16 @@ export default defineConfig({
             {
                 // The style fidelity harness's graphty side (graph-io/test/fidelity/): loads every
                 // fidelity sample with its file styles and writes what was drawn to
-                // test/fidelity/out/. It records and never gates, a sample's layout can take longer
-                // than the browser project's budget to settle, and so it is in no CI shard and not in
-                // the pre-push gate. Run with: npm run test:fidelity, and on this workstation with
-                // GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
+                // test/fidelity/out/. It fails a sample only for an element failing that the known
+                // failures do not list (test/fidelity/oracle/floors.ts); a sample's layout can take
+                // longer than the browser project's budget to settle, and so it is in no CI shard and
+                // not in the pre-push gate. Run with: npm run test:fidelity, and on this workstation
+                // with GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
                 // annotation session draws about one frame a second and does not settle.
+                // GRAPHTY_ORACLE_BASELINE=<an earlier run's tmp/oracle-report> judges that run's
+                // drawings again with this comparator; npm run fidelity:ratchet applies a run.
                 define: { ...define },
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_ORACLE_BASELINE"],
                 cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 resolve: { alias: OWN_ENTRY_POINTS },
@@ -831,7 +841,8 @@ export default defineConfig({
                 },
             },
             {
-                define: { ...define },
+                // With screenshots on, what build-storybook builds: production mode and NODE_ENV.
+                define: { ...define, ...(VISUAL && PRODUCTION.define) },
                 extends: "vite.config.ts",
                 plugins: [
                     // The plugin will run tests for the stories defined in your Storybook config
@@ -842,6 +853,7 @@ export default defineConfig({
                         storybookUrl: process.env.STORYBOOK_URL ?? "https://localhost:6006",
                     }),
                 ],
+                ...(VISUAL && { mode: PRODUCTION.mode, appType: PRODUCTION.appType }),
                 resolve: {
                     alias: {
                         // Mock @mlc-ai/web-llm in storybook tests - the package is CDN-only
@@ -870,12 +882,26 @@ export default defineConfig({
                         commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: playwright(),
+                        provider: playwright(VISUAL?.providerOptions),
                         instances: [{ browser: "chromium" }],
+                        // addon-vitest 9.1.21 turns write and exec off unless set; test/helpers/real-input.ts cdp() needs them. Loopback only: server.host is true.
+                        api: { host: "127.0.0.1", allowWrite: true, allowExec: true },
+                        ...(VISUAL && {
+                            viewport: VISUAL.viewport,
+                            commands: { ...mapTileCommands, ...VISUAL.commands },
+                        }),
                     },
-                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, ".storybook/vitest.setup.ts"],
+                    setupFiles: [
+                        BROWSER_COVERAGE_SETUP,
+                        MAP_TILES_SETUP,
+                        ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),
+                        ".storybook/vitest.setup.ts",
+                    ],
                     // Storybook tests load complex 3D scenes and need longer timeout
                     testTimeout: 30000,
+                    // With screenshots on, a story's afterEach renders it again for each further mode
+                    // and once more when a shot differs from its baseline: it bounds that work, no wait.
+                    ...(VISUAL && { hookTimeout: 90000 }),
                 },
             },
             // Autosave lifecycle tests (design/work-protection/plan.md, step 6): every test that reloads,
@@ -956,3 +982,16 @@ export default defineConfig({
         slowTestThreshold: 60000,
     },
 });
+
+// Each listed project again as "<name>-features-on", with every experiment switched on, once
+// graphty-element declares one (tools/features-on.mjs); until then the list is exactly the one above.
+config.test = {
+    ...config.test,
+    projects: withFeaturesOn(
+        config.test?.projects ?? [],
+        ["default", "mesh", "browser", "interactions", "xr", "storybook"],
+        "./test/setup-features-on.ts",
+    ),
+};
+
+export default config;

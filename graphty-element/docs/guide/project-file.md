@@ -118,6 +118,16 @@ report.written; // the members in the file, such as "graphty-data" (see "The fil
 report.leftOut; // what is not in it: a run still computing, as { code: "W_RUN_PENDING", params: { id } }
 ```
 
+### What a save leaves out
+
+| Code                    | Params        | What was left out                                                                                                                                                       |
+| ----------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `W_RUN_PENDING`         | `id`          | A run still computing                                                                                                                                                   |
+| `W_SOURCE_URL_REDACTED` | `id`, `names` | Values whose names mark a credential (`api_key`, `token`, `X-Goog-Signature`, ...) from a load's URL, or from a network load's endpoint, next-page link or REST mapping |
+
+A save never writes a credential: a network load records only the name of the credential slot it
+used, and the reader's own machine keeps the credential (`element.credentials`).
+
 Store `text` wherever you keep files. Two options shape the file:
 
 - `leaveOut: ["graphty-notes"]` leaves members out: `"graphty-style"` (the style layers, which
@@ -220,16 +230,20 @@ Opening never fails half way through. A part that cannot be restored is left out
 skipped, not that the open failed; the open failed only if `open` threw. `slice` is the slice of
 the project the problem is about, one of the `report.restored` values below:
 
-| Code                    | Params                   | What happened                                                           |
-| ----------------------- | ------------------------ | ----------------------------------------------------------------------- |
-| `E_UNKNOWN_ALGORITHM`   | `slice`, `id`            | A run's algorithm is not registered here; the run is left out           |
-| `E_UNKNOWN_LAYOUT`      | `slice`                  | The layout is not registered here; the positions still come back        |
-| `E_UNKNOWN_ATTRIBUTE`   | `slice`, `id`, `needs`   | A style layer reads something nothing answers; it is added switched off |
-| `W_DATA_DIFFERS`        | `slice`, `id`            | The data was edited by hand; the run's per-edge values are left out     |
-| `W_UNKNOWN_KIND`        | `index`, `kind`          | A member this release does not read; skipped                            |
-| `E_UNSUPPORTED_VERSION` | `index`, `kind`, `found` | A member written by a newer release; skipped                            |
-| `E_UNSUPPORTED`         | `kind` (and `index`)     | A member this kind of open does not apply; skipped                      |
-| `E_BAD_DOCUMENT`        | `index`                  | A malformed member; skipped                                             |
+| Code                     | Params                            | What happened                                                                            |
+| ------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------- |
+| `E_UNKNOWN_ALGORITHM`    | `slice`, `id`                     | A run's algorithm is not registered here; the run is left out                            |
+| `E_UNKNOWN_LAYOUT`       | `slice`                           | The layout is not registered here; the positions still come back                         |
+| `E_UNKNOWN_ATTRIBUTE`    | `slice`, `id`, `needs`            | A style layer reads something nothing answers; it is added switched off                  |
+| `W_DATA_DIFFERS`         | `slice`, `id`                     | The data was edited by hand; the run's per-edge values are left out                      |
+| `W_UNKNOWN_KIND`         | `index`, `kind`                   | A member this release does not read; skipped                                             |
+| `E_UNSUPPORTED_VERSION`  | `index`, `kind`, `found`          | A member written by a newer release; skipped                                             |
+| `E_UNSUPPORTED`          | `kind` (and `index`)              | A member this kind of open does not apply; skipped                                       |
+| `E_BAD_DOCUMENT`         | `index`                           | A malformed member; skipped                                                              |
+| `W_VERSION_UPGRADED`     | `kind`, `found`, `version`        | A member of an older version, read and upgraded; a save writes the new one               |
+| `W_SOURCE_STEPS_IGNORED` | `kind`, `pointer`, `graph`        | The loads member says to rebuild the graph, but the file holds it; the held graph opened |
+| `W_SOURCE_UNREGISTERED`  | `kind`, `pointer`, `id`, `source` | A load from a network source this release lacks: its nodes are there, it cannot run      |
+| `W_UNKNOWN_KIND`         | `kind`, `pointer`, `found`        | A load of a kind this release does not know: kept, never run                             |
 
 Any other code (such as `E_BAD_SELECTOR` for a style layer) means a slice could not be
 restored for that reason, with `slice`, and `id` when it is about one item; a note that was
@@ -250,9 +264,12 @@ refuses the whole file.
 | `"runs"`                                                    | `graphty-results`     |
 | `"styles"`                                                  | `graphty-style`       |
 | `"notes"`                                                   | `graphty-notes`       |
+| `"attributes"`, `"valueLabels"`                             | `graphty-session`     |
 
 `config` is the settings, `arrangement` where each node stands, `pins` the pinned nodes,
-`visibility` the filter and time window, `sets` the kept sets, and `views` the saved camera views.
+`visibility` the filter and time window, `sets` the kept sets, `views` the saved camera views,
+`attributes` the declared columns and `valueLabels` the names given to values
+(`data.setValueLabel`).
 Both lists may gain values in a minor release; leave out a code you do not know.
 
 A file that cannot be opened at all is refused with a `GraphtyError`, and the session is left as
@@ -295,6 +312,11 @@ You need this section only to read or write the file yourself. A graphty documen
 | `graphty-style`       | the style layers                                                                                                    |
 | `graphty-notes`       | the notes                                                                                                           |
 | `graphty-view-state`  | the selection; never needed to open the file                                                                        |
+| `graphty-sources`     | every load still in the graph: a file, a URL, a network source or a sample, with its options                        |
+
+Each node and edge record a load supplied lists that load's id in the reserved column
+`_source.loads` (`["s1", "s2/x1"]`: load `s1`, and the first expansion of `s2`), which
+`data.sourcesOf` reads back.
 
 The data member's graph carries the node-link `directed` key once something settled the
 graph's direction (the file it was loaded from, or `data.directed`), so an undirected graph

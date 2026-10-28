@@ -6,13 +6,14 @@
 //   node --test tools/vitest-time-budget.test.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createServer } from "node:http";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import {
+import TimeBudgetReporter, {
     annotations,
     enabled,
     format,
@@ -182,5 +183,82 @@ describe("in a vitest run", () => {
         const { status, output } = run(dir, { VITEST_BUDGET_CHECK: "" });
         assert.equal(status, 0, output);
         assert.doesNotMatch(output, /\[time-budget\]/);
+    });
+});
+
+describe("with the results store", () => {
+    const servers = [];
+    after(() => servers.forEach((s) => (s.closeAllConnections(), s.close())));
+    // A store that holds one history, or (answer false) reads requests and never answers.
+    const serve = (stored, answer = true) => {
+        const seen = [];
+        const server = createServer((req, res) => {
+            let body = "";
+            req.on("data", (d) => (body += d));
+            req.on("end", () => {
+                seen.push({ method: req.method, url: req.url, body });
+                if (answer) res.end(req.method === "GET" ? JSON.stringify(stored) : "{}");
+            });
+        });
+        servers.push(server);
+        return new Promise((resolve) =>
+            server.listen(0, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${server.address().port}`, seen })),
+        );
+    };
+    const withEnv = async (vars, fn) => {
+        const saved = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+        Object.assign(process.env, vars);
+        try {
+            return await fn();
+        } finally {
+            for (const [k, v] of Object.entries(saved))
+                if (v === undefined) delete process.env[k];
+                else process.env[k] = v;
+        }
+    };
+    const finish = (history) => {
+        const r = new TimeBudgetReporter({ root: "/r", history });
+        r.onTestCaseResult({
+            module: { moduleId: "/r/pkg/test/a.test.ts" },
+            fullName: "suite > case",
+            project: { name: "default" },
+            result: () => ({ state: "passed" }),
+            diagnostic: () => ({ duration: 100 }),
+        });
+        return r.onTestRunEnd();
+    };
+
+    it("reads the history from the store, writes it back there and to the file", async () => {
+        const s = await serve({ [KEY]: [7] });
+        const history = join(mkdtempSync(join(TMP, "store-")), "shard-x.json");
+        // A pull request's run never writes to the store, so this test must not inherit CI's pull_request event.
+        await withEnv(
+            { VITEST_BUDGET_CHECK: "1", RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_EVENT_NAME: "push" },
+            () => finish(history),
+        );
+        assert.deepEqual(
+            s.seen.map((r) => [r.method, r.url]),
+            [
+                ["GET", "/v1/durations/tests/shard-x"],
+                ["PUT", "/v1/durations/tests/shard-x"],
+            ],
+        );
+        assert.deepEqual(JSON.parse(s.seen[1].body)[KEY], [7, 100]);
+        assert.deepEqual(JSON.parse(readFileSync(history, "utf8"))[KEY], [7, 100]);
+    });
+
+    it("falls back to the file when the store never answers", async () => {
+        const s = await serve({}, false);
+        const history = join(mkdtempSync(join(TMP, "store-")), "shard-y.json");
+        writeFileSync(history, JSON.stringify({ [KEY]: [5] }));
+        await withEnv({ VITEST_BUDGET_CHECK: "1", RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }, () =>
+            finish(history),
+        );
+        assert.deepEqual(JSON.parse(readFileSync(history, "utf8"))[KEY], [5, 100]);
+        // One timeout at most: no write after a read that got no answer.
+        assert.deepEqual(
+            s.seen.map((r) => r.method),
+            ["GET"],
+        );
     });
 });

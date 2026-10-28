@@ -56,13 +56,14 @@ export function classify(engine: GraphvizEngine, error: unknown): GraphvizReply 
  * Lay one graph out in a fresh instance.
  * @param dot - the DOT text
  * @param engine - the engine
+ * @param pinned - keep every node at the `pos` the DOT gives it and route only the edges (`neato -n2`)
  * @returns Graphviz's `-Tjson` text, or why it failed
  */
-export async function layout(dot: string, engine: GraphvizEngine): Promise<GraphvizReply> {
+export async function layout(dot: string, engine: GraphvizEngine, pinned = false): Promise<GraphvizReply> {
     try {
         Graphviz.unload();
         const graphviz = await Graphviz.load();
-        return { ok: true, json: graphviz.layout(dot, "json", engine) };
+        return { ok: true, json: graphviz.layout(dot, "json", engine, pinned ? { nop: 2 } : undefined) };
     } catch (error) {
         return classify(engine, error);
     }

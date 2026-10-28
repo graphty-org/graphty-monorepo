@@ -172,6 +172,17 @@ export type PlanEffect =
           readonly exact: boolean;
           /** How many elements were sampled, when they were estimated. */
           readonly sampled?: number;
+          /**
+           * For a filter-steps change: what it leaves visible step by step. `start` is before the
+           * first step (the filter and the time window alone), then one entry per step that is
+           * on, in order; `nodes` and `edges` above are what the last one leaves.
+           */
+          readonly steps?: {
+              /** What is left before any step. */
+              readonly start: { readonly nodes: number; readonly edges: number };
+              /** What is left after each step that is on. */
+              readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
+          };
       }
     | {
           /** What a change to the graph would add, remove and alter. */
@@ -218,18 +229,6 @@ export type PlanEffect =
           readonly legendChannels: number;
           /** Its size in bytes. */
           readonly bytes: number;
-      }
-    | {
-          /**
-           * What a filter-steps change would leave visible: `start` before the first step (the
-           * filter and the time window alone), then one entry per step that is on, in order, with
-           * the nodes and edges left after it.
-           */
-          readonly kind: "steps";
-          /** What is left before any step. */
-          readonly start: { readonly nodes: number; readonly edges: number };
-          /** What is left after each step that is on. */
-          readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
       }
     | {
           /** Nothing to preview. */
@@ -523,6 +522,58 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * What a filter-steps change would leave visible, as a `match` effect: what the last step leaves,
+ * and the counts step by step.
+ * @param counts - What is left before any step and after each one that is on.
+ * @returns The effect.
+ */
+function stepsEffect(counts: StepCounts): PlanEffect {
+    const last = counts.steps.at(-1) ?? counts.start;
+    return Object.freeze({
+        kind: "match" as const,
+        nodes: last.nodes,
+        edges: last.edges,
+        exact: true,
+        steps: { start: counts.start, steps: counts.steps },
+    });
+}
+
+/**
+ * The plan of a filter-steps change: what each step leaves, or why the steps are refused.
+ * @param context - What planning reads.
+ * @param command - The change.
+ * @param preview - Counts what the steps leave.
+ * @returns The plan.
+ */
+function planSteps(
+    context: PlanningContext,
+    command: Extract<SessionCommand, { op: "visibility.steps" }>,
+    preview: (steps: readonly FilterStep[]) => StepCounts,
+): Plan {
+    const cost = unavailableEstimate(undefined, notEstimated(command));
+    try {
+        return Object.freeze({
+            ok: true,
+            cost,
+            effect: stepsEffect(preview(command.steps)),
+            caveats: context.defaultCaveats,
+        });
+    } catch (error) {
+        if (!(error instanceof GraphtyError)) {
+            throw error;
+        }
+
+        return Object.freeze({
+            ok: false,
+            blocked: Object.freeze({ code: error.code, reason: error.message }),
+            cost,
+            effect: Object.freeze({ kind: "none" as const }),
+            caveats: context.defaultCaveats,
+        });
+    }
+}
+
+/**
  * What one command would do, what it would cost, and whether it would be allowed.
  *
  * The gate is asked the same question here that it is asked when the run starts, from the same
@@ -538,7 +589,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
     }
 
     if (command.op === "visibility.steps" && context.previewSteps !== undefined) {
-        return planVisibilitySteps(context, command, command.steps, context.previewSteps);
+        return planSteps(context, command, context.previewSteps);
     }
 
     if (command.op !== "algo.run") {
@@ -576,44 +627,6 @@ function planLayout(context: PlanningContext, command: LayoutSetCommand): Plan {
         effect: Object.freeze({ kind: "none" as const }),
         caveats: context.defaultCaveats,
     });
-}
-
-/**
- * The plan of a filter-steps command: the counts each step would leave, or why it cannot run.
- * @param context - What planning reads.
- * @param command - The command.
- * @param steps - The command's steps.
- * @param previewSteps - Counts what the steps would leave.
- * @returns The plan.
- */
-function planVisibilitySteps(
-    context: PlanningContext,
-    command: SessionCommand,
-    steps: readonly FilterStep[],
-    previewSteps: (steps: readonly FilterStep[]) => StepCounts,
-): Plan {
-    const cost = unavailableEstimate(undefined, notEstimated(command));
-    try {
-        const counts = previewSteps(steps);
-        return Object.freeze({
-            ok: true,
-            cost,
-            effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
-            caveats: context.defaultCaveats,
-        });
-    } catch (error) {
-        if (!(error instanceof GraphtyError)) {
-            throw error;
-        }
-
-        return Object.freeze({
-            ok: false,
-            blocked: Object.freeze({ code: error.code, reason: error.message }),
-            cost,
-            effect: Object.freeze({ kind: "none" as const }),
-            caveats: context.defaultCaveats,
-        });
-    }
 }
 
 /**
@@ -939,6 +952,7 @@ function locationRefusal(
     const read = (path: string): readonly unknown[] | null => context.nodeValues?.(path) ?? null;
     const option = (name: string): string | null =>
         typeof options[name] === "string" && options[name] !== "" ? options[name] : null;
+    const gazetteerUrl = typeof options.gazetteer === "string" ? options.gazetteer : GAZETTEER_URL;
     const answer = resolveLocation(
         chosenLocation(
             { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
@@ -946,9 +960,7 @@ function locationRefusal(
         ),
         nodeColumns(context),
         read,
-        options.gazetteer === false
-            ? false
-            : cachedGazetteer(typeof options.gazetteer === "string" ? options.gazetteer : GAZETTEER_URL),
+        options.gazetteer === false ? false : cachedGazetteer(gazetteerUrl),
     );
     return isLocationRefusal(answer)
         ? refused(`the layout "${id}" found no location to read`, "layout.needs-location", {

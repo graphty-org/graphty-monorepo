@@ -23,7 +23,8 @@ export function unboundWords(report: ReplaceReport): string[] {
     }
     return [...counts].map(([code, n]) => {
         const word = UNBOUND_WORDS[code] ?? code;
-        return `${formatNumber(n)} ${n === 1 ? word : `${word}s`} unbound`;
+        const plural = n === 1 ? word : `${word}s`;
+        return `${formatNumber(n)} ${plural} unbound`;
     });
 }
 

@@ -54,6 +54,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -66,6 +67,7 @@ import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
+import { loadLineOf } from "./loadLine";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -255,7 +257,9 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
  * read live. No entry point exports it.
  * @internal
  */
-export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config"> {
+export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config" | "features"> {
+    /** The requested experiments, read once, when `features` is first read. */
+    readonly features?: () => readonly string[] | undefined;
     /** The store to read. When absent the session builds one of its own and disposes it. */
     readonly store?: LaneStore;
     /** Where to read the attributes a record arrived with, for rows the graph slice lacks. */
@@ -356,6 +360,8 @@ interface SessionParts {
     readonly store: LaneStore;
     /** The catalogue: the shared tables, plus the metric listing for this session's own graph. */
     readonly catalog: SessionCatalogApi;
+    /** The requested experiments, read once, when `features` is first read. */
+    readonly features: () => readonly string[] | undefined;
     /** The store when this session built it, so that disposal releases it. */
     readonly ownedStore: GraphStore | null;
     /** Stops the renumbering delivery from a store someone else built. */
@@ -524,6 +530,9 @@ class Session implements ElementSession {
     private disposed = false;
     /** The lane with the positions verbs beside it; built once, on first read. */
     private positionsView: SessionPositions | undefined;
+    private readonly requestedFeatures: () => readonly string[] | undefined;
+    /** The experiments, settled on first read. */
+    private resolvedFeatures: EnabledFeatures | undefined;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -537,6 +546,7 @@ class Session implements ElementSession {
         this.sessionData = parts.data;
         this.data = parts.data;
         this.catalog = parts.catalog;
+        this.requestedFeatures = parts.features;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
@@ -668,6 +678,16 @@ class Session implements ElementSession {
                 },
             },
         });
+    }
+
+    /**
+     * The experiments this session switched on; settled on first read, so an element's session
+     * sees every attribute the page declared.
+     * @returns The enabled and unknown ids.
+     */
+    get features(): EnabledFeatures {
+        this.resolvedFeatures ??= resolveFeatures(this.requestedFeatures());
+        return this.resolvedFeatures;
     }
 
     /**
@@ -1096,6 +1116,24 @@ class Session implements ElementSession {
      * @returns A function that stops the subscription.
      */
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
+        if (this.disposed) {
+            // Nothing fires again; a host that asks too late to hear about the disposal still does.
+            // Cancelled by the returned function, so an effect cleanup that runs first is not told.
+            let live = event === "session:disposed";
+
+            if (live) {
+                queueMicrotask(() => {
+                    if (live) {
+                        publish(new Map([["session:disposed", new Set([handler])]]), "session:disposed", {});
+                    }
+                });
+            }
+
+            return () => {
+                live = false;
+            };
+        }
+
         let subscribers = this.watchers.get(event);
 
         if (subscribers === undefined) {
@@ -1138,6 +1176,8 @@ class Session implements ElementSession {
         this.sessionRuns.dispose();
         // Style edits are runs the runs list does not hold, so they are cancelled on their own.
         this.stopStyleEdits();
+        // The last event: a host drops the session here, before anything re-reads it.
+        publish(this.watchers, "session:disposed", {});
         this.watchers.clear();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();
@@ -2217,6 +2257,7 @@ function repaintAgainstCurrentData(
     repaintElements: RepaintEngine["repaintElements"];
     repaintMoved: RepaintEngine["repaintMoved"];
     encoding: RepaintEngine["encoding"];
+    idle: RepaintEngine["idle"];
     invalidate: () => void;
 } {
     let painted: GraphSnapshot | null = null;
@@ -2288,6 +2329,7 @@ function repaintAgainstCurrentData(
         // domain is settled against the element count the pass last sized its stores to, so
         // preparing here rather than in a pass would invent one.
         encoding: (entry) => engine.encoding(entry),
+        idle: () => engine.idle(),
         invalidate: (): void => {
             engine.invalidate();
             painted = null;
@@ -2320,11 +2362,15 @@ function repaintAgainstCurrentData(
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
     // Only the published options, even from a caller the types did not check: a store or a record
     // source handed in would make that caller a second writer of the graph.
-    const { config, acceleration, runs } = options;
+    const { config, acceleration, runs, features } = options;
+    // Copied now, as documented: a later setDefaultFeatures, or a change to the caller's array,
+    // must not reach a session that already exists.
+    const requested = Object.freeze([...(features ?? pageDefaultFeatures())]);
     return buildSession({
         ...(config === undefined ? {} : { config }),
         ...(acceleration === undefined ? {} : { acceleration }),
         ...(runs === undefined ? {} : { runs }),
+        features: () => requested,
     });
 }
 
@@ -2461,8 +2507,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         records,
         readData,
         {
-            dispatch: (mutation) => dispatcher.dispatch({ op: "data.apply", mutation }),
+            applier: () => {
+                const send = dispatcher.capturedDispatch();
+                return (mutation) => send({ op: "data.apply", mutation });
+            },
             importer: () => dispatcher.capturedDispatch(),
+            loadLine: loadLineOf(dispatcher),
             slice,
             measure: async (command, config) => {
                 const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
@@ -3359,6 +3409,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         field: fieldWordsOf(data, runs),
         groupRanks: groupRanksOf(runs),
         repaint: painter.repaint,
+        // The passes a selection or pointer change starts without awaiting: `settled()` waits for
+        // those already asked for when it is called.
+        idle: painter.idle,
         // What `styles.legend()` and `styles.explain()` read: the bindings the last pass actually
         // painted from. Without it both verbs fall back to "nothing is prepared" and report an
         // empty picture on a graph that is plainly painted.
@@ -3606,6 +3659,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             results: () => results,
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
         }),
+        features: options.features ?? (() => undefined),
         readProject,
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,

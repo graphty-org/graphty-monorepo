@@ -386,7 +386,10 @@ function placeColumns(columns: readonly ColumnValues[], places: Gazetteer): Part
  * @returns The narrowing column, or null.
  */
 function narrowingColumn(found: Partial<Record<PlaceRole, ColumnValues>>, kind: PlaceRole | "auto"): PlaceWithinSource {
-    const by = kind === "country" ? undefined : (found.country ?? (kind === "region" ? undefined : found.region));
+    if (kind === "country") {
+        return null;
+    }
+    const by = found.country ?? (kind === "region" ? undefined : found.region);
     return by === undefined ? null : { column: by.name, values: by.values };
 }
 

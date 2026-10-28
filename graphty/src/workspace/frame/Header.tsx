@@ -11,6 +11,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TimeChip } from "../time/TimeChip";
 import { CommandButton } from "./CommandButton";
 import { MainMenu } from "./menus";
+import { SiteChip } from "./SiteChip";
 
 /**
  * Re-renders on every change of the element's undo history, so Undo and Redo follow it.
@@ -27,8 +28,9 @@ function useHistoryVersion(session: GraphSession | null): void {
 /**
  * The header (tier1-design.md section 2.1): the main menu, the project name (a tap or F2
  * renames it), Undo and Redo, the filter chip while a filter step is on (tier2-design.md
- * section 1) and the time chip while a time window is on. The autosave state and the privacy chip
- * report state the reader does not act on here, so they sit in the status bar (Frame).
+ * section 1), the time chip while a time window is on and, on canary and nightly, the site's name.
+ * The autosave state and the privacy chip report state the reader does not act on here, so they sit
+ * in the status bar (Frame).
  * @returns The header
  */
 export function Header(): React.JSX.Element {
@@ -84,6 +86,7 @@ export function Header(): React.JSX.Element {
             <CommandButton id="history.redo" icon={<GLYPHS.redo size={16} aria-hidden />} />
             <FilterChip />
             <TimeChip />
+            <SiteChip />
         </header>
     );
 }

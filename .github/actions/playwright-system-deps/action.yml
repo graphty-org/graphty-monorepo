@@ -30,7 +30,7 @@ runs:
           run: echo "key=playwright-debs-${ImageOS:?}-${ImageVersion:?}-$(pnpm exec playwright --version | awk '{print $2}')$([ "$BROWSERS" = chromium ] || echo "-${BROWSERS// /-}")" >> "$GITHUB_OUTPUT"
 
         - id: cache
-          uses: actions/cache@v4
+          uses: actions/cache@v6
           with:
               path: ~/.cache/playwright-debs
               key: ${{ steps.key.outputs.key }}

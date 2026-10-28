@@ -175,6 +175,33 @@ A load that left out edge rows naming a node no node row held (`unmatched: "leav
 that count on its entry as `leftOut: { rows, values }`: the rows left out, and how many distinct
 names they gave. The field is there only when at least one row was left out.
 
+### Loads that overlap
+
+Loads land in the order you ask for them, whichever finishes reading first. Every door that loads
+into the graph takes its place in one line when you call it: `session.data.import`, `generate`,
+`loadDataset`, `loadSample`, `more`, `expand`, `runPendingSourceLoad`, a prepared draft's
+`load()`, the element's `addDataFromSource`, `loadFromFile` and `loadFromUrl`, its `data-source`
+attributes and its `nodeData` and `edgeData` properties. That holds for a load that adds to the
+graph as much as for one that replaces it. So a dataset you pick while another is still downloading
+replaces it, and undo goes back to the first one.
+
+A load waits for the loads ahead of it to finish reading. A download that never finishes holds
+back every load asked for after it. Pass a `signal` and abort it to let the next load through:
+
+```typescript
+let download = new AbortController();
+void session.data.loadDataset("karate", { signal: download.signal });
+
+// The reader picked another graph: stop the old download so the new one is not held behind it.
+download.abort();
+download = new AbortController();
+await session.data.loadDataset("dolphins", { signal: download.signal });
+```
+
+A load aborted before its turn comes rejects and changes nothing, even when its download had
+already finished. A replacing `addDataFromSource`, `loadFromFile` or `loadFromUrl`
+does not wait for the element's own earlier loads: those reject with `E_SUPERSEDED`.
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and

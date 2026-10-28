@@ -74,6 +74,7 @@ export function HistogramBrush({
     plotHeight,
 }: Readonly<{ brush: HistogramBrushProps; plotHeight: number | string }>): React.JSX.Element {
     const [dragged, setDragged] = useState<[number, number] | null>(null);
+    const plotTop = typeof plotHeight === "number" ? `${String(plotHeight)}px` : plotHeight;
     // The range the gesture is at, read on release: the drawn `dragged` can be a render behind
     // when moves arrive faster than React draws them (a quick flick, a finger).
     const press = useRef<{
@@ -108,7 +109,7 @@ export function HistogramBrush({
                     position: "absolute",
                     left: `${String(left)}%`,
                     width: `${String(Math.max(0, right - left))}%`,
-                    top: `calc(-1 * ${typeof plotHeight === "number" ? `${String(plotHeight)}px` : plotHeight})`,
+                    top: `calc(-1 * ${plotTop})`,
                     bottom: 0,
                     zIndex: 2,
                     touchAction: "none",

@@ -22,8 +22,10 @@ import { Workspace } from "../../Workspace";
 const TIMEOUT_MS = 90_000;
 
 /**
- * The workspace on the airline sample, laid out in a still layout in the 2D view, so a force
- * simulation over its 37,000 edges does not keep the page too busy to take a click.
+ * The workspace on the airline sample's airports, laid out in a still layout in the 2D view. Its
+ * 37,000 routes are removed once it has loaded: the tests are about the Nodes table, and every
+ * frame the element draws with them (one after each command, the ignore and the undo included) is
+ * 77,000 instanced shapes, which a software GPU takes 2.5 s to draw on 4 CPUs (0.2 s without).
  * @returns the element's session.
  */
 async function openAirlines(): Promise<GraphSession> {
@@ -42,6 +44,7 @@ async function openAirlines(): Promise<GraphSession> {
     await session.layout.set("circular");
     await session.layout.setDimension("2d");
     await session.data.loadDataset("openflights", datasetBase());
+    await session.data.removeEdges(session.data.edges().map((edge) => edge.id));
     return session;
 }
 

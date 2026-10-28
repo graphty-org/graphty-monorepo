@@ -1,8 +1,8 @@
 /**
  * @file One store for the credentials a reader asks the element to remember: the AI provider keys
  * (its `ai` namespace, an `ApiKeyManager` with its storage keys unchanged) and the credentials of
- * network sources (its `source` namespace), keyed by source id, the endpoint's origin and, for
- * basic authentication, the user name. Both share one persistence switch, one encryption and one
+ * network sources (its `source` namespace), keyed by source id, the endpoint's origin, the source's
+ * credential slot and, for basic authentication, the user name. Both share one persistence switch, one encryption and one
  * passphrase: the `ApiKeyManager`'s (design/graph-io/network-sources-design.md section 6.4).
  *
  * Lookup is by the origin about to be contacted, so a project file naming another endpoint never
@@ -23,12 +23,20 @@ import { GraphtyError } from "../errors/GraphtyError";
 /** The item the source namespace keeps in the AI key manager's store. */
 const SOURCE_ITEM = "source-credentials";
 
+/** The slot of a source that declares none; a credential saved before slots existed fills it. */
+const DEFAULT_SLOT = "default";
+
 /** Where a source credential is used. Experimental. */
 export interface SourceCredentialTarget {
     /** The source id. */
     readonly source: string;
     /** The endpoint; only its origin (scheme, host and port) is kept. */
     readonly endpoint: string | URL;
+    /**
+     * The source's credential slot it fills (`credentialSlots(descriptor)`, "api_key" for
+     * OpenAlex). Absent: it fills whichever slot the source's load asks for.
+     */
+    readonly slot?: string;
 }
 
 /** One remembered credential, as `list()` describes it: never a secret. Experimental. */
@@ -50,12 +58,15 @@ export type StoredCredentialInfo =
           readonly kind: CredentialKind;
           /** A basic credential's user name. */
           readonly username?: string;
+          /** The credential slot it fills, when it was remembered for one. */
+          readonly slot?: string;
       };
 
 /** A remembered source credential, as stored. */
 interface Entry {
     readonly source: string;
     readonly origin: string;
+    readonly slot?: string;
     readonly parts: StorableCredential;
 }
 
@@ -71,13 +82,22 @@ function originOf(endpoint: string | URL): string {
 
 /**
  * The key an entry is stored under.
- * @param source - the source id
- * @param origin - the origin
- * @param parts - the credential's parts
+ * @param entry - the entry
  * @returns the key
  */
-function keyOf(source: string, origin: string, parts: StorableCredential): string {
-    return JSON.stringify([source, origin, parts.kind === "basic" ? parts.username : ""]);
+function keyOf(entry: Entry): string {
+    const { source, origin, slot, parts } = entry;
+    return JSON.stringify([source, origin, parts.kind === "basic" ? parts.username : "", slot ?? ""]);
+}
+
+/**
+ * Whether an entry fills a slot: one remembered for that slot, or for no slot in particular.
+ * @param entry - the entry
+ * @param slot - the slot, or undefined for any
+ * @returns true when it does
+ */
+function fills(entry: Entry, slot: string | undefined): boolean {
+    return slot === undefined || entry.slot === undefined || entry.slot === slot;
 }
 
 /** The credentials a reader asked to remember: AI keys and network-source credentials. Experimental. */
@@ -125,7 +145,7 @@ export class CredentialStore {
         this.#ai = manager;
         const saved = manager.getStoredItem(SOURCE_ITEM);
         for (const entry of Array.isArray(saved) ? (saved as Entry[]) : []) {
-            const key = keyOf(entry.source, entry.origin, entry.parts);
+            const key = keyOf(entry);
             if (!this.#entries.has(key)) {
                 this.#entries.set(key, entry);
             }
@@ -142,9 +162,10 @@ export class CredentialStore {
     }
 
     /**
-     * Remember a network-source credential for a source at an endpoint's origin. Kept in memory,
-     * and on this device when the AI key manager's persistence is on.
-     * @param target - the source and the endpoint
+     * Remember a network-source credential for a source at an endpoint's origin, and for one of
+     * its credential slots when `target.slot` names it. Kept in memory, and on this device when the
+     * AI key manager's persistence is on.
+     * @param target - the source, the endpoint and the slot
      * @param credential - from the `credentials` factories
      * @throws A `GraphtyError` with `E_CREDENTIAL_NOT_STORABLE` (`{ kind }`) for a token
      *     function, an AWS provider or a custom credential.
@@ -161,38 +182,68 @@ export class CredentialStore {
         }
 
         await this.#ready;
-        const origin = originOf(target.endpoint);
-        this.#entries.set(keyOf(target.source, origin, parts), { source: target.source, origin, parts });
+        const entry: Entry = {
+            source: target.source,
+            origin: originOf(target.endpoint),
+            ...(target.slot === undefined ? {} : { slot: target.slot }),
+            parts,
+        };
+        this.#entries.set(keyOf(entry), entry);
         this.#save();
     }
 
     /**
-     * The remembered credential for a source and the origin about to be contacted.
+     * The remembered credential for a source, the origin about to be contacted and, when given,
+     * the credential slot to fill.
      * @param source - the source id
      * @param origin - the origin, or any URL on it
+     * @param slot - the slot; one remembered for no slot in particular fills any
      * @returns the credential, bound to that origin only, or undefined
      */
-    async lookup(source: string, origin: string | URL): Promise<Credential | undefined> {
+    async lookup(source: string, origin: string | URL, slot?: string): Promise<Credential | undefined> {
         await this.#ready;
         const wanted = originOf(origin);
-        for (const entry of this.#entries.values()) {
-            if (entry.source === source && entry.origin === wanted) {
-                return fromStorableCredential(entry.parts, { origins: [entry.origin] });
-            }
+        const matches = [...this.#entries.entries()].filter(
+            ([, entry]) => entry.source === source && entry.origin === wanted && fills(entry, slot),
+        );
+        // A credential remembered for this very slot wins over one remembered for no slot.
+        const [key, entry] = matches.find(([, e]) => e.slot === slot) ?? matches[0] ?? [];
+        if (key === undefined || entry === undefined) {
+            return undefined;
         }
 
-        return undefined;
+        if (slot === DEFAULT_SLOT && entry.slot === undefined) {
+            this.#migrate(key, { ...entry, slot });
+        }
+
+        return fromStorableCredential(entry.parts, { origins: [entry.origin] });
     }
 
     /**
-     * Forget the credentials remembered for a source at an endpoint's origin.
-     * @param target - the source and the endpoint
+     * Re-key an entry saved before credentials had slots under the slot a lookup found it for.
+     * @param key - its old key
+     * @param entry - the entry with its slot
+     */
+    #migrate(key: string, entry: Entry): void {
+        this.#entries.delete(key);
+        const migrated = keyOf(entry);
+        if (!this.#entries.has(migrated)) {
+            this.#entries.set(migrated, entry);
+        }
+        this.#save();
+    }
+
+    /**
+     * Forget the credentials remembered for a source at an endpoint's origin: those of one slot
+     * when `target.slot` names it, else all of them.
+     * @param target - the source, the endpoint and the slot
      */
     async forget(target: SourceCredentialTarget): Promise<void> {
         await this.#ready;
         const origin = originOf(target.endpoint);
         for (const [key, entry] of this.#entries) {
-            if (entry.source === target.source && entry.origin === origin) {
+            const slotMatches = target.slot === undefined || entry.slot === target.slot;
+            if (entry.source === target.source && entry.origin === origin && slotMatches) {
                 this.#entries.delete(key);
             }
         }
@@ -209,12 +260,13 @@ export class CredentialStore {
             namespace: "ai",
             provider,
         }));
-        const sources: StoredCredentialInfo[] = [...this.#entries.values()].map(({ source, origin, parts }) => ({
+        const sources: StoredCredentialInfo[] = [...this.#entries.values()].map(({ source, origin, slot, parts }) => ({
             namespace: "source",
             source,
             origin,
             kind: parts.kind,
             ...(parts.kind === "basic" ? { username: parts.username } : {}),
+            ...(slot === undefined ? {} : { slot }),
         }));
         return Object.freeze([...ai, ...sources]);
     }

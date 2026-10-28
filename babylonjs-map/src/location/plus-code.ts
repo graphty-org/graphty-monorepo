@@ -2,6 +2,8 @@ const ALPHABET = "23456789CFGHJMPQRVWX";
 const PAIR_RESOLUTIONS = [20, 1, 0.05, 0.0025, 0.000125];
 const FULL =
     /^[23456789CFGHJMPQRVWX]{8}\+(?:[23456789CFGHJMPQRVWX]{2,})?$|^(?=.{8}\+$)(?:[23456789CFGHJMPQRVWX]{2}){1,3}(?:00)+\+$/;
+/** Longer than any plus code a person writes (the reference decodes at most 15 digits). */
+const MAX_CODE_LENGTH = 32;
 const SHORT = /^[23456789CFGHJMPQRVWX]{2,7}\+[23456789CFGHJMPQRVWX]*$/;
 
 /**
@@ -25,6 +27,11 @@ function withoutTrailingZeros(digits: string): string {
  */
 export function decodePlusCode(value: string): { lat: number; lon: number } | "short" | null {
     const code = value.trim().toUpperCase();
+    // A full code is at most 8 digits, "+" and 7 more; anything far longer is not a code, and the
+    // cap keeps every regex below linear on hostile input.
+    if (code.length > MAX_CODE_LENGTH) {
+        return null;
+    }
     if (!FULL.test(code)) {
         return SHORT.test(code) && code.indexOf("+") < 8 ? "short" : null;
     }

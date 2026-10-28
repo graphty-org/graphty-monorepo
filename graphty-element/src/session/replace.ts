@@ -60,8 +60,9 @@ export interface ReplacePlan {
  */
 export function pairKey(source: string | number, target: string | number, directed: boolean): string {
     const ends = [String(source), String(target)];
-    if (!directed) {
-        ends.sort();
+    // Undirected: the pair in code-unit order, so both orders give one key.
+    if (!directed && ends[1] < ends[0]) {
+        ends.reverse();
     }
 
     return ends.join("\u0000");
@@ -103,24 +104,33 @@ function differs(
     );
 }
 
-/**
- * Plan a replacement. Edges match by their endpoint pair (a repeated pair is one edge, as the
- * merge that adds the copy's new edges keeps the first); nodes match by id.
- * ponytail: an edge id column (`edgeIdPath`) is not read; match by it when a source keys its edges.
- * @param input - the load's rows, the graph and the newer copy
- * @returns what goes, what changes and the counts
- */
-export function planReplace(input: ReplaceInput): ReplacePlan {
-    const { held, paths, directed } = input;
-    const nodePath = held.idPath ?? paths.nodeId;
-    const sourcePath = held.source ?? paths.source;
-    const targetPath = held.target ?? paths.target;
+/** The newer copy's rows: its node rows and edge rows by key, and every id it names. */
+interface Copy {
+    readonly newNodes: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
+    readonly newEdges: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
+    readonly named: ReadonlySet<string>;
+}
 
-    // The copy's nodes: its node rows by id, and every id an edge names.
+/**
+ * Read the newer copy: its node rows by id (the first of an id), its edge rows by endpoint pair
+ * (the first of a pair), and every id a node row or an edge names.
+ * @param held - the copy's rows
+ * @param paths - the expressions a row's id and ends are read with
+ * @param paths.nodePath - a node row's id
+ * @param paths.sourcePath - an edge row's source
+ * @param paths.targetPath - an edge row's target
+ * @param directed - whether the graph's edges are directed
+ * @returns the copy
+ */
+function readCopy(
+    held: HeldRows,
+    paths: { readonly nodePath: string; readonly sourcePath: string; readonly targetPath: string },
+    directed: boolean,
+): Copy {
     const newNodes = new Map<string, Readonly<Record<string, unknown>>>();
     const named = new Set<string>();
     for (const row of held.nodes) {
-        const id = idText(readEndpoint(row, nodePath));
+        const id = idText(readEndpoint(row, paths.nodePath));
         if (id !== null) {
             named.add(id);
             if (!newNodes.has(id)) {
@@ -131,8 +141,8 @@ export function planReplace(input: ReplaceInput): ReplacePlan {
 
     const newEdges = new Map<string, Readonly<Record<string, unknown>>>();
     for (const row of held.edges) {
-        const source = idText(readEndpoint(row, sourcePath));
-        const target = idText(readEndpoint(row, targetPath));
+        const source = idText(readEndpoint(row, paths.sourcePath));
+        const target = idText(readEndpoint(row, paths.targetPath));
         if (source === null || target === null) {
             continue;
         }
@@ -145,15 +155,28 @@ export function planReplace(input: ReplaceInput): ReplacePlan {
         }
     }
 
-    // The load's edges: gone, changed or kept.
-    const ends = new Set([columnOf(sourcePath), columnOf(targetPath)]);
+    return { newNodes, newEdges, named };
+}
+
+/**
+ * The load's edges: gone, changed or kept, and how many of the copy's edges are new.
+ * @param input - the load's rows, the graph and the newer copy
+ * @param copy - the copy as read
+ * @param ends - the columns that name an edge's ends
+ * @returns the edges to remove, the rows to update and the count added
+ */
+function planEdges(
+    input: ReplaceInput,
+    copy: Copy,
+    ends: ReadonlySet<string>,
+): { removeEdges: EdgeId[]; edgeRows: RowUpdate<EdgeId>[]; edgesAdded: number } {
     const removeEdges: EdgeId[] = [];
     const edgeRows: RowUpdate<EdgeId>[] = [];
     const oldPairs = new Set<string>();
     for (const edge of input.edges) {
-        const key = pairKey(edge.source, edge.target, directed);
+        const key = pairKey(edge.source, edge.target, input.directed);
         oldPairs.add(key);
-        const row = newEdges.get(key);
+        const row = copy.newEdges.get(key);
         if (row === undefined) {
             if (!input.shared.edges.has(edge.id)) {
                 removeEdges.push(edge.id);
@@ -163,20 +186,29 @@ export function planReplace(input: ReplaceInput): ReplacePlan {
         }
     }
 
-    let edgesAdded = 0;
-    for (const key of newEdges.keys()) {
-        if (!oldPairs.has(key) && !input.graphPairs.has(key)) {
-            edgesAdded++;
-        }
-    }
+    const edgesAdded = [...copy.newEdges.keys()].filter(
+        (key) => !oldPairs.has(key) && !input.graphPairs.has(key),
+    ).length;
+    return { removeEdges, edgeRows, edgesAdded };
+}
 
-    // The load's nodes: gone, changed or kept.
-    const ids = new Set([columnOf(nodePath)]);
+/**
+ * The load's nodes: gone, changed or kept.
+ * @param input - the load's rows, the graph and the newer copy
+ * @param copy - the copy as read
+ * @param ids - the columns that name a node
+ * @returns the nodes to remove and the rows to update
+ */
+function planNodes(
+    input: ReplaceInput,
+    copy: Copy,
+    ids: ReadonlySet<string>,
+): { removeNodes: NodeId[]; nodeRows: RowUpdate<NodeId>[] } {
     const removeNodes: NodeId[] = [];
     const nodeRows: RowUpdate<NodeId>[] = [];
     for (const node of input.nodes) {
-        const row = newNodes.get(String(node.id));
-        if (!named.has(String(node.id))) {
+        const row = copy.newNodes.get(String(node.id));
+        if (!copy.named.has(String(node.id))) {
             if (!input.shared.nodes.has(node.id)) {
                 removeNodes.push(node.id);
             }
@@ -185,8 +217,31 @@ export function planReplace(input: ReplaceInput): ReplacePlan {
         }
     }
 
+    return { removeNodes, nodeRows };
+}
+
+/**
+ * Plan a replacement. Edges match by their endpoint pair (a repeated pair is one edge, as the
+ * merge that adds the copy's new edges keeps the first); nodes match by id.
+ * ponytail: an edge id column (`edgeIdPath`) is not read; match by it when a source keys its edges.
+ * @param input - the load's rows, the graph and the newer copy
+ * @returns what goes, what changes and the counts
+ */
+export function planReplace(input: ReplaceInput): ReplacePlan {
+    const { held, paths, directed } = input;
+    const nodePath = held.idPath ?? paths.nodeId;
+    const sourcePath = held.source ?? paths.source;
+    const targetPath = held.target ?? paths.target;
+    const copy = readCopy(held, { nodePath, sourcePath, targetPath }, directed);
+    const { removeEdges, edgeRows, edgesAdded } = planEdges(
+        input,
+        copy,
+        new Set([columnOf(sourcePath), columnOf(targetPath)]),
+    );
+    const { removeNodes, nodeRows } = planNodes(input, copy, new Set([columnOf(nodePath)]));
+
     // A node that goes is one the copy does not name, so every named id the graph lacks is new.
-    const nodesAdded = [...named].filter((id) => !input.hasNode(id)).length;
+    const nodesAdded = [...copy.named].filter((id) => !input.hasNode(id)).length;
 
     return {
         removeNodes,

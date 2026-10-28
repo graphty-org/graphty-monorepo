@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { compactTheme } from "../../src";
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { Popout, PopoutManager } from "../../src/components/popout";
+import { TOOLTIP_WAIT } from "../waits";
 
 /**
  * Render inside the compact theme, the way the package is consumed.
@@ -33,12 +34,9 @@ describe("InfoCircle", () => {
         await user.hover(screen.getByRole("button", { name: "About Betweenness" }));
 
         // The theme opens tooltips after a delay and mounts them hidden first.
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("About Betweenness");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("About Betweenness");
+        }, TOOLTIP_WAIT);
     });
 
     it("keeps the explanation closed until it is asked for", () => {

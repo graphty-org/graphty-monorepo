@@ -273,6 +273,7 @@ function IncomingTable({
     const columns = subject.columns.map((column): DataTableColumn<IncomingRow> => {
         const key = keyOf(column);
         const isKey = key >= 0;
+        const keyEnd = key === 0 ? "source" : "target";
         const rule = choices.clash?.[column] ?? "both";
         return {
             id: `c:${column}`,
@@ -282,16 +283,20 @@ function IncomingTable({
             icon: isKey ? (
                 <span className="jn-key-icon" data-key={column}>
                     <GLYPHS.key size={14} aria-hidden />
-                    {edges ? <span className="ws-th-role">{key === 0 ? "source" : "target"}</span> : null}
+                    {edges ? <span className="ws-th-role">{keyEnd}</span> : null}
                 </span>
             ) : undefined,
-            ...(isKey ? { iconLabel: edges ? `key, ${key === 0 ? "source" : "target"}` : "key" } : {}),
+            ...(isKey ? { iconLabel: edges ? `key, ${keyEnd}` : "key" } : {}),
             headerEnd: (
                 <span className="jn-th-end">
                     {clashes.has(column) && brought.has(column) ? (
                         <HoverCard openDelay={100} closeDelay={250} position="bottom-end" shadow="md">
                             <HoverCard.Target>
-                                <span className="jn-clash" role="img" aria-label={`${column} is in the graph`}>
+                                <span // NOSONAR(S6819): a glyph inside a hover target, named by aria-label; an <img> cannot hold the icon component
+                                    className="jn-clash"
+                                    role="img"
+                                    aria-label={`${column} is in the graph`}
+                                >
                                     <GLYPHS.join size={14} aria-hidden />
                                 </span>
                             </HoverCard.Target>
@@ -540,7 +545,13 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
         .filter((row) => show !== "not-in-graph" || row.match.length === 0);
     const hows = howChoices(workspace, subject);
     return (
-        <section className="jn-screen" aria-label="Join" ref={screenRef} tabIndex={-1} onKeyDown={onKeyDown}>
+        <section // NOSONAR(S6847): the screen's own keys, caught as they bubble from its controls; it takes focus (tabIndex -1)
+            className="jn-screen"
+            aria-label="Join"
+            ref={screenRef}
+            tabIndex={-1}
+            onKeyDown={onKeyDown}
+        >
             <header className="jn-bar">
                 <span className="jn-title">Join</span>
                 <Badge variant="default" leftSection={<GLYPHS.file size={12} aria-hidden />}>
@@ -596,7 +607,10 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                         onChange={setChoices}
                     />
                     {counts === null ? (
-                        <p className="jn-refused" role="status">
+                        <p // NOSONAR(S6819): a live announcement of why the join was refused; <output> is for a form's computed result
+                            className="jn-refused"
+                            role="status"
+                        >
                             {report as string}
                         </p>
                     ) : (

@@ -92,10 +92,19 @@ describe("the issues", () => {
         assert.equal(body.match(/```/g).length, 2);
     });
 
-    it("files nothing when more tests fail than a load-sensitive test explains", () => {
-        const many = Array.from({ length: MAX_FILED + 1 }, (_, i) => ({ ...t, id: `x > ${i}` }));
-        assert.throws(() => plan(many, [], CTX), /nothing filed/);
-        assert.equal(plan(many.slice(1), [], CTX).length, MAX_FILED);
+    it("reports a file with more failing tests than a load-sensitive test explains as suite broken", () => {
+        const many = Array.from({ length: MAX_FILED + 2 }, (_, i) => ({
+            ...t,
+            file: "test/b.test.ts",
+            id: `x > ${i}`,
+        }));
+        const actions = plan([...many, t], [], CTX);
+        assert.deepEqual(actions[0], {
+            suiteBroken: { package: "graph-io", file: "test/b.test.ts", count: MAX_FILED + 2 },
+        });
+        assert.equal(actions.length, 2);
+        assert.equal(actions[1].create.title, 'Load-sensitive test: reader > parses "x" (graph-io)');
+        assert.equal(plan(many.slice(2), [], CTX).length, MAX_FILED);
     });
 });
 

@@ -27,16 +27,21 @@ const config: StorybookConfig = {
         disableTelemetry: true,
     },
     async viteFinal(config, { configType }) {
+        const { mergeConfig, loadEnv } = await import("vite");
+        // The sample datasets and their pictures are served beside the Storybook (staticDirs, and
+        // vite.sample-data.ts under vitest), not read from graphty.app, in every build of the
+        // stories: the vitest story tests run in production mode too, where DEV is false (open.ts).
+        const localData = { define: { "import.meta.env.VITE_LOCAL_SAMPLE_DATA": JSON.stringify("true") } };
+
         // Under vitest (the `storybook` test project) vitest serves the stories itself, on its own
         // host and port: the dev server's host and certificate below would point the test browser
         // at a name it cannot reach.
         if (process.env.VITEST !== undefined) {
-            return config;
+            return mergeConfig(config, localData);
         }
 
         const fs = await import("node:fs");
         const path = await import("node:path");
-        const { mergeConfig, loadEnv } = await import("vite");
 
         // Load env file from monorepo root (one level up from this package)
         const monorepoRoot = path.resolve(__dirname, "../..");
@@ -67,13 +72,7 @@ const config: StorybookConfig = {
             // Your production configuration goes here.
         }
 
-        const merged = mergeConfig(config, {
-            // Your environment configuration here
-            server,
-            // The sample datasets are served beside the Storybook (staticDirs), not read from graphty.app.
-            define: { "import.meta.env.VITE_LOCAL_SAMPLE_DATA": JSON.stringify("true") },
-        });
-        return merged;
+        return mergeConfig(config, { ...localData, server });
     },
 };
 export default config;

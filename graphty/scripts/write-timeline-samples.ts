@@ -10,7 +10,7 @@
  *   runs from the citing paper to an older one it cites. Edges carry no time: they follow their ends.
  *
  * Both are synthetic and seeded (mulberry32), so a rerun writes the same bytes.
- * Run: npm run samples:write (from graphty/).
+ * Run: npm run samples:write-timeline (from graphty/).
  */
 
 import { writeFileSync } from "node:fs";

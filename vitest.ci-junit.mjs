@@ -36,5 +36,9 @@ export function ciReporters(options = {}) {
     if (process.env.VITEST_BUDGET_CHECK === "1") {
         reporters.push([fileURLToPath(new URL("tools/vitest-time-budget.mjs", import.meta.url)), {}]);
     }
+    if (process.env.GRAPHTY_RESULTS_INVOCATION) {
+        // tools/results/run-group.mjs sets it: each failed test goes to the results store as it happens.
+        reporters.push([fileURLToPath(new URL("tools/results/reporter.mjs", import.meta.url)), {}]);
+    }
     return reporters;
 }

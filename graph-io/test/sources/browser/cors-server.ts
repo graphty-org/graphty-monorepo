@@ -9,6 +9,7 @@ import { type AddressInfo, createServer as createTcpServer, type Server as TcpSe
 
 import { type TestProject } from "vitest/node";
 
+import { openalexAnswer } from "../rest/openalex-fixture.js";
 import { answer } from "../sparql/fixture.js";
 
 declare module "vitest" {
@@ -37,6 +38,8 @@ function listen(server: Server | TcpServer): Promise<number> {
  * @returns the teardown
  */
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
+    /** The api_key and Authorization of every OpenAlex stand-in request, until read. */
+    const openalexSeen: { apiKey: string | null; authorization: string | null }[] = [];
     const server = createServer((req, res) => {
         const cors = req.url?.startsWith("/cors/") === true;
         if (cors) {
@@ -60,6 +63,17 @@ export default async function setup(project: TestProject): Promise<() => Promise
             return;
         }
         const auth = req.headers.authorization ?? null;
+        if (req.url?.startsWith("/cors/openalex/") === true) {
+            // a stand-in for api.openalex.org: /log hands over what the other routes saw
+            const url = new URL(req.url.slice("/cors/openalex".length), "http://stand-in");
+            if (url.pathname === "/log") {
+                res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(openalexSeen.splice(0)));
+                return;
+            }
+            openalexSeen.push({ apiKey: url.searchParams.get("api_key"), authorization: auth });
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(openalexAnswer(url)));
+            return;
+        }
         if (req.url === "/cors/redirect") {
             // a redirect to another origin, which a credentialed request must never follow
             res.writeHead(302, { Location: "http://localhost:9/elsewhere" }).end();

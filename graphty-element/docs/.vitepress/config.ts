@@ -101,6 +101,7 @@ export default defineConfig({
                         { text: "Journal", link: "/guide/journal" },
                         { text: "Project Files", link: "/guide/project-file" },
                         { text: "Autosave", link: "/guide/autosave" },
+                        { text: "Experiments", link: "/guide/experiments" },
                         { text: "Camera", link: "/guide/camera" },
                         { text: "Where a Node Is on Screen", link: "/guide/screen-position" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },

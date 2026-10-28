@@ -1,9 +1,9 @@
 /**
  * The planted-defect test of the oracle comparator: plants one visual defect at a time in graphty's drawn primitives
  * just before the comparison, and asserts that the comparison catches every defect on every sample it changes: an
- * element fails a property it passes unplanted, or the floors fail where the unplanted run passes them (a property
- * falls below its floor, is judged with no floor, or an element fails that the known failures do not list). A
- * planted defect the floors pass is a blind spot of the comparator: fix the comparator, never the defect. A defect
+ * element fails a property it passes unplanted, which is what fails a sample (`oracle/floors.ts`: pass rates never
+ * gate). A planted defect no element fails for is a blind spot of the comparator: fix the comparator, never the
+ * defect. A defect
  * is excused only where it cannot test anything: where it changes nothing, where it lands only on elements already
  * failing the property it is for (`absorbedByKnownFailures`), or where it cannot be planted (a mirror or a turn
  * between unrelated layouts).
@@ -28,17 +28,15 @@ import { SAMPLES } from "../../../graph-io/test/fidelity/samples";
 import { SPECIMEN_SAMPLES } from "../../../graph-io/test/fidelity/specimens/index";
 import { mountSample, unmount } from "./mount";
 import { absorbedByKnownFailures, MUTATIONS } from "./mutations";
-import { type OracleReport, withoutCaptions } from "./oracle/compare-oracle";
+import type { OracleReport } from "./oracle/compare-oracle";
 import {
     compareWithOracle,
-    isStandIn,
     ORACLE_CANVAS,
     oracleFormatOptions,
     oracleGraphName,
     oracleMeta,
 } from "./oracle/oracle-library";
 import type { PScene } from "./oracle/primitives";
-import { checkFloors, partsOf, readOracleFloors } from "./oracle/run-oracle";
 
 /**
  * The samples that between them exercise every planted defect: synthetic files, and the specimen sheets that hold
@@ -62,10 +60,33 @@ const DEFAULT_IDS = [
     "dot-synth-edges-clusters",
     "cytoscapejs-specimen-edge-labels",
     "cytoscapejs-specimen-edges-lines",
+    // a line's overlay, a wider band drawn over it, beside one drawn under it
+    "cytoscapejs-specimen-edges-lines-p2",
+    // edges drawn on one another between one pair in different widths, each an edge, not an outline of another
+    "cyjs-genemania",
     "cytoscapejs-specimen-groups",
+    // group boxes with 8 px borders (SIGNOR's complexes, nodes drawn over smaller ones): a box judged against the
+    // program's out to its border's outer edge, which thin borders cannot show
+    "cx2-signor-aml",
     "cytoscapejs-specimen-labels-p2",
     "vis-network-specimen-arrows",
     "gml-specimen-groups",
+    // an edge at a node drawn wholly under another, which Pajek's drawing shows nothing of: paired only by the end the
+    // association names after graphty's node
+    "pajek-1crn",
+    // no ids, no positions and no legible labels: only vis-network's own account of where it drew each node tells its
+    // bodies apart, and a defect that swaps two nodes' looks is caught only through it
+    "json-vis-siblings",
+    // sigma.js's raster drawing: discs in a later disc's box corner, which show, and labels under sigma's node-size
+    // rule (labelRenderedSizeThreshold), judged at sigma's framing
+    "json-graphology-synth",
+    "graphology-specimen-labels",
+    // a specimen labeled as its caption (Graphviz's \N names the `default` node `default`, as its caption reads),
+    // judged only where each side names its caption at its own place
+    "dot-specimen-node-sizes-opacity-p2",
+    // edges ending at nodes graphty draws no body for (WikiPathways anchors, a node in the canvas's own color), which only
+    // where graphty's lines end at them pairs with the program's
+    "xgmml-wp4271-cy3-export",
 ];
 const ALL_IDS = [...DEFAULT_IDS, "cx-syn-mappings", "cx2-syn-mappings", "cys-syn-mappings"];
 const ONLY = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");
@@ -91,6 +112,21 @@ const ASKED = (import.meta.env.VITE_MUTANT_IDS as string | undefined) ?? DEFAULT
 const IDS = ASKED === "all" ? ALL_IDS : ASKED.split(",");
 
 /**
+ * Graphty's drawing without a specimen sheet's captions: its `cap-*` nodes, their edges and the texts they own.
+ * @param scene - graphty's drawn primitives
+ * @returns the scene without them
+ */
+const captionsLeftOut = (scene: PScene): PScene => {
+    const cap = (id: string | undefined): boolean => id?.startsWith("cap-") === true;
+    return {
+        ...scene,
+        nodes: scene.nodes.filter((n) => !cap(n.id)),
+        edges: scene.edges.filter((e) => !cap(e.source) && !cap(e.target)),
+        texts: scene.texts.filter((t) => !cap(t.owner)),
+    };
+};
+
+/**
  * Every element failing a property, as "property id".
  * @param report - a comparison
  * @returns the pairs
@@ -101,8 +137,6 @@ const failingPairs = (report: OracleReport): Set<string> =>
 afterEach(() => {
     unmount();
 });
-
-const stored = await readOracleFloors();
 
 describe("comparator mutants", () => {
     it.each(IDS)("%s", async (id) => {
@@ -118,7 +152,6 @@ describe("comparator mutants", () => {
             oracleFormatOptions(meta, sample.format),
         );
         const out: Record<string, unknown> = {};
-        const baseline = new Set<string>();
         let base: OracleReport | null = null;
         let oracle: PScene | null = null;
         // an oracle that records only where its program drew the nodes, or the labels' words and not their geometry
@@ -145,42 +178,25 @@ describe("comparator mutants", () => {
                 after = mutate(g);
                 return after;
             });
-            const standIn = isStandIn(oracleMeta(id));
-            const { dropped, unfloored, newlyFailing } = checkFloors(
-                {
-                    report: r.report,
-                    scores: r.scores,
-                    sha256,
-                    oracleSha256: null,
-                    standIn,
-                    matched: null,
-                    parts: partsOf(id, r, r.scores, standIn),
-                },
-                stored,
-            );
-            const fresh = [...dropped.map((d) => d.split(":")[0]), ...unfloored, ...newlyFailing];
             if (base === null) {
                 // the first is the unplanted run ("none"), the baseline every defect is judged against
-                fresh.forEach((x) => baseline.add(x));
                 base = r.report;
                 oracle = r.association.scene;
                 blind = r.association.scene.nodesOnly === true || r.association.scene.labelGeometry === false;
                 continue;
             }
-            // what the comparison judges: a specimen sheet's captions are left out on both sides
-            before = before === null ? null : withoutCaptions(before);
-            after = after === null ? null : withoutCaptions(after);
+            // what the comparison judges: a specimen sheet's captions are left out on both sides. They are known here by
+            // id and owner, never by their words as the comparison knows the program's: a defect on a specimen labeled
+            // as its caption (a DOT sheet's `default`) changes what is judged, and the comparison must catch it
+            before = before === null ? null : captionsLeftOut(before);
+            after = after === null ? null : captionsLeftOut(after);
             if (before === null || after === null || JSON.stringify(before) === JSON.stringify(after)) {
                 out[name] = { outcome: "not exercised" };
                 continue;
             }
-            // what the floors fail that the unplanted run does not, and every element newly failing a property: the
-            // floors' own check where the sample is recorded, and the same judgement where it is not yet
+            // every element newly failing a property: what fails a sample, known failures or not
             const was = failingPairs(base);
-            const caughtBy = [
-                ...fresh.filter((x) => !baseline.has(x)),
-                ...[...failingPairs(r.report)].filter((x) => !was.has(x)),
-            ];
+            const caughtBy = [...failingPairs(r.report)].filter((x) => !was.has(x));
             let outcome = "caught";
             if (caughtBy.length === 0) {
                 outcome = absorbedByKnownFailures(before, after, base, targets)

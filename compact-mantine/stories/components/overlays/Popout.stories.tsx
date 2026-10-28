@@ -17,8 +17,8 @@ import {
     Tooltip,
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useEffect, useRef, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
     CompactColorInput,
@@ -1121,6 +1121,7 @@ export const OneAtATimeInteractions: Story = {
         );
         await userEvent.click(body.getByRole("button", { name: "Create style" }));
         await waitFor(() => expect(body.getAllByRole("dialog")).toHaveLength(2), storyWaitOptions(1000));
+        await waitForSettledLayout(canvasElement, "[data-testid='popout-panel']");
     },
 };
 

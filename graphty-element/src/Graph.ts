@@ -112,7 +112,16 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, EdgeId, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type {
+    AlgorithmKey,
+    DrawnShaders,
+    EdgeId,
+    ElementAtResult,
+    FormatId,
+    GroupOutlineAtResult,
+    Scope,
+    ScopeInput,
+} from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -193,6 +202,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { MeshCache } from "./meshes/MeshCache";
 import { NodeEffects } from "./meshes/NodeEffects";
+import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
@@ -236,15 +246,18 @@ import type { GraphSlice, LayoutChoice } from "./session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "./session/project/strict";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import { shadersControllerOf } from "./session/shaders";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
 import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
+import { createLazyShaderHost } from "./shaders/chunk";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import { downloadBlob } from "./utils/download";
@@ -957,6 +970,33 @@ export class Graph implements GraphContext {
         // brought up to date either way, since a layer can select on any value that moved.
         const { lane } = dispatcherOf(this.session);
         handGraphPaintToRenderer(this.session);
+        // Shaders compile in this scene's engine; the runtime loads on the first one.
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
+        // The background shader, group outlines and bloom read the stack and the nodes' places.
+        this.renderManager.bindShaderScene({
+            session: this.session,
+            member: (id) => {
+                const node = this.dataManager.nodes.get(id);
+                const color = node?.paintedColor;
+                if (
+                    node === undefined ||
+                    color === null ||
+                    color === undefined ||
+                    node.getRenderState() !== "visible"
+                ) {
+                    return undefined;
+                }
+
+                const { x, y, z } = node.getPosition();
+                return {
+                    x,
+                    y,
+                    z,
+                    radius: node.drawnRadius,
+                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
+                };
+            },
+        });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
         lane.register("graph", async (_rendered, target, dirty) => {
@@ -1281,6 +1321,10 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        // A picture the frame on screen does not show yet: an image annotation still loading, or a
+        // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
+        this.updateManager.picturesLoading = () =>
+            this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };
@@ -1300,6 +1344,20 @@ export class Graph implements GraphContext {
         dispatcherOf(this.session).services.legacy = {
             run: (command, ctx) => this.algorithmManager.runLegacy(command, ctx),
         };
+
+        // The layout transition: where nodes are drawn on their way to a new layout.
+        attachTransitions(
+            this.layoutManager,
+            new LayoutTransitionRunner({
+                scene: () => this.scene,
+                config: () => this.styles.config.graph.layoutTransition,
+                quality: () => this.renderManager.shaderGuard.quality,
+                nodes: () => this.layoutManager.nodes,
+                edges: () => this.layoutManager.edges,
+                selected: () => this.selectionManager.getSelectedNodes(),
+                layoutRunning: () => this.layoutManager.running,
+            }),
+        );
 
         // Initialize SelectionManager
         this.selectionManager = new SelectionManager(this.eventManager);
@@ -1843,6 +1901,8 @@ export class Graph implements GraphContext {
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
+        // A new engine: its shaders compile again there.
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
         this.camera = this.renderManager.camera;
         this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);
@@ -2135,7 +2195,8 @@ export class Graph implements GraphContext {
      * its texture has arrived; the scene never holds more than one dome. A later read of
      * `styles.config.graph.background` sees the value, parsed.
      * @param background - A colour (`{backgroundType: "color", color}`) or a skybox
-     *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG.
+     *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG;
+     *     either may carry a `shader` (`{ id, params }`) drawn over it.
      * @throws A Zod error when the value is not a background; nothing is changed then.
      */
     setBackground(background: GraphBackgroundConfig): void {
@@ -2428,6 +2489,7 @@ export class Graph implements GraphContext {
                 background: project.background,
                 selection: project.selectionStyle,
                 ...(project.startingRows ? { startingRows: true } : {}),
+                ...(project.layoutTransition === undefined ? {} : { layoutTransition: project.layoutTransition }),
             },
             data: project.data,
             behavior: GraphBehaviorOpts.parse({
@@ -4224,13 +4286,7 @@ export class Graph implements GraphContext {
      */
     private handleBackgroundClick(event: { button?: number; shiftKey?: boolean }): void {
         const { pointerX: x, pointerY: y } = this.scene;
-        const picked = pickAsDrawn(this.scene, x, y);
-        if (picked && isCloseLabel(picked)) {
-            const close = closeRectOnScreen(picked);
-            if (close !== undefined && inRect(close, x, y)) {
-                this.selectionManager.deselect();
-            }
-
+        if (this.handledOnCloseLabel(x, y)) {
             return;
         }
 
@@ -4241,7 +4297,13 @@ export class Graph implements GraphContext {
         const edgeId = this.pickEdgeId(x, y);
         const secondary = event.button === 2;
         if (edgeId === undefined) {
-            this.clickEmptyCanvas(x, y, secondary);
+            const outline = this.renderManager.pickGroupOutline(x, y);
+            if (outline === null) {
+                this.clickEmptyCanvas(x, y, secondary);
+            } else {
+                this.clearSelectionOnPrimary(secondary);
+                this.session.groupOutlineClick(outline);
+            }
             return;
         }
 
@@ -4259,13 +4321,46 @@ export class Graph implements GraphContext {
      * @param secondary - Whether it was the secondary button.
      */
     private clickEmptyCanvas(x: number, y: number, secondary: boolean): void {
-        if (!secondary) {
-            this.selectionManager.deselect();
-            if (this.session.selection.edges.length > 0) {
-                this.session.selection.clear();
-            }
-        }
+        this.clearSelectionOnPrimary(secondary);
         this.session.emptyClick({ x, y, secondary });
+    }
+
+    /**
+     * A click on a label that draws a close button: on the x it clears the selection, and anywhere
+     * else on that label it does nothing at all.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @returns True when the click landed on such a label, so nothing else answers it.
+     */
+    private handledOnCloseLabel(x: number, y: number): boolean {
+        const picked = pickAsDrawn(this.scene, x, y);
+        if (!picked || !isCloseLabel(picked)) {
+            return false;
+        }
+
+        const close = closeRectOnScreen(picked);
+        if (close !== undefined && inRect(close, x, y)) {
+            this.selectionManager.deselect();
+        }
+
+        return true;
+    }
+
+    /**
+     * A click away from any node or edge clears the selection: the node selection, and the
+     * session's edges when it holds any. A secondary (right) click clears nothing, since it asks
+     * for a menu about the selection.
+     * @param secondary - Whether the click was a secondary one.
+     */
+    private clearSelectionOnPrimary(secondary: boolean): void {
+        if (secondary) {
+            return;
+        }
+
+        this.selectionManager.deselect();
+        if (this.session.selection.edges.length > 0) {
+            this.session.selection.clear();
+        }
     }
 
     /**
@@ -5301,6 +5396,36 @@ export class Graph implements GraphContext {
 
         const edgeId = this.pickEdgeId(point.x, point.y);
         return edgeId === undefined ? null : { kind: "edge", id: edgeId };
+    }
+
+    /**
+     * The group outline under a point, where no node and no edge is; see
+     * `Graphty.groupOutlineAt`.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "group-outline", layer, shader, group }`, or `null` when no outline is there.
+     */
+    groupOutlineAt(point: { x: number; y: number }): GroupOutlineAtResult | null {
+        if (this.elementAt(point) !== null) {
+            return null;
+        }
+
+        const hit = this.renderManager.pickGroupOutline(point.x, point.y);
+        return hit === null ? null : { kind: "group-outline", layer: hit.layer, shader: hit.shader, group: hit.group };
+    }
+
+    /**
+     * What the shaders draw now; see `Graphty.drawnShaders`.
+     * @returns Per node shader its counts, and the group outlines drawn last frame.
+     */
+    drawnShaders(): DrawnShaders {
+        const nodes = NodeShaderDrawing.peek(this.scene)?.drawnById() ?? new Map();
+        const outlines = this.renderManager.shaderPasses().outline?.drawn() ?? [];
+        return {
+            nodes,
+            groupOutlines: outlines.map(({ layer, shader, groups }) => ({ layer, shader, groups: [...groups] })),
+        };
     }
 
     /**
@@ -8018,7 +8143,6 @@ export class Graph implements GraphContext {
             this.#annotations = new AnnotationMeshes(this.scene, () => {
                 this.renderManager.requestFrame();
             });
-            this.updateManager.picturesLoading = () => this.#annotations?.isLoading === true;
         }
 
         this.#annotations.update(value);
@@ -8028,6 +8152,8 @@ export class Graph implements GraphContext {
      * Dispose all graph resources including voice, AI, XR, and Babylon.js components.
      */
     dispose(): void {
+        transitionsOf(this.layoutManager)?.dispose();
+
         // Clean up voice adapter if created
         this.voiceAdapter?.dispose();
         this.voiceAdapter = null;

@@ -13,6 +13,13 @@ history.
 
 ## Top of mind
 
+- (2026-10-21) Shaders, second redesign: `design/rendering/shader-studio/decisions-v2.md`. One
+  Shaders section and one gallery per tab; place (on the node, instead of, on top, around, behind,
+  around the group, along the line) is an option on the row; no timing tags (layer condition, the
+  layer's `keep`, clocks as values); `minSize` only where a shader declares it; Wireframe is the
+  released channel plus additive `node.meshDetail`. Lesson: the first redesign kept the old
+  section-per-target structure because it existed; the owner caught it. Start a redesign from the
+  user's three questions, then check what survives, not the other way round.
 - (2026-10-23) LOCATION IN THE FIELDS LIST (issue #3315, owner: the Location "+" does not follow
   the patterns; a gear for the kind, or one "+" per kind). RULED: one "+" pick per kind of
   location. The nodes' "+" offers Latitude, Longitude, Coordinates, Country, Region and City as

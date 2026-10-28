@@ -1660,6 +1660,26 @@ export function canvasArea(scene: Drawn): number {
 }
 
 /**
+ * Every node is drawn at least this far in from each edge of the canvas, so what a node draws
+ * around itself (a glow, an effect, a group's boundary) has room on the canvas.
+ * @param scene - What the story drew.
+ * @param marginPx - The room, in CSS pixels, from a node's center to each edge.
+ */
+export async function assertNodesInFromEdges(scene: Drawn, marginPx: number): Promise<void> {
+    const { clientWidth: width, clientHeight: height } = scene.graph.canvas;
+    const offenders = scene.nodes.filter((node) => {
+        const [x, y, z] = node.position;
+        const at = scene.element.worldToScreen({ x, y, z });
+        return Math.min(at.x, at.y, width - at.x, height - at.y) < marginPx;
+    });
+    await holds(
+        offenders.length === 0,
+        `${scene.story}: ${String(offenders.length)} node(s) drawn within ${String(marginPx)} px of the ` +
+            `canvas's edge: ${offenders.map((node) => node.id).join(", ")}`,
+    );
+}
+
+/**
  * How far apart two nodes are drawn, in canvas pixels.
  *
  * THE DENOMINATOR FOR INK THAT GROWS IN ONE DIRECTION. A line's ink is its length times its

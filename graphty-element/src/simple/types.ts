@@ -12,6 +12,17 @@
  * Types only: nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import type {
+    ShaderClockBinding,
+    ShaderCost,
+    ShaderInput,
+    ShaderMotionInput,
+    ShaderPlace,
+    ShaderPreview,
+    ShaderRequirement,
+    ShaderSource,
+    ShaderTarget,
+} from "../catalog/shaders";
 import type { OptionDescriptor, OptionType, PaletteDescriptor, SuggestedName } from "../catalog/types";
 
 // =============================================================================================
@@ -436,4 +447,98 @@ export interface LogDestinationDefinition {
     readonly write: (record: PlainLogRecord) => void | Promise<unknown>;
     /** Attach now (the default) or only register, for a configuration to turn on by id. */
     readonly attach?: boolean;
+}
+
+// =============================================================================================
+// Shader
+// =============================================================================================
+
+/**
+ * One shader parameter in short form: a bare number or boolean is a parameter of that type with
+ * that default, a bare `#rrggbb` string a color, and a {@link ShaderClockBinding} a number (or,
+ * with a range of two colors, a color) bound to a clock. An object is an option in short form plus
+ * the two shader facts; its `type` may be left out when its `default` says it (a number, a boolean,
+ * a `#rrggbb` color).
+ * @since 3.36.0
+ */
+export type ShaderParamShorthand =
+    | number
+    | boolean
+    | string
+    | ShaderClockBinding
+    | ((
+          | Exclude<OptionShorthand, number | string | boolean>
+          | (Readonly<Partial<Omit<OptionDescriptor, "name" | "type" | "on" | "default">>> & {
+                readonly default: number | boolean | string | ShaderClockBinding;
+            })
+      ) & {
+          /** Can be bound per element with `encode` (at most 4 per shader). */
+          readonly varies?: boolean;
+          /** The parameter that most changes the look. */
+          readonly primary?: boolean;
+      });
+
+/**
+ * What defineShader takes. Only `id` and `glsl` are required. Every key but `glsl` and `target` is
+ * also a key of the shader text header, spelled the same.
+ * @since 3.36.0
+ */
+export interface ShaderDefinition {
+    /** `"<namespace>/<name>"`: lowercase letters, digits and hyphens, one slash. Saved in documents. */
+    readonly id: string;
+    /**
+     * The body: `vec4 shade(NodeInput n)` (or `EdgeInput e`, `GroupInput g`, `BackgroundInput b`,
+     * which says what it draws on) and its helpers, or a function that loads it the first time
+     * something draws it. Each parameter is a global of its GLSL type: a number a `float`, an
+     * integer an `int`, a boolean a `bool`, a color a `vec3`.
+     */
+    readonly glsl: ShaderSource;
+    /** What it draws on. Default: read from the body's entry; required when `glsl` is a loader. */
+    readonly target?: ShaderTarget;
+    /** Where a use draws when it names no place. Default `"paint"`, or `"group"` for `shade(GroupInput g)`. */
+    readonly place?: ShaderPlace;
+    /**
+     * Advanced: where a user may move it. Default: all of `replace`, `over`, `around` and `behind`
+     * for a shader whose place is one of them, else its place alone. Narrow it for a shader that
+     * looks broken somewhere, such as an `around` ring with an empty middle: `["around", "behind"]`.
+     */
+    readonly places?: readonly ShaderPlace[];
+    /**
+     * The smallest size, in CSS pixels, it is drawn at in `replace`, `around` and `behind`, so a
+     * far node stays findable. Adds a number parameter `minSize` with this default. Refused with
+     * `shader.min-size-place` when none of its places is one of those.
+     */
+    readonly minSize?: number;
+    /** What pickers show (the descriptor's `plainName`). Default: the name part of the id in sentence case. */
+    readonly name?: string;
+    /** Its parameters, keyed by name, in the order a form shows them. */
+    readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
+    /** Advanced: whether it animates. Default: `"loop"` when the body reads its input's `time` field, else `"still"`. */
+    readonly motion?: ShaderMotionInput;
+    /** Square-drawn places and `along`: the drawn size is `reach` times the radius, 1 to 6. */
+    readonly reach?: number;
+    /** Stacking places and group outlines: how the result combines. Default `"over"`. */
+    readonly blend?: "over" | "add";
+    /** Whether it contributes to the shared bloom pass. */
+    readonly bloom?: boolean;
+    /** Group outlines: a splatted field or one sphere per group. Default `"field"`. */
+    readonly form?: "field" | "sphere";
+    /** Field group outlines: the number parameter that sets each member's kernel radius, in member radii. */
+    readonly reachParam?: string;
+    /** A cheaper body with the same entry, drawn while nodes are small; in shader text, `shadeFar`. */
+    readonly lowDetail?: ShaderSource;
+    /** Where a gallery may file it, such as `"Glass"`. */
+    readonly categories?: readonly string[];
+    /** The frame its thumbnail is drawn from: parameter values and a time in seconds. */
+    readonly preview?: ShaderPreview;
+    /** An image URL of a still picture. Default: the element draws one from the shader. */
+    readonly thumbnail?: string;
+    /** Default: the static checker's class. */
+    readonly cost?: ShaderCost;
+    /** Default: inferred from the fields the body reads. */
+    readonly reads?: readonly ShaderInput[];
+    /** What it needs from the device. */
+    readonly requires?: readonly ShaderRequirement[];
+    /** How it runs on the WebGPU renderer: translated (the default), or not at all. */
+    readonly webgpu?: "translate" | "none";
 }

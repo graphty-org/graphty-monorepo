@@ -1,5 +1,6 @@
 import {
     AdvancedButton,
+    CompactColorInput,
     DataRow,
     FieldRow,
     PanelField,
@@ -65,6 +66,11 @@ interface OptionsFormProps {
      * line with the section chevrons.
      */
     fieldInset?: MantineSpacing;
+    /**
+     * Controls drawn after an option's field, on its line: a shader parameter's vary glyph and its
+     * minus. Left out, the field fills the line.
+     */
+    trailing?: (option: OptionDescriptor) => React.ReactNode;
     /** A short line under an option's field (a warning about what it read), or null for none. */
     note?: (option: OptionDescriptor) => string | null;
     /** Why an option cannot be changed in this view, or null when it can; a disabled field says why. */
@@ -78,6 +84,7 @@ interface OptionsFormProps {
 /** The option types the form draws a control for; the rest keep their defaults. */
 const DRAWN = new Set<OptionDescriptor["type"]>([
     "number",
+    "color",
     "integer",
     "enum",
     "boolean",
@@ -99,7 +106,7 @@ function num(value: unknown): number | undefined {
 /** Props for one field. */
 interface FieldProps extends Omit<
     OptionsFormProps,
-    "options" | "values" | "advanced" | "advancedLabel" | "fieldInset" | "rows"
+    "options" | "values" | "advanced" | "advancedLabel" | "fieldInset" | "trailing" | "rows"
 > {
     option: OptionDescriptor;
     value: unknown;
@@ -563,6 +570,25 @@ function OptionControl({
                     disabled={disabled}
                 />
             );
+        case "color": {
+            const fallback = typeof option.default === "string" ? option.default.toUpperCase() : "#999999";
+            const shown = typeof value === "string" ? value.toUpperCase() : fallback;
+            return (
+                <CompactColorInput
+                    label={label}
+                    width="100%"
+                    color={shown}
+                    defaultColor={fallback}
+                    showOpacity={false}
+                    showReset={false}
+                    onChangeEnd={(next) => {
+                        if (next !== undefined && next.toUpperCase() !== shown) {
+                            set(next.toUpperCase());
+                        }
+                    }}
+                />
+            );
+        }
         case "boolean":
             return (
                 <Checkbox
@@ -648,6 +674,7 @@ function OptionControl({
  * @param props.advanced - More controls at the end of the Advanced pop-out
  * @param props.advancedLabel - The Advanced pop-out's name
  * @param props.fieldInset - Insets the fields, not the fold's toggle
+ * @param props.trailing - Controls after an option's field, on its line
  * @param props.rows - Options drawn side by side, each group in one row
  * @returns The fields
  */
@@ -657,14 +684,24 @@ export function OptionsForm({
     advanced: more,
     advancedLabel = "Advanced",
     fieldInset,
+    trailing,
     rows = [],
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const drawn = options.filter((o) => o.internal !== true && DRAWN.has(o.type));
-    const field = (option: OptionDescriptor): React.JSX.Element => (
-        <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />
-    );
+    const field = (option: OptionDescriptor): React.JSX.Element => {
+        const own = <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />;
+        const after = trailing?.(option);
+        return after === undefined || after === null ? (
+            own
+        ) : (
+            <div key={option.name} className="ws-option-line" data-option={option.name}>
+                <div className="ws-option-field">{own}</div>
+                {after}
+            </div>
+        );
+    };
     // Options that share a row are drawn side by side where the row's first one stands.
     const rowOf = (option: OptionDescriptor): readonly string[] | undefined =>
         rows.find((r) => r.includes(option.name));

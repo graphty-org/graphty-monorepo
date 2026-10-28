@@ -13,7 +13,8 @@ import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { focusOpenedGraphLater } from "../frame/focus";
-import { newProjectId, type WorkspaceStore } from "../state/store";
+import { runHeld, withHeldShaders } from "../settings/heldShaders";
+import { newProjectId, type Notice, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 
@@ -367,6 +368,7 @@ type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
  * A data file the element opened: it goes through the Data page, or, read into the graph, starts
  * a new graph's history or says it was added.
  * @param workspace - the workspace store.
+ * @param session - the session.
  * @param report - what the element said of the file.
  * @param file - the file.
  * @param fresh - whether it opens as a new graph, from the start screen.
@@ -374,6 +376,7 @@ type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
  */
 function openedData(
     workspace: CommandContext["workspace"],
+    session: GraphSession,
     report: OpenReport,
     file: File,
     fresh: boolean,
@@ -394,7 +397,7 @@ function openedData(
     // Opened as a new graph, it started its history (`history: "start"`).
     focusLater(fresh);
     if (!fresh) {
-        workspace.set({ notice: { message: `Added ${file.name} to this project` } });
+        workspace.set({ notice: heldNotice(workspace, session, { message: `Added ${file.name} to this project` }) });
     }
 }
 
@@ -428,9 +431,9 @@ async function openedProject(
     const lost = report.problems.length;
     const parts = lost === 1 ? "part" : "parts";
     workspace.set({
-        notice: {
+        notice: heldNotice(workspace, session, {
             message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
-        },
+        }),
     });
 }
 
@@ -459,6 +462,25 @@ function openFailed(ctx: CommandContext, session: GraphSession, pending: Pending
             : problemSentence(file.name, error);
     workspace.set({ notice: { message, error: true } });
     return false;
+}
+
+/**
+ * A load's notice, naming the shaders the element held from the file, with Run, which runs each
+ * through its checks and says how many did not pass.
+ * @param workspace - the workspace store.
+ * @param session - the session.
+ * @param notice - the load's notice.
+ * @returns the notice.
+ */
+function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: Notice): Notice {
+    return withHeldShaders(session, notice, () => {
+        void runHeld(session).then((failed) => {
+            if (failed > 0) {
+                const shaders = failed === 1 ? "1 shader" : `${String(failed)} shaders`;
+                workspace.set({ notice: { message: `${shaders} did not pass the checks`, error: true } });
+            }
+        });
+    });
 }
 
 /**
@@ -496,7 +518,7 @@ async function openInSession(
             return true;
         }
         if (report.opened !== "project") {
-            openedData(ctx.workspace, report, file, fresh, focusLater);
+            openedData(ctx.workspace, session, report, file, fresh, focusLater);
             return true;
         }
         await openedProject(ctx.workspace, session, report, pending, focusLater);

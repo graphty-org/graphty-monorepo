@@ -58,6 +58,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { shaderDescriptor } from "../../catalog/shaderRegistry";
 import type {
     Binding,
     BindingNumberFormat,
@@ -67,6 +68,7 @@ import type {
     PaletteId,
     Path,
     Rgba,
+    ShaderParamAddress,
 } from "../../catalog/types";
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
@@ -80,8 +82,12 @@ import {
     type ChannelValues,
     type ColorValue,
     type EdgeLineValue,
+    isEnumCount,
     type NodeShapeValue,
     OFF_COLOR,
+    parseShaderParamAddress,
+    prototypeFreeMap,
+    type ShaderParamTarget,
     toColorValue,
 } from "./channels";
 import { parseTemplate, prepareTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
@@ -270,6 +276,12 @@ export interface PrepareBindingOptions {
      * `|rank`. Absent, those read an empty column.
      */
     readonly columnOf?: (path: Path) => Iterable<unknown>;
+    /**
+     * The order an `"index"` scale numbers values in, kept by the caller for the life of the layer
+     * so new data never renumbers a value already seen. Absent, the binding numbers its own column
+     * afresh.
+     */
+    readonly order?: Map<string, number>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -824,6 +836,11 @@ function enumConverter(descriptor: ChannelDescriptor): ChannelConverter {
             return values.includes(scaled) ? scaled : undefined;
         }
 
+        // A channel that takes a count beside its words (a segment count) reads the number as that count.
+        if (descriptor.min !== undefined) {
+            return Number.isFinite(scaled) ? Math.max(descriptor.min, Math.round(scaled)) : undefined;
+        }
+
         const slot = Math.round(scaled);
 
         return slot >= 0 && slot < values.length ? values[slot] : undefined;
@@ -971,65 +988,11 @@ function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string)
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Check one value a LAYER wrote against the channel it is written to.
- *
- * A literal, a per-value override and what a missing value paints are all authored, so all three
- * come through here and all three are refused with the codes a layer's own validation uses --
- * `E_OPTION_RANGE` for a value outside the list or the range the renderer draws, `E_UNSUPPORTED`
- * for a channel that draws nothing, and `E_BAD_LAYER` for a value of the wrong kind entirely. A
- * value a SCALE answered is a different thing and is never refused: it misses, and a miss is not
- * painted.
- *
- * A boolean channel reads "true" and 1 as well as `true`, because `map` and `missing` are typed
- * to carry a string or a number and have no other way to say it.
- * @param descriptor - The channel.
+ * Check a number a layer wrote against the channel's range; see {@link authoredValue}.
+ * @param descriptor - The channel, which accepts a number.
  * @param value - The value as it was authored.
  * @param what - What the value was for, so a refusal can name it.
- * @returns The value in the form a repaint reads, which for a colour means its components.
- * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
- */
-function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
-    const { accepts, values } = descriptor;
-    const wrongKind = (expected: string): GraphtyError =>
-        badBinding(`${what} is ${expected}.`, { channel: descriptor.channel, value });
-
-    switch (accepts) {
-        case "color":
-            // An effect written off carries the one off colour, which the painter draws as nothing.
-            return descriptor.off !== undefined && value === descriptor.off ? OFF_COLOR : requireColor(value, what);
-        case "number":
-            return authoredNumber(descriptor, value, what, wrongKind);
-        case "text":
-            if (typeof value !== "string") {
-                throw wrongKind("text");
-            }
-
-            return value;
-        case "boolean":
-            return authoredBoolean(value, wrongKind);
-        case "enum":
-            if (typeof value !== "string" || !(values ?? []).includes(value)) {
-                throw outOfRange(descriptor, value, what);
-            }
-
-            return value;
-        case "labelStyle":
-            if (typeof value !== "object" || isRgba(value)) {
-                throw wrongKind('a label style, such as { sizePx: 14, weight: "bold" }');
-            }
-
-            return value;
-        default:
-            throw unsupportedChannel(descriptor);
-    }
-}
-
-/**
- * A number channel's authored value, checked against the channel's range.
- * @param descriptor - The channel.
- * @param value - The value as it was authored.
- * @param what - What the value was for, so a refusal can name it.
- * @param wrongKind - Builds the refusal for a value of the wrong kind.
+ * @param wrongKind - Builds the refusal for a value that is not a number.
  * @returns The number.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_OPTION_RANGE`.
  */
@@ -1049,6 +1012,88 @@ function authoredNumber(
     }
 
     return value;
+}
+
+/**
+ * Check a choice a layer wrote against the channel's values; see {@link authoredValue}.
+ * @param descriptor - The channel, which accepts one of a list of values.
+ * @param value - The value as it was authored.
+ * @param what - What the value was for, so a refusal can name it.
+ * @returns The value.
+ * @throws A `GraphtyError` with code `E_OPTION_RANGE`.
+ */
+function authoredEnum(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
+    if (isEnumCount(descriptor, value)) {
+        return value;
+    }
+
+    const values = descriptor.values ?? [];
+    // A boolean is read by its name (`node.modelTint` takes true, false or "replace").
+    if (typeof value === "boolean" && values.includes(String(value))) {
+        return value;
+    }
+
+    if (typeof value !== "string" || !values.includes(value)) {
+        throw outOfRange(descriptor, value, what);
+    }
+
+    return value;
+}
+
+/**
+ * Check one value a LAYER wrote against the channel it is written to.
+ *
+ * A literal, a per-value override and what a missing value paints are all authored, so all three
+ * come through here and all three are refused with the codes a layer's own validation uses --
+ * `E_OPTION_RANGE` for a value outside the list or the range the renderer draws, `E_UNSUPPORTED`
+ * for a channel that draws nothing, and `E_BAD_LAYER` for a value of the wrong kind entirely. A
+ * value a SCALE answered is a different thing and is never refused: it misses, and a miss is not
+ * painted.
+ *
+ * A boolean channel reads "true" and 1 as well as `true`, because `map` and `missing` are typed
+ * to carry a string or a number and have no other way to say it.
+ * @param descriptor - The channel.
+ * @param value - The value as it was authored.
+ * @param what - What the value was for, so a refusal can name it.
+ * @returns The value in the form a repaint reads, which for a colour means its components.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
+ */
+function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
+    const { accepts } = descriptor;
+    const wrongKind = (expected: string): GraphtyError =>
+        badBinding(`${what} is ${expected}.`, { channel: descriptor.channel, value });
+
+    switch (accepts) {
+        case "color":
+            // An effect written off carries the one off colour, which the painter draws as nothing.
+            return descriptor.off !== undefined && value === descriptor.off ? OFF_COLOR : requireColor(value, what);
+        case "number":
+            return authoredNumber(descriptor, value, what, wrongKind);
+        case "text":
+            if (typeof value !== "string") {
+                throw wrongKind("text");
+            }
+
+            return value;
+        case "boolean":
+            return authoredBoolean(value, wrongKind);
+        case "enum":
+            return authoredEnum(descriptor, value, what);
+        case "labelStyle":
+            if (typeof value !== "object" || isRgba(value)) {
+                throw wrongKind('a label style, such as { sizePx: 14, weight: "bold" }');
+            }
+
+            return value;
+        case "shaderUses":
+            if (!Array.isArray(value)) {
+                throw wrongKind('a list of shader uses, such as [{ shader: "lock-on-reticle" }]');
+            }
+
+            return prototypeFreeMap(value);
+        default:
+            throw unsupportedChannel(descriptor);
+    }
 }
 
 /**
@@ -1212,6 +1257,13 @@ function assertChannelTakesScale(descriptor: ChannelDescriptor, scale: string, n
     if (accepts === "labelStyle") {
         throw badBinding(
             `${channel} carries a whole label style, which no scale produces, so it is written as a value rather than bound to a path.`,
+            { channel },
+        );
+    }
+
+    if (accepts === "shaderUses") {
+        throw badBinding(
+            `${channel} carries a list, which no scale produces; bind one parameter with "${channel}.<shader>.<parameter>".`,
             { channel },
         );
     }
@@ -1924,7 +1976,17 @@ function prepareRule(
 
     const facts = walkColumn(options.column, numeric);
     const categories = settleCategories(facts, binding.other, overflowKeep(descriptor, binding, numeric));
+    const order = scale === "index" ? (options.order ?? new Map<string, number>()) : undefined;
+    if (order !== undefined) {
+        // First seen in element order, before any element is painted, so which value gets which
+        // number does not depend on the order a pass happens to visit them in.
+        for (const value of options.column ?? []) {
+            map(value, { domain: [0, 1], order });
+        }
+    }
+
     const base: DomainlessContext = {
+        ...(order === undefined ? {} : { order }),
         reverse: binding.reverse,
         midpoint: binding.midpoint,
         bins: binding.bins,
@@ -2207,6 +2269,11 @@ function prepareStops(
  *   against the real group count and can never be the one that fails here.
  */
 export function prepareBinding(options: PrepareBindingOptions): PreparedBinding {
+    const address = parseShaderParamAddress(options.channel);
+    if (address !== null) {
+        return prepareParamBinding(address, options);
+    }
+
     const descriptor = requireChannel(options.channel);
     const { binding } = options;
 
@@ -2816,5 +2883,138 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
         values: paintAll(main),
         cue: half === null || cue === null ? null : { channel: half[0], values: paintAll(cue) },
         palette: binding.colors === undefined ? (main.palette?.id ?? null) : "custom",
+    };
+}
+
+// ---------------------------------------------------------------------------------------------
+// One shader parameter, bound per element
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The channel a bound shader parameter reads as: a number or a color between the parameter's
+ * declared ends, landing on the layer's uses of its shader.
+ * @param address - Where the binding points.
+ * @returns A descriptor the binding is prepared against.
+ * @throws A `GraphtyError`: `E_UNKNOWN_SHADER` when the catalog lists no such shader, and
+ *   `E_UNKNOWN_SHADER_PARAM` when it declares no such parameter or does not let it vary.
+ */
+export function shaderParamDescriptor(address: ShaderParamTarget): ChannelDescriptor {
+    const shader = shaderDescriptor(address.shader);
+    if (shader === undefined) {
+        throw new GraphtyError({
+            code: "E_UNKNOWN_SHADER",
+            message: `There is no shader called "${address.shader}".`,
+            source: "style",
+            details: { shader: address.shader },
+        });
+    }
+
+    const param = shader.params.find((entry) => entry.name === address.param);
+    if (param?.varies !== true) {
+        throw new GraphtyError({
+            code: "E_UNKNOWN_SHADER_PARAM",
+            message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,
+            source: "style",
+            details: {
+                shader: shader.id,
+                param: address.param,
+                candidates: shader.params.filter((entry) => entry.varies === true).map((entry) => entry.name),
+            },
+        });
+    }
+
+    const map = channelDescriptor(address.channel) as ChannelDescriptor;
+
+    return {
+        ...map,
+        plainName: `${shader.plainName} ${param.plainName}`,
+        shortName: param.plainName,
+        accepts: param.type === "color" ? "color" : "number",
+        ...(typeof param.min === "number" ? { min: param.min } : {}),
+        ...(typeof param.max === "number" ? { max: param.max } : {}),
+    };
+}
+
+/**
+ * The descriptor a shader parameter declared `varies` is bound as, by its encode address: a number
+ * or a color between the parameter's declared ends, on the list channel the value lands in. What an
+ * editor's vary picker reads for a parameter, as it reads `channelDescriptor` for a channel.
+ * @param address - The address, `"<target>.shaders.<shader id>.<parameter id>"`.
+ * @returns The descriptor; its `channel` is the address's list channel.
+ * @throws A `GraphtyError`: `E_BAD_COMMAND` for a string that is not an address,
+ *   `E_UNKNOWN_SHADER` and `E_UNKNOWN_SHADER_PARAM` as `shaderParamDescriptor`.
+ * @since 3.36.0
+ */
+export function shaderParamChannel(address: ShaderParamAddress): ChannelDescriptor {
+    const target = parseShaderParamAddress(address);
+    if (target === null) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `"${address}" is not a shader parameter address: "<target>.shaders.<shader>.<parameter>".`,
+            source: "style",
+            details: { address },
+        });
+    }
+
+    return shaderParamDescriptor(target);
+}
+
+/**
+ * Prepare a binding of one shader parameter: prepared as a number or a color, each value then
+ * written onto the layer's uses of its shader as `{ [shader]: { [parameter]: value } }`, one shared object per
+ * distinct value.
+ * @param address - Where the binding points.
+ * @param options - Everything preparing it was given.
+ * @returns The prepared binding, painting map patches on the map channel.
+ */
+function prepareParamBinding(address: ShaderParamTarget, options: PrepareBindingOptions): PreparedBinding {
+    const descriptor = shaderParamDescriptor(address);
+    const { binding } = options;
+    const integer =
+        shaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type === "integer";
+    const ranged =
+        "by" in binding &&
+        binding.range === undefined &&
+        binding.stops === undefined &&
+        binding.scale !== "index" &&
+        binding.scale !== "passthrough" &&
+        descriptor.min !== undefined &&
+        descriptor.max !== undefined
+            ? { ...binding, range: [descriptor.min, descriptor.max] as [number, number] }
+            : binding;
+    let prepared: PreparedBinding;
+    if ("template" in ranged) {
+        prepared = prepareTemplateBinding(descriptor, ranged.template, options);
+    } else if ("value" in ranged) {
+        prepared = prepareLiteral(descriptor, ranged);
+    } else {
+        prepared = prepareRule(descriptor, ranged, options);
+    }
+    const patches = new Map<unknown, EncodedValue>();
+    const patch = (value: EncodedValue | undefined): EncodedValue | undefined => {
+        if (value === undefined) {
+            return undefined;
+        }
+
+        const color = typeof value === "object" && value !== null && "hex" in value ? value.hex : null;
+        const plain = color ?? (integer && typeof value === "number" ? Math.round(value) : value);
+        let made = patches.get(plain);
+        if (made === undefined) {
+            const params = Object.create(null) as Record<string, unknown>;
+            params[address.param] = plain;
+            const sets = Object.create(null) as Record<string, unknown>;
+            sets[address.shader] = params;
+            made = sets;
+            patches.set(plain, made);
+        }
+
+        return made;
+    };
+
+    return {
+        ...prepared,
+        channel: address.channel,
+        paint: (value) => patch(prepared.paint(value)),
+        paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };
 }

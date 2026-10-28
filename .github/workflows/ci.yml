@@ -80,7 +80,7 @@ concurrency:
 #   build, lint, checks and test shards, and the screenshots, which are reported and never block.
 # - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
 #   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
-#   held to master's rule that every job succeeds. "Queue Checks Pass" is its verdict.
+#   held to master's rule that every job succeeds.
 # - a push to master: NO tests. The merge queue already ran the full suite on exactly this tree. The build
 #   job builds every package, Storybook and docs site (deploy-pages.yml publishes them) and skips every
 #   test job; "All Checks Pass" counts the skipped ones as passing. Owner decision, 2026-10-06.
@@ -149,7 +149,7 @@ jobs:
     # the only thing the test jobs download. It does nothing else, so the test jobs start as soon as the
     # packages are built: the checks that need a build but no test (lint, docs, the Storybooks, knip,
     # formatting, the API report and the other checks) run beside the tests in jobs of their own, which
-    # "All Checks Pass" and "Queue Checks Pass" require just as they required these steps when they were
+    # "All Checks Pass" requires just as they required these steps when they were
     # part of one Build job (it took 23 minutes, and only its first 4 produced what the tests need).
     packages:
         name: Build
@@ -724,8 +724,8 @@ jobs:
                   path: compact-mantine/dist/
                   retention-days: 1
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -911,8 +911,8 @@ jobs:
                   path: graph-io/fidelity-stories/storybook-static/
                   retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1013,8 +1013,8 @@ jobs:
                       echo "::warning title=Lint over its time budget::lint took ${took}s, over its ${BUDGET_SECONDS}s budget. Time it with TIMING=1 (eslint) to find the rule or check that grew."
                   fi
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             # The graphty app's build check on a light pull request: the Build job leaves the app out (nothing it
             # feeds reads graphty/dist), so it is built here, off the test jobs' critical path, from the downloaded
             # package builds, and only when the pull request affects it.
@@ -1222,8 +1222,8 @@ jobs:
             - name: compact-mantine Figma lock
               run: pnpm run check:figma-lock
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1312,8 +1312,8 @@ jobs:
                   path: layout/gh-pages/
                   retention-days: 1
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1698,8 +1698,8 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1814,8 +1814,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -2002,8 +2002,8 @@ jobs:
                       echo '```'
                   } >> "$GITHUB_STEP_SUMMARY"
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -2209,8 +2209,8 @@ jobs:
                       process.exitCode = v.code;
                   '
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -2746,74 +2746,6 @@ jobs:
                   echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
                   exit 1
 
-    # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
-    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
-    # and, on a merge-queue run (MERGE_QUEUE above), only when the run was the full suite: a
-    # pass on a pull request's own affected run can never stand in for the queue's run.
-    queue-checks:
-        name: Queue Checks Pass
-        needs: [packages, all-checks]
-        if: always()
-        runs-on: ubuntu-24.04
-        timeout-minutes: 70
-        steps:
-            - name: Check the run passed, and was the full suite in the queue
-              env:
-                  ALL_CHECKS: ${{ needs.all-checks.result }}
-                  FULL: ${{ needs.packages.outputs.full }}
-              run: |
-                  echo "All Checks Pass: $ALL_CHECKS, full suite: $FULL, merge queue: $MERGE_QUEUE"
-                  if [[ "$ALL_CHECKS" != "success" ]]; then
-                      echo "::error::All Checks Pass did not succeed"
-                      exit 1
-                  fi
-                  if [[ "$MERGE_QUEUE" == "true" && "$FULL" != "true" ]]; then
-                      echo "::error::a merge-queue run must run the full suite"
-                      exit 1
-                  fi
-
-            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
-            # The run's token shares one API limit with every run of the repository, and a busy hour used it
-            # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
-            # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
-            # a clear that still fails fails this job, which "re-run failed jobs" then retries.
-            - name: Clear this check's early verdicts
-              if: success() && github.event_name == 'pull_request'
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  CHECK: Queue Checks Pass
-                  SHA: ${{ github.event.pull_request.head.sha }}
-                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run or
-                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
-                  clear() {
-                      local ids id
-                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
-                      for id in $ids; do
-                          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                              -f "output[title]=Superseded by a passing run" \
-                              -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL" || return 1
-                          echo "cleared early verdict $id"
-                      done
-                  }
-                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
-                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
-                  for try in 1 2 3 4; do
-                      if clear; then exit 0; fi
-                      if (( try == 4 )); then break; fi
-                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
-                      wait=60
-                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
-                      if (( wait < 1 )); then wait=1; fi
-                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
-                      sleep "$wait"
-                  done
-                  echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
-                  exit 1
-
     # The screenshot report. Not needed by "All Checks Pass", so a pull request never waits on the captures:
     # the gate below only reports (channels pipeline, #3418, the owner's rollout), and the job never fails
     # the run (continue-on-error). On master a capture crash must not hold release, deploy or coverage.
@@ -3206,7 +3138,6 @@ jobs:
                 cost-accuracy,
                 story-tests-merge,
                 all-checks,
-                queue-checks,
                 visual-flaky,
             ]
         if: ${{ always() && contains(github.workflow_ref, '/ci.yml@') }}

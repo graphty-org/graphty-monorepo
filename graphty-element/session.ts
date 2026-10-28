@@ -98,6 +98,7 @@ export type {
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
+    GroupOutlineClick,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,
@@ -124,6 +125,8 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    ModelChange,
+    ModelState,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -197,6 +200,38 @@ export type {
     RecipeLeftOutCode,
     RecipeSource,
 } from "./src/session/recipe";
+
+// ---------------------------------------------------------------------------------------------
+// 3D model files: session.assets
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The model files a style layer can draw nodes as (`node.model`), the ids that name them, what
+ * `session.assets.add` accepts and returns, and the limits only the page's code may change.
+ */
+export type {
+    AddAssetOptions,
+    AssetId,
+    AssetOffer,
+    AssetRecord,
+    AssetsApi,
+    AssetSource,
+    AssetState,
+    BuiltInModelFormat,
+    ModelFormat,
+    ModelLimits,
+    ModelSummary,
+    NamedBlob,
+    PartAnswer,
+} from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+
+/**
+ * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
+ * the data, a reopened project's network-source loads -- waiting for the reader's answer
+ * (`session.network`).
+ */
+export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates
@@ -515,6 +550,7 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 // ---------------------------------------------------------------------------------------------
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
+export type { ShaderParams, ShaderParamValue, ShaderText, ShaderUse } from "./src/catalog/shaders";
 export type {
     AttributeDescriptor,
     AttributeRole,
@@ -566,6 +602,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    ShaderParamAddress,
     StaticStyle,
     StructureValue,
     StyleDocument,
@@ -573,6 +610,19 @@ export type {
     TopTies,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
+export type {
+    ProjectShader,
+    RenderQuality,
+    RenderQualityChange,
+    RenderQualityCode,
+    SessionShaders,
+    ShaderAddOptions,
+    ShaderAddResult,
+    ShaderAvailability,
+    ShaderSettings,
+    ShaderState,
+    ShaderStatus,
+} from "./src/session/shaders";
 
 // ---------------------------------------------------------------------------------------------
 // Style layers: what paints what, in what order, and why one element looks the way it does
@@ -615,6 +665,7 @@ export type {
     LegendSwatch,
     MarkSpec,
     MarkSuggestion,
+    ParamEncodingSpec,
     PreviewDefaultedPart,
     PreviewSpan,
     RepaintReason,

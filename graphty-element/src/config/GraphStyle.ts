@@ -3,22 +3,54 @@ import { z } from "zod";
 import { ColorStyle, ImageData } from "./common";
 import { DEFAULT_VIEW_MODE } from "./ViewMode";
 
+/** A shader parameter name: a GLSL identifier with no `__`, so no key reaches a prototype. */
+const SHADER_PARAM_NAME = /^(?!.*__)[A-Za-z]\w{0,63}$/;
+
+/**
+ * The colour the element clears its canvas to when no background is set: whitesmoke. What a
+ * background field shows when the project names none, and what clearing it returns to.
+ * @since 3.26.0
+ */
+export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
+
+/** A background shader drawn over the colour and the image: its id and its parameters. */
+const GraphBackgroundShaderLook = z.strictObject({
+    /** A background shader id: a preset (`"nebula"`), a registered or a pasted shader. */
+    id: z.string().min(1).max(81),
+    /** Its parameters, by the names its catalog entry declares. */
+    params: z
+        .record(z.string().regex(SHADER_PARAM_NAME), z.union([z.number(), z.string().max(64), z.boolean()]))
+        .optional(),
+});
+
 const GraphBackgroundColor = z.strictObject({
     backgroundType: z.literal("color"),
-    color: ColorStyle,
+    /** Absent, the element draws {@link DEFAULT_BACKGROUND_COLOR}. */
+    color: ColorStyle.optional(),
+    /** A shader drawn over the colour; where its alpha is low, the colour shows. @since 3.36.0 */
+    shader: GraphBackgroundShaderLook.optional(),
 });
 
 const GraphBackgroundSkybox = z.strictObject({
     backgroundType: z.literal("skybox"),
     data: ImageData,
+    /** Drawn while the image loads, and wherever it is transparent. @since 3.36.0 */
+    color: ColorStyle.optional(),
+    /** A shader drawn over the image; where its alpha is low, the image shows. @since 3.36.0 */
+    shader: GraphBackgroundShaderLook.optional(),
 });
 
 /**
- * What the graph is drawn against: a flat colour, or a photo-dome skybox built from an image.
+ * What the graph is drawn against, bottom to top: a flat colour, a photo-dome skybox built from an
+ * image, and a background shader.
  *
  * The colour accepts any CSS colour the element understands and is normalised to hex on parse;
- * the skybox's `data` is an image URL or a base64 PNG. It is the shape `element.background` and
- * `graph.setBackground()` take.
+ * absent, the element draws {@link DEFAULT_BACKGROUND_COLOR} (`session.config.backgroundColor`
+ * reports the colour drawn). The skybox's `data` is an image URL or a base64 PNG. Either member
+ * may carry a `shader`, drawn over the colour or the image behind every node and label at 30
+ * frames a second or fewer: `{ backgroundType: "color", color: "#000", shader: { id: "nebula" } }`.
+ * Where the shader's alpha is low, what is beneath it shows. It is the shape
+ * `element.background` and `graph.setBackground()` take.
  */
 export const GraphBackground = z.discriminatedUnion("backgroundType", [GraphBackgroundColor, GraphBackgroundSkybox]);
 
@@ -100,11 +132,33 @@ export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig = GraphSelection
 const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
 
 /**
- * The colour the element clears its canvas to when no background is set: whitesmoke. What a
- * background field shows when the project names none, and what clearing it returns to.
- * @since 3.26.0
+ * The colour a background draws: its own, else {@link DEFAULT_BACKGROUND_COLOR}.
+ * @param background - The background.
+ * @returns The colour, hex.
+ * @internal
  */
-export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
+export function backgroundColorOf(background: GraphBackgroundConfig): string {
+    return background.color ?? DEFAULT_BACKGROUND_COLOR;
+}
+
+/**
+ * How nodes travel to a new layout: a transition from `catalog.transitions()`, how long it takes,
+ * and its parameters. Absent, a new layout's positions are drawn in one frame.
+ * @since 3.36.0
+ */
+export const LayoutTransition = z.strictObject({
+    /** A transition id: a preset (`"glide"`) or a registered one (`"my/drop"`). */
+    transition: z.string().min(1).max(81),
+    /** How long the move takes, in seconds. Default 0.8. */
+    seconds: z.number().min(0).max(30).optional(),
+    /** Its parameters, by the names its catalog entry declares. */
+    params: z
+        .record(z.string().regex(SHADER_PARAM_NAME), z.union([z.number(), z.string().max(64), z.boolean()]))
+        .optional(),
+});
+
+/** How nodes travel to a new layout. See `LayoutTransition`. @since 3.36.0 */
+export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
 
 export const GraphStyle = z.strictObject({
     /**
@@ -128,6 +182,8 @@ export const GraphStyle = z.strictObject({
     startingCameraDistance: z.number().optional(),
     layout: z.string().optional(), // No default - let Graph constructor set the default
     layoutOptions: z.looseObject({}).optional(),
+    /** How nodes travel to a new layout: the project setting `layoutTransition`. */
+    layoutTransition: LayoutTransition.optional(),
     /**
      * View mode controls how the graph is rendered and displayed.
      * - "2d": Orthographic camera, fixed top-down view

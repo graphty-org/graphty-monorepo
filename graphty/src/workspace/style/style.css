@@ -285,3 +285,211 @@
     grid-column: 1 / -1;
     padding-bottom: 4px;
 }
+
+/* A shader row (decisions-v2, section 2.1): a drag handle, the picture and name, the place (a
+   dropdown or a static label), the settings and the minus. */
+.ws-shader-row .ws-field[data-shader-use] {
+    grid-template-columns: 22px minmax(0, 1fr) minmax(0, 116px) 24px 24px;
+    gap: 2px;
+}
+
+.ws-shader-row[data-dragging] {
+    opacity: 0.6;
+}
+
+.ws-drag-handle {
+    cursor: grab;
+    touch-action: none;
+}
+
+.ws-shader-name,
+.ws-place-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ws-place-badge {
+    color: var(--cm-text-secondary, var(--mantine-color-dimmed));
+    font-size: var(--mantine-font-size-xs);
+}
+
+.ws-place-diagram {
+    flex: none;
+}
+
+.ws-shader-place {
+    min-width: 0;
+}
+
+/* A shader's neutral facts on its tile: small icons, each with its words as its text alternative. */
+.ws-shader-facts {
+    display: flex;
+    gap: 4px;
+    color: var(--cm-text-secondary, var(--mantine-color-dimmed));
+}
+
+.ws-shader-facts [data-cost="heavy"] {
+    color: var(--mantine-color-orange-text, var(--mantine-color-orange-6));
+}
+
+.ws-shader-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ws-shader-pick {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 2px 4px;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-shader-pick:hover {
+    background: var(--mantine-color-default-hover);
+}
+
+.ws-shader-thumb {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--mantine-color-default-border);
+    object-fit: cover;
+}
+
+.ws-shader-row[data-hidden] .ws-shader-pick {
+    opacity: 0.5;
+}
+
+/* The gallery: search, then two columns of tiles, each its still picture and name. */
+.ws-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ws-gallery-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+.ws-gallery-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    min-width: 0;
+    padding: 4px;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-gallery-tile:hover:not([aria-disabled]) {
+    background: var(--mantine-color-default-hover);
+}
+
+.ws-gallery-tile[data-marked] {
+    outline: 1px solid var(--mantine-primary-color-filled);
+}
+
+.ws-gallery-tile[aria-disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ws-gallery-picture {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 4px;
+    background: var(--mantine-color-default-border);
+    object-fit: cover;
+}
+
+/* A shader parameter's field, then its vary glyph and minus columns. */
+.ws-option-line {
+    display: flex;
+    align-items: flex-end;
+    min-width: 0;
+}
+
+.ws-option-field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* The gallery's first item, New shader... */
+.ws-gallery-paste {
+    padding: 4px;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-gallery-paste:hover {
+    background: var(--mantine-color-default-hover);
+}
+
+/* Paste shader's problems: one row each, its place first. */
+/* The code dialog's live picture of the text, at the element's thumbnail size. */
+.ws-paste-preview {
+    flex: none;
+    width: 128px;
+    aspect-ratio: 1;
+}
+
+.ws-paste-problems {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ws-paste-problem {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    padding: 2px 4px;
+    border-radius: var(--mantine-radius-sm);
+    font-size: var(--mantine-font-size-xs);
+    color: var(--mantine-color-error);
+}
+
+.ws-paste-problem:hover:not(:disabled) {
+    background: var(--mantine-color-default-hover);
+}
+
+.ws-paste-problem b {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A shader's settings pop-out: the panel's property rows, with a label column of its own (the
+   pop-out is outside the tab that sizes the tab's column). A number's name scrubs its value. */
+.ws-shader-params {
+    --ws-label: 72px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ws-shader-params .ws-field-label[data-scrub] {
+    cursor: ew-resize;
+    touch-action: none;
+}
+
+/* An integer that picks one of a set: its pictures, the one in force pressed. */
+.ws-param-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+/* A line that belongs to the row above (Group by under a group outline): it starts at the field
+   column and adds no name to the label column. */
+.ws-field-sub {
+    padding-inline-start: var(--ws-label, 80px);
+}

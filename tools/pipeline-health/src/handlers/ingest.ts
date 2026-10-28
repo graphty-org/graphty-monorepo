@@ -279,6 +279,14 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
 
 const INV_TESTS = (inv: string) => `INVTESTS#${inv}`;
 
+/**
+ * A dependency-bump pull request (Dependabot's, or tools/dependency-refresh.mjs's grouped refresh): its failures are
+ * the bump's, deterministic, so they are kept out of the flaky readings (#4147).
+ * @param who
+ */
+const isBump = (who: Who) =>
+    who.kind === "pr" && /^(dependabot\/|chore\/deps-refresh-)/.test(String(who.claims.head_ref ?? ""));
+
 function testItem(
     inv: string,
     f: Record<string, unknown>,
@@ -286,6 +294,7 @@ function testItem(
     source: "ci" | "local",
     flaky: boolean,
     seenAt: number,
+    bump: boolean,
 ): TestItem {
     need(f, { file: "string", name: "string", message: "string" });
     const message = f.message as string;
@@ -304,6 +313,7 @@ function testItem(
         // hotspots need to group by it.
         signature: (message.split("\n")[0] ?? "").slice(0, 200),
         seenAt,
+        ...(bump ? { bump: true } : {}),
     };
 }
 
@@ -350,7 +360,8 @@ async function invocationItems(
     };
     // A failure in a shard that passed failed and then passed on the same inputs (its retry): flaky.
     const items: RawItem[] = [run];
-    for (const f of list(b.failures ?? [], "failures")) items.push(testItem(id, f, family, source, passed, endedAt));
+    for (const f of list(b.failures ?? [], "failures"))
+        items.push(testItem(id, f, family, source, passed, endedAt, isBump(who)));
     if (passed && source === "ci") {
         // This try's own failures are recorded above; the lookback marks only the earlier tries' other tests.
         const own = new Set(items.flatMap((i) => (i.kind === "test" ? [`${i.file}#${i.name}`] : [])));
@@ -393,7 +404,7 @@ async function failureItems(b: Record<string, unknown>, who: Who, db: Store, now
     const named = typeof b.family === "string" && b.family !== "" ? b.family : undefined;
     const family = run?.family ?? named ?? familyOf(inv.split(".").slice(2).join("."));
     const flaky = b.flaky === true || run?.outcome === "passed";
-    const items = failures.map((f) => testItem(inv, f, family, "ci", flaky, run?.endedAt ?? now));
+    const items = failures.map((f) => testItem(inv, f, family, "ci", flaky, run?.endedAt ?? now, isBump(who)));
     return { items, extra: invTests(inv, items, now) };
 }
 

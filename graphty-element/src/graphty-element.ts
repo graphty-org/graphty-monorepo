@@ -20,7 +20,15 @@ import type {
 } from "./autosave/types";
 import type { ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
-import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type {
+    AlgorithmKey,
+    DrawnShaders,
+    ElementAtResult,
+    FormatId,
+    GroupOutlineAtResult,
+    Scope,
+    ScopeInput,
+} from "./catalog/types";
 import type {
     FitInsets,
     GraphBackgroundConfig,
@@ -74,13 +82,14 @@ import {
 } from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import { type RenderQuality, shadersControllerOf, type ShaderSettings } from "./session/shaders";
 import type { ProgressChange } from "./session/shared";
 import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
+import type { ModelChange, ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 import { downloadBlob } from "./utils/download";
 
@@ -196,7 +205,10 @@ export class Graphty extends LitElement {
     /** Unsubscribes the three network-source expansion mirrors. */
     #unwatchSource: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
+    #unwatchModels: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
+    /** Unsubscribes the three shader mirrors. */
+    #unwatchShaders: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
     readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
@@ -495,6 +507,32 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Mirror the session's shader events onto the DOM as `graphty-shader-status`,
+     * `graphty-shader-held`, `graphty-shader-approved` and `graphty-render-quality`.
+     * @param session - The session to watch.
+     * @param session.on - Its event subscription.
+     * @returns Unsubscribes all four.
+     */
+    #mirrorShaderEvents(session: { on: GraphSession["on"] }): () => void {
+        const names = {
+            "shader:status": "graphty-shader-status",
+            "shader:held": "graphty-shader-held",
+            "shader:approved": "graphty-shader-approved",
+            "render:quality": "graphty-render-quality",
+        } as const;
+        const offs = (Object.keys(names) as (keyof typeof names)[]).map((event) =>
+            session.on(event, (detail) => {
+                this.dispatchEvent(new CustomEvent(names[event], { detail, bubbles: true, composed: true }));
+            }),
+        );
+        return () => {
+            for (const off of offs) {
+                off();
+            }
+        };
+    }
+
+    /**
      * Mirror one run notification onto the DOM, so a consumer holding only the tag can follow it.
      *
      * The detail carries the run's RECORD rather than the run: a `CustomEvent` detail crosses to
@@ -743,6 +781,16 @@ export class Graphty extends LitElement {
                 }),
             );
         });
+        // A model a layer names moved on: requested, checked, drawn, refused or failed.
+        this.#unwatchModels ??= session.on("model:changed", (change) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-model-change", {
+                    detail: change satisfies GraphtyModelChangeDetail,
+                    bubbles: true,
+                    composed: true,
+                }),
+            );
+        });
         this.#unwatchProgress ??= session.on("progress:changed", (change) => {
             this.#mirrorProgressChange(change);
         });
@@ -754,6 +802,10 @@ export class Graphty extends LitElement {
         });
         // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
         this.#unwatchSource ??= this.#mirrorSourceEvents(session);
+        // A project shader's status, held shaders after a load, and approvals an application may remember.
+        this.#unwatchShaders ??= this.#mirrorShaderEvents(session);
+        // A shader nobody approved is compiled only once the work it could take down is saved.
+        shadersControllerOf(session)?.onRisk(() => this.#autosaveControl.api.flush());
         // A source load given no credential asks this element's store, by source and origin.
         attachCredentials(session.data, (source, origin, slot) => this.credentials.lookup(source, origin, slot));
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
@@ -999,8 +1051,12 @@ export class Graphty extends LitElement {
         this.#unwatchSource = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
+        this.#unwatchModels?.();
+        this.#unwatchModels = null;
         this.#unwatchProgress?.();
         this.#unwatchProgress = null;
+        this.#unwatchShaders?.();
+        this.#unwatchShaders = null;
 
         // The final autosave write is built now, while the session is still alive; only its
         // commit finishes after the shutdown below.
@@ -2781,6 +2837,61 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * The reader's shader settings: quality, motion, the frame guard, and what to do with shader
+     * text that arrives in content (a project or style file, an AI command, a URL).
+     * @remarks
+     * A preference of this reader and this page, never of the project: it is not saved in a
+     * project file or a style document, and a file that carries a `shaderSettings` member has it
+     * ignored, so a file can never ask to run its own shaders. `untrusted` holds such shaders
+     * until `session.shaders.approve` by default; `trustedHashes` names the texts (by SHA-256) the
+     * application remembers the reader approved, from `graphty-shader-approved` events. A shader
+     * that was compiling or drawing when the page last died is held whatever `trustedHashes` says.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * element.shaderSettings = { untrusted: "hold", trustedHashes: rememberedHashes };
+     * ```
+     * @returns The settings in force
+     */
+    @property({ attribute: false })
+    get shaderSettings(): ShaderSettings {
+        return shadersControllerOf(this.session)?.settings ?? {};
+    }
+    /**
+     * Sets the reader's shader settings, in place of the ones before.
+     */
+    set shaderSettings(value: ShaderSettings | undefined) {
+        const oldValue = this.shaderSettings;
+        shadersControllerOf(this.session)?.configure(value ?? {});
+        this.requestUpdate("shaderSettings", oldValue);
+    }
+
+    /**
+     * How much shader work the element does now: the quality level `Q()`, shader render targets
+     * and effect squares follow, whether shader motion runs at full rate, at half rate, paused or
+     * still, and whether pasted shaders draw.
+     * @remarks
+     * It starts at `shaderSettings.quality` and changes on its own when the frame guard steps
+     * down on a GPU that falls behind, or back up after a run of fast frames; each such change
+     * fires `graphty-render-quality` with `{ from, to, code }`. `shaderSettings.guard: false` keeps
+     * it at the setting. A graph that names no shader draws the same at every level.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * element.addEventListener("graphty-render-quality", () => {
+     *     chip.textContent = element.renderQuality.level;
+     * });
+     * ```
+     * @returns The quality now
+     */
+    get renderQuality(): RenderQuality {
+        return (
+            shadersControllerOf(this.session)?.renderQuality ??
+            Object.freeze({ level: "high", motion: "on", heavy: "on" } as const)
+        );
+    }
+
+    /**
      * What a selected node looks like: the halo's colour, how far it stands out past the node,
      * and how solid it is.
      * @remarks
@@ -2948,12 +3059,15 @@ export class Graphty extends LitElement {
      * A colour accepts anything CSS does -- a hex string, `rgb(...)`, or a name such as
      * `whitesmoke` -- and is normalised to hex. A skybox wraps the graph in a photo dome built
      * from an image, given as a URL or a base64 PNG, and the element emits
-     * `graphty-skybox-loaded` once its texture has arrived.
+     * `graphty-skybox-loaded` once its texture has arrived. Either may carry a background
+     * `shader`, drawn over the colour or the image; where its alpha is low, they show. With no
+     * `color`, the element draws its default (`session.config.backgroundColor` says which).
      * @since 2.0.0
      * @example JavaScript property
      * ```typescript
      * element.background = { backgroundType: 'color', color: '#101014' };
      * element.background = { backgroundType: 'skybox', data: 'https://example.com/sky.jpg' };
+     * element.background = { backgroundType: 'color', color: '#000000', shader: { id: 'nebula' } };
      * ```
      * @example HTML attribute (JSON string)
      * ```html
@@ -5076,6 +5190,43 @@ export class Graphty extends LitElement {
         return this.#graph.elementAt(point);
     }
 
+    /**
+     * The group outline under a point on the element: the shape a use at the place `group` on a
+     * style layer's `node.shaders` draws around a group of nodes, as a click there would see it.
+     * Only where no node and no edge is (`elementAt` answers those), the topmost outline first.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "group-outline", layer, shader, group }`, or `null` when no outline is there.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * const hit = element.groupOutlineAt({ x: 200, y: 150 });
+     * if (hit !== null) console.log("community", hit.group, "of layer", hit.layer);
+     * ```
+     */
+    groupOutlineAt(point: { x: number; y: number }): GroupOutlineAtResult | null {
+        return this.#graph.groupOutlineAt(point);
+    }
+
+    /**
+     * What the element's shaders draw at this moment: per node shader (a surface, a sprite or an
+     * effect), how many nodes draw it and how many play its entrance now (a reticle's snap, a
+     * shockwave's ring); and the group outlines drawn on the last frame, each with its layer, its
+     * shader and the groups it outlines. For tools, tests and an application that shows whether an effect plays;
+     * read it again after a frame, it is not a live value.
+     * @returns The counts.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * const ring = element.drawnShaders().nodes.get("shockwave");
+     * if ((ring?.entering ?? 0) > 0) console.log("a shockwave is playing");
+     * ```
+     */
+    drawnShaders(): DrawnShaders {
+        return this.#graph.drawnShaders();
+    }
+
     // ============================================================================
     // Additional Data Methods
     // ============================================================================
@@ -5716,6 +5867,13 @@ export interface GraphtyHistoryChangeDetail {
 /** The detail of `graphty-note-change`: which note, what happened to it, and what caused it. */
 export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
 
+/**
+ * The detail of `graphty-model-change`: what happened to one model a style layer names, by what the
+ * layer named (`ref`, the URL or asset id as written), with the layers that name it, its state and
+ * its coded problems. Fires once per model and state, never once per node.
+ */
+export type GraphtyModelChangeDetail = ModelChange;
+
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration and XR capabilities after the change. */
@@ -5751,6 +5909,7 @@ declare global {
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
         "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
         "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
         "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;
@@ -5776,6 +5935,7 @@ declare global {
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
         "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
         "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-model-change": CustomEvent<GraphtyModelChangeDetail>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
         "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;

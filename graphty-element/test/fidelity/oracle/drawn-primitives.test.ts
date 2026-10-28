@@ -116,6 +116,53 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.isUndefined(head(half, "arrow-2d-half").misplaced);
     });
 
+    it("reads a head its style draws at the middle of the line as part-way, not as standing off the line's end", () => {
+        // Pajek's `arrowPosition` (pajek-graphstream-b): both programs draw the head at the middle of every line
+        const middle: Pt[] = [
+            [45, -5],
+            [55, 0],
+            [45, 5],
+        ];
+        const head = (position: number): PScene["edges"][number]["arrows"][number] =>
+            graphOf([cap({ outline: middle, position })]).edges[0].arrows[0];
+        assert.isTrue(head(0.5).partWay);
+        assert.isUndefined(head(0.5).misplaced);
+        // drawn at the line's end by its style, a head in the middle stands off the end
+        assert.isUndefined(head(0).partWay);
+        assert.isAbove(head(0).misplaced ?? 0, 0);
+    });
+
+    it("reads each head of an annotation arrow as a shape of its own", () => {
+        const drawn: DrawnGraph = {
+            nodes: new Map(),
+            edges: new Map(),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        };
+        const arrow = (heads: number): Scene =>
+            ({
+                nodes: [],
+                edges: [],
+                groups: [],
+                gaps: [],
+                annotations: [
+                    {
+                        kind: "arrow",
+                        bbox: { x: 10, y: 50, w: 100, h: 0 },
+                        heads: [
+                            { x: 98, y: 45, w: 12, h: 10 },
+                            { x: 10, y: 45, w: 12, h: 10 },
+                        ].slice(0, heads),
+                    },
+                ],
+            }) as unknown as Scene;
+        const tags = (s: Scene): string[] => drawnPrimitives(s, drawn).strays.map((x) => x.tag);
+        assert.deepEqual(tags(arrow(2)), ["annotation-arrow", "annotation-arrow-head", "annotation-arrow-head"]);
+        assert.deepEqual(tags(arrow(0)), ["annotation-arrow"]);
+    });
+
     it("reads the arrowhead of an edge it draws no line for as a free shape, as the oracle's is a stray", () => {
         // Gephi's swallowed curved edge (gexf-sigma-ediaspora): an arrowhead with no line
         const head = cap({

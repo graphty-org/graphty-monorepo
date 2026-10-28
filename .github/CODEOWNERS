@@ -35,6 +35,8 @@
 /vitest.base.mjs @graphty-org/code-owners
 /vitest.ci-junit.mjs @graphty-org/code-owners
 /vitest.ci-junit.d.mts @graphty-org/code-owners
+/vitest.wait-guard-setup.ts @graphty-org/code-owners
+/tools/test-wait-guard.mjs @graphty-org/code-owners
 **/.storybook/vitest.setup.* @graphty-org/code-owners
 /graphty/sites/canary.json @graphty-org/code-owners
 /graphty/sites/nightly.json @graphty-org/code-owners

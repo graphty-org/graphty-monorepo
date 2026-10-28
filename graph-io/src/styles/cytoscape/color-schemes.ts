@@ -52,7 +52,7 @@ const GRADIENTS: Readonly<Record<string, readonly [string, string | null, string
  * @param brightness - 0..1
  * @returns the color
  */
-export function hsbToHex(hue: number, saturation: number, brightness: number): string {
+function hsbToHex(hue: number, saturation: number, brightness: number): string {
     const f32 = Math.fround;
     const [s, b] = [f32(saturation), f32(brightness)];
     const byte = (v: number): number => Math.trunc(f32(f32(v) * 255) + 0.5);

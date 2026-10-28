@@ -1362,10 +1362,13 @@ The annotation, chart color scheme and mapping pages added after the first round
   and a session only; `-p19` holds the other new mapping kinds in all four formats.
 - Chart color schemes (`bar-color-scheme-*` on `images-charts`, `-p6` and their replay): `cy_colorScheme` (the
   deprecated CONTRASTING, MODULATED and RAINBOW, and the named gradients of custom-graphics-internal's
-  `ColorGradient`, BLUE_RED, YL_OR_RD and 21 more) gives a chart its colors when `cy_colors` is absent. graph-io does
-  reads only pie and ring charts, and neither reads `cy_colorScheme`, so graphty draws no bars at all here. Open:
-  the fix is in graph-io's chart reader (bar charts first; the scheme colors are generated in `ColorScheme`, the
-  gradients listed in `ColorGradient`).
+  `ColorGradient`, BLUE_RED, YL_OR_RD and 21 more) gives a chart its colors when `cy_colors` is absent. Fixed
+  (round 5, #4249): graph-io's chart reader (`styles/cytoscape/color-schemes.ts`) generates RAINBOW, MODULATED and
+  CONTRASTING as Cytoscape 3.10's `ColorScheme` does and reads every `ColorGradient` (up, zero, down, thinned to the
+  values' count), and a bar past the chart's colors is JFreeChart's light gray (#c0c0c0), as BLUE_RED's third bar
+  shows. A chart's own `cy_values` now come before its data columns (`pie-values` on `-p5` and `-p18`).
+  stray.present on `images-charts-p5`, `-p6` and `mappings-bypass-p18`: 59 -> 5 failing per format (cx, cx2, cys,
+  xgmml). Left: `-p5`/`-p18` one #e8eae8 disc, `-p6` three annotation outlines.
 
 ## Specimen sheets: Cytoscape desktop label settings graph-io now reads (fix round 1, XGMML, 2026-10-19)
 

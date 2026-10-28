@@ -778,14 +778,9 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
     if (label === null || (!isHtmlString(label) && !html.has(`<${label}>`))) {
         return null;
     }
-    const markup = isHtmlString(label) ? label.slice(1, -1) : label;
-    const open = /^\s*(?:<(?:font|b|i|u|o|s)\b[^>]*>\s*)*<table\b([^>]*)>/i.exec(markup);
-    if (open === null) {
+    const attrs = tableAttributes(isHtmlString(label) ? label.slice(1, -1) : label);
+    if (attrs === null) {
         return null;
-    }
-    const attrs = new Map<string, string>();
-    for (const m of open[1].matchAll(/([a-z-]+)\s*=\s*"([^"]*)"/gi)) {
-        attrs.set(m[1].toLowerCase(), m[2]);
     }
     const length = (name: string, fallback: number): number => {
         const v = Number(attrs.get(name) ?? Number.NaN);
@@ -805,6 +800,37 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
         width: size("width"),
         height: size("height"),
     };
+}
+
+/** The font tags a table label may sit inside (Graphviz's `fonttable`). */
+const TABLE_WRAPPERS: ReadonlySet<string> = new Set(["font", "b", "i", "u", "o", "s"]);
+
+/**
+ * The attributes of the table an HTML-like label is, by lowercase name; null when the label is not a table (perhaps
+ * inside font tags). Read in one pass, without a backtracking pattern.
+ * @param markup - the label without its outer brackets
+ * @returns the attributes, or null
+ */
+function tableAttributes(markup: string): Map<string, string> | null {
+    let at = 0;
+    for (;;) {
+        while (at < markup.length && markup.charCodeAt(at) <= 0x20) {
+            at++;
+        }
+        const end = markup.indexOf(">", at);
+        if (markup[at] !== "<" || end < 0) {
+            return null;
+        }
+        const tag = markup.slice(at + 1, end);
+        const name = (tag.split(/[\s/]/, 1)[0] ?? "").toLowerCase();
+        if (name === "table") {
+            return new Map(tagAttributes(tag.slice(name.length)).map(([k, v]) => [k.toLowerCase(), v]));
+        }
+        if (!TABLE_WRAPPERS.has(name)) {
+            return null;
+        }
+        at = end + 1;
+    }
 }
 
 /**

@@ -1617,9 +1617,13 @@ export const STORY_MS = {
     // PR run 40567162255 (2026-10-27): 2,558 s of capture for its 575 stories in 7 bins planned at 2.8 s, the longest
     // bin 543 s against a 240 s plan
     "graph-io-fidelity": 4_500,
-    graphty: 6_000,
+    // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
+    // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
+    graphty: 3_000,
     "cytoscape-extensions": 1_600,
-    "graphty-element": 1_400,
+    // the same runs: graphty-element's two bins captured at 1.6 to 2.1 times their plan at 1.4 s (447 s and 460 s
+    // for graphty-element-1, the pull request's last job in 7 of 19 runs), so it is 2.5 s
+    "graphty-element": 2_500,
     "compact-mantine": 1_000,
     algorithms: 1_200,
     layout: 900,

@@ -42,10 +42,20 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs`;
 
 const FINISHED = new Set(["success", "failure", "timed_out", "startup_failure"]);
 const isMaster = (base: string) => base === "master" || base === "main";
+/** A finished job's own verdict: cancelled and skipped jobs say nothing about the job. */
+const JOB_PASS = new Set(["success"]);
+const JOB_FAIL = new Set(["failure", "timed_out", "startup_failure"]);
+
+/**
+ * A job's name with its bin or shard number folded, as checks are grouped by family (section 4):
+ * "CI / Test (graphty-element-browser-3)" -> "CI / Test (graphty-element-browser)".
+ * @param name the job's name
+ */
+export const jobFamily = (name: string): string => name.replace(/(\bTest \([^)]+?)-\d+\)$/, "$1)");
 
 export const METRICS: MetricDef[] = [
     // 4.1 Master
@@ -164,6 +174,38 @@ export const METRICS: MetricDef[] = [
             src("shard_run", "endedAt", (s) =>
                 s.source === "ci" && s.bin && s.outcome === "passed" ? { value: s.secs * 1000, dim: s.family } : null,
             ),
+        ],
+    },
+    // Non-gating jobs (4.3): every finished job of every run kind, passed or failed, by [workflow, job family].
+    {
+        id: "ci.job_outcome",
+        from: [
+            src("job", "completedAt", (j) =>
+                JOB_PASS.has(j.conclusion ?? "") || JOB_FAIL.has(j.conclusion ?? "")
+                    ? {
+                          sum: JOB_FAIL.has(j.conclusion ?? "") ? 1 : 0,
+                          dim: JSON.stringify([j.workflow, jobFamily(j.name)]),
+                      }
+                    : null,
+            ),
+        ],
+    },
+    // Chronically failing jobs (4.3): when each job of a master push, full run or other run passed or failed, by
+    // [workflow, job family, "pass" | "fail"], the times kept exactly so the collector reads each job's newest runs in
+    // order. Pull request runs are left out: their failures may be their own change's.
+    {
+        id: "ci.job_history",
+        from: [
+            src("job", "completedAt", (j) => {
+                const pass = JOB_PASS.has(j.conclusion ?? "");
+                if (!j.load || j.load === "pr" || j.completedAt === undefined) return null;
+                if (!pass && !JOB_FAIL.has(j.conclusion ?? "")) return null;
+                return {
+                    value: j.completedAt,
+                    exact: true,
+                    dim: JSON.stringify([j.workflow, jobFamily(j.name), pass ? "pass" : "fail"]),
+                };
+            }),
         ],
     },
     // 4.4 Flaky tests

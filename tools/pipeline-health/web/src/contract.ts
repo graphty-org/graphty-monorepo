@@ -80,7 +80,7 @@ export interface Fact {
 }
 
 /** The unit of a number. `pct` is 0 to 100; `ratio` a plain ratio; `x` a multiple of a budget. */
-export type Unit = "pct" | "ratio" | "x" | "s" | "min" | "h" | "d" | "usd" | "count" | "jobs" | "per1000";
+export type Unit = "pct" | "ratio" | "x" | "ms" | "s" | "min" | "h" | "d" | "usd" | "count" | "jobs" | "per1000";
 
 /**
  * A member's value: a number, a word (`passed`, `failed`, `yes`, `no`), or `null` when there is none
@@ -175,6 +175,8 @@ export const MEMBER_IDS = [
     "ci.shards_over",
     "ci.runner_minutes",
     "ci.superseded",
+    "ci.chronic_jobs",
+    "ci.bench_regressions",
     "flaky.blocked",
     "flaky.no_issue",
     "flaky.flake_rate",
@@ -293,6 +295,7 @@ export type SourceId =
     | "hosts"
     | "billing"
     | "flaky-feed"
+    | "benchmarks"
     | "local";
 
 /** `GET /v1/status`: the status line and the last 24 h, whatever range a page shows. */
@@ -366,7 +369,8 @@ export interface StripSection extends SectionBase {
 
 /**
  * A table. The page names the table's columns by section id; each row maps a column key to a cell.
- * Tables: master/red, master/shared, pull-requests/owner, runners/superseded, releases/lanes,
+ * Tables: master/red, master/shared, pull-requests/owner, runners/superseded, ci/chronic, ci/non-gating,
+ * ci/benchmarks, releases/lanes,
  * releases/trains, releases/workflows, costs/money, costs/unit, data-sources/stress,
  * data-sources/sources, data-sources/not-set-up.
  */

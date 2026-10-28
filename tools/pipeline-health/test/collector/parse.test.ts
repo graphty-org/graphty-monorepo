@@ -91,6 +91,21 @@ describe("runs and jobs", () => {
         expect(at("bisect.yml", "workflow_dispatch", "master")).toBe("other");
         expect(at("ci.yml", "push", "dependabot/npm/x")).toBe("other");
         expect(at("restricted-cpu-stress.yml", "schedule", "master")).toBe("other");
+        // CodeQL's default setup scanning pull request #4096 (run 40614293039), and scanning master
+        expect(
+            loadKind({
+                path: "dynamic/github-code-scanning/codeql",
+                event: "dynamic",
+                head_branch: "refs/pull/4096/head",
+            }),
+        ).toBe("pr");
+        expect(
+            loadKind({
+                path: "dynamic/github-code-scanning/codeql",
+                event: "dynamic",
+                head_branch: "refs/heads/master",
+            }),
+        ).toBe("other");
         const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
         expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
         expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");

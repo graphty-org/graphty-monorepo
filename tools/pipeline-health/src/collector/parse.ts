@@ -134,11 +134,13 @@ const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 /**
  * The kind of load a run puts on the runners (4.3, runner-minutes per merge).
  * @param run the run
- * @returns full for release.yml (whose called workflows run inside it), pr, master for a push to master, else other
+ * @returns full for release.yml (whose called workflows run inside it), pr (a pull request's, including CodeQL's
+ *     default setup scanning one: event `dynamic` on `refs/pull/<n>/head`), master for a push to master, else other
  */
 export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
     if (workflowFile(run.path) === "release.yml") return "full";
     if (run.event === "pull_request" || run.event === "pull_request_target") return "pr";
+    if (run.event === "dynamic" && run.head_branch?.startsWith("refs/pull/")) return "pr";
     if (run.event === "push" && run.head_branch === "master") return "master";
     return "other";
 }

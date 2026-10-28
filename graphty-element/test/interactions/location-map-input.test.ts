@@ -681,8 +681,11 @@ describe("the location map's history and map", () => {
             options: { map: { tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png", attribution: "Bad Tiles Co" } },
         });
         await commands.releaseRequests("127.0.0.1:9", true);
-        await applied(element);
-        await applied(element);
+        // The layout applied and two frames drawn with the refusals in, the world still held. Not
+        // `applied()`: a frame is not final while the map under it is loading (issue #3546), and the
+        // world it waits for is the one this test holds back.
+        await element.waitForSettled();
+        await drawnFrames(element.graph.getScene(), 2);
         await commands.releaseRequests("natural-earth.jpg", false);
         await basemapIs(element, "fallback");
         assert.strictEqual(element.basemapStatus.state, "fallback");

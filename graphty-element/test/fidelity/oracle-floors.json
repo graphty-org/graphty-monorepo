@@ -2779,6 +2779,28 @@
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95
         },
+        "cx-specimen-mappings-bypass-p2@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "stray.present": 0,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1
+        },
         "cx-specimen-mappings-bypass-p20": {
             "node.present": 1,
             "node.extra": 1,
@@ -2819,28 +2841,6 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
-        },
-        "cx-specimen-mappings-bypass-p2@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 1,
-            "node.stroke": 1,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
-            "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -10160,6 +10160,28 @@
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95
         },
+        "cys-specimen-mappings-bypass-p2@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "stray.present": 0,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1
+        },
         "cys-specimen-mappings-bypass-p20": {
             "node.present": 1,
             "node.extra": 1,
@@ -10200,28 +10222,6 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
-        },
-        "cys-specimen-mappings-bypass-p2@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 1,
-            "node.stroke": 1,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
-            "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -12345,7 +12345,8 @@
             "raster.edge": 0.87,
             "raster.label": 0.87,
             "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "dot-profile@matched": {
             "node.present": 1,
@@ -12398,7 +12399,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-real-crazy": {
             "node.present": 1,
@@ -12458,7 +12460,8 @@
             "raster.edge": 0.65,
             "raster.label": 0.78,
             "raster.nodeBody": 0.79,
-            "raster.nodeOutline": 0.87
+            "raster.nodeOutline": 0.87,
+            "edge.wiggle": 1
         },
         "dot-real-crazy@matched": {
             "node.present": 1,
@@ -12512,7 +12515,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-real-depcruise": {
             "node.present": 1,
@@ -12540,7 +12544,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.165,
+            "label.anchor": 0.983,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -12574,7 +12578,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-real-depcruise@matched": {
             "node.present": 1,
@@ -12602,7 +12607,7 @@
             "label.opacity": 1,
             "label.family": 1,
             "label.lines": 1,
-            "label.anchor": 0.165,
+            "label.anchor": 0.983,
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
@@ -12636,7 +12641,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 0.998
         },
         "dot-real-happiness": {
             "node.present": 0.987,
@@ -12687,7 +12693,8 @@
             "raster.edge": 0.96,
             "raster.label": 0.88,
             "raster.nodeBody": 0.89,
-            "raster.nodeOutline": 0.98
+            "raster.nodeOutline": 0.98,
+            "edge.wiggle": 1
         },
         "dot-real-happiness@matched": {
             "node.present": 0.987,
@@ -12733,7 +12740,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-real-linux-kernel": {
             "node.present": 0.962,
@@ -12794,7 +12802,8 @@
             "raster.edge": 0.83,
             "raster.label": 0.85,
             "raster.nodeBody": 0.85,
-            "raster.nodeOutline": 0.81
+            "raster.nodeOutline": 0.81,
+            "edge.wiggle": 1
         },
         "dot-real-linux-kernel@matched": {
             "node.present": 0.962,
@@ -12849,12 +12858,13 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-real-siblings": {
             "node.present": 1,
             "node.extra": 1,
-            "node.position": 0,
+            "node.position": 0.06,
             "node.width": 1,
             "node.height": 1,
             "node.sizeToSpacing": 1,
@@ -12909,7 +12919,8 @@
             "raster.edge": 0.89,
             "raster.label": 0.81,
             "raster.nodeBody": 0.81,
-            "raster.nodeOutline": 0.93
+            "raster.nodeOutline": 0.93,
+            "edge.wiggle": 1
         },
         "dot-real-siblings@matched": {
             "node.present": 1,
@@ -12944,7 +12955,7 @@
             "edge.present": 1,
             "edge.extra": 1,
             "edge.route": 0.968,
-            "edge.curve": 0.993,
+            "edge.curve": 0.996,
             "edge.color": 1,
             "edge.width": 1,
             "edge.opacity": 1,
@@ -12963,7 +12974,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-real-softmaint": {
             "node.present": 0.995,
@@ -13021,7 +13033,8 @@
             "raster.edge": 0.88,
             "raster.label": 0.88,
             "raster.nodeBody": 0.9,
-            "raster.nodeOutline": 0.91
+            "raster.nodeOutline": 0.91,
+            "edge.wiggle": 1
         },
         "dot-real-softmaint@matched": {
             "node.present": 0.995,
@@ -13073,7 +13086,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-arrows": {
             "node.present": 1,
@@ -13117,7 +13131,8 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.9,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-arrows-p2": {
             "node.present": 1,
@@ -13162,7 +13177,8 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.89,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-arrows-p2@matched": {
             "node.present": 1,
@@ -13202,7 +13218,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-arrows-p3": {
             "node.present": 1,
@@ -13246,7 +13263,8 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.86,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-arrows-p3@matched": {
             "node.present": 1,
@@ -13285,7 +13303,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-arrows-p4": {
             "node.present": 1,
@@ -13329,7 +13348,8 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.91,
             "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "dot-specimen-arrows-p4@matched": {
             "node.present": 1,
@@ -13368,7 +13388,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-arrows@matched": {
             "node.present": 1,
@@ -13407,7 +13428,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edge-labels": {
             "node.present": 1,
@@ -13468,7 +13490,8 @@
             "raster.edge": 0.9,
             "raster.label": 0.87,
             "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-edge-labels@matched": {
             "node.present": 1,
@@ -13523,13 +13546,14 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines": {
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.981,
+            "node.width": 1,
             "node.height": 0.981,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
@@ -13537,7 +13561,7 @@
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.981,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -13557,7 +13581,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.946,
-            "edge.route": 0.925,
+            "edge.route": 0.943,
             "edge.curve": 0.981,
             "edge.color": 1,
             "edge.width": 1,
@@ -13584,7 +13608,8 @@
             "raster.edge": 0.86,
             "raster.label": 0.86,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p10": {
             "node.present": 1,
@@ -13673,7 +13698,8 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.89,
             "raster.nodeBody": 0.96,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p11@matched": {
             "node.present": 1,
@@ -13712,7 +13738,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p2": {
             "node.present": 1,
@@ -13771,7 +13798,8 @@
             "raster.edge": 0.83,
             "raster.label": 0.91,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p2@matched": {
             "node.present": 1,
@@ -13824,7 +13852,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p3": {
             "node.present": 1,
@@ -13883,7 +13912,8 @@
             "raster.edge": 0.83,
             "raster.label": 0.92,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p3@matched": {
             "node.present": 1,
@@ -13936,7 +13966,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p4": {
             "node.present": 1,
@@ -13995,7 +14026,8 @@
             "raster.edge": 0.91,
             "raster.label": 0.9,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p4@matched": {
             "node.present": 1,
@@ -14048,7 +14080,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p5": {
             "node.present": 1,
@@ -14107,7 +14140,8 @@
             "raster.edge": 0.85,
             "raster.label": 0.94,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p5@matched": {
             "node.present": 1,
@@ -14160,7 +14194,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p6": {
             "node.present": 1,
@@ -14219,7 +14254,8 @@
             "raster.edge": 0.88,
             "raster.label": 0.92,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p6@matched": {
             "node.present": 1,
@@ -14272,7 +14308,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p7": {
             "node.present": 1,
@@ -14376,7 +14413,8 @@
             "raster.edge": 0.83,
             "raster.label": 0.91,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p8@matched": {
             "node.present": 1,
@@ -14429,7 +14467,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p9": {
             "node.present": 1,
@@ -14488,7 +14527,8 @@
             "raster.edge": 0.88,
             "raster.label": 0.92,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines-p9@matched": {
             "node.present": 1,
@@ -14541,13 +14581,14 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-edges-lines@matched": {
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.981,
+            "node.width": 1,
             "node.height": 0.981,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
@@ -14555,7 +14596,7 @@
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.981,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -14575,7 +14616,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.946,
-            "edge.route": 0.925,
+            "edge.route": 0.943,
             "edge.curve": 0.981,
             "edge.color": 1,
             "edge.width": 1,
@@ -14596,7 +14637,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-groups": {
             "node.present": 1,
@@ -14664,7 +14706,8 @@
             "raster.canvas": 0.99,
             "raster.edge": 0.87,
             "raster.nodeBody": 0.99,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.96,
+            "edge.wiggle": 1
         },
         "dot-specimen-groups-p10": {
             "node.present": 1,
@@ -15701,7 +15744,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-images-charts": {
             "node.present": 1,
@@ -15712,11 +15756,11 @@
             "node.sizeToSpacing": 0.86,
             "node.sizeToExtent": 0.86,
             "node.shape": 1,
-            "node.fill": 0.86,
+            "node.fill": 0.977,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.884,
-            "node.strokeWidth": 0.973,
+            "node.stroke": 1,
+            "node.strokeWidth": 0.976,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -15752,11 +15796,11 @@
             "node.sizeToSpacing": 0.86,
             "node.sizeToExtent": 0.86,
             "node.shape": 1,
-            "node.fill": 0.86,
+            "node.fill": 0.977,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.884,
-            "node.strokeWidth": 0.973,
+            "node.stroke": 1,
+            "node.strokeWidth": 0.976,
             "node.strokeDash": 1,
             "label.present": 1,
             "label.text": 1,
@@ -15823,15 +15867,15 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.333,
-            "node.height": 0.37,
-            "node.sizeToSpacing": 0.833,
-            "node.sizeToExtent": 0.833,
+            "node.width": 0.796,
+            "node.height": 0.852,
+            "node.sizeToSpacing": 0.981,
+            "node.sizeToExtent": 0.981,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.389,
+            "node.stroke": 0.981,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -15863,15 +15907,15 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.333,
-            "node.height": 0.37,
-            "node.sizeToSpacing": 0.833,
-            "node.sizeToExtent": 0.833,
+            "node.width": 0.796,
+            "node.height": 0.852,
+            "node.sizeToSpacing": 0.981,
+            "node.sizeToExtent": 0.981,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.389,
+            "node.stroke": 0.981,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
@@ -15899,15 +15943,15 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.143,
-            "node.height": 0.179,
-            "node.sizeToSpacing": 0.714,
-            "node.sizeToExtent": 0.714,
+            "node.width": 0.714,
+            "node.height": 0.75,
+            "node.sizeToSpacing": 0.821,
+            "node.sizeToExtent": 0.821,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.25,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 0.929,
@@ -15939,15 +15983,15 @@
             "node.present": 1,
             "node.extra": 1,
             "node.position": 1,
-            "node.width": 0.143,
-            "node.height": 0.179,
-            "node.sizeToSpacing": 0.714,
-            "node.sizeToExtent": 0.714,
+            "node.width": 0.714,
+            "node.height": 0.75,
+            "node.sizeToSpacing": 0.821,
+            "node.sizeToExtent": 0.821,
             "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.25,
+            "node.stroke": 1,
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 0.929,
@@ -16147,7 +16191,8 @@
             "raster.edge": 0.9,
             "raster.label": 0.95,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.96,
+            "edge.wiggle": 1
         },
         "dot-specimen-mappings-bypass@matched": {
             "node.present": 1,
@@ -16209,7 +16254,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-node-fills-borders": {
             "node.present": 1,
@@ -16711,7 +16757,8 @@
             "raster.edge": 0.82,
             "raster.label": 0.94,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.96
+            "raster.nodeOutline": 0.96,
+            "edge.wiggle": 1
         },
         "dot-specimen-node-sizes-opacity-p2": {
             "node.present": 1,
@@ -16761,7 +16808,8 @@
             "raster.edge": 0.83,
             "raster.label": 0.86,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "dot-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
@@ -16806,7 +16854,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-node-sizes-opacity-p3": {
             "node.present": 1,
@@ -16856,7 +16905,8 @@
             "raster.edge": 0.95,
             "raster.label": 0.86,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "dot-specimen-node-sizes-opacity-p3@matched": {
             "node.present": 1,
@@ -16901,7 +16951,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-specimen-node-sizes-opacity-p4": {
             "node.present": 1,
@@ -17020,7 +17071,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "dot-synth-edges-clusters": {
             "node.present": 1,
@@ -17089,7 +17141,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 0.99
         },
         "dot-synth-edges-clusters@matched": {
             "node.present": 1,
@@ -17158,14 +17211,79 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 0.99
         },
         "dot-synth-nodes": {
             "node.present": 0.99,
             "node.extra": 1,
             "node.position": 0.106,
             "node.width": 0.875,
-            "node.height": 0.962,
+            "node.height": 0.971,
+            "node.sizeToSpacing": 0.981,
+            "node.sizeToExtent": 0.981,
+            "node.shape": 0.99,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 0.99,
+            "node.stroke": 0.99,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "node.ring": 1,
+            "label.present": 1,
+            "label.text": 0.99,
+            "label.size": 1,
+            "label.weight": 1,
+            "label.style": 1,
+            "label.color": 1,
+            "label.rotation": 1,
+            "label.offset": 0.971,
+            "label.opacity": 1,
+            "label.family": 1,
+            "label.lines": 0.98,
+            "label.align": 1,
+            "label.anchor": 0.931,
+            "label.outline": 1,
+            "label.background": 1,
+            "label.backgroundBorder": 1,
+            "edge.present": 0.991,
+            "edge.extra": 1,
+            "edge.route": 0.583,
+            "edge.curve": 0.981,
+            "edge.color": 1,
+            "edge.width": 1,
+            "edge.opacity": 1,
+            "edge.dash": 1,
+            "edge.gradient": 1,
+            "edge.arrow": 1,
+            "edge.arrowShape": 1,
+            "edge.arrowParts": 1,
+            "edge.arrowPlace": 1,
+            "edge.arrowFill": 1,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1,
+            "stray.present": 0,
+            "stray.extra": 0.143,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1,
+            "raster.arrowhead": 0.74,
+            "raster.canvas": 0.94,
+            "raster.edge": 0.89,
+            "raster.label": 0.78,
+            "raster.nodeBody": 0.81,
+            "raster.nodeOutline": 0.82,
+            "edge.wiggle": 1
+        },
+        "dot-synth-nodes@matched": {
+            "node.present": 0.99,
+            "node.extra": 1,
+            "node.position": 0.904,
+            "node.width": 0.875,
+            "node.height": 0.971,
             "node.sizeToSpacing": 0.981,
             "node.sizeToExtent": 0.981,
             "node.shape": 0.99,
@@ -17216,69 +17334,7 @@
             "frame.rotation": 1,
             "frame.zoom": 1,
             "background": 1,
-            "raster.arrowhead": 0.74,
-            "raster.canvas": 0.94,
-            "raster.edge": 0.89,
-            "raster.label": 0.78,
-            "raster.nodeBody": 0.81,
-            "raster.nodeOutline": 0.82
-        },
-        "dot-synth-nodes@matched": {
-            "node.present": 0.99,
-            "node.extra": 1,
-            "node.position": 0.904,
-            "node.width": 0.875,
-            "node.height": 0.962,
-            "node.sizeToSpacing": 0.981,
-            "node.sizeToExtent": 0.981,
-            "node.shape": 0.99,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 0.99,
-            "node.stroke": 0.99,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "node.ring": 1,
-            "label.present": 1,
-            "label.text": 0.99,
-            "label.size": 1,
-            "label.weight": 1,
-            "label.style": 1,
-            "label.color": 1,
-            "label.rotation": 1,
-            "label.offset": 0.971,
-            "label.opacity": 1,
-            "label.family": 1,
-            "label.lines": 0.98,
-            "label.align": 1,
-            "label.anchor": 0.931,
-            "label.outline": 1,
-            "label.background": 1,
-            "label.backgroundBorder": 1,
-            "edge.present": 0.991,
-            "edge.extra": 1,
-            "edge.route": 0.556,
-            "edge.curve": 0.981,
-            "edge.color": 1,
-            "edge.width": 1,
-            "edge.opacity": 1,
-            "edge.dash": 1,
-            "edge.gradient": 1,
-            "edge.arrow": 1,
-            "edge.arrowShape": 1,
-            "edge.arrowParts": 1,
-            "edge.arrowPlace": 1,
-            "edge.arrowFill": 1,
-            "edge.arrowColor": 1,
-            "edge.arrowLength": 1,
-            "edge.arrowWidth": 1,
-            "edge.arrowToSpacing": 1,
-            "stray.present": 0,
-            "stray.extra": 0.143,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
+            "edge.wiggle": 1
         },
         "gexf-cns-wos": {
             "node.present": 1,
@@ -21918,6 +21974,27 @@
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.97
         },
+        "gexf-specimen-labels-p2@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1
+        },
         "gexf-specimen-labels-p20": {
             "node.present": 1,
             "node.extra": 1,
@@ -22287,27 +22364,6 @@
             "label.outline": 1,
             "label.background": 1,
             "label.backgroundBorder": 1,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
-        },
-        "gexf-specimen-labels-p2@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 1,
-            "node.stroke": 1,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
@@ -34275,6 +34331,28 @@
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.95
         },
+        "xgmml-specimen-mappings-bypass-p2@matched": {
+            "node.present": 1,
+            "node.extra": 1,
+            "node.position": 1,
+            "node.width": 1,
+            "node.height": 1,
+            "node.sizeToSpacing": 1,
+            "node.sizeToExtent": 1,
+            "node.shape": 1,
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.gradient": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1,
+            "node.strokeDash": 1,
+            "label.present": 1,
+            "stray.present": 0,
+            "frame.mirror": 1,
+            "frame.rotation": 1,
+            "frame.zoom": 1,
+            "background": 1
+        },
         "xgmml-specimen-mappings-bypass-p20": {
             "node.present": 1,
             "node.extra": 1,
@@ -34315,28 +34393,6 @@
             "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
-            "frame.mirror": 1,
-            "frame.rotation": 1,
-            "frame.zoom": 1,
-            "background": 1
-        },
-        "xgmml-specimen-mappings-bypass-p2@matched": {
-            "node.present": 1,
-            "node.extra": 1,
-            "node.position": 1,
-            "node.width": 1,
-            "node.height": 1,
-            "node.sizeToSpacing": 1,
-            "node.sizeToExtent": 1,
-            "node.shape": 1,
-            "node.fill": 1,
-            "node.fillOpacity": 1,
-            "node.gradient": 1,
-            "node.stroke": 1,
-            "node.strokeWidth": 1,
-            "node.strokeDash": 1,
-            "label.present": 1,
-            "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,

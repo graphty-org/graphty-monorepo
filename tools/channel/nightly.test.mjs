@@ -1,8 +1,10 @@
 // Tests of the nightly promotion's decisions and records (tools/channel/nightly.mjs).
 // Run: node tools/channel/nightly.test.mjs
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -11,10 +13,12 @@ import { parse as parseYaml } from "yaml";
 import { parseDeployed } from "./site-deploy.mjs";
 import {
     autosaveFormatOf,
+    carrierCommit,
     channelRecord,
     deployedRecord,
     deployState,
     promotion,
+    siteReleasePlan,
     stall,
     stampOf,
     STALL_TITLE,
@@ -127,6 +131,51 @@ describe("the records", () => {
         const d = deployedRecord({ sha: SHA, siteSha256: "f".repeat(64), configRef: "c".repeat(40), now: NOW });
         assert.deepEqual(parseDeployed(JSON.stringify(d)), d);
         assert.equal(d.tag, `site-${SHA}`);
+        const carried = deployedRecord({
+            sha: SHA,
+            siteSha256: "f".repeat(64),
+            configRef: "c".repeat(40),
+            now: NOW,
+            tag: `site-${"b".repeat(40)}`,
+        });
+        assert.deepEqual(parseDeployed(JSON.stringify(carried)), carried);
+    });
+});
+
+describe("the site-<sha> release (immutable releases, #4149)", () => {
+    const HASH = "e".repeat(64);
+    const release = (assets) => ({ tag_name: `site-${SHA}`, immutable: true, assets });
+    it("creates a missing release, reuses one holding this archive, refuses another archive", () => {
+        assert.equal(siteReleasePlan(null, HASH).action, "create");
+        const same = release([{ name: "site.tar.zst", digest: `sha256:${HASH}` }, { name: "channel.json" }]);
+        assert.equal(siteReleasePlan(same, HASH).action, "reuse");
+        const other = release([{ name: "site.tar.zst", digest: `sha256:${"0".repeat(64)}` }]);
+        assert.equal(siteReleasePlan(other, HASH).action, "refuse");
+    });
+
+    it("moves a site whose release was published without it to a carrier commit", () => {
+        assert.equal(siteReleasePlan(release([]), HASH).action, "carrier");
+        assert.equal(siteReleasePlan(release([{ name: "channel.json" }]), HASH).action, "carrier");
+    });
+
+    it("makes the same carrier every time: the candidate's tree, the candidate as its parent", () => {
+        const dir = mkdtempSync(join(tmpdir(), "nightly-carrier-"));
+        const git = (args, env = {}) =>
+            execFileSync("git", ["-C", dir, ...args], {
+                encoding: "utf8",
+                env: { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", ...env },
+            }).trim();
+        git(["init", "-q"]);
+        writeFileSync(join(dir, "a.txt"), "a\n");
+        git(["add", "a.txt"]);
+        git(["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-qm", "c"]);
+        const sha = git(["rev-parse", "HEAD"]);
+        const carrier = carrierCommit(sha, git);
+        assert.match(carrier, /^[0-9a-f]{40}$/);
+        assert.notEqual(carrier, sha);
+        assert.equal(carrierCommit(sha, git), carrier, "a re-run finds the same commit, and its release");
+        assert.equal(git(["rev-parse", `${carrier}^{tree}`]), git(["rev-parse", `${sha}^{tree}`]));
+        assert.equal(git(["rev-parse", `${carrier}^`]), sha);
     });
 });
 
@@ -243,8 +292,8 @@ describe("nightly.mjs as a command", () => {
 });
 
 describe("the site job's hang guard", () => {
-    const release = parseYaml(readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8"));
-    const site = release.jobs.site;
+    const workflow = readFileSync(new URL("../../.github/workflows/nightly-site.yml", import.meta.url), "utf8");
+    const site = parseYaml(workflow).jobs.site;
     it("counts the deploy wait from the job's start, not from the wait", () => {
         assert.match(site.steps[0].run, /JOB_STARTED_MS=/, "the first step notes the start");
         assert.equal(waitDeadline({ JOB_STARTED_MS: String(NOW - 6 * 60_000) }, NOW), NOW - 6 * 60_000 + WAIT_LIMIT_MS);

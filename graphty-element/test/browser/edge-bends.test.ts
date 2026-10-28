@@ -206,3 +206,78 @@ describe("a self-loop drawn through a closed ring of bends", () => {
         assert.closeTo(Math.max(...points.map(([, y]) => y)), 4.5 * half, 0.02 * half);
     });
 });
+
+describe("patterned lines drawn along their route (issue #3102)", () => {
+    let container: HTMLElement;
+    let graph: Graph;
+
+    beforeEach(async () => {
+        container = document.createElement("div");
+        container.style.width = "640px";
+        container.style.height = "480px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+    });
+
+    afterEach(() => {
+        graph.dispose();
+        container.remove();
+    });
+
+    /**
+     * Add nodes and edges, paint every edge and wait for the drawing.
+     * @param nodes - The nodes.
+     * @param edges - The edges.
+     * @param set - The channels to write.
+     * @returns Where the first edge's pattern elements are drawn.
+     */
+    async function elements(
+        nodes: typeof NODES,
+        edges: { src: string; dst: string }[],
+        set: Record<string, unknown>,
+    ): Promise<[number, number][]> {
+        await graph.addNodes(nodes);
+        await graph.addEdges(edges);
+        await graph.setLayout("fixed", { dim: 3 });
+        await graph.getSession().styles.add({ name: "route", target: "edge", selector: { match: "everything" }, set });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        const [edge] = graph.getDataManager().edges.values();
+        return edge.drawnPattern.map((e): [number, number] => [e.position.x, e.position.y]);
+    }
+
+    for (const style of ["dash-dot", "forward-slash", "zigzag"]) {
+        it(`lays a ${style} line's elements through its bends, round the corner, not straight across`, async () => {
+            const drawn = await elements(NODES, [{ src: "a", dst: "b" }], { "edge.style": style, "edge.bends": ROUTE });
+            assert.isAbove(drawn.length, 2);
+            // the route runs four below the nodes; the straight line between them is y = 0
+            assert.isTrue(
+                drawn.some(([x, y]) => x > 2 && x < 6 && Math.abs(y + 4) < 1e-3),
+                "elements on the bottom leg",
+            );
+            assert.isTrue(
+                drawn.some(([x, y]) => Math.abs(x) < 1e-3 && y < -1),
+                "elements on the leg down from a",
+            );
+        });
+    }
+
+    it("draws a curved dash-dot line as its elements along the curve, not as a solid line", async () => {
+        const drawn = await elements(NODES, [{ src: "a", dst: "b" }], {
+            "edge.style": "dash-dot",
+            "edge.curvature": true,
+        });
+        assert.isAbove(drawn.length, 2, "drawn as pattern elements");
+        assert.isAbove(Math.max(...drawn.map(([, y]) => Math.abs(y))), 0.2, "bowed off the straight line");
+    });
+
+    it("draws a patterned self-loop round its teardrop, out of its node and back", async () => {
+        const one = [{ id: "a", position: { x: 0, y: 0, z: 0 } }];
+        const drawn = await elements(one, [{ src: "a", dst: "a" }], { "edge.style": "forward-slash" });
+        assert.isAbove(drawn.length, 2);
+        const [node] = graph.getDataManager().nodes.values();
+        const half = Math.max(node.drawnHalfExtents.x, node.drawnHalfExtents.y);
+        assert.isAbove(Math.max(...drawn.map(([x, y]) => Math.hypot(x, y))), 1.5 * half, "the loop reaches out");
+    });
+});

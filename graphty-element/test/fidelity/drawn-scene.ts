@@ -223,7 +223,6 @@ interface PatternInternals {
     color: string;
     opacity: number;
     wave: WaveShape | undefined;
-    laidAt: { start: Vector3; direction: Vector3; length: number } | null;
 }
 interface NodeInternals {
     border: AbstractMesh | null;
@@ -1242,12 +1241,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dash or dot pattern's line runs from where it was laid to its end, as a stroke's dashes do, not from its
         // first element's middle to its last's: a wide dotted line's route started half a dot late, and one element
         // on a line too short for two had no route at all (`pajek-synth-lines` 12 -> 13, 2 -> 3)
-        const laid = fields.laidAt;
-        world =
-            pm.drawnEnds() ??
-            (laid === null
-                ? pm.elements.map((el: ArrowCap) => el.position)
-                : [laid.start, laid.start.add(laid.direction.scale(laid.length))]);
+        // and along the route it was laid on, its bends, curve or loop too (issue #3102)
+        world = pm.drawnRoute() ?? pm.elements.map((el: ArrowCap) => el.position);
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
         // a wave with a swing of its own is a line `width` thick waving across its path: as thick as the band one
         // period of it draws, read as an outline drawn as a fill is (twice its area over its edges)

@@ -216,8 +216,11 @@ export class PatternedLineMesh {
     readonly wave: WaveShape | undefined;
     /** How much of its period each element of a wave with a period of its own draws, in order. */
     private stretches: ZigzagPiece[] = [];
-    /** Where the line was last laid: its start, its direction and its length. */
-    private laidAt: { start: Vector3; direction: Vector3; length: number } | null = null;
+    /**
+     * Where the line was last laid: the points of its route in order (two for a straight line; a curve's, a bent
+     * line's or a self-loop's run otherwise) and each point's distance along the route from its start.
+     */
+    private laid: { points: Vector3[]; along: number[] } | null = null;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
     // PHASE 5: Edge compatibility properties (mimic AbstractMesh interface)
@@ -263,15 +266,22 @@ export class PatternedLineMesh {
      * @param end - Ending point of the line
      */
     update(start: Vector3, end: Vector3): void {
+        this.updatePath([start, end]);
+    }
+
+    /**
+     * Lay the line along a route: its elements spread along the route's own length, each pointing along the route
+     * where it sits, so a dashed or dotted line turns the route's corners and follows its curve (issue #3102).
+     * @param route - The route's points, in order from where the line starts to where it ends; at least two.
+     */
+    updatePath(route: readonly Vector3[]): void {
         // A disposed line stays disposed: re-sizing it would take fresh slots for elements nothing
         // will ever give back.
-        if (this.isDisposed) {
+        if (this.isDisposed || route.length < 2) {
             return;
         }
 
-        const newLength = Vector3.Distance(start, end);
-        this.lineDirection = end.subtract(start).normalize();
-        this.laidAt = { start: start.clone(), direction: this.lineDirection.clone(), length: newLength };
+        const newLength = this.lay(route);
 
         // Adaptive density: adjust mesh count if needed. A wave with a period of its own has exactly
         // the periods that fit, as Cytoscape desktop draws it.
@@ -281,7 +291,7 @@ export class PatternedLineMesh {
             this.adjustMeshCount(newLength);
         }
 
-        this.placeElements(start, end);
+        this.placeElements();
 
         // For connected patterns, clip last segment to fit exactly
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
@@ -347,12 +357,10 @@ export class PatternedLineMesh {
      * @param end - Ending point of the line
      */
     private createInitialMeshes(start: Vector3, end: Vector3): void {
-        const length = Vector3.Distance(start, end);
+        const length = this.lay([start, end]);
         this.lastLength = length;
-        this.lineDirection = end.subtract(start).normalize();
 
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
-        this.laidAt = { start: start.clone(), direction: this.lineDirection.clone(), length };
         if (this.wave !== undefined) {
             this.fitWave(length);
         } else {
@@ -364,20 +372,64 @@ export class PatternedLineMesh {
             }
         }
 
-        this.placeElements(start, end);
+        this.placeElements();
     }
 
     /**
-     * Put every element where it goes along the line, pointing along it.
-     * @param start - Starting point of the line
-     * @param end - Ending point of the line
+     * Take a route as the one the line is laid along: its points, without repeats, and their distances along it.
+     * @param route - The route's points, in order; at least two.
+     * @returns The route's length.
      */
-    private placeElements(start: Vector3, end: Vector3): void {
-        const positions = this.calculatePositions(start, end);
+    private lay(route: readonly Vector3[]): number {
+        const points = [route[0].clone()];
+        const along = [0];
+        for (const point of route.slice(1)) {
+            const step = Vector3.Distance(points[points.length - 1], point);
+            if (step > 0) {
+                points.push(point.clone());
+                along.push(along[along.length - 1] + step);
+            }
+        }
+
+        // a route of one point is a line of length 0 between its two ends, as a straight line between one point
+        if (points.length === 1) {
+            points.push(points[0].clone());
+            along.push(0);
+        }
+
+        this.laid = { points, along };
+        this.lineDirection = route[route.length - 1].subtract(route[0]).normalize();
+        return along[along.length - 1];
+    }
+
+    /**
+     * Where a distance along the route the line was laid on falls, and the route's direction there. A distance before
+     * the start or past the end runs on along the first or last segment.
+     * @param distance - The distance from the route's start.
+     * @returns The point and the unit direction there.
+     */
+    private onRoute(distance: number): { point: Vector3; direction: Vector3 } {
+        const { points, along } = this.laid ?? { points: [Vector3.Zero(), Vector3.Zero()], along: [0, 0] };
+        let i = 1;
+        while (i < points.length - 1 && along[i] < distance) {
+            i++;
+        }
+
+        const [a, b] = [points[i - 1], points[i]];
+        const direction = b.subtract(a).normalize();
+        return { point: a.add(direction.scale(distance - along[i - 1])), direction };
+    }
+
+    /**
+     * Put every element where it goes along the line, pointing along the route where it sits.
+     */
+    private placeElements(): void {
+        const offsets = this.calculateOffsets();
         for (let i = 0; i < this.elements.length; i++) {
+            const { point, direction } = this.onRoute(offsets[i]);
             // In 3D the billboard shader faces the element to the camera about this direction; in
             // 2D its slot turns it along the line (issue #620). Either way, as an arrowhead is.
-            this.elements[i].place(positions[i], this.lineDirection);
+            this.elements[i].place(point, direction);
         }
     }
 
@@ -428,91 +480,23 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Calculate mesh positions along the line
-     * Supports both discrete patterns (with spacing) and connected patterns (seamless)
-     * @param start - Starting point of the line
-     * @param end - Ending point of the line
-     * @returns Array of positions for each pattern mesh
+     * Where along the route each element's centre sits, as a distance from the route's start: a discrete pattern's
+     * (dot, star, box, dash, diamond, dash-dot) first and last elements touch the route's two ends and the rest share
+     * the room between them evenly ({@link discreteMeshOffsets}); a connected pattern's (sinewave, zigzag) segments
+     * sit a fixed 0.75 apart (the last clipped, see clipLastSegment), or a wave's own period apart.
+     *
+     * IMPORTANT: the route's ends are ALREADY adjusted by the edge for the node surfaces and the arrowheads; nothing
+     * is subtracted for those here.
+     * @returns One distance per element, in order.
      */
-    private calculatePositions(start: Vector3, end: Vector3): Vector3[] {
-        const patternDef = PATTERN_DEFINITIONS[this.pattern];
-
-        if (patternDef.connected) {
-            return this.calculateConnectedPositions(start, end, patternDef);
+    private calculateOffsets(): number[] {
+        const totalLength = this.laid?.along.at(-1) ?? 0;
+        if (PATTERN_DEFINITIONS[this.pattern].connected) {
+            const step = this.wave?.period ?? PatternedLineMesh.SEGMENT_LENGTH;
+            return this.elements.map((_unused, i) => i * step);
         }
 
-        return this.calculateDiscretePositions(start, end);
-    }
-
-    /**
-     * Calculate positions for discrete patterns (dot, star, box, dash, diamond, dash-dot)
-     *
-     * Algorithm: the first and last elements touch the line's two boundaries and the
-     * interior elements are distributed evenly between them. The scalar layout lives in
-     * {@link discreteMeshOffsets}; this method only maps those offsets onto the line's
-     * direction vector.
-     *
-     * IMPORTANT: start and end are ALREADY adjusted by Edge.transformArrowCap():
-     *  - start = ray intersection with source node surface
-     *  - end = destination surface minus arrow length
-     * DO NOT subtract nodeRadius or arrowLength again!
-     *
-     * DEFECT REPAIRED HERE: this method used to take the pattern definition as
-     * `_patternDef`, an underscore-prefixed parameter marked unused, alongside its own
-     * private copy of the spacing rule (`const minSpacing = meshWidth * 0.5`) whose value
-     * cancelled out of the arithmetic it fed. The dead parameter and the dead arithmetic
-     * together disguised the fact that this layout is a pure function of the mesh COUNT,
-     * which is what let the count grow without bound in
-     * {@link discreteMeshCount} without anyone noticing the positions never objected. The
-     * parameter is gone rather than merely de-underscored, because the honest signature is
-     * the one that says the pattern definition is not consulted: the definition's influence
-     * reaches this layout through `getRenderedMeshSize()` and through the count, and adding
-     * a second, direct path would be the very duplication the repair removes.
-     * @param start - Starting point of the line (already adjusted for node surface)
-     * @param end - Ending point of the line (already adjusted for arrow)
-     * @returns Array of world-space positions, one per pattern mesh, in order
-     */
-    private calculateDiscretePositions(start: Vector3, end: Vector3): Vector3[] {
-        const direction = end.subtract(start).normalize();
-        const totalLength = Vector3.Distance(start, end);
-        const meshWidth = this.getRenderedMeshSize();
-
-        const offsets = discreteMeshOffsets(totalLength, meshWidth, this.elements.length);
-
-        return offsets.map((offset) => start.add(direction.scale(offset)));
-    }
-
-    /**
-     * Calculate positions for connected patterns (sinewave, zigzag)
-     * Phase 4: Seamless connection - meshes positioned at fixed intervals
-     *
-     * All segments use FIXED 0.75 geometry (for instancing).
-     * Last segment is scaled in X-direction to fit exactly (see scaleLastSegment).
-     * @param start - Starting point of the line
-     * @param end - Ending point of the line
-     * @param _patternDef - Pattern definition (unused, reserved for future use)
-     * @returns Array of positions for each pattern mesh
-     */
-    private calculateConnectedPositions(
-        start: Vector3,
-        end: Vector3,
-
-        _patternDef: PatternDefinition,
-    ): Vector3[] {
-        const direction = end.subtract(start).normalize();
-
-        const meshCount = this.elements.length;
-        const positions: Vector3[] = [];
-
-        // Position segments at fixed 0.75 intervals (same geometry for all), or a period apart for a
-        // wave with a period of its own
-        const step = this.wave?.period ?? PatternedLineMesh.SEGMENT_LENGTH;
-        for (let i = 0; i < meshCount; i++) {
-            const distance = i * step;
-            positions.push(start.add(direction.scale(distance)));
-        }
-
-        return positions;
+        return discreteMeshOffsets(totalLength, this.getRenderedMeshSize(), this.elements.length);
     }
 
     /**
@@ -645,21 +629,57 @@ export class PatternedLineMesh {
      * @returns The two ends, or null for any other line.
      */
     drawnEnds(): [Vector3, Vector3] | null {
-        const first = this.stretches.at(0);
-        const last = this.stretches.at(-1);
-        if (this.wave === undefined || this.laidAt === null || first === undefined || last === undefined) {
+        const span = this.waveSpan();
+        return span === null ? null : [this.onRoute(span[0]).point, this.onRoute(span[1]).point];
+    }
+
+    /**
+     * The route this line is drawn along, as it was last laid: the route's points from end to end, or for a wave
+     * with a period of its own from where its first piece starts to where its last ends ({@link drawnEnds}).
+     * @returns The points, in order, as fresh vectors; null before the line was laid.
+     */
+    drawnRoute(): Vector3[] | null {
+        if (this.laid === null) {
             return null;
         }
 
-        const { start, direction } = this.laidAt;
+        const { points, along } = this.laid;
+        const span = this.waveSpan();
+        if (span === null) {
+            return points.map((p) => p.clone());
+        }
+
+        // the route's corners the wave runs through; its two ends are the wave's own
+        const [from, to] = span;
+        const inside = points.slice(1, -1).filter((_p, i) => along[i + 1] > from && along[i + 1] < to);
+        return [this.onRoute(from).point, ...inside.map((p) => p.clone()), this.onRoute(to).point];
+    }
+
+    /**
+     * The middle of the route this line was last laid along, halfway along its length.
+     * @returns The point.
+     */
+    routeMiddle(): Vector3 {
+        return this.onRoute((this.laid?.along.at(-1) ?? 0) / 2).point;
+    }
+
+    /**
+     * How far along its route a wave with a period of its own starts and ends, as drawn.
+     * @returns The two distances from the route's start, or null for any other line.
+     */
+    private waveSpan(): [number, number] | null {
+        const first = this.stretches.at(0);
+        const last = this.stretches.at(-1);
+        if (this.wave === undefined || this.laid === null || first === undefined || last === undefined) {
+            return null;
+        }
+
         const { wave } = this;
         const along = (piece: ZigzagPiece): number[] => {
             const { inner, outer } = PatternedLineRenderer.wavePiece(this.pattern, this.width, wave, piece);
             return [...inner, ...outer].map(([x]) => x);
         };
-        const from = Math.min(...along(first));
-        const to = (this.stretches.length - 1) * wave.period + Math.max(...along(last));
-        return [start.add(direction.scale(from)), start.add(direction.scale(to))];
+        return [Math.min(...along(first)), (this.stretches.length - 1) * wave.period + Math.max(...along(last))];
     }
 
     /**

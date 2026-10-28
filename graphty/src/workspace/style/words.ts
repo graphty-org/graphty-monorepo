@@ -1538,7 +1538,10 @@ export const BACKGROUND_SECTION_WORDS = {
     add: "Add to background",
     present: (kind: string): string => `${kind} is already in the background`,
     remove: (kind: string): string => `Remove background ${kind.toLowerCase()}`,
-    drawnIn: (word: string, hex: string): string => `No color set: drawn in ${word === "" ? hex : `${word} (${hex})`}`,
+    drawnIn: (word: string, hex: string): string => {
+        const named = word === "" ? hex : `${word} (${hex})`;
+        return `No color set: drawn in ${named}`;
+    },
 } as const;
 
 /** The Quality row's choices: the reader's `shaderSettings.quality`. */

@@ -114,15 +114,8 @@ export function ShaderFacts({ descriptor }: Readonly<{ descriptor: ShaderDescrip
     return (
         <span className="ws-shader-facts">
             {factsOf(descriptor).map(({ key, icon: Icon, words }) => (
-                <span
-                    key={key}
-                    role="img"
-                    aria-label={words}
-                    title={words}
-                    data-fact={key}
-                    data-cost={key === "cost" ? descriptor.cost : undefined}
-                >
-                    <Icon size={11} aria-hidden />
+                <span key={key} title={words} data-fact={key} data-cost={key === "cost" ? descriptor.cost : undefined}>
+                    <Icon size={11} role="img" aria-label={words} />
                 </span>
             ))}
         </span>
@@ -409,7 +402,11 @@ export function ShaderGallery({
                     ))}
                 </Group>
             </Chip.Group>
-            <div className="ws-gallery-grid" role="group" aria-label={GALLERY_WORDS.tiles}>
+            <div // NOSONAR(S6819): an ARIA group naming a two-column grid of tile buttons; a fieldset would draw its own border and legend
+                className="ws-gallery-grid"
+                role="group"
+                aria-label={GALLERY_WORDS.tiles}
+            >
                 {found.map((option) => (
                     <GalleryTile
                         key={option.key}

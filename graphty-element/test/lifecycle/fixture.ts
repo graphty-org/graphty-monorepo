@@ -193,7 +193,13 @@ el.addEventListener("graphty-autosave-status", (e) => {
     }
 });
 el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { params: e.detail.params }));
-el.addEventListener("graphty-autosave-available", (e) => report("available", { reason: e.detail.reason, id: e.detail.entry.id }));
+// Every entry not restored, and why: the ready report carries them, so a test reads the page's
+// whole decision from one report whatever order the reports arrive in.
+const available = [];
+el.addEventListener("graphty-autosave-available", (e) => {
+    available.push({ reason: e.detail.reason, id: e.detail.entry.id });
+    report("available", { reason: e.detail.reason, id: e.detail.entry.id });
+});
 const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
 if (params.get("rows") !== "late") rows();
 document.body.appendChild(el);
@@ -205,7 +211,9 @@ const ready = el.autosaver.ready.then(async (restored) => {
     for (let f = 0; f < 6000 && (el.session.data.snapshot().nodeCount < n || el.session.data.snapshot().edgeCount < n); f++) await new Promise((r) => setTimeout(r, 10));
     const s = el.autosaver.status;
     const probes = [...new Set(Array.from(el.session.data.nodes(), (node) => node.probe ?? null))];
-    report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null });
+    // The key's entries as stored, for a page that restored nothing: what the tab that holds the work has.
+    const entries = restored ? null : (await el.autosaver.list()).map((e) => ({ id: e.id, revision: e.revision, live: e.live }));
+    report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null, available, entries });
     return restored;
 });
 let edits = 0;

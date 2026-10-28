@@ -3320,14 +3320,15 @@ function matchBodies(
         }
     }
     cand.sort((a, b) => a.cost - b.cost || compareIds(a.id, b.id) || a.p.index - b.p.index);
-    // the node each shape lies closest to: a shape nearer another node is that node's body, not this one's twin
+    // the shape each node finds best: another node's best shape is that node's body, never this one's twin
     // (json-cyjs-tokyo: two stations' 2.8 px discs 0.9 px apart are two nodes)
-    const nearest = new Map<number, string>();
+    const bestOf = new Map<string, number>();
     for (const c of cand) {
-        if (!c.id.startsWith(GROUP_CLAIM) && !nearest.has(c.p.index)) {
-            nearest.set(c.p.index, c.id);
+        if (!c.id.startsWith(GROUP_CLAIM) && !bestOf.has(c.id)) {
+            bestOf.set(c.id, c.p.index);
         }
     }
+    const bodyOf = new Map([...bestOf].map(([id, index]) => [index, id]));
     const out = new Map<string, Prim[]>();
     const taken = new Set<number>();
     for (const c of cand) {
@@ -3349,7 +3350,7 @@ function matchBodies(
         const twins = shapes.filter(
             (q) =>
                 !taken.has(q.index) &&
-                (c.id.startsWith(GROUP_CLAIM) || (nearest.get(q.index) ?? c.id) === c.id) &&
+                (c.id.startsWith(GROUP_CLAIM) || (bodyOf.get(q.index) ?? c.id) === c.id) &&
                 Math.hypot(cx(q.box) - cx(body.box), cy(q.box) - cy(body.box)) <= 0.2 * size + 0.5 &&
                 ((near(bw(q.box) + 1, bw(body.box) + 1) && near(bh(q.box) + 1, bh(body.box) + 1)) || around(q)) &&
                 // a group's twin is drawn over its box, not a flat node inside it of about its width

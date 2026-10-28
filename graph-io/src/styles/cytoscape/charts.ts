@@ -13,6 +13,7 @@
 
 import { num6 } from "../canon/number.js";
 import type { StyleColumn, StyleValue } from "../types.js";
+import { colorSchemeColors } from "./color-schemes.js";
 
 /** How far across the node Cytoscape draws a pie, measured from its SVG export. */
 const CHART_ACROSS = 0.9;
@@ -26,6 +27,8 @@ const SLOTS = Array.from({ length: 9 }, (_, k) => `NODE_CUSTOMGRAPHICS_${String(
 /** A chart's options as Cytoscape writes them. */
 interface ChartOptions {
     readonly cy_colors?: unknown;
+    readonly cy_colorScheme?: unknown;
+    readonly cy_values?: unknown;
     readonly cy_dataColumns?: unknown;
     readonly cy_startAngle?: unknown;
     readonly cy_holeSize?: unknown;
@@ -223,18 +226,21 @@ function chartOnNode(
     sizeSync: boolean,
 ): void {
     const { options } = chart;
-    const colors = Array.isArray(options.cy_colors) ? options.cy_colors.map(String) : [];
     const columns = Array.isArray(options.cy_dataColumns) ? options.cy_dataColumns.map(String) : [];
-    const values = valuesOf(columns, node.value);
+    // the chart's own values, when it holds any, before its data columns (`AbstractChart.getData`)
+    const own = Array.isArray(options.cy_values) && options.cy_values.length > 0 ? options.cy_values : null;
+    const values = own === null ? valuesOf(columns, node.value) : own.map(Number);
+    const named = Array.isArray(options.cy_colors) ? options.cy_colors.map(String) : [];
+    // no colors named: the scheme's, one per value (`AbstractChart.getColors`)
+    const colors = named.length > 0 ? named : colorSchemeColors(options.cy_colorScheme, values.length);
     if (chart.kind === "PieChart" || chart.kind === "RingChart") {
         pieOnNode(chart.ring, options, values, colors, node, sizeSync);
         return;
     }
-    const own = Number(node.graphic("NODE_CUSTOMGRAPHICS_SIZE"));
+    const ownSize = Number(node.graphic("NODE_CUSTOMGRAPHICS_SIZE"));
     const side = shorterSide(node);
-    const ownSize = own > 0;
-    const fitted = sizeSync || !ownSize;
-    const box = side === null ? null : { disc: CHART_ACROSS * (fitted ? side : own), side };
+    const fitted = sizeSync || !(ownSize > 0);
+    const box = side === null ? null : { disc: CHART_ACROSS * (fitted ? side : ownSize), side };
     for (const [property, v] of Object.entries(plotChart(chart.kind, options, values, colors, box))) {
         node.put(property, v);
     }
@@ -344,6 +350,9 @@ const ITEM_LABEL_RADIUS = 0.62;
  * px tall (xgmml-specimen-images-charts-p5 `pie-item-labels`).
  */
 const ITEM_LABEL_FONT_SIZE = 1;
+
+/** The color Cytoscape gives a bar its chart has no color for (`AbstractChartLayer.DEFAULT_ITEM_BG_COLOR`). */
+const ITEM_BG_COLOR = "#c0c0c0";
 
 /** The color JFreeChart draws Cytoscape's chart labels in. */
 const CHART_LABEL_COLOR = "#404040";
@@ -601,7 +610,8 @@ function barColor(
     if (type === "UP_DOWN") {
         return colors[v >= 0 ? 0 : colors.length - 1].toLowerCase();
     }
-    return colors[Math.min(k, colors.length - 1)].toLowerCase();
+    // a bar past the chart's colors is JFreeChart's light gray (`BarLayer`, DEFAULT_ITEM_BG_COLOR)
+    return (colors[k] ?? ITEM_BG_COLOR).toLowerCase();
 }
 
 /**
@@ -626,7 +636,7 @@ function plotChart(
 ): Record<string, StyleValue> {
     const finite = values.filter((v) => Number.isFinite(v));
     if (finite.length === 0 || colors.length === 0) {
-        // ponytail: a chart colored by a named scheme (cy_colorScheme) without its colors is not drawn
+        // no colors (a RANDOM or CUSTOM scheme, or a palette from a provider): not drawn
         return {};
     }
     const given = Array.isArray(options.cy_range) ? options.cy_range.map(Number) : [];

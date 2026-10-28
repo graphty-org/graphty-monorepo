@@ -184,4 +184,38 @@ describe("Cytoscape charts", () => {
             chartHorizontal: false,
         });
     });
+
+    it("colors a chart by its cy_colorScheme when it names no colors, as Cytoscape's ColorScheme does", () => {
+        const bars = (scheme: string): unknown =>
+            read({
+                NODE_CUSTOMGRAPHICS_1: `org.cytoscape.BarChart:{"cy_range":[0.0,10.0],"cy_type":"GROUPED","cy_colorScheme":"${scheme}","cy_dataColumns":["a","b","c"]}`,
+            }).chartColors;
+        // the colors Cytoscape 3.10.5 drew on xgmml-specimen-images-charts-p5 and -p6
+        expect(bars("RAINBOW")).toBe("#ff0000 #00ff00 #0000ff");
+        expect(bars("CONTRASTING")).toBe("#ff0000 #ff00ff #0000ff");
+        expect(bars("MODULATED")).toBe("#ff0000 #7dfd7d #1e1ef6");
+        expect(bars("YL_OR_RD")).toBe("#ffeda0 #feb24c #f03b20");
+        // a gradient with no zero color has two: the bar past them is JFreeChart's light gray
+        expect(bars("BLUE_RED")).toBe("#ff0000 #0000ff #c0c0c0");
+        expect(bars("Blue-Red")).toBe("#ff0000 #0000ff #c0c0c0");
+        // an unknown or random scheme gives no colors, so nothing is drawn
+        expect(bars("NO_SUCH_SCHEME")).toBeUndefined();
+        const pie = read({
+            NODE_CUSTOMGRAPHICS_1: 'org.cytoscape.PieChart:{"cy_colorScheme":"RAINBOW","cy_dataColumns":["a","b","c"]}',
+        });
+        expect(pie.pieColors).toBe("#0000ff #00ff00 #ff0000");
+    });
+
+    it("reads a chart's own cy_values before its data columns", () => {
+        const v = read({
+            NODE_CUSTOMGRAPHICS_1:
+                'org.cytoscape.PieChart:{"cy_values":[1.0,1.0,2.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]}',
+        });
+        expect(v.pieSizes).toBe("0.5 0.25 0.25");
+        const noColumns = read({
+            NODE_CUSTOMGRAPHICS_1:
+                'org.cytoscape.PieChart:{"cy_values":[1.0,1.0,2.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"]}',
+        });
+        expect(noColumns.pieColors).toBe("#1f77b4 #2ca02c #d62728");
+    });
 });

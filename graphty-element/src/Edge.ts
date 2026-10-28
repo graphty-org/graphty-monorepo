@@ -742,10 +742,16 @@ export class Edge {
      *
      * A curve is a run of slots in a shared batch and has no mesh of its own whose vertices say
      * how far it bows, so the points are read back out of the slots: where each segment starts,
-     * and where the last one ends.
+     * and where the last one ends. A patterned line laid along a curve, bends or a loop gives the
+     * route it was laid along (issue #3102). Either way the points are in graph-root's space.
      * @returns The points, in order along the curve, as fresh vectors.
      */
     get drawnCurve(): Vector3[] | null {
+        if (this.mesh instanceof PatternedLineMesh) {
+            const route = this.mesh.drawnRoute();
+            return route !== null && route.length > 2 ? route : null;
+        }
+
         const batch = this.lineBatch;
         const last = this.lineSlots.at(-1);
 

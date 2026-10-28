@@ -72,9 +72,17 @@ const EDGE_PICK_TOLERANCE_PX = 6;
  */
 function edgeWorldPoints(edge: Edge): Vector3[] {
     const curve = edge.drawnCurve;
-    if (curve !== null && !(edge.mesh instanceof PatternedLineMesh)) {
-        // A curve's points are in its batch's space, which an XR gesture moves with graph-root.
-        const world = edge.mesh.getWorldMatrix();
+    if (curve !== null) {
+        // A curve's points are in graph-root's space, which an XR gesture moves. A patterned
+        // line's pieces are slots in batches parented to graph-root, and it has no mesh of its own.
+        const root =
+            edge.mesh instanceof PatternedLineMesh
+                ? edge.srcNode.mesh.getScene().getTransformNodeByName("graph-root")
+                : edge.mesh;
+        if (root === null) {
+            return curve;
+        }
+        const world = root.getWorldMatrix();
         return curve.map((point) => Vector3.TransformCoordinates(point, world));
     }
 

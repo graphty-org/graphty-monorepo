@@ -85,4 +85,28 @@ describe("a patterned line laid along a route", () => {
             ELL.map((p) => p.asArray()),
         );
     });
+    test("a malformed route never throws and never places an element at a non-finite position", () => {
+        const v = (x: number, y: number): Vector3 => new Vector3(x, y, 0);
+        const routes: Vector3[][] = [
+            [],
+            [v(1, 1)],
+            [v(1, 1), v(1, 1), v(1, 1)],
+            [v(0, 0), v(Number.NaN, 0), v(5, 5)],
+            [v(0, 0), v(10, 0), v(0, 0), v(10, 0)],
+            [v(0, 0), v(1e-12, 0), v(5, 0)],
+        ];
+        for (const pattern of ["dash", "dot", "dash-dot", "zigzag", "sinewave", "forward-slash"] as const) {
+            for (const route of routes) {
+                const mesh = line(pattern);
+                assert.doesNotThrow(() => {
+                    mesh.updatePath(route);
+                }, `${pattern} on ${route.length} points`);
+                for (const element of mesh.elements) {
+                    const { x, y, z } = element.position;
+                    assert.isTrue([x, y, z].every(Number.isFinite), `${pattern}: an element at ${x},${y},${z}`);
+                }
+                mesh.dispose();
+            }
+        }
+    });
 });

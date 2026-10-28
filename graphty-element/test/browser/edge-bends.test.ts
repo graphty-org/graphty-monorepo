@@ -7,6 +7,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { click } from "../helpers/real-input";
 
 /** Two nodes eight units apart on the x axis. */
 const NODES = [
@@ -271,6 +272,44 @@ describe("patterned lines drawn along their route (issue #3102)", () => {
         assert.isAbove(drawn.length, 2, "drawn as pattern elements");
         assert.isAbove(Math.max(...drawn.map(([, y]) => Math.abs(y))), 0.2, "bowed off the straight line");
     });
+
+    /**
+     * Click the canvas at a world point with the real mouse.
+     * @param world - The point, in graph space.
+     * @param world.x - Its x.
+     * @param world.y - Its y.
+     * @returns The edges the click selected.
+     */
+    async function clickAt(world: { x: number; y: number }): Promise<readonly string[]> {
+        const canvas = container.querySelector("canvas");
+        assert.isNotNull(canvas);
+        await click(canvas, graph.worldToScreen({ ...world, z: 0 }));
+        await operationQueueOf(graph).waitForCompletion();
+        return graph.getSession().selection.edges;
+    }
+
+    const clicks: [string, Record<string, unknown>][] = [
+        ["a curved dash-dot", { "edge.style": "dash-dot", "edge.curvature": true }],
+        // a shallower route than ROUTE, so its bottom leg is inside the 480-pixel-high canvas
+        ["a bent forward-slash", { "edge.style": "forward-slash", "edge.bends": "0,-0.2 1,-0.2" }],
+    ];
+    for (const [what, set] of clicks) {
+        it(`selects ${what} line by a click on its drawn route, not on the straight line between its nodes`, async () => {
+            const drawn = await elements(NODES, [{ src: "a", dst: "b" }], set);
+            const [edge] = graph.getDataManager().edges.values();
+            // the element farthest off the straight line y = 0, away from the nodes
+            const [x, y] = drawn
+                .filter(([px]) => px > 2 && px < 6)
+                .reduce((far, p) => (Math.abs(p[1]) > Math.abs(far[1]) ? p : far));
+            const off = graph.worldToScreen({ x, y, z: 0 });
+            const chord = graph.worldToScreen({ x, y: 0, z: 0 });
+            assert.isAbove(Math.hypot(off.x - chord.x, off.y - chord.y), 20, "the route is well off the chord");
+            assert.isTrue(off.x > 0 && off.x < 640 && off.y > 0 && off.y < 480, "the point is on the canvas");
+
+            assert.deepStrictEqual(await clickAt({ x, y }), [edge.id], "a click on the drawn route selects it");
+            assert.deepStrictEqual(await clickAt({ x, y: 0 }), [], "a click on the empty chord does not");
+        });
+    }
 
     it("draws a patterned self-loop round its teardrop, out of its node and back", async () => {
         const one = [{ id: "a", position: { x: 0, y: 0, z: 0 } }];

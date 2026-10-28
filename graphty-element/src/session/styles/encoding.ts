@@ -971,65 +971,11 @@ function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string)
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Check one value a LAYER wrote against the channel it is written to.
- *
- * A literal, a per-value override and what a missing value paints are all authored, so all three
- * come through here and all three are refused with the codes a layer's own validation uses --
- * `E_OPTION_RANGE` for a value outside the list or the range the renderer draws, `E_UNSUPPORTED`
- * for a channel that draws nothing, and `E_BAD_LAYER` for a value of the wrong kind entirely. A
- * value a SCALE answered is a different thing and is never refused: it misses, and a miss is not
- * painted.
- *
- * A boolean channel reads "true" and 1 as well as `true`, because `map` and `missing` are typed
- * to carry a string or a number and have no other way to say it.
- * @param descriptor - The channel.
+ * Check a number a layer wrote against the channel's range; see {@link authoredValue}.
+ * @param descriptor - The channel, which accepts a number.
  * @param value - The value as it was authored.
  * @param what - What the value was for, so a refusal can name it.
- * @returns The value in the form a repaint reads, which for a colour means its components.
- * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
- */
-function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
-    const { accepts, values } = descriptor;
-    const wrongKind = (expected: string): GraphtyError =>
-        badBinding(`${what} is ${expected}.`, { channel: descriptor.channel, value });
-
-    switch (accepts) {
-        case "color":
-            // An effect written off carries the one off colour, which the painter draws as nothing.
-            return descriptor.off !== undefined && value === descriptor.off ? OFF_COLOR : requireColor(value, what);
-        case "number":
-            return authoredNumber(descriptor, value, what, wrongKind);
-        case "text":
-            if (typeof value !== "string") {
-                throw wrongKind("text");
-            }
-
-            return value;
-        case "boolean":
-            return authoredBoolean(value, wrongKind);
-        case "enum":
-            if (typeof value !== "string" || !(values ?? []).includes(value)) {
-                throw outOfRange(descriptor, value, what);
-            }
-
-            return value;
-        case "labelStyle":
-            if (typeof value !== "object" || isRgba(value)) {
-                throw wrongKind('a label style, such as { sizePx: 14, weight: "bold" }');
-            }
-
-            return value;
-        default:
-            throw unsupportedChannel(descriptor);
-    }
-}
-
-/**
- * A number channel's authored value, checked against the channel's range.
- * @param descriptor - The channel.
- * @param value - The value as it was authored.
- * @param what - What the value was for, so a refusal can name it.
- * @param wrongKind - Builds the refusal for a value of the wrong kind.
+ * @param wrongKind - Builds the refusal for a value that is not a number.
  * @returns The number.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_OPTION_RANGE`.
  */
@@ -1049,6 +995,78 @@ function authoredNumber(
     }
 
     return value;
+}
+
+/**
+ * Check a choice a layer wrote against the channel's values; see {@link authoredValue}.
+ * @param descriptor - The channel, which accepts one of a list of values.
+ * @param value - The value as it was authored.
+ * @param what - What the value was for, so a refusal can name it.
+ * @returns The value.
+ * @throws A `GraphtyError` with code `E_OPTION_RANGE`.
+ */
+function authoredEnum(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
+    const values = descriptor.values ?? [];
+    // A boolean is read by its name (`node.modelTint` takes true, false or "replace").
+    if (typeof value === "boolean" && values.includes(String(value))) {
+        return value;
+    }
+
+    if (typeof value !== "string" || !values.includes(value)) {
+        throw outOfRange(descriptor, value, what);
+    }
+
+    return value;
+}
+
+/**
+ * Check one value a LAYER wrote against the channel it is written to.
+ *
+ * A literal, a per-value override and what a missing value paints are all authored, so all three
+ * come through here and all three are refused with the codes a layer's own validation uses --
+ * `E_OPTION_RANGE` for a value outside the list or the range the renderer draws, `E_UNSUPPORTED`
+ * for a channel that draws nothing, and `E_BAD_LAYER` for a value of the wrong kind entirely. A
+ * value a SCALE answered is a different thing and is never refused: it misses, and a miss is not
+ * painted.
+ *
+ * A boolean channel reads "true" and 1 as well as `true`, because `map` and `missing` are typed
+ * to carry a string or a number and have no other way to say it.
+ * @param descriptor - The channel.
+ * @param value - The value as it was authored.
+ * @param what - What the value was for, so a refusal can name it.
+ * @returns The value in the form a repaint reads, which for a colour means its components.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
+ */
+function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
+    const { accepts } = descriptor;
+    const wrongKind = (expected: string): GraphtyError =>
+        badBinding(`${what} is ${expected}.`, { channel: descriptor.channel, value });
+
+    switch (accepts) {
+        case "color":
+            // An effect written off carries the one off colour, which the painter draws as nothing.
+            return descriptor.off !== undefined && value === descriptor.off ? OFF_COLOR : requireColor(value, what);
+        case "number":
+            return authoredNumber(descriptor, value, what, wrongKind);
+        case "text":
+            if (typeof value !== "string") {
+                throw wrongKind("text");
+            }
+
+            return value;
+        case "boolean":
+            return authoredBoolean(value, wrongKind);
+        case "enum":
+            return authoredEnum(descriptor, value, what);
+        case "labelStyle":
+            if (typeof value !== "object" || isRgba(value)) {
+                throw wrongKind('a label style, such as { sizePx: 14, weight: "bold" }');
+            }
+
+            return value;
+        default:
+            throw unsupportedChannel(descriptor);
+    }
 }
 
 /**

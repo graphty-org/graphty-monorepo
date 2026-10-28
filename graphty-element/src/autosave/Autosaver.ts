@@ -177,6 +177,8 @@ interface EntryState {
     unwritten: Set<PartTag>;
     /** The run entries in the store, by id. */
     readonly runs: Map<RunId, unknown>;
+    /** The digests of the embedded models whose `asset:` parts the store holds. */
+    assets: Set<string>;
     release: (() => void) | null;
     /** A claim of its lock in flight, which every other claim of it shares (`#claim`). */
     claiming: Promise<(() => void) | null> | null;
@@ -480,6 +482,12 @@ export class Autosaver {
             }),
             session.on("project:status", () => {
                 this.#tell();
+            }),
+            // A model a layer named by URL settled after the layer was written: embed it now.
+            session.on("model:changed", ({ state }) => {
+                if (state === "accepted" && this.#entry.started) {
+                    this.#mark(["rest"], false, false);
+                }
             }),
             onSourceRecords(session, () => {
                 // A record can change with no row (a refresh that found nothing new, a next page
@@ -1462,6 +1470,7 @@ export class Autosaver {
             started: false,
             unwritten: new Set(),
             runs: new Map(),
+            assets: new Set(),
             release: null,
             claiming: null,
             sizes: new Map(),
@@ -1648,7 +1657,7 @@ export class Autosaver {
 
         let parts: Record<string, string | null> = {};
         try {
-            ({ parts } = buildParts(this.#session, tags, entry.runs, this.#stash));
+            ({ parts } = buildParts(this.#session, tags, entry.runs, this.#stash, entry.assets));
         } catch (error) {
             this.#failed(error);
         }
@@ -1701,7 +1710,7 @@ export class Autosaver {
         const writesEntry = entry.started && entry.unwritten.size > 0;
         if (writesEntry) {
             const carried = entry.unwritten;
-            const built = buildParts(this.#session, carried, entry.runs, this.#stash);
+            const built = buildParts(this.#session, carried, entry.runs, this.#stash, entry.assets);
             const sizes = sizesAfter(entry.sizes, built.parts);
             const meta = this.#metaOf(entry, sizes);
             entry.unwritten = new Set();
@@ -1716,6 +1725,9 @@ export class Autosaver {
             job.done.push(() => {
                 entry.gen += 1;
                 entry.sizes = sizes;
+                if (built.assets !== undefined) {
+                    entry.assets = new Set(built.assets);
+                }
                 if (job.strict) {
                     this.#strict = false;
                 }

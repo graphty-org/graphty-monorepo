@@ -25,6 +25,11 @@
         }
     },
     // The styles-from-files guide's first example, compiled as a reader would compile it.
-    "include": ["test/types/consumer/**/*.ts", "test/types/consumer/**/*.tsx", "docs/examples/file-styles/**/*.ts"],
+    "include": [
+        "test/types/consumer/**/*.ts",
+        "test/types/consumer/**/*.tsx",
+        "docs/examples/file-styles/**/*.ts",
+        "docs/examples/node-models/**/*.ts"
+    ],
     "exclude": ["node_modules", "coverage", "tmp"]
 }

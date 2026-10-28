@@ -23,6 +23,7 @@ const IMPLEMENTED = [
     "layouts",
     "logSinks",
     "metrics",
+    "models",
     "optionsFor",
     "palettes",
     "scales",

@@ -1,10 +1,16 @@
+// Installs Mesh.prototype.createInstance, which createModelInstance calls.
+import "@babylonjs/core/Meshes/instancedMesh";
+
 import {
     AbstractMesh,
+    type BaseTexture,
     Color3,
+    Color4,
     DynamicTexture,
     type ICanvasGradient,
     type ICanvasRenderingContext,
     type InstancedMesh,
+    Material,
     Matrix,
     Mesh,
     MeshBuilder,
@@ -17,6 +23,7 @@ import {
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
+import type { ModelTemplate } from "../models/ModelCache";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
@@ -48,6 +55,8 @@ interface NodeMeshOptions {
 interface NodeMeshCreateOptions {
     shape?: NodeStyleConfig["shape"];
     texture?: NodeStyleConfig["texture"];
+    /** `node.texture`'s picture, loaded: the shape's surface. */
+    picture?: BaseTexture | null;
     effect?: NodeStyleConfig["effect"];
     border?: NodeStyleConfig["border"];
     outerBorder?: NodeStyleConfig["outerBorder"];
@@ -346,6 +355,46 @@ export class NodeMesh {
 
             return mesh;
         });
+    }
+
+    /**
+     * Draw one node as a model: an instance of the template's first group, which is what the
+     * node's position, picking, labels and visibility act on, with one instance of every other
+     * group as its children. It is picked by the whole model's bounding box, never by its
+     * triangles. Scaled so the model's largest extent is the extent a built-in shape of the same
+     * `size` and `sizeMode` is drawn at; `modelFit: "stretch"` fills width, height and depth
+     * separately.
+     * @param template - The model's template.
+     * @param shape - The node's shape block.
+     * @param name - A name for the instances.
+     * @returns The node's mesh.
+     */
+    static createModelInstance(template: ModelTemplate, shape: NodeStyleConfig["shape"], name: string): InstancedMesh {
+        const [first, ...rest] = template.groups;
+        const root = first.createInstance(name);
+        root.isPickable = true;
+        root.instancedBuffers.color = new Color4(1, 1, 1, 1);
+        // The box only: a pointer move tests no model triangle (design section 3.8).
+        const intersects = root.intersects.bind(root);
+        root.intersects = (ray, fastCheck, trianglePredicate, _onlyBoundingInfo, worldToUse, skipBoundingInfo) =>
+            intersects(ray, fastCheck, trianglePredicate, true, worldToUse, skipBoundingInfo);
+        for (const group of rest) {
+            const part = group.createInstance(`${name}-part`);
+            part.parent = root;
+            part.isPickable = false;
+            part.instancedBuffers.color = new Color4(1, 1, 1, 1);
+        }
+
+        const perSize = this.extentPerSize(shape);
+        const size = Math.max(shape?.size ?? 1, MIN_NODE_SIZE);
+        if (shape?.modelFit === "stretch") {
+            const axis = (value: number | undefined): number => Math.max(value ?? size, MIN_NODE_SIZE) * perSize;
+            root.scaling.set(axis(shape.width), axis(shape.height), axis(shape.depth));
+        } else {
+            root.scaling.setAll(size * perSize);
+        }
+
+        return root;
     }
 
     /**
@@ -983,6 +1032,69 @@ export class NodeMesh {
         // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
         const unlit = is2D || createOptions.effect?.unlit === true;
 
+        if (createOptions.picture !== undefined && createOptions.picture !== null) {
+            this.setUpPictureMaterial(mat, createOptions, createOptions.picture, is2D, unlit);
+        } else {
+            this.setUpColorMaterial(mat, gradientTexture, color3, unlit, scene);
+        }
+
+        mat.wireframe = createOptions.effect?.wireframe ?? false;
+
+        // What `freeze()` does, less its `markDirty`, which walks every mesh in the scene for the
+        // submeshes drawn with this material -- of which a new material has none.
+        mat.checkReadyOnlyOnce = true;
+    }
+
+    /**
+     * Write a node material that draws a picture; see {@link NodeMesh.setUpMaterial}.
+     * @param mat - The material, which no mesh draws yet.
+     * @param createOptions - Creation options carrying the shape
+     * @param picture - The picture the node draws
+     * @param is2D - Whether the scene is rendering in 2D mode
+     * @param unlit - Whether the node draws its own colour with no light
+     */
+    private static setUpPictureMaterial(
+        mat: StandardMaterial,
+        createOptions: NodeMeshCreateOptions,
+        picture: BaseTexture,
+        is2D: boolean,
+        unlit: boolean,
+    ): void {
+        // `node.texture` is the surface: white underneath, so the picture keeps its colors, and
+        // its transparent pixels are stored white (TextureCache). A flat node is the picture
+        // itself, an icon: its transparent pixels are cut out (alpha test, so instanced nodes
+        // need no sorting). A solid keeps its surface whole, white where the picture is clear,
+        // so a box never turns into six loose cut-outs.
+        mat.diffuseTexture = picture;
+        mat.diffuseColor = Color3.White();
+        const { shape } = createOptions;
+        if (is2D || shape?.planar === true || isFlatShape(shape?.type ?? "")) {
+            mat.opacityTexture = picture;
+            mat.transparencyMode = Material.MATERIAL_ALPHATEST;
+        }
+        if (unlit) {
+            mat.disableLighting = true;
+            mat.emissiveTexture = picture;
+        } else {
+            mat.emissiveColor = new Color3(0.2, 0.2, 0.2);
+        }
+    }
+
+    /**
+     * Write a node material's gradient or flat colour; see {@link NodeMesh.setUpMaterial}.
+     * @param mat - The material, which no mesh draws yet.
+     * @param gradientTexture - The gradient ramp, when the style has one that could be allocated
+     * @param color3 - The flat colour, when the style has one
+     * @param unlit - Whether the node draws its own colour with no light
+     * @param scene - Babylon.js scene, whose lighting a lit node material follows
+     */
+    private static setUpColorMaterial(
+        mat: StandardMaterial,
+        gradientTexture: DynamicTexture | undefined,
+        color3: Color3 | undefined,
+        unlit: boolean,
+        scene: Scene | undefined,
+    ): void {
         if (gradientTexture) {
             if (unlit) {
                 // EMISSIVE ONLY. With lighting off the shader draws the emissive term times the
@@ -1016,12 +1128,6 @@ export class NodeMesh {
                 shadeInstanceColors(mat);
             }
         }
-
-        mat.wireframe = createOptions.effect?.wireframe ?? false;
-
-        // What `freeze()` does, less its `markDirty`, which walks every mesh in the scene for the
-        // submeshes drawn with this material -- of which a new material has none.
-        mat.checkReadyOnlyOnce = true;
     }
 
     private static extractColor(color: unknown): Color3 | undefined {

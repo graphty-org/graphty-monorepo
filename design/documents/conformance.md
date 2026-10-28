@@ -520,6 +520,33 @@ its section and number on the page the section heading names, or by page when it
 | note-28 | a note whose `time` is `2099-01-01T00:00:00Z` | added; `W_FUTURE_TIME` notice | Opening 10 |
 | note-29 | a note with an unknown field `"reviewed": true`, merged and then edited | `W_UNKNOWN_MEMBER` at `/notes/0/reviewed`; the field is written back after the edit | Opening 7; Later versions 3 |
 
+## Assets (assets.md)
+
+<!-- prettier-ignore -->
+| Id | Input | Expected result | Rule |
+| --- | --- | --- | --- |
+| asset-1 | a project whose layer names a dropped GLB, saved | an assets member holding the GLB's bytes as base64, its `sha256` and `asset:<sha256>` id; `requires` lists `graphty-assets` | Writing 1, 2, 7 |
+| asset-2 | a layer naming `asset:sample/box` | not embedded, no problem | Writing 4 |
+| asset-3 | one GLB added unnamed and as `asset:ball`, both named by layers | two entries; only the first carries `files` | Writing 3 |
+| asset-4 | a layer naming a URL that loaded | an entry with `source` set to the URL; reopened, naming the URL fetches nothing | Writing 5; Reading 8 |
+| asset-5 | a layer naming a URL that never loaded, or an asset id the session does not hold | no entry; the save reports `W_MODEL_NOT_EMBEDDED` with `ref` and `layerIds` | Writing 5 |
+| asset-6 | models totalling more than 64 MB | the model that passes the cap left out, `E_MODEL_TOO_LARGE`, `what: "documentBytes"` | Writing 6 |
+| asset-7 | a member whose files' `data` are longer than the base64 of 64 MB | the file refused, `E_MODEL_TOO_LARGE`, `what: "documentBytes"`, before the session changes | Reading 2 |
+| asset-8 | a member with `"compression": "zstd"` | the file refused, `E_BAD_DOCUMENT` | Reading 1 |
+| asset-9 | an entry with `"encoding": "gzip"` | that entry skipped, `E_BAD_DOCUMENT` at `/assets/<n>/encoding`; the others added | Reading 3 |
+| asset-10 | an entry whose declared `byteLength`s pass the page's `maxBytes` | skipped, `E_MODEL_TOO_LARGE`, `what: "bytes"`, nothing decoded | Reading 4 |
+| asset-11 | one byte of a file changed | skipped, `E_MODEL_DIGEST_MISMATCH`; its layer draws the placeholder and reports `E_MODEL_UNKNOWN_ASSET`; the other models draw | Reading 5, 9 |
+| asset-12 | an entry `asset:<64 hex>` whose hex is not its `sha256` | skipped, `E_MODEL_DIGEST_MISMATCH` | Reading 5 |
+| asset-13 | an entry whose files are a hostile model (a reference outside the set, an accessor bomb) | skipped with the code a dropped file gets (`E_MODEL_EXTERNAL_URL`, `E_MODEL_STRUCTURE`) | Reading 6 |
+| asset-14 | an entry named `asset:sample/box` | skipped, `E_MODEL_NAME_TAKEN` | Reading 7 |
+| asset-15 | an entry whose id the session already holds with other files | skipped, `E_MODEL_NAME_TAKEN`; the held model is unchanged | Reading 7 |
+| asset-16 | a reader that does not know `graphty-assets` | the file refused, `E_UNSUPPORTED`: the kind is in `requires` | Writing 7; container.md Reading a file 8 |
+| asset-17 | a layer naming a URL model, saved with `assets: { [url]: "url" }` | an entry with `source`, `sha256`, `"stored": "url"` and no files | Writing 7 |
+| asset-18 | an entry stored by URL whose URL now serves another file | nothing added on open; when the URL loads (after the reader allows it) the model is drawn and reports `W_MODEL_CHANGED` | Reading 9 |
+| asset-19 | an entry with `"stored": "url"` and `files`, or with no `source` | skipped, `E_BAD_DOCUMENT` at `/assets/<n>/stored` | Reading 9 |
+| asset-20 | a layer naming a picture (`node.texture`) | the picture embedded as an entry of format `png`, `jpeg` or `webp`; reopened, an asset of kind `"image"` | Writing 1 |
+| asset-21 | a layer naming a model drawn without a picture it was missing (`assets.supply` with `skip`), saved and reopened | an entry with `skipped` naming the picture and the digest of the files without it; reopened, the same id, accepted with `W_MODEL_PART_SKIPPED`, and nothing asked | Writing 7; Reading 6 |
+
 ## Sources (sources.md)
 
 <!-- prettier-ignore -->

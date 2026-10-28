@@ -21,6 +21,8 @@ import { Edge } from "../Edge";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { modelsFreeing, modelsLoading } from "../models/ModelCache";
+import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import { mapCorners } from "./BasemapManager";
@@ -1265,6 +1267,10 @@ export class UpdateManager implements Manager {
             return "the curves through their support points are still settling";
         }
 
+        if (modelsLoading(this.graphContext.getScene()) || texturesLoading(this.graphContext.getScene())) {
+            return "a node's 3D model is still loading";
+        }
+
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
         }
@@ -1338,6 +1344,17 @@ export class UpdateManager implements Manager {
 
         // Curves through support points still settling around nodes that have stopped.
         if (!this.dataManager.supportPoints.resting) {
+            return false;
+        }
+
+        // A model still loading replaces its nodes' placeholder shapes when it lands.
+        if (modelsLoading(this.graphContext.getScene()) || texturesLoading(this.graphContext.getScene())) {
+            return false;
+        }
+
+        // A template nothing uses is freed by counting frames, which a graph drawing on demand
+        // stops making once the picture is finished.
+        if (modelsFreeing(this.graphContext.getScene())) {
             return false;
         }
 

@@ -98,8 +98,78 @@ const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout
  */
 const GRAPHVIZ = ["@hpcc-js/wasm-graphviz"];
 
+/**
+ * What the model chunk (src/models/chunk.ts) imports from Babylon.js, pre-bundled for the same
+ * reason: the chunk is imported lazily, so Vite would otherwise discover these mid-run.
+ */
+const MODEL_CHUNK = [
+    "@babylonjs/loaders/glTF/2.0/glTFLoader",
+    "@babylonjs/loaders/glTF/glTFFileLoader",
+    "@babylonjs/loaders/glTF/glTFValidation",
+    "@babylonjs/loaders/OBJ/objFileLoader",
+    "@babylonjs/loaders/STL/stlFileLoader",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_unlit",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_emissive_strength",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_clearcoat",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_ior",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_specular",
+    "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_sheen",
+    "@babylonjs/loaders/glTF/2.0/Extensions/EXT_texture_webp",
+    "@babylonjs/core/Materials/PBR/pbrMaterial",
+    "@babylonjs/loaders/glTF/2.0/pbrMaterialLoadingAdapter",
+    "@babylonjs/core/Animations/animationGroup",
+    "@babylonjs/loaders/glTF/2.0/glTFLoaderAnimation",
+    "@babylonjs/core/Shaders/pbr.vertex",
+    "@babylonjs/core/Shaders/pbr.fragment",
+    "@babylonjs/core/ShadersWGSL/pbr.vertex",
+    "@babylonjs/core/ShadersWGSL/pbr.fragment",
+    "@babylonjs/core/Shaders/rgbdDecode.fragment",
+    "@babylonjs/core/ShadersWGSL/rgbdDecode.fragment",
+    "@babylonjs/core/Shaders/postprocess.vertex",
+    "@babylonjs/core/ShadersWGSL/postprocess.vertex",
+    "@babylonjs/core/Misc/tools",
+    "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader",
+    "@babylonjs/core/Materials/Textures/cubeTexture",
+    "@babylonjs/core/Materials/Textures/baseTexture",
+    "@babylonjs/core/Materials/Textures/texture",
+    "@babylonjs/core/Loading/sceneLoader",
+    "@babylonjs/core/Loading/sceneLoaderFlags",
+    // The model template builder and the request guard (src/models/).
+    "@babylonjs/core/Maths/math.color",
+    "@babylonjs/core/Maths/math.vector",
+    "@babylonjs/core/Meshes/Builders/boxBuilder",
+    "@babylonjs/core/Meshes/mesh",
+    "@babylonjs/core/Meshes/mesh.vertexData",
+    "@babylonjs/core/Meshes/instancedMesh",
+    "@babylonjs/core/Instrumentation/sceneInstrumentation",
+];
+
+/**
+ * The element's own dependencies, pre-bundled up front by the projects that run other engines:
+ * discovered mid-run, Vite re-optimizes and reloads the page under the running test.
+ */
+const ELEMENT_DEPENDENCIES = [
+    "lit",
+    "lit/decorators.js",
+    "zod",
+    "zod/v4",
+    "zod/v4/core",
+    "jmespath",
+    "ngraph.forcelayout",
+    "ngraph.graph",
+    "ngraph.random",
+    "d3-force-3d",
+    "colorjs.io",
+    "hammerjs",
+    "p-queue",
+    "toposort",
+];
+
 /** Everything the browser projects pre-bundle up front. */
-const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...GRAPHVIZ];
+const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...GRAPHVIZ, ...MODEL_CHUNK];
 
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [
@@ -764,25 +834,7 @@ const config = defineConfig({
                 // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
                 cacheDir: SHARD_CACHE_DIR,
-                optimizeDeps: {
-                    include: [
-                        ...PREBUNDLED,
-                        "lit",
-                        "lit/decorators.js",
-                        "zod",
-                        "zod/v4",
-                        "zod/v4/core",
-                        "jmespath",
-                        "ngraph.forcelayout",
-                        "ngraph.graph",
-                        "ngraph.random",
-                        "d3-force-3d",
-                        "colorjs.io",
-                        "hammerjs",
-                        "p-queue",
-                        "toposort",
-                    ],
-                },
+                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES] },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "autosave-engines",
@@ -823,6 +875,28 @@ const config = defineConfig({
                             },
                             { browser: "webkit" },
                         ],
+                    },
+                },
+            },
+            {
+                // The model chunk's request guard in WebKit (test/browser/models/): loading a model
+                // must fetch nothing from Babylon's CDN or a lazily split file, and Safari is where
+                // such a fetch has failed before. Chromium runs the same files through "browser",
+                // with coverage; v8 coverage cannot instrument WebKit, so this project runs without.
+                define: { ...define },
+                optimizeDeps: { include: [...PREBUNDLED, ...ELEMENT_DEPENDENCIES] },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "models-webkit",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/browser/models/**/*.test.ts"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [{ browser: "webkit" }],
                     },
                 },
             },

@@ -157,7 +157,7 @@ export const LayoutTransition = z.strictObject({
         .optional(),
 });
 
-/** How nodes travel to a new layout. See {@link LayoutTransition}. @since 3.36.0 */
+/** How nodes travel to a new layout. See `LayoutTransition`. @since 3.36.0 */
 export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
 
 export const GraphStyle = z.strictObject({

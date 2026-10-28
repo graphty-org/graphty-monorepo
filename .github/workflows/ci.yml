@@ -2246,9 +2246,22 @@ jobs:
             fail-fast: false
             matrix:
                 include:
+                    # Two legs (vitest --shard=N/2), merged by story-tests-merge: one job was 31 minutes, the longest
+                    # of the run, and the full run's re-capture waits for the whole CI lane. Vitest splits by file hash,
+                    # not duration: with run 40616061520's per-file times (28.0 minutes of tests, StartScreen alone
+                    # 14.2) the legs are about 6 and 22 minutes, under graphty-element's 25-minute capture (#4109).
                     - project: graphty
+                      name: graphty-1
+                      part: 1
+                      parts: 2
                       shard: graphty-storybook
-                      command: cd graphty && pnpm exec vitest run --project=storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook --shard=1/2
+                    - project: graphty
+                      name: graphty-2
+                      part: 2
+                      parts: 2
+                      shard: graphty-storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook --shard=2/2
                     # One job for the whole project: without coverage its story tests do not slow down as
                     # they run, which is why the coverage shards split it in five.
                     - project: graphty-element
@@ -2503,7 +2516,7 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # The parts of a project the story-tests job splits in legs (graph-io-fidelity), combined into the one capture the
+    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty), combined into the one capture the
     # project's single leg would have uploaded (visual-<project>-<attempt>):
     # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
     story-tests-merge:
@@ -2516,7 +2529,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graph-io-fidelity]
+                project: [graph-io-fidelity, graphty]
         steps:
             - name: Download the parts
               id: parts

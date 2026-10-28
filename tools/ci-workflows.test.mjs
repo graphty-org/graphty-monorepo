@@ -1988,7 +1988,10 @@ describe("verification runs of ci.yml", () => {
         );
         // One matrix leg per project, each skipped when the run does not test its storybook shard.
         assert.match(job(ci, "story-tests"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
-        assert.match(job(ci, "story-tests"), /- project: graphty\n\s+shard: graphty-storybook\n/);
+        assert.match(
+            job(ci, "story-tests"),
+            /- project: graphty\n\s+name: graphty-1\n\s+part: 1\n\s+parts: 2\n\s+shard: graphty-storybook\n/,
+        );
         assert.match(job(ci, "story-tests"), /- project: layout\n\s+shard: layout\n/);
         assert.match(job(ci, "story-tests"), /- project: algorithms\n\s+shard: algorithms-browser\n/);
         assert.match(job(ci, "story-tests"), /- project: compact-mantine\n\s+shard: compact-mantine\n/);
@@ -2014,6 +2017,37 @@ describe("verification runs of ci.yml", () => {
             // The job's own condition names every leg's shard, or a leg alone in a run is never started.
             assert.ok(jobIf.includes(`'"${shard}"'`), `the story-tests job's if names ${shard}`);
         }
+    });
+
+    // #4109: graphty's capture was the CI lane's longest job, which the full run's re-capture waits for
+    it("splits a story-tests project into vitest shards 1..N/N, each once, all merged by story-tests-merge", () => {
+        const jobs = parseYaml(ci).jobs;
+        const include = jobs["story-tests"].strategy.matrix.include;
+        const split = [...new Set(include.filter((r) => r.parts).map((r) => r.project))].sort();
+        assert.deepEqual(split, ["graph-io-fidelity", "graphty"]);
+        assert.deepEqual([...jobs["story-tests-merge"].strategy.matrix.project].sort(), split);
+        for (const project of split) {
+            const legs = include.filter((r) => r.project === project);
+            const parts = legs[0].parts;
+            assert.ok(
+                legs.every((r) => r.parts === parts && r.name === `${project}-${r.part}`),
+                project,
+            );
+            // every shard of the split once, so vitest runs every story file in exactly one leg
+            assert.deepEqual(
+                legs.map((r) => r.part).sort((a, b) => a - b),
+                Array.from({ length: parts }, (_, i) => i + 1),
+            );
+            for (const r of legs) assert.ok(r.command.endsWith(` --shard=${r.part}/${parts}`), r.name);
+            // and every leg tests the same files of the same project
+            assert.equal(new Set(legs.map((r) => r.command.replace(/ --shard=\S+$/, ""))).size, 1, project);
+        }
+        // story-tests-merge's artifact pattern for one split project never matches another project's parts
+        for (const a of split)
+            for (const b of include.map((r) => r.name).filter(Boolean)) {
+                if (!b.startsWith(`${a}-`)) continue;
+                assert.match(b.slice(a.length + 1), /^\d+$/, `story-parts-${a}-* would match ${b}`);
+            }
     });
 
     it("finds every story-tests leg's shard in the planned matrix, alone or folded into a group", () => {

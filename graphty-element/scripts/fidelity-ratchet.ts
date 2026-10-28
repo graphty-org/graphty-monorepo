@@ -116,7 +116,7 @@ if (suite === "all" || suite === "oracle") {
             Object.fromEntries(
                 Object.keys(sections[section])
                     .filter((k) => (sectionOf.get(k) ?? section) === section)
-                    .sort()
+                    .sort((a, b) => a.localeCompare(b))
                     .map((k) => [k, sections[section][k]]),
             );
         writeFileSync(knownPath, knownText(out.records));

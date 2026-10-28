@@ -148,7 +148,8 @@ export interface Scene {
     nodes: SceneNode[];
     edges: SceneEdge[];
     groups: SceneGroup[];
-    annotations?: { kind: "text" | "shape" | "arrow" | "image"; bbox: Box; text?: string }[];
+    /** An arrow's `heads` are each drawn head's box. */
+    annotations?: { kind: "text" | "shape" | "arrow" | "image"; bbox: Box; text?: string; heads?: Box[] }[];
     background?: Color;
     /** Things this side could not read; a property listed here is not judged against this side. */
     gaps: { property: Property; reason: string }[];

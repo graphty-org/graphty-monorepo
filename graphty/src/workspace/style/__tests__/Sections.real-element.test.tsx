@@ -209,7 +209,9 @@ describe("the Style tab's sections", () => {
             // Shaders' "+" opens the gallery: its add and remove are ShaderRows.real-element.test.tsx's.
             SECTIONS[kind]
                 // Les Miserables is undirected, so Arrowheads add nothing there (tested on its own).
-                .filter((spec) => spec.id !== "text" && spec.shaders !== true && !(kind === "edge" && spec.id === "ends"))
+                .filter(
+                    (spec) => spec.id !== "text" && spec.shaders !== true && !(kind === "edge" && spec.id === "ends"),
+                )
                 .map((spec) => [kind, spec.id, spec.title] as const),
         ),
     )("adds and removes a property in %s %s, with focus and an announcement each way", async (kind, id, title) => {

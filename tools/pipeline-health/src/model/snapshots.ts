@@ -94,6 +94,8 @@ export interface Snapshots {
     "chronic-jobs": ChronicJob[];
     /** The jobs allowed to fail (job-level continue-on-error in ci.yml), by name; `${{ }}` matches anything. */
     "non-gating": string[];
+    /** Every job ci.yml on master defines, by name; `${{ }}` matches anything. */
+    "ci-jobs": string[];
 }
 
 /**

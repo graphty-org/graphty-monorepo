@@ -271,9 +271,13 @@ jobs:
     # a held head judged red or owner-item ends when only a pipeline lane (the screenshot capture or re-capture) held
     # it and a newer master commit passed that lane, or when the hold is over 24 hours old and master has a newer
     # green build. Changed screenshots awaiting the owner's review never end it. The pick then picks as usual.
+    # The job runs in every mode on master, and its steps do nothing outside full, restart and candidate: a skipped job
+    # here would skip every job after the pick whose `if` names no status function, because GitHub skips a job when any
+    # ancestor was skipped, not only a direct need (run 40630434337: a promote-nightly pick found the approval, and
+    # resume, version, land, publish and site were all skipped).
     candidate_fix:
         name: Merge fixes into the held candidate
-        if: ${{ github.ref == 'refs/heads/master' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}
+        if: ${{ github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         environment: release # the deploy key
@@ -284,6 +288,7 @@ jobs:
         steps:
             # master's history: the fixes' merges since the held commit
             - uses: actions/checkout@v7
+              if: ${{ inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' }}
               with:
                   ref: ${{ github.sha }}
                   fetch-depth: 0
@@ -309,6 +314,7 @@ jobs:
                   fi
 
             - name: Merge the fixes and move the hold
+              if: ${{ inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate' }}
               env:
                   GH_TOKEN: ${{ github.token }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
@@ -542,7 +548,7 @@ jobs:
     ci:
         name: CI
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
             # its release-due job (master pushes only) dispatches release.yml, cancels a red run and notes it on the
@@ -569,7 +575,7 @@ jobs:
     t4:
         name: T4 GPU
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -584,7 +590,7 @@ jobs:
         name: Hosts
         needs: pick
         # a fix forward that reaches neither webgpu-graph-algorithms, graph-format nor the lockfile leaves it out
-        if: ${{ needs.pick.outputs.release == 'true' && needs.pick.outputs.hosts != 'false' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.pick.outputs.hosts != 'false' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -600,7 +606,7 @@ jobs:
         name: Work protection (macOS)
         needs: pick
         # a fix forward that reaches neither graphty-element nor the lockfile leaves it out
-        if: ${{ needs.pick.outputs.release == 'true' && needs.pick.outputs.macos != 'false' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.pick.outputs.macos != 'false' }}
         permissions:
             contents: read
             # its timings job, which runs only when it is not called (it lists the run's jobs, OIDC for the store)
@@ -617,7 +623,7 @@ jobs:
     audit:
         name: Security audit
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         permissions:
@@ -653,7 +659,7 @@ jobs:
     llm:
         name: LLM regression
         needs: [pick, ci]
-        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         environment: full-run # GOOGLE_API_KEY
@@ -734,7 +740,7 @@ jobs:
     version_dry_run:
         name: Version dry run
         needs: pick
-        if: ${{ needs.pick.outputs.release == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' }}
         runs-on: ubuntu-24.04
         # A runaway guard, not a budget: on 2026-10-26 nx release version spent 13 of its 15 minutes before
         # printing its first project, and the lane was cancelled (#3630). Why it is that slow is #3631.
@@ -800,7 +806,7 @@ jobs:
     coverage:
         name: Coverage
         needs: [pick, ci]
-        if: ${{ needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && needs.ci.result == 'success' }}
         permissions:
             contents: read
             actions: read
@@ -1450,7 +1456,7 @@ jobs:
     resume:
         name: Gate the approved candidate
         needs: pick
-        if: ${{ needs.pick.outputs.resume == 'true' }}
+        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.resume == 'true' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         permissions:
@@ -1868,7 +1874,7 @@ jobs:
     approve:
         name: Owner approval (production)
         needs: [pick, version]
-        if: ${{ inputs.mode == 'legacy' && needs.version.result == 'success' }}
+        if: ${{ !cancelled() && inputs.mode == 'legacy' && needs.version.result == 'success' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         environment: production
@@ -2152,13 +2158,14 @@ jobs:
                   HUSKY: "0"
 
             # npm can accept a publish and still not serve it, and nx release publish skips any package whose
-            # dependency failed. So the last word is the registry: every non-private package's version at the
-            # version commit must be installable. npm takes a while to serve a fresh version (up to about 7.5
-            # minutes), hence the bounded poll (20 tries, 30 s apart).
+            # dependency failed. So the last word is the registry: every package the version commit versions must be
+            # installable at its new version. Only those: a package this release did not version keeps a version npm
+            # has, or is held in release-hold.json and was never published (graphty, githerd; #4137). npm takes a
+            # while to serve a fresh version (up to about 7.5 minutes), hence the bounded poll (20 tries, 30 s apart).
             - name: Check every version is on npm
               run: |
                   missing() {
-                      pnpm -r ls --depth -1 --json | jq -r '.[] | select(.private != true) | "\(.name)@\(.version)"' |
+                      git diff --name-only "${COMMIT}^1" "$COMMIT" -- '*/package.json' | xargs -r jq -r 'select(.private != true) | "\(.name)@\(.version)"' |
                           while read -r spec; do
                               [ "$(npm view "$spec" version 2>/dev/null)" = "${spec##*@}" ] || echo "$spec"
                           done

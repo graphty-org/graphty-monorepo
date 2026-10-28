@@ -43,7 +43,7 @@ export async function flakyHistory(store: Store, now: number, days = 28): Promis
 }
 
 /** Lowercase words only: "find-no-match", "Find No Match" and "`Find No Match`" all read "find no match". */
-const words = (s: string) =>
+export const words = (s: string) =>
     ` ${s
         .toLowerCase()
         .replaceAll(/[^a-z0-9]+/g, " ")

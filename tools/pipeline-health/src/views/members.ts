@@ -71,7 +71,8 @@ export const SPEC: Record<string, Spec> = {
     "pr.oldest_open": { id: "pull-requests.oldest_open", unit: "h", k: toH, link: "/pull-requests" },
     "pr.merge_ratio": { id: "pull-requests.merge_ratio", unit: "ratio", link: "/pull-requests" },
     "pr.caused_failures": { id: "pull-requests.caused_failures", unit: "pct", k: PCT, link: "/pull-requests" },
-    "pr.automerge_stuck": { id: "pull-requests.automerge_stuck", link: "/pull-requests" },
+    "pr.automerge_green_stuck": { id: "pull-requests.automerge_green_stuck", link: "/pull-requests" },
+    "pr.automerge_armed_long": { id: "pull-requests.automerge_armed_long", link: "/pull-requests" },
     "pr.screenshot_backlog": {
         id: "pull-requests.screenshot_backlog",
         unit: "h",
@@ -95,6 +96,8 @@ export const SPEC: Record<string, Spec> = {
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
     "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
+    "ci.chronic_jobs": { id: "ci.chronic_jobs", link: "/ci/chronic", red: f("sla.any_no_issue") },
+    "ci.bench_regressions": { id: "ci.bench_regressions", link: "/ci/benchmarks" },
     "flaky.rate": { id: "flaky.flake_rate", unit: "per1000", link: "/flaky/hotspots" },
     "flaky.blocked": { id: "flaky.blocked", link: "/flaky/hotspots", red: f("sla.blocked") },
     "flaky.no_issue": { id: "flaky.no_issue", link: "/flaky/hotspots" },

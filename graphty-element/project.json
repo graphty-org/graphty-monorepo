@@ -38,7 +38,7 @@
         "lint": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "eslint && tsc --noEmit",
+                "command": "eslint --concurrency auto && tsc --noEmit",
                 "cwd": "graphty-element"
             },
             "dependsOn": ["^build"]

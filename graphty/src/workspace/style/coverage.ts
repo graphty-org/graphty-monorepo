@@ -301,6 +301,22 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelOffsetY": NOT_PLACED,
     "edge.labelShiftX": NOT_PLACED,
     "edge.labelShiftY": NOT_PLACED,
+    "node.groupPadding": NOT_PLACED,
+    "node.groupPaddingRatio": NOT_PLACED,
+    "node.groupPaddingOf": NOT_PLACED,
+    "node.groupMinWidth": NOT_PLACED,
+    "node.groupMinWidthBiasLeft": NOT_PLACED,
+    "node.groupMinHeight": NOT_PLACED,
+    "node.groupMinHeightBiasTop": NOT_PLACED,
+    "node.groupIncludeLabels": NOT_PLACED,
+    "edge.sourceNodeGap": NOT_PLACED,
+    "edge.targetNodeGap": NOT_PLACED,
+    "edge.supportModel": NOT_PLACED,
+    "edge.supportUnit": NOT_PLACED,
+    "edge.supportSpringLength": NOT_PLACED,
+    "edge.supportSpringConstant": NOT_PLACED,
+    "edge.supportRepulsion": NOT_PLACED,
+    "edge.supportCentralGravity": NOT_PLACED,
 };
 
 const TYPE = at("Label settings, Type");

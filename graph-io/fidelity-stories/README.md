@@ -10,9 +10,11 @@ panels side by side, each drawing at the oracle canvas size of 1200 x 900:
 2. **graphty-element** importing the same file with its file styles (`styles: "file"`, `layout: "recommended"`),
    in 2D, exactly as the oracle tests in graphty-element load it.
 3. **The comparator's table**: what graphty-element drew (read off its renderer) judged against that SVG, one row
-   per property, with each property's passed count, rate and its floor from
-   `graphty-element/test/fidelity/oracle-floors.json`. Green is every element passing, amber some failing above
-   the floor, red below it. Hover a row for its tolerance and worst elements.
+   per property, with each property's passed count, rate and its recorded rate from
+   `graphty-element/test/fidelity/oracle-floors.json`. Green is every element passing, amber some failing that
+   `graphty-element/test/fidelity/oracle-known-failures.json` lists, red an element failing that it does not list
+   (what fails the oracle tests; a rate below its recorded one never does). Hover a row for its tolerance and worst
+   elements.
 
 The stories are for looking; the oracle tests in graphty-element (`test/fidelity/oracle-report.test.ts` and the
 CI subset `test/browser/oracle-scorecard.test.ts`) run the same comparison and are what gate.

@@ -69,12 +69,31 @@ export interface QuarantineEntry {
     expires?: string;
 }
 
+/** A job failing chronically (4.3, collector/jobs.ts), gating or not. */
+export interface ChronicJob {
+    workflow: string;
+    /** Its name, bins and shards folded ("CI / Test (graphty-element-browser)"). */
+    job: string;
+    /** Its newest runs read (at most 10), and how many of them failed. */
+    runs: number;
+    failed: number;
+    /** Its newest pass in the history read (14 days); absent: none. */
+    lastPassAt?: number;
+    /** The oldest run of its newest unbroken run of failures. */
+    failingSince?: number;
+    /** An open issue naming it. */
+    issue?: number;
+}
+
 export interface Snapshots {
     "owner-wait": OwnerWait[];
     release: Record<string, ReleaseSeen>;
     "release-workflows": WorkflowState[];
     quarantine: QuarantineEntry[];
     codeowners: string[];
+    "chronic-jobs": ChronicJob[];
+    /** The jobs allowed to fail (job-level continue-on-error in ci.yml), by name; `${{ }}` matches anything. */
+    "non-gating": string[];
 }
 
 /**

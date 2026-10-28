@@ -69,6 +69,9 @@ const VALUE_EXPORTS = [
     "DOT_STYLE_CAPABILITIES",
     "dotExporter",
     "dotImporter",
+    "graphvizPosBends",
+    "RANK_COLUMN",
+    "RANK_SET_COLUMN",
     "GEXF_1_2_CAPABILITIES",
     "GEXF_ISSUE",
     "GEXF_LOSS",
@@ -290,6 +293,7 @@ const VALUE_EXPORTS = [
     // network sources (experimental)
     "SOURCE_ISSUE",
     "credentials",
+    "credentialSlots",
     "storableCredential",
     "fromStorableCredential",
     "defineSource",

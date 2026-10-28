@@ -72,6 +72,10 @@ describe("an accelerated run and the render loop", () => {
             enableAi: false,
         });
         graphs.push(graph);
+        // Drawn every frame, not on demand: the test setup turns on-demand drawing on, and a still
+        // three-node graph then rests, so "the frames come back" would wait on a picture that is
+        // already final. The hold is what this test counts, not the rest.
+        await graph.setRenderSettings({ onDemand: false }, { skipQueue: true });
         const scene = graph.getScene();
         // Drawn every tick, not on demand (the test setup switches drawing on demand on). On
         // demand, a finished picture rightly draws nothing, before the run and after it, so "the

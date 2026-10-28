@@ -117,8 +117,7 @@ function httpFailureOf(error: unknown): { status: number | undefined; text: stri
  * @returns A short reason, such as "HTTP 401", or null.
  */
 export function accountRefusalOf(error: unknown): string | null {
-    const last = RetryError.isInstance(error) ? error.lastError : error;
-    const failure = httpFailureOf(last) ?? (last instanceof Error ? httpFailureOf(last.cause) : null);
+    const failure = apiFailureOf(error);
     if (failure === null) {
         return null;
     }
@@ -172,11 +171,24 @@ export interface CapturedToolCall {
 }
 
 /**
+ * The HTTP failure inside what the controller kept as its last error: unwraps a RetryError and
+ * one level of `cause` (the controller wraps the provider's error, which toSafeError cleaned).
+ * @param error - The failure
+ * @returns Its status and text, or null when it is not an API call failure
+ */
+function apiFailureOf(error: unknown): { status: number | undefined; text: string } | null {
+    const last = RetryError.isInstance(error) ? error.lastError : error;
+    return httpFailureOf(last) ?? (last instanceof Error ? httpFailureOf(last.cause) : null);
+}
+
+/**
  * Custom provider wrapper that captures tool calls before execution
  */
 class ToolCallCapturingProvider extends VercelAiProvider {
     capturedToolCalls: CapturedToolCall[] = [];
     capturedTokenUsage?: { prompt: number; completion: number };
+    /** Requests sent since the last clearCaptured(), failed ones included. */
+    requests = 0;
 
     async generate(
         messages: Parameters<VercelAiProvider["generate"]>[0],
@@ -186,6 +198,7 @@ class ToolCallCapturingProvider extends VercelAiProvider {
         // Counted per test file and printed by setup.ts, so a run reports what it cost.
         const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
         counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
+        this.requests++;
         const result = await super.generate(messages, tools, options);
 
         // Every turn's tool calls, in order: one prompt may ask the model several times.
@@ -210,6 +223,7 @@ class ToolCallCapturingProvider extends VercelAiProvider {
     clearCaptured(): void {
         this.capturedToolCalls = [];
         this.capturedTokenUsage = undefined;
+        this.requests = 0;
     }
 }
 
@@ -318,6 +332,7 @@ export class LlmRegressionTestHarness {
         const retryDelayMs = retryOptions?.retryDelayMs ?? DEFAULT_RETRY_OPTIONS.retryDelayMs;
         const shouldRetry = retryOptions?.retryOn ?? this.defaultRetryCondition;
         const startTime = Date.now();
+        let resentRejectedFirstRequest = false;
 
         for (let attempt = 0; ; attempt++) {
             this.provider.clearCaptured();
@@ -335,6 +350,25 @@ export class LlmRegressionTestHarness {
                 if (refusal !== null) {
                     // Retrying cannot help, and the message carries the marker the release job reads.
                     throw new Error(`${ACCOUNT_REFUSED_MARKER} (${refusal}): ${failure.message}`, { cause: failure });
+                }
+
+                // Gemini sometimes answers a valid request with 400 "Request contains an invalid
+                // argument" and accepts the same request a second later (#4220: full run
+                // 40684344927 failed the very first request of "How many nodes are there?", which
+                // the next three tests sent unchanged and had accepted). A message's first request
+                // is built from the prompt alone, so it is sent again once, unchanged: a request
+                // that really is invalid is refused again and fails below. A 400 on a later turn
+                // depends on what the model did and is never resent.
+                if (
+                    !resentRejectedFirstRequest &&
+                    this.provider.requests === 1 &&
+                    apiFailureOf(failure)?.status === 400
+                ) {
+                    resentRejectedFirstRequest = true;
+                    console.warn(
+                        `[llm-regression] HTTP 400 on the first request of "${prompt}", sending it again once: ${failure.message}`,
+                    );
+                    continue;
                 }
 
                 if (attempt < maxRetries && shouldRetry(failure)) {

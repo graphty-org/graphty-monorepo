@@ -82,7 +82,7 @@ function render(id: string, params: ShaderParams): Element {
     const shader = presetId(id);
     const element: Graphty = document.createElement("graphty-element");
     if (isVisualCapture()) {
-        element.shaderSettings = { motion: "off" };
+        element.shaderSettings = { motion: "off", guard: false };
     }
 
     const add = (layer: Parameters<Graphty["session"]["styles"]["add"]>[0]): void => {

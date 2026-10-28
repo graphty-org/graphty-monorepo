@@ -8,7 +8,9 @@
  * layer beneath; a group outline takes its group's mean color. The controls are the preset's parameters.
  *
  * The nebula drifts and the bubbles swirl; in a visual capture their motion is switched off with
- * the reader's own setting (`shaderSettings.motion`), so the picture is the same on every run.
+ * the reader's own setting (`shaderSettings.motion`), and the frame guard, which steps the quality
+ * down after a slow frame, is switched off (`shaderSettings.guard`), so the picture is the same on
+ * every run however fast the machine draws.
  */
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
@@ -72,7 +74,7 @@ type LayerInput = Parameters<Graphty["session"]["styles"]["add"]>[0];
 function communities(layers: readonly LayerInput[], background: Graphty["background"]): Graphty {
     const element: Graphty = document.createElement("graphty-element");
     if (isVisualCapture()) {
-        element.shaderSettings = { motion: "off" };
+        element.shaderSettings = { motion: "off", guard: false };
     }
 
     const add = (layer: LayerInput): void => {

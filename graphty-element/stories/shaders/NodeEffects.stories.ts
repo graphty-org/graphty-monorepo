@@ -80,7 +80,7 @@ function render(
     const element: Graphty = document.createElement("graphty-element");
     if (isVisualCapture() || options.quality !== undefined) {
         element.shaderSettings = {
-            ...(isVisualCapture() ? { motion: "off" as const } : {}),
+            ...(isVisualCapture() ? { motion: "off" as const, guard: false } : {}),
             ...(options.quality === undefined ? {} : { quality: options.quality }),
         };
     }

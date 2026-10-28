@@ -72,7 +72,7 @@ const PICKED = ["n1", "n6", "n8"];
 function render(layers: readonly LayerSpec[], pins: readonly string[] = []): Element {
     const element: Graphty = document.createElement("graphty-element");
     if (isVisualCapture()) {
-        element.shaderSettings = { motion: "off" };
+        element.shaderSettings = { motion: "off", guard: false };
     }
 
     const add = (layer: LayerSpec): void => {

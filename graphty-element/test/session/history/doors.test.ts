@@ -78,6 +78,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionVisibilityApi: (session) => session.visibility,
     StylesApi: (session) => session.styles,
     SessionStylesApi: (session) => session.styles,
+    SessionShaders: (session) => session.shaders,
     SessionPositions: (session) => session.positions,
 };
 

@@ -411,6 +411,30 @@ describe("ingest: what it stores", () => {
         expect(mem.items.get(id)?.outcome).toBe("flaky");
     });
 
+    it("keeps a dependency-bump pull request's failures out of the flaky readings (#4147)", async () => {
+        const h = await ingest();
+        const flakyFolds = ["flaky.tests", "flaky.rate"].map(
+            (m) =>
+                METRICS.find((d) => d.id === m)!.from.find((f) => f.kind === "test")!.fold as (i: unknown) => unknown,
+        );
+        for (const [head_ref, n, bump] of [
+            ["dependabot/npm_and_yarn/vite-8.1.6", "601", true],
+            ["chore/deps-refresh-graphty-v1", "602", true],
+            ["fix/1234-topic", "603", false],
+        ] as const) {
+            const claims = { ...CI_CLAIMS, head_ref, run_id: n };
+            // try 1 failed, try 2 passed: flaky by the shard's own retry.
+            await h(event("/v1/invocations", invocation({ id: `${n}.1.layout.1`, variant: "layout" }), { claims }));
+            const passed = invocation({ id: `${n}.1.layout.2`, try: 2, variant: "layout", outcome: "passed" });
+            (passed as Record<string, unknown>).failures = [];
+            await h(event("/v1/invocations", passed, { claims }));
+            const test = mem.items.get(`R#test#${n}.1.layout.1#a.test.ts#draws\u0000A#1`);
+            expect(test?.outcome).toBe("flaky");
+            expect(test?.bump, head_ref).toBe(bump ? true : undefined);
+            for (const fold of flakyFolds) expect(fold(test) === null, head_ref).toBe(bump);
+        }
+    });
+
     it("marks an earlier try's failure flaky when the passing try lists another failure", async () => {
         const h = await ingest();
         const fail = {

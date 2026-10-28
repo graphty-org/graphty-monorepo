@@ -39,6 +39,41 @@ export interface PendingItem {
     readonly scope: PendingScope;
 }
 
+/** The record of the graph drawing into each scene; see {@link pendingWorkOf}. */
+const RECORDS = new WeakMap<object, PendingWork>();
+
+/**
+ * The record of pending work of the graph drawing into a scene, for code that knows only its
+ * scene (a mesh drawing, a render pass). Set by that graph's UpdateManager.
+ * @param scene - The scene.
+ * @returns The record, or undefined when no graph draws into the scene.
+ */
+export function pendingWorkOf(scene: object): PendingWork | undefined {
+    return RECORDS.get(scene);
+}
+
+/**
+ * Make a record the one {@link pendingWorkOf} finds for a scene.
+ * @param scene - The scene.
+ * @param work - The record of the graph drawing into it.
+ */
+export function attachPendingWork(scene: object, work: PendingWork): void {
+    RECORDS.set(scene, work);
+}
+
+/**
+ * Hold a token on a scene's record while a promise runs; the promise alone when no graph draws
+ * into the scene.
+ * @param scene - The scene the work draws into.
+ * @param kind - The kind of work.
+ * @param reason - What is unfinished while it runs.
+ * @param work - The work.
+ * @returns The same promise's result.
+ */
+export function trackOnScene<T>(scene: object, kind: string, reason: string, work: Promise<T>): Promise<T> {
+    return pendingWorkOf(scene)?.track(kind, reason, work) ?? work;
+}
+
 /** A watch: state kept elsewhere, asked live. */
 interface Watch extends PendingItem {
     readonly pending: () => boolean;

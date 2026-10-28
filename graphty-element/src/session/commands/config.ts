@@ -19,7 +19,13 @@ import { z } from "zod";
 
 import { DataConfig } from "../../config/DataConfig";
 import { GraphBehaviorOpts } from "../../config/GraphBehavior";
-import { type GraphBackgroundConfig, type GraphSelectionStyleConfig, GraphStyle } from "../../config/GraphStyle";
+import {
+    type GraphBackgroundConfig,
+    type GraphSelectionStyleConfig,
+    GraphStyle,
+    LayoutTransition,
+    type LayoutTransitionConfig,
+} from "../../config/GraphStyle";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
@@ -42,6 +48,7 @@ type ConfigGroup =
     | "startingRows"
     | "runPlacement"
     | "layoutBehavior"
+    | "layoutTransition"
     | "author"
     | "name";
 
@@ -102,6 +109,7 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
         `layoutBehavior.${name}`,
         { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
     ]),
+    ["layoutTransition", { group: "layoutTransition", schema: LayoutTransition.optional() }],
     // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
     [
         "author",
@@ -307,6 +315,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     Object.freeze(data.knownFields);
     const author = slice.get("author");
     const name = slice.get("name");
+    const layoutTransition = read("layoutTransition") as LayoutTransitionConfig | undefined;
     const pinned = slice.has("pinnedStyle") ? (read("pinnedStyle") as GraphSelectionStyleConfig) : undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
@@ -322,6 +331,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
             stepMultiplier: read("layoutBehavior.stepMultiplier") as number,
             minDelta: read("layoutBehavior.minDelta") as number,
         }),
+        ...(layoutTransition === undefined ? {} : { layoutTransition }),
         ...(typeof author === "string" ? { author } : {}),
         ...(typeof name === "string" ? { name } : {}),
     });

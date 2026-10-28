@@ -831,6 +831,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     visibility: READ,
     time: READ,
     styles: READ,
+    shaders: READ,
     views: READ,
     layout: READ,
     positions: READ,
@@ -1022,6 +1023,54 @@ const DOOR_LAYER: LayerSpec = {
 };
 
 /** The rows of `StylesApi`, shared with the element's wider form of it. */
+/** A shader the doors add, replace and remove. */
+const DOOR_SHADER = `/* graphty-shader 1
+{ "id": "user/door", "name": "Door" }
+*/
+vec4 shade(NodeInput n) { return n.color; }
+`;
+
+/**
+ * A shader door that acts on the door shader once it is in the project.
+ * @param args - The arguments.
+ * @param expect - The commands it dispatches.
+ * @returns The door.
+ */
+function onDoorShader(args: readonly unknown[], expect: readonly SessionCommand[]): Door {
+    return {
+        kind: "dispatches",
+        op: "shader.set",
+        call: {
+            kind: "call",
+            args,
+            around: async (target) => {
+                await (target as { add(text: string): PromiseLike<unknown> }).add(DOOR_SHADER);
+                return () => Promise.resolve();
+            },
+        },
+        expect,
+    };
+}
+
+/** The rows of `session.shaders`. */
+const SHADERS_API: Readonly<Record<string, Door>> = {
+    add: calls([DOOR_SHADER], [{ op: "shader.set", id: "user/door", text: DOOR_SHADER }]),
+    check: READ,
+    replace: onDoorShader(
+        ["user/door", DOOR_SHADER.replace("return n.color;", "return n.color * 0.5;")],
+        [{ op: "shader.set", id: "user/door", text: DOOR_SHADER.replace("return n.color;", "return n.color * 0.5;") }],
+    ),
+    remove: onDoorShader(["user/door"], [{ op: "shader.set", id: "user/door", text: null }]),
+    source: READ,
+    list: READ,
+    status: READ,
+    availability: READ,
+    approve: exempt(
+        "Lets a shader the project already holds run; whether it may run is the reader's trust, never saved in a project file.",
+    ),
+    thumbnail: CAPTURE,
+};
+
 const STYLES_API: Readonly<Record<string, Door>> = {
     list: READ,
     get: READ,
@@ -1273,6 +1322,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             labelDeclutter: VIEW_SETTING,
             renderOnDemand: VIEW_SETTING,
+            shaderSettings: exempt(
+                "The reader's shader preferences and trust, never saved in a project file and never read from one.",
+            ),
+            renderQuality: READ,
             lighting: VIEW_SETTING,
             autoRotate: VIEW_SETTING,
             fitInsets: VIEW_SETTING,
@@ -1393,6 +1446,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodesInRect: READ,
             screenToWorld: READ,
             elementAt: READ,
+            groupOutlineAt: READ,
+            drawnShaders: READ,
             setData: calls(
                 [{ nodes: [{ id: "d1" }], edges: [] }],
                 batchOf("Set the graph data", addNodes({ id: "d1" })),
@@ -1615,6 +1670,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodeScreenPosition: READ,
             screenToWorld: READ,
             elementAt: READ,
+            groupOutlineAt: READ,
+            drawnShaders: READ,
             getCameraController: READ,
             getNodeMesh: READ,
             waitForSettled: READ,
@@ -1708,6 +1765,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isSelected: READ,
             setSelected: SELECTION,
             refreshSelectionOverlay: RENDER,
+            shaderStateChanged: RENDER,
+            shaderStateBits: RENDER,
+            refreshShaderPaint: RENDER,
             refreshScreenBorder: RENDER,
             pin: calls([], [PIN_N1]),
             unpin: calls([], [UNPIN_N1]),
@@ -1719,6 +1779,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             roundRadius: READ,
             drawnFill: READ,
             drawnRadius: READ,
+            paintedColor: READ,
             borderReach: READ,
             framingHalf: READ,
             drawnHalfExtents: READ,
@@ -1760,6 +1821,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             parallelCount: RENDER,
             drawnLine: READ,
             drawnCurve: READ,
+            drawnEffects: READ,
+            refreshShaderPaint: RENDER,
+            shaderDataChanged: RENDER,
             drawnPattern: READ,
             drawnCentre: READ,
             drawnCaps: READ,
@@ -1796,6 +1860,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             publishModelChange: EVENTS,
             emptyClick: EVENTS,
             elementClick: EVENTS,
+            groupOutlineClick: EVENTS,
         },
     },
     {
@@ -3093,12 +3158,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             data: READ,
             runAlgorithmsOnLoad: READ,
             background: READ,
+            backgroundColor: READ,
             selectionStyle: READ,
             pinnedStyle: READ,
             startingRows: READ,
             editableBase: READ,
             runPlacement: READ,
             layoutBehavior: READ,
+            layoutTransition: READ,
             author: READ,
             name: READ,
             acceleration: READ,
@@ -3202,6 +3269,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 "Moves the masks for session.time's cursor only; the window the project records is unchanged until it is committed.",
             ),
         },
+    },
+    {
+        name: "SessionShaders",
+        file: "src/session/shaders.ts",
+        half: "session",
+        doors: SHADERS_API,
     },
     {
         name: "SessionStylesApi",
@@ -3407,10 +3480,38 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawNow: RENDER,
             requestFrame: RENDER,
             applyBackground: RENDER,
+            bindShaderScene: RENDER,
+            pickGroupOutline: READ,
+            shaderPasses: READ,
             applyLighting: RENDER,
             getRenderStats: READ,
             ticks: READ,
+            shaderGuard: RENDER,
         },
+    },
+    {
+        name: "ShaderGuard",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "RenderTargetBudget",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "FlashCounter",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "FlashReadback",
+        file: "src/managers/ShaderGuard.ts",
+        half: "renderer",
+        whole: RENDER,
     },
     {
         name: "DefaultGraphContext",

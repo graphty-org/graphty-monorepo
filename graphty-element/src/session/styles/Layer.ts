@@ -47,6 +47,18 @@
 
 import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
 import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
+import { shaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
+import {
+    isClockBinding,
+    isShaderId,
+    isShaderParamName,
+    SHADER_CLOCKS,
+    type ShaderClockBinding,
+    type ShaderDescriptor,
+    type ShaderPlace,
+    shaderPlaceProblem,
+    type ShaderProblem,
+} from "../../catalog/shaders";
 import type {
     Binding,
     BindingOverflow,
@@ -75,8 +87,10 @@ import {
     type ChannelDescriptor,
     channelDescriptor,
     channelsFor,
+    isEnumCount,
     labelFieldOf,
     modelBindingProblem,
+    parseShaderParamAddress,
     toColorValue,
 } from "./channels";
 import { type RuleBinding, stopsProblem } from "./encoding";
@@ -202,6 +216,12 @@ export interface LayerProblem {
     readonly position?: number;
     /** The names that would have been right, nearest first. */
     readonly candidates?: readonly string[];
+    /**
+     * A refused shader use, as a code and its values: `shader.place-unsupported`
+     * `{ shader, place, allowed }` or `shader.target-mismatch` `{ expected, found }`.
+     * @since 3.36.0
+     */
+    readonly fact?: ShaderProblem;
 }
 
 /**
@@ -303,6 +323,12 @@ export interface LayerCheckOptions {
      * nothing does.
      */
     readonly mayBeEmpty?: boolean;
+    /**
+     * What a shader id the catalog does not list (or of the wrong kind) is: `"refuse"`, the
+     * default, refuses the layer, as `styles.add` does; `"report"` accepts it, as a loaded style
+     * document is, and `styles.counts` reports it as drawing nothing.
+     */
+    readonly shaders?: "refuse" | "report";
 }
 
 /**
@@ -809,6 +835,11 @@ function checkEnum(descriptor: ChannelDescriptor, value: ChannelValue, path: str
         return null;
     }
 
+    // An enum with a `min` also takes a whole number from there up (a segment count).
+    if (isEnumCount(descriptor, value)) {
+        return null;
+    }
+
     return {
         code: "E_OPTION_RANGE",
         message: `${descriptor.plainName} takes one of ${values.join(", ")}.`,
@@ -1303,6 +1334,36 @@ function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: Pr
 }
 
 /**
+ * Check one channel the specification sets: its name, then its value -- a shader value or a
+ * static one.
+ * @param channel - The channel's name.
+ * @param value - The value it is set to.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param catalog - Whether shader ids are checked against the catalog.
+ * @param log - Where problems and paths are collected.
+ */
+function checkSetChannel(
+    channel: string,
+    value: ChannelValue | undefined,
+    target: SelectorTarget | null,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    const path = `set.${channel}`;
+    const descriptor = checkChannel(channel, target, path, log);
+
+    if (descriptor?.shaderTarget !== undefined && value !== undefined) {
+        checkShaderValue(descriptor, value, path, catalog, log);
+    } else if (descriptor !== null && value !== undefined) {
+        const problem = checkStaticValue(descriptor, value, path);
+
+        if (problem !== null) {
+            report(log, problem);
+        }
+    }
+}
+
+/**
  * Report a binding `node.model` or `node.texture` cannot take.
  * @param descriptor - The channel's descriptor.
  * @param binding - The binding.
@@ -1335,27 +1396,369 @@ function checkChannels(
     options: LayerCheckOptions,
     log: ProblemLog,
 ): void {
+    const catalog = options.shaders !== "report";
     for (const [channel, value] of Object.entries(spec.set ?? {})) {
-        const path = `set.${channel}`;
-        const descriptor = checkChannel(channel, target, path, log);
-
-        if (descriptor !== null && value !== undefined) {
-            const problem = checkStaticValue(descriptor, value, path);
-
-            if (problem !== null) {
-                report(log, problem);
-            }
-        }
+        checkSetChannel(channel, value, target, catalog, log);
     }
 
     for (const [channel, binding] of Object.entries(spec.encode ?? {})) {
         const path = `encode.${channel}`;
+        const address = parseShaderParamAddress(channel);
+        if (address !== null && binding !== undefined) {
+            checkParamBinding(channel, binding, target, path, catalog, log);
+            continue;
+        }
+
         const descriptor = checkChannel(channel, target, path, log);
 
         if (descriptor !== null && binding !== undefined) {
             checkBinding(descriptor, binding, path, options, universal, log);
             checkModelBinding(descriptor, binding, path, log);
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shaders: ids from the catalog, maps keyed by id, parameters each shader declares
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Whether a value is a map a layer may write: a plain object, or one with no prototype.
+ * @param value - Anything.
+ * @returns True for a plain map.
+ */
+function isPlainMap(value: unknown): value is Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+
+    const prototype = Object.getPrototypeOf(value) as unknown;
+
+    return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Check one shader id against the catalog: it must be listed, drawn on the list's target (a node
+ * list also takes group outlines), and allowed at the place the use asks for.
+ * @param id - The id.
+ * @param target - The list's target.
+ * @param place - The place the use asks for, or undefined for the shader's own.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ * @returns The shader, or null when it was refused.
+ */
+function checkShaderRef(
+    id: string,
+    target: "node" | "edge",
+    place: ShaderPlace | undefined,
+    path: string,
+    log: ProblemLog,
+): ShaderDescriptor | null {
+    const descriptor = shaderDescriptor(id);
+    if (descriptor === undefined) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER",
+            message: `There is no shader called "${id}".`,
+            path,
+            candidates: shaderIdsFor(target),
+        });
+
+        return null;
+    }
+
+    const takes = target === "node" ? ["node", "group"] : ["edge"];
+    if (!takes.includes(descriptor.target)) {
+        report(log, {
+            code: "E_SHADER_KIND",
+            message: `"${id}" draws on the ${descriptor.target}, and this list takes ${target} shaders.`,
+            path,
+            candidates: shaderIdsFor(target),
+            fact: { code: "shader.target-mismatch", params: { expected: target, found: descriptor.target } },
+        });
+
+        return null;
+    }
+
+    const problem = shaderPlaceProblem(descriptor, place);
+    if (problem !== null) {
+        report(log, {
+            code: "E_SHADER_KIND",
+            message: `"${id}" cannot draw at "${String(place)}".`,
+            path: `${path.replace(/\.shader$/, "")}.place`,
+            candidates: [...(descriptor.places ?? [])],
+            fact: problem,
+        });
+
+        return null;
+    }
+
+    return descriptor;
+}
+
+/**
+ * Check one parameter value against what its shader declares.
+ * @param shader - The shader, or null when the catalog was not consulted.
+ * @param name - The parameter's id.
+ * @param value - Its value.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkParamValue(
+    shader: ShaderDescriptor | null,
+    name: string,
+    value: unknown,
+    path: string,
+    log: ProblemLog,
+): void {
+    if (isClockBinding(value)) {
+        checkClockBinding(shader, name, value, path, log);
+
+        return;
+    }
+
+    if (!isShaderParamName(name) || !["number", "string", "boolean"].includes(typeof value)) {
+        report(log, { code: "E_BAD_LAYER", message: `"${name}" is not a parameter a shader can take.`, path });
+
+        return;
+    }
+
+    if (shader === null) {
+        return;
+    }
+
+    const param = shader.params.find((entry) => entry.name === name);
+    if (param === undefined) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER_PARAM",
+            message: `The shader "${shader.id}" declares no parameter "${name}".`,
+            path,
+            candidates: shader.params.map((entry) => entry.name),
+        });
+
+        return;
+    }
+
+    if (!paramValueFits(param, value)) {
+        report(log, {
+            code: "E_OPTION_RANGE",
+            message: `${String(value)} is not a value "${name}" of "${shader.id}" takes.`,
+            path,
+            ...(param.values === undefined ? {} : { candidates: param.values.map((choice) => choice.value) }),
+        });
+    }
+}
+
+/**
+ * Check a parameter bound to a clock: a clock the element keeps, a domain of two increasing
+ * numbers, and a number or color parameter.
+ * @param shader - The shader, or null when the catalog was not consulted.
+ * @param name - The parameter's id.
+ * @param binding - The binding.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkClockBinding(
+    shader: ShaderDescriptor | null,
+    name: string,
+    binding: ShaderClockBinding,
+    path: string,
+    log: ProblemLog,
+): void {
+    const [from, to] = Array.isArray(binding.domain) ? binding.domain : [];
+    const param = shader?.params.find((entry) => entry.name === name);
+    const sound =
+        SHADER_CLOCKS.includes(binding.by) &&
+        typeof from === "number" &&
+        typeof to === "number" &&
+        from < to &&
+        (param === undefined || param.type === "number" || param.type === "color");
+    if (!sound) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${name}" is bound to a clock as { by: "since.matched", domain: [0, 0.3] }, on a number or color.`,
+            path,
+        });
+    } else if (shader !== null && param === undefined) {
+        checkParamValue(shader, name, 0, path, log);
+    }
+}
+
+/**
+ * Whether a value is one a parameter takes.
+ * @param param - The parameter.
+ * @param value - The value.
+ * @returns True when it fits its type and range.
+ */
+function paramValueFits(param: ShaderDescriptor["params"][number], value: unknown): boolean {
+    switch (param.type) {
+        case "number":
+        case "integer": {
+            const { min, max } = param;
+            return (
+                typeof value === "number" &&
+                Number.isFinite(value) &&
+                (param.type === "number" || Number.isInteger(value)) &&
+                (typeof min !== "number" || value >= min) &&
+                (typeof max !== "number" || value <= max)
+            );
+        }
+        case "boolean":
+            return typeof value === "boolean";
+        case "color":
+            return typeof value === "string" && toColorValue(value) !== null;
+        default:
+            return typeof value === "string" && (param.values ?? []).some((choice) => choice.value === value);
+    }
+}
+
+/**
+ * Check one parameter set: a map of parameter values.
+ * @param shader - The shader it belongs to, or null when the catalog was not consulted.
+ * @param params - The set.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkParamSet(shader: ShaderDescriptor | null, params: unknown, path: string, log: ProblemLog): void {
+    if (!isPlainMap(params)) {
+        report(log, { code: "E_BAD_LAYER", message: "A shader's parameters are a map, such as { speed: 2 }.", path });
+
+        return;
+    }
+
+    for (const [name, value] of Object.entries(params)) {
+        checkParamValue(shader, name, value, `${path}.${name}`, log);
+    }
+}
+
+/** The members a shader use may carry. */
+const USE_KEYS: ReadonlySet<string> = new Set(["shader", "place", "params", "groupBy", "off"]);
+
+/**
+ * Check one use of a shader list: its shape, its shader and place against the catalog, its
+ * parameters, and `groupBy` (place `group` only).
+ * @param use - The entry.
+ * @param target - The list's target.
+ * @param path - Where it sits in the specification.
+ * @param catalog - Whether to consult the catalog, which a loaded document does not.
+ * @param log - Where problems and paths are collected.
+ */
+function checkShaderUse(use: unknown, target: "node" | "edge", path: string, catalog: boolean, log: ProblemLog): void {
+    if (!isPlainMap(use) || !isShaderId(use.shader) || Object.keys(use).some((key) => !USE_KEYS.has(key))) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: 'A shader use is { shader: "<id>", place?, params?, groupBy?, off? }.',
+            path,
+        });
+
+        return;
+    }
+
+    const place = use.place as ShaderPlace | undefined;
+    if (use.off !== undefined && use.off !== true) {
+        report(log, { code: "E_BAD_LAYER", message: "off is true, or left out.", path: `${path}.off` });
+    }
+
+    const checkedPlace = use.off === true ? undefined : place;
+    const shader = catalog ? checkShaderRef(use.shader, target, checkedPlace, `${path}.shader`, log) : null;
+    if (use.params !== undefined) {
+        checkParamSet(shader, use.params, `${path}.params`, log);
+    }
+
+    if (use.groupBy === undefined) {
+        return;
+    }
+
+    const at = place ?? shader?.place;
+    if (typeof use.groupBy !== "string" || use.groupBy.trim() === "" || (at !== undefined && at !== "group")) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: 'groupBy is a path, such as "data.community", on a use at the place "group".',
+            path: `${path}.groupBy`,
+        });
+    } else {
+        readsPath(log, use.groupBy);
+    }
+}
+
+/**
+ * Check a value written to a shader list channel: a list of uses.
+ * @param descriptor - The channel.
+ * @param value - The value.
+ * @param path - Where it sits in the specification.
+ * @param catalog - Whether to consult the catalog, which a loaded document does not.
+ * @param log - Where problems are collected.
+ */
+function checkShaderValue(
+    descriptor: ChannelDescriptor,
+    value: unknown,
+    path: string,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    if (!Array.isArray(value)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.plainName} takes a list of shader uses, such as [{ shader: "lock-on-reticle" }].`,
+            path,
+        });
+
+        return;
+    }
+
+    const target = descriptor.shaderTarget ?? "node";
+    value.forEach((use: unknown, at) => {
+        checkShaderUse(use, target, `${path}.${String(at)}`, catalog, log);
+    });
+}
+
+/**
+ * Check an `encode` key that binds one shader parameter per element.
+ * @param name - The key: `<channel>.<shader>.<parameter>`.
+ * @param binding - Its binding.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param path - Where it sits in the specification.
+ * @param catalog - Whether to consult the catalog.
+ * @param log - Where problems and paths are collected.
+ */
+function checkParamBinding(
+    name: string,
+    binding: Binding,
+    target: SelectorTarget | null,
+    path: string,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    const address = parseShaderParamAddress(name);
+    const descriptor = address === null ? null : checkChannel(address.channel, target, path, log);
+    if (address === null || descriptor === null) {
+        return;
+    }
+
+    if ("by" in binding && typeof binding.by === "string") {
+        readsPath(log, binding.by);
+    }
+
+    if (!isShaderId(address.shader)) {
+        report(log, { code: "E_BAD_LAYER", message: "The address does not name a shader id.", path });
+
+        return;
+    }
+
+    const shader = catalog
+        ? checkShaderRef(address.shader, descriptor.shaderTarget ?? "node", undefined, path, log)
+        : null;
+    if (shader === null) {
+        return;
+    }
+
+    const param = shader.params.find((entry) => entry.name === address.param);
+    if (param?.varies !== true) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER_PARAM",
+            message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,
+            path,
+            candidates: shader.params.filter((entry) => entry.varies === true).map((entry) => entry.name),
+        });
     }
 }
 

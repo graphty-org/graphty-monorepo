@@ -144,7 +144,27 @@ function placeByDrawOrder(mesh: Mesh, drawOrder: number | undefined): void {
     mesh.refreshBoundingInfo();
 }
 
-type ShapeCreator = (size: number, scene?: Scene) => Mesh;
+/** How finely a round shape is tessellated: the shape's own mesh, the low-detail one, or a count. */
+type MeshDetail = NonNullable<NonNullable<NodeStyleConfig["shape"]>["detail"]>;
+
+type ShapeCreator = (size: number, scene?: Scene, detail?: MeshDetail) => Mesh;
+
+/** How many segments "low" draws around a round shape that is not a sphere. */
+const LOW_DETAIL_SEGMENTS = 8;
+
+/**
+ * The segment count a detail asks for, or undefined for the shape's own.
+ * @param detail - The node's `shape.detail`.
+ * @param low - The count "low" stands for.
+ * @returns The count, or undefined for "full" or unset.
+ */
+function segmentsOf(detail: MeshDetail | undefined, low = LOW_DETAIL_SEGMENTS): number | undefined {
+    if (detail === "low") {
+        return low;
+    }
+
+    return typeof detail === "number" ? detail : undefined;
+}
 
 /**
  * Width and height in pixels of the square canvas a gradient ramp is painted into.
@@ -220,12 +240,16 @@ export class NodeMesh {
         // Every creator passes the scene on. Without it Babylon builds the mesh in the scene created
         // last on the page, so with several graphs every graph's mesh lands in one of them (#2257).
         NodeMesh.registerShapeCreator("box", (size, scene) => NodeMesh.createBox(size, scene));
-        NodeMesh.registerShapeCreator("sphere", (size, scene) => NodeMesh.createSphere(size, scene));
-        NodeMesh.registerShapeCreator("cylinder", (size, scene) => NodeMesh.createCylinder(size, scene));
-        NodeMesh.registerShapeCreator("cone", (size, scene) => NodeMesh.createCone(size, scene));
-        NodeMesh.registerShapeCreator("capsule", (size, scene) => NodeMesh.createCapsule(size, scene));
-        NodeMesh.registerShapeCreator("torus", (size, scene) => NodeMesh.createTorus(size, scene));
-        NodeMesh.registerShapeCreator("torus-knot", (size, scene) => NodeMesh.createTorusKnot(size, scene));
+        NodeMesh.registerShapeCreator("sphere", (size, scene, detail) => NodeMesh.createSphere(size, scene, detail));
+        NodeMesh.registerShapeCreator("cylinder", (size, scene, detail) =>
+            NodeMesh.createCylinder(size, scene, detail),
+        );
+        NodeMesh.registerShapeCreator("cone", (size, scene, detail) => NodeMesh.createCone(size, scene, detail));
+        NodeMesh.registerShapeCreator("capsule", (size, scene, detail) => NodeMesh.createCapsule(size, scene, detail));
+        NodeMesh.registerShapeCreator("torus", (size, scene, detail) => NodeMesh.createTorus(size, scene, detail));
+        NodeMesh.registerShapeCreator("torus-knot", (size, scene, detail) =>
+            NodeMesh.createTorusKnot(size, scene, detail),
+        );
 
         NodeMesh.registerShapeCreator("tetrahedron", (size, scene) =>
             NodeMesh.createPolyhedron(PolyhedronType.TETRAHEDRON, size, scene),
@@ -274,7 +298,9 @@ export class NodeMesh {
         );
 
         NodeMesh.registerShapeCreator("goldberg", (size, scene) => NodeMesh.createGoldberg(size, scene));
-        NodeMesh.registerShapeCreator("icosphere", (size, scene) => NodeMesh.createIcoSphere(size, scene));
+        NodeMesh.registerShapeCreator("icosphere", (size, scene, detail) =>
+            NodeMesh.createIcoSphere(size, scene, detail),
+        );
         NodeMesh.registerShapeCreator("geodesic", (size, scene) => NodeMesh.createGeodesic(size, scene));
 
         // Also register underscore versions for backward compatibility
@@ -432,7 +458,7 @@ export class NodeMesh {
         const sized = this.extentsOf(createOptions.shape, size);
         const { inset } = this.borderFit(createOptions.shape, createOptions.border, sized);
         const extents = this.fillExtents(sized, inset);
-        const mesh = creator(size, scene);
+        const mesh = creator(size, scene, createOptions.shape.detail);
         if (!this.isFitted(createOptions.shape)) {
             return mesh;
         }
@@ -1353,23 +1379,30 @@ export class NodeMesh {
         return MeshBuilder.CreateBox("box", { size }, scene);
     }
 
-    private static createSphere(size: number, scene?: Scene): Mesh {
-        return MeshBuilder.CreateSphere("sphere", { diameter: size }, scene);
+    private static createSphere(size: number, scene?: Scene, detail?: MeshDetail): Mesh {
+        // "low": an icosphere of one subdivision, the sparsest mesh that still reads as a ball, so
+        // a wireframe of it is a clean geodesic rather than a mesh of 32 x 32 quads.
+        if (detail === "low") {
+            return MeshBuilder.CreateIcoSphere("sphere", { radius: size / 2, subdivisions: 1 }, scene);
+        }
+
+        return MeshBuilder.CreateSphere("sphere", { diameter: size, segments: segmentsOf(detail) }, scene);
     }
 
-    private static createCylinder(size: number, scene?: Scene): Mesh {
+    private static createCylinder(size: number, scene?: Scene, detail?: MeshDetail): Mesh {
         const actualSize = size;
         return MeshBuilder.CreateCylinder(
             "cylinder",
             {
                 height: actualSize * SHAPE_CONSTANTS.GOLDEN_RATIO,
                 diameter: actualSize,
+                tessellation: segmentsOf(detail),
             },
             scene,
         );
     }
 
-    private static createCone(size: number, scene?: Scene): Mesh {
+    private static createCone(size: number, scene?: Scene, detail?: MeshDetail): Mesh {
         const actualSize = size;
         return MeshBuilder.CreateCylinder(
             "cylinder",
@@ -1377,28 +1410,37 @@ export class NodeMesh {
                 height: actualSize * SHAPE_CONSTANTS.GOLDEN_RATIO,
                 diameterTop: 0,
                 diameterBottom: actualSize,
+                tessellation: segmentsOf(detail),
             },
             scene,
         );
     }
 
-    private static createCapsule(size: number, scene?: Scene): Mesh {
+    private static createCapsule(size: number, scene?: Scene, detail?: MeshDetail): Mesh {
         return MeshBuilder.CreateCapsule(
             "capsule",
-            { height: size, radius: size * SHAPE_CONSTANTS.CAPSULE_RADIUS_MULTIPLIER },
+            {
+                height: size,
+                radius: size * SHAPE_CONSTANTS.CAPSULE_RADIUS_MULTIPLIER,
+                tessellation: segmentsOf(detail),
+            },
             scene,
         );
     }
 
-    private static createTorus(size: number, scene?: Scene): Mesh {
+    private static createTorus(size: number, scene?: Scene, detail?: MeshDetail): Mesh {
         return MeshBuilder.CreateTorus(
             "torus",
-            { diameter: size, thickness: size * SHAPE_CONSTANTS.TORUS_THICKNESS_MULTIPLIER },
+            {
+                diameter: size,
+                thickness: size * SHAPE_CONSTANTS.TORUS_THICKNESS_MULTIPLIER,
+                tessellation: segmentsOf(detail),
+            },
             scene,
         );
     }
 
-    private static createTorusKnot(size: number, scene?: Scene): Mesh {
+    private static createTorusKnot(size: number, scene?: Scene, detail?: MeshDetail): Mesh {
         const actualSize = size;
         return MeshBuilder.CreateTorusKnot(
             "tk",
@@ -1406,6 +1448,8 @@ export class NodeMesh {
                 radius: actualSize * SHAPE_CONSTANTS.TORUSKNOT_RADIUS_MULTIPLIER,
                 tube: actualSize * SHAPE_CONSTANTS.TORUSKNOT_TUBE_MULTIPLIER,
                 radialSegments: SHAPE_CONSTANTS.TORUSKNOT_RADIAL_SEGMENTS,
+                // Around the tube; the count along the knot keeps its curve.
+                tubularSegments: segmentsOf(detail),
             },
             scene,
         );
@@ -1432,12 +1476,14 @@ export class NodeMesh {
         );
     }
 
-    private static createIcoSphere(size: number, scene?: Scene): Mesh {
+    private static createIcoSphere(size: number, scene?: Scene, detail?: MeshDetail): Mesh {
         const actualSize = size;
         return MeshBuilder.CreateIcoSphere(
             "icosphere",
             {
                 radius: actualSize * SHAPE_CONSTANTS.ICOSPHERE_RADIUS_MULTIPLIER,
+                // "low" is one subdivision, a number is the subdivisions; "full" keeps Babylon's 4.
+                subdivisions: segmentsOf(detail, 1),
             },
             scene,
         );

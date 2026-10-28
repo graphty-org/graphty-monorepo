@@ -24,9 +24,11 @@ import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
+import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
+import type { ShaderDescriptor, ShaderText, ShaderUse } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -61,6 +63,42 @@ export type EdgeId = string;
  */
 export type ElementAtResult =
     { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
+
+/**
+ * What `element.groupOutlineAt(point)` finds under a point: a group outline a style layer draws (a
+ * use at the place `group` on its `node.shaders`), by its layer, its shader and its group, the
+ * topmost outline first. `group` is the group's `groupBy` value, null for a use drawing one outline.
+ * @since 3.36.0
+ */
+export interface GroupOutlineAtResult {
+    readonly kind: "group-outline";
+    readonly layer: LayerId;
+    readonly shader: string;
+    readonly group: string | number | boolean | null;
+}
+
+/**
+ * What the element's shaders draw now, as `element.drawnShaders()` reads it: for tools, tests and
+ * an application that shows whether an effect is playing. Read it again after a frame; it is not
+ * a live value.
+ * @since 3.36.0
+ */
+export interface DrawnShaders {
+    /**
+     * Per node shader id, at any place: how many uses of it nodes draw now, and how many of them
+     * are playing their entrance (a reticle's snap, a shockwave's ring) at this moment.
+     */
+    readonly nodes: ReadonlyMap<string, { readonly drawn: number; readonly entering: number }>;
+    /**
+     * The group outlines drawn on the last frame, bottom first: each one's layer, shader and the
+     * `groupBy` value of each group it outlines (null for a use drawing one outline).
+     */
+    readonly groupOutlines: readonly {
+        readonly layer: LayerId;
+        readonly shader: string;
+        readonly groups: readonly (string | number | boolean | null)[];
+    }[];
+}
 
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
@@ -484,6 +522,8 @@ export const OPTION_TYPES = [
     "attribute",
     "partition",
     "ordering",
+    /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
+    "color",
     "unknown",
 ] as const;
 
@@ -616,6 +656,7 @@ export type Channel =
     | "node.haloScale"
     | "node.haloOpacity"
     | "node.wireframe"
+    | "node.meshDetail"
     | "node.flat"
     | "node.unlit"
     | "node.marker"
@@ -841,8 +882,13 @@ export type Channel =
     | "node.tooltipColor"
     | "node.tooltipBackground"
     | "edge.visible"
+    | "edge.labelBackground"
     | "edge.arrowHeadTextBackground"
     | "edge.arrowTailTextBackground"
+    | "node.shaders"
+    | "edge.shaders"
+    | "edge.taper"
+    | "edge.lift"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
     | "edge.labelWrapEllipsis"
@@ -854,7 +900,6 @@ export type Channel =
     | "edge.labelTextAlign"
     | "edge.labelLocation"
     | "edge.labelRotation"
-    | "edge.labelBackground"
     | "edge.labelOutline"
     | "edge.labelOutlineWidth"
     | "edge.labelBorder"
@@ -909,8 +954,20 @@ export interface Rgba {
  */
 export type { LabelStyle } from "./label-style";
 
-/** A literal value written to a channel. */
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
+/**
+ * A literal value written to a channel. The shader channels (`node.shaders`, `edge.shaders`) take
+ * a list of {@link ShaderUse}.
+ */
+export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[];
+
+/**
+ * An `encode` key that binds one shader parameter per element:
+ * `"<target>.shaders.<shader id>.<parameter id>"`, such as `"node.shaders.uncertainty-aura.intensity"`.
+ * It binds that parameter on the layer's own uses of the shader. The parameter must be declared
+ * `varies`.
+ * @since 3.36.0
+ */
+export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}`;
 
 /** Literal values, one per channel. */
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
@@ -1095,8 +1152,11 @@ export type Binding =
           choices?: string[];
       };
 
-/** Declarative attribute-to-channel bindings. */
-export type Encoding = Partial<Record<Channel, Binding>>;
+/**
+ * Declarative attribute-to-channel bindings. A key is a channel, or a shader parameter's address
+ * (see {@link ShaderParamAddress}).
+ */
+export type Encoding = Partial<Record<Channel, Binding>> & { [address: ShaderParamAddress]: Binding };
 
 /**
  * What a "top N" does with the tie group its cut falls in. `"fewer"` (the default) leaves the
@@ -1244,6 +1304,12 @@ export interface StyleDocument {
      * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.
      */
     tree?: readonly StyleDocumentRow[];
+    /**
+     * The text of each pasted shader the layers name, verbatim in the shader text format, so a
+     * document copied alone keeps its shaders. Absent when the layers name none.
+     * @since 3.36.0
+     */
+    shaders?: readonly { readonly id: string; readonly text: ShaderText }[];
 }
 
 /** One row of a saved style tree: a layer, by its place in the document, or a folder. */
@@ -2217,6 +2283,18 @@ export interface CatalogApi {
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
+    /**
+     * Every shader the element can draw: its presets first, then shaders registered through
+     * `registerShader` or `defineShader`.
+     * @since 3.36.0
+     */
+    shaders(): readonly ShaderDescriptor[];
+    /**
+     * Every layout transition `layoutTransition` can name: the element's presets first, then the
+     * ones registered through `registerTransition`.
+     * @since 3.36.0
+     */
+    transitions(): readonly TransitionDescriptor[];
     /**
      * Every graph generator `session.data.generate` runs, with a default name, one sentence and
      * its parameters with their defaults and ranges. Supplied by @graphty/graph-samples.

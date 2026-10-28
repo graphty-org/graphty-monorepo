@@ -444,8 +444,8 @@ describe("vary by layer", () => {
         await clickRow("Many");
 
         const tab = await screen.findByTestId("style-tab");
-        // The layers set a size, so Shape is the one property its "+" has left: it adds it, no menu.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const panel = await varyByLayer(await line("node.shape"));
         await close(panel);
 
@@ -466,8 +466,8 @@ describe("vary by layer", () => {
         await clickRow("Story");
 
         const tab = await screen.findByTestId("style-tab");
-        // The layers set a size, so Shape is the one property its "+" has left: it adds it, no menu.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const panel = await varyByLayer(await line("node.shape"));
         const before = written(session, layers, "node.shape");
         // One row's own value, picked in its row as a group's is.

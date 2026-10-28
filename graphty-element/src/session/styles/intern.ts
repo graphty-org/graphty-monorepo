@@ -80,6 +80,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.sizeMode": "mesh",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
+    // A different tessellation is a different source mesh, so low- and full-detail nodes never share one.
+    "node.meshDetail": "mesh",
     "node.flat": "mesh",
     "node.unlit": "mesh",
     // Width, height, depth and flatness are baked into the source mesh like the size. A border is
@@ -431,7 +433,6 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailTextRotation": "content",
     "edge.arrowTailTextOffsetX": "content",
     "edge.arrowTailTextOffsetY": "content",
-
     // A text's size, colour and background are fields of the same rich-text block its style
     // writes, rebuilt by the same content sync.
     "node.tooltipSize": "content",
@@ -444,6 +445,18 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // different mesh (`Node.applyInstancePaint`, `Edge.paintMarked`).
     "node.visible": "instance",
     "edge.visible": "instance",
+
+    // Drawn beside the node's own mesh by the shader batches (design/rendering/shader-styles.md
+    // section 5), which read them on every paint, so none of them mints a source mesh: a shader
+    // written to a node already on screen rebuilds nothing, and binding a varying parameter on
+    // 10,000 nodes keeps one source mesh. A mesh-path surface that needs its own program is the
+    // drawing package's to key when it lands.
+    "node.shaders": "content",
+    "edge.shaders": "content",
+    // Per edge by nature, like the bends: a taper is drawn from the line batch's per-slot static
+    // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
+    "edge.taper": "content",
+    "edge.lift": "content",
 });
 
 /**

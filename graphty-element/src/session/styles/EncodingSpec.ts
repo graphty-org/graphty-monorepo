@@ -50,6 +50,7 @@ import type {
     ReadableValueKind,
     ResultShape,
     RunId,
+    ShaderParamAddress,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { englishRunLabel } from "../english";
@@ -57,9 +58,14 @@ import { nearestNames } from "../results/ResultsApi";
 import { fieldMeasurement, resultPath, resultShapeContract, type RunRef } from "../results/types";
 import type { RunDistinction } from "../runs/types";
 import type { CodedFact, ColumnRef } from "../shared";
-import { type ChannelDescriptor, type ChannelValueKind, modelBindingProblem } from "./channels";
+import {
+    type ChannelDescriptor,
+    type ChannelValueKind,
+    modelBindingProblem,
+    parseShaderParamAddress,
+} from "./channels";
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
-import { overflowHalf, requireChannel, type RuleBinding } from "./encoding";
+import { overflowHalf, requireChannel, type RuleBinding, shaderParamDescriptor } from "./encoding";
 import { columnPaletteFor, sequentialSamples } from "./palettes";
 import type { ScaleRegistry } from "./scales";
 
@@ -189,6 +195,15 @@ export interface ColumnEncodingSpec extends EncodingOptions {
  * OPEN UNION: codes may be added in a minor release.
  */
 export type EncodingRefusalCode = "E_UNSUPPORTED" | "E_CAP_EXCEEDED" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+
+/**
+ * A run or column encoding asked of `styles.proposeEncoding()` for one shader parameter declared
+ * `varies`, named by its address (`"node.shaders.uncertainty-aura.intensity"`) in place of a channel.
+ * @since 3.36.0
+ */
+export type ParamEncodingSpec = (Omit<EncodingSpec, "channel"> | Omit<ColumnEncodingSpec, "channel">) & {
+    readonly channel: ShaderParamAddress;
+};
 
 /** What `styles.proposeEncoding()` answers: the binding `encode()` would store, or why not. */
 export type EncodingProposal =
@@ -542,6 +557,18 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
 }
 
 /**
+ * What an encoding paints: a channel's descriptor, or for a shader parameter's address the
+ * descriptor the parameter is bound as (a number or a color between its declared ends).
+ * @param name - The channel or the address.
+ * @returns The descriptor.
+ * @throws A `GraphtyError`: `E_UNKNOWN_CHANNEL`, `E_UNKNOWN_SHADER` or `E_UNKNOWN_SHADER_PARAM`.
+ */
+function requireEncodable(name: string): ChannelDescriptor {
+    const address = parseShaderParamAddress(name);
+    return address === null ? requireChannel(name) : shaderParamDescriptor(address);
+}
+
+/**
  * Turn an encoding into the layer it stands for.
  *
  * Everything a consumer could get wrong is written here: the published path of the field, the
@@ -557,7 +584,7 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
  *   names a subset rather than measuring one, or is an edge encoding asked for `overflow: "shape"`.
  */
 export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerSpec {
-    const descriptor = requireChannel(spec.channel);
+    const descriptor = requireEncodable(spec.channel);
     const run = requireRun(spec, source);
 
     const { primaryField } = resultShapeContract(run.shape);
@@ -864,7 +891,7 @@ export function proposeColumnBinding(
     declaration: MeasurementDeclaration | undefined,
     scales: ScaleRegistry,
 ): EncodingProposal {
-    const descriptor = requireChannel(spec.channel);
+    const descriptor = requireEncodable(spec.channel);
     const bind = (scale: string, extra: Partial<RuleBinding> = {}): EncodingProposal => ({
         ok: true,
         binding: { ...extra, ...buildBinding(spec, column.path, scale, descriptor) },
@@ -942,7 +969,7 @@ export function planColumnEncoding(
         });
     }
 
-    const descriptor = requireChannel(spec.channel);
+    const descriptor = requireEncodable(spec.channel);
     return {
         name: spec.name ?? column.name,
         target: descriptor.target,

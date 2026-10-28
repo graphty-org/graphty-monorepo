@@ -53,7 +53,12 @@ import type {
     StructureValue,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
-import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
+import type {
+    GraphBackgroundConfig,
+    GraphSelectionStyleConfig,
+    GraphSelectionStyleInput,
+    LayoutTransitionConfig,
+} from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
@@ -84,6 +89,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
+import type { RenderQualityChange, SessionShaders, ShaderStatus } from "./shaders";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
     CollapseResult,
@@ -2576,7 +2582,7 @@ export interface ProjectConfig {
     readonly data: SessionDataConfig;
     /** Whether the algorithms in `data.algorithms` run once data has loaded. */
     readonly runAlgorithmsOnLoad: boolean;
-    /** What the graph is drawn against: a colour or a skybox. */
+    /** What the graph is drawn against: a colour or a skybox, and a shader over either. */
     readonly background: GraphBackgroundConfig;
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
@@ -2646,6 +2652,12 @@ export interface ProjectConfig {
     readonly author?: string;
     /** The project's name, which a project file carries. Absent when none is set, never blank. */
     readonly name?: string;
+    /**
+     * How nodes travel to a new layout: a transition from `catalog.transitions()`, its duration
+     * and parameters. Absent (the default), a new layout's positions are drawn in one frame.
+     * @since 3.36.0
+     */
+    readonly layoutTransition?: LayoutTransitionConfig;
 }
 
 /** Where a finished run's layer lands: see {@link ProjectConfig.runPlacement}. */
@@ -2674,6 +2686,8 @@ export interface ProjectConfigPatch {
     /** See {@link ProjectConfig.runPlacement}. */
     readonly runPlacement?: RunPlacement;
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
+    /** See {@link ProjectConfig.layoutTransition}; `undefined` turns transitions off. */
+    readonly layoutTransition?: LayoutTransitionConfig;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
@@ -2693,6 +2707,13 @@ export interface SessionConfig extends ProjectConfig {
      *     setting or a value is one its setting refuses; nothing is changed then.
      */
     set(values: ProjectConfigPatch): Promise<void>;
+    /**
+     * The color the element draws the background in, beneath any image or shader, as hex: the
+     * background's own `color`, else `DEFAULT_BACKGROUND_COLOR`. A settings panel shows it when
+     * the background sets no color of its own.
+     * @since 3.36.0
+     */
+    readonly backgroundColor: string;
     /** What the consumer asked of the hardware. */
     readonly acceleration: {
         /** Use an accelerator when one is available, never look, or refuse to run without one. */
@@ -2744,6 +2765,21 @@ export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
 export interface SettingEffect extends CodedFact<SettingEffectCode> {
     /** Whether the setting changes the drawing now. */
     readonly inEffect: boolean;
+}
+
+/**
+ * A click on a group outline a style layer draws (a use at the place `group` on its
+ * `node.shaders`): its layer, its shader, and the group's `groupBy` value (null for a use drawing
+ * one outline).
+ * @since 3.36.0
+ */
+export interface GroupOutlineClick {
+    /** The layer whose outline was clicked. */
+    readonly layer: LayerId;
+    /** The outline's shader. */
+    readonly shader: string;
+    /** The group's `groupBy` value; null for a use drawing one outline. */
+    readonly group: string | number | boolean | null;
 }
 
 /**
@@ -2801,6 +2837,13 @@ export interface SessionEventMap {
      * @since 3.33.0
      */
     "canvas:element-click": { readonly node: NodeId } | { readonly edge: EdgeId };
+    /**
+     * A click landed on a group outline a style layer draws (a use at the place `group`), and on
+     * no node or edge: the layer, the shader, and the group's `groupBy` value (null for a use
+     * drawing one outline). The topmost outline under the pointer is the one reported.
+     * @since 3.36.0
+     */
+    "canvas:group-outline-click": GroupOutlineClick;
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
     /** The time window moved through `session.time`: where it is now and what entered and left. */
@@ -2909,6 +2952,33 @@ export interface SessionEventMap {
      */
     "project:status": ProjectStatus;
     /**
+     * A project shader's status changed: it started compiling, became ready, failed, was held,
+     * approved, or turned off. Mirrored on the element as `graphty-shader-status`.
+     * @since 3.36.0
+     */
+    "shader:status": { readonly id: string } & ShaderStatus;
+    /**
+     * Shaders arrived that wait for approval: a project or style file opened, an AI command, or
+     * an undo brought them back. Mirrored as `graphty-shader-held`.
+     * @since 3.36.0
+     */
+    "shader:held": { readonly ids: readonly string[] };
+    /**
+     * A shader's text was approved to run: the reader added it, or `approve` ran it. An
+     * application that remembers approvals stores the hash and passes it back in
+     * `shaderSettings.trustedHashes`. Mirrored as `graphty-shader-approved`.
+     * @since 3.36.0
+     */
+    "shader:approved": { readonly id: string; readonly hash: string };
+    /**
+     * The frame guard changed how much shader work the element does: it stepped quality down,
+     * paused motion or turned heavy shaders off on a GPU that fell behind, or stepped back up.
+     * Mirrored on the element as `graphty-render-quality`; the quality now is
+     * `element.renderQuality`.
+     * @since 3.36.0
+     */
+    "render:quality": RenderQualityChange;
+    /**
      * A model a style layer names moved on: requested, checked, drawn, refused or failed. One
      * event per model and state, never one per node. Mirrored on the element as
      * `graphty-model-change`.
@@ -2973,7 +3043,8 @@ export type ProjectSlice =
     | "views"
     | "notes"
     | "attributes"
-    | "valueLabels";
+    | "valueLabels"
+    | "shaders";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -3020,6 +3091,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
  * | `data.columns` | none: the column settings a project file restored |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
+ * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
@@ -3121,6 +3193,9 @@ export type HistoryCode =
     | "style.hide-row"
     | "style.delete-row"
     | "style.restore-starting-rows"
+    | "shader.add"
+    | "shader.replace"
+    | "shader.remove"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"
@@ -3348,6 +3423,8 @@ export interface CommandOutcomeMap {
     "style.encode": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.template": Promise<void>;
+    /** Settles once the shader's text is recorded. */
+    "shader.set": Promise<void>;
     /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
     "visibility.set": Promise<void>;
     /** Settles once the window is recorded and the pass that evaluates the masks has run. */
@@ -3752,6 +3829,13 @@ export interface GraphSession {
      */
     readonly styles: StylesApi;
     /**
+     * The shaders that belong to the project -- pasted, or carried in by a file -- and whether
+     * each may run. Presets and registered shaders are in `catalog.shaders()`; this adds, checks,
+     * approves and removes the project's own (design: shaders as style features).
+     * @since 3.36.0
+     */
+    readonly shaders: SessionShaders;
+    /**
      * The saved camera views, by name: camera states kept under a name of the consumer's
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.
      */
@@ -3999,6 +4083,11 @@ export interface ElementSession extends GraphSession {
      * @param target - What the click landed on.
      */
     elementClick(target: { readonly node: NodeId } | { readonly edge: EdgeId }): void;
+    /**
+     * Publishes `canvas:group-outline-click`; the renderer calls it for a click on a group outline.
+     * @param target - The outline's layer, shader and group.
+     */
+    groupOutlineClick(target: GroupOutlineClick): void;
 }
 
 /**

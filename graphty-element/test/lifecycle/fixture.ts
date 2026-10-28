@@ -56,7 +56,8 @@ export interface Fixture {
     /**
      * The fixture page's URL.
      * @param params - `key`, `tab`, `n` (nodes, 30 by default), `rows` (`early`, the default, or `late`),
-     *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), and for a page
+     *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), `list` (`1`: report
+     *   `listAutosaves` before the element mounts, as `listed`), and for a page
      *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
      *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
      */
@@ -147,7 +148,7 @@ IDBDatabase.prototype.transaction = function (stores, mode, ...rest) {
 };
 </script>
 <script type="module">
-import "/bundle.js";
+import { listAutosaves } from "/bundle.js";
 const params = new URLSearchParams(location.search);
 const tab = params.get("tab") ?? "t";
 const n = Number(params.get("n") ?? 30);
@@ -166,6 +167,15 @@ document.addEventListener("freeze", () => report("freeze"));
 document.addEventListener("resume", () => report("resume"));
 window.addEventListener("pagehide", (e) => report("pagehide", { persisted: e.persisted }));
 window.addEventListener("pageshow", (e) => report("pageshow", { persisted: e.persisted }));
+
+// list=1: before the element exists, read the key's entries and report which one is this tab's own,
+// as a start screen does on load; with the session storage item that names it.
+const listed = async () => (await listAutosaves(params.get("key"))).map((e) => ({ id: e.id, own: e.own, live: e.live }));
+if (params.get("list") === "1") {
+    let item = null;
+    try { item = sessionStorage.getItem("graphty-autosave:own:" + params.get("key")); } catch {}
+    report("listed", { item, entries: await listed() });
+}
 
 const ids = Array.from({ length: n }, (_, i) => "n" + i);
 // On a grid, as a laid-out graph is: with no position every node sits at the origin, and the camera
@@ -237,6 +247,7 @@ window.fixture = {
         await el.session.runs.start("degree", undefined, { as: "hidden-run", style: false });
     },
     status: () => el.autosaver.status,
+    listed,
     async check() {
         await ready;
         const probes = new Set();

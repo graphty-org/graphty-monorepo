@@ -45,7 +45,15 @@ export function openProject(
         place: "graph",
         inspected: null,
         dialog: null,
-        opening: { name, load },
+        // The name is the project's in graphty-element too, so its autosave entry carries it. Set
+        // before the load, which starts the history, so Undo never takes the name back.
+        opening: {
+            name,
+            load: async (session) => {
+                await session.config.set({ name });
+                await load(session);
+            },
+        },
         ends: null,
     }));
 }

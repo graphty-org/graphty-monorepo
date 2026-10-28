@@ -16,6 +16,7 @@ import {
     EDGE_JOIN_FRAGMENT_SHADER,
     EDGE_JOIN_VERTEX_SHADER,
     EDGE_MITER_LIMIT,
+    EDGE_STATIC_ATTRIBUTES,
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
 } from "./edgeJoinShader";
@@ -35,6 +36,24 @@ export interface JoinedLineOptions {
     minScreenWidth?: number;
     /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
     pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
+    /**
+     * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
+     * plain line leaves it out and draws exactly as before.
+     */
+    widened?: boolean;
+    /**
+     * A shader drawn on the line (`EDGE_SHADED`): the shader-store name of its fragment stage (the
+     * join fragment with the shader runtime's definitions after it) and what that declares.
+     * Implies `widened`.
+     */
+    program?: {
+        readonly fragment: string;
+        readonly uniforms: readonly string[];
+        readonly samplers: readonly string[];
+        readonly uniformBuffers: readonly string[];
+    };
+    /** How it blends: straight alpha over (the default), premultiplied over, or added. */
+    blend?: "combine" | "premultiplied" | "add";
 }
 
 interface LineGeometry {
@@ -371,13 +390,27 @@ void main(void) {
         vertexData.indices = [...JOIN_TEMPLATE_INDICES];
         vertexData.applyToMesh(mesh);
 
-        const defines = options.worldWidth === true ? ["#define WORLD_WIDTH"] : [];
+        const { program } = options;
+        const widened = options.widened === true || program !== undefined;
+        const defines = [
+            ...(options.worldWidth === true ? ["#define WORLD_WIDTH"] : []),
+            ...(widened ? ["#define EDGE_WIDENED"] : []),
+            ...(program === undefined ? [] : ["#define EDGE_SHADED"]),
+        ];
         const material = new ShaderMaterial(
             "joinedLineMaterial",
             scene,
-            { vertex: "edgeJoin", fragment: "edgeJoin" },
+            { vertex: "edgeJoin", fragment: program?.fragment ?? "edgeJoin" },
             {
-                attributes: ["position", "pPrev", "pA", "pB", "pNext", "run"],
+                attributes: [
+                    "position",
+                    "pPrev",
+                    "pA",
+                    "pB",
+                    "pNext",
+                    "run",
+                    ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
+                ],
                 uniforms: [
                     "world",
                     "viewProjection",
@@ -389,10 +422,18 @@ void main(void) {
                     "color",
                     "opacity",
                     "pattern",
+                    ...(widened ? ["edgeReach"] : []),
+                    ...(program?.uniforms ?? []),
                 ],
+                samplers: [...(program?.samplers ?? [])],
+                uniformBuffers: [...(program?.uniformBuffers ?? [])],
                 defines,
+                ...(program === undefined ? {} : { needAlphaBlending: true }),
             },
         );
+        if (widened) {
+            material.setFloat("edgeReach", 1);
+        }
 
         const opacity = options.opacity ?? 1;
         const colorObj = Color3.FromHexString(options.color);
@@ -421,12 +462,13 @@ void main(void) {
         }
 
         mesh.alwaysSelectAsActiveMesh = true;
-        this.blendInPlace(mesh);
+        this.blendInPlace(mesh, options.blend);
         mesh.metadata = {
             joinedLine: true,
             pattern: pattern
                 ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
                 : undefined,
+            ...(widened ? { widened: true } : {}),
         };
 
         return mesh;
@@ -773,11 +815,17 @@ void main(void) {
      * it against labels and every other transparent mesh. A fragment of alpha 1 -- every line of
      * one pixel or more at full opacity -- blends to exactly the colour it wrote before.
      * @param mesh - The line mesh.
+     * @param blend - Straight alpha over (a line, a surface), premultiplied over or added (an effect).
      */
-    private static blendInPlace(mesh: Mesh): void {
+    private static blendInPlace(mesh: Mesh, blend: JoinedLineOptions["blend"] = "combine"): void {
         const engine = mesh.getScene().getEngine();
+        const mode = {
+            combine: Constants.ALPHA_COMBINE,
+            premultiplied: Constants.ALPHA_PREMULTIPLIED,
+            add: Constants.ALPHA_ONEONE,
+        }[blend];
         mesh.onBeforeBindObservable.add(() => {
-            engine.setAlphaMode(Constants.ALPHA_COMBINE, true);
+            engine.setAlphaMode(mode, true);
         });
         mesh.onAfterRenderObservable.add(() => {
             engine.setAlphaMode(Constants.ALPHA_DISABLE, true);

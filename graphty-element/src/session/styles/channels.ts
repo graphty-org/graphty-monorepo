@@ -57,6 +57,8 @@
  */
 
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
+import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { isExclusivePlace, type ShaderPlace, type ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import {
@@ -72,6 +74,7 @@ import {
     NodeBorderPositions,
     NodeBorderStyles,
     NodeLabelFits,
+    NodeMeshDetails,
     NodeModelCenters,
     NodeModelFits,
     NodeModelUpAxes,
@@ -264,6 +267,12 @@ export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
 
+/**
+ * How finely a round node shape is drawn (`node.meshDetail`): "full", "low", or a segment count.
+ * @since 3.36.0
+ */
+export type NodeMeshDetailValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["detail"]>;
+
 /** How a node grows to hold its label: its padded label box inside its outline, or as its bounds. */
 export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["labelFit"]>;
 
@@ -377,6 +386,7 @@ export interface ChannelValues {
     "node.haloScale": number;
     "node.haloOpacity": number;
     "node.wireframe": boolean;
+    "node.meshDetail": NodeMeshDetailValue;
     "node.flat": boolean;
     "node.unlit": boolean;
     "node.marker": never;
@@ -605,6 +615,10 @@ export interface ChannelValues {
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
+    "node.shaders": readonly ShaderUse[];
+    "edge.shaders": readonly ShaderUse[];
+    "edge.taper": number;
+    "edge.lift": number;
     "edge.labelTextAlign": LabelTextAlign;
     "edge.labelLocation": LabelLocation;
     "edge.labelWrapWidth": number;
@@ -688,7 +702,36 @@ export type PaintedValue<C extends Channel> = ChannelValues[C];
 export type AuthoredValue<C extends Channel> = C extends ColorChannel ? string | Rgba : ChannelValues[C];
 
 /** The kind of value a channel accepts, which is what a control for it has to offer. */
-export type ChannelValueKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "nothing";
+export type ChannelValueKind =
+    | "color"
+    | "number"
+    | "text"
+    | "boolean"
+    | "enum"
+    | "labelStyle"
+    | "nothing"
+    /**
+     * A list of shader uses ({@link ShaderUse}), resolved across layers by place: see
+     * `node.shaders`. @since 3.36.0
+     */
+    | "shaderUses";
+
+/**
+ * Whether a value is the whole number an "enum" channel with a `min` takes beside its words: a
+ * segment count for `node.meshDetail`.
+ * @param descriptor - The channel.
+ * @param value - The value.
+ * @returns True for a whole number from `min` up on such a channel.
+ */
+export function isEnumCount(descriptor: ChannelDescriptor, value: unknown): value is number {
+    return (
+        descriptor.accepts === "enum" &&
+        descriptor.min !== undefined &&
+        typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= descriptor.min
+    );
+}
 
 /** One channel: what it paints, what it accepts, and what the renderer really does with it. */
 export interface ChannelDescriptor {
@@ -722,7 +765,11 @@ export interface ChannelDescriptor {
     readonly accepts: ChannelValueKind;
     /** Every value it accepts, when `accepts` is "enum". */
     readonly values?: readonly string[];
-    /** The smallest value the renderer draws, when `accepts` is "number". */
+    /**
+     * The smallest value the renderer draws, when `accepts` is "number". On an "enum" channel it
+     * says the channel also takes a whole number from `min` up beside its `values`: a segment count
+     * beside `node.meshDetail`'s "full" and "low" (since 3.36.0).
+     */
     readonly min?: number;
     /**
      * Whether `min` itself is refused, so a value must be above it: a node of size 0 draws nothing,
@@ -795,6 +842,12 @@ export interface ChannelDescriptor {
      * @since 3.26.0
      */
     readonly modifies?: Channel;
+    /**
+     * The target whose shaders the channel's uses name, on a shader list channel: what a picker
+     * offers for it (a node list also takes group outlines). Absent on every other channel.
+     * @since 3.36.0
+     */
+    readonly shaderTarget?: "node" | "edge";
 }
 
 /**
@@ -1957,6 +2010,33 @@ const LOOK_AND_VISIBILITY = {
     ),
 };
 
+/** What the shader list channels draw, written once and read by both. */
+const SHADER_CAVEAT =
+    "Each entry uses one shader at a place: `paint` and `replace` draw one per element, the highest " +
+    "winning; every other place stacks, at most four per element. `off: true` removes a shader the " +
+    "layers beneath put on these elements.";
+
+/**
+ * The shader list channel of one target.
+ * @param target - Nodes or edges.
+ * @returns The channel.
+ */
+function shaderChannel(target: "node" | "edge"): ChannelDescriptor {
+    return {
+        channel: `${target}.shaders`,
+        target,
+        plainName: `${target === "node" ? "Node" : "Edge"} shaders`,
+        shortName: "Shaders",
+        // An edge's shaders sit in its line group: they paint the line or run along it.
+        group: target === "node" ? "effects" : "line",
+        accepts: "shaderUses",
+        stylePath: "shaders",
+        renderable: true,
+        caveat: SHADER_CAVEAT,
+        shaderTarget: target,
+    };
+}
+
 /**
  * A label padding channel of a node that grows to hold its label.
  * @param axis - Which padding: "X" or "Y".
@@ -2265,6 +2345,26 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "boolean",
         stylePath: "effect.wireframe",
         renderable: true,
+    },
+    "node.meshDetail": {
+        channel: "node.meshDetail",
+        target: "node",
+        plainName: "Node Mesh Detail",
+        shortName: "Mesh detail",
+        group: "shape",
+        default: "full",
+        accepts: "enum",
+        values: NodeMeshDetails.options,
+        min: 1,
+        stylePath: "shape.detail",
+        renderable: true,
+        caveat:
+            'How finely a round shape is tessellated. "full" draws the shape\'s own mesh; "low" draws a ' +
+            "sphere as an icosphere of one subdivision and every other round shape (cylinder, cone, " +
+            "capsule, torus, torus knot, icosphere) with 8 segments around; a whole number is the segment " +
+            "count (an icosphere's subdivisions). Shapes drawn with flat faces (box, the polyhedra, goldberg, " +
+            "geodesic, the flat shapes) and registered shapes look the same either way. A wireframe draws " +
+            "every triangle, so a low-detail mesh is what makes a wireframe sphere read as a clean globe.",
     },
     "node.flat": {
         channel: "node.flat",
@@ -4107,6 +4207,42 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         ...labelFieldChannels("edge")["edge.labelBackground"],
         ...LOOK_AND_VISIBILITY["edge.labelBackground"],
     },
+    "node.shaders": shaderChannel("node"),
+    "edge.shaders": shaderChannel("edge"),
+    "edge.taper": {
+        channel: "edge.taper",
+        target: "edge",
+        plainName: "Edge Taper",
+        shortName: "Taper",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 4,
+        stylePath: "line.taper",
+        renderable: true,
+        caveat:
+            "The width at the target as a multiple of the width at the source: 1 draws the line " +
+            "the same width all along, below 1 narrows it toward the target, above 1 widens it. " +
+            "The arrowhead sits at the target, where the line arrives at its tapered width. A patterned " +
+            "line drawn as separate elements (star, diamond, box, dash-dot, zigzag, sinewave) does " +
+            "not taper.",
+    },
+    "edge.lift": {
+        channel: "edge.lift",
+        target: "edge",
+        plainName: "Edge Lift",
+        shortName: "Lift",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        stylePath: "line.lift",
+        renderable: true,
+        caveat:
+            "How far the middle of the edge's route rises out of the layout plane, in world units, " +
+            "as an arc. Drawn only for a flat layout in the 3D view; anywhere else the edge is drawn " +
+            "flat and the layer reports `edge.lift-needs-flat-layout` as drawing nothing.",
+    },
 };
 
 /**
@@ -4338,4 +4474,237 @@ export function readRenamedChannels<T extends { readonly set?: object; readonly 
     return set === spec.set && encode === spec.encode
         ? spec
         : { ...spec, ...(set === undefined ? {} : { set }), ...(encode === undefined ? {} : { encode }) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shader lists: resolved by place
+// ---------------------------------------------------------------------------------------------
+
+/** The most stacking uses (every place but `paint`, `replace` and `group`) drawn on one element. */
+export const STACK_CAP = 4;
+
+/** Where a resolved list keeps the uses the last layer merged into it wrote. */
+const LATEST = Symbol("graphty.latestUses");
+
+/** A resolved list, carrying the last layer's uses out of sight of iteration. */
+type ResolvedUses = ShaderUse[] & { [LATEST]?: ReadonlySet<ShaderUse> };
+
+/**
+ * Whether a channel's values are shader use lists: `node.shaders` and `edge.shaders`.
+ * @param channel - The channel.
+ * @returns True for the two list channels.
+ */
+export function isShaderListChannel(channel: string): boolean {
+    return channel === "node.shaders" || channel === "edge.shaders";
+}
+
+/**
+ * Where one use draws: its own place, else its shader's.
+ * @param use - The use.
+ * @returns The place, or undefined for a shader the catalog does not list.
+ */
+export function placeOfUse(use: ShaderUse): ShaderPlace | undefined {
+    return use.place ?? shaderDescriptor(use.shader)?.place;
+}
+
+/**
+ * Stack a parameter set over another, the higher winning per parameter, into a fresh object with
+ * no prototype.
+ * @param held - The parameters beneath, or undefined.
+ * @param over - The parameters this layer writes.
+ * @returns The merged parameters.
+ */
+function mergeParams(held: unknown, over: object): Record<string, unknown> {
+    const merged = Object.create(null) as Record<string, unknown>;
+    if (typeof held === "object" && held !== null) {
+        Object.assign(merged, held);
+    }
+
+    for (const [name, value] of Object.entries(over)) {
+        if (value !== undefined) {
+            merged[name] = value;
+        }
+    }
+
+    return merged;
+}
+
+/**
+ * Resolve one layer's shader uses over what the layers beneath resolved, in list order:
+ *
+ * - `{ shader, off: true }` removes every use of that shader beneath (and earlier in the list);
+ * - a use at `paint` or `replace` removes any use beneath at either, so the last one wins;
+ * - every other use stacks on top.
+ *
+ * A parameter map instead of a list (`{ [shader]: { param: value } }`, what a parameter bound per
+ * element paints) sets those parameters on the uses of that shader the last layer wrote, or, when
+ * it wrote none, on every use of it beneath.
+ * @param held - What the layers beneath resolved, or undefined.
+ * @param over - What this layer paints.
+ * @returns The resolved list, a fresh array.
+ */
+export function mergeShaderUses(held: unknown, over: unknown): readonly ShaderUse[] {
+    const beneath: readonly ShaderUse[] = Array.isArray(held) ? (held as ShaderUse[]) : [];
+    if (!Array.isArray(over)) {
+        return patchUses(beneath, over);
+    }
+
+    let out: ShaderUse[] = [...beneath];
+    const latest = new Set<ShaderUse>();
+    for (const use of over as readonly ShaderUse[]) {
+        if (use.off === true) {
+            out = out.filter((each) => each.shader !== use.shader);
+            continue;
+        }
+
+        if (isExclusivePlace(placeOfUse(use))) {
+            out = out.filter((each) => !isExclusivePlace(placeOfUse(each)));
+        }
+
+        out.push(use);
+        latest.add(use);
+    }
+
+    return withLatest(out, latest);
+}
+
+/**
+ * A list with the uses the last layer wrote attached.
+ * @param list - The list.
+ * @param latest - The uses.
+ * @returns The list.
+ */
+function withLatest(list: ShaderUse[], latest: ReadonlySet<ShaderUse>): readonly ShaderUse[] {
+    Object.defineProperty(list, LATEST, { value: latest, enumerable: false });
+    return list;
+}
+
+/**
+ * Set parameters per shader on a resolved list (see {@link mergeShaderUses}).
+ * @param beneath - The list.
+ * @param patch - Parameters by shader id.
+ * @returns The patched list, a fresh array.
+ */
+function patchUses(beneath: readonly ShaderUse[], patch: unknown): readonly ShaderUse[] {
+    if (typeof patch !== "object" || patch === null) {
+        return beneath;
+    }
+
+    const latest = (beneath as ResolvedUses)[LATEST] ?? new Set<ShaderUse>();
+    const kept = new Set<ShaderUse>();
+    const out = [...beneath];
+    for (const [id, params] of Object.entries(patch)) {
+        if (typeof params !== "object" || params === null) {
+            continue;
+        }
+
+        const own = out.some((use) => use.shader === id && latest.has(use));
+        out.forEach((use, at) => {
+            if (use.shader === id && (!own || latest.has(use))) {
+                const patched = { ...use, params: mergeParams(use.params, params) as ShaderUse["params"] };
+                out[at] = patched;
+                if (latest.has(use)) {
+                    kept.add(patched);
+                }
+            }
+        });
+    }
+
+    for (const use of latest) {
+        if (out.includes(use)) {
+            kept.add(use);
+        }
+    }
+
+    return withLatest(out, kept);
+}
+
+/**
+ * What one element draws from its resolved list: the one use at `paint` or `replace`, if any,
+ * and the stacking uses (not `group`), at most {@link STACK_CAP}, the highest kept.
+ * @param uses - The resolved list, or undefined.
+ * @returns The covering use, the stacking ones with their places, and how many the cap left out.
+ */
+export function drawnUses(uses: readonly ShaderUse[] | undefined): {
+    readonly exclusive: { readonly use: ShaderUse; readonly place: ShaderPlace } | null;
+    readonly stacked: readonly { readonly use: ShaderUse; readonly place: ShaderPlace }[];
+    readonly left: number;
+} {
+    let exclusive: { use: ShaderUse; place: ShaderPlace } | null = null;
+    const stacked: { use: ShaderUse; place: ShaderPlace }[] = [];
+    for (const use of uses ?? []) {
+        const place = placeOfUse(use);
+        if (place === undefined || place === "group" || use.off === true) {
+            continue;
+        }
+
+        if (isExclusivePlace(place)) {
+            exclusive = { use, place };
+        } else {
+            stacked.push({ use, place });
+        }
+    }
+
+    const left = Math.max(0, stacked.length - STACK_CAP);
+    return { exclusive, stacked: stacked.slice(left), left };
+}
+
+/**
+ * Stack a value over what lies beneath on a channel whose values merge rather than replace: a
+ * label style (field by field) or a shader list (resolved by place).
+ * @param channel - The channel.
+ * @param held - What the layers beneath painted, or undefined.
+ * @param over - What this layer paints.
+ * @returns The merged value.
+ */
+export function mergeChannelValue(channel: string, held: unknown, over: object): object {
+    return isShaderListChannel(channel) ? mergeShaderUses(held, over) : mergeLabelStyle(held, over);
+}
+
+/** Where a parameter address points: the list channel, the shader and the parameter. */
+export interface ShaderParamTarget {
+    /** The list channel the value lands in. */
+    readonly channel: Channel;
+    /** The shader id. */
+    readonly shader: string;
+    /** The parameter id. */
+    readonly param: string;
+}
+
+/**
+ * Read an `encode` key that addresses one shader parameter:
+ * `"<target>.shaders.<shader id>.<parameter id>"`.
+ * @param name - The key.
+ * @returns Where it points, or null when it is not a parameter address.
+ */
+export function parseShaderParamAddress(name: string): ShaderParamTarget | null {
+    const match = /^(node|edge)\.(shaders)\.(.+)\.([^./]+)$/.exec(name);
+    if (match === null) {
+        return null;
+    }
+
+    return { channel: `${match[1]}.${match[2]}` as Channel, shader: match[3], param: match[4] };
+}
+
+/**
+ * A shader list or parameter map as the repaint holds it: a deep copy with no prototype on any
+ * map, so no key can reach `Object.prototype` however it is spelled.
+ * @param value - A value a layer wrote, already checked.
+ * @returns The copy.
+ */
+export function prototypeFreeMap(value: object): Record<string, unknown> {
+    if (Array.isArray(value)) {
+        return Object.freeze(
+            value.map((entry: unknown) =>
+                typeof entry === "object" && entry !== null ? prototypeFreeMap(entry) : entry,
+            ),
+        ) as unknown as Record<string, unknown>;
+    }
+
+    const copy = Object.create(null) as Record<string, unknown>;
+    for (const [key, entry] of Object.entries(value)) {
+        copy[key] = typeof entry === "object" && entry !== null ? prototypeFreeMap(entry) : entry;
+    }
+
+    return copy;
 }

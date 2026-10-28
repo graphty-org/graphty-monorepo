@@ -274,13 +274,15 @@ const heldRequestCommands: {
 
 /**
  * The package's published names, resolved to its own source. The docs' examples
- * (docs/examples/) import `@graphty/graphty-element/extend` and `/logging` exactly as a reader
+ * (docs/examples/) import `@graphty/graphty-element`, `/extend` and `/logging` exactly as a reader
  * copies them, and the tests that run those examples must run the code under test, not a stale
  * dist/.
  */
 const OWN_ENTRY_POINTS = {
     "@graphty/graphty-element/extend": path.resolve(dirname, "extend.ts"),
     "@graphty/graphty-element/logging": path.resolve(dirname, "logging.ts"),
+    // Last, so the subpaths above match first.
+    "@graphty/graphty-element": path.resolve(dirname, "index.ts"),
 };
 
 /**
@@ -838,7 +840,8 @@ const config = defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "autosave-engines",
-                    include: ["test/browser/autosave/**/*.test.ts"],
+                    // Beside autosave: graphs that compiled shaders give their contexts back.
+                    include: ["test/browser/autosave/**/*.test.ts", "test/browser/shaders/dispose-engines.test.ts"],
                     fileParallelism: false,
                     browser: {
                         enabled: true,

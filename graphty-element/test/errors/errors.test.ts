@@ -75,6 +75,9 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_LAYOUT",
     "E_UNKNOWN_FORMAT",
     "E_UNKNOWN_PALETTE",
+    "E_UNKNOWN_SHADER",
+    "E_SHADER_KIND",
+    "E_UNKNOWN_SHADER_PARAM",
     "E_UNKNOWN_CAMERA",
     "E_UNKNOWN_GENERATOR",
     "E_UNKNOWN_DATASET",
@@ -160,6 +163,9 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_LAYOUT":
         case "E_UNKNOWN_FORMAT":
         case "E_UNKNOWN_PALETTE":
+        case "E_UNKNOWN_SHADER":
+        case "E_SHADER_KIND":
+        case "E_UNKNOWN_SHADER_PARAM":
         case "E_UNKNOWN_CAMERA":
         case "E_UNKNOWN_GENERATOR":
         case "E_UNKNOWN_DATASET":

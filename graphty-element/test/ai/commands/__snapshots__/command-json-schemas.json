@@ -212,6 +212,14 @@
                         "exclusiveMinimum": 0,
                         "type": "number"
                     },
+                    "shader": {
+                        "description": "A node shader from the shader catalog to draw the nodes with, by its id, at its own place",
+                        "type": "string"
+                    },
+                    "shaderText": {
+                        "description": "Shader text the person pasted or asked for (GLSL with a graphty-shader 1 header). It is added to the project and held until the person approves it in the app; the nodes draw as before until then",
+                        "type": "string"
+                    },
                     "shape": {
                         "description": "Shape type (e.g., 'sphere', 'box', 'cylinder')",
                         "type": "string"

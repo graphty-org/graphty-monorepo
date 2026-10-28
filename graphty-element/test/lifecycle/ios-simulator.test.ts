@@ -20,6 +20,11 @@
  * draw; a page whose WebGL fails is covered by the "No WebGL" lifecycle test and, here, by the switch
  * scenario's "page terminated by WebKit" path.
  *
+ * And the discard-and-return check: a tab whose web content process iOS killed in the background is
+ * loaded again when the reader returns to Safari. It must keep its session storage, so
+ * `listAutosaves` still finds the entry this tab was writing and marks it `own` -- the premise of
+ * reopening a discarded tab straight into its work.
+ *
  * The Simulator has no memory-pressure killer and no 7-day storage rule; those are the iPad
  * protocol's (design/work-protection/ipad-protocol.md).
  */
@@ -390,6 +395,43 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             simctl("spawn", udid, "notifyutil", "-p", "com.apple.UIKit.SimulatorMemoryWarning");
             return `memory warning in the background (page ${how}), Safari ${terminateSafari(udid)}`;
         });
+    });
+
+    it("keeps the tab's session storage and its own entry when the reader returns to a discarded tab", async () => {
+        const tab = "ios-return";
+        onTestFailed(() => {
+            console.log(`[ios] reports: ${JSON.stringify(fx.log.filter((e) => e.tab.startsWith(tab)))}`);
+            diagnose(udid, tab);
+        });
+        const from = safariLog.lines.length;
+        await openInSafari(fx.url({ key: tab, tab, auto: 2, list: 1, webgl: "off" }));
+        const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
+        assert.strictEqual(saved.state, "saved", "the page saved its edits");
+        const entry = fx.events(tab, "saved").at(-1)?.entry as string | undefined;
+        assert.isString(entry, "the page reported the entry it writes");
+
+        // Discard: switch away, then kill the page's web content process, as iOS does to a
+        // background tab. Returning to Safari loads the tab again, in the same tab.
+        await appSwitch(tab, from);
+        const pages = processes().filter(
+            (proc) => proc.cmdline.includes("CoreSimulator") && proc.cmdline.includes("WebKit.WebContent"),
+        );
+        kill(pages);
+        const mark = fx.log.length;
+        simctl("launch", udid, SAFARI);
+        const listed = await fx.waitFor((e) => e.seq >= mark && e.tab === tab && e.type === "listed");
+        const entries = listed.entries as { id: string; own?: boolean }[];
+        assert.strictEqual(listed.item, entry, "session storage survived the discard");
+        assert.deepEqual(
+            entries.filter((e) => e.own === true).map((e) => e.id),
+            [entry],
+            "the returned tab owns its entry",
+        );
+        const line = `iOS Simulator, discard and return (${pages.length} web content processes killed): session storage kept, own entry found`;
+        console.log(`[ios] ${line}`);
+        if (process.env.GITHUB_STEP_SUMMARY) {
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`);
+        }
     });
 
     it("restores the saved work after Safari's web content process is killed", async () => {

@@ -24,6 +24,7 @@ import type { Node as GraphNode, NodeIdType } from "./Node";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
+import { pickAtLayout } from "./transitions/LayoutTransitionRunner";
 
 /**
  * The mesh a click at a canvas point lands on, as the reader sees the picture.
@@ -38,14 +39,18 @@ import { sourceLoadsOf } from "./session/sources/ids";
  * @returns The mesh, or null when the point lands on nothing.
  */
 export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
-    const ray = scene.createPickingRay(x, y, null, null);
-    const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
-    const onTop = scene.pick(
-        x,
-        y,
-        alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
-    );
-    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
+    // While a layout transition moves the nodes, a click reads the layout's answer, not the
+    // moving picture: what is selected is where the node is going.
+    return pickAtLayout(scene, () => {
+        const ray = scene.createPickingRay(x, y, null, null);
+        const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
+        const onTop = scene.pick(
+            x,
+            y,
+            alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
+        );
+        return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
+    });
 }
 
 /**
@@ -970,6 +975,7 @@ export class NodeDragHandler {
         if (isOverThisNode && !this.isHovered) {
             this.isHovered = true;
             this.roster.hovered.add(this);
+            this.node.shaderStateChanged("hovered", true);
 
             // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
             // an answer to pointing at something, so no style pass knows when to draw one:
@@ -1017,6 +1023,7 @@ export class NodeDragHandler {
         }
 
         this.isHovered = false;
+        this.node.shaderStateChanged("hovered", false);
         this.node.hideTooltip();
         this.getContext().getSelectionManager?.()?.leave(this.node.id);
     };

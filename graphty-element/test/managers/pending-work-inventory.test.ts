@@ -27,12 +27,12 @@ import { assert, describe, it } from "vitest";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 /**
- * The asynchronous entry points: a dynamic `import()` used as a value (not `typeof import(...)`
- * in a type), `fetch`, an `Image`, an `onload`, a decoded bitmap, an animation frame, a model or
+ * The asynchronous entry points: a dynamic `import()` of a module (not `typeof import(...)` or
+ * `import(...).Type` in a type), `fetch`, an `Image`, an `onload`, a decoded bitmap, an animation frame, a model or
  * texture load, and a font.
  */
 const ENTRY =
-    /(?:\bawait|[=(]|\?\?=|=>|\breturn)\s*import\(\s*["'`]|(?<![.\w])import\([^)]*\)\s*\.then\(|new Image\(|createImageBitmap\(|\bfetch\(|\.onload\b|requestAnimationFrame\(|ImportMeshAsync|LoadAssetContainerAsync|SceneLoader\.|new Texture\(|new FontFace\(|document\.fonts/g;
+    /(?<!typeof\s*)(?<![.\w])import\(\s*["'`][^"'`]*["'`]\s*\)(?!\s*\.(?!then\b))|new Image\(|createImageBitmap\(|\bfetch\(|\.onload\b|requestAnimationFrame\(|ImportMeshAsync|LoadAssetContainerAsync|SceneLoader\.|new Texture\(|new FontFace\(|document\.fonts/g;
 
 /** How a file's asynchronous work is covered. */
 interface Covered {
@@ -150,6 +150,38 @@ const INVENTORY: Record<string, Covered> = {
     },
     "src/ai/providers/index.ts": { count: 2, reason: "an AI provider's module; it draws nothing" },
     "src/ai/providers/WebLlmProvider.ts": { count: 2, reason: "the in-browser model's module; it draws nothing" },
+    "src/shaders/chunk.ts": { count: 1, kind: "shader", reason: "the shader runtime, loaded the first time one draws" },
+    "src/meshes/NodeShaderDrawing.ts": {
+        count: 3,
+        kind: "shader",
+        reason: "the node shader renderer modules, loaded inside the token a resolving node shader holds",
+    },
+    "src/meshes/EdgeShaderDrawing.ts": {
+        count: 1,
+        kind: "shader",
+        reason: "the edge shader renderer module, loaded inside the token a resolving edge shader holds",
+    },
+    "src/managers/RenderManager.ts": {
+        count: 3,
+        kind: "shader",
+        reason: "the background, group outline and bloom passes a shader names, each loaded under a token",
+    },
+    "src/catalog/shaderRegistry.ts": {
+        count: 2,
+        kind: "shader",
+        reason:
+            "a built-in shader's text, read by the session when a shader resolves for drawing, inside the token " +
+            "the resolving drawing holds; read for editing it draws nothing",
+    },
+    "src/shaders/presets/bodies.ts": {
+        count: 35,
+        kind: "shader",
+        reason: "each built-in shader's text, loaded through shaderRegistry; see that row",
+    },
+    "src/session/shaders.ts": {
+        count: 1,
+        reason: "a shader's thumbnail for a picker, fetched for the application; never drawn on the canvas",
+    },
     "src/xr/XRSessionManager.ts": {
         count: 2,
         reason: "an immersive session's module; while one runs the picture moves with the head and is never final",

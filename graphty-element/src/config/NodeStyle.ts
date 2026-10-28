@@ -28,6 +28,14 @@ export const NodeModelCenters = z.enum(["bounds", "origin"]);
 export const NodeLabelFits = z.enum(["inside", "bounds"]);
 
 /**
+ * How finely a round node shape is tessellated (`shape.detail`): "full" (the default) is the
+ * shape's own mesh; "low" is an icosphere of one subdivision for a sphere, and 8 segments around
+ * every other round shape; a number is the segment count (an icosphere's subdivisions). Shapes
+ * already drawn with flat faces (box, the polyhedra, goldberg, geodesic, the flat shapes) ignore it.
+ */
+export const NodeMeshDetails = z.enum(["full", "low"]);
+
+/**
  * The single source of truth for the node shape vocabulary.
  *
  * WHY THIS IS EXPORTED, and what went wrong when it was not: this enum used to be an internal
@@ -224,6 +232,7 @@ export const NodeStyle = z.strictObject({
             //   default icosphere's, 1.5 units per unit of size, as a graph file's node size means.
             //   Styles read from another program's file use it.
             sizeMode: NodeSizeModes.optional(),
+            detail: NodeMeshDetails.or(z.number().int().min(1)).optional(),
             type: NodeShapes.optional(),
             // The drawn extent along x, y and z, in the units of `size`. Each one left unset keeps
             // the shape's own proportions at `size`.

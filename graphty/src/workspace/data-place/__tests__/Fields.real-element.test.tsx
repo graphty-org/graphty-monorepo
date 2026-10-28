@@ -55,22 +55,6 @@ function mountWorkspace(): ReturnType<typeof render> {
 }
 
 /**
- * Waits for the start screen's graph to come up and its picture to come to rest, so a click on the
- * start screen does not wait behind its layout being drawn.
- */
-async function startScreenStill(): Promise<void> {
-    const hero = await waitFor(
-        () => {
-            const found = document.querySelector<ElementUnderTest>("graphty-element[data-start-page]");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    await hero.waitForStableFrame();
-}
-
-/**
  * Waits for the open project's element.
  * @returns the element.
  */
@@ -265,9 +249,8 @@ describe("Data > Fields as a + list on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         first.unmount();
+        // This tab's own work reopens straight into the workspace, with no offer to answer.
         const second = mountWorkspace();
-        await startScreenStill();
-        await userEvent.click(await screen.findByRole("button", { name: "Restore" }, { timeout: TIMEOUT_MS }));
         const restored = await openElement();
         await waitFor(
             () => {

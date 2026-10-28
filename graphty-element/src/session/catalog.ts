@@ -49,8 +49,11 @@ import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
+import { shaderDescriptors } from "../catalog/shaderRegistry";
+import type { ShaderDescriptor } from "../catalog/shaders";
 import type { AlgorithmDescriptor } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
+import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
 import type { SessionCatalogApi } from "./types";
@@ -143,6 +146,17 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      */
     screenshotPresets: () => SCREENSHOT_PRESET_DESCRIPTORS,
     /**
+     * Every shader a layer can name: the element's presets, then the registered ones.
+     * @returns the shader descriptors, the element's own first
+     */
+    shaders: () => shaderDescriptors(),
+    /**
+     * Every layout transition `layoutTransition` can name: the element's presets, then the
+     * registered ones.
+     * @returns the transition descriptors, the element's own first
+     */
+    transitions: () => transitionDescriptors(),
+    /**
      * Every graph generator `data.generate` runs: graph-samples' catalogue. Static.
      * @returns the generator descriptors
      */
@@ -167,10 +181,23 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
  * @returns The catalogue.
  */
 export function createSessionCatalog(
-    source: MetricsSource & Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues">,
+    source: MetricsSource &
+        Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues"> & {
+            /** The project's own shaders, listed after the presets and registered ones. */
+            readonly projectShaders?: () => readonly ShaderDescriptor[];
+        },
 ): SessionCatalogApi {
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
+        /**
+         * Every shader a layer can name: the element's presets, the registered ones, then the
+         * project's own (pasted, or carried in by a file).
+         * @returns the shader descriptors, the element's own first
+         */
+        shaders: () => {
+            const pasted = source.projectShaders?.() ?? [];
+            return pasted.length === 0 ? shaderDescriptors() : Object.freeze([...shaderDescriptors(), ...pasted]);
+        },
         /**
          * Every metric the element could compute on this graph, with what it would cost and
          * whether it has been run.

@@ -7,13 +7,7 @@
  * sentences. It asks no question of the browser and keeps no state.
  */
 
-import type {
-    AutosaveAvailable,
-    AutosaveCode,
-    AutosaveEntry,
-    AutosaveRestored,
-    AutosaveStatus,
-} from "@graphty/graphty-element";
+import type { AutosaveAvailable, AutosaveCode, AutosaveEntry, AutosaveStatus } from "@graphty/graphty-element";
 
 /** How every one of the chip's labels begins. */
 const AUTOSAVE_CHIP_PREFIX = "Autosave";
@@ -123,50 +117,22 @@ function ago(iso: string, now: number): string {
 }
 
 /**
- * The notice that says work came back, and what else the browser still holds.
- * @param restored - what the restore brought back.
- * @param entries - every entry of this key, from `autosaver.list()`.
- * @param now - the time now, in ms since the epoch.
- * @returns the sentence.
- */
-export function restoredSentence(
-    restored: AutosaveRestored,
-    entries: readonly AutosaveEntry[],
-    now = Date.now(),
-): string {
-    const parts = [`Restored your work from ${ago(restored.savedAt, now)}.`];
-    if (restored.others > 0) {
-        const copies = restored.others === 1 ? "copy" : "copies";
-        parts.push(
-            `${String(restored.others)} other unsaved ${copies} of your work ${restored.others === 1 ? "is" : "are"} in this browser.`,
-        );
-    }
-    const ended = entries.filter((entry) => entry.ended !== undefined && entry.id !== restored.entry.id).length;
-    if (ended > 0) {
-        parts.push(
-            `${String(ended)} earlier ${ended === 1 ? "graph" : "graphs"} you replaced ${ended === 1 ? "is" : "are"} kept too.`,
-        );
-    }
-    return parts.join(" ");
-}
-
-/**
- * The notice for work graphty-element found but did not reopen.
+ * The notice for work graphty-element found but did not reopen: a short fact.
  * @param available - the entry and why it was not reopened.
- * @returns the sentence.
+ * @returns the fact.
  */
 export function availableSentence(available: AutosaveAvailable): string {
     switch (available.reason) {
         case "held-by-other-tab":
-            return "Your latest work is open in another tab, so this tab started fresh.";
+            return "Open in another tab";
         case "page-data-changed":
-            return "The data changed since your last visit, so your earlier work was kept aside.";
+            return "Data changed: earlier work kept aside";
         case "restore-failed":
-            return available.problem === null
-                ? "Your saved work could not be reopened."
-                : autosaveProblemSentence(available.problem);
+            return available.problem?.code === "E_AUTOSAVE_FORMAT_NEWER"
+                ? "Not reopened: saved by a newer version"
+                : "Not reopened";
         default:
-            return "Earlier work is kept in this browser.";
+            return "Earlier work kept";
     }
 }
 
@@ -183,13 +149,23 @@ export function recoveredSentence(entry: AutosaveEntry, now = Date.now()): strin
 }
 
 /**
- * The notice once that work is open again.
+ * The notice once that work is open again: a short fact.
  * @param entry - the entry.
  * @param now - the time now, in ms since the epoch.
- * @returns the sentence.
+ * @returns the fact.
  */
 export function reopenedSentence(entry: AutosaveEntry, now = Date.now()): string {
-    return `Restored your work from ${ago(entry.savedAt, now)}.`;
+    return `Restored: ${ago(entry.savedAt, now)}`;
+}
+
+/**
+ * What a screen reader hears when the graph's data changes: its counts, a short fact.
+ * @param nodes - the node count.
+ * @param edges - the edge count.
+ * @returns the fact.
+ */
+export function dataCountsFact(nodes: number, edges: number): string {
+    return `${String(nodes)} ${nodes === 1 ? "node" : "nodes"}, ${String(edges)} ${edges === 1 ? "edge" : "edges"}`;
 }
 
 /**

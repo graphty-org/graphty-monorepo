@@ -100,6 +100,12 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ATTRIBUTE"
     /**
+     * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
+     * `stepBy` or `seek` with no attribute given. The caller designates one with
+     * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+     */
+    | "E_NO_TIME_FIELD"
+    /**
      * An algorithm key is not registered. `details.available` lists the registered keys. The
      * caller picks a key from the catalogue or registers a plugin that provides it.
      */
@@ -576,6 +582,18 @@ export type GraphtyErrorCode =
      */
     | "E_SOURCE_UNKNOWN"
     /**
+     * A load an opened project holds has not been run since it opened, so nothing may fetch for it
+     * yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+     * once the reader approved. Nothing was fetched. `details.id`. Experimental.
+     */
+    | "E_SOURCE_PENDING"
+    /**
+     * No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+     * `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+     * `details.key`, `details.known`. Experimental.
+     */
+    | "E_LOAD_UNKNOWN"
+    /**
      * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
      */
     | "E_SOURCE_UNSUPPORTED"
@@ -603,7 +621,11 @@ export type GraphtyWarningCode =
     | "W_UNKNOWN_MEMBER"
     /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
     | "W_FUTURE_TIME"
-    /** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+    /**
+     * A member of a kind this reader does not know: skipped, the rest of the file still read
+     * (`params.index`, `params.kind`). Also a `graphty-sources` entry of a load kind it does not
+     * know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
+     */
     | "W_UNKNOWN_KIND"
     /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
     | "W_DATA_DIFFERS"
@@ -654,7 +676,66 @@ export type GraphtyWarningCode =
      * event. `params.requested` holds the options as given and `params.used` the values used, by
      * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
      */
-    | "W_DIMENSION_OVERRIDDEN";
+    | "W_DIMENSION_OVERRIDDEN"
+    /**
+     * A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
+     * `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
+     * element's way. Emitted as a `layout-warning` event. `params.reason` is the Graphviz failure
+     * reason, such as `graphviz.unavailable` or `graphviz.timeout`.
+     */
+    | "W_ROUTES_NOT_LAID"
+    /**
+     * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
+     * the `graphty-sources` member: query parameters of a URL load's address, or of a network
+     * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
+     * names left out. See the project file guide, "What a save leaves out".
+     */
+    | "W_SOURCE_URL_REDACTED"
+    /**
+     * A `graphty-sources` entry of an opened project names a network source this release has not
+     * registered: its elements are there and the entry is written back, but it is not offered to
+     * run. `params.id` is the entry's id and `params.source` the source id.
+     */
+    | "W_SOURCE_UNREGISTERED"
+    /**
+     * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
+     * data applied. `params.graph` names the graph, null for the file's one graph.
+     */
+    | "W_SOURCE_STEPS_IGNORED"
+    /**
+     * A member of an older version was read and upgraded to the version this release writes; a
+     * save writes the new version. `params.kind` is the member's kind, `params.found` the version
+     * read and `params.version` the version it was upgraded to.
+     */
+    | "W_VERSION_UPGRADED"
+    /**
+     * The `location-map` layout found no usable location for some nodes, and put them in its tray
+     * or left them where they were. `params.missing` counts nodes with no value, `params.unparsed`
+     * values no location format reads, `params.outOfRange` values out of range (see
+     * `W_LOCATION_OUT_OF_RANGE`), `params.unplaced` all of them together, `params.total` every
+     * node, `params.ids` the unplaced nodes' ids (so a count can select them), and
+     * `params.samples` up to eight `{ id, value, code }` (code `syntax` or `short-code`).
+     */
+    | "W_LOCATION_UNPARSED"
+    /**
+     * The `location-map` layout read locations it cannot place: latitude beyond +/-90 degrees or
+     * longitude beyond +/-180, or on a flat Web Mercator map a latitude past +/-85.05, which that
+     * projection cannot show. They go to the tray. `params.count`, `params.unplaced` (every
+     * unplaced node, these included), `params.total`, `params.ids` and up to eight
+     * `params.samples` `{ id, value, code }`.
+     */
+    | "W_LOCATION_OUT_OF_RANGE"
+    /**
+     * The `location-map` layout's `format: "auto"` found more than one format that reads the
+     * column about as well, and used the first: a decimal pair that reads as well longitude first
+     * (`lon-lat`) is the common case. `params.formats` (the one used first) and `params.column`.
+     */
+    | "W_LOCATION_AMBIGUOUS"
+    /**
+     * The `location-map` layout's `format: "auto"` read a column of decimal pairs longitude first,
+     * because latitude first would put latitudes beyond +/-90. `params.column`.
+     */
+    | "W_LOCATION_SWAPPED";
 
 /**
  * Every code, as a lookup table.
@@ -675,6 +756,7 @@ const CODE_TABLE = {
     E_UNKNOWN_OPTION: "E_UNKNOWN_OPTION",
     E_OPTION_RANGE: "E_OPTION_RANGE",
     E_UNKNOWN_ATTRIBUTE: "E_UNKNOWN_ATTRIBUTE",
+    E_NO_TIME_FIELD: "E_NO_TIME_FIELD",
     E_UNKNOWN_ALGORITHM: "E_UNKNOWN_ALGORITHM",
     E_UNKNOWN_LAYOUT: "E_UNKNOWN_LAYOUT",
     E_UNKNOWN_FORMAT: "E_UNKNOWN_FORMAT",
@@ -752,6 +834,8 @@ const CODE_TABLE = {
     E_SOURCE_PARAM: "E_SOURCE_PARAM",
     E_SOURCE_LIMIT: "E_SOURCE_LIMIT",
     E_SOURCE_UNKNOWN: "E_SOURCE_UNKNOWN",
+    E_SOURCE_PENDING: "E_SOURCE_PENDING",
+    E_LOAD_UNKNOWN: "E_LOAD_UNKNOWN",
     E_SOURCE_UNSUPPORTED: "E_SOURCE_UNSUPPORTED",
     E_SOURCE_INVALID: "E_SOURCE_INVALID",
     E_CREDENTIAL_NOT_STORABLE: "E_CREDENTIAL_NOT_STORABLE",

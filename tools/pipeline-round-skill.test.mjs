@@ -165,7 +165,7 @@ describe("pipeline-round skill in the channels order", () => {
     });
 
     it("names the full run's, flaky and budget tools the design names", () => {
-        for (const name of ["bisect.yml", "base-check.yml", "ci-budgets.json", "[KNOWN?]", "[FLAKY-UNRELATED]"]) {
+        for (const name of ["bisect.yml", "base-check.yml", "ci-budgets.json", "[UNRELATED]", "[FLAKY-UNRELATED]"]) {
             assert.ok(skill.includes(name), name);
         }
     });

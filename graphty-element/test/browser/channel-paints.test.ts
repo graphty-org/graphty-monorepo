@@ -64,6 +64,9 @@ const EDGES = [
     { src: "alpha", dst: "omega" },
 ];
 
+/** A curved edge with a support point, at a unit that sets the circular layout's nodes 100 support units apart. */
+const SUPPORTED = { "edge.curvature": true, "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 };
+
 /**
  * What a channel needs written before it has anything to change, in a layer of its own around its
  * measurement: a bundle fans apart only when its edges are curved.
@@ -75,6 +78,16 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     // curved edge that has a bend to curve through: the table's own caveats say each ignores a straight edge.
     "edge.arcRadius": { "edge.curvature": true, "edge.fanned": false },
     "edge.bendCurve": { "edge.curvature": true, "edge.bends": "0.5,0.5" },
+    // A support point bends only a curved edge, and its numbers move only a support point there is. The nodes stand
+    // 32 scene units apart (scale 0.2 of the circular layout's 80), so a support unit of 0.32 puts them 100 units apart.
+    "edge.supportModel": { "edge.curvature": true },
+    "edge.supportSpringLength": SUPPORTED,
+    "edge.supportSpringConstant": SUPPORTED,
+    "edge.supportRepulsion": SUPPORTED,
+    "edge.supportCentralGravity": SUPPORTED,
+    "edge.supportUnit": SUPPORTED,
+    // An arc height raises only a raised route; every other layout draws edges straight.
+    "edge.arcHeight": { "edge.route": "arc" },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
     "node.gradientKind": { "node.gradientColor": "#00ff00" },

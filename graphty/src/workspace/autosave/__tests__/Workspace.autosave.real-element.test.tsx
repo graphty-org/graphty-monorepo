@@ -16,6 +16,7 @@ import { type GraphSession, listAutosaves } from "@graphty/graphty-element/sessi
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -36,6 +37,39 @@ const RENAMED = "Medici study";
 
 /** autosave's database (graphty-element's AUTOSAVE_DATABASE). */
 const DATABASE = "graphty-autosave";
+
+/**
+ * The relative luminance of a CSS rgb() or rgba() color (WCAG 2), alpha ignored.
+ * @param css - the computed color.
+ * @returns the luminance, 0 to 1.
+ */
+function luminance(css: string): number {
+    const [r, g, b] = (css.match(/[\d.]+/g) ?? []).slice(0, 3).map((part) => {
+        const c = Number(part) / 255;
+        return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * The WCAG contrast ratio of an element's text against the first opaque background behind it.
+ * @param element - the element.
+ * @returns the ratio, 1 to 21.
+ */
+function textContrast(element: HTMLElement): number {
+    let behind: HTMLElement | null = element;
+    let background = "rgb(255, 255, 255)";
+    while (behind !== null) {
+        const color = getComputedStyle(behind).backgroundColor;
+        if (color !== "transparent" && !/rgba\(.*,\s*0\)$/.test(color)) {
+            background = color;
+            break;
+        }
+        behind = behind.parentElement;
+    }
+    const [hi, lo] = [luminance(getComputedStyle(element).color), luminance(background)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+}
 
 /**
  * Deletes autosave's database and this tab's session storage, so each test starts with nothing
@@ -98,9 +132,7 @@ async function openSample(sample: {
     name: string;
     nodes: number;
 }): Promise<{ element: ElementUnderTest; session: GraphSession }> {
-    await userEvent.click(
-        await screen.findByRole("button", { name: `Open the ${sample.name} sample` }, { timeout: TIMEOUT_MS }),
-    );
+    await pickSample(sample.name);
     const opened = await openElement();
     await waitFor(
         () => {
@@ -126,6 +158,10 @@ async function leave(element: ElementUnderTest, view: ReturnType<typeof render>)
         },
         { timeout: TIMEOUT_MS },
     );
+    const chip = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
+    assert.strictEqual(chip.textContent, "Autosave: saved");
+    // The chip's words are readable: 4.5:1 or more against what is behind them.
+    assert.isAtLeast(textContrast(chip), 4.5);
     const { entry } = element.autosaver.status;
     if (entry === null) {
         throw new Error("autosave wrote no entry");
@@ -364,7 +400,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         );
         assert.equal(second.store.get().project?.name, FLORENTINE.name);
         // The toast; the status line speaks the same words (state/store.ts).
-        await screen.findByText(/^Restored your work from/, { selector: ".cm-toast-message" });
+        await screen.findByText(/^Restored: /, { selector: ".cm-toast-message" });
         // This tab writes the restored work from here on.
         await waitFor(() => {
             assert.strictEqual(reopened.element.autosaver.status.entry, entry);
@@ -396,7 +432,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         // Nothing is offered on the next visit.
         const third = mountWorkspace();
         await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("button", { name: `Open the ${FLORENTINE.name} sample` }));
+            assert.isNotNull(screen.queryByRole("button", { name: /^Open a file/ }));
         });
         assert.deepEqual(await listAutosaves(WORKSPACE_AUTOSAVE_KEY), []);
         assert.isNull(third.store.get().recovered);

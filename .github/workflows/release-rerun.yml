@@ -1,0 +1,58 @@
+# .github/workflows/release-rerun.yml -- re-runs a finished run's failed jobs ONCE, on the same commit
+# (design/ci/channels-pipeline.md section 3, "Same-commit re-run, once"). tools/release-rerun.mjs decides:
+#
+# - a full, restart or candidate Release run: its attempt-1 verdict deferred a red verdict (verdict-1.json) and only
+#   lanes, the re-capture or the verdict failed: `gh run rerun --failed`, so the failed lanes and their dependents
+#   run again on a fresh runner and the second attempt's verdict decides (a lane that passes is filed as flaky and
+#   does not block). Never the version, land, publish or promote jobs: a failed one of those files what the verdict
+#   deferred instead (tools/full-run.mjs file-deferred), since no second attempt will.
+# - any other run that holds a T4 job (a GPU dispatch, a legacy or shadow Release run, the weekly paired benchmark):
+#   re-run once only when every failed job lost its machine.dev runner (tools/gpu-runner-lost.sh), a spot reclaim and
+#   not a test result. A workflow_call's jobs belong to the CALLER's run, so the train's T4 is seen through "Release".
+# - a Release run whose verdict decided (not red) and then only the Verdict job failed (the screenshot gate, the
+#   promotion decision or the hold errored): that job is re-run once.
+# - a Release run's second attempt that ended cancelled with no verdict of its own (a newer dispatch replaced it while
+#   pending): attempt 1's deferred red is filed, as a red second attempt would have.
+#
+# Only attempt 1 is ever re-run, so a run is re-run at most once.
+name: Release rerun
+on:
+    workflow_run:
+        workflows: ["GPU", "Release", "GPU weekly paired benchmark"]
+        types: [completed]
+permissions: { actions: write, checks: read, contents: read, issues: write, id-token: write }
+jobs:
+    rerun:
+        name: Re-run once on the same commit
+        # a job that hits its timeout-minutes ends cancelled, and so does its run; a second attempt that ended cancelled
+        # (replaced while pending) may leave attempt 1's deferred red to file
+        if: (contains(fromJSON('["failure","cancelled","timed_out"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.run_attempt == 1) || (github.event.workflow_run.conclusion == 'cancelled' && github.event.workflow_run.run_attempt == 2)
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: master
+                  sparse-checkout: tools
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Re-run the failed jobs once, or file what the verdict deferred
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GITHUB_TOKEN: ${{ github.token }}
+                  RUN: ${{ github.event.workflow_run.id }}
+                  WORKFLOW: ${{ github.event.workflow.name }} # workflow_run.name is the run-name, "Release (full)"
+                  TITLE: ${{ github.event.workflow_run.display_title }}
+                  ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+                  CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+                  RUN_URL: ${{ github.event.workflow_run.html_url }}
+                  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+              run: node tools/release-rerun.mjs

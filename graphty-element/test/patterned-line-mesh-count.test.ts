@@ -73,8 +73,21 @@ describe("patterned line element count", () => {
 
         test("collapses to the two boundary elements on a line too short to hold more", () => {
             const meshWidth = patternWidthForStyleWidth(8);
-            assert.equal(discreteMeshCount(0, meshWidth), 2);
-            assert.equal(discreteMeshCount(meshWidth, meshWidth), 2);
+            const gap = patternElementPeriod(meshWidth) - meshWidth;
+            assert.equal(discreteMeshCount(2 * meshWidth + gap * 1.01, meshWidth), 2);
+            assert.equal(discreteMeshCount(2 * meshWidth + gap + patternElementPeriod(meshWidth) * 0.99, meshWidth), 2);
+        });
+
+        test("draws one element, at the start, on a line with no room for two and a gap", () => {
+            // two squeezed onto it touch or overlap and draw a solid line (pajek-synth-lines arc 2 -> 3)
+            const meshWidth = patternWidthForStyleWidth(8);
+            const gap = patternElementPeriod(meshWidth) - meshWidth;
+            for (const length of [0, meshWidth, 2 * meshWidth, 2 * meshWidth + gap * 0.99]) {
+                assert.equal(discreteMeshCount(length, meshWidth), 1, `length ${length}`);
+            }
+            assert.deepEqual(discreteMeshOffsets(2 * meshWidth, meshWidth, 1), [meshWidth / 2]);
+            // shorter than the element: centered on it
+            assert.deepEqual(discreteMeshOffsets(meshWidth / 2, meshWidth, 1), [meshWidth / 4]);
         });
     });
 
@@ -151,6 +164,42 @@ describe("patterned line element count", () => {
                 });
             }
         }
+    });
+
+    describe("a line that shortens", () => {
+        let scene: Scene;
+
+        beforeEach(() => {
+            scene = new Scene(new NullEngine());
+        });
+
+        afterEach(() => {
+            scene.getEngine().dispose();
+        });
+
+        test("drops the element it no longer has room for, so no two overlap", () => {
+            // pajek-synth-lines arc 2 -> 3: laid out longer, then shortened, it kept an element too many and its
+            // dashes overlapped into a solid line
+            const width = 0.2;
+            const line = PatternedLineRenderer.create("dash", new Vector3(0, 0, 0), new Vector3(10, 0, 0), scene, {
+                width,
+                color: "#ffffff",
+                opacity: 1,
+                is2DMode: false,
+            });
+            const before = line.elements.length;
+            const meshWidth = (line as unknown as { getRenderedMeshSize(): number }).getRenderedMeshSize();
+            // room for one element fewer
+            const shorter = 10 - patternElementPeriod(meshWidth);
+            line.update(new Vector3(0, 0, 0), new Vector3(shorter, 0, 0));
+            assert.equal(line.elements.length, discreteMeshCount(shorter, meshWidth), "the count");
+            assert.isBelow(line.elements.length, before);
+            const xs = line.elements.map((el) => el.position.x);
+            for (let i = 1; i < xs.length; i++) {
+                assert.isAtLeast(xs[i] - xs[i - 1], meshWidth, `elements ${String(i - 1)} and ${String(i)} overlap`);
+            }
+            line.dispose();
+        });
     });
 
     describe("the material leak this suite also guards", () => {

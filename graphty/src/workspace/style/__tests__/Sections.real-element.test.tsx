@@ -183,7 +183,13 @@ describe("the Style tab's sections", () => {
             [],
             "no empty control shows a value",
         );
-        assert.isNull(tab.querySelector('[data-beneath], [data-is-default="true"]'), "no line from beneath");
+        // The color's opacity box shows the full opacity it draws at while the layer sets none.
+        assert.isNull(
+            tab.querySelector(
+                '[data-beneath], [data-is-default="true"]:not([data-testid="compact-color-input-opacity"])',
+            ),
+            "no line from beneath",
+        );
 
         tab = await openStyle("Hovered");
         assert.isNull(tab.querySelector(".ws-row"), "Hovered sets nothing");
@@ -202,7 +208,8 @@ describe("the Style tab's sections", () => {
         (["node", "edge"] as const).flatMap((kind) =>
             // Shaders' "+" opens the gallery: its add and remove are ShaderRows.real-element.test.tsx's.
             SECTIONS[kind]
-                .filter((spec) => spec.id !== "text" && spec.shaders !== true)
+                // Les Miserables is undirected, so Arrowheads add nothing there (tested on its own).
+                .filter((spec) => spec.id !== "text" && spec.shaders !== true && !(kind === "edge" && spec.id === "ends"))
                 .map((spec) => [kind, spec.id, spec.title] as const),
         ),
     )("adds and removes a property in %s %s, with focus and an announcement each way", async (kind, id, title) => {
@@ -319,20 +326,37 @@ describe("the Style tab's sections", () => {
         assert.isAbove(store.get().announced, again, "this Undo is announced too");
     });
 
-    it("starts an added arrowhead at what an undirected graph draws there: none", async () => {
+    it("says arrowheads are not available on an undirected graph, with '+' disabled and a set one removable", async () => {
         const { session } = await openScene();
         await openStyle("Everything");
         await showKind("edge");
-        // On an undirected graph the section says what arrowheads follow.
-        assert.include(within(section("edge", "ends")).getByTestId("edge-ends-note").textContent, "first-listed node");
-        await userEvent.click(within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
-        await waitFor(() => {
-            const line = section("edge", "ends").querySelector<HTMLElement>('[data-line="edge.arrowHead"]');
-            assert.isNotNull(line);
-            within(line).getByRole("combobox", { name: /, default None$/ });
+        const note = within(section("edge", "ends")).getByTestId("edge-ends-note");
+        assert.equal(note.textContent, "Not available: undirected graph");
+        const plus = within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" });
+        assert.equal(plus.getAttribute("aria-disabled"), "true");
+        assert.equal(plus.getAttribute("aria-description"), "Not available: undirected graph");
+        assert.strictEqual(plus.getAttribute("tabindex"), "-1", "a disabled '+' is no Tab stop");
+        // An arrowhead a layer already sets stays, and can be removed.
+        const everything = session.styles
+            .list()
+            .find((layer) => layer.name === "Everything" && layer.target === "edge");
+        if (everything === undefined) {
+            throw new Error("no Everything edge layer");
+        }
+        await session.styles.update(everything.id, { set: { ...everything.set, "edge.arrowHead": "normal" } });
+        const line = await waitFor(() => {
+            const found = section("edge", "ends").querySelector<HTMLElement>('[data-line="edge.arrowHead"]');
+            assert.isNotNull(found);
+            return found;
         });
-        assert.isUndefined(written(session, "Everything", "edge.arrowHead"), "nothing written before a pick");
+        if (line === null) {
+            throw new Error("no arrowhead line");
+        }
+        await userEvent.hover(line);
+        await userEvent.click(within(line).getByRole("button", { name: "Remove edge target end" }));
+        await waitFor(() => {
+            assert.isUndefined(written(session, "Everything", "edge.arrowHead"));
+        });
     });
 
     it("starts an added pattern count at 10 marks, not the floor of 2 that reads as no line", async () => {

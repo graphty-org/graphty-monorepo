@@ -49,10 +49,15 @@ import type {
     DataTableValue,
     Direction,
     DisclosureProps,
+    EntityChipProps,
+    EntityKind,
     FieldGlyphName,
     FieldGlyphProps,
     FieldLetter,
     FieldRowProps,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
     FlatTreeRow,
     GestureChangeHandler,
     GestureEndHandler,
@@ -78,6 +83,7 @@ import type {
     PanelFieldKind,
     PanelFieldProps,
     PanelLabelsProviderProps,
+    PickFilesOptions,
     PopoutAlignment,
     PopoutAnchorProps,
     PopoutAnchorTarget,
@@ -119,6 +125,7 @@ import type {
     ShortcutSheetTab,
     SparklineRowProps,
     SplitButtonProps,
+    StatusBarProps,
     ToastAction,
     ToastApi,
     ToastOptions,
@@ -141,6 +148,7 @@ import type {
     TreeRowTint,
     UiGlyphName,
     UiGlyphProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "../src/index";
 import * as mainExports from "../src/index";
@@ -195,11 +203,16 @@ type PublicTypeSurface = {
     dataTableSort: DataTableSort;
     dataTableValue: DataTableValue;
     direction: Direction;
+    entityChip: EntityChipProps;
+    entityKind: EntityKind;
     disclosure: DisclosureProps;
     fieldGlyph: FieldGlyphProps;
     fieldGlyphName: FieldGlyphName;
     fieldLetter: FieldLetter;
     fieldRow: FieldRowProps;
+    fileDropState: FileDropState;
+    fileSource: FileSourceProps;
+    fileSourceVariant: FileSourceVariant;
     gestureChangeHandler: GestureChangeHandler;
     gestureEndHandler: GestureEndHandler;
     gestureHandlers: GestureHandlers;
@@ -217,6 +230,7 @@ type PublicTypeSurface = {
     panelField: PanelFieldProps;
     panelFieldKind: PanelFieldKind;
     panelLabelsProvider: PanelLabelsProviderProps;
+    pickFilesOptions: PickFilesOptions;
     popout: PopoutProps;
     popoutAlignment: PopoutAlignment;
     popoutAnchor: PopoutAnchorProps;
@@ -252,6 +266,7 @@ type PublicTypeSurface = {
     shortcutSheet: ShortcutSheetProps;
     shortcutSheetTab: ShortcutSheetTab;
     sparklineRow: SparklineRowProps;
+    statusBar: StatusBarProps;
     toggleRow: ToggleRowProps;
     toggleRowGroup: ToggleRowGroupProps;
     toggleWithContent: ToggleWithContentProps;
@@ -262,6 +277,7 @@ type PublicTypeSurface = {
     trailingSlot: TrailingSlotProps;
     uiGlyph: UiGlyphProps;
     uiGlyphName: UiGlyphName;
+    useFileDropOptions: UseFileDropOptions;
     comboInputItem: ComboInputItem;
     comboInputOption: ComboInputOption;
     comboInput: ComboInputProps;
@@ -331,6 +347,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ControlGroup",
     "ControlSection",
     "DataTable",
+    "EntityChip",
     "GradientEditor",
     "InfoCircle",
     "Popout",
@@ -340,11 +357,16 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "RampEditor",
     "ScrollArea",
     "SegmentedControl",
+    "RangeSlider",
+    "Slider",
     "ToggleWithContent",
 
     // Buttons, chrome, color, inputs, overlays, selection, tree
     "ComboInput",
+    "FileSource",
+    "pickFiles",
     "SearchInput",
+    "useFileDrop",
     "VariablePill",
     "ContextMenu",
     "MenuCheckItem",
@@ -377,6 +399,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "RailButton",
     "SecondaryToolbar",
     "ShortcutSheet",
+    "StatusBar",
     "Toolbar",
     "ToolButton",
     "ToolGroup",
@@ -658,7 +681,7 @@ describe("Package exports", () => {
             it("exports the closed glyph registers", () => {
                 expect(mainExports.FIELD_GLYPH_NAMES).toHaveLength(8);
                 expect(mainExports.FIELD_LETTERS).toEqual(["N", "E", "W", "D", "K"]);
-                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(44);
+                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(45);
             });
 
             it("exports the guards that read the registers", () => {
@@ -773,6 +796,8 @@ describe("Package exports", () => {
                     dataTableSort: true,
                     dataTableValue: true,
                     direction: true,
+                    entityChip: true,
+                    entityKind: true,
                     disclosure: true,
                     fieldGlyph: true,
                     fieldGlyphName: true,
@@ -849,6 +874,12 @@ describe("Package exports", () => {
                     comboInputSeparator: true,
                     searchInput: true,
                     variablePill: true,
+                    fileDropState: true,
+                    fileSource: true,
+                    fileSourceVariant: true,
+                    pickFilesOptions: true,
+                    useFileDropOptions: true,
+                    statusBar: true,
                     contextMenu: true,
                     menuCheckItem: true,
                     modalFooter: true,
@@ -884,7 +915,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(134);
+                expect(names).toHaveLength(142);
             });
         });
 

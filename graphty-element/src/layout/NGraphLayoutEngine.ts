@@ -130,6 +130,22 @@ function cellKey(x: number, y: number, z: number): number {
     return (Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(z, 83492791)) >>> 0;
 }
 
+/** What this engine keeps on each ngraph link: every edge between its pair, and the pair's key. */
+interface PairData {
+    edges: Set<Edge>;
+    row: Map<NodeIdType, NGraphLink>;
+    key: NodeIdType;
+}
+
+/**
+ * The data a link carries.
+ * @param link - an ngraph link this engine made
+ * @returns its edges and where it is filed in `pairLinks`
+ */
+function pairOf(link: NGraphLink): PairData {
+    return link.data as PairData;
+}
+
 /**
  * NGraph force-directed layout engine using ngraph.forcelayout
  */
@@ -152,6 +168,8 @@ export class NGraphEngine extends LayoutEngine {
     }
     nodeMapping = new Map<Node, NGraphNode>();
     edgeMapping = new Map<Edge, NGraphLink>();
+    /** The one link between two nodes, keyed by both ids in the order the first edge gave them. */
+    private readonly pairLinks = new Map<NodeIdType, Map<NodeIdType, NGraphLink>>();
     _settled = true;
     _stepCount = 0;
     _lastMoves: number[] = [];
@@ -177,10 +195,9 @@ export class NGraphEngine extends LayoutEngine {
      */
     constructor(config: object = {}) {
         super();
-        // A multigraph: each element edge is its own ngraph link. ngraph's default names a link by
-        // its endpoints' strings, so two parallel edges -- or `"1" -> 1` beside `1 -> 1` -- came
-        // back as ONE shared link, and removing either took the other's spring with it: its
-        // position was then undefined and redrawing it threw.
+        // A multigraph, so ngraph never merges links by its own string key: `"1" -> 1` beside
+        // `1 -> 1` are different pairs. Parallel edges between one pair share ONE link (see
+        // addEdge), which this engine counts itself in `pairLinks`.
         this.ngraph = createGraph({ multigraph: true });
 
         // The declared defaults first, so what the catalog publishes is what the simulation runs.
@@ -615,11 +632,24 @@ export class NGraphEngine extends LayoutEngine {
      * @param e - The edge to add
      */
     addEdge(e: Edge): void {
-        // `parentEdge: e`, not `this`. It used to hand ngraph the ENGINE under a key named for an
-        // edge; nothing read it, which is why it survived, and anything that started carrying
-        // per-link data would have landed in that slot and found the wrong object.
-        const ngraphEdge = this.ngraph.addLink(e.srcId, e.dstId, { parentEdge: e });
-        this.edgeMapping.set(e, ngraphEdge);
+        // ONE link, and so one spring, per pair of nodes, carrying every edge between them. A link
+        // per edge made thirteen parallel emails thirteen springs while ngraph's damping stayed
+        // the same, and a dense multigraph oscillated until the step budget stopped it.
+        let link = this.pairLinks.get(e.srcId)?.get(e.dstId) ?? this.pairLinks.get(e.dstId)?.get(e.srcId);
+        if (link === undefined) {
+            let row = this.pairLinks.get(e.srcId);
+            if (row === undefined) {
+                row = new Map();
+                this.pairLinks.set(e.srcId, row);
+            }
+
+            const data: PairData = { edges: new Set(), row, key: e.dstId };
+            link = this.ngraph.addLink(e.srcId, e.dstId, data);
+            row.set(e.dstId, link);
+        }
+
+        pairOf(link).edges.add(e);
+        this.edgeMapping.set(e, link);
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];
@@ -664,19 +694,13 @@ export class NGraphEngine extends LayoutEngine {
      * @returns The edge's source and destination positions
      */
     getEdgePosition(e: Edge): EdgePosition {
-        const ngraphEdge = this._getMappedEdge(e);
-        const pos = this.ngraphLayout.getLinkPosition(ngraphEdge.id);
+        // From the edge's own endpoints: the link it shares may run the other way.
+        this._getMappedEdge(e);
+        const from = this.ngraphLayout.getNodePosition(e.srcId);
+        const to = this.ngraphLayout.getNodePosition(e.dstId);
         return {
-            src: {
-                x: pos.from.x,
-                y: pos.from.y,
-                z: pos.from.z,
-            },
-            dst: {
-                x: pos.to.x,
-                y: pos.to.y,
-                z: pos.to.z,
-            },
+            src: { x: from.x, y: from.y, z: from.z },
+            dst: { x: to.x, y: to.y, z: to.z },
         };
     }
 
@@ -765,9 +789,14 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        // The node's own links, not every link: each carries the edge it was added for.
+        // The node's own links, not every link: each carries the edges between its pair.
         for (const link of ngraphNode.links ?? []) {
-            this.edgeMapping.delete((link.data as { parentEdge: Edge }).parentEdge);
+            const { edges, row, key } = pairOf(link);
+            for (const edge of edges) {
+                this.edgeMapping.delete(edge);
+            }
+
+            row.delete(key);
         }
 
         this.ngraph.removeNode(ngraphNode.id);
@@ -785,26 +814,29 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        this.ngraph.removeLink(link);
         this.edgeMapping.delete(e);
-        this._settled = false;
+        const { edges, row, key } = pairOf(link);
+        edges.delete(e);
+        if (edges.size === 0) {
+            this.ngraph.removeLink(link);
+            row.delete(key);
+            this._settled = false;
+        }
     }
 
     /**
-     * Strict state: {@link LayoutEngine.edgeProblems}, and each edge its own link, which ngraph
-     * still holds.
+     * Strict state: {@link LayoutEngine.edgeProblems}, and each edge on a link that carries it,
+     * which ngraph still holds.
      * @param drawn - The edges the element draws.
      * @returns One sentence per problem.
      */
     protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
         const problems = heldEdgeProblems(this.edgeMapping.keys(), drawn);
-        const links = new Set<NGraphLink>();
         for (const [edge, link] of this.edgeMapping) {
-            if (links.has(link)) {
-                problems.push(`edge ${edge.id} shares a link with another edge`);
+            if (!pairOf(link).edges.has(edge)) {
+                problems.push(`edge ${edge.id} maps to a link that does not carry it`);
             }
 
-            links.add(link);
             if (this.ngraph.getLinkById(link.id) !== link) {
                 problems.push(`edge ${edge.id} maps to a link its graph no longer holds`);
             }

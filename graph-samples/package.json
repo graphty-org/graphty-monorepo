@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-samples",
-    "version": "0.1.39",
+    "version": "0.1.40",
     "private": false,
     "description": "Seeded, reproducible graph generators and classic sample datasets (downloaded on demand) for the @graphty/graph-format snapshot",
     "author": "Adam Powers <apowers@ato.ms>",
@@ -102,7 +102,7 @@
         "@vitest/ui": "catalog:",
         "eslint": "^9.29.0",
         "typescript": "^5.9.3",
-        "vite": "^7.0.5",
+        "vite": "^7.3.7",
         "vitest": "catalog:"
     }
 }

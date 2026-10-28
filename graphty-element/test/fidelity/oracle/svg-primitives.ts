@@ -11,6 +11,7 @@
 import {
     boxOfPoints,
     dashClassOf,
+    isLettering,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
     type PBox,
@@ -997,7 +998,10 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             }
             // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
             const closed = isClosed(el, points) || fill !== null;
-            const subpaths = fill !== null && stroke === null ? subpathsOf(el, m) : null;
+            // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
+            const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
+            const lettering = pieces !== null && isLettering(pieces);
+            const subpaths = fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
             const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths) : null;
             if (fill !== null && painted !== null) {
                 stroke = {
@@ -1028,6 +1032,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 },
                 hint: hintOf(el),
                 ...(subpaths !== null && painted === null ? { subpaths } : {}),
+                ...(lettering ? { lettering: true as const } : {}),
             });
         }
         return { width: r3(rect.width), height: r3(rect.height), prims };

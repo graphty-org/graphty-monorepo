@@ -34,6 +34,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOURCE_PARAM",
     "E_SOURCE_LIMIT",
     "E_SOURCE_UNKNOWN",
+    "E_SOURCE_PENDING",
+    "E_LOAD_UNKNOWN",
     "E_SOURCE_UNSUPPORTED",
     "E_SOURCE_INVALID",
     "E_CREDENTIAL_NOT_STORABLE",
@@ -49,6 +51,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_OPTION",
     "E_OPTION_RANGE",
     "E_UNKNOWN_ATTRIBUTE",
+    "E_NO_TIME_FIELD",
     "E_UNKNOWN_ALGORITHM",
     "E_UNKNOWN_LAYOUT",
     "E_UNKNOWN_FORMAT",
@@ -136,6 +139,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_CHANNEL":
         case "E_UNKNOWN_OPTION":
         case "E_UNKNOWN_ATTRIBUTE":
+        case "E_NO_TIME_FIELD":
         case "E_UNKNOWN_ALGORITHM":
         case "E_UNKNOWN_LAYOUT":
         case "E_UNKNOWN_FORMAT":
@@ -217,6 +221,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOURCE_PARAM":
         case "E_SOURCE_LIMIT":
         case "E_SOURCE_UNKNOWN":
+        case "E_SOURCE_PENDING":
+        case "E_LOAD_UNKNOWN":
         case "E_SOURCE_UNSUPPORTED":
         case "E_SOURCE_INVALID":
         case "E_CREDENTIAL_NOT_STORABLE":

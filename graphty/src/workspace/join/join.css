@@ -1,0 +1,142 @@
+/* The join screen (data prototype spec section 3.6): over the canvas area, like the maximized table. */
+.jn-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--cm-bg);
+}
+
+.jn-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 8px;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--cm-border);
+}
+
+.jn-title {
+    font-weight: 600;
+}
+
+.jn-onto,
+.jn-rows {
+    color: var(--cm-text-secondary);
+}
+
+.jn-spacer {
+    flex: 1;
+}
+
+/* The Match row: shape, key pairs, ignore boxes, +, mapping. */
+.jn-match {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    flex: 0 0 auto;
+}
+
+.jn-shape {
+    width: 128px;
+}
+
+.jn-keys {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.jn-key {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.jn-key-label {
+    width: 48px;
+    color: var(--cm-text-secondary);
+}
+
+.jn-key .mantine-Select-root {
+    width: 140px;
+}
+
+.jn-mapping {
+    width: 160px;
+}
+
+/* The live counts. */
+.jn-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin: 0;
+    padding: 4px 8px;
+    list-style: none;
+    flex: 0 0 auto;
+}
+
+.jn-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.jn-refused {
+    margin: 0;
+    padding: 4px 8px;
+    color: var(--cm-text-secondary);
+}
+
+/* The two tables, side by side. */
+.jn-panes {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    border-top: 1px solid var(--cm-border);
+}
+
+.jn-pane {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.jn-pane + .jn-pane {
+    border-inline-start: 1px solid var(--cm-border);
+}
+
+.jn-pane-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 8px;
+    flex: 0 0 auto;
+}
+
+.jn-pane-body {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.jn-key-icon,
+.jn-th-end {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.jn-clash {
+    display: inline-flex;
+    color: var(--cm-text-warning);
+}

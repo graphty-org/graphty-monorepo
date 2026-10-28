@@ -165,6 +165,12 @@ async function open(
 afterEach(async () => {
     confirmFinish = false;
     undecidedAnswer = "yes";
+    // A test's page.route handler may be between route.fetch() and res.json() for a request the page
+    // still has in flight (its list refresh): closing the page disposes that response, and the
+    // handler's res.json() then rejects outside any test. Remove every handler with ignoreErrors,
+    // which swallows what a running one throws afterward; "wait" would hang on a handler a failed
+    // test left parked on a promise only its body resolves. unrouteAll throws on a closed page.
+    if (page && !page.isClosed()) await page.unrouteAll({ behavior: "ignoreErrors" });
     await page?.close();
     // Until every request has been answered: a list refresh still running would write its state
     // into the repository after the test file removed it (tempDir).
@@ -2160,6 +2166,25 @@ describe("review page: the wait box", () => {
         release();
         await over;
         await expect.poll(status).toBe("");
+    });
+});
+
+describe("review page: a list over a minute old", () => {
+    it("draws the cached targets while the refresh it asks for runs (issue 4111)", async () => {
+        await open((r) => ({ gh: onePr()(r) }), { review: false });
+        // Every list is over a minute old, and the refresh it starts is still running when it answers.
+        await page.route(/\/api\/prs\?/, async (route) => {
+            const res = await route.fetch();
+            const body = await res.json();
+            body.updatedAt = body.now - 120000;
+            body.refreshing = route.request().url().includes("refresh=1")
+                ? { step: "listing pull requests", done: null, total: null, startedAt: body.now }
+                : null;
+            await route.fulfill({ response: res, json: body });
+        });
+        await page.reload();
+        await page.locator('.card[data-target="123"]').waitFor();
+        expect(await page.locator(".card.placeholder").count()).toBe(0);
     });
 });
 

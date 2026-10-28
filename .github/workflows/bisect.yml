@@ -53,6 +53,10 @@ concurrency:
     group: bisect-${{ inputs.bad }}
     cancel-in-progress: false
 
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+
 jobs:
     plan:
         name: Plan the round
@@ -64,7 +68,7 @@ jobs:
             files: ${{ steps.plan.outputs.files }}
             started: ${{ steps.plan.outputs.started }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { fetch-depth: 0 } # the range's first-parent merges and their parents
             - id: plan
               env:
@@ -96,16 +100,28 @@ jobs:
             matrix:
                 sha: ${{ fromJSON(needs.plan.outputs.points) }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ matrix.sha }}" }
-            - uses: actions/checkout@v4
+            # the workflow's .github/actions/ only: the point's own tools/ (run-tests.sh, ci-test-matrix.mjs) are what is
+            # bisected, and bisect-ci.mjs runs from the workflow's copy in .bisect-tools (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: actions/checkout@v7
               with: { path: .bisect-tools, sparse-checkout: tools }
             - name: Move the tool out of the tree under test
               run: mv .bisect-tools "$RUNNER_TEMP/bisect-tools"
             - uses: actions/download-artifact@v8
               with: { name: bisect-state, path: "${{ runner.temp }}/state" }
             - uses: pnpm/action-setup@v6
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
               env: { HUSKY: "0" }
@@ -191,7 +207,7 @@ jobs:
         timeout-minutes: 10
         permissions: { contents: read, actions: write } # dispatches the next round
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { sparse-checkout: tools }
             - uses: actions/download-artifact@v8
               with: { name: bisect-state, path: state }

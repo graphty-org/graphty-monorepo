@@ -56,7 +56,8 @@
                 "command": "npm run build-storybook",
                 "cwd": "graph-io"
             },
-            "dependsOn": ["build", { "projects": ["graphty-element"], "target": "build" }]
+            "dependsOn": ["build", { "projects": ["graphty-element"], "target": "build" }],
+            "outputs": ["{projectRoot}/fidelity-stories/storybook-static"]
         },
         "storybook": {
             "executor": "nx:run-commands",

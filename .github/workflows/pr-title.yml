@@ -44,27 +44,46 @@ jobs:
                   PR_TITLE: ${{ github.event.pull_request.title }}
                   OWNER: apowers313
               run: |
-                  msgs=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/commits" --paginate --jq '.[].commit.message')
+                  # One GraphQL query, not three REST listings: the repository's GITHUB_TOKEN has about 1,000 REST
+                  # requests an hour shared by every workflow, and running out failed this required check (#3824).
+                  # --paginate walks the commits only; the labels and the label events repeat on every page.
+                  q='query($owner: String!, $name: String!, $pr: Int!, $endCursor: String) {
+                    repository(owner: $owner, name: $name) { pullRequest(number: $pr) {
+                      labels(first: 100) { nodes { name } }
+                      timelineItems(itemTypes: [LABELED_EVENT], last: 100) { nodes { ... on LabeledEvent { label { name } actor { login } } } }
+                      commits(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor } nodes { commit { message } } }
+                    } } }'
+                  # Fail closed: a breaking change never passes because the API could not be asked.
+                  if ! pages=$(gh api graphql --paginate -f query="$q" -f owner="${GITHUB_REPOSITORY%/*}" -f name="${GITHUB_REPOSITORY#*/}" -F pr="$PR" 2>"$RUNNER_TEMP/gh.err"); then
+                      cat "$RUNNER_TEMP/gh.err" >&2
+                      if grep -qi 'rate limit' "$RUNNER_TEMP/gh.err"; then
+                          echo "::error::GitHub API rate limit for this repository ran out; re-run this check"
+                      else
+                          echo "::error::could not read this pull request's commits and labels from the GitHub API; re-run this check"
+                      fi
+                      exit 1
+                  fi
+                  pr=$(jq -cs 'map(.data.repository.pullRequest)' <<<"$pages")
+                  msgs=$(jq -r '.[].commits.nodes[].commit.message' <<<"$pr")
                   # A here-string, not a pipe: grep -q exits at the first match, and under pipefail the writer's
                   # SIGPIPE would read as "no match".
                   if ! grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$PR_TITLE"$'\n'"$msgs"; then
                       echo "no breaking change"; exit 0
                   fi
-                  labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name')
-                  by=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/events" --paginate \
-                      --jq '.[] | select(.event == "labeled" and .label.name == "breaking-go") | .actor.login' | tail -1)
+                  labels=$(jq -r '.[0].labels.nodes[].name' <<<"$pr")
+                  by=$(jq -r '[.[0].timelineItems.nodes[] | select(.label.name == "breaking-go") | .actor.login] | last // ""' <<<"$pr")
                   if grep -qx breaking-go <<<"$labels" && [ "$by" = "$OWNER" ]; then
                       echo "breaking change, with the owner's go"; exit 0
                   fi
                   echo "::error::this pull request holds a breaking change (type!: or BREAKING CHANGE); it merges only once $OWNER adds the label breaking-go"
                   exit 1
 
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"

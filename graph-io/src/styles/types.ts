@@ -518,6 +518,37 @@ export interface NodeStyleValues {
     readonly chartBorderColor: StyleColor;
     /** How wide a bar's and a box's outline is (a length); unset, none. */
     readonly chartBorderWidth: number;
+    /**
+     * How far a group drawn round its members (a node other nodes name as their parent, with no box of its own) reaches
+     * past their box on every side (a length; Cytoscape.js `padding` on a compound parent). Unset, the reader's own.
+     */
+    readonly groupPadding: number;
+    /**
+     * That padding as a fraction of the members' box instead, measured as `groupPaddingOf` says (Cytoscape.js
+     * `padding: 20%`); it wins over `groupPadding`.
+     */
+    readonly groupPaddingRatio: number;
+    /**
+     * What `groupPaddingRatio` is a fraction of: the members' box's `width`, `height`, `average` of the two, `min` or
+     * `max` (Cytoscape.js `padding-relative-to`); unset, `width`.
+     */
+    readonly groupPaddingOf: string;
+    /** The narrowest the members' box is drawn, before the padding (a length; Cytoscape.js `min-width`). */
+    readonly groupMinWidth: number;
+    /** The shortest the members' box is drawn, before the padding (a length; Cytoscape.js `min-height`). */
+    readonly groupMinHeight: number;
+    /**
+     * The share, 0..1, of the width `groupMinWidth` adds that goes on the left (Cytoscape.js `min-width-bias-left`
+     * against `min-width-bias-right`); unset, half.
+     */
+    readonly groupMinWidthBiasLeft: number;
+    /**
+     * The share, 0..1, of the height `groupMinHeight` adds that goes on top, as the reader sees it (Cytoscape.js
+     * `min-height-bias-top` against `min-height-bias-bottom`); unset, half.
+     */
+    readonly groupMinHeightBiasTop: number;
+    /** Whether the members' labels count in the members' box (Cytoscape.js `compound-sizing-wrt-labels`). */
+    readonly groupIncludeLabels: boolean;
     /** Whether the node is drawn at all. */
     readonly visible: boolean;
 }
@@ -702,10 +733,32 @@ export interface EdgeStyleValues {
      */
     readonly arcRadius: number;
     /**
+     * A curved edge drawn as one quadratic curve through a support point a force simulation places among the nodes,
+     * wherever they are: `"barnesHut"` or `"forceAtlas2"`, the force law it settles under (vis-network's dynamic smooth
+     * edges, under its solvers of those names). Tied to the edge's two nodes by two springs, pushed away by every node
+     * and every other support point, pulled toward the middle of the nodes; the numbers below are in the file's units.
+     */
+    readonly supportModel: string;
+    /** The rest length of a support point's two springs together (a length). */
+    readonly supportSpringLength: number;
+    /** How hard a support point's springs pull per unit they are stretched. */
+    readonly supportSpringConstant: number;
+    /**
+     * How hard every node and every other support point push a support point away: over the distance squared under
+     * barnesHut, over the distance under forceAtlas2.
+     */
+    readonly supportRepulsion: number;
+    /** How hard a support point is pulled toward the middle of the nodes: a constant pull under barnesHut, in proportion to the distance under forceAtlas2. */
+    readonly supportCentralGravity: number;
+    /**
      * How far from each of its nodes' outlines the edge's line (and its arrowhead) stops, leaving that much empty
      * (a length; Gephi's `edge.radius`).
      */
     readonly nodeGap: number;
+    /** How far from its source node's outline the edge's line stops, over `nodeGap` at that end (a length). */
+    readonly sourceNodeGap: number;
+    /** How far from its target node's outline the line (and its arrowhead) stops; see `sourceNodeGap`. */
+    readonly targetNodeGap: number;
     /**
      * Where the edge leaves its source node, when not at its center: `x,y` relative to the node's center as fractions
      * of its half width and half height, y up (`"1,0"` is the middle of its right side, `"0,1"` of its top), so the
@@ -813,6 +866,18 @@ export interface EdgeStyleValues {
     readonly sourceLabelRotation: number;
     /** How far the target end's label is turned, in degrees clockwise about its middle; unset, level. */
     readonly targetLabelRotation: number;
+    /** The source end's label's font size, in the units of `labelSize`; unset, the label's (`labelSize`). */
+    readonly sourceLabelSize: number;
+    /** The target end's label's font size; see `sourceLabelSize`. */
+    readonly targetLabelSize: number;
+    /** The color of the source end's label's words; unset, the label's (`labelColor`). */
+    readonly sourceLabelColor: StyleColor;
+    /** The color of the target end's label's words; see `sourceLabelColor`. */
+    readonly targetLabelColor: StyleColor;
+    /** The source end's label's font family, as the file names it; unset, the label's (`labelFont`). */
+    readonly sourceLabelFont: string;
+    /** The target end's label's font family; see `sourceLabelFont`. */
+    readonly targetLabelFont: string;
     /** The label is not drawn while its letters are drawn smaller than this many screen pixels; see the node's. */
     readonly labelMinScreenSize: number;
     /** Whether the label is drawn over every node and edge; see the node's. */

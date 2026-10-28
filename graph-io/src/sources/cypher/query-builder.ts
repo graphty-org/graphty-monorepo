@@ -215,6 +215,28 @@ export function edgePage(profile: CypherProfile, filters: QueryFilters, pageSize
         .join(" ");
 }
 
+/**
+ * The relationships among the nodes a capped mode "all" has loaded that touch one node page: each
+ * starts from the page's own nodes `$keys` (an id or index lookup, never a scan of every
+ * relationship), with its other end on this page or an earlier one (at or before `$last`), so each
+ * relationship arrives once, with the page that loads its later end.
+ * @param profile - the server's profile
+ * @param filters - the filters
+ * @returns the statement; it reads `$keys` and `$last`
+ */
+export function edgesAmong(profile: CypherProfile, filters: QueryFilters): string {
+    const ka = idExpression("a", profile, filters);
+    const kb = idExpression("b", profile, filters);
+    const ends = [nodePredicate("a", filters), nodePredicate("b", filters)].filter((p) => p !== null);
+    const rest = ends.length === 0 ? "" : ` AND ${ends.join(" AND ")}`;
+    const pattern = `MATCH (a)-[r${typesPattern(filters)}]->(b)`;
+    return [
+        `${pattern} WHERE ${ka} IN $keys AND ${kb} <= $last${rest} RETURN a, r, b`,
+        "UNION ALL",
+        `${pattern} WHERE ${kb} IN $keys AND ${ka} <= $last AND NOT ${ka} IN $keys${rest} RETURN a, r, b`,
+    ].join(" ");
+}
+
 /** How far a neighborhood reaches. */
 interface NeighborhoodShape {
     /** The checked depth, as text. */
@@ -291,4 +313,15 @@ export function counts(filters: QueryFilters): readonly [string, string] {
         `MATCH (n)${whereClause(n)} RETURN count(n) AS c`,
         `MATCH (a)-[r${typesPattern(filters)}]->(b)${whereClause(where.length === 0 ? null : where.join(" AND "))} RETURN count(r) AS c`,
     ];
+}
+
+/**
+ * The node count of a mode "all" load with at most one label and the server's ids: a pattern
+ * Neo4j answers from its count store in one cheap lookup, whatever the graph's size.
+ * @param label - the quoted label, or undefined for every node
+ * @returns the statement
+ */
+export function storeCount(label: string | undefined): string {
+    const pattern = label === undefined ? "n" : `n:${label}`;
+    return `MATCH (${pattern}) RETURN count(n) AS c`;
 }

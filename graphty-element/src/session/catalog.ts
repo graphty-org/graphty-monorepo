@@ -47,6 +47,7 @@ import { registeredPaletteDescriptors } from "../catalog/paletteRegistry";
 import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
+import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
 import { shaderDescriptors } from "../catalog/shaderRegistry";
 import type { ShaderDescriptor } from "../catalog/shaders";
 import type { AlgorithmDescriptor } from "../catalog/types";
@@ -138,6 +139,12 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      */
     scales: () => SCALE_DESCRIPTORS,
     /**
+     * Every screenshot preset `captureScreenshot({ preset })` takes, with the settings it sets.
+     * Static.
+     * @returns the preset descriptors
+     */
+    screenshotPresets: () => SCREENSHOT_PRESET_DESCRIPTORS,
+    /**
      * Every shader a layer can name: the element's presets, then the registered ones.
      * @returns the shader descriptors, the element's own first
      */
@@ -169,7 +176,7 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
  */
 export function createSessionCatalog(
     source: MetricsSource &
-        Pick<OptionsForSource, "resolve" | "attributes" | "results"> & {
+        Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues"> & {
             /** The project's own shaders, listed after the presets and registered ones. */
             readonly projectShaders?: () => readonly ShaderDescriptor[];
         },
@@ -207,6 +214,7 @@ export function createSessionCatalog(
                         resolve: source.resolve,
                         attributes: source.attributes,
                         results: source.results,
+                        nodeValues: source.nodeValues,
                     },
                     key,
                     scope,

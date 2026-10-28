@@ -133,6 +133,42 @@ export function fileRoute(
 }
 
 /**
+ * A route's inner points without those an end cap covers: each point nearer an end than that end's
+ * reach is dropped, so the cap points along the stretch of route it lies over, not along a stub. A
+ * route laid round a node of another shape than the one drawn (Graphviz's spline, which ends on the
+ * outline Graphviz was handed) can leave its last point a hair outside the drawn node, and the stub
+ * from there to the outline points the cap anywhere.
+ * @param mid - The inner points, flat x, y, z, from the start.
+ * @param start - Where the line starts.
+ * @param end - Where the line ends.
+ * @param reach - How near each end a point may not lie: 0 for an end without a cap.
+ * @param reach.start - At the start.
+ * @param reach.end - At the end.
+ * @returns The points kept, flat.
+ */
+export function clearOfCaps(
+    mid: readonly number[],
+    start: Xyz,
+    end: Xyz,
+    reach: { readonly start: number; readonly end: number },
+): number[] {
+    const n = mid.length / 3;
+    const near = (i: number, to: Xyz, limit: number): boolean =>
+        Math.hypot(mid[3 * i] - to.x, mid[3 * i + 1] - to.y, mid[3 * i + 2] - to.z) < limit;
+    let first = 0;
+    while (first < n && near(first, start, reach.start)) {
+        first++;
+    }
+
+    let last = n - 1;
+    while (last >= first && near(last, end, reach.end)) {
+        last--;
+    }
+
+    return mid.slice(3 * first, 3 * (last + 1));
+}
+
+/**
  * Which part of a stored route is drawn: from its first point outside the source node to its last
  * outside the target -- what a tool draws when it clips a line at the outlines -- except that an end
  * at a port is drawn from the port itself, wherever it lies.
@@ -744,4 +780,78 @@ export function pointFromEnd(path: readonly Xyz[], fraction: number): { tip: Xyz
     }
 
     return null;
+}
+
+/** The most pieces a raised arc or a great-circle arc is drawn with. */
+const RAISED_STEPS = 48;
+
+/**
+ * A raised arc over a flat map (`line.route` "arc"): from one end to the other in the vertical plane
+ * through both, bowed toward the viewer (-z, the side the cameras look from) by a parabola whose peak,
+ * at the middle, is `height` times the distance between the ends across the map (the x-y plane).
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The peak as a share of the map distance between the ends.
+ * @returns The points, flat x, y, z, both ends included.
+ */
+export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
+    const chord = Math.hypot(dst.x - src.x, dst.y - src.y);
+    const peak = height * chord;
+    if (peak <= 0) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const pieces = fanArcPieces(chord, peak);
+    const out: number[] = [];
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
+        const lift = 4 * peak * t * (1 - t);
+        out.push(src.x + (dst.x - src.x) * t, src.y + (dst.y - src.y) * t, src.z + (dst.z - src.z) * t - lift);
+    }
+
+    return out;
+}
+
+/**
+ * A great-circle arc over a globe centered on the origin (`line.route` "great-circle"): along the
+ * great circle between the two ends' directions, its distance from the center running from one
+ * end's to the other's, lifted at the middle by `height` times the arc's length (sin(pi t)).
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The lift as a share of the arc's length.
+ * @returns The points, flat x, y, z, both ends included; the straight line when the ends are in
+ *     one direction from the center, or in opposite ones.
+ */
+export function greatCircleArc(src: Xyz, dst: Xyz, height: number): number[] {
+    const ra = Math.hypot(src.x, src.y, src.z);
+    const rb = Math.hypot(dst.x, dst.y, dst.z);
+    const straight = [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    if (ra === 0 || rb === 0) {
+        return straight;
+    }
+
+    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
+    const angle = Math.acos(cos);
+    const sin = Math.sin(angle);
+    if (sin < 1e-6) {
+        return straight;
+    }
+
+    const lift = height * angle * ((ra + rb) / 2);
+    const pieces = Math.min(
+        RAISED_STEPS,
+        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
+    );
+    const out: number[] = [];
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
+        const a = Math.sin((1 - t) * angle) / sin / ra;
+        const b = Math.sin(t * angle) / sin / rb;
+        const r = ra + (rb - ra) * t + lift * Math.sin(Math.PI * t);
+        out.push((a * src.x + b * dst.x) * r, (a * src.y + b * dst.y) * r, (a * src.z + b * dst.z) * r);
+    }
+
+    out.splice(0, 3, src.x, src.y, src.z);
+    out.splice(-3, 3, dst.x, dst.y, dst.z);
+    return out;
 }

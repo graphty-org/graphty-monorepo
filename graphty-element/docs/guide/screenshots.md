@@ -173,7 +173,23 @@ async function recordAndDownload() {
 
 ## Creating Tours
 
-Combine camera animation with video capture:
+Name the views to visit, in order, and the camera flies between them while it records. A view is
+a camera view (`session.catalog.cameras()`, such as `"topView"` or `"isometric"`) or a view saved
+in `session.views`; the duration is split evenly between them:
+
+```typescript
+const result = await graph.captureAnimation({
+    duration: 6000,
+    cameraMode: "animated",
+    tour: ["frontView", "isometric", "topView"],
+    download: true,
+});
+```
+
+A tour needs views with a camera position and target, so a 2D view is refused with
+`E_UNSUPPORTED`, and a name nothing answers to with `E_UNKNOWN_CAMERA`.
+
+You can also drive the camera yourself while recording:
 
 ```typescript
 async function captureTour() {

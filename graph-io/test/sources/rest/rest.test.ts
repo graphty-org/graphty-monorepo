@@ -165,6 +165,13 @@ describe("OpenAlex", () => {
         expect(fetch.calls).toEqual([expect.objectContaining({ credential: true })]);
     });
 
+    it("says where its API key goes, so a form can ask for the key alone", () => {
+        expect(openalexSource.descriptor?.apiKey).toEqual({ query: "api_key" });
+        const keyed = restSource({ ...PEOPLE, auth: { kind: "api-key", header: "X-Key" } }, { id: "keyed" });
+        expect(keyed.descriptor?.apiKey).toEqual({ header: "X-Key" });
+        expect(people.descriptor?.apiKey).toBeUndefined();
+    });
+
     it("hydrates stubs: an expansion of depth 0 fetches their records in one batch", async () => {
         const fetch = replayFetch(recorded("openalex-hydrate"));
         const ids = ["W111157985", "W201336350", "W584762224"];
@@ -379,6 +386,36 @@ describe("the rest source", () => {
         expect(snapshot.ids.has("ana")).toBe(true);
         expect(report.issues.map((i) => i.code)).toContain("W_SOURCE_AUTH");
         expect(report.source?.next).toMatchObject({ r: "people", at: 2 });
+    });
+
+    it("keeps no API key in a next-page link the service echoes it in", async () => {
+        const linked: RestMapping = {
+            ...PEOPLE,
+            requests: { ...PEOPLE.requests, people: { ...PEOPLE.requests.people, paging: { style: "link-header" } } },
+        };
+        const { report } = await loadFromSource(
+            restSource(linked, { id: "linked-key" }),
+            { team: "core" },
+            {
+                credential: credentials.apiKey({ query: "api_key" }, "K-SECRET-1"),
+                endpoint: API,
+                limits: { maxNodes: 1, onLimit: "stop" },
+                fetch: replayFetch(
+                    [
+                        {
+                            url: `${API}/teams/core/people?api_key=x`,
+                            headers: { link: `<${API}/teams/core/people?p=2&api_key=K-SECRET-1>; rel="next"` },
+                            body: { items: [{ id: "a" }] },
+                        },
+                    ],
+                    { secretQuery: ["api_key"] },
+                ),
+            },
+        );
+        const saved = JSON.stringify(report.source?.next);
+        expect(saved).toContain("p=2");
+        expect(saved).not.toContain("K-SECRET-1");
+        expect(saved).not.toContain("api_key");
     });
 
     it("pages by link header and by a next URL in the body", async () => {

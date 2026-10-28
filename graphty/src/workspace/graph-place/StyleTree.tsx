@@ -12,6 +12,7 @@ import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
 import { colorName, hexOf } from "../style/words";
+import { unitOf } from "../time/timeActions";
 import { openers } from "../toolbar/popover";
 import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
@@ -143,6 +144,30 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
                 <GLYPHS.paintedOver size={12} aria-hidden />
             </span>
         </Tooltip>
+    );
+}
+
+/**
+ * The mark a layer row shows while the run it paints is out of date, with why in its tooltip and name.
+ * @param props - Component props
+ * @param props.words - why the run is out of date
+ * @param props.children - the row's count, drawn after the mark
+ * @returns the mark and the count
+ */
+function OutOfDateMark({ words, children }: Readonly<{ words: string; children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <span className="ws-row-stale">
+            <Tooltip label={words}>
+                <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                    role="img"
+                    aria-label={words}
+                    className="ws-row-over"
+                >
+                    <GLYPHS.outOfDate size={12} aria-hidden />
+                </span>
+            </Tooltip>
+            {children}
+        </span>
     );
 }
 
@@ -364,11 +389,18 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         const stale = staleOf(session, row);
         const description = [
             ...(group?.color === undefined ? [] : [group.color]),
-            ...(stale === null ? [] : [staleWords(stale)]),
+            ...(stale === null ? [] : [staleWords(stale, unitOf(session))]),
             ...states,
             ...(over ? [overWords] : []),
         ];
         const name = rowName(session, row.id);
+        const plainCount = group?.count ?? <RowCount paints={paints} />;
+        const counted =
+            stale === null ? (
+                plainCount
+            ) : (
+                <OutOfDateMark words={staleWords(stale, unitOf(session))}>{plainCount}</OutOfDateMark>
+            );
         return {
             id: row.id,
             name,
@@ -378,7 +410,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             movable: !isBaseRow(session, row.id),
             dimmed: hidden,
             // Every layer row says how many it matches: its nodes, or with none its edges.
-            count: over ? <PaintedOverMark words={overWords} /> : (group?.count ?? <RowCount paints={paints} />),
+            count: over ? <PaintedOverMark words={overWords} /> : counted,
             swatch: group?.swatch,
             actions,
             description: description.length === 0 ? undefined : description.join(", "),

@@ -175,6 +175,19 @@ export interface AlgorithmDescriptor {
         );
     });
 
+    it("passes any plain string on a type of column names, and only there", () => {
+        const head = report({ run: "\n    readonly kind: string;" })
+            .replace("get(id: string): RunRecord;", "get(id: string): RunRecord;\n    mapping(): TableMapping;")
+            .replace(
+                "// @public\nexport type RunState",
+                "// @public\nexport interface TableMapping {\n    readonly kind?: string | null;\n}\n\n// @public\nexport type RunState",
+            );
+        assert.deepEqual(
+            plainStringAdditions([report()], [head]).map((m) => m.split(" ")[0]),
+            ["RunRecord.kind"],
+        );
+    });
+
     it("passes a plain string that is not on a result type, or only in an input", () => {
         const head = report().replace("    text?: string;", "    text?: string;\n    scope?: string;");
         assert.deepEqual(plainStringAdditions([report()], [head]), []);

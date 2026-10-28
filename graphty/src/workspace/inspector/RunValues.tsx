@@ -1,6 +1,7 @@
 import { ControlSection, DataRow, DataRowHeader, HistogramRow, PANEL_GRID } from "@graphty/compact-mantine";
 import {
     type GraphSession,
+    type GraphtyErrorCode,
     RESULT_SHAPE_CONTRACTS,
     type Run,
     type RunId,
@@ -13,7 +14,9 @@ import { isPathFollow, ranOptionWords, weightRead, wordsFor } from "../analyze/w
 import { focusInspectorTitle } from "../frame/focus";
 import { OptionsForm } from "../options/OptionsForm";
 import { runName } from "../runWords";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { unitOf } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
 import { groupInspected, groupKey, nodeKey } from "./inspected";
 import {
@@ -58,7 +61,7 @@ export function RunStateBar({
     draft: Draft;
     onDraft: (draft: Draft) => void;
 }>): React.JSX.Element | null {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     let words: string;
     let buttons: React.ReactNode;
     if (run.status === "queued" || run.status === "running") {
@@ -83,7 +86,9 @@ export function RunStateBar({
                 <Button
                     size="compact-xs"
                     onClick={() => {
-                        session?.runs.start(run.algorithm, settingsOf(run, draft), { as: run.id });
+                        startAgain(store, () =>
+                            session?.runs.start(run.algorithm, settingsOf(run, draft), { as: run.id }),
+                        );
                         onDraft({});
                         // The bar and its Rerun go once the run is current, so focus would fall
                         // to the page: it goes to the inspector's title, as after any run.
@@ -106,12 +111,14 @@ export function RunStateBar({
     } else if (run.status === "succeeded" && run.stale !== null) {
         // Nothing reruns by itself (tier2-design.md section 7): the reader starts it, here.
         const { scopeSpec } = run.stale;
-        words = staleWords(run.stale);
+        words = staleWords(run.stale, session === null ? "ms" : unitOf(session));
         buttons = (
             <Button
                 size="compact-xs"
                 onClick={() => {
-                    session?.runs.start(run.algorithm, run.params, { as: run.id, scope: scopeSpec });
+                    startAgain(store, () =>
+                        session?.runs.start(run.algorithm, run.params, { as: run.id, scope: scopeSpec }),
+                    );
                     focusInspectorTitle();
                 }}
             >
@@ -143,6 +150,24 @@ export function RunStateBar({
             ) : null}
         </Group>
     );
+}
+
+/**
+ * Starts a run again, and says in words why the element refused or the run failed, instead of
+ * leaving the rejection unhandled.
+ * @param store - the chrome store.
+ * @param start - starts the run.
+ */
+function startAgain(store: WorkspaceStore, start: () => PromiseLike<unknown> | undefined): void {
+    const report = (error: unknown): void => {
+        const { code } = error as { code?: GraphtyErrorCode };
+        store.set({ notice: { message: runFailureWords(code), error: true } });
+    };
+    try {
+        start()?.then(undefined, report);
+    } catch (error) {
+        report(error);
+    }
 }
 
 /**

@@ -35,6 +35,21 @@
             "type": ["object", "array"],
             "description": "The graph, embedded as a JSON value in the named dialect, written with that dialect's own member names."
         },
+        "source": {
+            "type": "object",
+            "deprecated": true,
+            "description": "Legacy, project files only: the last load's description, which graphty-element 3.x writes for earlier 3.x readers. A reader ignores it when the file holds a graphty-sources member of version 2 (sources.md, 'Reading version 1'). The next graphty-element major stops writing it; a reader accepts it, and ignores it beside a version 2 member, for as long as graphty-data is version 1."
+        },
+        "sources": {
+            "type": "array",
+            "deprecated": true,
+            "description": "Legacy, project files only: one description per load, by key. Superseded by the graphty-sources member's entries; ignored beside a version 2 member. The next graphty-element major stops writing it; a reader accepts it, and ignores it beside a version 2 member, for as long as graphty-data is version 1."
+        },
+        "provenance": {
+            "type": "object",
+            "deprecated": true,
+            "description": "Legacy, project files only: each load's node ids and edge positions, by key. Superseded by the _source.loads column (sources.md, 'Provenance'); ignored beside a version 2 member. The next graphty-element major stops writing it; a reader accepts it, and ignores it beside a version 2 member, for as long as graphty-data is version 1."
+        },
         "extensions": {
             "$ref": "https://graphty.app/schema/documents/graphty-document/v1.json#/$defs/extensions"
         }

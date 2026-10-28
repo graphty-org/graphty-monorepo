@@ -3,6 +3,7 @@ import {
     CompactColorInput,
     ControlSection,
     FieldRow,
+    FileSource,
     PanelField,
     PanelLabelsProvider,
     ResetButton,
@@ -14,12 +15,13 @@ import {
     LIGHTING_VALUES,
 } from "@graphty/graphty-element/schema";
 import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu, Select, Stack, Switch, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
 import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
+import { readDataUrl } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { BACKGROUND_SECTION_WORDS, BACKGROUND_WORDS } from "../style/words";
@@ -73,8 +75,9 @@ function useFocusPastHidden(
 
 /**
  * Graph settings, the right panel with no row selected (tier 3 design section 2.5): Background
- * (a color, an image and a shader, stacked), Lighting, Same size at any depth, Outline width, and
- * the label rules. The view (2D or 3D) and the layout live only in the toolbar. A setting is shown only while the element
+ * (a color, an image and a shader, stacked), Lighting, Same size at any depth, Outline width, the
+ * Map while the layout draws one, and the label rules. The view (2D or 3D) and the layout live only
+ * in the toolbar. A setting is shown only while the element
  * says it changes the drawing in this view. The background is the project's and goes through the
  * session; the rest are the reader's view preferences, kept in the chrome store and handed to the
  * element on its tag (`frame/ElementHost.tsx`), so none records an undo step.
@@ -303,7 +306,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
         image: () => (
             <FieldRow trailing={minus("image")}>
                 <BackgroundImage
-                    value={parts.image ?? ""}
+                    address={parts.image !== undefined && !parts.image.startsWith("data:") ? parts.image : ""}
                     onCommit={(data) => {
                         settle("image");
                         void write({ image: data });
@@ -386,33 +389,28 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
 }
 
 /**
- * The background image's address, written when the field is left or Enter is pressed.
+ * The background image: an address typed in (Enter), or an image from this computer, chosen or
+ * dropped on the row, kept in the project as a `data:` address.
  * @param props - Component props
- * @param props.value - the address in effect
+ * @param props.address - the image address in effect, or "" for none or an uploaded image
  * @param props.onCommit - writes a new address
  * @returns The field
  */
 function BackgroundImage({
-    value,
+    address,
     onCommit,
-}: Readonly<{ value: string; onCommit: (data: string) => void }>): React.JSX.Element {
-    const commit = (event: React.SyntheticEvent<HTMLInputElement>): void => {
-        const next = event.currentTarget.value.trim();
-        if (next !== "" && next !== value) {
-            onCommit(next);
-        }
-    };
+}: Readonly<{ address: string; onCommit: (data: string) => void }>): React.JSX.Element {
     return (
-        <TextInput
-            key={value}
-            size="xs"
-            label="Image address"
-            defaultValue={value}
-            onBlur={commit}
-            onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                    commit(event);
-                }
+        <FileSource
+            variant="row"
+            defaultValue={address}
+            url
+            accept="image/*"
+            placeholder="Image address"
+            label="Upload image"
+            onUrl={onCommit}
+            onFiles={([file]) => {
+                void readDataUrl(file).then(onCommit);
             }}
         />
     );

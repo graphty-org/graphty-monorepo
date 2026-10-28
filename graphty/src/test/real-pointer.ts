@@ -11,15 +11,16 @@ import { cdp } from "vitest/browser";
 type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
 /**
- * The middle of an element in the top page's viewport, where the protocol's input lands. The test
- * page runs in an iframe of the vitest page, possibly scaled to fit.
+ * A point of an element (its middle unless told) in the top page's viewport, where the protocol's
+ * input lands. The test page runs in an iframe of the vitest page, possibly scaled to fit.
  * @param element - The element.
- * @returns Its centre in the top page's CSS pixels.
+ * @param at - The point, in CSS pixels from the element's top left corner; its middle when unset.
+ * @returns The point in the top page's CSS pixels.
  */
-function middleOf(element: Element): { x: number; y: number } {
+function middleOf(element: Element, at?: { readonly x: number; readonly y: number }): { x: number; y: number } {
     const rect = element.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
+    const x = rect.left + (at?.x ?? rect.width / 2);
+    const y = rect.top + (at?.y ?? rect.height / 2);
     const frame = window.frameElement;
     if (frame === null) {
         return { x, y };
@@ -119,29 +120,28 @@ export async function swipeOver(element: Element, distance: number): Promise<voi
 }
 
 /**
- * Drags the mouse sideways from the middle of an element and lets go, as a reader scrubs a
- * number's name: pressed, moved in steps, released.
+ * Presses the mouse on the middle of an element, moves it sideways in steps and releases it, as the
+ * reader drags a thumb or a handle.
  * @param element - Where the press lands.
- * @param dx - How far to the right, in the page's CSS pixels; negative drags left.
+ * @param dx - How far to move, in CSS pixels of the test page; negative moves left.
+ * @param at - Where on the element the press lands, from its top left corner; its middle when unset.
  */
-export async function dragAcross(element: Element, dx: number): Promise<void> {
+export async function dragAcross(element: Element, dx: number, at?: { x: number; y: number }): Promise<void> {
     const session = cdp() as unknown as { send: Send };
-    const { x, y } = middleOf(element);
+    const { x, y } = middleOf(element, at);
     const frame = window.frameElement;
     const scale = frame === null ? 1 : frame.getBoundingClientRect().width / window.innerWidth;
     const steps = 10;
     await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
-    await session.send("Input.dispatchMouseEvent", {
-        type: "mousePressed",
-        x,
-        y,
-        button: "left",
-        buttons: 1,
-        clickCount: 1,
-    });
+    await session.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
     for (let step = 1; step <= steps; step++) {
-        const at = x + (dx * scale * step) / steps;
-        await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at, y, button: "left", buttons: 1 });
+        await session.send("Input.dispatchMouseEvent", {
+            type: "mouseMoved",
+            x: x + (dx * scale * step) / steps,
+            y,
+            button: "left",
+            buttons: 1,
+        });
     }
     await session.send("Input.dispatchMouseEvent", {
         type: "mouseReleased",

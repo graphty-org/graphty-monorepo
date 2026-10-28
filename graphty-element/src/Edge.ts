@@ -16,6 +16,7 @@ import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
+import type { LocationMapFrame } from "./layout/locationMap/place";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
@@ -29,6 +30,7 @@ import {
     arcThroughBend,
     bezierThroughControls,
     centerArc,
+    clearOfCaps,
     crossingOf,
     curveThroughMidpoints,
     cutFromEnd,
@@ -36,12 +38,14 @@ import {
     fanOffset,
     fanSlot,
     fileRoute,
+    greatCircleArc,
     interiorOutside,
     liftRoute,
     loopTeardrop,
     parseBends,
     parsePort,
     pointFromEnd,
+    raisedArc,
     roundCorners,
     routeEnds,
     routeOutside,
@@ -54,6 +58,7 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isPositive } from "./meshes/shapeOutlines";
+import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
@@ -91,6 +96,13 @@ const ARROW_CAPTION_LOCATION: AttachPosition = "top";
 
 /** How far a caption sits from its cap when its own block does not say. */
 const ARROW_CAPTION_OFFSET = 0.3;
+
+/**
+ * How high a raised route rises at its middle when `line.arcHeight` is unset, as a share of its
+ * length: a quarter over a flat map, a tenth over a globe, where a long route's quarter would rise
+ * higher than the globe is wide.
+ */
+const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 
 /** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
 /**
@@ -149,34 +161,20 @@ function drawsNoLine(style: EdgeStyleConfig | null | undefined): boolean {
 }
 
 /**
- * The frame each node mesh's world matrix was last recomputed for.
- *
- * Keyed on the MESH rather than on the node, so a node that is given a new mesh -- a reshape --
- * starts with no entry and is recomputed rather than skipped on a stamp its old mesh earned.
- */
-const worldMatrixFrame = new WeakMap<AbstractMesh, number>();
-
-/**
- * Make sure a node mesh's world matrix is this frame's, and only compute it once per frame.
+ * Make sure a node mesh's world matrix is current before an edge intersects it.
  *
  * WHY IT HAS TO BE FRESH. Trimming an edge at the node surface intersects a ray with the node's
  * mesh, and that test reads the mesh's world matrix -- which is stale from the moment the frame
  * moved the node until something recomputes it.
  *
- * WHY IT IS COUNTED. A node with twenty edges on it would otherwise be recomputed twenty times a
- * frame. This used to be paid for by a separate pass over every edge in the graph that collected
- * the meshes into a set first, which cost a set of its own and a walk of every edge whether or
- * not any of them had moved. Asking here means it is paid once per node, and only for the nodes
- * an edge that actually moved is about to intersect.
+ * NOT CACHED BY FRAME ID. It once was, once per node per scene frame id, but the element renders on
+ * demand, so the frame id stands still between renders while a load places, sizes and moves nodes.
+ * An edge freshened a node early, the node moved, and a later edge in the same frame id met the
+ * node's stale world matrix: the arrowhead then sat a fraction of a pixel off, on some loads only
+ * (#4073). Recomputing one matrix is cheap next to the ray-against-mesh test it feeds.
  * @param mesh - The node mesh about to be intersected.
- * @param frame - The scene's current frame id.
  */
-function freshenWorldMatrix(mesh: AbstractMesh, frame: number): void {
-    if (worldMatrixFrame.get(mesh) === frame) {
-        return;
-    }
-
-    worldMatrixFrame.set(mesh, frame);
+function freshenWorldMatrix(mesh: AbstractMesh): void {
     mesh.computeWorldMatrix(true);
 }
 
@@ -530,8 +528,11 @@ export class Edge {
     /** The `line.arcRadius` the edge's curve was last placed with. See {@link syncContent}. */
     private drawnArcRadius?: number;
 
-    /** The `line.nodeGap` the edge's ends were last placed with. See {@link syncContent}. */
-    private drawnNodeGap?: number;
+    /** The `line.route` and `line.arcHeight` the edge was last placed with. See {@link syncContent}. */
+    private drawnRoute?: string;
+
+    /** The node gaps (`line.nodeGap`, `sourceNodeGap`, `targetNodeGap`) the ends were last placed with. */
+    private drawnNodeGap?: string;
 
     /**
      * What the line was last asked to be drawn with beyond its plain look (`flavorOf`): a paint
@@ -637,6 +638,8 @@ export class Edge {
     // Dirty tracking: Cache last node positions to skip unnecessary updates
     private _lastSrcPos: Vector3 | null = null;
     private _lastDstPos: Vector3 | null = null;
+    /** Where the line's support point was when the line was last placed (`line.supportModel`). */
+    private _lastVia: Xyz | null = null;
 
     /**
      * Set once {@link Edge.dispose} has run. Guards the two methods that would otherwise rebuild
@@ -1012,9 +1015,15 @@ export class Edge {
         // An edge added beside this one, or taken away, fans this one out or back in.
         const { edgeVersion } = this.context.getDataManager();
 
-        if (!srcMoved && !dstMoved && edgeVersion === this.bundleVersion) {
+        // A line through a support point moves when the point does, its nodes still or not.
+        const via = this.drawnStyle?.line?.supportModel === undefined ? null : this.supportVia();
+        const viaMoved = via !== this._lastVia;
+
+        if (!srcMoved && !dstMoved && !viaMoved && edgeVersion === this.bundleVersion) {
             return;
         }
+
+        this._lastVia = via;
 
         this.bundleVersion = edgeVersion;
 
@@ -1035,7 +1044,7 @@ export class Edge {
             this.bundled = false;
             this.placeLifted(this.lineBatch, src, dst, lift);
         } else {
-            bent = this.placeLine(src, dst);
+            bent = this.placeLine(src, dst, lnk.bends);
         }
 
         // Update label position if exists
@@ -1055,18 +1064,27 @@ export class Edge {
     }
 
     /**
-     * Lay the edge's line between its ends: along its bends, along its bundle's route (a fanned
-     * arc or a self-loop), or straight with its arrow caps.
+     * Lay the edge's line between its ends: along its bends, along the route its layout laid it (Graphviz's
+     * splines), along its bundle's route (a fanned arc or a self-loop), or straight with its arrow caps.
      * @param src - The source end.
      * @param dst - The target end.
+     * @param laid - The bends of the route the layout laid, if it laid one.
      * @returns Whether the line was laid along its bends.
      */
-    private placeLine(src: Vector3, dst: Vector3): boolean {
-        const drawsLine = this.lineBatch !== null && !drawsNoLine(this.drawnStyle);
-        const bent =
-            drawsLine && this.lineBatch !== null && this.lineRoute !== null && this.placeBent(this.lineBatch, src, dst);
-        const route = !bent && drawsLine ? this.bundleRoute(src, dst) : null;
-        this.bundled = route !== null && this.lineBatch !== null && this.placeRoute(this.lineBatch, src, dst, route);
+    private placeLine(src: Vector3, dst: Vector3, laid?: readonly number[]): boolean {
+        const batch = drawsNoLine(this.drawnStyle) ? null : this.lineBatch;
+        const stored = this.lineRoute;
+        const bent = batch !== null && stored !== null && this.placeBent(batch, src, dst, stored);
+        // ponytail: a patterned line (no batch) keeps its straight line under a laid route
+        const followsLayout =
+            !bent &&
+            batch !== null &&
+            stored === null &&
+            laid !== undefined &&
+            this.srcNode !== this.dstNode &&
+            this.placeBent(batch, src, dst, { bends: [...laid], srcPort: null, dstPort: null, loop: false });
+        const route = !bent && !followsLayout && batch !== null ? this.bundleRoute(src, dst) : null;
+        this.bundled = followsLayout || (route !== null && batch !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
             const { srcPoint, dstPoint } = this.transformArrowCap();
             // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
@@ -1076,12 +1094,26 @@ export class Edge {
                     ? this.getInterceptPoints()
                     : null;
             this.transformEdgeMesh(
-                srcPoint ?? surface?.srcPoint ?? this.groupEnd(this.srcNode, src, dst),
-                dstPoint ?? surface?.dstPoint ?? this.groupEnd(this.dstNode, dst, src),
+                srcPoint ?? surface?.srcPoint ?? this.bareEnd("source", src, dst),
+                dstPoint ?? surface?.dstPoint ?? this.bareEnd("target", dst, src),
             );
         }
 
         return bent;
+    }
+
+    /**
+     * Where a line with no cap at an end starts: its node's gap past the outline where the end has one (no node hides
+     * that stretch, Cytoscape.js `source-distance-from-node`), else as {@link groupEnd} says.
+     * @param end - Which end.
+     * @param centre - Its node's center.
+     * @param toward - The other end's center.
+     * @returns The point.
+     */
+    private bareEnd(end: "source" | "target", centre: Vector3, toward: Vector3): Vector3 {
+        const node = end === "source" ? this.srcNode : this.dstNode;
+        const gap = this.gapAt(end);
+        return gap > 0 ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
     }
 
     /**
@@ -2022,8 +2054,15 @@ export class Edge {
             rebuilt = true;
         }
 
-        if (style.line?.nodeGap !== this.drawnNodeGap) {
-            this.drawnNodeGap = style.line?.nodeGap;
+        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)}`;
+        if (route !== this.drawnRoute) {
+            this.drawnRoute = route;
+            rebuilt = true;
+        }
+
+        const gaps = `${String(style.line?.nodeGap)} ${String(style.line?.sourceNodeGap)} ${String(style.line?.targetNodeGap)}`;
+        if (gaps !== this.drawnNodeGap) {
+            this.drawnNodeGap = gaps;
             rebuilt = true;
         }
 
@@ -2426,6 +2465,14 @@ export class Edge {
                 dstPoint.z,
             ]);
         } else if (this.haloBatch) {
+            // A band that followed a run (a route, bends) holds a run too: hand back all but its first slot.
+            while (this.haloSlots.length > 1) {
+                const slot = this.haloSlots.pop();
+                if (slot !== undefined) {
+                    this.haloBatch.release(slot);
+                }
+            }
+
             this.haloBatch.place(this.haloSlots[0], srcPoint, dstPoint);
         }
     }
@@ -2460,8 +2507,20 @@ export class Edge {
             return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
         }
 
+        const { route } = this;
+        if (route !== "straight") {
+            const height = this.drawnStyle?.line?.arcHeight ?? DEFAULT_ARC_HEIGHT[route];
+            return route === "arc" ? raisedArc(src, dst, height) : greatCircleArc(src, dst, height);
+        }
+
         if (!this.curved) {
             return null;
+        }
+
+        // a support point is placed apart from its bundle's others by the forces themselves
+        const via = this.supportVia();
+        if (via !== null) {
+            return bezierThroughControls([src.x, src.y, src.z, via.x, via.y, via.z, dst.x, dst.y, dst.z]);
         }
 
         if (count < 2 || !this.fans) {
@@ -2484,6 +2543,69 @@ export class Edge {
 
         const forward = first.srcNode === this.srcNode;
         return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+    }
+
+    /**
+     * What this edge's support point settles under, for the update loop: its two nodes' centers and its style's
+     * forces. Null for an edge without one: not curved, no `line.supportModel`, a self-loop, or not drawn.
+     * @returns The edge's ends and forces, or null.
+     * @internal
+     */
+    supportEdge(): SupportEdge | null {
+        const line = this.drawnStyle?.line;
+        const model = line?.supportModel;
+        if (model === undefined || !this.curved || this.srcNode === this.dstNode || !this.renderVisible) {
+            return null;
+        }
+        return {
+            src: this.srcNode.mesh.position,
+            dst: this.dstNode.mesh.position,
+            forces: {
+                model,
+                springLength: line?.supportSpringLength ?? SUPPORT_DEFAULTS.springLength,
+                springConstant: line?.supportSpringConstant ?? SUPPORT_DEFAULTS.springConstant,
+                repulsion: line?.supportRepulsion ?? SUPPORT_DEFAULTS.repulsion,
+                centralGravity: line?.supportCentralGravity ?? SUPPORT_DEFAULTS.centralGravity,
+                // a unit of 0 has no size: drawn as unset, as the channel refuses it
+                unit: line?.supportUnit || 1,
+            },
+        };
+    }
+
+    /**
+     * Where this edge's support point is now, or null when it has none.
+     * @returns The point.
+     */
+    private supportVia(): Xyz | null {
+        return this.context.getDataManager().supportPoints.pointOf(this);
+    }
+
+    /**
+     * The path the edge takes (`line.route`): what its style asks for, else what the active layout's
+     * map draws -- a raised arc over a flat map in 3D, a great circle on a globe, straight to a node
+     * the map could not place -- else straight.
+     * @returns The route.
+     */
+    private get route(): "straight" | "arc" | "great-circle" {
+        const asked = this.drawnStyle?.line?.route;
+        if (asked !== undefined) {
+            return asked;
+        }
+
+        // Read by shape, not by class: the layout module is not imported here.
+        const engine = this.context.getLayoutManager().layoutEngine as
+            { geoFrame?: LocationMapFrame | null } | undefined;
+        const frame = engine?.geoFrame;
+        if (frame === undefined || frame === null || frame.dimensions === 2) {
+            return "straight";
+        }
+
+        // An edge to a node in the tray has no place to arc between: it goes straight.
+        if (frame.unplacedIds.has(this.srcId) || frame.unplacedIds.has(this.dstId)) {
+            return "straight";
+        }
+
+        return frame.surface === "globe" ? "great-circle" : "arc";
     }
 
     /**
@@ -2544,11 +2666,18 @@ export class Edge {
     }
 
     /**
-     * How far from its nodes' outlines this edge's line stops (`line.nodeGap`); none for a self-loop.
+     * How far from one of its nodes' outlines this edge's line stops: that end's own gap (`line.sourceNodeGap`,
+     * `line.targetNodeGap`), else `line.nodeGap`; none for a self-loop.
+     * @param end - Which end.
      * @returns The gap, in scene units.
      */
-    private get nodeGap(): number {
-        return this.srcNode === this.dstNode ? 0 : (this.drawnStyle?.line?.nodeGap ?? 0);
+    private gapAt(end: "source" | "target"): number {
+        if (this.srcNode === this.dstNode) {
+            return 0;
+        }
+
+        const line = this.drawnStyle?.line;
+        return (end === "source" ? line?.sourceNodeGap : line?.targetNodeGap) ?? line?.nodeGap ?? 0;
     }
 
     /**
@@ -2561,9 +2690,9 @@ export class Edge {
      * @returns False, drawing nothing, when no part of the route is outside both nodes.
      */
     private placeRoute(batch: EdgeLineBatch, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
-        const gap = this.nodeGap;
-        const outSrc = Edge.outside(this.srcNode, src, gap);
-        const outDst = Edge.outside(this.dstNode, dst, gap);
+        const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
+        const outSrc = Edge.outside(this.srcNode, src, srcGap);
+        const outDst = Edge.outside(this.dstNode, dst, dstGap);
         const span = routeOutside(route, outSrc, outDst);
         if (span === null) {
             return false;
@@ -2578,11 +2707,11 @@ export class Edge {
             return new Vector3(c.x, c.y, c.z);
         };
         const start =
-            span.first > 0 ? cross(span.first - 1, first, outSrc) : this.leaveNode(this.srcNode, src, first, gap);
+            span.first > 0 ? cross(span.first - 1, first, outSrc) : this.leaveNode(this.srcNode, src, first, srcGap);
         const end =
             span.last < route.length / 3 - 1
                 ? cross(span.last + 1, last, outDst)
-                : this.leaveNode(this.dstNode, dst, last, gap);
+                : this.leaveNode(this.dstNode, dst, last, dstGap);
 
         const path = [start, ...points(route.slice(3 * span.first, 3 * span.last + 3)), end];
         const { arrowCap } = this;
@@ -2665,17 +2794,18 @@ export class Edge {
      * @param batch - The batch the run is in.
      * @param src - The source node's center.
      * @param dst - The target node's center.
+     * @param stored - The route: the style's, or the one the layout laid.
      * @returns False, drawing nothing, when no stored point is outside the nodes (a self-loop whose
      *     points all lie inside its node), so the edge is drawn as it would be without a route.
      */
-    private placeBent(batch: EdgeLineBatch, src: Vector3, dst: Vector3): boolean {
-        const stored = this.lineRoute;
-        if (stored === null) {
-            return false;
-        }
-
+    private placeBent(
+        batch: EdgeLineBatch,
+        src: Vector3,
+        dst: Vector3,
+        stored: NonNullable<Edge["lineRoute"]>,
+    ): boolean {
         const line = this.drawnStyle?.line;
-        const through = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
+        const through = fileRoute(src, dst, stored, this.srcNode.outlineHalfExtents, this.dstNode.outlineHalfExtents);
         const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.srcNode, src)) : null;
         if (ring !== null) {
             // ponytail: a ring's arrow caps are not placed; no program draws one on a ring that misses its node
@@ -2684,9 +2814,9 @@ export class Edge {
         }
         const { route, sampled } = Edge.shapeBentRoute(line, through);
         const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
-        const gap = this.nodeGap;
-        const outSrc = Edge.outside(this.srcNode, src, gap);
-        const outDst = Edge.outside(this.dstNode, dst, gap);
+        const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
+        const outSrc = Edge.outside(this.srcNode, src, srcGap);
+        const outDst = Edge.outside(this.dstNode, dst, dstGap);
         const span = routeEnds(route, ports, outSrc, outDst);
         if (span === null) {
             return false;
@@ -2699,11 +2829,22 @@ export class Edge {
             const c = crossingOf(Vector3.FromArray(route, 3 * i), to, out);
             return new Vector3(c.x, c.y, c.z);
         };
-        const leave = (node: Node, centre: Vector3, i: number, to: Vector3, out: typeof outSrc): Vector3 =>
-            i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap);
-        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc);
-        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst);
-        const mid = route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1)));
+        const leave = (
+            node: Node,
+            centre: Vector3,
+            i: number,
+            to: Vector3,
+            out: typeof outSrc,
+            gap: number,
+        ): Vector3 => (i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap));
+        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc, srcGap);
+        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst, dstGap);
+        const mid = clearOfCaps(
+            route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1))),
+            start,
+            end,
+            { start: this.capReach("tail"), end: this.capReach("head") },
+        );
         const afterStart = mid.length > 0 ? Vector3.FromArray(mid, 0) : end;
         const beforeEnd = mid.length > 0 ? Vector3.FromArray(mid, mid.length - 3) : start;
 
@@ -2757,6 +2898,24 @@ export class Edge {
         const lineEnd = this.lineEndBefore(last, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
         this.placeLineRun(batch, round ? roundCorners(flat) : flat);
+    }
+
+    /**
+     * How near one end of a bent line its route may not pass: half the length of the arrow cap drawn
+     * there, so the cap points along the route it covers ({@link clearOfCaps}); 0 without a cap at the end.
+     * @param end - Which end.
+     * @returns The distance, in scene units.
+     */
+    private capReach(end: "head" | "tail"): number {
+        const [cap, arrow] =
+            end === "head"
+                ? [this.arrowCap, this.currentStyle.arrowHead]
+                : [this.arrowTailCap, this.currentStyle.arrowTail];
+        if (!cap || arrow?.type === undefined || arrow.type === "none" || (arrow.position ?? 0) > 0) {
+            return 0;
+        }
+
+        return (EdgeMesh.calculateArrowLength() * (arrow.size ?? 1)) / 2;
     }
 
     /**
@@ -3441,10 +3600,8 @@ export class Edge {
         } else {
             // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
             // graph used to do this, once a frame, whether or not the edge had moved.
-            const frame = this.context.getScene().getFrameId();
-
-            freshenWorldMatrix(srcMesh, frame);
-            freshenWorldMatrix(dstMesh, frame);
+            freshenWorldMatrix(srcMesh);
+            freshenWorldMatrix(dstMesh);
 
             // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
             // meshes' world geometry, so the ray runs between their world centres; the line is
@@ -3518,8 +3675,8 @@ export class Edge {
      * @param dstPoint - Where it meets the destination node's surface; moved in place.
      */
     private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
-        const srcReach = this.srcNode.borderReach + this.nodeGap;
-        const dstReach = this.dstNode.borderReach + this.nodeGap;
+        const srcReach = this.srcNode.borderReach + this.gapAt("source");
+        const dstReach = this.dstNode.borderReach + this.gapAt("target");
 
         if (srcReach === 0 && dstReach === 0) {
             return;

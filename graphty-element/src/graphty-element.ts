@@ -36,6 +36,7 @@ import type {
     GraphSelectionStyleInput,
     ViewMode,
 } from "./config";
+import type { BasemapStatus, MapFrameFact } from "./config/Basemap";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import { DEFAULT_LIGHTING, type Lighting } from "./config/Lighting";
 import type { PartialXRConfig } from "./config/xr-config-schema";
@@ -43,6 +44,7 @@ import { CredentialStore } from "./credentials/CredentialStore";
 import { DataSource } from "./data/DataSource";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { ensureGraphSamplesSource } from "./data/graphSamplesSource";
+import { isGraphtyError } from "./errors/GraphtyError";
 import {
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
@@ -794,7 +796,7 @@ export class Graphty extends LitElement {
         // A shader nobody approved is compiled only once the work it could take down is saved.
         shadersControllerOf(session)?.onRisk(() => this.#autosaveControl.api.flush());
         // A source load given no credential asks this element's store, by source and origin.
-        attachCredentials(session.data, (source, origin) => this.credentials.lookup(source, origin));
+        attachCredentials(session.data, (source, origin, slot) => this.credentials.lookup(source, origin, slot));
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -885,7 +887,11 @@ export class Graphty extends LitElement {
             }),
         );
 
-        this.#graph.engine.resize();
+        // Through the graph, like every other resize, so a size that changed since the first
+        // frame is drawn at once. Resizing the engine directly cleared the canvas with nothing
+        // drawn: a box resized in these two frames reached the ResizeObserver already at its new
+        // size, which then saw nothing to draw, and the page painted an empty canvas (#4122).
+        this.#graph.resize();
     }
 
     /**
@@ -1760,7 +1766,8 @@ export class Graphty extends LitElement {
             return Promise.resolve();
         }
 
-        this.#pairNext = { source, setup };
+        const line = loadLineOf(dispatcherOf(this.#graph.getSession()));
+        this.#pairNext = { source, setup, clears: line.clears };
         if (this.#pairWaiting !== undefined) {
             // A pair load still waits for its turn: it loads the pair as now assigned, as one load.
             return this.#pairWaiting;
@@ -1768,7 +1775,6 @@ export class Graphty extends LitElement {
 
         // Its place in the session's load line is taken now, so it lands after a load asked for
         // earlier, however long that one reads, and before one asked for later (issue #3382).
-        const line = loadLineOf(dispatcherOf(this.#graph.getSession()));
         const turn = line.join();
         const go = (): Promise<void> => {
             this.#pairWaiting = undefined;
@@ -1785,7 +1791,15 @@ export class Graphty extends LitElement {
         if (ahead === undefined) {
             run = go();
         } else {
-            run = ahead.then(go);
+            // A clear asked for while it waited cancelled its place. A pair assigned after the
+            // clear is still waiting to load: it takes a place of its own. One assigned before it
+            // is what the clear cancelled, whichever door the clear came through.
+            run = ahead.then(go, () => {
+                this.#pairWaiting = undefined;
+                const next = this.#pairNext;
+                this.#pairNext = undefined;
+                return next?.clears === line.clears ? this.#runImport(next.source, next.setup) : undefined;
+            });
             this.#pairWaiting = run;
         }
         return run.finally(() => {
@@ -1801,7 +1815,13 @@ export class Graphty extends LitElement {
     #pairWaiting: Promise<void> | undefined;
 
     /** The pair, as last handed to {@link #runImport}: what a waiting pair load loads. */
-    #pairNext: { readonly source: ImportSource; readonly setup: boolean } | undefined;
+    #pairNext:
+        | {
+              readonly source: ImportSource;
+              readonly setup: boolean;
+              /** The line's clears when assigned. */ readonly clears: number;
+          }
+        | undefined;
 
     /**
      * The body of {@link #runImport}: start the pair's load.
@@ -1895,7 +1915,8 @@ export class Graphty extends LitElement {
                     throw new Error("Operation cancelled");
                 }
             });
-        const turn = loadLineOf(dispatcher).join();
+        // An edit, not a load: inside a transaction it dispatches at once.
+        const turn = loadLineOf(dispatcher).join(undefined, "edit");
         const inTurn = (): Promise<unknown> => {
             const ahead = turn.wait();
             return ahead === undefined ? turn.issue(dispatch) : ahead.then(queueTurn).then(() => turn.issue(dispatch));
@@ -1927,6 +1948,10 @@ export class Graphty extends LitElement {
      * @param error - whatever the load rejected with
      */
     #reportLoadFailure(error: unknown): void {
+        // A load a clearData cancelled did what the caller asked for: it is no failure.
+        if (isGraphtyError(error) && error.code === "E_SUPERSEDED") {
+            return;
+        }
         this.#graph.eventManager.emitDataLoadingError(
             error instanceof Error ? error : new Error(String(error)),
             "validation",
@@ -2105,6 +2130,103 @@ export class Graphty extends LitElement {
      */
     set edgeWeightPath(value: string | undefined) {
         this.#setKnownField("edgeWeightPath", value);
+    }
+
+    /**
+     * The edge column that says when each edge happened: the designated time field, which
+     * `session.time` indexes and moves a time window along. The column's measurement becomes
+     * time. Nodes follow their edges: a window keeps the nodes at the ends of the edges inside it.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element edge-time-path="sent"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     */
+    @property({ attribute: "edge-time-path" })
+    get edgeTimePath(): string | undefined {
+        return this.#setting("data.knownFields.edgeTimePath") as string | undefined;
+    }
+    /**
+     * Sets the edge time column. Updates graph configuration.
+     */
+    set edgeTimePath(value: string | undefined) {
+        this.#setKnownField("edgeTimePath", value);
+    }
+
+    /**
+     * The node column that says when each node exists: the designated time field on nodes.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element node-time-path="published"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     */
+    @property({ attribute: "node-time-path" })
+    get nodeTimePath(): string | undefined {
+        return this.#setting("data.knownFields.nodeTimePath") as string | undefined;
+    }
+    /**
+     * Sets the node time column. Updates graph configuration.
+     */
+    set nodeTimePath(value: string | undefined) {
+        this.#setKnownField("nodeTimePath", value);
+    }
+
+    /**
+     * How numbers in the edge time column are read: `ms` (epoch milliseconds), `s` (epoch seconds),
+     * `year` (calendar years) or `ordinal` (plain ordered numbers such as steps). Left unset, the
+     * values decide. Text dates ignore it.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element edge-time-path="ts" edge-time-unit="s"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     */
+    @property({ attribute: "edge-time-unit" })
+    get edgeTimeUnit(): string | undefined {
+        return this.#setting("data.knownFields.edgeTimeUnit") as string | undefined;
+    }
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     */
+    set edgeTimeUnit(value: string | undefined) {
+        if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
+            console.error(`<graphty-element>: edge-time-unit must be ms, s, year or ordinal, not "${value}".`);
+
+            return;
+        }
+
+        this.#setKnownField("edgeTimeUnit", value);
+    }
+
+    /**
+     * How numbers in the node time column are read: `ms`, `s`, `year` or `ordinal`; left unset, the
+     * values decide.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element node-time-path="year" node-time-unit="ordinal"></graphty-element>
+     * ```
+     * @returns The value set on this element, else the value in effect (undefined when that is none)
+     */
+    @property({ attribute: "node-time-unit" })
+    get nodeTimeUnit(): string | undefined {
+        return this.#setting("data.knownFields.nodeTimeUnit") as string | undefined;
+    }
+    /**
+     * Sets how the node time column's numbers are read. Updates graph configuration.
+     */
+    set nodeTimeUnit(value: string | undefined) {
+        if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
+            console.error(`<graphty-element>: node-time-unit must be ms, s, year or ordinal, not "${value}".`);
+
+            return;
+        }
+
+        this.#setKnownField("nodeTimeUnit", value);
     }
 
     /**
@@ -2998,6 +3120,90 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * What the map under the `location-map` layout is doing: its source, `state` (`off`, `loading`,
+     * `ready`, or `fallback` when its pictures failed and the bundled world image shows instead), and
+     * `attribution`, the credits of everything drawn, which must be visible whenever the map is.
+     * @since 3.31.0
+     * @returns The status
+     */
+    get basemapStatus(): BasemapStatus {
+        return this.#graph.basemapStatus;
+    }
+
+    /**
+     * How the active `location-map` layout lays out its map: the surface, the box a flat map
+     * shows or a globe's radius, where it read the locations (the columns it used, the half of a
+     * pair it found itself, or the column and its format), and the ids of the nodes it could not
+     * place. Null while no map layout has drawn.
+     * @since 3.31.0
+     * @returns The facts, or null
+     */
+    get mapFrame(): MapFrameFact | null {
+        return this.#graph.mapFrame;
+    }
+
+    /**
+     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels.
+     * @remarks
+     * The element draws the credits of the map under the `location-map` layout in the canvas's
+     * bottom-right corner, as every map source's terms require. A page that draws its own controls
+     * over that edge sets this to their height, so the credits stay in sight. 0 (the default) is
+     * the corner. A preference of this view, not saved with the project.
+     * @since 3.31.0
+     * @example
+     * ```html
+     * <graphty-element attribution-offset="56"></graphty-element>
+     * ```
+     * @returns The offset
+     */
+    @property({ attribute: "attribution-offset", type: Number })
+    get attributionOffset(): number {
+        return this.#attributionOffset;
+    }
+    /**
+     * Moves the map's credits up from the corner.
+     */
+    set attributionOffset(value: number) {
+        const oldValue = this.#attributionOffset;
+        this.#attributionOffset = Number.isFinite(value) ? Math.max(0, value) : 0;
+        this.#graph.setAttributionOffset(this.#attributionOffset);
+        this.requestUpdate("attributionOffset", oldValue);
+    }
+
+    /** See {@link attributionOffset}. */
+    #attributionOffset = 0;
+
+    /**
+     * How long every animated camera move takes, in milliseconds.
+     * @remarks
+     * Fitting the graph, a preset view and the glide to a picked node each animate over their own
+     * time. Set, every one takes this long instead; 0 moves the camera at once, which a page sets
+     * when its reader prefers reduced motion (`matchMedia("(prefers-reduced-motion: reduce)")`).
+     * Unset (the default), each move keeps its own. A preference of this view, not saved with the
+     * project.
+     * @since 3.31.0
+     * @example
+     * ```typescript
+     * element.cameraTransitionDuration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : undefined;
+     * ```
+     * @returns The duration, or undefined
+     */
+    @property({ attribute: "camera-transition-duration", type: Number })
+    get cameraTransitionDuration(): number | undefined {
+        return this.#graph.getCameraTransitionDuration();
+    }
+    /**
+     * Sets how long camera moves take.
+     */
+    set cameraTransitionDuration(value: number | undefined) {
+        const oldValue = this.cameraTransitionDuration;
+        this.#graph.setCameraTransitionDuration(
+            value === undefined || value === null || !Number.isFinite(value) ? undefined : value,
+        );
+        this.requestUpdate("cameraTransitionDuration", oldValue);
+    }
+
+    /**
      * How far the camera starts from the graph, in scene units.
      * @remarks
      * Set, it places the 3D camera at this distance from the orbit center (never closer than the
@@ -3143,11 +3349,11 @@ export class Graphty extends LitElement {
     /**
      * How the 3D nodes are lit.
      * @remarks
-     * - `"studio"` (the default): a key light from above the camera, a soft fill, and a rim that
-     *   lifts each node's own color toward its edge. Round shapes read as round, and no pixel is
-     *   lifted to white: the brightest is about 1.13 times the style color's lightness.
-     * - `"headlight"`: one light from beside the camera and a soft fill. Never brighter than the
-     *   style color.
+     * - `"studio"` (the default): a light that follows the camera, a soft fill with a light ground,
+     *   and a rim that lifts each node's own color toward its edge. No side of a node goes dark from
+     *   any angle, and no pixel is lifted to white: the brightest is about 1.07 times the style
+     *   color's lightness.
+     * - `"headlight"`: the same lights without the rim. Never brighter than the style color.
      * - `"matte"`: one soft light from above, no highlight. A lit face is exactly the style color
      *   at most; shapes read flatter and darker than `"studio"`.
      * - `"flat"`: unlit. Every pixel of a node is exactly its style color, with a thin dark
@@ -4536,11 +4742,15 @@ export class Graphty extends LitElement {
      * With `autosave` on, it also waits for the restore to be decided and for the data the page
      * declared, which waits behind it, so it never resolves on the empty canvas before either.
      *
-     * It rejects, naming what was still moving, rather than handing back a moving picture.
+     * It rejects, naming what was still moving, rather than handing back a moving picture. When
+     * the element is removed from the page during the wait, or already had been when the wait
+     * started, it rejects at once with `E_DISPOSED`: a removed element never draws again.
      * @param options - How the wait is bounded.
      * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * @throws Error when the picture is still changing when the timeout expires.
+     * @throws A `GraphtyError` with `E_DISPOSED` when the element leaves the page before or during
+     *   the wait.
      * @since 2.0.0
      * @example
      * ```typescript

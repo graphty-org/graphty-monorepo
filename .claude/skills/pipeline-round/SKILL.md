@@ -16,6 +16,13 @@ looks at the repository, takes the few actions that are due, and ends.
 **First read `.claude/skills/pipeline-round/shared.md`**: the hard rules, how to read the state (run its commands at
 the start of every round), the markers, the subagent rules, escalation and the failure classes. Both skills follow it.
 
+**Then ask the health dashboard** (`design/ci/health-dashboard.md` section 12): call the `pipeline-health` MCP tools
+`health_status` and `owner_queue`, and use them to choose which steps below to look at first; the drill-down tools
+(`master`, `release_lanes`, `pull_requests`, `flaky_hotspots`, `runners`) narrow a step. The dashboard is a guide, up
+to 5 minutes old: before acting on it (revert, rerun, comment, close, merge), confirm the fact on GitHub, in the pull
+request status broker or in the local file it came from, never from the dashboard alone. A result with `stale: true`
+in its `freshness`, or an error, means fall back to this round's own checks.
+
 **Bounds, every step:** never mix a test, budget, quarantine or workflow change with a product fix in one pull
 request; never re-run a failure hoping for green (a re-run is only for a classified outside cause); never ask for the
 admin bypass; never touch the screenshot gate's trusted files.
@@ -85,9 +92,10 @@ first-parent merges since the last green full run.
   and inputs key; quarantined from full-run and bisect evidence). A fix subagent finds the mechanism and fixes it,
   `Fixes #N` so the test leaves quarantine. Never a longer wait, a raised timeout or a deleted test. GPU tests and the
   screenshot gate are never quarantined.
-- **`[KNOWN?]` on an agent pull request** (a failure with no master evidence): dispatch `base-check.yml` on master
-  (inputs `base`, `file`, `variant`, `repeat`); when the base fails the same way, re-run the pull request's failed
-  job, whose plan now excuses it.
+- **`[UNRELATED]` on a pull request** (a test it did not touch failed every time, with no master evidence): the pull
+  request passed anyway (#3925) and CI dispatched `base-check.yml` once for that test and base. When the base fails
+  too, its priority:critical `Failing on master` issue is the work; when the base passes, it comments on the pull
+  request: look for a flaky test or a cause in that pull request.
 - **`[FLAKY-UNRELATED]`** on a pull request (failed then passed, in a file the pull request did not touch): dispatch
   `base-check.yml` with `repeat: 5` for that file; its master records can quarantine it.
 - `Failing on master: <first line>` issues (filed by base checks) get a fix subagent like any code failure.

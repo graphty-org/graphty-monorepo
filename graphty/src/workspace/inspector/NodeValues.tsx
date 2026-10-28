@@ -22,6 +22,7 @@ import { focusInspectorTitle } from "../frame/focus";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { edgeEnds } from "../table/columns";
+import { timeValue } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
 import { groupInspected, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
@@ -110,7 +111,11 @@ function fileAttributes(
                 // column's role (#893) and the inspector can leave out what the header shows.
                 (column.origin === "imported" || column.origin === "joined"),
         )
-        .map((column): [string, unknown] => [column.plainName, record[column.name]]);
+        .map((column): [string, unknown] => [
+            column.plainName,
+            // The time field reads as the timeline writes dates.
+            timeValue(session, kind, column.name, record[column.name]),
+        ]);
 }
 
 /** What a value row reads when the element carries nothing for that column. */

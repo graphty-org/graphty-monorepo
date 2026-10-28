@@ -29,7 +29,7 @@ import type { RunPainting, RunRecord } from "../runs/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
-import type { RuleTree, TimeWindow } from "../visibility/filter";
+import type { RuleTree, TimePlayback, TimeWindow } from "../visibility/filter";
 
 /** One node or edge record as the graph holds it: the attributes it arrived with. */
 export type GraphRecord = Readonly<Record<string | number, unknown>>;
@@ -132,6 +132,8 @@ export interface VisibilityState {
     readonly showContext: boolean;
     /** The filter steps; the ones that are on combine with the filter by AND. */
     readonly steps: readonly FilterStep[];
+    /** How `session.time` moves windows, or null for every default. */
+    readonly playback?: TimePlayback | null;
 }
 
 /** One note, as the `notes` slice keeps it: the record, and where it was opened from. */

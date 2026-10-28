@@ -519,3 +519,68 @@ its section and number on the page the section heading names, or by page when it
 | note-27 | `exportGraph("csv", { notes: true })` with a note `=SUM(A1)` | `graphty.notes.text` cell prefixed, `W_GRAPHTY_CSV_NEUTRALIZED` | export-mapping.md Notes 3 |
 | note-28 | a note whose `time` is `2099-01-01T00:00:00Z` | added; `W_FUTURE_TIME` notice | Opening 10 |
 | note-29 | a note with an unknown field `"reviewed": true`, merged and then edited | `W_UNKNOWN_MEMBER` at `/notes/0/reviewed`; the field is written back after the edit | Opening 7; Later versions 3 |
+
+## Sources (sources.md)
+
+<!-- prettier-ignore -->
+| Id | Input | Expected result | Rule |
+| --- | --- | --- | --- |
+| src-1 | a session that loaded `genes.csv`, then merged 100 nodes of a Neo4j load, saved | one `graphty-sources` member, version 2, two entries in load order; the file entry carries `name`, `size` and the `sha256` of the bytes given; the network entry carries `source.id`, `params`, `pages`, `next` and `validators` | Data model 1, 7 |
+| src-2 | the same session after the Neo4j load is undone, saved | one entry, the file's; no record of the undone load | Data model 1 |
+| src-3 | a load followed by a second load with `mode: "replace"`, saved | only the second load's entry | Data model 1 |
+| src-4 | a session whose filter keeps `{ "kind": "source", "sources": ["s2"] }`, saved and reopened | entry `s2` has id `s2`; the filter selects the same elements after reopening | Data model 2 |
+| src-5 | a node both loads supplied and a node added by hand, saved | the first node's record carries `"_source.loads": ["s1", "s2"]`; the hand-added node has no `_source.loads` | Provenance |
+| src-6 | a node brought by the first expansion of load `s2` | its `_source.loads` lists `s2/x1` | Data model 2; Provenance |
+| src-7 | a record whose `_source.loads` is `["s9"]` in a file with no entry `s9` | the value kept as data; the node belongs to no load | Provenance 2 |
+| src-8 | a load that used a basic credential for user `neo4j`, saved | `credentialSlot: "default"`; the text holds no password, no user name and no credential origin | Credential slots 1; What is never stored 1 |
+| src-9 | an OpenAlex load with an API key, saved | `credentialSlot: "api_key"`; the key appears nowhere in the text, including `endpoint`, `next` and `validators` | Credential slots; Network loads 4 |
+| src-10 | a reopened project's OpenAlex entry refreshed, with a key remembered for `openalex` at `https://api.openalex.org` | the refresh sends the key as the `api_key` query parameter, to that origin only | Credential slots 2 |
+| src-11 | the same entry edited to name `https://evil.example` as its endpoint, refreshed | no remembered key is sent; with the slot optional the request carries none | Credential slots 2 |
+| src-12 | a Neo4j entry whose required slot has no credential remembered, run after reopening | it waits; `E_SOURCE_AUTH` with `{ origin, slot: "default", stored: false }` | Credential slots 3 |
+| src-13 | a project file opened with embedded data and two network entries, with no network | the graph shows at once; nothing is fetched; both entries are listed as pending loads | Embedded data 1; Reopening |
+| src-14 | `refresh`, `more({ load })`, `checkSource` and `expand` of a pending load, and `more()` with no load, before `runPendingSourceLoad` | each of the first four refused, `E_SOURCE_PENDING` with `{ id }`; `more()` passes it over; no request is sent | Reopening |
+| src-15 | an entry carrying a member that claims an approval (`"approved": true`) | the entry `not-runnable`, `E_BAD_DOCUMENT` at that member; never offered | What is never stored 2; Reading 2 |
+| src-16 | a pending load whose endpoint is `http://localhost:7474/db` | offered with `isLocalNetwork: true` (a "don't ask again" never covers it) | Reopening 3 |
+| src-17 | an entry whose `source.id` is `gremlin` on a release without that source | the embedded elements show; the entry is not offered; `W_SOURCE_UNREGISTERED` with `{ id, source }`; written back exactly | Reopening 4 |
+| src-18 | an entry with `"options": { "write": true }` | the entry `not-runnable`; never run, refreshed or offered; written back as read | Options 3; Reading 4 |
+| src-19 | an entry with an unknown member `"encoding": "latin1"` | the entry `not-runnable`, `E_BAD_DOCUMENT` at `/members/n/loads/0/encoding`; the others are offered | Reading 2 |
+| src-20 | `options: { "delimter": ";" }` on a steps-only CSV entry | not reported on open; the importer refuses the option when the entry runs, `E_UNKNOWN_OPTION` | Options; Reading 2 |
+| src-21 | a sources member with an unknown top-level member `"colour": 1` | the member skipped, `E_BAD_DOCUMENT`; kept in place on save; the embedded data still opens | Reading 1 |
+| src-22 | an entry of `"kind": "dbt"` | kept, `W_UNKNOWN_KIND` at its pointer, never run, written back exactly | Reading 3; Later versions 1 |
+| src-23 | two entries with id `s1` | the member skipped, `E_BAD_DOCUMENT` | Reading 5 |
+| src-24 | an expansion `"id": "s2/x3"` as the first expansion of `s2` | the member skipped, `E_BAD_DOCUMENT` | Reading 5 |
+| src-25 | `"graph": "g2"` in a file whose data member has no id `g2` | the entry `not-runnable`, `E_BAD_DOCUMENT` with `{ id, graph }` | Reading 6 |
+| src-26 | a URL load of `https://u:p@example.org/a.csv?v=2&api_key=K#top`, saved | `address` `https://example.org/a.csv?v=2`, `dropped: ["api_key"]`, `W_SOURCE_URL_REDACTED` with `{ id, names: ["api_key"] }` | URLs 1, 2 |
+| src-27 | (reserved for the release that writes steps-only files) `project.save({ data: "steps" })` | no data member for the graph; `data: "steps"`; `graphty-sources` in `requires` | Embedded data 2 |
+| src-28 | (reserved) that file opened by a release that does not know `graphty-sources` | refused whole, `E_UNSUPPORTED`, naming `graphty-sources` | Embedded data 2; container.md Reading a file 8 |
+| src-29 | (reserved) that file opened by a release that rebuilds, the reader supplying `genes.csv` with the recorded SHA-256 | the file entry runs; then the next entry is offered; the arrangement, results, styles and notes apply after the last entry ran | Reopening 2, 3 |
+| src-30 | (reserved) the same with a `genes.csv` whose SHA-256 differs | refused as changed; with the caller's leave, loaded and reported as changed | Rebuilding a steps-only file 2 |
+| src-31 | (reserved) a steps-only rebuild whose third entry is `not-runnable` | entries one and two run; the rebuild stops before the third; the report names it | Reading 4 |
+| src-32 | `data: "steps"` in a file that also embeds the graph | the data member applies; `W_SOURCE_STEPS_IGNORED` with `{ graph: null }` (the file's one graph) | Embedded data 3 |
+| src-33 | a version 1 member with record `load-1` and a data member whose `sources` lists `s1` (file) and `s2` (server), `s2`'s provenance nodes carrying `"_source.loads": ["load-1"]` | upgraded: entry `s1` a file entry without `sha256`; entry `s2` a network entry holding `load-1`'s source part; `load-1` and `load-1/x1` values read as `s2` and `s2/x1`; the report says it was upgraded | Reading version 1 1, 2, 4 |
+| src-34 | a version 1 record with `"credential": { "kind": "basic", "origin": "https://db.example.org", "username": "ana" }` | upgraded to `credentialSlot: "default"`; saved again, the text holds neither `ana` nor the origin as a credential | Reading version 1 2 |
+| src-35 | a version 1 record no data member item claims | an entry of its own, id `load-1` | Reading version 1 3 |
+| src-36 | a file holding a version 2 member and a data member with legacy `sources` and `provenance` that disagree with it | the version 2 member wins; the legacy fields are ignored | Reading version 1 6 |
+| src-37 | a project saved by this release, opened on graphty-element 3.29 | the graph and its `data.sources()` list open from the legacy data member fields; the sources member is skipped, `E_UNSUPPORTED_VERSION` | Writing 4 |
+| src-38 | the same session saved twice | the same bytes | Writing 1 |
+| src-39 | a plain document (no `graphty-session` member) that holds a sources member, opened | none of it applied: no loads, nothing pending; `E_UNSUPPORTED` with `{ kind: "graphty-sources" }` | Writing 5 |
+| src-40 | a session with a network load, autosaved, the tab killed, recovered | the recovered session lists the same loads and pending refreshes; the reassembled parts equal `project.save()`'s text | Writing 6; Embedded data 4 |
+| src-41 | a Neo4j `mode: "all"` load with one label, capped at 100 nodes, of a database holding 28,455 nodes of that label | `total: { nodes: 28455 }`, from one count query | Data model 6 |
+| src-42 | a Cypher load with the caller's own `query`, capped by `limits.maxNodes` / read whole | no count is sent; capped: no `total`; read whole: `total.nodes` is the nodes it read | Data model 6 |
+| src-43 | a member of 1,001 entries | skipped, `E_TOO_LARGE` naming the entry limit | Limits |
+| src-44 | an entry whose `loadedAt` is `"2026-10-20T11:12:03+02:00"`, opened and saved unchanged | kept as read | Data model 4 |
+| src-45 | a CSV draft loaded with `mapping: { source: "from_station", target: "to_station", weight: "trips" }`, saved and reopened | the entry's `mapping` is that object; the reopened `data.sources()` entry carries it; saved again, unchanged | Options |
+| src-46 | a table joined onto load `s1`, saved and reopened | entry `s2` carries `joinedOnto: "s1"`, its `mapping` and `join` (shape, choices, counts, columns, the table, before); the reopened `data.sources()` entry is kind `join` with `join.source` `s2` and `join.onto` `s1`; saved again, the entry is the same | Joins 1, 2, 3 |
+| src-47 | a `join` with an unknown member `"colour": 1` | the entry `not-runnable`, `E_BAD_DOCUMENT` at `/members/n/loads/1/join/colour` | Reading 2 |
+| src-48 | `data: "steps"` in a file with no data member | refused whole, `E_UNSUPPORTED` with `{ kind: "graphty-sources", data: "steps" }` | Embedded data 2 |
+| src-49 | an entry whose `id` is missing, `"-bad"` or `7` | the member skipped, `E_BAD_DOCUMENT` at `/loads/<n>/id` | Reading 5 |
+| src-50 | an entry with no `loadedAt`; `loadedAt` `2026-02-30T00:00:00Z`; an endpoint with a user name or a query; `tableRows` without `tables` or of another length; an empty `name`; a `joinedOnto` naming itself or a later entry | each entry `not-runnable`, `E_BAD_DOCUMENT` at that member; never offered | Data model 4, 9; Network loads 2; Reading 2, 5 |
+| src-51 | an entry of `"kind": "dbt"` with no `loadedAt` | `W_UNKNOWN_KIND` with `{ found: "dbt" }` and `E_BAD_DOCUMENT` at its `loadedAt` | Reading 3; Later versions 1 |
+| src-52 | a version 1 member of 1,001 records | skipped before the join, `E_TOO_LARGE` naming the entry limit | Reading version 1 7 |
+| src-53 | version 1 items: a file with no `size`, a URL with `?token=T&v=1`, a sample naming the generator `path` with `config: { n: 4 }` | a file entry with no `size`; a URL entry of address `...?v=1` with `dropped: ["token"]`; a sample entry `{ generator: "path", params: { n: 4 } }` | Reading version 1 7 |
+| src-54 | a `rest` entry whose `endpoint` is `null` and whose mapping's endpoint is `http://192.168.1.20/api` | `pendingSourceLoads()` lists that endpoint, `isLocalNetwork: true`, and the mapping in `params` | Network loads 2; Reopening 1, 3 |
+| src-55 | a sources member with `data: "elsewhere"`; one of version 3 | the first skipped, `E_BAD_DOCUMENT` at `/data`; the second skipped, `E_UNSUPPORTED_VERSION` | Reading 1; container.md Versions |
+| src-56 | a network load whose mapping holds `api_key` in its endpoint and a request's `query`, `client_secret` in a request's `body`, and whose cursor is a next-page link holding `api_key`, saved | none of the values in the text; a templated value (`"{token}"`) kept; `W_SOURCE_URL_REDACTED` with `{ id, names: ["api_key", "client_secret"] }` | Network loads 3, 4 |
+| src-57 | URLs with `X-Goog-Signature`, `Key-Pair-Id`, `refresh_token`, `jwt`, `session`; a relative `data/a.csv?token=T#top` | each such parameter dropped; the relative URL written `data/a.csv` with its path as given | URLs 2 |
+| src-58 | a file whose entry has `expand: { trigger: "click" }`, opened; a real click on its node | no expansion is tried; with the page's own `behavior.expand.trigger: "click"`, the click is refused `E_SOURCE_PENDING` and nothing is fetched | Reopening 2 |
+| src-59 | a capped load that read 2 pages, saved, reopened and run | it reads both pages again; a later `more()` reads the third | Reopening 1 |

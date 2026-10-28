@@ -42,6 +42,10 @@ async function open(): Promise<{ element: GraphtyTag; session: GraphSession }> {
     if (element === null || session === undefined) {
         throw new Error("the element never came up");
     }
+    // A static layout to start from: the test reads only the picture Circle lands on, and waiting
+    // for the default force layout to converge on Les Miserables, frame by frame, was most of the
+    // test's time (issue #3538).
+    await session.layout.set("spiral");
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
     await element.waitForStableFrame();
     return { element, session };
@@ -72,7 +76,7 @@ async function applyCircle(session: GraphSession): Promise<void> {
     });
     await userEvent.click(tool);
     const popover = await screen.findByRole("dialog", { name: "Layout" });
-    await userEvent.click(within(popover).getByRole("option", { name: /^Circle/ }));
+    await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
     await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
     await waitFor(
         () => {
@@ -100,10 +104,18 @@ function drawn(element: GraphtyTag, session: GraphSession): number[] {
  * Applies Circle with the key card coming up at one moment, and reads the picture it ends on.
  * @param key - when the key card comes up: never, before the layout change, right after it while
  *   its fit is pending, or after the fit landed.
- * @returns the drawn positions.
+ * @returns the drawn positions, and every size the element had from the first fit on (its first
+ *   entry is the size it had then): a picture that moved with no change of size was framed
+ *   differently, one whose size changed after its fit was framed for another canvas (#3754).
  */
-async function circleWithKey(key: "none" | "before" | "pending" | "after"): Promise<number[]> {
+async function circleWithKey(key: "none" | "before" | "pending" | "after"): Promise<Picture> {
     const { element, session } = await open();
+    const sizes: string[] = [];
+    const watch = new ResizeObserver(() => {
+        const box = element.getBoundingClientRect();
+        sizes.push(`${box.width}x${box.height}`);
+    });
+    watch.observe(element);
     if (key === "before") {
         await bringKeyUp(session);
         await element.waitForStableFrame();
@@ -119,8 +131,45 @@ async function circleWithKey(key: "none" | "before" | "pending" | "after"): Prom
     }
     assert.deepEqual(element.viewInsets, { top: 0, right: 0, bottom: 0, left: 0 }, "no overlay is a view inset");
     const at = drawn(element, session);
+    watch.disconnect();
     cleanup();
-    return at;
+    return { at, sizes };
+}
+
+/** What {@link circleWithKey} reads. */
+interface Picture {
+    at: number[];
+    sizes: string[];
+}
+
+/**
+ * How one picture differs from another, on one line: the largest move, the mean shift, the ratio
+ * of the drawings' widths, and the element's sizes in each -- the first line is what the results
+ * service keeps of a failure, so it has to say which mechanism moved the nodes.
+ * @param bare - the picture with no key card.
+ * @param now - the picture to compare.
+ * @returns the description.
+ */
+function difference(bare: Picture, now: Picture): string {
+    let worst = 0;
+    let dx = 0;
+    let dy = 0;
+    const xs = (p: Picture): number[] => p.at.filter((_, i) => i % 2 === 0);
+    now.at.forEach((value, i) => {
+        const d = value - (bare.at[i] ?? Number.NaN);
+        worst = Math.max(worst, Math.abs(d));
+        if (i % 2 === 0) {
+            dx += d;
+        } else {
+            dy += d;
+        }
+    });
+    const n = now.at.length / 2;
+    const width = (p: Picture): number => Math.max(...xs(p)) - Math.min(...xs(p));
+    return (
+        `moved up to ${worst.toFixed(2)} px, mean shift (${(dx / n).toFixed(2)}, ${(dy / n).toFixed(2)}), ` +
+        `width ratio ${(width(now) / width(bare)).toFixed(4)}, sizes bare [${bare.sizes.join(" ")}] now [${now.sizes.join(" ")}]`
+    );
 }
 
 describe("the drawing is framed in the canvas alone", () => {
@@ -147,15 +196,23 @@ describe("the drawing is framed in the canvas alone", () => {
         assert.isAtLeast(canvas.top, header.bottom, "the canvas starts under the header");
     });
 
-    it("lands a layout change on the bare canvas's fit, whenever the key card comes up", async () => {
-        const bare = await circleWithKey("none");
-        assert.isNotEmpty(bare);
-        for (const key of ["before", "pending", "after"] as const) {
+    // One test per moment the key card comes up, each against the bare canvas's picture taken once
+    // before them. All four pictures in one test (four workspaces, each mounted, loaded and laid
+    // out) took 14 to 18 s of its 15 s on CI before #3757 and 6.6 s after it, and every flaky
+    // failure of it was that test running out of time, never a node that moved (#4107).
+    describe("lands a layout change on the bare canvas's fit, whenever the key card comes up", () => {
+        let bare: Picture;
+        beforeAll(async () => {
+            bare = await circleWithKey("none");
+            assert.isNotEmpty(bare.at);
+        });
+
+        it.each(["before", "pending", "after"] as const)("key card %s", async (key) => {
             const now = await circleWithKey(key);
-            assert.strictEqual(now.length, bare.length, key);
-            now.forEach((value, at) => {
-                assert.closeTo(value, bare[at] ?? Number.NaN, 1, `key card ${key}: a node moved`);
-            });
-        }
+            assert.strictEqual(now.at.length, bare.at.length, key);
+            // `!(<= 1)` and not `> 1`, so a NaN fails too
+            const moved = now.at.some((value, i) => !(Math.abs(value - (bare.at[i] ?? Number.NaN)) <= 1));
+            assert.isFalse(moved, `key card ${key}: the nodes moved: ${difference(bare, now)}`);
+        });
     });
 });

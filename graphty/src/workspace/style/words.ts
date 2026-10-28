@@ -133,13 +133,13 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "node.haloOpacity",
             ],
         },
-        { id: "visibility", title: "Visibility", channels: ["node.visible", "node.opacity"] },
+        { id: "visibility", title: "Visibility", channels: ["node.visible"] },
         { id: "text", title: "Text", channels: textChannels("node") },
-        { id: "fill", title: "Fill", channels: ["node.color"] },
+        { id: "fill", title: "Fill", channels: ["node.color", "node.opacity"] },
         { id: "shaders", title: "Shaders", channels: ["node.shaders"], shaders: true },
     ],
     edge: [
-        { id: "visibility", title: "Visibility", channels: ["edge.visible", "edge.opacity"] },
+        { id: "visibility", title: "Visibility", channels: ["edge.visible"] },
         { id: "text", title: "Text", channels: textChannels("edge") },
         {
             id: "line",
@@ -147,6 +147,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
             // Band is a line option, a flat stripe under the line, never a shader.
             channels: [
                 "edge.color",
+                "edge.opacity",
                 "edge.width",
                 "edge.style",
                 "edge.patternCount",
@@ -175,6 +176,15 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
         },
         { id: "shaders", title: "Shaders", channels: ["edge.shaders"], shaders: true },
     ],
+};
+
+/**
+ * The opacity a color field carries in its opacity box: Fill's and Line's. Opacity has one source,
+ * the opacity channel, so the color stays six digits and a row that set Opacity keeps it.
+ */
+export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
+    "node.color": "node.opacity",
+    "edge.color": "edge.opacity",
 };
 
 /**
@@ -485,6 +495,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.wavePeriod": "Wave period",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
+    "edge.route": "Route",
+    "edge.arcHeight": "Arc height",
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Target end side",
     "edge.arrowHeadGap": "Target end gap",
@@ -545,6 +557,22 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOffsetY": "Label offset y",
     "edge.labelShiftX": "Label shift x",
     "edge.labelShiftY": "Label shift y",
+    "node.groupPadding": "Group padding",
+    "node.groupPaddingRatio": "Group padding ratio",
+    "node.groupPaddingOf": "Group padding of",
+    "node.groupMinWidth": "Group min width",
+    "node.groupMinWidthBiasLeft": "Group min width bias left",
+    "node.groupMinHeight": "Group min height",
+    "node.groupMinHeightBiasTop": "Group min height bias top",
+    "node.groupIncludeLabels": "Group includes labels",
+    "edge.sourceNodeGap": "Source node gap",
+    "edge.targetNodeGap": "Target node gap",
+    "edge.supportModel": "Support model",
+    "edge.supportUnit": "Support unit",
+    "edge.supportSpringLength": "Support spring length",
+    "edge.supportSpringConstant": "Support spring constant",
+    "edge.supportRepulsion": "Support repulsion",
+    "edge.supportCentralGravity": "Support central gravity",
 };
 
 /**

@@ -141,14 +141,14 @@ describe("prIntegrity", () => {
         const reviews = [review(AGENT, "COMMENTED", "x", marker)];
         assert.deepEqual(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems, []);
 
-        // a merge of master keeps the review; a fix push needs a new one
+        // one review per pull request: a merge of master and a fix push both keep it
         r.git("switch", "-q", "master");
         r.commit("chore: other", { "src/other.mjs": "export const o = 1;\n" });
         r.git("switch", "-q", "b");
         r.git("merge", "-q", "--no-edit", "master");
         assert.deepEqual(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems, []);
         r.commit("fix: again", { "src/a.mjs": "export const a = 3;\n" });
-        assert.match(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems.join("\n"), /Fresh review/);
+        assert.deepEqual(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems, []);
     });
 
     it("does not ask a non-agent author for Proof or review", () => {
@@ -309,5 +309,45 @@ describe("the workflows", () => {
             wf,
             /if: steps\.meta\.outputs\.package-ecosystem != 'github_actions'\n[\s\S]*gh pr merge --auto --merge/,
         );
+    });
+});
+
+describe("--local (tools/check-quick.sh)", () => {
+    it("checks HEAD from the base with no pull request and no GitHub call", () => {
+        const r = repo();
+        for (const f of ["gate.mjs", "lib/approval.mjs", "lib/config.mjs", "lib/results.mjs"]) {
+            mkdirSync(dirname(join(r.dir, "visual-review/trusted", f)), { recursive: true });
+            cpSync(join(ROOT, "visual-review/trusted", f), join(r.dir, "visual-review/trusted", f));
+        }
+        r.commit("chore: gate");
+        r.git("switch", "-q", "-c", "b");
+        r.commit("feat(tools)!: drop a flag", { "src/a.mjs": "export const a = 2;\n" });
+        // a `gh` that fails: --local must not ask GitHub anything
+        const bin = join(r.dir, ".bin");
+        mkdirSync(bin);
+        writeFileSync(join(bin, "gh"), "#!/bin/sh\nexit 99\n", { mode: 0o755 });
+        const run = () => {
+            try {
+                return {
+                    status: 0,
+                    out: execFileSync(
+                        process.execPath,
+                        [join(ROOT, "tools/pr-integrity.mjs"), "--local", "--base", "master"],
+                        {
+                            cwd: r.dir,
+                            encoding: "utf8",
+                            env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_EVENT_PATH: "" },
+                        },
+                    ),
+                };
+            } catch (e) {
+                return { status: e.status, out: e.stdout };
+            }
+        };
+        const res = run();
+        assert.equal(res.status, 1, res.out);
+        assert.match(res.out, /an ordinary pull request/);
+        assert.match(res.out, /Breaking change:/);
+        assert.doesNotMatch(res.out, /Proof|fresh review/i);
     });
 });

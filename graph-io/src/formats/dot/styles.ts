@@ -191,6 +191,9 @@ const EDGE_ATTRIBUTES: readonly string[] = [
     "fillcolor",
     "headlabel",
     "taillabel",
+    "labelfontsize",
+    "labelfontcolor",
+    "labelfontname",
     "xlabel",
 ];
 
@@ -1671,6 +1674,34 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
     }
+    readEndLabelFace(get, scheme, put, at);
+}
+
+/**
+ * Reads the face of an edge's head and tail labels where it is not the label's: `labelfontsize`, `labelfontcolor` and
+ * `labelfontname` (https://graphviz.org/docs/attrs/labelfontsize/), each the edge's `fontsize`, `fontcolor` and
+ * `fontname` when unset, which the end labels then take from the label.
+ * @param get - the edge's attributes
+ * @param scheme - its color scheme
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEndLabelFace(get: Attr, scheme: string | null, put: Put, at: At): void {
+    const ends = (["target", "source"] as const).filter(
+        (end) => get(end === "target" ? "headlabel" : "taillabel") !== null,
+    );
+    const size = get("labelfontsize");
+    const font = get("labelfontname");
+    for (const end of ends) {
+        readColor(nonEmpty(get("labelfontcolor")), scheme, "text", `${end}LabelColor`, null, put, at);
+        if (size !== null) {
+            put(`${end}LabelSize`, canonNumber(size, at(`${end}LabelSize`)));
+        }
+        // ponytail: the family only; a bold or italic end-label face is drawn in the label's weight and slant
+        if (font !== null && font.length <= MAX_STYLE_VALUE_LENGTH) {
+            put(`${end}LabelFont`, graphvizFont(font).family);
+        }
+    }
 }
 
 /**
@@ -1716,6 +1747,7 @@ function labelPlaceContext(snapshot: GraphSnapshot): LabelPlaceContext {
             return v === null ? null : [v[0], v[1]];
         },
         node: (i, name) => nonEmpty(cellText(snapshot.nodes, name, i)),
+        external: (cellText(snapshot.graph, "layout", 0)?.trim().toLowerCase() ?? "dot") !== "dot",
     };
 }
 
@@ -1741,6 +1773,19 @@ function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): st
     if (source === null || target === null) {
         return null;
     }
+    return graphvizPosBends(source, target, pos);
+}
+
+/**
+ * The bends of an edge Graphviz laid, from its `pos` text (`[e,x,y] [s,x,y]` arrow tips, then each spline's
+ * `3n + 1` control points, y up, splines separated by `;`), between the two nodes' centers in the same coordinates.
+ * @param source - the source node's center
+ * @param target - the target node's center
+ * @param pos - the edge's `pos` text
+ * @returns the `bends` value, or null for a straight route or a `pos` that is not a spline
+ * @category Styles
+ */
+export function graphvizPosBends(source: BendPoint, target: BendPoint, pos: string): string | null {
     // the arrow tips of the first spline's start and the last spline's end
     const tip = (spline: string | undefined, flag: "s" | "e"): BendPoint | null => {
         const token = (spline ?? "")
@@ -1765,6 +1810,9 @@ function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): st
     );
     return graphvizRouteBends(source, target, splines, tips);
 }
+
+/** How far off the line between its nodes' centers, in points, a Graphviz route may pass and still be straight. */
+const GRAPHVIZ_STRAIGHT_POINTS = 1;
 
 /** How far apart Graphviz's neato lays the loops on one node, across (x) and along (y) its side, in points. */
 const GRAPHVIZ_LOOP_STEP = { x: 18, y: 9 } as const;
@@ -1863,9 +1911,13 @@ export function graphvizRouteBends(
     }
     const [dx, dy] = [target[0] - source[0], target[1] - source[1]];
     const length = Math.hypot(dx, dy);
-    const off = Math.max(...points.map(([x, y]) => Math.abs((x - source[0]) * dy - (y - source[1]) * dx)));
-    // a route on the line between the centers is the straight edge it looks like
-    return length > 0 && off / (length * length) > 1e-3 ? canonBends(source, target, points, false) : null;
+    const off =
+        length > 0
+            ? Math.max(...points.map(([x, y]) => Math.abs((x - source[0]) * dy - (y - source[1]) * dx))) / length
+            : 0;
+    // a route on the line between the centers is the straight edge it looks like: Graphviz draws its straight lines
+    // (`splines=false`) up to half a point off that line
+    return off > Math.max(1e-3 * length, GRAPHVIZ_STRAIGHT_POINTS) ? canonBends(source, target, points, false) : null;
 }
 
 /**

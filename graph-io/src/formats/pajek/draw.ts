@@ -139,6 +139,17 @@ export function drawsLineLabels(draw: PajekDraw | null): boolean {
 }
 
 /**
+ * Whether Pajek draws the arcs it would bow apart (a mutual pair, parallel arcs) straight: under Export Line Default /
+ * Straight Lines (`Form10.StraightLinesOnly1`, `pajek-specimen-edges-lines-p4` against `-p2`). A line's own Bezier
+ * route stays curved.
+ * @param draw - the settings, or null when the import names none (Pajek's defaults)
+ * @returns true when they are drawn straight
+ */
+export function drawsStraightLines(draw: PajekDraw | null): boolean {
+    return draw !== null && flag(draw, "Form10.StraightLinesOnly1");
+}
+
+/**
  * An ini number.
  * @param draw - the settings
  * @param name - the option

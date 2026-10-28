@@ -106,13 +106,25 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    JoinChoices,
+    JoinKey,
+    JoinRecord,
+    JoinReport,
+    JoinShape,
+    JoinSuggestion,
+    JoinWarning,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
     LoadedSource,
+    LoadedSourceKind,
     LoadedWeight,
     LoadMapping,
     LoadMappingRead,
+    LocationColumns,
+    LocationKind,
+    LocationUnused,
+    LocationUsing,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -129,6 +141,10 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemoveSourceResult,
+    ReplaceCounts,
+    ReplaceReport,
+    ReplaceUnboundCode,
     ResultCell,
     ResultColumn,
     ResultColumnDescriptor,
@@ -155,7 +171,9 @@ export type {
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    TypeChangePreview,
     ValueCounts,
+    ValueType,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 
@@ -168,8 +186,18 @@ export { createGraphSession } from "./src/session";
  * Read it at any time from `session.data.lastImport()`, or take it off the detail of
  * `data-loaded` and `data-loading-complete`.
  */
+export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
 export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
+export type {
+    RecipeColumn,
+    RecipeDocument,
+    RecipeIgnoredIssue,
+    RecipeJoin,
+    RecipeLeftOutCode,
+    RecipeSource,
+} from "./src/session/recipe";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates
@@ -219,6 +247,7 @@ export type {
 } from "./src/session";
 export { LOAD_ROLES } from "./src/session";
 export {
+    EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
@@ -265,6 +294,7 @@ export type {
     RunSpec,
     RunStatus,
     RunStyle,
+    RunWindow,
     StaleNote,
     StaleReason,
     StartOptions,
@@ -422,18 +452,47 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
-export type { TextMatchMode } from "./src/catalog/types";
+export type { RuleSide, SourceKey, TextMatchMode } from "./src/catalog/types";
 export type {
     AttributeLeafNodes,
     FilterResult,
     FilterStep,
     RuleTree,
+    StepCounts,
+    TimePlayback,
+    TimeResultsPolicy,
     TimeStep,
     TimeWindow,
     VisibilityApi,
     VisibilityChange,
     VisibilitySummary,
 } from "./src/session/visibility";
+
+// ---------------------------------------------------------------------------------------------
+// The timeline: a designated time field and a window that moves along it
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    TimeApi,
+    TimeBin,
+    TimeBinsOptions,
+    TimeCandidate,
+    TimeChanges,
+    TimeCountPair,
+    TimeCounts,
+    TimeExtent,
+    TimeField,
+    TimeFieldResult,
+    TimeIds,
+    TimeNoticeCode,
+    TimePlayMode,
+    TimePlayOptions,
+    TimeSettings,
+    TimeSource,
+    TimeStepEvent,
+    TimeUnit,
+    TimeWindowInput,
+} from "./src/session/time/TimeApi";
 
 // ---------------------------------------------------------------------------------------------
 // Asking what something would do and cost, before doing it
@@ -587,11 +646,13 @@ export type {
     SessionStylesApi,
     StyleAdjustmentCode,
     StyleAgreement,
+    StyleBatchChange,
     StyleChange,
     StyleColor,
     StyleContribution,
     StyleCounts,
     StyleExplanation,
+    StyleFileDocument,
     StyleRow,
     StyleRowId,
     StyleRowPin,

@@ -1,4 +1,4 @@
-/* The Data place (tier1-design.md section 2.6). */
+/* The Data place (data prototype spec sections 3.2 to 3.4). */
 .dp {
     display: flex;
     flex-direction: column;
@@ -24,4 +24,129 @@
 /* Find's empty state: one gray line (section 6). */
 .dp-no-match {
     padding: 4px 8px 4px 16px;
+}
+
+/* A row's quiet text: secondary ink, never wrapping. */
+.dp-quiet {
+    color: var(--mantine-color-dimmed);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+/* One Sources row: the row button, then its hover actions. */
+.dp-source {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 28px;
+    padding-inline: 8px 4px;
+    border-radius: 4px;
+}
+
+.dp-source:hover,
+.dp-source[data-selected] {
+    background: var(--mantine-color-default-hover);
+}
+
+.dp-source-main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    text-align: start;
+    cursor: pointer;
+}
+
+.dp-source-icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--mantine-color-dimmed);
+}
+
+.dp-source-name {
+    flex: 1 1 auto;
+    min-width: 4em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The counts give way before the name does. */
+.dp-source-main .dp-quiet {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dp-source-chips {
+    display: inline-flex;
+    flex: none;
+    gap: 4px;
+}
+
+/*
+ * Load more, Refresh and "..." take the chips' place on hover, on keyboard focus, while the row's
+ * menu is open and while one of them runs, so they are never drawn over the chips. Folded to no
+ * width rather than removed, so a keyboard and a screen reader still reach them.
+ */
+.dp-source-actions {
+    display: inline-flex;
+    flex: none;
+    gap: 2px;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+}
+
+.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-actions {
+    max-width: none;
+    overflow: visible;
+    opacity: 1;
+}
+
+.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-chips {
+    display: none;
+}
+
+.dp-rename {
+    flex: 1;
+}
+
+/* Fields: the load's name, then each side's rows under its node or edge chip. */
+.dp-fields-source {
+    padding: 4px 0;
+}
+
+/* A side's header: its chip, and the "+" that adds a field, at the right end. */
+.dp-fields-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0 2px;
+}
+
+/* An entry's kind: its glyph and name, in the label column. */
+.dp-entry-kind {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+/* A setting of the entry above it, indented under it. */
+/* An entry the element lists but does not read; its tooltip and description say why. */
+.dp-entry-unused {
+    opacity: 0.55;
+}
+
+.dp-sub-label {
+    padding-inline-start: 18px;
 }

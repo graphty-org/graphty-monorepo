@@ -56,6 +56,8 @@ export {
 } from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";
 export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src/catalog/algorithms";
+export type { BasemapSourceDescriptor } from "./src/catalog/basemaps";
+export { BASEMAP_SOURCE_DESCRIPTORS } from "./src/catalog/basemaps";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
@@ -82,6 +84,8 @@ export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catal
 // Shaders as catalog data: targets and places, the descriptor `session.catalog.shaders()` lists,
 // the uses a layer lists, the channels a shader covers, the shader text format read and written
 // with no DOM, and a working template for each place.
+export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
+export { SCREENSHOT_PRESET_DESCRIPTORS } from "./src/catalog/screenshotPresets";
 export type {
     ShaderClock,
     ShaderClockBinding,
@@ -115,6 +119,7 @@ export { formatShaderText, parseShaderText, type ShaderTextOptions } from "./src
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { ShaderParamAddress } from "./src/catalog/types";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { SourceCatalogEntry, SourceFeatures } from "./src/session/sources/types";
 export type { TransitionDescriptor, TransitionDrawable } from "./src/transitions/registry";
 export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
@@ -173,6 +178,7 @@ export type {
     PathKind,
     ResultId,
     ResultItem,
+    RuleSide,
     RuleTree,
     Scope,
     ScopeId,
@@ -184,6 +190,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    SourceKey,
     TextMatchMode,
     TopTies,
 } from "./src/catalog/types";

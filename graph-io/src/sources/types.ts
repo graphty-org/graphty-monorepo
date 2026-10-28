@@ -224,6 +224,18 @@ export interface RetryOptions {
 }
 
 /**
+ * How much a source holds for a load, as it counted it, so a caller can show "100 of 28,455".
+ * Experimental.
+ * @category Network sources
+ */
+export interface SourceTotal {
+    /** The nodes the load's params match at the source. */
+    readonly nodes?: number | undefined;
+    /** The edges the load's params match at the source. */
+    readonly edges?: number | undefined;
+}
+
+/**
  * Facts a source reports with `ctx.finish()`. Experimental.
  * @category Network sources
  */
@@ -243,6 +255,8 @@ export interface SourceFinish {
         | undefined;
     /** What lets a later call tell whether the data changed. */
     readonly validators?: SourceValidators | undefined;
+    /** What the source holds for this load, when it counted: the nodes and edges it matches. */
+    readonly total?: SourceTotal | undefined;
 }
 
 /**
@@ -357,6 +371,39 @@ export interface SourceSample {
         | undefined;
     /** false: too big to load whole; start from a neighborhood. */
     readonly whole?: boolean | undefined;
+    /**
+     * A node cap for loading the sample when the caller gives none, for a sample too big to load
+     * whole that pages: the load stops at the first page past it, and its cursor reads on.
+     */
+    readonly firstPage?: number | undefined;
+}
+
+/**
+ * One credential a source takes, as its descriptor declares it: a name a project file records
+ * instead of the credential, the kind, whether a load needs it, and for an API key how it is sent.
+ * `credentials.forSlot(slot, value)` makes the credential it describes. Experimental.
+ * @category Network sources
+ */
+export interface SourceCredentialSlot {
+    /** The slot's name, recorded as a load's `credentialSlot` ("api_key", "default"). */
+    readonly name: string;
+    /** The credential kind it takes. */
+    readonly kind: CredentialKind;
+    /** Whether a load needs it. @defaultValue false */
+    readonly required?: boolean | undefined;
+    /** Its default name; catalog data an application may replace by name. */
+    readonly plainName?: string | undefined;
+    /** For an API key: the query parameter or request header it is sent in. */
+    readonly send?:
+        | {
+              /** The query parameter the key is sent in. */
+              readonly query: string;
+          }
+        | {
+              /** The request header the key is sent in. */
+              readonly header: string;
+          }
+        | undefined;
 }
 
 /**
@@ -377,6 +424,25 @@ export interface SourceDescriptor {
     readonly auth?: readonly CredentialKind[] | undefined;
     /** Whether a credential is needed. @defaultValue "none" */
     readonly authRequired?: "required" | "optional" | "none" | undefined;
+    /**
+     * The credential slots it takes. A source that takes a credential (`auth`) and declares none
+     * has one slot, `default`: `credentialSlots(descriptor)` reads either. @defaultValue []
+     */
+    readonly credentials?: readonly SourceCredentialSlot[] | undefined;
+    /**
+     * Where an `api-key` credential goes, for a form that asks for the key alone: pass it to
+     * `credentials.apiKey(descriptor.apiKey, key)`. Absent when the caller must say.
+     */
+    readonly apiKey?:
+        | {
+              /** The request header that carries the key. */
+              readonly header: string;
+          }
+        | {
+              /** The query parameter that carries the key. */
+              readonly query: string;
+          }
+        | undefined;
     /** The endpoint used when the caller names none. @defaultValue null */
     readonly defaultEndpoint?: string | null | undefined;
     /** Where it runs; a runtime marked unsupported is refused with E_SOURCE_RUNTIME before any request. */
@@ -584,6 +650,8 @@ export interface SourceReportInfo {
         | undefined;
     /** What lets a later call tell whether the data changed. */
     readonly validators?: SourceValidators | undefined;
+    /** What the source holds for this load, when it counted: the nodes and edges it matches. */
+    readonly total?: SourceTotal | undefined;
 }
 
 /**

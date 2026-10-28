@@ -104,8 +104,24 @@ const SUBJECT_TREE = "Styles/";
  * "screen" came with `labelMinScreenSize`, the screen size below which a label is hidden; in a
  * story name -- `ScreenSizedLabels` -- it is the label style's `sizeMode: "screen"`, a value
  * rather than a channel. The minimum-size stories are still checked under "min" and "size".
+ *
+ * "left" came with `groupMinWidthBiasLeft`, which side of a group a minimum width grows from; in
+ * a story name -- `StudioAboveLeftFront` -- it is the direction a light shines from. The bias
+ * stories are still checked under "bias".
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "effect", "on", "line", "box", "screen"]);
+const NOT_A_SUBJECT = new Set([
+    "node",
+    "edge",
+    "style",
+    "text",
+    "font",
+    "effect",
+    "on",
+    "line",
+    "box",
+    "screen",
+    "left",
+]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {

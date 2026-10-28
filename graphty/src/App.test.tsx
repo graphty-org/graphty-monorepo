@@ -26,15 +26,14 @@ describe("App", () => {
     it("renders the workspace, on its start screen", async () => {
         render(<App />);
 
-        // The start screen shows once the check for this tab's own kept work has answered.
-        expect(await screen.findByRole("region", { name: "Sample library" })).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: /^Open a file/ })).toBeInTheDocument();
     });
 
     it("renders the compact component gallery at ?demo", async () => {
         await withSearch("?demo", () => {
             render(<App />);
 
-            expect(screen.queryByRole("region", { name: "Sample library" })).not.toBeInTheDocument();
+            expect(screen.queryByRole("button", { name: /^Open a file/ })).not.toBeInTheDocument();
         });
     });
 
@@ -43,7 +42,7 @@ describe("App", () => {
             await withSearch(search, async () => {
                 render(<App />);
 
-                expect(await screen.findByRole("region", { name: "Sample library" })).toBeInTheDocument();
+                expect(await screen.findByRole("button", { name: /^Open a file/ })).toBeInTheDocument();
             });
         });
     }

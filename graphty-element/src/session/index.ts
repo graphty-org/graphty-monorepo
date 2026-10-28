@@ -10,16 +10,26 @@
  * enforces it.
  */
 
+export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
+export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./issues";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
+export type {
+    RecipeColumn,
+    RecipeDocument,
+    RecipeIgnoredIssue,
+    RecipeJoin,
+    RecipeLeftOutCode,
+    RecipeSource,
+} from "./recipe";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type { LoadStyleReport } from "./styles/fileStyles/apply";
 export type {
@@ -92,13 +102,25 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    JoinChoices,
+    JoinKey,
+    JoinRecord,
+    JoinReport,
+    JoinShape,
+    JoinSuggestion,
+    JoinWarning,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
     LoadedSource,
+    LoadedSourceKind,
     LoadedWeight,
     LoadMapping,
     LoadMappingRead,
+    LocationColumns,
+    LocationKind,
+    LocationUnused,
+    LocationUsing,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -116,6 +138,10 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemoveSourceResult,
+    ReplaceCounts,
+    ReplaceReport,
+    ReplaceUnboundCode,
     ResultCell,
     ResultColumn,
     ResultColumnDescriptor,
@@ -142,6 +168,8 @@ export type {
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    TypeChangePreview,
     ValueCounts,
+    ValueType,
 } from "./types";
 export { COMPONENT_SIZE_CAP } from "./types";

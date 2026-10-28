@@ -229,6 +229,9 @@ function fromComponents(rgba: Rgba): ColorValue {
 // The enumerated values, read out of the element's own schemas
 // ---------------------------------------------------------------------------------------------
 
+/** What a group's `paddingRatio` is a fraction of. */
+export type GroupPaddingOfValue = NonNullable<NonNullable<NodeStyleConfig["group"]>["paddingOf"]>;
+
 /** A node shape the element can build a mesh for. */
 export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
 
@@ -285,6 +288,11 @@ export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["
 export type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"]>["kind"]>;
 /** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
 export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
+/** The force law an edge's support point settles under (`edge.supportModel`). */
+export type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
+
+/** A value of `edge.route`: the path a line takes between its nodes. */
+export type EdgeRouteValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["route"]>;
 export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
 /** How a node's gradient fill runs (`node.gradientKind`): straight across it, or out from its middle. */
 export type NodeGradientKindValue = "linear" | "radial";
@@ -468,6 +476,14 @@ export interface ChannelValues {
     "node.chartLineWidth": number;
     "node.chartBorderColor": ColorValue;
     "node.chartBorderWidth": number;
+    "node.groupPadding": number;
+    "node.groupPaddingRatio": number;
+    "node.groupPaddingOf": GroupPaddingOfValue;
+    "node.groupMinWidth": number;
+    "node.groupMinHeight": number;
+    "node.groupMinWidthBiasLeft": number;
+    "node.groupMinHeightBiasTop": number;
+    "node.groupIncludeLabels": boolean;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.minScreenWidth": number;
@@ -498,7 +514,17 @@ export interface ChannelValues {
     "edge.fanned": boolean;
     "edge.bendCurve": EdgeBendCurveValue;
     "edge.arcRadius": number;
+    "edge.supportModel": EdgeSupportModelValue;
+    "edge.supportSpringLength": number;
+    "edge.supportSpringConstant": number;
+    "edge.supportRepulsion": number;
+    "edge.supportCentralGravity": number;
+    "edge.supportUnit": number;
+    "edge.route": EdgeRouteValue;
+    "edge.arcHeight": number;
     "edge.nodeGap": number;
+    "edge.sourceNodeGap": number;
+    "edge.targetNodeGap": number;
     "edge.sourcePort": string;
     "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
@@ -933,6 +959,9 @@ const NODE_GRADIENT_CAVEAT =
 /** How a node's gradient fill runs. */
 const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
 const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
+const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut", "forceAtlas2"];
+const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
+const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -969,6 +998,17 @@ const NODE_STRIPE_DIRECTION_VALUES: readonly NodeStripeDirectionValue[] = ["down
 
 /** What a node's chart draws. */
 const NODE_CHART_KIND_VALUES: readonly NodeChartKindValue[] = ["bar", "stacked-bar", "line", "box", "cells"];
+
+const NODE_GROUP_CAVEAT =
+    "How a group drawn round its members (a node other nodes name as their parent, with no box of its own) is " +
+    "sized, as a Cytoscape.js compound parent is: its members' box, their labels counted with " +
+    "`node.groupIncludeLabels`, at least `node.groupMinWidth` by `node.groupMinHeight` (the growth split by " +
+    "`node.groupMinWidthBiasLeft` and `node.groupMinHeightBiasTop`), then `node.groupPadding` larger on every side, " +
+    "or `node.groupPaddingRatio` times its `node.groupPaddingOf` side. Lengths are in the units of `node.size`. " +
+    "Unset, a group reaches its largest member's radius past its members.";
+
+/** The sides a group's padding ratio can be measured against. */
+const GROUP_PADDING_OF_VALUES: readonly GroupPaddingOfValue[] = ["width", "height", "average", "min", "max"];
 
 const NODE_CHART_CAVEAT =
     "A chart over the node's face, drawn when `node.chartValues` (numbers separated by spaces) and " +
@@ -3141,6 +3181,109 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_CHART_CAVEAT,
     },
+    "node.groupPadding": {
+        channel: "node.groupPadding",
+        target: "node",
+        plainName: "Node Group Padding",
+        shortName: "Group padding",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "group.padding",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupPaddingRatio": {
+        channel: "node.groupPaddingRatio",
+        target: "node",
+        plainName: "Node Group Padding Ratio",
+        shortName: "Group padding ratio",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "group.paddingRatio",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupPaddingOf": {
+        channel: "node.groupPaddingOf",
+        target: "node",
+        plainName: "Node Group Padding Of",
+        shortName: "Group padding of",
+        group: "shape",
+        default: "width",
+        accepts: "enum",
+        values: GROUP_PADDING_OF_VALUES,
+        stylePath: "group.paddingOf",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinWidth": {
+        channel: "node.groupMinWidth",
+        target: "node",
+        plainName: "Node Group Min Width",
+        shortName: "Group min width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "group.minWidth",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinHeight": {
+        channel: "node.groupMinHeight",
+        target: "node",
+        plainName: "Node Group Min Height",
+        shortName: "Group min height",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "group.minHeight",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinWidthBiasLeft": {
+        channel: "node.groupMinWidthBiasLeft",
+        target: "node",
+        plainName: "Node Group Min Width Bias Left",
+        shortName: "Group min width bias left",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "group.minWidthBiasLeft",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupMinHeightBiasTop": {
+        channel: "node.groupMinHeightBiasTop",
+        target: "node",
+        plainName: "Node Group Min Height Bias Top",
+        shortName: "Group min height bias top",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "group.minHeightBiasTop",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
+    "node.groupIncludeLabels": {
+        channel: "node.groupIncludeLabels",
+        target: "node",
+        plainName: "Node Group Include Labels",
+        shortName: "Group include labels",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "group.includeLabels",
+        renderable: true,
+        caveat: NODE_GROUP_CAVEAT,
+    },
     "node.cornerRadius": {
         channel: "node.cornerRadius",
         target: "node",
@@ -3696,6 +3839,117 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "circle; larger is flatter). Left unset, the edge keeps the element's own bow. A straight " +
             "edge ignores it.",
     },
+    "edge.supportModel": {
+        channel: "edge.supportModel",
+        target: "edge",
+        plainName: "Edge Support Model",
+        shortName: "Support model",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_SUPPORT_MODEL_VALUES,
+        stylePath: "line.supportModel",
+        renderable: true,
+        caveat:
+            "Draws a curved edge as one quadratic curve through a support point a force simulation " +
+            "places: tied to the two nodes by springs, pushed away by every node and every other " +
+            'support point, pulled toward the middle of the nodes. "barnesHut" pushes by repulsion over ' +
+            'the distance squared and pulls with a constant force; "forceAtlas2" pushes by repulsion over ' +
+            "the distance and pulls in proportion to it. The nodes stay where the layout puts them, so " +
+            "an edge bows away from crowding and edges between the same two nodes bow apart. Left unset, " +
+            "no support point. A straight edge ignores it.",
+    },
+    "edge.supportSpringLength": {
+        channel: "edge.supportSpringLength",
+        target: "edge",
+        plainName: "Edge Support Spring Length",
+        shortName: "Spring length",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportSpringLength",
+        renderable: true,
+        caveat: `The length the two springs of the support point rest at together, in support units (95 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportSpringConstant": {
+        channel: "edge.supportSpringConstant",
+        target: "edge",
+        plainName: "Edge Support Spring Constant",
+        shortName: "Spring constant",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportSpringConstant",
+        renderable: true,
+        caveat: `How hard the springs of the support point pull per unit they are stretched (0.04 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportRepulsion": {
+        channel: "edge.supportRepulsion",
+        target: "edge",
+        plainName: "Edge Support Repulsion",
+        shortName: "Repulsion",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportRepulsion",
+        renderable: true,
+        caveat: `How hard every node and every other support point push the support point away (2000 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportCentralGravity": {
+        channel: "edge.supportCentralGravity",
+        target: "edge",
+        plainName: "Edge Support Central Gravity",
+        shortName: "Central gravity",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.supportCentralGravity",
+        renderable: true,
+        caveat: `How hard the support point is pulled toward the middle of the nodes (0.3 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportUnit": {
+        channel: "edge.supportUnit",
+        target: "edge",
+        plainName: "Edge Support Unit",
+        shortName: "Support unit",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        exclusiveMin: true,
+        stylePath: "line.supportUnit",
+        renderable: true,
+        caveat: `How many scene units one support unit is, the unit of the lengths and forces of the support (1 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.route": {
+        channel: "edge.route",
+        target: "edge",
+        plainName: "Edge Route",
+        shortName: "Route",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_ROUTE_VALUES,
+        stylePath: "line.route",
+        renderable: true,
+        caveat:
+            'The path an edge takes between its nodes: "straight"; "arc", raised toward the viewer in the ' +
+            'vertical plane through both ends; "great-circle", along the great circle about the scene\'s ' +
+            "origin, lifted at its middle. Left unset, the layout decides: the location map raises arcs " +
+            "over its flat map in 3D and draws great circles on its globe; every other layout draws straight.",
+    },
+    "edge.arcHeight": {
+        channel: "edge.arcHeight",
+        target: "edge",
+        plainName: "Edge Arc Height",
+        shortName: "Arc height",
+        group: "line",
+        default: 0.25,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.arcHeight",
+        renderable: true,
+        caveat:
+            "How high a raised route rises at its middle, as a share of the distance between its ends: " +
+            "0.25 for an arc unset, 0.1 for a great circle. A straight route ignores it.",
+    },
     "edge.nodeGap": {
         channel: "edge.nodeGap",
         target: "edge",
@@ -3711,6 +3965,36 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "How far from each of its nodes' outlines the line stops, in the scene's units, leaving that " +
             "much empty between the node and the line's end; an arrow cap there moves out with it. A " +
             "self-loop ignores it.",
+    },
+    "edge.sourceNodeGap": {
+        channel: "edge.sourceNodeGap",
+        target: "edge",
+        plainName: "Edge Source Node Gap",
+        shortName: "Source gap",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.sourceNodeGap",
+        renderable: true,
+        caveat:
+            "How far from its source node's outline the line stops, in the scene's units, in place of " +
+            "`edge.nodeGap` at that end; an arrow cap there moves out with it. A self-loop ignores it.",
+    },
+    "edge.targetNodeGap": {
+        channel: "edge.targetNodeGap",
+        target: "edge",
+        plainName: "Edge Target Node Gap",
+        shortName: "Target gap",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.targetNodeGap",
+        renderable: true,
+        caveat:
+            "How far from its target node's outline the line stops, in the scene's units, in place of " +
+            "`edge.nodeGap` at that end; an arrow cap there moves out with it. A self-loop ignores it.",
     },
     "edge.sourcePort": {
         channel: "edge.sourcePort",

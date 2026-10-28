@@ -91,6 +91,10 @@ export class OperationQueueManager implements Manager {
     // Active operation controllers for cancellation
     private readonly activeControllers = new Map<string, AbortController>();
 
+    // The delayed cleanups of finished operations. Cleared on dispose: each one holds this manager,
+    // and through it the whole graph, until it fires (issue #3413).
+    private readonly cleanupTimers = new Set<ReturnType<typeof setTimeout>>();
+
     // Track running vs queued operations
     private readonly runningOperations = new Map<string, Operation>();
     private readonly queuedOperations = new Map<string, Operation>();
@@ -245,6 +249,12 @@ export class OperationQueueManager implements Manager {
         this.activeControllers.forEach((controller) => {
             controller.abort();
         });
+
+        // A disposed graph is garbage at once, not a second after its last operation.
+        this.cleanupTimers.forEach((timer) => {
+            clearTimeout(timer);
+        });
+        this.cleanupTimers.clear();
 
         // Before the maps are emptied, because emptying them is what loses the resolvers.
         this.settleEveryOutstandingOperation();
@@ -549,11 +559,15 @@ export class OperationQueueManager implements Manager {
                             };
                             await this.executeOperation(operation, context);
                         } finally {
-                            // Cleanup progress and controller after delay
-                            setTimeout(() => {
-                                this.operationProgress.delete(operation.id);
-                                this.activeControllers.delete(operation.id);
+                            // Cleanup progress and controller after delay. Only the id is
+                            // captured: the operation holds its work, and the work the graph.
+                            const { id } = operation;
+                            const timer = setTimeout(() => {
+                                this.cleanupTimers.delete(timer);
+                                this.operationProgress.delete(id);
+                                this.activeControllers.delete(id);
                             }, CLEANUP_DELAY_MS);
+                            this.cleanupTimers.add(timer);
                         }
                     },
                     {
@@ -883,6 +897,19 @@ export class OperationQueueManager implements Manager {
      */
     async settled(): Promise<void> {
         return this.waitForCompletion();
+    }
+
+    /**
+     * Whether an operation is queued, about to be, or running: what
+     * {@link OperationQueueManager.waitForCompletion} waits for, asked without waiting.
+     *
+     * Not an operation held by an open `batchOperations()` callback: it runs only when the batch
+     * closes, so a settle wait made inside the batch that counted it would wait for ever, and
+     * `waitForCompletion` does not wait for it either.
+     * @returns True until the queue is idle.
+     */
+    get hasWork(): boolean {
+        return this.currentBatch.size > 0 || this.queue.size > 0 || this.queue.pending > 0;
     }
 
     /**

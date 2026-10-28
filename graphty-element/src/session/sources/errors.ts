@@ -59,3 +59,19 @@ export function notBuiltYet(feature: string): GraphtyError {
         details: { feature },
     });
 }
+
+/**
+ * The refusal of a fetch for a load an opened project holds that has not run since it opened: a
+ * file's entry fetches nothing until the application runs it with `runPendingSourceLoad`, after
+ * the reader approved (sources.md, "Reopening").
+ * @param id - the load's key
+ * @returns the error
+ */
+export function notYetRun(id: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_SOURCE_PENDING",
+        message: `The load ${id} of the opened project has not been run yet; run it with runPendingSourceLoad first.`,
+        source: "data",
+        details: { id },
+    });
+}

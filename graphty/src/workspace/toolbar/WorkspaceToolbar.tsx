@@ -231,10 +231,10 @@ function viewMode(session: GraphSession | null): keyof typeof MODE_WORDS {
 }
 
 /**
- * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View | Legend, Table, Filters | Quick
+ * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View | Legend, Table, Timeline, Filters | Quick
  * actions, at the canvas's bottom center; a selection never changes it. Legend and Table are
- * toggles, pressed while what they switch is showing; Filters opens the Data place's step editor
- * on a new step. Analyze, Layout and Quick actions open
+ * toggles, pressed while what they switch is showing, as is Timeline (the timeline strip); Filters
+ * opens the Data place's step editor on a new step. Analyze, Layout and Quick actions open
  * popovers above it and View opens its flyout; each holds the store's one `dialog` slot, so only
  * one is open at a time and Esc or a click outside closes it. A popover's body is mounted only
  * while it is open, so each opening starts fresh (Analyze on its list, the filter empty).
@@ -248,6 +248,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
     // says nothing is styled yet); a switch that is on by default over nothing reads as off.
     const legendShown = useWorkspaceState((state) => state.legendShown && (state.keyHasEntries || state.legendAsked));
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
+    const timelineOpen = useWorkspaceState((state) => state.timelineOpen);
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as
     // they mount, before Mantine records it, so it would hand focus back to a box that is gone.
@@ -383,6 +384,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
             <Toolbar.Divider />
             <CommandTool command="view.legend" icon={<GLYPHS.legend size={20} />} selected={legendShown} />
             <CommandTool command="table.toggle" icon={<GLYPHS.table size={20} />} selected={dockOpen} />
+            <CommandTool command="timeline.toggle" icon={<GLYPHS.timeline size={20} />} selected={timelineOpen} />
             <CommandTool command="filters.open" icon={<GLYPHS.filter size={20} />} />
             <Toolbar.Divider />
             <Popover {...popoverProps("quick-actions")}>

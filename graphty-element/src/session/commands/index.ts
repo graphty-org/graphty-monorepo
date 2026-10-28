@@ -6,6 +6,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { ISSUE_DEFINITIONS } from "../issues";
 import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
@@ -95,6 +96,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...ALGO_DEFINITIONS,
     batch,
     ...DATA_DEFINITIONS,
+    ...ISSUE_DEFINITIONS,
     ...SOURCE_LOAD_DEFINITIONS,
     ...SOURCE_EXPAND_DEFINITIONS,
     ...STYLE_DEFINITIONS,

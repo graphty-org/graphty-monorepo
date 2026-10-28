@@ -95,6 +95,9 @@ export type {
 
 export type {
     AdHocData,
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
     EdgeStyleConfig,
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
@@ -102,11 +105,14 @@ export type {
     ImageData,
     LayoutTransitionConfig,
     Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     ViewMode,
 } from "./src/config/index";
 export {
+    Basemap,
     colorToHex,
     DEFAULT_BACKGROUND_COLOR,
     DEFAULT_LIGHTING,

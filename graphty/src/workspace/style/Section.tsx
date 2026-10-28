@@ -5,17 +5,16 @@ import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { arrowheadNote } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
 import { type PasteInit, PasteShaderDialog } from "./PasteShaderDialog";
 import { Field, type RowContext } from "./PropertyRow";
-import { lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
 import { addShader, moveShader, shaderEntries, writeWireframe } from "./shaderSlots";
 import { focusLineNext, headerBottom } from "./useFocusLine";
-import { channelWord, failureWords, fieldName, type SectionSpec, TWO_WORDS } from "./words";
+import { channelWord, failureWords, fieldName, OPACITY_OF, type SectionSpec, TWO_WORDS } from "./words";
 
 /**
  * The tab's own style options a gallery search also finds (decisions-v2, section 2.2): Outline,
@@ -61,17 +60,33 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
 }
 
+/** Why an undirected graph's Arrowheads add nothing: its edges have no direction to point. */
+const NO_ARROWHEADS = "Not available: undirected graph";
+
 /**
- * A section's one help line, or null: on edges, Arrowheads says what arrowheads follow on a graph
- * that is not directed; on nodes, Shape with an outline says where its width is set.
+ * Why a section's "+" adds nothing on this graph, or null: Arrowheads on an undirected graph.
+ * @param ctx - the row and kind.
+ * @param spec - the section.
+ * @returns the words, or null.
+ */
+function notAvailable(ctx: RowContext, spec: SectionSpec): string | null {
+    return ctx.side === "edge" && spec.id === "ends" && ctx.session.data.statistics().directedness === "undirected"
+        ? NO_ARROWHEADS
+        : null;
+}
+
+/**
+ * A section's one help line, or null: on edges, Arrowheads says they are not available on an
+ * undirected graph; on nodes, Shape with an outline says where its width is set.
  * @param ctx - the row and kind.
  * @param spec - the section.
  * @param set - the properties the row sets in it.
  * @returns the words, or null.
  */
 function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDescriptor[]): string | null {
-    if (ctx.side === "edge" && spec.id === "ends") {
-        return arrowheadNote(ctx.session.data.statistics().directedness);
+    const blocked = notAvailable(ctx, spec);
+    if (blocked !== null) {
+        return blocked;
     }
     if (ctx.side === "node" && spec.id === "shape" && set.some((d) => d.channel === "node.outline")) {
         return "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
@@ -114,7 +129,13 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     const set = descriptors.filter((d) => isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);
-    const unset = descriptors.filter((d) => !set.includes(d) && !pending.includes(d));
+    // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
+    // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line.
+    const folded = new Set(
+        set.flatMap((d) => (OPACITY_OF[d.channel] === undefined ? [] : (carriedOpacity(ctx, d.channel) ?? []))),
+    );
+    const boxed = new Set(Object.values(OPACITY_OF));
+    const unset = descriptors.filter((d) => !set.includes(d) && !pending.includes(d) && !boxed.has(d.channel));
     // A line "+" added keeps the place it was added at, below the lines set before it, once its
     // value is written too: drawn in the section's order, it would jump above them under the
     // reader's eyes.
@@ -122,7 +143,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     const lines = [
         ...set.filter((d) => !added.includes(d)),
         ...added.filter((d) => set.includes(d) || pending.includes(d)),
-    ];
+    ].filter((d) => !folded.has(d.channel));
     const fail = (verb: string) => (error: unknown) => {
         focusLineNext(null);
         startingAdds.delete(ctx.session);
@@ -197,6 +218,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                         kind={ctx.side}
                         title={spec.title}
                         options={unset.flatMap(optionsFor)}
+                        disabledReason={notAvailable(ctx, spec) ?? undefined}
                         onAdd={(key) => {
                             const [channel, pick] = key.split("=");
                             const descriptor = unset.find((d) => d.channel === channel);
@@ -478,7 +500,7 @@ export interface AddOption {
  * @param props.title - the section's title
  * @param props.options - what it can add, in menu order
  * @param props.onAdd - adds one, by its key
- * @param props.blocked - why it adds nothing, when that is not that everything is set
+ * @param props.disabledReason - why it adds nothing on this graph, which disables it as a full one is
  * @param props.expanded - whether the pop-out its one item opens is open (a shader gallery)
  * @returns The button and its menu
  */
@@ -487,19 +509,19 @@ export function AddButton({
     title,
     options,
     onAdd,
-    blocked,
+    disabledReason,
     expanded,
 }: Readonly<{
     kind: "node" | "edge";
     title: string;
     options: readonly AddOption[];
     onAdd: (key: string) => void;
-    blocked?: string;
+    disabledReason?: string;
     expanded?: boolean;
 }>): React.JSX.Element {
     const name = `Add to ${kind} ${title.toLowerCase()}`;
-    const full = options.length === 0;
-    const reason = blocked ?? `Everything in ${kind} ${title.toLowerCase()} is set`;
+    const full = options.length === 0 || disabledReason !== undefined;
+    const reason = disabledReason ?? `Everything in ${kind} ${title.toLowerCase()} is set`;
     const button = (
         <ActionIcon
             variant="subtle"

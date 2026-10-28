@@ -158,6 +158,14 @@ const DECLARED = [
     "node.chartLineWidth",
     "node.chartBorderColor",
     "node.chartBorderWidth",
+    "node.groupPadding",
+    "node.groupPaddingRatio",
+    "node.groupPaddingOf",
+    "node.groupMinWidth",
+    "node.groupMinHeight",
+    "node.groupMinWidthBiasLeft",
+    "node.groupMinHeightBiasTop",
+    "node.groupIncludeLabels",
     "node.cornerRadius",
     "node.exactCornerRadius",
     "node.shapePoints",
@@ -205,7 +213,17 @@ const DECLARED = [
     "edge.fanned",
     "edge.bendCurve",
     "edge.arcRadius",
+    "edge.supportModel",
+    "edge.supportSpringLength",
+    "edge.supportSpringConstant",
+    "edge.supportRepulsion",
+    "edge.supportCentralGravity",
+    "edge.supportUnit",
+    "edge.route",
+    "edge.arcHeight",
     "edge.nodeGap",
+    "edge.sourceNodeGap",
+    "edge.targetNodeGap",
     "edge.sourcePort",
     "edge.targetPort",
     "edge.arrowHead",
@@ -339,9 +357,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-three node channels and one hundred and thirty-three edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 153);
-        assert.strictEqual(channelsFor("edge").length, 133);
+    it("splits into one hundred and sixty-one node channels and one hundred and forty-three edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 161);
+        assert.strictEqual(channelsFor("edge").length, 143);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -562,6 +580,9 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        // Unset, a group reaches its largest member's radius past its members.
+        "node.groupPadding",
+        "node.groupPaddingRatio",
         "node.shapeParts",
         "node.shapeLines",
         "node.shapeTexts",
@@ -643,6 +664,15 @@ describe("what a style editor needs to draw a row", () => {
         "edge.fanned",
         // Unset, a curved edge keeps the element's own bow.
         "edge.arcRadius",
+        // Unset, a curved edge has no support point, and the support's numbers have nothing to place.
+        "edge.supportModel",
+        "edge.supportSpringLength",
+        "edge.supportSpringConstant",
+        "edge.supportRepulsion",
+        "edge.supportCentralGravity",
+        "edge.supportUnit",
+        // Unset, the layout decides the route: straight but on a geographic map.
+        "edge.route",
         "edge.sourcePort",
         "edge.targetPort",
         // Unset, a line is painted in its color.

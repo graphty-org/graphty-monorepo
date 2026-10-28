@@ -1,0 +1,3454 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>suppliers</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #7cc4f8;
+            }
+            a:hover {
+                color: #80caff;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                position: relative;
+                width: 1440px;
+                height: 900px;
+                display: flex;
+                flex-direction: column;
+                background: #2c2c2c;
+                color: #ffffff;
+                overflow: hidden;
+                font-size: 12px;
+                line-height: 16px;
+            "
+        >
+            <div
+                style="
+                    height: 40px;
+                    flex: none;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 14px;
+                    border-bottom: 1px solid #444444;
+                    background: #2c2c2c;
+                "
+            >
+                <span style="color: #b3b3b3; display: flex"
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M2.5 4h11M2.5 8h11M2.5 12h11" /></svg
+                ></span>
+                <span style="font-size: 13px; font-weight: 600">suppliers</span>
+                <span style="color: #b3b3b3; display: flex; gap: 10px"
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5 3L2 6l3 3" />
+                        <path d="M2 6h7a4 4 0 010 8H7" /></svg
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M11 3l3 3-3 3" />
+                        <path d="M14 6H7a4 4 0 000 8h2" /></svg
+                ></span>
+
+                <span style="color: #b3b3b3; display: flex; align-items: center; gap: 6px"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                        <path d="M5.5 7V5a2.5 2.5 0 015 0v2" /></svg
+                    ><span>Local only</span></span
+                >
+            </div>
+            <div style="flex: 1; display: flex; min-height: 0">
+                <div
+                    style="
+                        width: 56px;
+                        flex: none;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 12px 0;
+                        border-right: 1px solid #444444;
+                        background: #2c2c2c;
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 14px">
+                        <div
+                            style="display: flex; flex-direction: column; align-items: center; gap: 3px; color: #b3b3b3"
+                        >
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    border-radius: 6px;
+                                    background: transparent;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <circle cx="4" cy="4" r="2" />
+                                    <circle cx="12" cy="6" r="2" />
+                                    <circle cx="6" cy="12" r="2" />
+                                    <path d="M5.7 5L10.2 5.7M4.6 5.9l.9 4.2" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px">Graph</span>
+                        </div>
+                        <div
+                            style="display: flex; flex-direction: column; align-items: center; gap: 3px; color: #ffffff"
+                        >
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    border-radius: 6px;
+                                    background: #0a6dc2;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <ellipse cx="8" cy="4" rx="5" ry="2" />
+                                    <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4" />
+                                    <path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px">Data</span>
+                        </div>
+                        <div
+                            style="display: flex; flex-direction: column; align-items: center; gap: 3px; color: #b3b3b3"
+                        >
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    border-radius: 6px;
+                                    background: transparent;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M4 2.5h6l2.5 2.5v8.5h-8.5z" />
+                                    <path d="M10 2.5V5h2.5" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px">Notes</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; color: #b3b3b3">
+                        <div
+                            style="
+                                width: 32px;
+                                height: 28px;
+                                border-radius: 6px;
+                                background: transparent;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            "
+                        >
+                            <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <circle cx="8" cy="8" r="2.2" />
+                                <path
+                                    d="M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.6 3.6l1.2 1.2M11.2 11.2l1.2 1.2M3.6 12.4l1.2-1.2M11.2 4.8l1.2-1.2"
+                                />
+                            </svg>
+                        </div>
+                        <span style="font-size: 10px">Settings</span>
+                    </div>
+                </div>
+                <div
+                    style="
+                        width: 240px;
+                        flex: none;
+                        display: flex;
+                        flex-direction: column;
+                        border-right: 1px solid #444444;
+                        background: #2c2c2c;
+                    "
+                >
+                    <div style="padding: 12px 14px 8px; font-size: 13px; font-weight: 600">suppliers</div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            padding: 6px 12px;
+                            color: #ffffff;
+                        "
+                    >
+                        <span style="display: flex; align-items: center; gap: 4px; font-weight: 600"
+                            ><svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="M4.5 6.5L8 10l3.5-3.5" /></svg
+                            >Sources</span
+                        >
+                        <span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="M8 3v10M3 8h10" /></svg
+                        ></span>
+                    </div>
+                    <div style="display: flex; gap: 8px; padding: 6px 12px 6px 20px; background: #383838">
+                        <span style="color: #b3b3b3; padding-top: 1px; display: flex"
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="M4 1.8h5.5L12.5 5v9.2h-8.5z" />
+                                <path d="M9.5 1.8V5h3" /></svg
+                        ></span>
+                        <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1">
+                            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+                                >suppliers-oct.csv</span
+                            >
+                            <span style="color: #b3b3b3; font-size: 11px">129 nodes, 412 links</span>
+                            <span style="color: #7cc4f8">Replaced suppliers-sept.csv</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; min-width: 0">
+                    <div style="flex: 1; position: relative; background: #ffffff; overflow: hidden">
+                        <svg
+                            width="1142"
+                            height="580"
+                            viewBox="0 0 1142 580"
+                            style="position: absolute; left: 0; top: 0"
+                        >
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="181.0"
+                                y2="182.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="530.7"
+                                y2="153.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="346.1"
+                                y2="181.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="547.9"
+                                y2="163.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="339.8"
+                                y2="229.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="441.3"
+                                y2="176.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="493.6"
+                                y2="193.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="451.9"
+                                y2="194.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="351.4"
+                                y2="87.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="455.3"
+                                y2="188.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="446.4"
+                                y2="204.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="446.1"
+                                y2="141.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="411.3"
+                                y2="188.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="476.7"
+                                y2="134.2"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="487.1"
+                                y2="112.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="396.2"
+                                y2="100.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="458.7"
+                                y2="138.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="346.6"
+                                y2="204.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="429.5"
+                                y2="155.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="418.2"
+                                y1="165.7"
+                                x2="452.4"
+                                y2="171.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="677.9"
+                                y2="153.2"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="139.9"
+                                y2="148.2"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="99.2"
+                                y2="212.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="164.3"
+                                y2="124.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="245.1"
+                                y2="166.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="178.1"
+                                y2="204.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="205.6"
+                                y2="106.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="171.5"
+                                y2="254.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="252.8"
+                                y2="231.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="138.2"
+                                y2="152.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="244.9"
+                                y2="143.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="216.4"
+                                y2="208.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="209.6"
+                                y2="235.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="172.4"
+                                y2="249.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="218.1"
+                                y2="178.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="139.0"
+                                y2="137.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="177.1"
+                                y2="136.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="180.0"
+                                y2="182.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="177.7"
+                                y2="160.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="181.0"
+                                y1="182.6"
+                                x2="186.3"
+                                y2="222.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="412.2"
+                                y2="433.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="736.4"
+                                y2="237.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="657.6"
+                                y2="130.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="650.3"
+                                y2="213.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="694.1"
+                                y2="212.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="697.5"
+                                y2="164.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="579.3"
+                                y2="185.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="751.7"
+                                y2="140.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="674.6"
+                                y2="213.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="667.3"
+                                y2="163.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="693.6"
+                                y2="190.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="765.0"
+                                y2="173.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="685.1"
+                                y2="202.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="597.7"
+                                y2="180.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="658.1"
+                                y2="142.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="616.1"
+                                y2="159.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="685.5"
+                                y2="149.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="654.5"
+                                y2="131.2"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="589.8"
+                                y2="106.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="677.9"
+                                y1="153.2"
+                                x2="671.7"
+                                y2="135.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="981.6"
+                                y2="137.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="476.9"
+                                y2="457.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="365.8"
+                                y2="433.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="496.4"
+                                y2="471.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="434.5"
+                                y2="420.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="419.3"
+                                y2="301.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="435.4"
+                                y2="489.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="441.3"
+                                y2="409.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="419.6"
+                                y2="384.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="322.4"
+                                y2="442.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="406.4"
+                                y2="352.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="395.3"
+                                y2="379.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="325.2"
+                                y2="401.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="362.3"
+                                y2="484.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="457.9"
+                                y2="485.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="448.8"
+                                y2="433.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="390.0"
+                                y2="461.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="338.1"
+                                y2="376.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="344.1"
+                                y2="458.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="412.2"
+                                y1="433.6"
+                                x2="470.5"
+                                y2="403.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="1005.8"
+                                y2="195.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="975.6"
+                                y2="169.2"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="982.9"
+                                y2="125.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="915.0"
+                                y2="184.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="1030.3"
+                                y2="179.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="951.8"
+                                y2="102.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="985.0"
+                                y2="150.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="1062.5"
+                                y2="175.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="910.3"
+                                y2="103.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="1036.4"
+                                y2="120.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="977.8"
+                                y2="218.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="976.1"
+                                y2="164.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="903.2"
+                                y2="101.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="1038.3"
+                                y2="103.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="993.4"
+                                y2="143.2"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="981.8"
+                                y2="137.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="983.4"
+                                y2="138.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="981.6"
+                                y2="86.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="981.6"
+                                y1="137.5"
+                                x2="978.1"
+                                y2="225.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="139.9"
+                                y1="148.2"
+                                x2="164.3"
+                                y2="124.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="139.9"
+                                y1="148.2"
+                                x2="138.2"
+                                y2="152.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="736.4"
+                                y1="237.1"
+                                x2="674.6"
+                                y2="213.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="476.9"
+                                y1="457.5"
+                                x2="496.4"
+                                y2="471.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="476.9"
+                                y1="457.5"
+                                x2="457.9"
+                                y2="485.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="1005.8"
+                                y1="195.4"
+                                x2="1062.5"
+                                y2="175.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="1005.8"
+                                y1="195.4"
+                                x2="977.8"
+                                y2="218.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="1005.8"
+                                y1="195.4"
+                                x2="978.1"
+                                y2="225.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="346.1"
+                                y1="181.4"
+                                x2="346.6"
+                                y2="204.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="657.6"
+                                y1="130.0"
+                                x2="658.1"
+                                y2="142.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="365.8"
+                                y1="433.6"
+                                x2="362.3"
+                                y2="484.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="975.6"
+                                y1="169.2"
+                                x2="985.0"
+                                y2="150.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="975.6"
+                                y1="169.2"
+                                x2="976.1"
+                                y2="164.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="975.6"
+                                y1="169.2"
+                                x2="993.4"
+                                y2="143.2"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="164.3"
+                                y1="124.4"
+                                x2="205.6"
+                                y2="106.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="164.3"
+                                y1="124.4"
+                                x2="177.7"
+                                y2="160.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="650.3"
+                                y1="213.0"
+                                x2="694.1"
+                                y2="212.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="650.3"
+                                y1="213.0"
+                                x2="579.3"
+                                y2="185.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="650.3"
+                                y1="213.0"
+                                x2="674.6"
+                                y2="213.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="650.3"
+                                y1="213.0"
+                                x2="685.1"
+                                y2="202.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="339.8"
+                                y1="229.6"
+                                x2="346.6"
+                                y2="204.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="245.1"
+                                y1="166.3"
+                                x2="252.8"
+                                y2="231.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="245.1"
+                                y1="166.3"
+                                x2="244.9"
+                                y2="143.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="245.1"
+                                y1="166.3"
+                                x2="216.4"
+                                y2="208.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="245.1"
+                                y1="166.3"
+                                x2="218.1"
+                                y2="178.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="434.5"
+                                y1="420.3"
+                                x2="441.3"
+                                y2="409.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="178.1"
+                                y1="204.5"
+                                x2="216.4"
+                                y2="208.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="697.5"
+                                y1="164.4"
+                                x2="693.6"
+                                y2="190.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="419.3"
+                                y1="301.3"
+                                x2="419.6"
+                                y2="384.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="419.3"
+                                y1="301.3"
+                                x2="406.4"
+                                y2="352.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="1030.3"
+                                y1="179.5"
+                                x2="985.0"
+                                y2="150.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="1030.3"
+                                y1="179.5"
+                                x2="1062.5"
+                                y2="175.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="493.6"
+                                y1="193.8"
+                                x2="455.3"
+                                y2="188.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="493.6"
+                                y1="193.8"
+                                x2="446.4"
+                                y2="204.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="205.6"
+                                y1="106.5"
+                                x2="244.9"
+                                y2="143.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="205.6"
+                                y1="106.5"
+                                x2="177.7"
+                                y2="160.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="579.3"
+                                y1="185.0"
+                                x2="597.7"
+                                y2="180.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="579.3"
+                                y1="185.0"
+                                x2="589.8"
+                                y2="106.9"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="435.4"
+                                y1="489.4"
+                                x2="457.9"
+                                y2="485.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="435.4"
+                                y1="489.4"
+                                x2="390.0"
+                                y2="461.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="951.8"
+                                y1="102.0"
+                                x2="910.3"
+                                y2="103.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="951.8"
+                                y1="102.0"
+                                x2="903.2"
+                                y2="101.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="451.9"
+                                y1="194.3"
+                                x2="455.3"
+                                y2="188.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="171.5"
+                                y1="254.3"
+                                x2="209.6"
+                                y2="235.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="441.3"
+                                y1="409.4"
+                                x2="406.4"
+                                y2="352.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="441.3"
+                                y1="409.4"
+                                x2="395.3"
+                                y2="379.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="985.0"
+                                y1="150.3"
+                                x2="976.1"
+                                y2="164.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="985.0"
+                                y1="150.3"
+                                x2="981.8"
+                                y2="137.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="351.4"
+                                y1="87.9"
+                                x2="396.2"
+                                y2="100.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="351.4"
+                                y1="87.9"
+                                x2="429.5"
+                                y2="155.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="252.8"
+                                y1="231.9"
+                                x2="209.6"
+                                y2="235.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="419.6"
+                                y1="384.8"
+                                x2="406.4"
+                                y2="352.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="322.4"
+                                y1="442.3"
+                                x2="362.3"
+                                y2="484.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="910.3"
+                                y1="103.5"
+                                x2="903.2"
+                                y2="101.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="693.6"
+                                y1="190.5"
+                                x2="765.0"
+                                y2="173.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="1036.4"
+                                y1="120.8"
+                                x2="983.4"
+                                y2="138.5"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="446.1"
+                                y1="141.7"
+                                x2="429.5"
+                                y2="155.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="446.1"
+                                y1="141.7"
+                                x2="452.4"
+                                y2="171.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="216.4"
+                                y1="208.0"
+                                x2="218.1"
+                                y2="178.3"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="411.3"
+                                y1="188.7"
+                                x2="346.6"
+                                y2="204.4"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="411.3"
+                                y1="188.7"
+                                x2="429.5"
+                                y2="155.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="476.7"
+                                y1="134.2"
+                                x2="458.7"
+                                y2="138.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="476.7"
+                                y1="134.2"
+                                x2="452.4"
+                                y2="171.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="172.4"
+                                y1="249.5"
+                                x2="186.3"
+                                y2="222.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="597.7"
+                                y1="180.0"
+                                x2="616.1"
+                                y2="159.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="362.3"
+                                y1="484.3"
+                                x2="344.1"
+                                y2="458.7"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="487.1"
+                                y1="112.6"
+                                x2="458.7"
+                                y2="138.0"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="1038.3"
+                                y1="103.7"
+                                x2="981.6"
+                                y2="86.8"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="448.8"
+                                y1="433.4"
+                                x2="470.5"
+                                y2="403.6"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="177.1"
+                                y1="136.9"
+                                x2="177.7"
+                                y2="160.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <line
+                                x1="180.0"
+                                y1="182.1"
+                                x2="177.7"
+                                y2="160.1"
+                                stroke="#9aa3b5"
+                                stroke-width="1"
+                                stroke-opacity="0.8"
+                            />
+                            <circle cx="418.2" cy="165.7" r="8" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="181.0" cy="182.6" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="677.9" cy="153.2" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="412.2" cy="433.6" r="8" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="981.6" cy="137.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="530.7" cy="153.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="139.9" cy="148.2" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="736.4" cy="237.1" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="476.9" cy="457.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="1005.8" cy="195.4" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="346.1" cy="181.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="99.2" cy="212.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="657.6" cy="130.0" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="365.8" cy="433.6" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="975.6" cy="169.2" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="547.9" cy="163.9" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="164.3" cy="124.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="650.3" cy="213.0" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="496.4" cy="471.0" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="982.9" cy="125.1" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="339.8" cy="229.6" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="245.1" cy="166.3" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="694.1" cy="212.3" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="434.5" cy="420.3" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="915.0" cy="184.6" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="441.3" cy="176.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="178.1" cy="204.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="697.5" cy="164.4" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="419.3" cy="301.3" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="1030.3" cy="179.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="493.6" cy="193.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="205.6" cy="106.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="579.3" cy="185.0" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="435.4" cy="489.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="951.8" cy="102.0" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="451.9" cy="194.3" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="171.5" cy="254.3" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="751.7" cy="140.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="441.3" cy="409.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="985.0" cy="150.3" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="351.4" cy="87.9" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="252.8" cy="231.9" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="674.6" cy="213.5" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="419.6" cy="384.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="1062.5" cy="175.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="455.3" cy="188.0" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="138.2" cy="152.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="667.3" cy="163.6" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="322.4" cy="442.3" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="910.3" cy="103.5" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="446.4" cy="204.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="244.9" cy="143.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="693.6" cy="190.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="406.4" cy="352.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="1036.4" cy="120.8" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="446.1" cy="141.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="216.4" cy="208.0" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="765.0" cy="173.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="395.3" cy="379.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="977.8" cy="218.3" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="411.3" cy="188.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="209.6" cy="235.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="685.1" cy="202.9" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="325.2" cy="401.5" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="976.1" cy="164.1" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="476.7" cy="134.2" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="172.4" cy="249.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="597.7" cy="180.0" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="362.3" cy="484.3" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="903.2" cy="101.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="487.1" cy="112.6" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="218.1" cy="178.3" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="658.1" cy="142.3" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="457.9" cy="485.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="1038.3" cy="103.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="396.2" cy="100.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="139.0" cy="137.0" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="616.1" cy="159.7" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="448.8" cy="433.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="993.4" cy="143.2" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="458.7" cy="138.0" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="177.1" cy="136.9" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="685.5" cy="149.0" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="390.0" cy="461.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="981.8" cy="137.3" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="346.6" cy="204.4" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="180.0" cy="182.1" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="654.5" cy="131.2" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="338.1" cy="376.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="983.4" cy="138.5" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="429.5" cy="155.6" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <circle cx="177.7" cy="160.1" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="589.8" cy="106.9" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="344.1" cy="458.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="981.6" cy="86.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="452.4" cy="171.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="186.3" cy="222.7" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="671.7" cy="135.8" r="4.5" fill="#2350e6" fill-opacity="1" />
+                            <circle cx="470.5" cy="403.6" r="4.5" fill="#e0901b" fill-opacity="1" />
+                            <circle cx="978.1" cy="225.9" r="4.5" fill="#1a9e5a" fill-opacity="1" />
+                            <text
+                                x="425.2"
+                                y="169.7"
+                                font-size="11"
+                                fill="#1e1e1e"
+                                font-family="system-ui, sans-serif"
+                                stroke="#ffffff"
+                                stroke-width="3"
+                                paint-order="stroke"
+                            >
+                                Kessler GmbH
+                            </text>
+                            <text
+                                x="419.2"
+                                y="437.6"
+                                font-size="11"
+                                fill="#1e1e1e"
+                                font-family="system-ui, sans-serif"
+                                stroke="#ffffff"
+                                stroke-width="3"
+                                paint-order="stroke"
+                            >
+                                Acme Metals
+                            </text>
+                        </svg>
+
+                        <div
+                            style="
+                                position: absolute;
+                                left: 0;
+                                right: 0;
+                                bottom: 64px;
+                                display: flex;
+                                justify-content: center;
+                                z-index: 5;
+                            "
+                        >
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 10px;
+                                    padding: 8px 12px;
+                                    border-radius: 8px;
+                                    background: #1e1e1e;
+                                    color: #fff;
+                                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+                                    max-width: 760px;
+                                "
+                            >
+                                <div style="display: flex; flex-direction: column; gap: 4px">
+                                    <div style="display: flex; align-items: center; gap: 8px">
+                                        <svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="#7cc4f8"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none"
+                                        >
+                                            <path d="M2.5 6a5.5 5.5 0 019.7-2.5L13.5 5" />
+                                            <path d="M13.5 2v3h-3" />
+                                            <path d="M13.5 10a5.5 5.5 0 01-9.7 2.5L2.5 11" />
+                                            <path d="M2.5 14v-3h3" /></svg
+                                        ><span style="font-weight: 600">Replaced with suppliers-oct.csv</span
+                                        ><span style="color: #8fd14f">+12</span><span style="color: #f47a6a">-3</span
+                                        ><span style="color: #f5b041">40 links changed</span>
+                                    </div>
+                                    <div style="color: #b3b3b3">
+                                        Kept 4 styles, 2 runs (redone on the new data), 3 notes and 1 filter.
+                                    </div>
+                                    <div style="color: #f5b041; display: flex; align-items: center; gap: 6px">
+                                        <svg
+                                            width="13"
+                                            height="13"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="#f5b041"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none"
+                                        >
+                                            <path d="M8 2.2L14.2 13H1.8z" />
+                                            <path d="M8 6.5v3M8 11.3v.1" /></svg
+                                        >Style "Link color by lead_time_days" no longer applies: that column is now
+                                        lead_days.<span
+                                            style="
+                                                display: inline-flex;
+                                                align-items: center;
+                                                gap: 5px;
+                                                height: 20px;
+                                                padding: 0 9px;
+                                                border-radius: 5px;
+                                                font-size: 12px;
+                                                white-space: nowrap;
+                                                background: #1d3a52;
+                                                color: #7cc4f8;
+                                                border: 1px solid #1d3a52;
+                                            "
+                                            >Use lead_days</span
+                                        >
+                                    </div>
+                                </div>
+                                <span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 5px;
+                                        height: 20px;
+                                        padding: 0 9px;
+                                        border-radius: 5px;
+                                        font-size: 12px;
+                                        white-space: nowrap;
+                                        background: transparent;
+                                        color: #ffffff;
+                                        border: 1px solid #444444;
+                                    "
+                                    ><svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M5 3L2 6l3 3" />
+                                        <path d="M2 6h7a4 4 0 010 8H7" /></svg
+                                    >Undo</span
+                                >
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                position: absolute;
+                                left: 0;
+                                right: 0;
+                                bottom: 12px;
+                                display: flex;
+                                justify-content: center;
+                                z-index: 6;
+                            "
+                        >
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    padding: 6px 8px;
+                                    border-radius: 10px;
+                                    background: #1e1e1e;
+                                    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+                                "
+                            >
+                                <span
+                                    style="
+                                        height: 32px;
+                                        min-width: 32px;
+                                        padding: 0 6px;
+                                        box-sizing: border-box;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        color: #fff;
+                                    "
+                                    ><svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M6 2h4M6.5 2v4L3 13a1 1 0 001 1.5h8A1 1 0 0013 13L9.5 6V2" />
+                                        <path d="M4.6 10h6.8" /></svg></span
+                                ><span style="width: 1px; height: 24px; background: #555"></span
+                                ><span
+                                    style="
+                                        height: 32px;
+                                        min-width: 32px;
+                                        padding: 0 6px;
+                                        box-sizing: border-box;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        color: #fff;
+                                    "
+                                    ><svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M2.5 13.5h11M2.5 13.5v-11" />
+                                        <circle cx="6" cy="9" r="1.2" />
+                                        <circle cx="10" cy="5.5" r="1.2" />
+                                        <path d="M7 8.2l2-1.8" /></svg></span
+                                ><span
+                                    style="
+                                        height: 32px;
+                                        padding: 0 6px;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 2px;
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                    "
+                                    >3D<svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M4.5 6.5L8 10l3.5-3.5" /></svg></span
+                                ><span style="width: 1px; height: 24px; background: #555"></span
+                                ><span
+                                    style="
+                                        height: 32px;
+                                        min-width: 32px;
+                                        padding: 0 6px;
+                                        box-sizing: border-box;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        color: #fff;
+                                    "
+                                    ><svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M5.5 4h8M5.5 8h8M5.5 12h8" />
+                                        <circle cx="2.8" cy="4" r=".6" />
+                                        <circle cx="2.8" cy="8" r=".6" />
+                                        <circle cx="2.8" cy="12" r=".6" /></svg></span
+                                ><span
+                                    style="
+                                        height: 32px;
+                                        min-width: 32px;
+                                        padding: 0 6px;
+                                        box-sizing: border-box;
+                                        border-radius: 6px;
+                                        background: #0a6dc2;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        color: #fff;
+                                    "
+                                    ><svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <rect x="2" y="2.5" width="12" height="11" rx="1" />
+                                        <path d="M2 6h12M2 9.7h12M6 2.5v11M10 2.5v11" /></svg></span
+                                ><span
+                                    style="
+                                        height: 32px;
+                                        min-width: 32px;
+                                        padding: 0 6px;
+                                        box-sizing: border-box;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        color: #fff;
+                                    "
+                                    ><svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M2 3.5h12M4.5 8h7M7 12.5h2" /></svg></span
+                                ><span style="width: 1px; height: 24px; background: #555"></span
+                                ><span
+                                    style="
+                                        height: 32px;
+                                        min-width: 32px;
+                                        padding: 0 6px;
+                                        box-sizing: border-box;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        color: #fff;
+                                    "
+                                    ><svg
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <circle cx="7" cy="7" r="4.5" />
+                                        <path d="M10.5 10.5L14 14" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            height: 280px;
+                            flex: none;
+                            display: flex;
+                            flex-direction: column;
+                            border-top: 1px solid #444444;
+                            background: #2c2c2c;
+                            overflow: hidden;
+                        "
+                    >
+                        <div style="height: 6px; display: flex; justify-content: center; align-items: center">
+                            <span style="width: 36px; height: 2px; border-radius: 1px; background: #555"></span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 0 10px 6px">
+                            <span style="padding: 3px 9px; border-radius: 5px; border: 1px solid #555; color: #fff"
+                                >Nodes</span
+                            ><span
+                                style="
+                                    padding: 3px 9px;
+                                    border-radius: 5px;
+                                    border: 1px solid transparent;
+                                    color: #b3b3b3;
+                                "
+                                >Edges</span
+                            >
+                            <span style="color: #b3b3b3; font-size: 11px">129 rows</span>
+                            <span style="flex: 1"></span>
+
+                            <span style="color: #b3b3b3">Columns</span>
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 5px;
+                                    height: 20px;
+                                    padding: 0 9px;
+                                    border-radius: 5px;
+                                    font-size: 12px;
+                                    white-space: nowrap;
+                                    background: transparent;
+                                    color: #ffffff;
+                                    border: 1px solid #444444;
+                                "
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M2.5 13.5h11" /></svg
+                                >Export</span
+                            >
+                            <span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <circle cx="3.5" cy="8" r=".8" />
+                                    <circle cx="8" cy="8" r=".8" />
+                                    <circle cx="12.5" cy="8" r=".8" /></svg
+                            ></span>
+                            <span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M4 4l8 8M12 4l-8 8" /></svg
+                            ></span>
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden">
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 10px;
+                                    padding: 6px 12px;
+                                    border-top: 1px solid #444444;
+                                    border-bottom: 1px solid #444444;
+                                    background: #303030;
+                                    font-size: 12px;
+                                "
+                            >
+                                <span style="flex: 1"
+                                    >129 suppliers and customers, 412 links, directed, weighted by volume as capacity.
+                                    Since September: 12 added, 3 gone, 40 links changed.</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 5px;
+                                        height: 20px;
+                                        padding: 0 9px;
+                                        border-radius: 5px;
+                                        font-size: 12px;
+                                        white-space: nowrap;
+                                        background: transparent;
+                                        color: #7cc4f8;
+                                        border: 1px solid transparent;
+                                    "
+                                    >Show only changes</span
+                                >
+                            </div>
+                            <div style="display: flex; border-bottom: 1px solid #444444; background: #262626">
+                                <div
+                                    style="
+                                        width: 44px;
+                                        flex: none;
+                                        border-right: 1px solid #444444;
+                                        display: flex;
+                                        align-items: flex-end;
+                                        justify-content: flex-end;
+                                        padding: 0 8px 6px 0;
+                                        box-sizing: border-box;
+                                        color: #8c8c8c;
+                                        font-size: 11px;
+                                    "
+                                >
+                                    Row
+                                </div>
+                                <div
+                                    style="
+                                        width: 170px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 5px 8px 6px;
+                                        border-right: 1px solid #444444;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 3px;
+                                        background: transparent;
+                                    "
+                                >
+                                    <div style="display: flex; align-items: center; gap: 5px">
+                                        <span style="color: #b3b3b3; display: flex"
+                                            ><svg
+                                                width="13"
+                                                height="13"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M2 12.5L5 3.5l3 9M3.1 9.5h3.8" />
+                                                <path
+                                                    d="M10 7.5a2 2 0 013.5 1.3v3.7M13.5 10.2c-2.6 0-3.6.5-3.6 1.4 0 1.5 3.6 1.4 3.6-.7"
+                                                /></svg></span
+                                        ><span
+                                            style="
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                flex: 1;
+                                            "
+                                            >supplier</span
+                                        ><span style="color: #8c8c8c; display: flex"
+                                            ><svg
+                                                width="11"
+                                                height="11"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M4.5 6.5L8 10l3.5-3.5" /></svg
+                                        ></span>
+                                    </div>
+                                    <div
+                                        style="
+                                            font-size: 11px;
+                                            color: #b3b3b3;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                    >
+                                        Text <span style="color: #7cc4f8">&middot; Name</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 10px">
+                                        <span
+                                            style="
+                                                flex: 1;
+                                                height: 3px;
+                                                border-radius: 2px;
+                                                background: #4a4a4a;
+                                                position: relative;
+                                                overflow: hidden;
+                                            "
+                                            ><span
+                                                style="
+                                                    position: absolute;
+                                                    left: 0;
+                                                    top: 0;
+                                                    bottom: 0;
+                                                    width: 100%;
+                                                    background: #8fd14f;
+                                                "
+                                            ></span></span
+                                        ><span style="color: #8c8c8c">100%</span>
+                                    </div>
+                                </div>
+                                <div
+                                    style="
+                                        width: 220px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 5px 8px 6px;
+                                        border-right: 1px solid #444444;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 3px;
+                                        background: transparent;
+                                    "
+                                >
+                                    <div style="display: flex; align-items: center; gap: 5px">
+                                        <span style="color: #b3b3b3; display: flex"
+                                            ><svg
+                                                width="13"
+                                                height="13"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M2.5 2.5h5l6 6-5 5-6-6z" />
+                                                <circle cx="5.2" cy="5.2" r=".9" /></svg></span
+                                        ><span
+                                            style="
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                flex: 1;
+                                            "
+                                            >change</span
+                                        ><span style="color: #8c8c8c; display: flex"
+                                            ><svg
+                                                width="11"
+                                                height="11"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M4.5 6.5L8 10l3.5-3.5" /></svg
+                                        ></span>
+                                    </div>
+                                    <div
+                                        style="
+                                            font-size: 11px;
+                                            color: #b3b3b3;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                    >
+                                        Category <span style="color: #8c8c8c">&middot; since September</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 10px">
+                                        <span
+                                            style="
+                                                flex: 1;
+                                                height: 3px;
+                                                border-radius: 2px;
+                                                background: #4a4a4a;
+                                                position: relative;
+                                                overflow: hidden;
+                                            "
+                                            ><span
+                                                style="
+                                                    position: absolute;
+                                                    left: 0;
+                                                    top: 0;
+                                                    bottom: 0;
+                                                    width: 100%;
+                                                    background: #8fd14f;
+                                                "
+                                            ></span></span
+                                        ><span style="color: #8c8c8c">100%</span>
+                                    </div>
+                                </div>
+                                <div
+                                    style="
+                                        width: 160px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 5px 8px 6px;
+                                        border-right: 1px solid #444444;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 3px;
+                                        background: transparent;
+                                    "
+                                >
+                                    <div style="display: flex; align-items: center; gap: 5px">
+                                        <span style="color: #b3b3b3; display: flex"
+                                            ><svg
+                                                width="13"
+                                                height="13"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M6 2.5L5 13.5M11 2.5l-1 11M2.5 6h11M2 10h11" /></svg></span
+                                        ><span
+                                            style="
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                flex: 1;
+                                            "
+                                            >links</span
+                                        ><span style="color: #8c8c8c; display: flex"
+                                            ><svg
+                                                width="11"
+                                                height="11"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M4.5 6.5L8 10l3.5-3.5" /></svg
+                                        ></span>
+                                    </div>
+                                    <div
+                                        style="
+                                            font-size: 11px;
+                                            color: #b3b3b3;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                    >
+                                        Whole number <span style="color: #8c8c8c">&middot; counted</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 10px">
+                                        <span
+                                            style="
+                                                flex: 1;
+                                                height: 3px;
+                                                border-radius: 2px;
+                                                background: #4a4a4a;
+                                                position: relative;
+                                                overflow: hidden;
+                                            "
+                                            ><span
+                                                style="
+                                                    position: absolute;
+                                                    left: 0;
+                                                    top: 0;
+                                                    bottom: 0;
+                                                    width: 100%;
+                                                    background: #8fd14f;
+                                                "
+                                            ></span></span
+                                        ><span style="color: #8c8c8c">100%</span>
+                                    </div>
+                                </div>
+                                <div
+                                    style="
+                                        width: 110px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 5px 8px 6px;
+                                        border-right: 1px solid #444444;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 3px;
+                                        background: transparent;
+                                    "
+                                >
+                                    <div style="display: flex; align-items: center; gap: 5px">
+                                        <span style="color: #b3b3b3; display: flex"
+                                            ><svg
+                                                width="13"
+                                                height="13"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M2.5 2.5h5l6 6-5 5-6-6z" />
+                                                <circle cx="5.2" cy="5.2" r=".9" /></svg></span
+                                        ><span
+                                            style="
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                flex: 1;
+                                            "
+                                            >country</span
+                                        ><span style="color: #8c8c8c; display: flex"
+                                            ><svg
+                                                width="11"
+                                                height="11"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M4.5 6.5L8 10l3.5-3.5" /></svg
+                                        ></span>
+                                    </div>
+                                    <div
+                                        style="
+                                            font-size: 11px;
+                                            color: #b3b3b3;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                    >
+                                        Category
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 10px">
+                                        <span
+                                            style="
+                                                flex: 1;
+                                                height: 3px;
+                                                border-radius: 2px;
+                                                background: #4a4a4a;
+                                                position: relative;
+                                                overflow: hidden;
+                                            "
+                                            ><span
+                                                style="
+                                                    position: absolute;
+                                                    left: 0;
+                                                    top: 0;
+                                                    bottom: 0;
+                                                    width: 100%;
+                                                    background: #8fd14f;
+                                                "
+                                            ></span></span
+                                        ><span style="color: #8c8c8c">100%</span>
+                                    </div>
+                                </div>
+                                <div
+                                    style="
+                                        width: 120px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 5px 8px 6px;
+                                        border-right: 1px solid #444444;
+                                        display: flex;
+                                        flex-direction: column;
+                                        gap: 3px;
+                                        background: transparent;
+                                    "
+                                >
+                                    <div style="display: flex; align-items: center; gap: 5px">
+                                        <span style="color: #b3b3b3; display: flex"
+                                            ><svg
+                                                width="13"
+                                                height="13"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M6 2.5L5 13.5M11 2.5l-1 11M2.5 6h11M2 10h11" /></svg></span
+                                        ><span
+                                            style="
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                flex: 1;
+                                            "
+                                            >pagerank</span
+                                        ><span style="color: #8c8c8c; display: flex"
+                                            ><svg
+                                                width="11"
+                                                height="11"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none"
+                                            >
+                                                <path d="M4.5 6.5L8 10l3.5-3.5" /></svg
+                                        ></span>
+                                    </div>
+                                    <div
+                                        style="
+                                            font-size: 11px;
+                                            color: #b3b3b3;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                    >
+                                        Number <span style="color: #8c8c8c">&middot; run</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px; font-size: 10px">
+                                        <span
+                                            style="
+                                                flex: 1;
+                                                height: 3px;
+                                                border-radius: 2px;
+                                                background: #4a4a4a;
+                                                position: relative;
+                                                overflow: hidden;
+                                            "
+                                            ><span
+                                                style="
+                                                    position: absolute;
+                                                    left: 0;
+                                                    top: 0;
+                                                    bottom: 0;
+                                                    width: 100%;
+                                                    background: #8fd14f;
+                                                "
+                                            ></span></span
+                                        ><span style="color: #8c8c8c">100%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    height: 24px;
+                                    align-items: center;
+                                    border-bottom: 1px solid #3a3a3a;
+                                    background: transparent;
+                                "
+                            >
+                                <div
+                                    style="
+                                        width: 44px;
+                                        flex: none;
+                                        text-align: right;
+                                        padding: 0 8px;
+                                        box-sizing: border-box;
+                                        color: #8c8c8c;
+                                        border-right: 1px solid #444444;
+                                    "
+                                >
+                                    1
+                                </div>
+                                <div
+                                    style="
+                                        width: 170px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    Northwind Cobalt
+                                </div>
+                                <div
+                                    style="
+                                        width: 220px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    <span style="color: #8fd14f">added</span>
+                                </div>
+                                <div
+                                    style="
+                                        width: 160px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    6
+                                </div>
+                                <div
+                                    style="
+                                        width: 110px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    CD
+                                </div>
+                                <div
+                                    style="
+                                        width: 120px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    0.012
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    height: 24px;
+                                    align-items: center;
+                                    border-bottom: 1px solid #3a3a3a;
+                                    background: transparent;
+                                "
+                            >
+                                <div
+                                    style="
+                                        width: 44px;
+                                        flex: none;
+                                        text-align: right;
+                                        padding: 0 8px;
+                                        box-sizing: border-box;
+                                        color: #8c8c8c;
+                                        border-right: 1px solid #444444;
+                                    "
+                                >
+                                    2
+                                </div>
+                                <div
+                                    style="
+                                        width: 170px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    Tamura Plastics
+                                </div>
+                                <div
+                                    style="
+                                        width: 220px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    <span style="color: #f5b041">changed</span>
+                                </div>
+                                <div
+                                    style="
+                                        width: 160px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    9
+                                </div>
+                                <div
+                                    style="
+                                        width: 110px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    JP
+                                </div>
+                                <div
+                                    style="
+                                        width: 120px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    0.018
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    height: 24px;
+                                    align-items: center;
+                                    border-bottom: 1px solid #3a3a3a;
+                                    background: transparent;
+                                "
+                            >
+                                <div
+                                    style="
+                                        width: 44px;
+                                        flex: none;
+                                        text-align: right;
+                                        padding: 0 8px;
+                                        box-sizing: border-box;
+                                        color: #8c8c8c;
+                                        border-right: 1px solid #444444;
+                                    "
+                                >
+                                    3
+                                </div>
+                                <div
+                                    style="
+                                        width: 170px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    Kessler GmbH
+                                </div>
+                                <div
+                                    style="
+                                        width: 220px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    <span style="color: #f5b041">changed</span>
+                                </div>
+                                <div
+                                    style="
+                                        width: 160px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    22
+                                </div>
+                                <div
+                                    style="
+                                        width: 110px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    DE
+                                </div>
+                                <div
+                                    style="
+                                        width: 120px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    0.041
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    height: 24px;
+                                    align-items: center;
+                                    border-bottom: 1px solid #3a3a3a;
+                                    background: transparent;
+                                "
+                            >
+                                <div
+                                    style="
+                                        width: 44px;
+                                        flex: none;
+                                        text-align: right;
+                                        padding: 0 8px;
+                                        box-sizing: border-box;
+                                        color: #8c8c8c;
+                                        border-right: 1px solid #444444;
+                                    "
+                                >
+                                    4
+                                </div>
+                                <div
+                                    style="
+                                        width: 170px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    Lumen Glassworks
+                                </div>
+                                <div
+                                    style="
+                                        width: 220px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    <span style="color: #8fd14f">added</span>
+                                </div>
+                                <div
+                                    style="
+                                        width: 160px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    3
+                                </div>
+                                <div
+                                    style="
+                                        width: 110px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    CZ
+                                </div>
+                                <div
+                                    style="
+                                        width: 120px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    0.006
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    height: 24px;
+                                    align-items: center;
+                                    border-bottom: 1px solid #3a3a3a;
+                                    background: transparent;
+                                "
+                            >
+                                <div
+                                    style="
+                                        width: 44px;
+                                        flex: none;
+                                        text-align: right;
+                                        padding: 0 8px;
+                                        box-sizing: border-box;
+                                        color: #8c8c8c;
+                                        border-right: 1px solid #444444;
+                                    "
+                                >
+                                    5
+                                </div>
+                                <div
+                                    style="
+                                        width: 170px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    Acme Metals
+                                </div>
+                                <div
+                                    style="
+                                        width: 220px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    same
+                                </div>
+                                <div
+                                    style="
+                                        width: 160px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    17
+                                </div>
+                                <div
+                                    style="
+                                        width: 110px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    US
+                                </div>
+                                <div
+                                    style="
+                                        width: 120px;
+                                        flex: none;
+                                        box-sizing: border-box;
+                                        padding: 0 8px;
+                                        text-align: right;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                        border-right: 1px solid #444444;
+                                        background: transparent;
+                                    "
+                                >
+                                    0.033
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 1100px;
+                    top: 452px;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    z-index: 50;
+                "
+            >
+                <span
+                    style="
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #f5c400;
+                        color: #1e1e1e;
+                        font-size: 11px;
+                        font-weight: 700;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        flex: none;
+                        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+                    "
+                    >1</span
+                ><span
+                    style="
+                        background: #fff3c4;
+                        color: #3d2f00;
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        white-space: nowrap;
+                        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+                    "
+                    >Undo brings September back</span
+                >
+            </div>
+        </div>
+    </body>
+</html>

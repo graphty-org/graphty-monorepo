@@ -16,7 +16,7 @@ import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "
 import { findTreeRow, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { DEFAULT_NAME_KEY } from "./cards";
 import type { BeneathValue, RowContext } from "./PropertyRow";
-import { channelPhrase, hexOf, readableName } from "./words";
+import { channelPhrase, hexOf, OPACITY_OF, readableName } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
@@ -527,6 +527,19 @@ async function addLine(styles: GraphSession["styles"], plan: LinePlan, fresh: Ne
  */
 export function lineIn(ctx: Pick<RowContext, "many" | "layers">, channel: Channel): Line | undefined {
     return ctx.many === undefined ? lineOf(ctx.layers, channel) : ctx.many.line(channel);
+}
+
+/**
+ * Whether a color field carries its opacity: Fill and Line do, unless the color or the opacity
+ * varies by data, when the opacity keeps a line of its own.
+ * @param ctx - the row.
+ * @param channel - the color's channel.
+ * @returns the opacity channel, or undefined.
+ */
+export function carriedOpacity(ctx: Pick<RowContext, "many" | "layers">, channel: Channel): Channel | undefined {
+    const opacity = OPACITY_OF[channel];
+    const bound = (each: Channel): boolean => lineIn(ctx, each)?.binding !== undefined;
+    return opacity === undefined || bound(channel) || bound(opacity) ? undefined : opacity;
 }
 
 /**

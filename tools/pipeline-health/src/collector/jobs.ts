@@ -6,7 +6,7 @@
 import { DAY, floorTo } from "../model/items.js";
 import type { Bucket } from "../model/items.js";
 import { loadSeries } from "../model/rollup.js";
-import type { ChronicJob } from "../model/snapshots.js";
+import { type ChronicJob, readSnapshot } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
 import { words } from "./flaky.js";
 import type { GitHub } from "./github.js";
@@ -128,8 +128,13 @@ export async function issuesNamingJobs(gh: GitHub, repo: string, jobs: ChronicJo
     return out;
 }
 
+/** A job of ci.yml, run on its own or called by another workflow as "CI" (release.yml's "CI / Lint"). */
+const isCiJob = (j: ChronicJob): boolean => j.workflow === "ci.yml" || j.job.startsWith("CI / ");
+
 /**
- * The chronic jobs with their issues, and the two observations: chronic jobs, and those with no open issue.
+ * The chronic jobs with their issues, and the two observations: chronic jobs, and those with no open issue. A ci.yml
+ * job that ci.yml on master no longer defines (removed or renamed) is left out at once: its old failures are not a
+ * job failing now, and waiting ACTIVE_MS for it to go quiet kept a removed job red for two days.
  * @param store
  * @param gh
  * @param repo
@@ -138,7 +143,10 @@ export async function issuesNamingJobs(gh: GitHub, repo: string, jobs: ChronicJo
 export async function jobMembers(store: Store, gh: GitHub, repo: string, now: number) {
     const today = floorTo(now, "1d");
     const series = await loadSeries(store, "ci.job_history", "1d", today - (HISTORY_DAYS - 1) * DAY, today, now);
-    const chronic = chronicJobs(jobHistories(series.values()), now);
+    const ciJobs = await readSnapshot(store, "ci-jobs");
+    const chronic = chronicJobs(jobHistories(series.values()), now).filter(
+        (j) => !ciJobs || !isCiJob(j) || ciJobs.some((p) => isJob(p, j.job)),
+    );
     const issues = await issuesNamingJobs(gh, repo, chronic);
     const list = chronic.map((j) => {
         const issue = issues.get(shortName(j.job));
@@ -153,25 +161,26 @@ export async function jobMembers(store: Store, gh: GitHub, repo: string, now: nu
     };
 }
 
+interface WorkflowJob {
+    id: string;
+    name?: string;
+    non?: boolean;
+}
+
 /**
- * The jobs of a workflow file allowed to fail: job-level `continue-on-error: true`, or an expression for a job the
- * advisory list names (tools/ci-advisory-checks.json, a whole job in its warning period). Each by its `name:`, or its
- * id when it has none; a `${{ ... }}` in a name matches anything (a matrix job).
+ * Every job of a workflow file: its id, `name:` and whether it is allowed to fail (job-level `continue-on-error:
+ * true`, or an expression for a job the advisory list names).
  * ponytail: reads the workflow line by line at the repository's indentation (jobs at 4 spaces, their keys at 8);
  * use a YAML parser if a workflow ever leaves that layout.
  * @param yaml - the workflow file
  * @param advisory - jobs in their warning period
  */
-export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
-    const out: string[] = [];
+function workflowJobs(yaml: string, advisory: string[]): WorkflowJob[] {
+    const out: WorkflowJob[] = [];
     let inJobs = false;
-    let job: { id: string; name?: string; non?: boolean } | undefined;
-    const flush = () => {
-        if (job?.non) out.push(job.name ?? job.id);
-    };
+    let job: WorkflowJob | undefined;
     for (const line of yaml.split("\n")) {
         if (/^\S/.test(line)) {
-            flush();
             job = undefined;
             inJobs = line.startsWith("jobs:");
             continue;
@@ -179,8 +188,8 @@ export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
         if (!inJobs) continue;
         const id = /^ {4}([\w-]+):\s*$/.exec(line)?.[1];
         if (id) {
-            flush();
             job = { id };
+            out.push(job);
             continue;
         }
         const key = /^ {8}(name|continue-on-error):(.*)$/.exec(line);
@@ -189,9 +198,26 @@ export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
         if (key[1] === "name") job.name = value;
         else job.non = value === "true" || (value.startsWith("${{") && advisory.includes(job.id));
     }
-    flush();
     return out;
 }
+
+/**
+ * The jobs of a workflow file allowed to fail, each by its `name:`, or its id when it has none; a `${{ ... }}` in a
+ * name matches anything (a matrix job).
+ * @param yaml - the workflow file
+ * @param advisory - jobs in their warning period (tools/ci-advisory-checks.json, a whole job)
+ */
+export function nonGatingJobs(yaml: string, advisory: string[] = []): string[] {
+    return workflowJobs(yaml, advisory)
+        .filter((j) => j.non)
+        .map((j) => j.name ?? j.id);
+}
+
+/**
+ * Every job a workflow file defines, by its `name:`, or its id when it has none (patterns for isJob).
+ * @param yaml - the workflow file
+ */
+export const definedJobs = (yaml: string): string[] => workflowJobs(yaml, []).map((j) => j.name ?? j.id);
 
 /**
  * Whether a job (its family name, as ci.job_outcome keys it) is the non-gating job `pattern` names, called or not:

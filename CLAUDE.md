@@ -840,18 +840,36 @@ starts the same server from the owner's own shell.
   them (`git pull`), never rebase.
 - The guide: `visual-review/README.md`, published as https://graphty.app/docs/visual-review/.
 
-### GitHub Pages URLs
+### Sites and channels
 
-**IMPORTANT**: Use `graphty.app` for all documentation and Storybook links (NOT `graphty-org.github.io`):
+The site (app, docs, Storybooks, hosted datasets) is served on three channels, each from its own
+build:
+
+| Channel | URL | Served by | Moves when | npm dist-tag |
+|---------|-----|-----------|------------|--------------|
+| canary | `https://canary.graphty.app` | this repository's GitHub Pages | every green master build (`deploy-pages.yml`) | none |
+| nightly | `https://nightly.graphty.app` | `graphty-org/graphty-nightly` | a full run's commit is promoted (`release.yml`, `promote-nightly`) | `next` |
+| production | `https://graphty.app` | `graphty-org/graphty-site` | only `promote.yml`, on the owner's go | `latest` |
+
+**IMPORTANT**: links in docs, READMEs and code use `graphty.app` (never `graphty-org.github.io`, and
+never a canary or nightly URL, which change under the reader):
 - Documentation: `https://graphty.app/docs/{package}/`
 - Storybook: `https://graphty.app/storybook/{package}/`
+
+Each channel serves its own build's datasets at `/data/graph-samples/v1/`, and the graphty app reads
+the ones of the channel it is on (`graphty/sites/<channel>.json`, written as `site.json`). The
+published graph-samples always downloads from `https://graphty.app/data/graph-samples/v1/`, so a
+production promotion lays the promoted datasets over the ones production already serves and never
+changes a file production already has (`tools/dataset-overlay.mjs`).
 
 ### Build System
 
 - Nx caches build outputs in `.nx/cache`
 - Affected commands run only changed packages on PRs
 - CI builds artifacts once, tests download and reuse them
-- A nightly promotion ships the builds of its own CI call on the commit every lane tested (no rebuild)
+- Nothing is rebuilt for a channel: canary deploys the master build's kept site (`site-<sha>`), a
+  nightly promotion publishes to npm `next` the builds of its own CI call on the commit every lane
+  tested, and a production promotion moves npm `latest` and graphty.app to that same nightly
 
 ### Breaking changes and major releases
 

@@ -8,8 +8,11 @@
 //       writes promote (true | false) and why to GITHUB_OUTPUT
 //   node tools/channel/nightly.mjs channel-json  the site job: channel.json for the site-<sha> prerelease, on stdout
 //       env SHA, COMMIT (the version commit, empty when nothing was versioned), RUN_ID, SITE_SHA256, CONFIG_REF
+//   node tools/channel/nightly.mjs site-release  the site job: the site-<sha> prerelease with site.tar.zst and
+//       channel.json (from $RUNNER_TEMP/out) in one call (releases are immutable); writes tag to GITHUB_OUTPUT
+//       env SHA, SITE_SHA256, RUN_URL, GH_TOKEN, RUNNER_TEMP
 //   node tools/channel/nightly.mjs deployed-json the site job: deployed.json for graphty-nightly, on stdout
-//       env SHA, SITE_SHA256, CONFIG_REF
+//       env SHA, SITE_SHA256, CONFIG_REF, TAG (the release site-release made; default site-<SHA>)
 //   node tools/channel/nightly.mjs wait          the site job: wait for graphty-nightly's deploy of deployed.json
 //       env SITE_REPO, PUSHED (the deployed.json commit), SITE_URL, SHA, GH_TOKEN; ends on the deploy run's
 //       conclusion or on the site's build stamp naming SHA, never on a timer (the job's timeout-minutes is only a
@@ -160,17 +163,63 @@ export function channelRecord({
  * @param o.siteSha256 the sha256 of site.tar.zst
  * @param o.configRef the master commit whose graphty/sites/nightly.json becomes site.json
  * @param o.now milliseconds
+ * @param [o.tag] the release holding the site, site-<sha> unless that one was left without its asset
  * @returns the record
  */
-export function deployedRecord({ sha, siteSha256, configRef, now }) {
+export function deployedRecord({ sha, siteSha256, configRef, now, tag = `site-${sha}` }) {
     return {
         site: "nightly",
-        tag: `site-${sha}`,
+        tag,
         sha256: siteSha256,
         configRef,
         time: new Date(now).toISOString(),
         approver: "auto",
     };
+}
+
+/**
+ * What the site job does with the site-<commit> release it needs (#4149). Releases in this repository are
+ * immutable once published: assets go on in the same call that creates the release, and never later.
+ * @param release the release as the REST API returns it (assets with their digest), or null when there is none
+ * @param siteSha256 the sha256 of the site.tar.zst this job packed
+ * @returns `{ action: "create" | "reuse" | "carrier" | "refuse", why }`: carrier when the release holds no
+ *   site.tar.zst and can never take one, so the site needs another site-<commit> tag
+ */
+export function siteReleasePlan(release, siteSha256) {
+    if (!release) return { action: "create", why: "no release yet" };
+    const asset = (release.assets ?? []).find((a) => a.name === "site.tar.zst");
+    if (!asset) return { action: "carrier", why: `${release.tag_name} has no site.tar.zst and is immutable` };
+    if (asset.digest === `sha256:${siteSha256}`)
+        return { action: "reuse", why: `${release.tag_name} holds this archive` };
+    return {
+        action: "refuse",
+        why: `${release.tag_name} holds a site.tar.zst with ${asset.digest ?? "no digest"}, not sha256:${siteSha256}: the same artifact packed differently; deploy the asset it holds by writing deployed.json with that sha256`,
+    };
+}
+
+/**
+ * The carrier commit for a site whose site-<sha> release cannot take its asset: sha's own tree, sha as its only
+ * parent, a fixed author and sha's commit time, so every run makes the same commit and a re-run reuses its release.
+ * @param sha the candidate
+ * @param git runs git with the given arguments and environment, returns stdout
+ * @returns the carrier's commit id
+ */
+export function carrierCommit(sha, git) {
+    const when = git(["log", "-1", "--format=%cI", sha]);
+    const who = { NAME: "github-actions[bot]", EMAIL: "github-actions[bot]@users.noreply.github.com" };
+    const env = {};
+    for (const role of ["AUTHOR", "COMMITTER"]) {
+        env[`GIT_${role}_NAME`] = who.NAME;
+        env[`GIT_${role}_EMAIL`] = who.EMAIL;
+        env[`GIT_${role}_DATE`] = when;
+    }
+    const message = [
+        `site: carrier for the nightly site of ${sha}`,
+        "",
+        `Same source tree as ${sha}. Exists only to carry the release site-<this commit> for ${sha}'s built site,`,
+        `because the release site-${sha} was published without it and releases are immutable (#4149).`,
+    ].join("\n");
+    return git(["commit-tree", `${sha}^{tree}`, "-p", sha, "-m", message], env);
 }
 
 /**
@@ -485,9 +534,83 @@ function channelJsonMain(env) {
     console.log(JSON.stringify(record, null, 2));
 }
 
+function releaseOf(tag) {
+    try {
+        return JSON.parse(gh("api", `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${tag}`));
+    } catch {
+        return null; // 404: none (a draft is not listed here either)
+    }
+}
+
+const gitWith = (args, extra = {}) =>
+    execFileSync("git", args, { encoding: "utf8", env: { ...process.env, ...extra } }).trim();
+
+/**
+ * Makes the carrier commit for sha and pushes its site-<carrier> tag (pushing it again is a no-op).
+ * @param sha the candidate
+ * @returns the carrier's commit id
+ */
+function pushCarrier(sha) {
+    try {
+        gitWith(["cat-file", "-e", `${sha}^{commit}`]);
+    } catch {
+        gitWith(["fetch", "--quiet", "--no-tags", "--filter=blob:none", "origin", sha]);
+    }
+    const carrier = carrierCommit(sha, gitWith);
+    gitWith(["push", "--quiet", "--no-verify", "origin", `${carrier}:refs/tags/site-${carrier}`]);
+    return carrier;
+}
+
+function createSiteRelease(tag, env) {
+    const out = join(env.RUNNER_TEMP, "out");
+    const carried =
+        tag === `site-${env.SHA}`
+            ? ""
+            : ` site-${env.SHA} was published without it, so it hangs on a commit with the same tree.`;
+    const notes = `The built site of ${env.SHA}, promoted to nightly.graphty.app by ${env.RUN_URL ?? ""}.${carried}`;
+    const title = `Nightly site ${env.SHA.slice(0, 7)}`;
+    const assets = [join(out, "site.tar.zst"), join(out, "channel.json")];
+    gh(
+        "release",
+        "create",
+        tag,
+        ...assets,
+        "--verify-tag",
+        "--prerelease",
+        "--latest=false",
+        "--title",
+        title,
+        "--notes",
+        notes,
+    );
+    const check = siteReleasePlan(releaseOf(tag), env.SITE_SHA256);
+    if (check.action !== "reuse") throw new Error(`${tag} after its creation: ${check.why}`);
+}
+
+function planFor(tag, siteSha256) {
+    const plan = siteReleasePlan(releaseOf(tag), siteSha256);
+    console.log(`${tag}: ${plan.action} (${plan.why})`);
+    return plan;
+}
+
+function siteReleaseMain(env) {
+    need(env, ["SHA", "SITE_SHA256", "RUNNER_TEMP", "GITHUB_REPOSITORY"]);
+    let tag = `site-${env.SHA}`;
+    let plan = planFor(tag, env.SITE_SHA256);
+    if (plan.action === "carrier") {
+        tag = `site-${pushCarrier(env.SHA)}`;
+        plan = planFor(tag, env.SITE_SHA256);
+        if (plan.action === "carrier") throw new Error(`the carrier's release ${tag} has no site.tar.zst either`);
+    }
+    if (plan.action === "refuse") throw new Error(plan.why);
+    if (plan.action === "create") createSiteRelease(tag, env);
+    output({ tag });
+}
+
 function deployedJsonMain(env) {
     need(env, ["SHA", "SITE_SHA256", "CONFIG_REF"]);
     const record = deployedRecord({
+        tag: env.TAG || undefined,
         sha: env.SHA,
         siteSha256: env.SITE_SHA256,
         configRef: env.CONFIG_REF,
@@ -518,7 +641,7 @@ function failedMain(env) {
     const text = [
         `The nightly site job failed on ${env.SHA}: ${env.RUN_URL ?? ""}`,
         "",
-        "npm `next` may already hold this candidate's versions while nightly.graphty.app still serves the previous nightly. Read the failed step; once fixed, re-run the run's failed jobs (`gh run rerun <run id> --failed`), which re-runs only the site job. A missing NIGHTLY_SITE_DEPLOY_KEY (environment `nightly`) or a graphty-nightly without .github/workflows/deploy.yml is an owner item.",
+        "npm `next` may already hold this candidate's versions while nightly.graphty.app still serves the previous nightly. Read the failed step. A re-run of the run's failed jobs (`gh run rerun <run id> --failed`) re-runs only the site job, with the workflow as that run had it; to deploy with master's `.github/workflows/nightly-site.yml`, dispatch it with the values the failed job logged (the command is at the head of that file). A missing NIGHTLY_SITE_DEPLOY_KEY (environment `nightly`) or a graphty-nightly without .github/workflows/deploy.yml is an owner item.",
     ].join("\n");
     const open = openIssue(FAILED_TITLE, repo);
     if (open) {
@@ -544,6 +667,7 @@ function deployedMain(env) {
 const COMMANDS = {
     decide: decideMain,
     "channel-json": channelJsonMain,
+    "site-release": siteReleaseMain,
     "deployed-json": deployedJsonMain,
     wait: waitMain,
     record: recordMain,

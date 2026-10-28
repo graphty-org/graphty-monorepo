@@ -125,6 +125,8 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    ModelChange,
+    ModelState,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -198,6 +200,38 @@ export type {
     RecipeLeftOutCode,
     RecipeSource,
 } from "./src/session/recipe";
+
+// ---------------------------------------------------------------------------------------------
+// 3D model files: session.assets
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The model files a style layer can draw nodes as (`node.model`), the ids that name them, what
+ * `session.assets.add` accepts and returns, and the limits only the page's code may change.
+ */
+export type {
+    AddAssetOptions,
+    AssetId,
+    AssetOffer,
+    AssetRecord,
+    AssetsApi,
+    AssetSource,
+    AssetState,
+    BuiltInModelFormat,
+    ModelFormat,
+    ModelLimits,
+    ModelSummary,
+    NamedBlob,
+    PartAnswer,
+} from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+
+/**
+ * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
+ * the data, a reopened project's network-source loads -- waiting for the reader's answer
+ * (`session.network`).
+ */
+export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates

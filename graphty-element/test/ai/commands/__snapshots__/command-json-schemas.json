@@ -199,6 +199,10 @@
                         "exclusiveMinimum": 0,
                         "type": "number"
                     },
+                    "model": {
+                        "description": "Draw the nodes as a 3D model: a model id ('asset:...', such as 'asset:sample/server') or the URL of a .glb, .gltf or .obj file. A URL is fetched only after the reader allows its site",
+                        "type": "string"
+                    },
                     "outlineColor": {
                         "description": "Outline color",
                         "type": "string"
@@ -224,6 +228,10 @@
                         "description": "Size of the node (default is 1)",
                         "exclusiveMinimum": 0,
                         "type": "number"
+                    },
+                    "texture": {
+                        "description": "A picture drawn on the nodes (a PNG, JPEG or WebP): a picture id ('asset:...') or a URL. A URL is fetched only after the reader allows its site",
+                        "type": "string"
                     }
                 },
                 "type": "object"

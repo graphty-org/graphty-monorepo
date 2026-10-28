@@ -61,6 +61,14 @@ export { BASEMAP_SOURCE_DESCRIPTORS } from "./src/catalog/basemaps";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
+export type {
+    AssetKind,
+    BuiltInModelFormat,
+    ModelDetection,
+    ModelDetectionInput,
+    ModelFormat,
+} from "./src/catalog/detectModel";
+export { detectAssetKind, detectModelFormat } from "./src/catalog/detectModel";
 export type { UnservedFormat } from "./src/catalog/formats";
 export { FORMAT_DESCRIPTORS, formatDescriptor, formatsForExtension, UNSERVED_FORMAT_IDS } from "./src/catalog/formats";
 export type {
@@ -79,6 +87,10 @@ export {
 } from "./src/catalog/layouts";
 export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
+// The sample 3D models a style layer names in `node.model` ("asset:sample/server") without adding
+// a file, the same list `session.catalog.models()` returns, each with a thumbnail picture.
+export type { ModelDescriptor } from "./src/catalog/models";
+export { MODEL_DESCRIPTORS } from "./src/catalog/models";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
 // Shaders as catalog data: targets and places, the descriptor `session.catalog.shaders()` lists,

@@ -1,5 +1,6 @@
 import {
     AbstractMesh,
+    type BaseTexture,
     Camera,
     Color3,
     Color4,
@@ -48,10 +49,12 @@ import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
 import { isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
+import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
+import { TextureCache } from "./models/TextureCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
-import { drawnUses, toColorValue } from "./session/styles/channels";
+import { CHANNEL_DESCRIPTORS, drawnUses, toColorValue } from "./session/styles/channels";
 import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 export type NodeIdType = string | number;
@@ -273,6 +276,22 @@ function labelBorders(borders: LabelStyle["borders"]): { width: number; color: s
     return valid.length > 0 ? valid : undefined;
 }
 
+/** The colour a node is drawn in when no layer a reader added colours it. */
+const DEFAULT_NODE_COLOR = String(CHANNEL_DESCRIPTORS["node.color"].default ?? "").toLowerCase();
+
+/** White: an untinted model instance keeps its own colours. */
+const UNTINTED = new Color4(1, 1, 1, 1);
+
+/**
+ * Whether a shape block tints its model with the node's colour.
+ * @param shape - The shape block.
+ * @returns True for tint on or "replace".
+ */
+function modelTinted(shape: NodeStyleConfig["shape"]): boolean {
+    const tint = shape?.modelTint as unknown;
+    return tint === true || tint === "true" || tint === "replace";
+}
+
 /**
  * The shader uses resolved on a node: its style's `shaders`, which the painter writes from
  * `node.shaders`.
@@ -318,7 +337,7 @@ function hexOf(value: unknown, fallback: string): { hex: string; alpha: number }
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
  */
-export class Node {
+export class Node implements ModelUser {
     parentGraph: Graph | GraphContext;
     opts: NodeOpts;
     readonly id: NodeIdType;
@@ -426,6 +445,10 @@ export class Node {
 
     /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
     private drawnStyle: NodeStyleConfig | null = null;
+    /** The model template this node's mesh instances, or null when it draws a built-in shape. */
+    private drawnModel: ModelTemplate | null = null;
+    /** The `node.texture` picture the built-in shape's mesh was built with, or null. */
+    private drawnImage: BaseTexture | null = null;
     private drawnColor: Rgba | null = null;
 
     /**
@@ -629,12 +652,7 @@ export class Node {
         this.shapeType = o.shape?.type;
 
         const fit = this.fitToLabel(paint.meshKey, o);
-        this.mesh = NodeMesh.create(
-            this.context.getMeshCache(),
-            { styleId: fit.meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: fit.style.shape, texture: o.texture, effect: o.effect, border: fit.style.border },
-            this.context.getScene(),
-        );
+        this.mesh = this.buildMesh(fit.meshKey, fit.style);
 
         // Parent to graph-root for XR gesture support
         // This allows gestures to transform the entire graph by manipulating the root
@@ -926,6 +944,12 @@ export class Node {
      * @returns The radius, or null.
      */
     private measureRoundRadius(): number | null {
+        // A model's edges stop at its fitted bounding sphere (design section 3.8).
+        if (this.drawnModel !== null) {
+            const { scaling } = this.mesh;
+            return this.drawnModel.radius * Math.max(Math.abs(scaling.x), Math.abs(scaling.y), Math.abs(scaling.z));
+        }
+
         // An unnamed shape is not assumed to be anything. `NodeMesh.create` throws for a type it
         // does not know, so a node that is drawn always has one.
         if (this.shapeType === undefined || !ROUND_SHAPES.has(this.shapeType)) {
@@ -1212,6 +1236,16 @@ export class Node {
      * @param color - The colour, or null when no layer painted one.
      */
     private applyInstanceColor(color: Rgba | null): void {
+        if (this.drawnModel !== null) {
+            this.applyModelTint(this.drawnModel, color);
+            return;
+        }
+
+        if (this.drawnImage !== null && !modelTinted(this.drawnStyle?.shape)) {
+            // A picture replaces the shape's color; `node.modelTint` multiplies the node's color in.
+            color = color === null ? null : { ...color, r: 255, g: 255, b: 255 };
+        }
+
         if (color === null || !(this.mesh instanceof InstancedMesh)) {
             return;
         }
@@ -1233,6 +1267,26 @@ export class Node {
         // SOURCE mesh, so it is part of the key rather than of this buffer. An alpha here would
         // be inert without a VERTEXALPHA define and would read as opacity that does nothing.
         this.mesh.instancedBuffers.color = new Color4(color.r / 255, color.g / 255, color.b / 255, 1);
+    }
+
+    /**
+     * Write the tint of a drawn model into each of its instanced parts.
+     *
+     * A model keeps its own colours unless `node.modelTint` asks for the node's: every template
+     * registers the colour buffer white, so this is one write per part.
+     * @param model - The model this node draws.
+     * @param color - The colour, or null when no layer painted one.
+     */
+    private applyModelTint(model: ModelTemplate, color: Rgba | null): void {
+        const tint =
+            color !== null && modelTinted(this.drawnStyle?.shape)
+                ? new Color4(color.r / 255, color.g / 255, color.b / 255, 1)
+                : UNTINTED;
+        for (const part of [this.mesh, ...this.mesh.getChildMeshes(true)]) {
+            if (part instanceof InstancedMesh && model.groups.includes(part.sourceMesh)) {
+                part.instancedBuffers.color = tint;
+            }
+        }
     }
 
     /**
@@ -1481,7 +1535,14 @@ export class Node {
         const samePath = shaderPartOf(meshKey) === shaderPartOf(this.meshKey);
         const sameGeometry =
             meshKey === this.meshKey || (samePath && isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
-        return sameGeometry && !this.mesh.isDisposed() && !this.fitIsStale(o);
+        const model = this.modelFor(o);
+        return (
+            sameGeometry &&
+            !this.mesh.isDisposed() &&
+            !this.fitIsStale(o) &&
+            model === this.drawnModel &&
+            (model !== null || this.imageFor(o) === this.drawnImage)
+        );
     }
 
     /**
@@ -1537,6 +1598,82 @@ export class Node {
         this.fittedFor = { text, label: cloneDeep(label) };
         this.fittedExtent = { width, height };
         return { meshKey: `${meshKey}|fit:${width}x${height}`, style: { ...o, shape: { ...shape, width, height } } };
+    }
+
+    /**
+     * The model template a style asks for, once it is drawable; asking starts its load, and this
+     * node is repainted when it is ready. Null for a built-in shape, while a model loads, and
+     * when it failed: the node then draws `node.shape`.
+     * @param o - The resolved style.
+     * @returns The template, or null.
+     */
+    private modelFor(o: NodeStyleConfig): ModelTemplate | null {
+        if (o.shape?.model === undefined) {
+            return null;
+        }
+
+        return ModelCache.of(this.context)?.templateFor(this, o.shape, o.texture?.image) ?? null;
+    }
+
+    /**
+     * The `node.texture` picture a style asks for, once it is drawable; asking starts its load, and
+     * this node is repainted when it is ready. Null when none is named, while it loads, and when it
+     * failed.
+     * @param o - The resolved style.
+     * @returns The texture, or null.
+     */
+    private imageFor(o: NodeStyleConfig): BaseTexture | null {
+        const ref = o.texture?.image;
+        if (ref === undefined || ref === "") {
+            return null;
+        }
+
+        return (
+            TextureCache.forScene(this.context.getScene(), this.context.getSession?.())?.textureFor(this, ref) ?? null
+        );
+    }
+
+    /**
+     * Build this node's mesh: an instance of its model when one is drawable, else its shape.
+     * @param meshKey - The source mesh key.
+     * @param o - The resolved style.
+     * @returns The mesh.
+     */
+    private buildMesh(meshKey: string, o: NodeStyleConfig): AbstractMesh {
+        const model = this.modelFor(o);
+        this.drawnModel = model;
+        if (model !== null) {
+            this.drawnImage = null;
+            return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+        }
+
+        const image = this.imageFor(o);
+        this.drawnImage = image;
+        return NodeMesh.create(
+            this.context.getMeshCache(),
+            // A source mesh with its picture is another source mesh than the one drawn while it loads.
+            { styleId: image === null ? meshKey : `${meshKey}|image`, is2D: this.context.is2D(), size: this.size },
+            { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
+            this.context.getScene(),
+        );
+    }
+
+    /**
+     * What this node draws as a model, for the model cache's warnings.
+     * @returns Its template, whether it is tinted and whether a reader's layer coloured it.
+     * @internal
+     */
+    modelDrawn(): { readonly template: ModelTemplate | null; readonly tinted: boolean; readonly colored: boolean } {
+        const color = this.drawnColor;
+        const hex =
+            color === null
+                ? DEFAULT_NODE_COLOR
+                : `#${[color.r, color.g, color.b].map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
+        return {
+            template: this.drawnModel,
+            tinted: modelTinted(this.drawnStyle?.shape),
+            colored: hex !== DEFAULT_NODE_COLOR,
+        };
     }
 
     /**
@@ -1645,7 +1782,8 @@ export class Node {
         const geometryChanged =
             !isEqual(this.drawnStyle?.shape, o.shape) ||
             !isEqual(this.drawnStyle?.border, o.border) ||
-            !isEqual(fittedBefore, this.fittedExtent);
+            !isEqual(fittedBefore, this.fittedExtent) ||
+            this.modelFor(o) !== this.drawnModel;
 
         this.meshKey = meshKey;
         this.drawnStyle = o;
@@ -1712,12 +1850,7 @@ export class Node {
             this.geometryChanged();
         }
 
-        this.mesh = NodeMesh.create(
-            this.context.getMeshCache(),
-            { styleId: fit.meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: fit.style.shape, texture: o.texture, effect: o.effect, border: fit.style.border },
-            this.context.getScene(),
-        );
+        this.mesh = this.buildMesh(fit.meshKey, fit.style);
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);

@@ -988,11 +988,11 @@ function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string)
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Check one value a LAYER wrote to a number channel: a finite number inside the channel's range.
- * @param descriptor - The channel.
+ * Check a number a layer wrote against the channel's range; see {@link authoredValue}.
+ * @param descriptor - The channel, which accepts a number.
  * @param value - The value as it was authored.
  * @param what - What the value was for, so a refusal can name it.
- * @param wrongKind - Builds the refusal for a value of the wrong kind.
+ * @param wrongKind - Builds the refusal for a value that is not a number.
  * @returns The number.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_OPTION_RANGE`.
  */
@@ -1015,19 +1015,29 @@ function authoredNumber(
 }
 
 /**
- * An authored on-or-off value: `true`, "true" or 1 is on, `false`, "false" or 0 is off.
+ * Check a choice a layer wrote against the channel's values; see {@link authoredValue}.
+ * @param descriptor - The channel, which accepts one of a list of values.
  * @param value - The value as it was authored.
- * @param wrongKind - Builds the refusal for a value of another kind.
- * @returns Whether it is on.
- * @throws A `GraphtyError` with code `E_BAD_LAYER` for anything else.
+ * @param what - What the value was for, so a refusal can name it.
+ * @returns The value.
+ * @throws A `GraphtyError` with code `E_OPTION_RANGE`.
  */
-function authoredBoolean(value: ChannelValue, wrongKind: (expected: string) => GraphtyError): boolean {
-    const read = value === true || value === "true" || value === 1;
-    if (!read && value !== false && value !== "false" && value !== 0) {
-        throw wrongKind("on or off");
+function authoredEnum(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
+    if (isEnumCount(descriptor, value)) {
+        return value;
     }
 
-    return read;
+    const values = descriptor.values ?? [];
+    // A boolean is read by its name (`node.modelTint` takes true, false or "replace").
+    if (typeof value === "boolean" && values.includes(String(value))) {
+        return value;
+    }
+
+    if (typeof value !== "string" || !values.includes(value)) {
+        throw outOfRange(descriptor, value, what);
+    }
+
+    return value;
 }
 
 /**
@@ -1049,7 +1059,7 @@ function authoredBoolean(value: ChannelValue, wrongKind: (expected: string) => G
  * @throws A `GraphtyError` with code `E_BAD_LAYER`, `E_OPTION_RANGE` or `E_UNSUPPORTED`.
  */
 function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what: string): EncodedValue {
-    const { accepts, values } = descriptor;
+    const { accepts } = descriptor;
     const wrongKind = (expected: string): GraphtyError =>
         badBinding(`${what} is ${expected}.`, { channel: descriptor.channel, value });
 
@@ -1068,15 +1078,7 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
         case "boolean":
             return authoredBoolean(value, wrongKind);
         case "enum":
-            if (isEnumCount(descriptor, value)) {
-                return value;
-            }
-
-            if (typeof value !== "string" || !(values ?? []).includes(value)) {
-                throw outOfRange(descriptor, value, what);
-            }
-
-            return value;
+            return authoredEnum(descriptor, value, what);
         case "labelStyle":
             if (typeof value !== "object" || isRgba(value)) {
                 throw wrongKind('a label style, such as { sizePx: 14, weight: "bold" }');
@@ -1092,6 +1094,22 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
         default:
             throw unsupportedChannel(descriptor);
     }
+}
+
+/**
+ * A boolean channel's authored value: `true`, "true" and 1 read as on; `false`, "false" and 0 as off.
+ * @param value - The value as it was authored.
+ * @param wrongKind - Builds the refusal for a value of the wrong kind.
+ * @returns The boolean.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for anything else.
+ */
+function authoredBoolean(value: ChannelValue, wrongKind: (expected: string) => GraphtyError): boolean {
+    const read = value === true || value === "true" || value === 1;
+    if (!read && value !== false && value !== "false" && value !== 0) {
+        throw wrongKind("on or off");
+    }
+
+    return read;
 }
 
 /**

@@ -177,7 +177,11 @@ interface EntryState {
     unwritten: Set<PartTag>;
     /** The run entries in the store, by id. */
     readonly runs: Map<RunId, unknown>;
+    /** The digests of the embedded models whose `asset:` parts the store holds. */
+    assets: Set<string>;
     release: (() => void) | null;
+    /** A claim of its lock in flight, which every other claim of it shares (`#claim`). */
+    claiming: Promise<(() => void) | null> | null;
     /** The size of each part the store holds for it, as far as this writer knows. */
     sizes: Map<string, number>;
 }
@@ -479,6 +483,12 @@ export class Autosaver {
             }),
             session.on("project:status", () => {
                 this.#tell();
+            }),
+            // A model a layer named by URL settled after the layer was written: embed it now.
+            session.on("model:changed", ({ state }) => {
+                if (state === "accepted" && this.#entry.started) {
+                    this.#mark(["rest"], false, false);
+                }
             }),
             onSourceRecords(session, () => {
                 // A record can change with no row (a refresh that found nothing new, a next page
@@ -944,19 +954,44 @@ export class Autosaver {
             return;
         }
 
-        const release = await this.#locks.claim(lockName(this.#key, entry.id));
+        const release = await this.#claim(entry);
         if (entry !== this.#entry) {
             release?.();
+            entry.release = null;
             return;
         }
 
-        if (release !== null) {
-            entry.release = release;
-            return;
+        if (release === null) {
+            this.#conflict(entry.id);
+            this.#kick();
+        }
+    }
+
+    /**
+     * Take an entry's lock, sharing a claim of it already in flight. Two claims of one lock from
+     * this page would see each other as another tab: after the back/forward cache, a write that
+     * claims the released lock and `reclaim` race for it, and the loser moved the work to a new
+     * entry (#4037).
+     * @param entry - The entry.
+     * @returns The lock's release, also kept as `entry.release`; null when it is held elsewhere.
+     */
+    #claim(entry: EntryState): Promise<(() => void) | null> {
+        if (entry.release !== null) {
+            return Promise.resolve(entry.release);
         }
 
-        this.#conflict(entry.id);
-        this.#kick();
+        entry.claiming ??= this.#locks.claim(lockName(this.#key, entry.id)).then(
+            (release) => {
+                entry.claiming = null;
+                entry.release = release;
+                return release;
+            },
+            (error: unknown) => {
+                entry.claiming = null;
+                throw error;
+            },
+        );
+        return entry.claiming;
     }
 
     /**
@@ -1436,7 +1471,9 @@ export class Autosaver {
             started: false,
             unwritten: new Set(),
             runs: new Map(),
+            assets: new Set(),
             release: null,
+            claiming: null,
             sizes: new Map(),
         };
     }
@@ -1621,7 +1658,7 @@ export class Autosaver {
 
         let parts: Record<string, string | null> = {};
         try {
-            ({ parts } = buildParts(this.#session, tags, entry.runs, this.#stash));
+            ({ parts } = buildParts(this.#session, tags, entry.runs, this.#stash, entry.assets));
         } catch (error) {
             this.#failed(error);
         }
@@ -1674,7 +1711,7 @@ export class Autosaver {
         const writesEntry = entry.started && entry.unwritten.size > 0;
         if (writesEntry) {
             const carried = entry.unwritten;
-            const built = buildParts(this.#session, carried, entry.runs, this.#stash);
+            const built = buildParts(this.#session, carried, entry.runs, this.#stash, entry.assets);
             const sizes = sizesAfter(entry.sizes, built.parts);
             const meta = this.#metaOf(entry, sizes);
             entry.unwritten = new Set();
@@ -1689,6 +1726,9 @@ export class Autosaver {
             job.done.push(() => {
                 entry.gen += 1;
                 entry.sizes = sizes;
+                if (built.assets !== undefined) {
+                    entry.assets = new Set(built.assets);
+                }
                 if (job.strict) {
                     this.#strict = false;
                 }
@@ -1837,7 +1877,7 @@ export class Autosaver {
         arm();
         try {
             for (const entry of job.claim) {
-                entry.release = await this.#locks.claim(lockName(this.#key, entry.id));
+                await this.#claim(entry);
                 // ponytail: a fresh random id is never held elsewhere; a refused claim is not retried.
             }
 

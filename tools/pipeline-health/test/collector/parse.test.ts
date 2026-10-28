@@ -12,6 +12,8 @@ import {
     llmCost,
     loadKind,
     masterState,
+    NOT_ON_NPM,
+    npmName,
     oldestUntested,
     OWNER_LOGIN,
     pool,
@@ -19,10 +21,13 @@ import {
     prStocks,
     RELEASE_WORKFLOW_EVENTS,
     releaseAttempt,
+    releaseMode,
     releaseTags,
     runnerFlags,
     runnerUse,
+    STRESS_FOUND,
     stressQuiet,
+    stressRunState,
     suiteNotes,
     t4Cost,
     taggedNotOnNpm,
@@ -213,6 +218,31 @@ describe("replaced runs (recorded 2026-10-27)", () => {
     it("still calls the train skipped for a cancelled run nothing replaced", () => {
         const before = releases.filter((r) => Date.parse(r.created_at) <= Date.parse("2026-10-27T13:05:04Z"));
         expect(trainSkipped(seen, before)).toBe(true);
+    });
+
+    it("does not call the train skipped after a promote-nightly or abandon run, which test nothing by design", () => {
+        const newest = releases.reduce((a, b) => (Date.parse(a.created_at) > Date.parse(b.created_at) ? a : b));
+        const at = Date.parse(newest.updated_at) + 60_000;
+        for (const title of ["Release (promote-nightly)", "Release (abandon)", "Release (candidate)"]) {
+            const run = { ...newest, id: 1, display_title: title, created_at: new Date(at).toISOString() };
+            const attempt: ReleaseSeen = {
+                sha: "not-the-candidate",
+                at,
+                tested: false,
+                red: [],
+                ciFailed: false,
+                run: 1,
+            };
+            expect(trainSkipped([attempt, ...seen], [run, ...releases])).toBe(false);
+            // The same untested attempt as a scheduled full run is a skipped train.
+            const full = { ...run, display_title: "Release (full)" };
+            expect(trainSkipped([attempt, ...seen], [full, ...releases])).toBe(true);
+        }
+    });
+
+    it("reads hyphenated release modes", () => {
+        expect(releaseMode("Release (promote-nightly)")).toBe("promote-nightly");
+        expect(releaseMode("Release")).toBe("legacy");
     });
 
     it("does not count replaced release runs as failed", () => {
@@ -463,6 +493,19 @@ describe("npm", () => {
     });
 });
 
+describe("npm names", () => {
+    it("names every published workspace package as its package.json does", () => {
+        const root = new URL("../../../../", import.meta.url);
+        const ws = readFileSync(new URL("pnpm-workspace.yaml", root), "utf8");
+        const dirs = [...ws.matchAll(/^ {4}- "([^"]+)"$/gm)].map((m) => m[1]);
+        expect(dirs).toContain("babylonjs-map");
+        for (const dir of dirs.filter((d) => !NOT_ON_NPM.has(d))) {
+            const pkg = JSON.parse(readFileSync(new URL(`${dir}/package.json`, root), "utf8")) as { name: string };
+            expect(npmName(dir), dir).toBe(pkg.name);
+        }
+    });
+});
+
 describe("pull request of a run", () => {
     const run = (o: Partial<GhRun>) =>
         ({ id: 1, head_branch: "fix/1-a", head_sha: "bbb", pull_requests: [], ...o }) as GhRun;
@@ -592,6 +635,40 @@ describe("auto-merge stocks", () => {
         );
         expect(s.autoMergeGreenStuck).toBe(2);
         expect(s.autoMergeArmedLong).toBe(2);
+    });
+});
+
+describe("stress run state", () => {
+    // The shape of restricted-cpu-stress.yml run 40177689577 (2026-10-25): every shard job concluded success
+    // because its test step has continue-on-error, though 27 tests failed; the filing job failed.
+    const quota = {
+        name: "Run tests under the CPU quota",
+        conclusion: "success",
+        started_at: null,
+        completed_at: null,
+    };
+    const job = (name: string, conclusion: string, steps = [quota]) =>
+        ({ name, conclusion, steps }) as unknown as GhJob; // only what stressRunState reads
+    const shards = ["graphty-1", "graphty-element-browser-1", "small-node"].map((s) =>
+        job(`Restricted CPU (${s})`, "success"),
+    );
+    const marker = { ...quota, name: STRESS_FOUND };
+
+    it("finds failures from the marker step, though every shard job concluded success", () => {
+        const failed = [...shards];
+        failed[1] = job("Restricted CPU (graphty-element-browser-1)", "success", [quota, marker]);
+        const run = [job("Build", "success"), ...failed, job("File the load-sensitive tests", "failure")];
+        expect(stressRunState(run)).toEqual({
+            state: 2,
+            foundFailures: true,
+            failedJob: "File the load-sensitive tests",
+        });
+    });
+
+    it("finds nothing when no marker step ran (a skipped marker is not a failure)", () => {
+        const skipped = shards.map((j) => ({ ...j, steps: [quota, { ...marker, conclusion: "skipped" }] }));
+        const run = [job("Build", "success"), ...skipped, job("File the load-sensitive tests", "success")];
+        expect(stressRunState(run)).toEqual({ state: 0, foundFailures: false });
     });
 });
 

@@ -517,10 +517,11 @@ jobs:
                   # the base, and the test files the change touched: the ones it changed and the ones whose imports
                   # reach a changed file (not the ones a rule runs), and the families with no file-level answer
                   # (every file of those counts as touched). An everything plan gets only the base, so every test
-                  # counts as touched and a re-run still reads the store again; an unavailable one stays as it is,
-                  # and an outage leaves the committed quarantine list in force.
+                  # counts as touched and a re-run still reads the store again. An unavailable one (a store outage)
+                  # gets them too: the committed quarantine list stays in force, and the [NEW-FLAKY] rule still
+                  # fails a test the change touched that failed and then passed (run-group.mjs newFlakyJudge, #4146).
                   jq -s --arg base "$(git rev-parse HEAD^1)" --rawfile changed "$RUNNER_TEMP/changed.txt" \
-                      'if .[0].unavailable then .[0] elif .[1].everything then .[0] + {base: $base} else .[0] + {base: $base,
+                      '.[0] + if .[1].everything then {base: $base} else {base: $base,
                           affected: ((.[1].touched // []) + ($changed | split("\n") | map(select(. != ""))) | unique),
                           unknownFamilies: (.[1].unknown // [])} end' \
                       "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \
@@ -2246,9 +2247,22 @@ jobs:
             fail-fast: false
             matrix:
                 include:
+                    # Two legs (vitest --shard=N/2), merged by story-tests-merge: one job was 31 minutes, the longest
+                    # of the run, and the full run's re-capture waits for the whole CI lane. Vitest splits by file hash,
+                    # not duration: with run 40616061520's per-file times (28.0 minutes of tests, StartScreen alone
+                    # 14.2) the legs are about 6 and 22 minutes, under graphty-element's 25-minute capture (#4109).
                     - project: graphty
+                      name: graphty-1
+                      part: 1
+                      parts: 2
                       shard: graphty-storybook
-                      command: cd graphty && pnpm exec vitest run --project=storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook --shard=1/2
+                    - project: graphty
+                      name: graphty-2
+                      part: 2
+                      parts: 2
+                      shard: graphty-storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook --shard=2/2
                     # One job for the whole project: without coverage its story tests do not slow down as
                     # they run, which is why the coverage shards split it in five.
                     - project: graphty-element
@@ -2503,7 +2517,7 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # The parts of a project the story-tests job splits in legs (graph-io-fidelity), combined into the one capture the
+    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty), combined into the one capture the
     # project's single leg would have uploaded (visual-<project>-<attempt>):
     # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
     story-tests-merge:
@@ -2516,7 +2530,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graph-io-fidelity]
+                project: [graph-io-fidelity, graphty]
         steps:
             - name: Download the parts
               id: parts

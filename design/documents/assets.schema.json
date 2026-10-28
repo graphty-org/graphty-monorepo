@@ -1,0 +1,113 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-assets/v1.json",
+    "title": "graphty assets member, version 1",
+    "description": "The model files a document's style layers name, embedded exactly as given (assets.md). Normative for what a writer produces. Closed: an unknown member of the member skips the member, and of an entry or a file skips that entry (assets.md, 'Reading' rules 1 and 3). Every file's data is base64 of exactly byteLength bytes; the entry's sha256 is the digest of its file set (assets.md, 'The digest'); all the files of one member hold at most 67,108,864 bytes (64 MB). These three are rules this schema cannot express.",
+    "type": "object",
+    "required": ["kind", "version", "assets"],
+    "additionalProperties": false,
+    "properties": {
+        "kind": {
+            "const": "graphty-assets"
+        },
+        "version": {
+            "const": 1
+        },
+        "assets": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "$ref": "#/$defs/entry"
+            },
+            "description": "One entry per model a layer names. The first entry with a given sha256 carries the files; a later one with the same sha256 (another id, or another URL) carries none and shares them."
+        },
+        "extensions": {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
+            }
+        }
+    },
+    "$defs": {
+        "entry": {
+            "type": "object",
+            "required": ["id", "sha256", "format", "main"],
+            "additionalProperties": false,
+            "if": {
+                "required": ["stored"]
+            },
+            "then": {
+                "required": ["source"],
+                "not": {
+                    "required": ["files"]
+                }
+            },
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^asset:[A-Za-z0-9._/-]+$",
+                    "not": {
+                        "pattern": "^asset:sample/"
+                    },
+                    "description": "What a layer names in node.model. An id of the form asset:<64 hex digits> is the sha256 itself."
+                },
+                "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                },
+                "format": {
+                    "type": "string",
+                    "description": "The main file's format as detected when it was added: glb, gltf, obj, stl or ply for a model, png, jpeg or webp for a picture. A reader detects it again from the bytes."
+                },
+                "main": {
+                    "type": "string",
+                    "description": "The main file's path in the set (inside the zip, for a zip)."
+                },
+                "source": {
+                    "type": "string",
+                    "description": "The URL a layer named, when the model or picture came from one: naming it resolves to these files and fetches nothing, unless stored is url."
+                },
+                "stored": {
+                    "const": "url",
+                    "description": "Kept by URL: no files; the asset loads from source when the reader allows it, and a file whose digest is not sha256 is reported (W_MODEL_CHANGED). Absent: the files are embedded."
+                },
+                "skipped": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "description": "Parts the model is drawn without (pictures and .mtl files, by their path in the set): a reader applies the same skips before checking. Not in the digest."
+                },
+                "files": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "$ref": "#/$defs/file"
+                    }
+                }
+            }
+        },
+        "file": {
+            "type": "object",
+            "required": ["path", "mediaType", "byteLength", "data"],
+            "additionalProperties": false,
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Slash-separated, with no '.', '..' or empty segment, and not one folder every file of the entry shares."
+                },
+                "mediaType": {
+                    "type": "string",
+                    "description": "Informative only: a reader detects every format from the bytes."
+                },
+                "byteLength": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "data": {
+                    "type": "string",
+                    "contentEncoding": "base64"
+                }
+            }
+        }
+    }
+}

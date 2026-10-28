@@ -43,6 +43,7 @@ import { registeredLayoutDescriptors } from "../catalog/layoutRegistry";
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { registeredLogSinkDescriptors } from "../catalog/logSinkRegistry";
 import { LOG_SINK_DESCRIPTORS } from "../catalog/logSinks";
+import { MODEL_DESCRIPTORS } from "../catalog/models";
 import { registeredPaletteDescriptors } from "../catalog/paletteRegistry";
 import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
@@ -165,6 +166,11 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the dataset descriptors
      */
     datasets: () => DATASETS,
+    /**
+     * Every sample 3D model the element ships. Static: samples are resolved from the package.
+     * @returns the model descriptors
+     */
+    models: () => MODEL_DESCRIPTORS,
 });
 
 /**

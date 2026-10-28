@@ -13,7 +13,7 @@ import { readBenches, trend } from "../model/benchmarks.js";
 import type { Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
 import { flakyMembers } from "./flaky.js";
-import { jobMembers, nonGatingJobs } from "./jobs.js";
+import { definedJobs, jobMembers, nonGatingJobs } from "./jobs.js";
 import { type Fetch, type GitHub, HttpError } from "./github.js";
 import {
     classifyCancel,
@@ -625,8 +625,8 @@ async function ownerWaits(c: Cycle, gh: GitHub, open: GqlPr[]) {
 }
 
 /**
- * The committed quarantine list, CODEOWNERS and ci.yml's jobs allowed to fail, from master (one query; hourly, and
- * once before any exists).
+ * The committed quarantine list, CODEOWNERS, ci.yml's jobs and those allowed to fail, from master (one query;
+ * hourly, and once before any exists).
  */
 async function repoFiles(c: Cycle, gh: GitHub) {
     const [owner, name] = c.d.repo.split("/");
@@ -643,6 +643,7 @@ async function repoFiles(c: Cycle, gh: GitHub) {
                   .map((a) => a.job)
             : [];
         await c.setJson("non-gating", nonGatingJobs(ci, jobs));
+        await c.setJson("ci-jobs", definedJobs(ci));
     }
     const q = data.repository.quarantine?.text;
     const list = q ? ((JSON.parse(q) as { quarantine?: QuarantineEntry[] }).quarantine ?? []) : [];
@@ -978,7 +979,8 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         c.openRuns = xs.filter((x) => x.run.status !== "completed").map((x) => x.run);
         await master(c, masterList, cancels, elapsed);
     });
-    if (hourly || (await c.cursor("quarantine")) === undefined || (await c.cursor("non-gating")) === undefined)
+    const missing = async (name: string) => (await c.cursor(name)) === undefined;
+    if (hourly || (await missing("quarantine")) || (await missing("non-gating")) || (await missing("ci-jobs")))
         await c.part("repo files", "collector", () => repoFiles(c, gh));
     ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
     const xs = collected;

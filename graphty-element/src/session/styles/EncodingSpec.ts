@@ -58,7 +58,12 @@ import { nearestNames } from "../results/ResultsApi";
 import { fieldMeasurement, resultPath, resultShapeContract, type RunRef } from "../results/types";
 import type { RunDistinction } from "../runs/types";
 import type { CodedFact, ColumnRef } from "../shared";
-import { type ChannelDescriptor, type ChannelValueKind, parseShaderParamAddress } from "./channels";
+import {
+    type ChannelDescriptor,
+    type ChannelValueKind,
+    modelBindingProblem,
+    parseShaderParamAddress,
+} from "./channels";
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
 import { overflowHalf, requireChannel, type RuleBinding, shaderParamDescriptor } from "./encoding";
 import { columnPaletteFor, sequentialSamples } from "./palettes";
@@ -150,6 +155,27 @@ export type EncodingOptions = Omit<EncodingSpec, "run" | "field">;
 export interface ColumnEncodingSpec extends EncodingOptions {
     /** The column; an `AttributeDescriptor` from `session.data.attributes()` can be passed as is. */
     readonly column: ColumnRef;
+    /**
+     * The value each category of the column paints, keyed as the column spells it. A category not
+     * listed, and an element with no value, is left exactly as the layers beneath paint it, so a
+     * map that names two kinds of three repaints only those two. Given, it is written as the
+     * binding's `map` with `unmapped: "skip"`, read through `scale` when one is named and through
+     * `"passthrough"` when not.
+     *
+     * On `node.model` every value must be an asset id (`"asset:..."`, from `session.assets.add`
+     * or `session.catalog`) or an `http`/`https` URL; a URL is fetched once, and only when its host
+     * is allowed by the page or the reader (`session.network`).
+     *
+     * ```ts
+     * await session.styles.encode({
+     *     column: { kind: "node", name: "kind" },
+     *     channel: "node.model",
+     *     values: { server: "asset:server", person: "asset:person" },
+     * });
+     * ```
+     * @since 3.30.0
+     */
+    readonly values?: Readonly<Record<string, string | number>>;
 }
 
 /**
@@ -871,6 +897,21 @@ export function proposeColumnBinding(
         binding: { ...extra, ...buildBinding(spec, column.path, scale, descriptor) },
     });
 
+    // Values the caller listed are painted as listed, and nothing else is.
+    if (spec.values !== undefined) {
+        const listed = bind(spec.scale ?? "passthrough", { map: { ...spec.values }, unmapped: "skip" });
+        const blocked =
+            listed.ok && (descriptor.channel === "node.model" || descriptor.channel === "node.texture")
+                ? modelBindingProblem(listed.binding, `encode.${descriptor.channel}`)
+                : null;
+        return blocked === null
+            ? listed
+            : {
+                  ok: false,
+                  refusal: { code: blocked.code, params: { channel: descriptor.channel, path: blocked.path } },
+              };
+    }
+
     // A scale the caller named is the caller's decision: written as asked.
     if (spec.scale !== undefined) {
         return bind(spec.scale);
@@ -919,7 +960,10 @@ export function planColumnEncoding(
     if (!proposal.ok) {
         throw new GraphtyError({
             code: proposal.refusal.code as "E_UNSUPPORTED",
-            message: `The ${column.kind} column ${JSON.stringify(column.name)} cannot be drawn on ${spec.channel} by default; name a scale to draw it anyway.`,
+            message:
+                proposal.refusal.code === "E_MODEL_URL_BLOCKED"
+                    ? `An encoded ${spec.channel} names asset ids or http(s) URLs; add the file with session.assets.add and map the category to its id.`
+                    : `The ${column.kind} column ${JSON.stringify(column.name)} cannot be drawn on ${spec.channel} by default; name a scale to draw it anyway.`,
             source: "style",
             details: proposal.refusal.params,
         });

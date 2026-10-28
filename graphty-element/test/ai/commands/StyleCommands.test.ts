@@ -16,7 +16,7 @@ import { nodeScopeOf } from "../../../src/ai/commands/selectors";
 import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/ai/commands/StyleCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import type { Layer } from "../../../src/session/styles";
+import type { Layer, SessionStylesApi } from "../../../src/session/styles";
 import { CHANNEL_DESCRIPTORS, NODE_OUTLINE_CAVEAT } from "../../../src/session/styles/channels";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
@@ -125,6 +125,31 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
+        });
+
+        it("names a model and a picture by URL in an AI layer, which waits for the reader", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: {
+                        model: "https://example.com/models/rack.glb",
+                        texture: "https://example.com/pictures/dots.png",
+                    },
+                    layerName: "rack-models",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true);
+            const layer = layerNamed("rack-models");
+            assert.strictEqual(layer?.set?.["node.model"], "https://example.com/models/rack.glb");
+            assert.strictEqual(layer?.set?.["node.texture"], "https://example.com/pictures/dots.png");
+            assert.deepEqual(layer?.source, { by: "plugin", name: "graphty-ai" });
+            assert.isFalse(
+                (graph.getSession().styles as SessionStylesApi).modelUrlFromCode("https://example.com/models/rack.glb"),
+                "not the page's code: the fetch asks the reader first",
+            );
         });
 
         it("refuses a selector the element cannot parse, and says so", async () => {

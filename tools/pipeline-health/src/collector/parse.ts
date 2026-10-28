@@ -604,7 +604,7 @@ const TESTING: Lane[] = ["ci", "t4", "hosts", "autosave_macos", "audit", "llm"];
 const BAD = new Set(["failure", "timed_out", "cancelled", "startup_failure", "action_required"]);
 
 /** "full" from "Release (full)"; runs before 2026-10-25 18:00 say just "Release" (legacy). */
-export const releaseMode = (title: string | undefined): string => /\((\w+)\)/.exec(title ?? "")?.[1] ?? "legacy";
+export const releaseMode = (title: string | undefined): string => /\(([\w-]+)\)/.exec(title ?? "")?.[1] ?? "legacy";
 
 const jobsOf = (jobs: GhJob[], name: string) => jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
 
@@ -723,16 +723,21 @@ export function replacedRuns(runs: GhRun[]): Set<number> {
     );
 }
 
+/** Release modes that test nothing new by design (a promotion, a hold's end, a held candidate's re-test). */
+const NOT_A_TRAIN = new Set(["promote-nightly", "abandon", "candidate"]);
+
 /**
- * Whether the train skipped a new commit: the newest release attempt that a newer run did not replace did not test,
- * on a commit other than the candidate's.
+ * Whether the train skipped a new commit: the newest train attempt (not a promote-nightly, abandon or candidate run)
+ * that a newer run did not replace did not test, on a commit other than the candidate's.
  * @param attempts the seen attempts, newest first
  * @param runs the release workflow's newest runs
  */
 export function trainSkipped(attempts: ReleaseSeen[], runs: GhRun[]): boolean {
     const replaced = replacedRuns(runs);
+    const modes = new Map(runs.map((r) => [r.id, releaseMode(r.display_title)]));
+    const train = (a: ReleaseSeen) => a.run === undefined || !NOT_A_TRAIN.has(modes.get(a.run) ?? "full");
     const candidate = attempts.find((a) => a.tested);
-    const newest = attempts.find((a) => a.run === undefined || !replaced.has(a.run));
+    const newest = attempts.find((a) => train(a) && (a.run === undefined || !replaced.has(a.run)));
     return !!newest && !newest.tested && newest.sha !== candidate?.sha;
 }
 
@@ -788,6 +793,9 @@ export interface StressRun {
 /** One stress run as the collector's `stress` cursor keeps it (the Data sources page reads it). */
 export type StressCursorRun = StressRun & { at: number; runId: number };
 
+/** The step restricted-cpu-stress.yml runs in a shard job only when that shard's tests failed. */
+export const STRESS_FOUND = "Tests failed under the CPU quota";
+
 /**
  * One stress run's state from its jobs.
  * @param jobs the run's jobs
@@ -798,7 +806,13 @@ export function stressRunState(jobs: GhJob[]): StressRun {
     const report = jobs.find((j) => j.name === REPORT);
     const build = jobs.find((j) => j.name === "Build");
     const stress = jobs.filter((j) => j.name.startsWith("Restricted CPU"));
-    const foundFailures = stress.some((j) => j.conclusion === "failure");
+    // The test step has continue-on-error, so a shard job concludes success even when its tests failed; the
+    // workflow runs a marker step only then. A job that failed outright still counts.
+    const foundFailures = stress.some(
+        (j) =>
+            j.conclusion === "failure" ||
+            (j.steps ?? []).some((s) => s.name === STRESS_FOUND && s.conclusion === "success"),
+    );
     const buildBroke = BAD.has(build?.conclusion ?? "");
     const broke = buildBroke || !report || BAD.has(report.conclusion ?? "");
     if (!broke) {
@@ -907,7 +921,11 @@ export function releaseTags(
 /** Projects with tags that are never published to npm (the graphty app ships as a site; githerd is retired). */
 export const NOT_ON_NPM = new Set(["graphty", "githerd"]);
 
-export const npmName = (project: string): string => (project.startsWith("@") ? project : `@graphty/${project}`);
+/** Projects published to npm without the @graphty scope (test/collector/parse.test.ts checks the package.json names). */
+export const UNSCOPED_ON_NPM = new Set(["babylonjs-map"]);
+
+export const npmName = (project: string): string =>
+    project.startsWith("@") || UNSCOPED_ON_NPM.has(project) ? project : `@graphty/${project}`;
 
 /** Tags whose version npm does not list; `times` maps npm name to its packument `time` (undefined: 404). */
 export function taggedNotOnNpm(tags: Tag[], times: Map<string, Record<string, string> | undefined>): Tag[] {

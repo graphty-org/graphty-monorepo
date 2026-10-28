@@ -195,6 +195,16 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.gradientColors": "mesh",
     "node.gradientStops": "mesh",
     "node.gradientKind": "mesh",
+    // A model and the options that change its geometry pick the template a node is drawn from.
+    // Tint is keyed too: "replace" swaps the materials, and on or off decides whether the node's
+    // colour is written into the model's instances (Node.applyInstanceColor).
+    "node.model": "mesh",
+    "node.modelSourceUp": "mesh",
+    "node.modelTurn": "mesh",
+    "node.modelTint": "mesh",
+    "node.modelFit": "mesh",
+    "node.modelCenter": "mesh",
+    "node.texture": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source. So two nodes that share a source mesh cannot be given two glow colours --

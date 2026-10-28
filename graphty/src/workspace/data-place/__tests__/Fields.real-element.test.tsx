@@ -14,6 +14,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { HeroTurns } from "../../start/heroTurns";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -40,11 +41,17 @@ function forgetAutosave(): Promise<void> {
 }
 
 /**
- * Mounts the workspace on its start screen with autosave on, as the application does.
+ * Mounts the workspace on its start screen with autosave on, as the application does, with the
+ * start screen's graph holding still as in Storybook: turning, it draws a frame forever, and every
+ * real click on the page waits behind each frame (issue #4139).
  * @returns the render result.
  */
 function mountWorkspace(): ReturnType<typeof render> {
-    return render(<Workspace store={createWorkspaceStore({ autosave: true })} />);
+    return render(
+        <HeroTurns.Provider value={false}>
+            <Workspace store={createWorkspaceStore({ autosave: true })} />
+        </HeroTurns.Provider>,
+    );
 }
 
 /**
@@ -67,22 +74,27 @@ async function openElement(): Promise<ElementUnderTest> {
 }
 
 /**
- * Opens a sample from the start screen by clicking it, and waits for its nodes.
+ * Brings a sample into the open project through the Data place's own door, Sources "+" >
+ * Samples..., and waits for its nodes.
  * @param name - the sample's name.
  * @param nodes - how many nodes it has.
  * @returns the element.
  */
-async function openSample(name: string, nodes: number): Promise<ElementUnderTest> {
-    await userEvent.click(
-        await screen.findByRole("button", { name: `Open the ${name} sample` }, { timeout: TIMEOUT_MS }),
-    );
+async function loadSample(name: string, nodes: number): Promise<ElementUnderTest> {
     const element = await openElement();
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
+    const samples = await screen.findByRole("dialog", { name: "Samples" }, { timeout: TIMEOUT_MS });
+    await userEvent.click(within(samples).getByRole("button", { name: new RegExp(`^${name}`) }));
     await waitFor(
         () => {
             assert.equal(element.session.data.statistics().nodeCount, nodes);
         },
         { timeout: TIMEOUT_MS },
     );
+    // A real click waits behind every frame drawn while the layout moves: start clicking once the
+    // picture is at rest, as a reader would.
+    await element.waitForStableFrame();
     return element;
 }
 
@@ -198,8 +210,14 @@ describe("Data > Fields as a + list on the real element", () => {
     });
 
     it("adds Time from +, removes it with the minus, and it stays gone after a reload", async () => {
-        const first = mountWorkspace();
-        const element = await openSample("Paper citations", 159);
+        // The sample comes in through the Data place's own door, as in the airline test above, so
+        // no click waits behind the start screen's turning graph or the sample's layout.
+        const first = render(
+            <Workspace
+                store={createWorkspaceStore({ autosave: true, project: { name: "Fields", id: 1 }, place: "data" })}
+            />,
+        );
+        const element = await loadSample("Paper citations", 159);
         let section = await fields();
         await waitFor(() => {
             section.getByRole("button", { name: "Add to node fields" });
@@ -240,6 +258,7 @@ describe("Data > Fields as a + list on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
+        await restored.waitForStableFrame();
         section = await fields();
         await waitFor(() => {
             section.getByRole("button", { name: "Add to node fields" });

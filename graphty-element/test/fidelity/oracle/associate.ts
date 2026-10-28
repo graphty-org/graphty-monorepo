@@ -2507,11 +2507,12 @@ export function associate(
             w.picked = [undefined];
         }
     }
-    // Words a node shares with a node of one name drawn within a node's size of it (two stations a few pixels apart) go
-    // by where the node's own label sits from it in graphty's drawing, scaled to the node's size: by the nodes' middles
-    // alone, a label set above its node is nearer the middle of a twin drawn just above it (json-cyjs-tokyo: 71 labels
-    // swapped). Only there: farther apart, graphty's offset would decide which oracle label is judged against it, and
-    // a wrong offset would pick the twin's label and hide graphty's own placement error.
+    // Words a node shares with a node of one name drawn within two node sizes of it (two stations a few pixels apart)
+    // go by where the node's own label sits from it in graphty's drawing, scaled to the node's size: by the nodes'
+    // middles alone, a label set above its node is nearer the middle of a twin drawn just above it (json-cyjs-tokyo:
+    // 71 labels swapped; its twins are 2.8 to 3.3 px apart, a disc 2.7 px across). Only there: farther apart,
+    // graphty's offset would decide which oracle label is judged against it, and a wrong offset would pick the twin's
+    // label and hide graphty's own placement error.
     const wantedBy = new Map<string, PNode[]>();
     for (const w of wanting) {
         for (const l of new Set(w.lines)) {
@@ -2522,7 +2523,7 @@ export function associate(
     }
     const twinNear = (n: PNode, line: string): boolean =>
         (wantedBy.get(line) ?? []).some(
-            (o) => o !== n && Math.hypot(o.cx - n.cx, o.cy - n.cy) <= Math.max(n.w, n.h, o.w, o.h),
+            (o) => o !== n && Math.hypot(o.cx - n.cx, o.cy - n.cy) <= 2 * Math.max(n.w, n.h, o.w, o.h),
         );
     const ownPlace = (n: PNode): Pt => {
         const g = guideById.get(n.id);

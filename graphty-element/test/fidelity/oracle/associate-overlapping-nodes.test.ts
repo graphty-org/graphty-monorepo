@@ -162,7 +162,7 @@ describe("two nodes of one name drawn close together", () => {
         }
     });
 
-    it("does not let graphty's own wrong label offset pick the label of a twin a node size away", () => {
+    it("does not let graphty's own wrong label offset pick the label of a twin four node sizes away", () => {
         // q is drawn 40 px above p and graphty sets both labels 40 px too high: graphty's offset would hand each node
         // its twin's label and hide graphty's placement error, so apart nodes go by their middles
         const apart = AT.map(([id, x, y, size, content]): [string, number, number, number, string] =>

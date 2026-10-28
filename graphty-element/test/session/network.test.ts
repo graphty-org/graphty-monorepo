@@ -127,7 +127,19 @@ describe("session.network", () => {
         });
         network.deny(published[0].params.id);
         assert.isFalse(await answer);
-        for (const host of ["localhost", "127.0.0.1", "10.0.0.2", "192.168.1.4", "169.254.0.1", "[::1]", "nas.local"]) {
+        for (const host of [
+            "localhost",
+            "127.0.0.1",
+            "10.0.0.2",
+            "192.168.1.4",
+            "169.254.0.1",
+            "[::1]",
+            "nas.local",
+            "localhost.",
+            "foo.localhost.",
+            "printer.local.",
+            "127.0.0.1.",
+        ]) {
             assert.isTrue(isPrivateHost(host), host);
         }
 

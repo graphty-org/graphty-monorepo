@@ -71,8 +71,11 @@ export async function unzipModel(zip: Uint8Array, maxUnzipped: number): Promise<
             }
 
             // The ratio is judged against the compressed size the header declares, or the whole
-            // archive when it declares none; the unzipped total bounds a header that lies.
-            const compressed = Math.max(file.size ?? zip.length, 1);
+            // archive when it declares none: fflate gives a negative size for an entry written with
+            // a data descriptor (Finder, Java's ZipOutputStream). The unzipped total bounds a header
+            // that lies.
+            const declared = file.size ?? -1;
+            const compressed = Math.max(declared >= 0 ? declared : zip.length, 1);
             const chunks: Uint8Array[] = [];
             let produced = 0;
             file.ondata = (error, chunk, final) => {

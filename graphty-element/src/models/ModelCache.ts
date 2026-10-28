@@ -19,6 +19,7 @@
  * first model only (./loadModel).
  */
 
+import { isGraphtyError } from "../errors";
 import type { BaseTexture, Mesh, Observer, Scene } from "@babylonjs/core";
 
 import type { LayerId } from "../catalog/types";
@@ -94,6 +95,8 @@ interface Entry {
     readonly shape: NonNullable<NodeStyleConfig["shape"]>;
     /** Frames since no layer named it and no node drew it; -1 while it is in use. */
     idle: number;
+    /** Whether a load is under way, so a second trigger does not prepare a second copy. */
+    loading?: boolean;
 }
 
 /** Where one model a layer names stands, for its events. */
@@ -207,7 +210,7 @@ export class ModelCache {
         // A model given a missing part (assets.supply) loads again for every layer naming it.
         this.unwatchSupplied = session.assets.watchSupplied((names) => {
             for (const entry of this.entries.values()) {
-                if (entry.template === null && names.includes(entry.ref)) {
+                if (entry.template === null && entry.loading !== true && names.includes(entry.ref)) {
                     this.load(entry, entry.shape);
                 }
             }
@@ -373,6 +376,11 @@ export class ModelCache {
      * @param shape - The shape block that asked for it.
      */
     private load(entry: Entry, shape: NonNullable<NodeStyleConfig["shape"]>): void {
+        if (entry.loading === true) {
+            return;
+        }
+
+        entry.loading = true;
         // The picture first, outside the two load slots: it may wait for the reader. One that
         // cannot be drawn leaves the model with its own colors; the picture reports why itself.
         if (entry.image === undefined) {
@@ -382,10 +390,16 @@ export class ModelCache {
         }
 
         const picture = TextureCache.forScene(this.scene, this.session)?.load(entry.image) ?? Promise.resolve(null);
-        void picture.then((image) => {
+        const go = (image: BaseTexture | null): void => {
             if (this.entries.get(entry.key) === entry) {
                 this.loadWith(entry, shape, image);
+            } else {
+                entry.loading = false;
             }
+        };
+        // A picture that failed reports why itself; the model draws with its own colors.
+        picture.then(go, () => {
+            go(null);
         });
     }
 
@@ -398,6 +412,24 @@ export class ModelCache {
     private loadWith(entry: Entry, shape: NonNullable<NodeStyleConfig["shape"]>, image: BaseTexture | null): void {
         const { ref } = entry;
         this.enqueue(async () => {
+            try {
+                await this.loadNow(entry, shape, image);
+            } catch (error) {
+                // Anything unexpected settles the model failed rather than leaving it pending.
+                this.settle(ref, "failed", [{ code: isGraphtyError(error) ? error.code : "E_INTERNAL", params: {} }]);
+            } finally {
+                entry.loading = false;
+            }
+        });
+    }
+
+    private async loadNow(
+        entry: Entry,
+        shape: NonNullable<NodeStyleConfig["shape"]>,
+        image: BaseTexture | null,
+    ): Promise<void> {
+        const { ref } = entry;
+        {
             this.settle(ref, "pending", []);
             const record = await this.session.assets.ready(ref);
             const status = this.statusOf(ref);
@@ -445,7 +477,7 @@ export class ModelCache {
                         : { code: "E_MODEL_PARSE", params: { format: record.format } };
                 this.settle(ref, "failed", [fact]);
             }
-        });
+        }
     }
 
     /**

@@ -1797,6 +1797,19 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
             }
         },
     };
+    // A model a layer named before its file was added loads once the file is accepted.
+    const addFirst = api.add;
+    api.add = async (source, options = {}) => {
+        const added = await addFirst(source, options);
+        if (added.state === "accepted") {
+            const names = [added.id, ...(options.name === undefined ? [] : [options.name])];
+            for (const watcher of supplyWatchers) {
+                watcher(names);
+            }
+        }
+
+        return added;
+    };
 
     return api;
 }

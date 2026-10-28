@@ -167,7 +167,11 @@ function privateV6(name: string): boolean {
  * @returns True for such a host.
  */
 export function isPrivateHost(host: string): boolean {
-    const name = host.replaceAll(/(?:^\[)|(?:\]$)/g, "").toLowerCase();
+    const name = host
+        .replaceAll(/(?:^\[)|(?:\]$)/g, "")
+        .toLowerCase()
+        .replace(/\.$/, "");
+    // A trailing dot (`localhost.`) names the same host.
     if (name === "localhost" || name.endsWith(".localhost") || name.endsWith(".local") || name === "0.0.0.0") {
         return true;
     }

@@ -5,14 +5,15 @@
  */
 import { assert, test } from "vitest";
 
-import miserablesUrl from "../../test/corpus/styles/gexf/gexfjs-miserables.gexf?url";
+// A sample with no oracle: the oracle pictures are Git LFS files the browser shard does not fetch.
+import iliadUrl from "../../test/corpus/styles/pajek/kjhealy_kjhnet__iliad_killedby.net?url";
 import { fidelityStory } from "./fidelity";
 
 type Root = HTMLElement & { whenDone: () => Promise<void> };
 
 for (const live of [false, true]) {
     test(`live ${String(live)}: ${live ? "keeps" : "removes"} the element once done`, async () => {
-        const story = fidelityStory("gexf-miserables", miserablesUrl);
+        const story = fidelityStory("pajek-iliad", iliadUrl);
         // The story renders from its args alone; it reads nothing of Storybook's context.
         const render = story.render as unknown as (args: { live: boolean }) => Root;
         const root = render({ live });

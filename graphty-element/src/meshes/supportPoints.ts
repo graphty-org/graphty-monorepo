@@ -53,8 +53,15 @@ const MAX_VELOCITY = 50;
 const DAMPING: Readonly<Record<SupportModel, number>> = { barnesHut: 0.09, forceAtlas2: 0.4 };
 /** Barnes-Hut's opening angle (vis-network's `theta`). */
 const THETA = 0.5;
-/** Below this speed, in the forces' units per step, a support point is at rest. */
-const REST_SPEED = 0.0001;
+/**
+ * Below this speed, in the forces' units per step, for {@link CALM_STEPS} steps in a row, the support points are at
+ * rest. Above the trembling the Barnes-Hut tree leaves (its cells change as the points cross them: about 0.003 to
+ * 0.008 on vis-network's siblings sample, which a lower threshold never got under, so every curve ran to
+ * {@link MAX_STEPS_TO_REST}); held for a run of steps, so a point that only turns round mid-swing is not at rest.
+ */
+const REST_SPEED = 0.02;
+/** How many steps in a row every support point must stay under {@link REST_SPEED} to be at rest. */
+const CALM_STEPS = 20;
 
 /** A cell of the Barnes-Hut tree: its bodies' count and center of mass, its size, and its four quarters. */
 interface Cell {
@@ -242,6 +249,9 @@ function springsAndGravity(
  * @param points - Each edge's support point, x and y in scene units; updated.
  * @param velocities - Each support point's velocity; updated.
  * @param steps - How many steps to take at most.
+ * @param calm - How many steps in a row every point has stayed under the resting speed; carried from call to call,
+ * updated.
+ * @param calm.steps - The count.
  * @returns Whether any support point is still moving after the last step.
  */
 export function stepSupportPoints(
@@ -250,6 +260,7 @@ export function stepSupportPoints(
     points: Float64Array,
     velocities: Float64Array,
     steps: number,
+    calm: { steps: number } = { steps: 0 },
 ): boolean {
     const m = edges.length;
     if (m === 0) {
@@ -289,7 +300,8 @@ export function stepSupportPoints(
             const speedY = integrate(velocities, points, 2 * j + 1, py + sy, damping, unit);
             fastest = Math.max(fastest, speedX, speedY);
         }
-        moving = fastest > REST_SPEED;
+        calm.steps = fastest > REST_SPEED ? 0 : calm.steps + 1;
+        moving = calm.steps < CALM_STEPS;
         if (!moving) {
             break;
         }
@@ -371,6 +383,8 @@ export class SupportPoints<E> {
     private isResting = true;
     /** Steps taken since the nodes last moved. */
     private steps = 0;
+    /** How many steps in a row every support point has stayed under the resting speed. */
+    private readonly calm = { steps: 0 };
     /** Each edge's ends and forces at the last call, flat: source x, y, target x, y, then the forces. */
     private lastEnds = new Float64Array(0);
 
@@ -405,6 +419,7 @@ export class SupportPoints<E> {
         // other reason (a repaint of something else) leaves the support points as they are
         if (this.endsChanged(ends)) {
             this.steps = 0;
+            this.calm.steps = 0;
             this.isResting = false;
         }
         if (this.isResting) {
@@ -436,7 +451,7 @@ export class SupportPoints<E> {
         const perStep = m * 4 * Math.log2(centers.length + m + 2);
         const steps = Math.max(1, Math.min(MAX_FRAME_STEPS, Math.floor(FRAME_BUDGET / perStep)));
         this.steps += steps;
-        const moving = stepSupportPoints(centers, ends, points, this.velocities, steps);
+        const moving = stepSupportPoints(centers, ends, points, this.velocities, steps, this.calm);
         this.isResting = !moving || this.steps >= MAX_STEPS_TO_REST;
         this.placed = [];
         for (let j = 0; j < m; j++) {

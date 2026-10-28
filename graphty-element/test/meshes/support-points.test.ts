@@ -3,6 +3,8 @@
  * still. The reference points were worked out by stepping vis-network 9.1.9's own force laws (BarnesHutSolver,
  * ForceAtlas2BasedRepulsionSolver, their central gravity solvers and SpringSolver) to rest.
  */
+import { readFileSync } from "node:fs";
+
 import { assert, describe, it } from "vitest";
 
 import type { Xyz } from "../../src/meshes/edgeRoute";
@@ -126,5 +128,38 @@ describe("support points", () => {
         assert.closeTo(support.pointOf("e")?.x ?? 0, 1050, 0.1);
         assert.closeTo(support.pointOf("e")?.y ?? 0, -38.1, 0.1);
         assert.isNull(support.pointOf("other"));
+    });
+
+    it("come to rest on vis-network's siblings sample by their speed, well before the step limit", () => {
+        // 284 edges among 200 nodes, several between the same two: the Barnes-Hut tree keeps every point trembling a
+        // little, which once kept them moving until the 1500-step limit (39 frames) and ran out a stable-frame wait
+        const url = new URL("../../../graph-io/test/corpus/styles/json/fidelity/vis-siblings.json", import.meta.url);
+        const sample = JSON.parse(readFileSync(url, "utf8")) as {
+            nodes: { id: string }[];
+            edges: { from: string; to: string }[];
+        };
+        const index = new Map(sample.nodes.map((n, i) => [n.id, i]));
+        let seed = 1;
+        const random = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        const nodes = sample.nodes.map(() => at(random() * 1500, random() * 1500));
+        const edges = sample.edges
+            .map((e) => [index.get(e.from) ?? 0, index.get(e.to) ?? 0] as const)
+            .filter(([a, b]) => a !== b);
+        const read = ([a, b]: readonly [number, number]): SupportEdge => ({
+            src: nodes[a],
+            dst: nodes[b],
+            forces: BARNES_HUT,
+        });
+        const support = new SupportPoints<readonly [number, number]>();
+        let frames = 0;
+        while (frames < 100 && support.update(() => nodes, edges, read, frames === 0)) {
+            frames++;
+        }
+        assert.isTrue(support.resting);
+        assert.isAtMost(frames, 15, "at rest in 15 frames of 39 steps, not at the 1500-step limit");
+        assert.isFalse(
+            support.update(() => nodes, edges, read, false),
+            "and it stays at rest",
+        );
     });
 });

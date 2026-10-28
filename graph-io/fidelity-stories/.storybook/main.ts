@@ -29,7 +29,9 @@ const config: StorybookConfig = {
             optimizeDeps: {
                 exclude: ["@mlc-ai/web-llm"],
                 // Pre-bundled rather than discovered mid-run (graphty-element/.storybook/main.ts says why).
-                include: ["lit/directives/ref.js"],
+                // The DOT stories load Graphviz on first use, which the start-up scan does not see: found
+                // mid-run, it reloaded the test page in every story-test run (#4145).
+                include: ["lit/directives/ref.js", "@hpcc-js/wasm-graphviz"],
             },
             resolve: {
                 // graphty-element loads the in-browser LLM from a CDN at run time; the stories never use it

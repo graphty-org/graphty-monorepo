@@ -268,7 +268,8 @@ export class BasemapManager {
 
     /**
      * What the map is doing. `fallback` when a named source is unknown, or when a tile service
-     * drew no tile and some failed: the bundled world image under it is what shows.
+     * drew no tile and some failed: the bundled world image under it is what shows, told once that
+     * image is drawn.
      * @returns The status.
      */
     get status(): BasemapStatus {
@@ -277,27 +278,27 @@ export class BasemapManager {
             return { source: this.#name, state: this.#pending ? "loading" : "off", attribution: [] };
         }
 
-        const { loading, ready, failed, layers } = surface.status;
+        const { ready, failed, layers } = surface.status;
         const { sources } = surface;
         // A tile service (not a picture) that drew nothing and failed: the base shows instead.
-        const unreachable = layers.some(
-            (layer, i) => !("image" in sources[i]) && layer.ready === 0 && layer.failed > 0,
-        );
+        const unreachable = layers.map((layer, i) => !("image" in sources[i]) && layer.ready === 0 && layer.failed > 0);
         const meshes = surface.root.getChildMeshes();
         let state: BasemapStatus["state"] = "ready";
-        if (this.#unknown || unreachable) {
-            state = "fallback";
-        } else if (
+        if (
             this.#pending ||
-            loading > 0 ||
+            layers.some((layer, i) => !unreachable[i] && layer.loading > 0) ||
             ready + failed === 0 ||
             !meshes.some((m) => m.isEnabled()) ||
             meshes.some((m) => m.isEnabled() && !m.isReady(true))
         ) {
             // No tile asked for yet (the map was just made or its source changed) is loading too,
             // and so is a loaded tile not drawn again yet after a source change, and a tile whose
-            // shader is still compiling: it is not on screen yet.
+            // shader is still compiling: it is not on screen yet. A fallback waits for this too, so
+            // it is told only once the bundled world it falls back to is drawn and credited; the
+            // unreachable service's own retries do not hold it.
             state = "loading";
+        } else if (this.#unknown || unreachable.includes(true)) {
+            state = "fallback";
         }
 
         const attribution = [...surface.attribution];

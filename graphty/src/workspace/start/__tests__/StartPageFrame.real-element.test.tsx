@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, onTestFailed } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
@@ -170,16 +170,46 @@ describe("the start page in the app's frame", () => {
     });
 
     it("scrolls back up from the samples, and down again, by keyboard", async () => {
-        await showSamples();
-
-        await userEvent.keyboard("{Home}");
-        await waitFor(() => {
-            assert.equal(scrolled(), 0, "Home scrolled it back up");
-        }, SCROLL);
-        await userEvent.keyboard("{End}");
-        await waitFor(() => {
-            assert.isAbove(scrolled(), 0, "End scrolled it down");
-        }, SCROLL);
+        // This test timed out twice in CI (issues #3679 and #4170) and in no run here, and its waits'
+        // hang guard is longer than the test's limit, so a timeout never says which wait was stuck.
+        // Its trail does: each step and every scroll end and key the page saw, printed on a failure.
+        const trail: string[] = [];
+        const start = performance.now();
+        const note = (what: string): void => {
+            const at = Math.round(performance.now() - start);
+            const focus = document.activeElement;
+            trail.push(`${String(at)} ms ${what}: top ${String(scrolled())}, focus ${focus?.tagName ?? "none"}`);
+        };
+        const onEnd = (): void => {
+            note("scrollend");
+        };
+        const onKey = (event: KeyboardEvent): void => {
+            note(`keydown ${event.key}${event.defaultPrevented ? " (prevented)" : ""}`);
+        };
+        document.addEventListener("scrollend", onEnd);
+        globalThis.addEventListener("keydown", onKey);
+        onTestFailed(() => {
+            note("failed");
+            console.error(`the keyboard scroll test's trail:\n${trail.join("\n")}`);
+        });
+        try {
+            await showSamples();
+            note("at the samples");
+            await userEvent.keyboard("{Home}");
+            note("Home pressed");
+            await waitFor(() => {
+                assert.equal(scrolled(), 0, "Home scrolled it back up");
+            }, SCROLL);
+            note("at the top");
+            await userEvent.keyboard("{End}");
+            note("End pressed");
+            await waitFor(() => {
+                assert.isAbove(scrolled(), 0, "End scrolled it down");
+            }, SCROLL);
+        } finally {
+            document.removeEventListener("scrollend", onEnd);
+            globalThis.removeEventListener("keydown", onKey);
+        }
     });
 
     // Full screen, and under Safari's address and tab bars (upright, and on its side).

@@ -55,5 +55,6 @@ await Promise.all(Array.from({ length: Math.min(jobs, files.length) }, worker));
 console.log(`\ntest:ci-workflows: ${files.length - failed.length} of ${files.length} test files passed`);
 if (failed.length) {
     console.log(`failed:\n${failed.map((f) => "  " + f).join("\n")}`);
-    process.exit(1);
+    // never process.exit(): it drops whatever stdout has not handed to a pipe yet, which was the summary (#4187)
+    process.exitCode = 1;
 }

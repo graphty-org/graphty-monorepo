@@ -6,8 +6,8 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
-import { baseTest } from "../vitest.base.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest } from "../vitest.base.mjs";
 
 /**
  * The Figma study (design/ui/figma), found by walking up from this package so it resolves from

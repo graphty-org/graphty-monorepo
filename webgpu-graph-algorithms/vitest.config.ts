@@ -7,8 +7,8 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
-import { baseTest, localVerbose } from "../vitest.base.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest, localVerbose } from "../vitest.base.mjs";
 
 /**
  * The Chromium flag sets: the two of spec 12.2 (GRAPHTY_BROWSER_GPU "nvidia" | "swiftshader", default swiftshader)

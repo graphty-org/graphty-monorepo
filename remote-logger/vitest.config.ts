@@ -1,8 +1,8 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { baseTest } from "../vitest.base.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest } from "../vitest.base.mjs";
 
 const config = defineConfig({
     test: {

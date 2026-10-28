@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 
-import { baseTest, localVerbose } from "../vitest.base.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest, localVerbose } from "../vitest.base.mjs";
 
 const config = defineConfig({
     test: {

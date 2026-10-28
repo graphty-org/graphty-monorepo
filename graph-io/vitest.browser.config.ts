@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { baseTest, localVerbose } from "../vitest.base.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest, localVerbose } from "../vitest.base.mjs";
 
 const src = fileURLToPath(new URL("./src/", import.meta.url));
 

@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 
-import { baseTest, localVerbose } from "../vitest.base.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest, localVerbose } from "../vitest.base.mjs";
 
 // Standalone rather than vitest.shared.config.ts, like graph-format and graph-io: the shared factory
 // runs happy-dom, and this package is plain Node code with no DOM.

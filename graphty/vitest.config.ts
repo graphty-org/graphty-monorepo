@@ -10,10 +10,10 @@ import type { BrowserCommand } from "vitest/node";
 
 import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
 import { mapTileCommands } from "../vitest.map-tiles.mjs";
-import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
 

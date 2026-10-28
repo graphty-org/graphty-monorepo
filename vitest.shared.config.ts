@@ -3,8 +3,8 @@
 
 import { defineConfig, type UserConfig } from "vitest/config";
 
-import { baseTest } from "./vitest.base.mjs";
 import { withTestGuards } from "./tools/test-wait-guard.mjs";
+import { baseTest } from "./vitest.base.mjs";
 
 export interface VitestConfigOptions {
     projectName: string;

@@ -122,6 +122,7 @@ describe("the driver", () => {
             "fix-forward",
             "approval-promotes",
             "abandon",
+            "donor-lanes",
         ]);
         const out = execFileSync("node", [fileURLToPath(new URL("rehearse.mjs", import.meta.url)), "--list"], {
             encoding: "utf8",

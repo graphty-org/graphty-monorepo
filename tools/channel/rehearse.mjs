@@ -15,8 +15,9 @@
 //   - git: a shared clone of HEAD whose origin is a scratch bare repository (objects borrowed from this checkout), so
 //     channel refs (channel/candidate, channel/nightly) and the commits a scenario makes (a fix, an accept and its
 //     signed approval, the master merges that bring them in) never reach the real remote.
-// Not rehearsed yet (follow-ups on #4068): the stub lanes from a donor full run's artifacts (captures here are
-// synthesized), version, land and publish to a scratch registry (Verdaccio), and the site deploy.
+// donor-lanes judges a real full run's lane results (REHEARSAL_DONOR: its verdict-<attempt>.json; with
+// REHEARSAL_DONOR_CAPTURES, its screenshot captures too); release-rehearsal.yml fetches them. Version and publish to a
+// scratch registry (Verdaccio) is that workflow's publish job. Not rehearsed yet (#4068): the land.
 import assert from "node:assert/strict";
 import { execFile, execFileSync } from "node:child_process";
 import { createHash, createSign, generateKeyPairSync } from "node:crypto";
@@ -355,11 +356,12 @@ async function world(clone, sha, origin) {
     };
     // a Release (full) run's verdict for one attempt, with its verdict-<n> record kept as the run's artifact; changed
     // names the stories whose capture differs from its baseline (one project's), for a green-images run
-    const verdict = async ({ runId, attempt, lanes, pick, changed = [] }) => {
+    // donorCaptures: a real run's captures (visual-<project>-<attempt>), used instead of synthesized ones
+    const verdict = async ({ runId, attempt, lanes, pick, changed = [], donorCaptures = "" }) => {
         store.as.run = runId;
         store.as.attempt = String(attempt);
-        const captures = join(dir, `captures-${runId}-${attempt}`);
-        for (const p of projects) {
+        const captures = donorCaptures || join(dir, `captures-${runId}-${attempt}`);
+        for (const p of donorCaptures ? [] : projects) {
             mkdirSync(join(captures, `visual-${p}-${attempt}`), { recursive: true });
             const items = p === projects[0] ? changed.map((id) => ({ id, file: `${id}.png`, status: "changed" })) : [];
             save(join(captures, `visual-${p}-${attempt}`, "results.json"), { complete: true, items });
@@ -665,6 +667,19 @@ export const SCENARIOS = {
             RUN_URL: runUrl("9602"),
         });
         assert.equal(resume.resume, "false", "an approval of an abandoned head promotes nothing");
+    },
+    // a real green full run's lanes (and, when fetched, its captures), judged again on this commit: the same verdict
+    // with its captures, green-clean with synthesized unchanged ones; skipped when no donor was fetched
+    "donor-lanes": async (w, sha) => {
+        if (!process.env.REHEARSAL_DONOR) return console.log("skip donor-lanes: REHEARSAL_DONOR names no donor run");
+        const donor = load(process.env.REHEARSAL_DONOR);
+        const donorCaptures = process.env.REHEARSAL_DONOR_CAPTURES ?? "";
+        // the verdict judges the captures itself, from CAPTURES
+        const lanes = { ...donor.lanes };
+        delete lanes.captures;
+        const pick = await pickOn(w, sha);
+        const out = await w.verdict({ runId: donor.runId, attempt: donor.attempt, lanes, pick, donorCaptures });
+        assert.equal(out.state, donorCaptures ? donor.state : "green-clean", `donor run ${donor.runId}: ${out.what}`);
     },
 };
 

@@ -461,7 +461,9 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                     if (seed !== null) {
                         const scale = this.positionScale(node);
                         for (let k = 0; k < dim; k++) {
-                            out[dim * row + k] = seed[k] * scale;
+                            // The seed as the store holds it (an f32 column), so a layout reads
+                            // the very coordinate the store seeded the row with.
+                            out[dim * row + k] = Math.fround(seed[k]) * scale;
                         }
                     }
                 });

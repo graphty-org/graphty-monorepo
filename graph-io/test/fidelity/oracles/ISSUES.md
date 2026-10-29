@@ -4508,6 +4508,8 @@ full run of master once the open round-5 pull requests have merged.
 
 ### Decisions pending (owner)
 
+- **Accepted by the owner on 2026-10-29**: both the Graphviz label-size trade (#4203, its 4 `dot-real-crazy` elements
+  recorded as known failures) and the 31 known failures #4246 added; the two items below stay only as the record.
 - **Graphviz label sizes (#4203).** Handing Graphviz the label-sized nodes takes DOT real files from 1,074 to 646
   failing elements, but on `dot-real-crazy` 3 nodes and 1 edge newly fail the CI scorecard. Graphviz's own
   WebAssembly build places only 19 of that file's 41 nodes near the command-line Graphviz's drawing (font metrics), so

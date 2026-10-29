@@ -179,6 +179,26 @@ export default tseslint.config(
         rules: { "@typescript-eslint/no-restricted-imports": "off" },
     },
 
+    // A real-element test waits for an open on the workspace's `opened` (openBy in
+    // src/test/open.tsx), never by polling the node count, which arrives before the rest of an
+    // open (styles, history, focus), so a test that waits on it acts on a half-opened workspace (#3544).
+    // The start page's own graph (`graphty-element[data-start-page]`) is not an open, so a wait
+    // that names it is left alone.
+    {
+        files: ["src/**/*.real-element.test.tsx"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector:
+                        "CallExpression[callee.name='waitFor']:not(:has(Literal[value='graphty-element[data-start-page]'])) MemberExpression[property.name='nodeCount'][object.callee.property.name='statistics']",
+                    message:
+                        "Do not wait on the node count: await the open (openBy in src/test/open.tsx) or the load's own promise.",
+                },
+            ],
+        },
+    },
+
     // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
     // of its own under a test runner (#2930). The rule: tools/eslint-rules/story-wait-options.mjs.
     {

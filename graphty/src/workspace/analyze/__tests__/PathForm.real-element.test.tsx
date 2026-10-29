@@ -61,8 +61,8 @@ async function openFriends(
             },
         },
     );
+    assert.equal(session.data.statistics().nodeCount, 6);
     await waitFor(() => {
-        assert.equal(session.data.statistics().nodeCount, 6);
         assert.isFalse(analyzeTool().hasAttribute("aria-disabled"));
     });
     return { store, session, element: el };

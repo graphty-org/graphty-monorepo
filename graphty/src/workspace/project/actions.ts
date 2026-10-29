@@ -14,7 +14,7 @@ import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
-import { newProjectId, type Notice, type WorkspaceStore } from "../state/store";
+import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 
@@ -59,6 +59,8 @@ export interface FileSource {
 interface PendingFile extends FileSource {
     file: File;
     fresh?: boolean;
+    /** Settles the store's `opened` for a file that opens a new project. */
+    settle?: SettleOpen;
 }
 
 /** The codes `project.open` refuses a data file with, as `session.data.prepare` does. */
@@ -421,8 +423,13 @@ async function openedProject(
     // The inspector shows the project that opened, and focus goes to its heading: whatever
     // row or control held focus belonged to the graph it replaced.
     workspace.set((state) => ({ project: state.project && { ...state.project, name }, inspected: null }));
-    requestAnimationFrame(() => {
-        focusLater();
+    // On the next frame, once the inspector shows the project; awaited below, so an open settles
+    // only after this hand-off (the store's `opened`).
+    const focused = new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+            focusLater();
+            resolve();
+        });
     });
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;
@@ -435,6 +442,7 @@ async function openedProject(
             message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
         }),
     });
+    await focused;
 }
 
 /**
@@ -551,8 +559,10 @@ export async function openProjectFile(ctx: CommandContext, file: File, source: F
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
-    fileState(ctx.workspace).pending = { ...pending, fresh: true };
+    const { opened, settle } = openRun();
+    fileState(ctx.workspace).pending = { ...pending, fresh: true, settle };
     ctx.workspace.set((state) => ({
+        opened,
         project: { name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
@@ -583,15 +593,23 @@ export async function openPending(ctx: CommandContext): Promise<void> {
     }
     state.pending = null;
     state.reading = true;
-    const opened = await openInSession(ctx, ctx.session, pending, true).finally(() => {
-        state.reading = false;
-    });
+    const opened = await openInSession(ctx, ctx.session, pending, true)
+        .catch((error: unknown) => {
+            pending.settle?.({ error });
+            throw error;
+        })
+        .finally(() => {
+            state.reading = false;
+        });
     if (!opened) {
         // Refused: the project was never opened, so back to the start screen, keeping the reason.
         const { notice } = ctx.workspace.get();
         closeNow(ctx.workspace);
         ctx.workspace.set({ notice });
     }
+    // A data file the element refused also goes back to the start screen (openFirst), with its reason.
+    const { project, notice } = ctx.workspace.get();
+    pending.settle?.(project === null && notice?.error === true ? { error: new Error(notice.message) } : undefined);
 }
 
 /** What happened when the reader clicked a Recent projects entry. */

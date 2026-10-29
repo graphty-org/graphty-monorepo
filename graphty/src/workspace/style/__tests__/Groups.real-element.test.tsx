@@ -17,37 +17,13 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openSampleFromStart } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up and loading a sample, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
-
-/**
- * Opens a sample from the start screen and waits for its nodes.
- * @param sample - the sample's name on its button.
- * @param nodes - how many nodes it has.
- * @returns the session and the store.
- */
-async function openSample(sample: string, nodes: number): Promise<{ session: GraphSession; store: WorkspaceStore }> {
-    const store = createWorkspaceStore();
-    render(<Workspace store={store} />);
-    await userEvent.click(await screen.findByRole("button", { name: `Open the ${sample} sample` }));
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.equal(found?.data.statistics().nodeCount, nodes);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    if (session === undefined) {
-        throw new Error("the element never came up");
-    }
-    await session.styles.settled();
-    return { session, store };
-}
 
 /**
  * Runs a community algorithm and returns the layer that colors its groups, and the path it reads.
@@ -147,7 +123,8 @@ function drawn(session: GraphSession, id: string, channel: "node.color" | "node.
 describe("per-group settings", () => {
     it("Les Miserables: a group's detail sets a shape for that group alone; the row keeps one shape", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         const { layer, path } = await runGroups(session, "louvain");
         const popover = await openBinding(store, layer);
         const [first, second] = session.styles.groups(layer.id, path);
@@ -232,7 +209,8 @@ describe("per-group settings", () => {
 
     it("Les Miserables: a property already varying by another value says why instead of replacing it", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         const { layer: run, path } = await runGroups(session, "louvain");
         const { runId } = await session.runs.start("degree");
         await session.styles.settled();
@@ -261,7 +239,8 @@ describe("per-group settings", () => {
 
     it("Les Miserables: a group's number box just added takes focus with its value selected, so typing replaces it", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         const { layer, path } = await runGroups(session, "louvain");
         const popover = await openBinding(store, layer);
         const [row] = gridRows(popover);
@@ -288,7 +267,8 @@ describe("per-group settings", () => {
 
     it("Les Miserables: the group grid is one Tab stop, and Escape on a row's actions closes the popover", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         const { layer } = await runGroups(session, "louvain");
         const popover = await openBinding(store, layer);
         const grid = within(popover).getByRole("grid", { name: /groups$/ });
@@ -327,7 +307,8 @@ describe("per-group settings", () => {
 
     it("Les Miserables: back from a group, Shift+arrow picks two, Enter opens both, Mixed, one undo step", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         const { layer, path } = await runGroups(session, "louvain");
         const popover = await openBinding(store, layer);
         const grid = within(popover).getByRole("grid", { name: /groups$/ });
@@ -374,7 +355,8 @@ describe("per-group settings", () => {
 
     it("Les Miserables: New layer for a group carries what it is painted by and sits directly above its source", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         const { layer, path } = await runGroups(session, "louvain");
         const [group] = session.styles.groups(layer.id, path);
         const key = String(group.value);
@@ -413,7 +395,8 @@ describe("per-group settings", () => {
 
     it("Les Miserables: New layer for two groups keeps each group's own color", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         const { layer, path } = await runGroups(session, "louvain");
         const [one, two] = session.styles.groups(layer.id, path);
         const a = nodeOf(session, path, String(one.value));
@@ -453,7 +436,8 @@ describe("per-group settings", () => {
         popover: HTMLElement;
     }> {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("College football", 115);
+        const { session, store } = await openSampleFromStart("College football");
+        await session.styles.settled();
         const { layer, path } = await runGroups(session, "leiden");
         const groups = session.styles.groups(layer.id, path);
         assert.isAbove(groups.length, 8, "Leiden finds more than 8 groups");
@@ -565,7 +549,8 @@ describe("per-group settings", () => {
 
     it("College football: repeated colors are drawn in other shapes, never color alone", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("College football", 115);
+        const { session, store } = await openSampleFromStart("College football");
+        await session.styles.settled();
         const { layer, path } = await runGroups(session, "leiden");
         const popover = await openBinding(store, layer);
         await userEvent.click(within(popover).getByRole("combobox", { name: /^More values than colors/ }));
@@ -637,7 +622,8 @@ describe("per-group settings", () => {
 
     it("a shape binding's No value offers shapes, not a number", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         const { layer: run, path } = await runGroups(session, "louvain");
         const layer = await session.styles.add({
             name: "Shapes",

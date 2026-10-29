@@ -150,3 +150,15 @@
 .dp-sub-label {
     padding-inline-start: 18px;
 }
+
+/* The Filters section's cards (design/data/filter-cards.md section 5): a plain list, one card each. */
+.dp-filters {
+    margin: 0;
+    padding: 0 8px 0 16px;
+    list-style: none;
+}
+
+/* An off card keeps its count and its values, dimmed. */
+.dp-filter[data-off] .dp-filter-body {
+    opacity: 0.6;
+}

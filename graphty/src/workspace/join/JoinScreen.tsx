@@ -4,7 +4,7 @@ import { DataTable, type DataTableColumn, EntityChip } from "@graphty/compact-ma
 import type { GraphSession, JoinChoices, JoinReport } from "@graphty/graphty-element/session";
 import { Badge, Button, Checkbox, HoverCard, Menu, SegmentedControl } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
@@ -25,8 +25,9 @@ import {
     type ReplaceTarget,
     replaceTargets,
 } from "./commands";
-import { type JoinShow, MatchChips } from "./MatchChips";
+import { MatchChips } from "./MatchChips";
 import { MatchRow } from "./MatchRow";
+import { type JoinShow, shownChips } from "./shownChips";
 
 /** The smallest table drawn, while its pane is being measured. */
 const MIN_TABLE_HEIGHT = 32;
@@ -221,7 +222,7 @@ interface IncomingTableProps {
  * Match on this.
  * @param props - Component props
  * @param props.subject - The table
- * @param props.rows - Its rows, narrowed by Show
+ * @param props.rows - Its rows, narrowed by a count chip
  * @param props.choices - The join as chosen
  * @param props.report - The element's counts, for the clashes
  * @param props.onChange - Takes changed choices
@@ -407,7 +408,7 @@ interface GraphTableProps {
     kind: RecordKind;
     choices: JoinChoices;
     onChange: (choices: JoinChoices) => void;
-    /** The nodes Show narrows it to, or null for every one. */
+    /** The nodes a count chip narrows it to, or null for every one. */
     only: readonly (string | number)[] | null;
     height: number;
 }
@@ -420,7 +421,7 @@ interface GraphTableProps {
  * @param props.kind - Nodes or edges
  * @param props.choices - The join as chosen
  * @param props.onChange - Takes changed choices
- * @param props.only - The nodes Show narrows it to
+ * @param props.only - The nodes a count chip narrows it to
  * @param props.height - The table's height
  * @returns The table
  */
@@ -491,7 +492,8 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
     useSessionVersion(session);
     const [choices, setChoices] = useState<JoinChoices>(subject.initial);
     const [how, setHow] = useState<JoinHow>(subject.how);
-    const [show, setShow] = useState<JoinShow>(null);
+    const [chosenShow, setShow] = useState<JoinShow>(null);
+    const chipsId = useId();
     const [rows, setRows] = useState<readonly Readonly<Record<string, unknown>>[]>([]);
     const [busy, setBusy] = useState(false);
     const graph = useElementSize();
@@ -540,14 +542,23 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
         .joins()
         .filter((each) => each.source !== subject.edit)
         .map((each) => ({ value: each.source, label: each.table.name }));
+    // A narrowing whose chip is gone stops narrowing.
+    const show = counts !== null && shownChips(counts, choices).includes(chosenShow) ? chosenShow : null;
     const shown = rows
         .map((values, at): IncomingRow => ({ at, values, match: counts?.rowMatches[at] ?? [] }))
-        .filter((row) => show !== "not-in-graph" || row.match.length === 0);
+        .filter((row) => {
+            if (show === "not-in-graph") {
+                return row.match.length === 0;
+            }
+            return show !== "matched" || row.match.length > 0;
+        });
+    const matchedIds = show === "matched" ? [...new Set(counts?.rowMatches.flat() ?? [])] : null;
     const hows = howChoices(workspace, subject);
     return (
         <section // NOSONAR(S6847): the screen's own keys, caught as they bubble from its controls; it takes focus (tabIndex -1)
             className="jn-screen"
-            aria-label="Join"
+            aria-label={`Join ${subject.name}`}
+            aria-describedby={how === "join" ? chipsId : undefined}
             ref={screenRef}
             tabIndex={-1}
             onKeyDown={onKeyDown}
@@ -605,9 +616,14 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                         graphPaths={graphPaths}
                         mappings={mappings}
                         onChange={setChoices}
+                        extra={{
+                            ignoringCase: counts?.extraIgnoringCase ?? 0,
+                            ignoringSpaces: counts?.extraIgnoringSpaces ?? 0,
+                        }}
                     />
                     {counts === null ? (
                         <p // NOSONAR(S6819): a live announcement of why the join was refused; <output> is for a form's computed result
+                            id={chipsId}
                             className="jn-refused"
                             role="status"
                         >
@@ -615,6 +631,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                         </p>
                     ) : (
                         <MatchChips
+                            id={chipsId}
                             report={counts}
                             choices={choices}
                             onChange={setChoices}
@@ -643,7 +660,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                             kind={kind}
                             choices={choices}
                             onChange={setChoices}
-                            only={show === "without-value" ? (counts?.withoutValueIds ?? null) : null}
+                            only={show === "without-value" ? (counts?.withoutValueIds ?? null) : matchedIds}
                             height={Math.max(MIN_TABLE_HEIGHT, graph.height)}
                         />
                     </div>

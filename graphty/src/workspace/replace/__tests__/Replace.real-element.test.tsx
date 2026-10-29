@@ -97,7 +97,7 @@ async function supplyChain(): Promise<GraphSession> {
     await holds(live, 40, 0);
     store.set({ dockOpen: false, dockMaximized: false });
     drop(await fixture("ships-to-2024-09.csv"));
-    const join = await screen.findByRole("region", { name: "Join" }, { timeout: TIMEOUT_MS });
+    const join = await screen.findByRole("region", { name: /^Join / }, { timeout: TIMEOUT_MS });
     await userEvent.click(within(join).getByRole("button", { name: "Join" }));
     await holds(live, 40, 150);
     return live;

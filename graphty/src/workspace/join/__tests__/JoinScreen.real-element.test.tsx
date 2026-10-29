@@ -1,7 +1,8 @@
 /**
  * The join screen on the REAL graphty-element (data prototype spec section 3.6, acceptance flows 5
  * and 7): a second file opens it with the element's suggestion; the chips read the element's join
- * report; Use, Show, the include boxes and Join act on it; Edit join reopens it; Undo takes a join
+ * report; the count chips narrow the tables; Ignore case, the include boxes and Join act on it; Edit join
+ * reopens it; Undo takes a join
  * back in one step.
  */
 
@@ -88,7 +89,7 @@ async function projectWith(first: string, nodes: number): Promise<{ store: Works
  */
 async function joinScreenFor(name: string): Promise<HTMLElement> {
     drop(await fixture(name));
-    return screen.findByRole("region", { name: "Join" }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("region", { name: `Join ${name}` }, { timeout: TIMEOUT_MS });
 }
 
 /**
@@ -99,11 +100,19 @@ async function joinScreenFor(name: string): Promise<HTMLElement> {
 function chips(join: HTMLElement): string[] {
     const list = within(join).getByRole("list", { name: "Matches" });
     return [...list.querySelectorAll(":scope > li")].map((li) =>
-        (li.textContent ?? "")
-            .replace(/^(Node|Edge) /, "")
-            .replace(/(Show|Use)$/, "")
-            .trim(),
+        (li.textContent ?? "").replace(/^(Node|Edge) /, "").trim(),
     );
+}
+
+/**
+ * Clicks a count chip as a reader does: on its label (a Chip's checkbox is hidden).
+ * @param join - the join screen.
+ * @param name - the chip's name.
+ */
+async function toggle(join: HTMLElement, name: string): Promise<void> {
+    const label = within(join).getByRole<HTMLInputElement>("checkbox", { name }).labels?.[0];
+    assert.isDefined(label, `${name} has a label`);
+    await userEvent.click(label);
 }
 
 /**
@@ -126,34 +135,55 @@ describe("the join screen on the real element", () => {
         const join = await joinScreenFor("tumor-expression.tsv");
         assert.strictEqual(valueOf(join, "Match column"), "symbol");
         assert.strictEqual(valueOf(join, "Match graph value"), "Id");
-        assert.deepEqual(chips(join), [
-            "52 matched",
-            "10 not in graph",
-            "8 no value",
-            "1 repeated key",
-            "+6 ignoring case",
-            "+1 ignoring spaces",
-        ]);
+        assert.deepEqual(chips(join), ["52 matched", "10 not in graph", "8 no value", "1 repeated key"]);
+        // The Match row's boxes count the matches they would add, in sentence case.
+        within(join).getByRole("checkbox", { name: "Ignore spaces +1" });
+        // The section and its button have different names, and the screen is described by its counts.
+        assert.lengthOf(within(join).getAllByRole("button", { name: "Join" }), 1);
+        const described = join.getAttribute("aria-describedby") ?? "";
+        assert.strictEqual(document.getElementById(described), within(join).getByRole("list", { name: "Matches" }));
 
-        // Show narrows the incoming table to the rows that match nothing.
-        await userEvent.click(within(join).getByRole("button", { name: "Show rows not in graph" }));
+        // The "not in graph" chip narrows the incoming table to the rows that match nothing, and
+        // takes it back; Enter on it does the same.
+        const notInGraph = within(join).getByRole("checkbox", { name: "10 not in graph" });
+        await toggle(join, "10 not in graph");
         const incoming = within(join).getByRole("grid", { name: "tumor-expression.tsv" });
         await waitFor(() => {
             assert.strictEqual(incoming.querySelectorAll('[role="row"]').length, 17 + 1);
         });
-        await userEvent.click(within(join).getByRole("button", { name: "Show rows not in graph" }));
+        assert.isTrue(notInGraph.matches(":checked"));
+        // Space on the focused chip takes it back, as on the table's "With issues" chip.
+        notInGraph.focus();
+        await userEvent.keyboard(" ");
+        await waitFor(() => {
+            assert.isAbove(incoming.querySelectorAll('[role="row"]').length, 17 + 1);
+        });
 
-        await userEvent.click(within(join).getByRole("button", { name: "Use ignoring case" }));
+        // The "no value" chip narrows the graph table to its 8 nodes; the "matched" chip takes over.
+        const graphGrid = within(within(join).getByLabelText("Graph")).getByRole("grid");
+        await toggle(join, "8 no value");
+        await waitFor(() => {
+            assert.strictEqual(graphGrid.querySelectorAll('[role="row"]').length, 8 + 1);
+        });
+        await toggle(join, "52 matched");
+        await waitFor(() => {
+            assert.isFalse(within(join).getByRole("checkbox", { name: "8 no value" }).matches(":checked"));
+            assert.strictEqual(graphGrid.getAttribute("aria-rowcount"), String(52 + 1));
+            assert.strictEqual(incoming.getAttribute("aria-rowcount"), String(70 - 17 + 1));
+        });
+        await toggle(join, "52 matched");
+
+        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore case +6" }));
         await waitFor(() => {
             assert.include(chips(join), "58 matched");
         });
-        assert.notInclude(chips(join), "+6 ignoring case");
+        assert.isTrue(within(join).getByRole("checkbox", { name: "Ignore case" }).matches(":checked"));
 
         // Leave tissue out: only log2fc and padj are joined.
         await userEvent.click(within(join).getByRole("checkbox", { name: "Include tissue" }));
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "Join" }));
+            assert.isNull(screen.queryByRole("region", { name: /^Join / }));
         });
         assert.isDefined(session.data.node("TP53")?.log2fc);
         assert.isUndefined(session.data.node("TP53")?.tissue);
@@ -183,10 +213,10 @@ describe("the join screen on the real element", () => {
         await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "tumor-expression.tsv menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Edit join" }));
-        join = await screen.findByRole("region", { name: "Join" });
+        join = await screen.findByRole("region", { name: "Join tumor-expression.tsv" });
         assert.include(chips(join), "52 matched");
         assert.isNull(within(join).queryByRole("button", { name: "Join choices" }), "an edit only joins");
-        await userEvent.click(within(join).getByRole("button", { name: "Use ignoring case" }));
+        await userEvent.click(within(join).getByRole("checkbox", { name: "Ignore case +6" }));
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         await waitFor(() => {
             assert.strictEqual(session.data.joins()[0]?.matched, 58);
@@ -203,12 +233,12 @@ describe("the join screen on the real element", () => {
         // An Esc outside the screen is not the join's.
         (document.activeElement as HTMLElement).blur();
         await userEvent.keyboard("{Escape}");
-        assert.isNotNull(screen.queryByRole("region", { name: "Join" }));
+        assert.isNotNull(screen.queryByRole("region", { name: /^Join / }));
 
         within(join).getByRole("button", { name: "Join" }).focus();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("region", { name: "Join" }));
+            assert.isNull(screen.queryByRole("region", { name: /^Join / }));
         });
         assert.isNull(store.get().joining);
         assert.deepEqual(session.data.joins(), []);
@@ -218,7 +248,7 @@ describe("the join screen on the real element", () => {
         ).closest<HTMLElement>('[role="group"]');
         assert.isNotNull(toast);
         await userEvent.click(within(toast).getByRole("button", { name: "Undo" }));
-        const back = await screen.findByRole("region", { name: "Join" });
+        const back = await screen.findByRole("region", { name: /^Join / });
         assert.include(chips(back), "52 matched");
         await userEvent.click(within(back).getByRole("button", { name: "Join" }));
         await waitFor(() => {
@@ -276,7 +306,7 @@ describe("the join screen on the real element", () => {
         await userEvent.click(within(join).getByRole("button", { name: "Join choices" }));
         assert.isDefined(await screen.findByRole("menuitem", { name: "Replace suppliers.csv" }));
         await userEvent.keyboard("{Escape}");
-        assert.isNotNull(screen.queryByRole("region", { name: "Join" }), "Esc in the menu closes only the menu");
+        assert.isNotNull(screen.queryByRole("region", { name: /^Join / }), "Esc in the menu closes only the menu");
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         await waitFor(
             () => {

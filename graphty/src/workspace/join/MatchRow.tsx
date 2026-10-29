@@ -43,11 +43,24 @@ interface MatchRowProps {
     mappings: readonly Option[];
     /** Takes changed choices. */
     onChange: (choices: JoinChoices) => void;
+    /** The matches Ignore case and Ignore spaces would add, from the element's join report. */
+    extra: { readonly ignoringCase: number; readonly ignoringSpaces: number };
+}
+
+/**
+ * An Ignore box's label, with the matches it would add while off.
+ * @param words - "Ignore case" or "Ignore spaces".
+ * @param extra - the matches it would add.
+ * @returns the label.
+ */
+function ignoreLabel(words: string, extra: number): string {
+    return extra > 0 ? `${words} +${extra.toLocaleString("en-US")}` : words;
 }
 
 /**
  * The join screen's Match row (spec section 3.6): what the rows are, each key pair as two
- * dropdowns (`symbol = Id`), ignore case, ignore spaces, `+` for a compound key, and the mapping
+ * dropdowns (`symbol = Id`), Ignore case and Ignore spaces (each with the matches it would add), `+`
+ * for a compound key, and the mapping
  * table when a joined table could map ids.
  * @param props - Component props
  * @param props.choices - The join as chosen
@@ -55,6 +68,7 @@ interface MatchRowProps {
  * @param props.graphPaths - The graph values a key can match
  * @param props.mappings - The joined tables that can map ids
  * @param props.onChange - Takes changed choices
+ * @param props.extra - The matches Ignore case and Ignore spaces would add
  * @returns The row
  */
 export function MatchRow({
@@ -63,6 +77,7 @@ export function MatchRow({
     graphPaths,
     mappings,
     onChange,
+    extra,
 }: Readonly<MatchRowProps>): React.JSX.Element {
     const shape = choices.shape ?? "node-values";
     const edges = shape === "edges";
@@ -139,7 +154,7 @@ export function MatchRow({
             </div>
             <Checkbox
                 size="xs"
-                label="ignore case"
+                label={ignoreLabel("Ignore case", extra.ignoringCase)}
                 checked={choices.ignoreCase === true}
                 onChange={(event) => {
                     onChange({ ...choices, ignoreCase: event.currentTarget.checked });
@@ -147,7 +162,7 @@ export function MatchRow({
             />
             <Checkbox
                 size="xs"
-                label="ignore spaces"
+                label={ignoreLabel("Ignore spaces", extra.ignoringSpaces)}
                 checked={choices.ignoreSpaces === true}
                 onChange={(event) => {
                     onChange({ ...choices, ignoreSpaces: event.currentTarget.checked });

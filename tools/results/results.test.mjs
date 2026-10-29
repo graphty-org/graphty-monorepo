@@ -8,7 +8,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it, mock } from "node:test";
 
@@ -1339,6 +1339,7 @@ describe("health API fan-out", () => {
             source: "algorithms",
             unit: "ms",
             sha: "abc",
+            machine: cpus()[0].model.trim(),
             rows: [{ name: "PageRank n=1000", value: 4.5 }],
         });
     });

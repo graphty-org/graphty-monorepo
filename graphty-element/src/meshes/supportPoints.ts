@@ -350,20 +350,8 @@ export function balancedUnit(nodes: readonly Xyz[], edges: readonly SupportEdge[
     });
     const { forces } = edges[0];
     const bh = forces.model === "barnesHut";
-    // vis-network's forceAtlas2Based pushes a node, and pulls it to the middle, in proportion to its degree plus one
-    // (a support point's is one); barnesHut takes no degree
-    const weight = new Float64Array(n + m).fill(1);
-    if (!bh) {
-        const index = new Map(nodes.map((p, i) => [p, i]));
-        for (const { src, dst } of edges) {
-            for (const end of [src, dst]) {
-                const i = index.get(end);
-                if (i !== undefined) {
-                    weight[i]++;
-                }
-            }
-        }
-    }
+    // barnesHut takes no degree
+    const weight = bh ? new Float64Array(n + m).fill(1) : degreeWeights(nodes, edges);
     const root = treeOf(xs, ys);
     // at a size s force units per scene unit: barnesHut's push (1 / d^2) gives a virial of push / s, forceAtlas2's
     // (1 / d) one of push whatever the size; a half spring of drawn length h gives -k (s h - L / 2) s h; central
@@ -388,19 +376,49 @@ export function balancedUnit(nodes: readonly Xyz[], edges: readonly SupportEdge[
     const cg = forces.centralGravity;
     const virial = (s: number): number =>
         (bh ? push / s : push) - s * s * springs2 + s * springs1 - (bh ? cg * s * reach : cg * s * s * reach2);
+    const size = springs2 > 0 ? falling(virial) : null;
+    return size === null ? null : 1 / size;
+}
+
+/**
+ * Each body's weight under forceAtlas2: a node's degree plus one (vis-network's forceAtlas2Based pushes a node, and
+ * pulls it to the middle, in proportion to it), a support point's one.
+ * @param nodes - Every node's center; the first bodies.
+ * @param edges - The edges with support points; a body each after the nodes.
+ * @returns The weights.
+ */
+function degreeWeights(nodes: readonly Xyz[], edges: readonly SupportEdge[]): Float64Array {
+    const weight = new Float64Array(nodes.length + edges.length).fill(1);
+    const index = new Map(nodes.map((p, i) => [p, i]));
+    for (const end of edges.flatMap(({ src, dst }) => [src, dst])) {
+        const i = index.get(end);
+        if (i !== undefined) {
+            weight[i]++;
+        }
+    }
+    return weight;
+}
+
+/**
+ * Where a function that is positive at 1e-9 and negative at 1e9 crosses zero, by bisection of the logarithm.
+ * @param f - The function.
+ * @returns The crossing, or null when it is not positive below and negative above (or not a number).
+ */
+function falling(f: (s: number) => number): number | null {
     let [lo, hi] = [1e-9, 1e9];
-    if (!(springs2 > 0) || !(virial(lo) > 0) || !(virial(hi) < 0)) {
+    const brackets = f(lo) > 0 && f(hi) < 0;
+    if (!brackets) {
         return null;
     }
     for (let k = 0; k < 100; k++) {
         const mid = Math.sqrt(lo * hi);
-        if (virial(mid) > 0) {
+        if (f(mid) > 0) {
             lo = mid;
         } else {
             hi = mid;
         }
     }
-    return 1 / Math.sqrt(lo * hi);
+    return Math.sqrt(lo * hi);
 }
 
 /**

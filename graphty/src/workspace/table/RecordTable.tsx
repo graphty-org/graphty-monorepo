@@ -33,25 +33,26 @@ interface Row {
 
 /**
  * What a cell shows: an edge's ends by their nodes' names (a node is called by its label), a time
- * field's values as dates, anything else as it is.
+ * field's values and any date column's as dates, anything else as it is.
  * @param session - the element's session.
  * @param kind - nodes or edges.
- * @param key - the column's attribute or key.
+ * @param column - the column.
  * @param record - the row's record.
  * @returns the cell's value.
  */
 function cellValue(
     session: GraphSession,
     kind: RecordKind,
-    key: string,
+    column: TableColumnChoice,
     record: NodeRecord | EdgeRecord,
 ): DataTableValue {
+    const key = column.attribute ?? column.id;
     const value = record[key];
     if (kind === "edge" && (key === "source" || key === "target")) {
         const id = value as NodeId;
         return session.data.name(id) ?? String(id);
     }
-    return tableValue(timeValue(session, kind, key, value));
+    return tableValue(timeValue(session, kind, key, value, column.descriptor?.type === "time"));
 }
 
 /** Props for RecordTable. */
@@ -210,6 +211,9 @@ export function RecordTable({
             header: column.header,
             // A group's name is a word ("Group 3"), so it reads from the left like other words.
             align: column.numeric && column.grouping !== true ? "end" : "start",
+            // A first click sorts words and dates A to Z (oldest first), as a spreadsheet does,
+            // and numbers highest first; never by whatever the first row happens to hold.
+            descendingFirst: column.numeric,
             // The key names its row, so every other cell reads with it.
             rowHeader: column.group === "key",
             menu: joinMenus(parts?.menu, move),
@@ -223,7 +227,7 @@ export function RecordTable({
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)
-                    : (row) => cellValue(session, kind, column.attribute ?? column.id, row.record),
+                    : (row) => cellValue(session, kind, column, row.record),
         };
     });
 

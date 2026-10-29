@@ -107,8 +107,8 @@ function fileAttributes(
         )
         .map((column): [string, unknown] => [
             column.plainName,
-            // The time field reads as the timeline writes dates.
-            timeValue(session, kind, column.name, record[column.name]),
+            // The time field, and any date column, reads as the timeline writes dates.
+            timeValue(session, kind, column.name, record[column.name], column.type === "time"),
         ]);
 }
 

@@ -289,6 +289,9 @@ export function sortCaption(column: TableColumnChoice | undefined, descending: b
     if (column.grouping === true) {
         return `Sorted by ${column.header}, ${descending ? "largest group first" : "smallest group first"}`;
     }
+    if (column.descriptor?.type === "time") {
+        return `Sorted by ${column.header}, ${descending ? "newest first" : "oldest first"}`;
+    }
     if (column.numeric) {
         return `Sorted by ${column.header}, ${descending ? "highest first" : "lowest first"}`;
     }

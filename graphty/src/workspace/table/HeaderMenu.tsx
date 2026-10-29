@@ -25,6 +25,12 @@ import {
     valueTypeOf,
 } from "./columns";
 
+/**
+ * MenuCheckItem's empty 16 px check column, for a plain row among an issue's fix rows, so Ignore
+ * and Show rows start where the fixes do (Figma: a menu's labels stay aligned).
+ */
+const CHECK_COLUMN = <span className="cm-menu-row-check" aria-hidden="true" />;
+
 /** What the header menu asks the table to do with its own arrangement. */
 export interface HeaderMenuActions {
     readonly sort: (descending: boolean) => void;
@@ -150,6 +156,7 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
                               </MenuCheckItem>
                           ))}
                           <Menu.Item
+                              leftSection={CHECK_COLUMN}
                               onClick={() => {
                                   session.data.ignoreIssue(issue, true).catch(fail);
                               }}
@@ -157,6 +164,7 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
                               Ignore
                           </Menu.Item>
                           <Menu.Item
+                              leftSection={CHECK_COLUMN}
                               onClick={() => {
                                   actions.showRows(issue);
                               }}

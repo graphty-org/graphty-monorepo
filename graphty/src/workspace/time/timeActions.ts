@@ -176,20 +176,34 @@ export function reportTimeError(store: WorkspaceStore): (error: unknown) => void
 }
 
 /**
- * A value of the designated time column in the timeline's date words, as the dock writes them;
- * any other value as it is.
+ * A value of the designated time column, or of any column typed date, in the timeline's date
+ * words, as the dock writes them; any other value as it is.
  * @param session - the element's session.
  * @param kind - nodes or edges.
  * @param column - the column.
  * @param value - the value.
+ * @param date - whether the column is typed date, whatever its role.
  * @returns "Jan 31, 2025" for a time, else the value.
  */
-export function timeValue(session: GraphSession, kind: "node" | "edge", column: string, value: unknown): unknown {
+export function timeValue(
+    session: GraphSession,
+    kind: "node" | "edge",
+    column: string,
+    value: unknown,
+    date = false,
+): unknown {
     const { field } = session.time;
     const source = kind === "node" ? field?.nodes : field?.edges;
-    if (source?.start !== column || value === null || value === undefined || value === "") {
+    const time = source?.start === column;
+    if ((!time && !date) || value === null || value === undefined || value === "") {
         return value;
     }
-    const at = typeof value === "string" || typeof value === "number" ? session.time.parse(String(value)) : null;
-    return at === null ? value : instantWords(at, unitOf(session));
+    let at: number | null = null;
+    if (value instanceof Date) {
+        at = value.getTime();
+    } else if (typeof value === "string" || typeof value === "number") {
+        at = session.time.parse(String(value));
+    }
+    // A date column that is not the time is written to the day, whatever the timeline's unit.
+    return at === null ? value : instantWords(at, time ? unitOf(session) : "ms");
 }

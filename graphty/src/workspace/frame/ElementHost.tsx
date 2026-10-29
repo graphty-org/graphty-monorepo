@@ -2,6 +2,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { APP_GLOBE_LOOK } from "../../constants/globe";
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { loadGraphtyElement } from "../../elementLoader";
 import { siteConfig } from "../../siteConfig";
@@ -78,7 +79,8 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         [allLabelsShown, labelsAvoid, sameSize, outlineWidth],
     );
     // The map's credits sit above the canvas toolbar, measured from its dock; and a reader who
-    // prefers less motion gets camera moves without the glide. View settings, written on the
+    // prefers less motion gets camera moves without the glide; and the globe is drawn as the earth
+    // from space (constants/globe.ts). View settings, written on the
     // element; they record no step.
     const still = useReducedMotion();
     useEffect(() => {
@@ -88,6 +90,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         }
 
         element.cameraTransitionDuration = still ? 0 : undefined;
+        element.globeLook = APP_GLOBE_LOOK;
         const canvas = element.closest<HTMLElement>(".ws-canvas");
         const dock = canvas?.querySelector<HTMLElement>(".ws-toolbar-dock");
         if (canvas === null || canvas === undefined || dock === null || dock === undefined) {

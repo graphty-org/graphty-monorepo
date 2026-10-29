@@ -31,6 +31,21 @@ default side. Left- and right-handed scenes (`scene.useRightHandedSystem`) both 
 wrapped onto the sphere and needs no light: it is drawn at full brightness where the globe faces the
 camera and darker toward its rim, so it reads as a ball.
 
+Two looks are off by default and switch on with an option, or later with the property of the same
+name:
+
+```ts
+const globe = new Globe(scene, {
+    radius: 100,
+    atmosphere: true, // a thin blue glow of air around the rim, added onto the background
+    sun: { lat: 23.4, lon: -30 }, // where the sun is overhead: the far side is dark, with a soft twilight
+});
+globe.sun = null; // every side lit alike again
+```
+
+The glow is added onto what is behind the globe, so it shows on a dark background and fades into a
+light one.
+
 ## A flat map
 
 ```ts
@@ -54,21 +69,22 @@ units across its longer side, so a city map uses the same small numbers as a wor
 same under a perspective camera and an orthographic 2D one. Leave `frame` out for the whole world.
 
 The picture ends at the box (`beyond: "clip"`, the default). With `beyond: "continue"` every source
-is drawn whole, a world to the east and west too, so panning or zooming out past the box still
-shows map. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
+is drawn on past the box, one world wide and centered on it, so panning or zooming out past the box
+still shows map; the world is drawn once, never repeated to the east or west. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
 gives) is drawn from both sides of the line.
 
 ## Map sources
 
-| Source                        | What it shows                                       | Deepest zoom |
-| ----------------------------- | --------------------------------------------------- | ------------ |
-| `natural-earth` (the default) | A 2048 x 1024 world picture shipped in the package  | one picture  |
-| `natural-earth-gray`          | The same picture as a plain light gray backdrop     | one picture  |
-| `openstreetmap`               | Streets                                             | 19           |
-| `opentopomap`                 | Topographic                                         | 17           |
-| `nasa-gibs-blue-marble`       | Satellite mosaic of the whole earth, poles included | 7            |
-| `usgs-topo`, `usgs-imagery`   | US topographic maps and imagery                     | 16           |
-| `eox-s2cloudless-2016`        | Cloudless satellite imagery                         | 15           |
+| Source                             | What it shows                                       | Deepest zoom |
+| ---------------------------------- | --------------------------------------------------- | ------------ |
+| `natural-earth` (the default)      | A 4096 x 2048 world picture shipped in the package  | one picture  |
+| `natural-earth-gray`               | The same picture as a plain light gray backdrop     | one picture  |
+| `openstreetmap`                    | Streets                                             | 19           |
+| `opentopomap`                      | Topographic                                         | 17           |
+| `nasa-gibs-blue-marble`            | Satellite mosaic of the whole earth, poles included | 7            |
+| `nasa-gibs-blue-marble-bathymetry` | The same mosaic with the sea floor's relief         | 7            |
+| `usgs-topo`, `usgs-imagery`        | US topographic maps and imagery                     | 16           |
+| `eox-s2cloudless-2016`             | Cloudless satellite imagery                         | 15           |
 
 None needs a key. `natural-earth` contacts no one; the others are public services that ask for light
 use, and this package only ever requests the tiles in view. Sources are layered bottom first:

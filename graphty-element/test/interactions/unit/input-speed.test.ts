@@ -116,6 +116,10 @@ describe("Input Speed and Sensitivity", () => {
 
             // Record initial scale
             const initialScale = getSceneScale(graph);
+            // The render loop also steps the input controller every frame while the real key is
+            // down, as many frames as pressing and releasing it happens to take: stop it, so the
+            // zoom moves by exactly the frames run below.
+            graph.engine.stopRenderLoop();
 
             // Simulate + key press for fixed number of frames
             await pressKey(graph, "+");

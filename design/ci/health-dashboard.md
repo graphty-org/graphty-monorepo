@@ -583,8 +583,9 @@ The Costs page answers what running the pipeline costs and which process costs i
   `gpu-rerun-on-runner-loss.yml`, dispatches): minutes rounded up, plus one for boot, times the rate
   for the label's tenancy (on demand 0.018 USD/min, spot 0.0045); reconciled monthly with
   machine.dev's Cost Explorer.
-- **LLM regression (money).** One paid run per UTC day (`tools/llm-due.mjs`); until token counts are
-  recorded, paid test steps (as `llm-due.mjs` counts them) times 0.94 USD, about 29 USD a month.
+- **LLM regression (money).** One paid run per full, restart and candidate run (`release.yml`'s `llm`
+  job); until token counts are recorded, paid test steps (as `tools/llm-spend.mjs` counts them) times
+  0.94 USD, about 113 to 170 USD a month at 4 to 6 runs a day.
   Local runs are on the owner's own Gemini bill and not in it.
 - **AWS (money).** Cost Explorer, daily by service; credits left.
 - **Cloudflare and Sentry (money).** Their plans (Cloudflare Workers Paid, 5 USD; the Sentry plan,

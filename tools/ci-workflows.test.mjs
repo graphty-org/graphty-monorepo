@@ -4502,29 +4502,46 @@ describe("release.yml", () => {
         assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
-    it("runs the paid LLM tests once a UTC day, after a green CI lane, or on a person's dispatch", () => {
-        const due = llm.indexOf("run: node tools/llm-due.mjs");
-        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@"), "decides before installing anything");
-        assert.match(llm, /id: due\n/);
-        assert.match(llm, /actions: read/);
-        // every step after the decision is skipped when the lane is not due, so the job passes without paying
-        const after = llm
-            .slice(due)
-            .split(/\n\s+- (?:name|uses): /)
-            .slice(1);
-        assert.equal(after.length, 5);
-        for (const step of after) assert.match(step, /\n\s+if: steps.due.outputs.due == 'true'(\n|$)/);
+    it("runs the paid LLM tests in every release test of a candidate, with no once-a-day gate (owner, 2026-10-29)", () => {
+        // no step decides whether the lane is due: every step runs whenever the job runs
+        assert.doesNotMatch(llm, /steps\.due|llm-due/);
+        // (the cost step after the tests, which runs after a failed test step too, is not a gate)
+        const steps = llm.slice(llm.indexOf("\n        steps:"), llm.indexOf('- name: "LLM regression cost:'));
+        assert.doesNotMatch(steps, /\n\s+if: /, "no step-level gate");
+        // the job runs only when the pick chose a candidate to test, never in promote-nightly (which tests nothing)
         assert.match(
-            readFileSync(new URL("./llm-due.mjs", import.meta.url), "utf8"),
-            /export const STEP = "LLM regression tests";/,
+            llm,
+            /if: \$\{\{ !cancelled\(\) && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true'/,
         );
-        assert.match(llm, /- name: LLM regression tests\n/, "the step llm-due.mjs counts");
+        // the month's spend is still checked (spend:llm), before installing anything, and never stops the run
+        const spend = llm.indexOf("run: node tools/llm-spend.mjs");
+        assert.ok(spend > 0 && spend < llm.indexOf("uses: pnpm/action-setup@"), "checks the spend first");
+        assert.match(llm, /actions: read/);
+        const script = readFileSync(new URL("./llm-spend.mjs", import.meta.url), "utf8");
+        assert.match(script, /export const STEP = "LLM regression tests";/);
+        assert.match(script, /const MONTHLY_CEILING = 60;/);
+        assert.match(llm, /- name: LLM regression tests\n/, "the step llm-spend.mjs counts");
+        // the run's logged cost reaches llm-spend.mjs and the health dashboard as the next step's name
+        assert.match(
+            llm,
+            /echo "usd=\$\(node \.\.\/tools\/llm-spend\.mjs cost "\$RUNNER_TEMP\/llm-regression\.log"\)" >> "\$GITHUB_OUTPUT"/,
+        );
+        assert.match(
+            llm,
+            /- name: "LLM regression cost: \$\{\{ steps\.llm\.outputs\.usd \}\} USD"\n\s+if: \$\{\{ always\(\) && steps\.llm\.outputs\.usd != '' \}\}\n/,
+        );
+        assert.match(script, /export const COST_STEP = /);
+        // the paid project runs nowhere else: not on a pull request, a master push or any other workflow
+        for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
+            if (name === "release.yml" || !/\.ya?ml$/.test(name)) continue;
+            assert.doesNotMatch(workflow(name), /--project[ =]llm-regression/, name);
+        }
     });
 
     it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
         assert.match(
             llm,
-            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
         );
         assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(llm, /run: pnpm exec nx run graphty-element:build/);

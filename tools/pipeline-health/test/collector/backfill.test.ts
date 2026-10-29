@@ -74,11 +74,14 @@ function fake(
                 "x-ratelimit-limit": "5000",
             };
             const reply = (body: unknown) => new Response(JSON.stringify(body), { headers });
-            if (/\/actions\/runs$/.test(u.pathname) && u.searchParams.get("created")) {
+            const listing = /\/actions\/(?:workflows\/([^/]+)\/)?runs$/.exec(u.pathname);
+            if (listing && u.searchParams.get("created")) {
                 // A day ("2026-10-25") or a range ("a..b"), newest first; past `listed` runs a page comes back empty.
+                // A workflow's list (actions/workflows/<file>/runs) holds only that workflow's runs.
                 const created = u.searchParams.get("created")!;
                 const [from, to] = created.split("..");
                 const day = runs
+                    .filter((r) => !listing[1] || workflowFile(r.path) === listing[1])
                     .filter((r) => (to ? r.created_at >= from && r.created_at <= to : r.created_at.startsWith(created)))
                     .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
                 const per = Number(u.searchParams.get("per_page"));
@@ -159,6 +162,33 @@ describe("backfill", () => {
         await backfill({ ...options(store, g), gh: new GitHub(async () => "t", g.fetch) });
         expect(g.urls.filter((u) => !u.endsWith("/access_tokens"))).toEqual([]);
         expect(homes(store, "run")).toHaveLength(7);
+    });
+
+    it("repairs only the given days' runs of the given workflows, whatever the cursors say", async () => {
+        // 2026-10-09 to 10-15 each had over 1,000 runs; the first backfill read each day in one query, GitHub listed
+        // only the newest 1,000, and the cursor moved on, so 18 of the month's paid LLM steps were never loaded.
+        const store = new MemoryStore();
+        const release = (id: number, i: number) => ({
+            ...master,
+            id,
+            path: ".github/workflows/release.yml",
+            created_at: `2026-10-25T0${i}:00:00Z`,
+        });
+        const f = fake({ runs: [...history(), release(3000, 1), release(3001, 2)] });
+        await setCursor(store, runsCursor(REPO), JSON.stringify({ day: "2026-09-01", page: 1 }), NOW);
+        const r = await backfill({
+            ...options(store, f),
+            repair: { days: ["2026-10-25"], workflows: ["release.yml"] },
+        });
+        expect(r).toMatchObject({ done: true, runs: 2 });
+        expect(
+            homes(store, "run")
+                .map((i) => i.pk)
+                .sort(),
+        ).toEqual([`R#run#${REPO}/3000`, `R#run#${REPO}/3001`]);
+        expect(f.urls.every((u) => !u.includes("/actions/runs?") && !u.endsWith("/graphql"))).toBe(true);
+        expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-09-01", page: 1 });
+        expect(await getCursor(store, PRS_CURSOR)).toBeUndefined();
     });
 
     it("stops at the days the earlier oldest-first backfill loaded (its cursor's day, reloaded whole)", async () => {

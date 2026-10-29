@@ -29,7 +29,7 @@ with that category's state, so every page repeats the status line.
 | Local runs    | Test runs on the maintainers' machine: gate runs, local shard times, test-slot waits, local vs CI disagreement. Never judged. Under CI.                                                                                                                                                                                                               |
 | Flaky tests   | **Hotspots**: where flaky failures cluster (group, family, shard, file, test, per 1,000 runs); **Quarantine**: the quarantine entries, if any.                                                                                                                                                                                                        |
 | Releases      | The lanes of the newest tested release candidate, every train attempt (including skipped ones), and the release workflows.                                                                                                                                                                                                                            |
-| Costs         | Money spent this month against budget, the 28-day projection, unit costs and spend by workflow.                                                                                                                                                                                                                                                       |
+| Costs         | Money spent this month against budget, the projection to month-end, unit costs and spend by workflow. The LLM regression line is an estimate of CI's Gemini spend only (see "The LLM regression line").                                                                                                                                               |
 | Data sources  | Each source's last write, its age limit, volume and last error; then "Not set up": what has no writer or token yet, and what unblocks it.                                                                                                                                                                                                             |
 
 Every row with a chevron drills down: to the run with its jobs, the pull request, or a test's history
@@ -194,12 +194,17 @@ node tools/pipeline-health/local/collector.mjs --once      # post what is new, t
 node tools/pipeline-health/local/collector.mjs --watch     # post what is new every 60 s
 ```
 
-Run it under servherd from the main checkout, so it keeps running when worktrees are removed:
+It runs under servherd from its live copy, the worktree `.worktrees/pipeline-health-local-live`, reading the
+main checkout's `tmp/` (`--root`). `tools/live.sh pipeline-health-local <branch-or-commit>` merges a change into
+that copy, runs `local/collector.test.mjs` and restarts the server (`tools/live-tools.json`):
 
 ```jsonc
-servherd_start({ name: "pipeline-health-local", cwd: "<repo>",
-  command: "node tools/pipeline-health/local/collector.mjs --watch" })
+servherd_start({ name: "pipeline-health-local", cwd: "<repo>/.worktrees/pipeline-health-local-live",
+  command: "node tools/pipeline-health/local/collector.mjs --watch --root <repo>",
+  env: { HEALTH_API_URL: "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com" } })
 ```
+
+The token is `HEALTH_LOCAL_TOKEN`, from the server's environment or else the main checkout's `.env` (never printed).
 
 Its cursor is `tmp/pipeline-health-local/cursor.json` in the main checkout. A failed post logs one line
 and keeps the cursor, so the next pass sends the same rows; delete the cursor to post everything again.
@@ -228,6 +233,15 @@ the Lambdas at 100%, and the AWS project's own spend limit. Any of them silences
 CloudWatch alarm `graphty-health-collector-dead-man` (no successful collector run in 20 minutes) emails
 the SNS topic `graphty-health-alarms` when that happens.
 
+## The LLM regression line
+
+The Costs page's LLM regression line (`costs.llm`) estimates what CI spends on Gemini; it is not the Google bill. It
+counts every paid step -- release.yml's `LLM regression tests` step, and the `Run the failing files` step of each
+point of a bisect of the llm lane (bisect.yml's run name `Bisect (llm lane)`) -- with a passed, failed or cancelled
+conclusion, at a flat 0.94 USD each (`config/rates.json`, measured 2026-10-12 at about 194 calls of 0.00485 USD).
+Local runs with the same key and any other use of the Google project are not counted. The member's value is the
+projection to month-end; the money table shows the spend so far beside it.
+
 ## Backfill
 
 To load the last 28 days of flaky tests, runs, jobs, pull requests and issues (it needs the GitHub App's
@@ -243,7 +257,10 @@ recorded are left out of that measure until a backfill rewrites them.
 
 Each call works for up to 15 minutes and answers `{"done": false, ...}` until the range is loaded;
 invoke it again and it continues from its cursor. `AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run
-backfill -- --days 28` runs the same from a workstation.
+backfill -- --days 28` runs the same from a workstation. `-- --repair-days 2026-10-09,2026-10-11
+--repair-workflows release.yml,bisect.yml` re-reads only those days' runs of those workflows, whatever the cursors
+say: a backfill made before days were read an hour at a time kept only the newest 1,000 runs of a busier day. The
+Lambda takes the same as `"repair": {"days": [...], "workflows": [...]}` in its payload.
 
 It loads newest first, so a call that stops early has loaded the most recent days. Flaky tests come first:
 each warning annotation `[FLAKY]`, `[FLAKY-UNRELATED]` or `[QUARANTINED] ... failed and passed` that the test

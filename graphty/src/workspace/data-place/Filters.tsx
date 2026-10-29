@@ -495,44 +495,50 @@ function FilterCard({
                 }
             }}
         >
-            <Group gap={4} wrap="nowrap">
-                <Group gap={4} wrap="nowrap" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+            {/* The count is the card's fact and is never cut: when it and the controls do not fit on
+                one line, the controls move to the next, still at the right. */}
+            <Group gap={4}>
+                <Group gap={4} style={{ flex: "1 0 auto" }}>
                     <CountChips count={count} />
                 </Group>
-                {condition !== undefined && toggles && (
-                    <SegmentedControl
-                        size="xs"
-                        label={`${name} action`}
-                        data={[
-                            { value: "select", label: "Select" },
-                            { value: "hide", label: "Hide" },
-                        ]}
-                        value={select ? "select" : "hide"}
-                        onChange={(value) => {
-                            void writeCondition(store, () =>
-                                session.visibility.updateCondition(id, {
-                                    effect: value === "select" ? "select" : "keep",
-                                }),
-                            );
-                        }}
-                    />
-                )}
-                {condition !== undefined && (
-                    <Tooltip label={`Apply ${name}`}>
-                        <Checkbox
+                <Group gap={4} wrap="nowrap" ml="auto">
+                    {condition !== undefined && toggles && (
+                        <SegmentedControl
                             size="xs"
-                            aria-label={`Apply ${name}`}
-                            checked={on}
-                            onChange={(event) => {
-                                const next = event.currentTarget.checked;
-                                void writeCondition(store, () => session.visibility.updateCondition(id, { on: next }));
+                            label={`${name} action`}
+                            data={[
+                                { value: "select", label: "Select" },
+                                { value: "hide", label: "Hide" },
+                            ]}
+                            value={select ? "select" : "hide"}
+                            onChange={(value) => {
+                                void writeCondition(store, () =>
+                                    session.visibility.updateCondition(id, {
+                                        effect: value === "select" ? "select" : "keep",
+                                    }),
+                                );
                             }}
                         />
+                    )}
+                    {condition !== undefined && (
+                        <Tooltip label={`Apply ${name}`}>
+                            <Checkbox
+                                size="xs"
+                                aria-label={`Apply ${name}`}
+                                checked={on}
+                                onChange={(event) => {
+                                    const next = event.currentTarget.checked;
+                                    void writeCondition(store, () =>
+                                        session.visibility.updateCondition(id, { on: next }),
+                                    );
+                                }}
+                            />
+                        </Tooltip>
+                    )}
+                    <Tooltip label={`Remove ${name}`}>
+                        <CloseButton size="xs" aria-label={`Remove ${name}`} onClick={remove} />
                     </Tooltip>
-                )}
-                <Tooltip label={`Remove ${name}`}>
-                    <CloseButton size="xs" aria-label={`Remove ${name}`} onClick={remove} />
-                </Tooltip>
+                </Group>
             </Group>
             <div className="dp-filter-body">
                 <CardContent

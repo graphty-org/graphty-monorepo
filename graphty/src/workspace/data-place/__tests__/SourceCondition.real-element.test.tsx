@@ -123,6 +123,14 @@ describe("picking nodes by a condition card from the Data place", () => {
             name: /^from people\.json/,
         });
         assert.lengthOf(within(card).getAllByText(/ of /), 2);
+        // Both chips show their whole "X of Y" at the panel's width: not cut to an ellipsis, and not
+        // clipped or covered by the card's controls (the chip is what the reader sees at its far end).
+        for (const text of card.querySelectorAll<HTMLElement>(".cm-entity-text")) {
+            assert.isAtMost(text.scrollWidth, text.clientWidth, text.textContent ?? "");
+            const box = text.getBoundingClientRect();
+            const seen = document.elementFromPoint(box.right - 1, box.top + box.height / 2);
+            assert.isTrue(text.contains(seen), `${text.textContent ?? ""} is not fully shown`);
+        }
 
         // A card that exists stays once the sources drop back to one.
         await session.data.removeSource(people.key);

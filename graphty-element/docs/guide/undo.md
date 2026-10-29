@@ -332,6 +332,10 @@ A host that mirrors graph state in its own UI listens for the change itself, wha
   each with a `cause`: `"command"`, `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A run that an
   undo takes away arrives with the phase `"removed"`, and one a redo brings back with
   `"restored"`.
+- `project:derived` fires with the same `{ slices, cause }` once per `project:changed`, after the
+  picture has caught up with it and after those per-domain events. Read derived values --
+  `styles.legend()`, `styles.counts()` -- here: on `project:changed` they still answer for the
+  previous picture.
 - The element's `data-added`, `elements-removed` and `data-loaded` events fire for undo and redo
   too, with the same `cause`. A listener that starts work when data arrives should check that
   `cause` is absent or `"command"`, or it will start that work again on every undo.

@@ -64,6 +64,26 @@ beforeAll(async () => {
 });
 
 describe("the canvas on the real element", () => {
+    it("shows a category a data-only edit brings in, and drops the one it took away (#3529)", async () => {
+        const session = await newProject();
+        await session.data.addNodes([
+            { id: "a", kind: "alpha" },
+            { id: "b", kind: "beta" },
+        ]);
+        await session.styles.add({
+            name: "Kind",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.kind", scale: "ordinal", palette: "okabe-ito" } },
+        });
+        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        await within(legend).findByText("beta");
+
+        // Data alone: no layer changes, so no style event follows the repaint.
+        await session.data.updateNodes([{ id: "b", values: { kind: "gamma" } }]);
+        await within(legend).findByText("gamma");
+        assert.isNull(within(legend).queryByText("beta"), "the old category is gone");
+    });
+
     it("shows No nodes to draw until the graph has a node, then the legend of a run that paints (T7)", async () => {
         const session = await newProject();
         await screen.findByRole("region", { name: "No nodes to draw" }, { timeout: TIMEOUT_MS });

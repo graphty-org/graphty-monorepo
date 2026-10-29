@@ -625,6 +625,12 @@ class Session implements ElementSession {
             });
             beside?.(change);
         };
+        this.dispatcher.events.caughtUp = (change) => {
+            publish(this.watchers, "project:derived", {
+                slices: change.slices as readonly ProjectSlice[],
+                cause: change.cause,
+            });
+        };
         // A command that replaces the project is announced before it runs (autosave keeps the
         // work it replaces); chained, because a test may spy here too.
         const { dispatched } = this.dispatcher.events;

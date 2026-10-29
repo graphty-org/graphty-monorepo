@@ -5178,6 +5178,10 @@ export interface SessionEventMap {
         readonly slices: readonly ProjectSlice[];
         readonly cause: HistoryCause;
     };
+    "project:derived": {
+        readonly slices: readonly ProjectSlice[];
+        readonly cause: HistoryCause;
+    };
     "project:status": ProjectStatus;
     "render:quality": RenderQualityChange;
     "run:changed": RunChange;

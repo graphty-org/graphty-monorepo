@@ -320,6 +320,12 @@ interface DispatcherEvents {
     history?: (reason: HistoryReason) => void;
     /** After the derivation pass: the per-domain events. One per step an undo or restore passes. */
     derived?: (change: ProjectChange) => void;
+    /**
+     * `project:derived`: once per `project` change, after its `derived` events, when every hook
+     * of the pass that took it has run, so a read of any derived value (the legend, the counts)
+     * is current.
+     */
+    caughtUp?: (change: ProjectChange) => void;
     /** Every command dispatched, as it arrives, before it runs; the doors test spies here. */
     dispatched?: (command: CommandLike) => void;
     /**
@@ -1547,7 +1553,7 @@ export class Dispatcher {
 
     /**
      * Publish a change: `project` and the pending `history` reasons now, the `derived` events
-     * once the pass has run.
+     * and then `caughtUp` once the pass has run.
      * @param change - What changed, for `project`.
      * @param derived - The per-domain changes, one per step.
      */
@@ -1572,6 +1578,7 @@ export class Dispatcher {
             for (const each of derived) {
                 this.notify(() => this.events.derived?.(each));
             }
+            this.notify(() => this.events.caughtUp?.(change));
         });
     }
 

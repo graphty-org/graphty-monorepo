@@ -2914,9 +2914,18 @@ export interface SessionEventMap {
     /**
      * Project state changed: the slices written and what wrote them. Fires synchronously, as
      * soon as the state has changed and before the picture has caught up; the per-domain events
-     * (`style:changed` and the rest) follow once it has.
+     * (`style:changed` and the rest) follow once it has, then `project:derived`.
      */
     "project:changed": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
+    /**
+     * The picture has caught up with a project change: published once per `project:changed`,
+     * after every hook deriving it has run and after the per-domain events it causes. THE event
+     * for a consumer that re-reads derived state -- `styles.legend()`, `styles.counts()`,
+     * `styles.explain()` -- after any change, including an edit to data alone, which publishes no
+     * `style:changed`. Read on `project:changed`, those answer for the previous pass.
+     * @since 3.37.0
+     */
+    "project:derived": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
     /**
      * A kept set was created, renamed, redefined or removed: one event per set a write touched,
      * after the write committed. A write that was refused publishes nothing.

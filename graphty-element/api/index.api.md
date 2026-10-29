@@ -4,9 +4,11 @@
 
 ```ts
 
+import { AbstractEngine } from '@babylonjs/core';
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { AwsCredentials } from '@graphty/graph-io';
+import { BaseTexture } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
@@ -28,6 +30,7 @@ import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
+import { Effect } from '@babylonjs/core';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
 import { ExpandRequest } from '@graphty/graph-io';
@@ -38,6 +41,7 @@ import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
+import { GlowLayer } from '@babylonjs/core';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
@@ -68,6 +72,7 @@ import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
+import { PhotoDome } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
@@ -121,6 +126,7 @@ import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
+import { UniformBuffer } from '@babylonjs/core';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
@@ -362,6 +368,7 @@ export interface AutosaveEntry {
     readonly live: boolean;
     readonly name: string;
     readonly nodes: number;
+    readonly own?: boolean;
     readonly revision: number;
     readonly savedAt: string;
 }
@@ -994,7 +1001,23 @@ export function defineLogDestination(definition: LogDestinationDefinition, optio
 // @public
 export function definePalette(definition: PaletteDefinition, options?: RegisterOptions): void;
 
+// @public
+export function defineShader(definition: ShaderDefinition, options?: RegisterOptions): void;
+
 export { defineSource }
+
+// @public
+export interface DrawnShaders {
+    readonly groupOutlines: readonly {
+        readonly layer: LayerId;
+        readonly shader: string;
+        readonly groups: readonly (string | number | boolean | null)[];
+    }[];
+    readonly nodes: ReadonlyMap<string, {
+        readonly drawn: number;
+        readonly entering: number;
+    }>;
+}
 
 // @public
 export class Edge {
@@ -1022,6 +1045,10 @@ export class Edge {
     }[];
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
+    get drawnEffects(): {
+        id: string;
+        points: Vector3[];
+    }[];
     // @internal
     get drawnGradient(): readonly string[];
     get drawnLine(): {
@@ -1054,8 +1081,12 @@ export class Edge {
     parentGraph: Graph | GraphContext;
     // (undocumented)
     ray: Ray;
+    // @internal
+    refreshShaderPaint(): void;
     setRenderVisible(visible: boolean): boolean;
     setSelected(selected: boolean): boolean;
+    // @internal
+    shaderDataChanged(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
     // (undocumented)
@@ -1783,6 +1814,8 @@ export const EdgeStyle: z.ZodObject<{
         }, z.core.$strict>>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
+        taper: z.ZodOptional<z.ZodNumber>;
+        lift: z.ZodOptional<z.ZodNumber>;
         fanSpacing: z.ZodOptional<z.ZodNumber>;
         fanned: z.ZodOptional<z.ZodBoolean>;
         bendCurve: z.ZodOptional<z.ZodEnum<{
@@ -2345,6 +2378,7 @@ export class Graph implements GraphContext {
     deselectNode(): void;
     disableAiControl(): void;
     dispose(): void;
+    drawnShaders(): DrawnShaders;
     get edgeLabelCounts(): EdgeLabelCounts;
     // (undocumented)
     element: Element;
@@ -2406,6 +2440,10 @@ export class Graph implements GraphContext {
     getXRConfig(): XRConfig | undefined;
     getXRSessionManager(): XRSessionManager | undefined;
     getZoomToPointer(): boolean;
+    groupOutlineAt(point: {
+        x: number;
+        y: number;
+    }): GroupOutlineAtResult | null;
     importCameraPresets(presets: Record<string, CameraState>): void;
     init(): Promise<void>;
     // (undocumented)
@@ -2607,10 +2645,19 @@ export interface GraphAccelerator {
 // @public
 export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"color">;
-    color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+    color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    shader: z.ZodOptional<z.ZodObject<{
+        id: z.ZodString;
+        params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
+    }, z.core.$strict>>;
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
+    color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    shader: z.ZodOptional<z.ZodObject<{
+        id: z.ZodString;
+        params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
+    }, z.core.$strict>>;
 }, z.core.$strict>], "backgroundType">;
 
 // @public
@@ -2630,6 +2677,7 @@ export interface GraphContext {
     getStatsManager(): StatsManager;
     getStylePainter?(): StylePainter | undefined;
     getStyles(): Styles;
+    getUpdateManager?(): UpdateManager;
     getXRConfig?(): XRConfig | undefined;
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;
@@ -2813,6 +2861,7 @@ export class Graphty extends LitElement {
     downloadProject(options?: Omit<ProjectSaveOptions, "markSaved"> & {
         readonly fileName?: string;
     }): Promise<ProjectSaveReport>;
+    drawnShaders(): DrawnShaders;
     get edgeData(): Record<string, unknown>[] | undefined;
     set edgeData(value: Record<string, unknown>[] | undefined);
     get edgeDstIdPath(): string | undefined;
@@ -2874,6 +2923,10 @@ export class Graphty extends LitElement {
     getXRConfig(): XRConfig | undefined;
     getXRSessionManager(): XRSessionManager | undefined;
     get graph(): Graph;
+    groupOutlineAt(point: {
+        x: number;
+        y: number;
+    }): GroupOutlineAtResult | null;
     get historyKeys(): boolean;
     set historyKeys(value: boolean);
     importCameraPresets(presets: Record<string, CameraState>): void;
@@ -2977,6 +3030,7 @@ export class Graphty extends LitElement {
     get rendererStatus(): RendererStatus | null;
     get renderOnDemand(): boolean;
     set renderOnDemand(value: boolean);
+    get renderQuality(): RenderQuality;
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
@@ -3036,6 +3090,8 @@ export class Graphty extends LitElement {
     setRunning(running: boolean): void;
     setViewMode(mode: ViewMode): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
+    get shaderSettings(): ShaderSettings;
+    set shaderSettings(value: ShaderSettings | undefined);
     static readonly shadowRootOptions: ShadowRootInit;
     shutdown(): void;
     get startingCameraDistance(): number | undefined;
@@ -3222,6 +3278,25 @@ export type GraphtyErrorCode =
 * The caller picks a palette from the catalogue or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
+/**
+* A layer names a shader the catalog does not list, in a use on `node.shaders` or
+* `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER"
+/**
+* A layer names a shader where it cannot draw: an edge shader on `node.shaders`
+* (`shader.target-mismatch`), or a use at a place the shader does not allow
+* (`shader.place-unsupported`); the refused problem's `fact` carries the code.
+* @since 3.36.0
+*/
+| "E_SHADER_KIND"
+/**
+* A layer sets or binds a parameter the shader does not declare, or binds one per element
+* that it does not declare `varies`. `details.candidates` lists the declared parameters.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER_PARAM"
 /**
 * A camera view name is not one the element knows. `details.available` lists the registered
 * view ids. The caller picks one of those or registers its own view first.
@@ -3685,7 +3760,89 @@ export type GraphtyErrorCode =
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
 */
-| "E_INTERNAL";
+/**
+* A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+*/
+| "E_MODEL_FETCH"
+/**
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`; `params.denied` when the reader refused it; `params.part` (the part's name) for a part handed to `assets.supply` by URL. A private, loopback or link-local host is refused for a supplied part whoever asks.
+*/
+| "E_MODEL_URL_BLOCKED"
+/**
+* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+*/
+| "E_MODEL_TOO_LARGE"
+/**
+* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+*/
+| "E_MODEL_STRUCTURE"
+/**
+* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
+*/
+| "E_MODEL_FORMAT_UNSUPPORTED"
+/**
+* No model format matches the bytes or the name. `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNKNOWN"
+/**
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`
+* (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+* `add`'s `main` option.
+*/
+| "E_MODEL_AMBIGUOUS"
+/**
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+* part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+* `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+* part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+* `params.tried` (the addresses tried, without queries, at most 4).
+*/
+| "E_MODEL_MISSING_FILE"
+/**
+* A reference matched more than one file of the set by case or base name, so none was used.
+* `params.name`, `params.referencedBy`, `params.candidates`.
+*/
+| "E_MODEL_PART_AMBIGUOUS"
+/**
+* An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+* `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+* address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+*/
+| "E_MODEL_WEB_PAGE"
+/**
+* A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+*/
+| "E_MODEL_PART_REQUIRED"
+/**
+* A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+*/
+| "E_MODEL_EXTERNAL_URL"
+/**
+* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+*/
+| "E_MODEL_DECODER_UNAVAILABLE"
+/**
+* Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+*/
+| "E_MODEL_PARSE"
+/**
+* A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+*/
+| "E_MODEL_ZIP"
+/**
+* An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+*/
+| "E_MODEL_NAME_TAKEN"
+/**
+* An asset id the session holds no accepted model for. `details.id`.
+*/
+| "E_MODEL_UNKNOWN_ASSET"
+/**
+* A model a project file embeds does not match the digest the file records for it (or its id,
+* for an unnamed asset), so it was not added. `params.id`.
+*/
+| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -3741,6 +3898,9 @@ export interface GraphtyHistoryChangeDetail {
     readonly steps: number;
     readonly version: number;
 }
+
+// @public
+export type GraphtyModelChangeDetail = ModelChange;
 
 // @public
 export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
@@ -3810,6 +3970,71 @@ export type GraphtyWarningCode =
 * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
 */
 | "W_DIMENSION_OVERRIDDEN"
+/**
+* A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
+* `node.modelSourceUp` turns it.
+*/
+| "W_MODEL_UP_GUESSED"
+/** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
+| "W_MODEL_HAS_ANIMATIONS"
+/**
+* A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+* `params.layerIds` names the layers that write `node.color`.
+*/
+| "W_MODEL_COLOR_IGNORED"
+/** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+| "W_MODEL_HEAVY"
+/** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+| "W_MODEL_BUDGET"
+/** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+| "W_MODEL_TRANSPARENT"
+/** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+| "W_MODEL_TEXTURES_REDUCED"
+/**
+* A project was saved with a layer naming a model the session does not hold (a URL that never
+* loaded, or an asset id it has no accepted model for), so the file does not carry it.
+* `params.ref` is what the layers named and `params.layerIds` the layers.
+*/
+| "W_MODEL_NOT_EMBEDDED"
+/**
+* A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
+* from a project or style file, an AI command or the data, a reopened project's source load, or
+* a part handed to `assets.supply` by its URL on another host (`by: "supplied"`).
+* `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
+* `params.layerIds`.
+*/
+| "W_URL_NEEDS_APPROVAL"
+/**
+* A project file carries a network approval policy (`graphty-session` `network`), which an
+* older release wrote. It is ignored: nothing saved in a file can make the element fetch
+* without asking. `params.kind` is the member, `"graphty-session"`.
+*/
+| "W_NETWORK_POLICY_IGNORED"
+/**
+* A model or picture a project keeps by URL loaded from that URL, and is not the file the
+* project was saved with: the file at the URL changed. It is drawn. `params.url`,
+* `params.expected` and `params.found` (SHA-256 digests).
+*/
+| "W_MODEL_CHANGED"
+/**
+* A model reference was resolved by case or by base name to the one file of the set that
+* matched. It is drawn. `params.name`, `params.used`, `params.referencedBy`.
+*/
+| "W_MODEL_PART_SUBSTITUTED"
+/**
+* A model is drawn without a picture or `.mtl` the reader chose to skip. `params.name`, `params.role`.
+*/
+| "W_MODEL_PART_SKIPPED"
+/**
+* A file supplied for a model matched none of its missing parts, and was not used. `params.fileName`.
+*/
+| "W_MODEL_PART_UNUSED"
+/**
+* A project was asked to keep a model by its URL, but its parts came from several places
+* (`assets.supply`), so no one URL brings it back: it was embedded instead. `params.url` (no
+* query), `params.reason` (`parts`).
+*/
+| "W_MODEL_NOT_KEPT_BY_URL"
 /**
 * A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
 * `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
@@ -3892,6 +4117,18 @@ export const GREEN_SUCCESS: {
 
 // @public
 export const GREENS_COLORS: readonly ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"];
+
+// @public
+export interface GroupOutlineAtResult {
+    // (undocumented)
+    readonly group: string | number | boolean | null;
+    // (undocumented)
+    readonly kind: "group-outline";
+    // (undocumented)
+    readonly layer: LayerId;
+    // (undocumented)
+    readonly shader: string;
+}
 
 // @public
 export interface HighlightSuggestion {
@@ -4170,6 +4407,9 @@ export class LayoutManager implements Manager {
 }
 
 // @public
+export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
 export interface LayoutWarningEvent {
     code: GraphtyWarningCode;
     layoutType: string;
@@ -4304,7 +4544,7 @@ export interface NeighborSort {
 }
 
 // @public
-class Node_2 {
+class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
@@ -4348,6 +4588,12 @@ class Node_2 {
     label?: RichTextLabel;
     // (undocumented)
     mesh: AbstractMesh;
+    // @internal
+    modelDrawn(): {
+        readonly template: ModelTemplate | null;
+        readonly tinted: boolean;
+        readonly colored: boolean;
+    };
     // (undocumented)
     opts: NodeOpts;
     // @internal
@@ -4356,6 +4602,8 @@ class Node_2 {
         y: number;
         z: number;
     }>;
+    // @internal
+    get paintedColor(): Rgba | null;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -4364,11 +4612,17 @@ class Node_2 {
     // @internal
     refreshScreenBorder(): void;
     refreshSelectionOverlay(): void;
+    // @internal
+    refreshShaderPaint(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
+    // @internal
+    shaderStateBits(): number;
+    // @internal
+    shaderStateChanged(state: NodeShaderState, on: boolean): void;
     shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
@@ -4526,6 +4780,7 @@ export const NodeShapes: z.ZodEnum<{
     box: "box";
     vee: "vee";
     star: "star";
+    sphere: "sphere";
     cross: "cross";
     rectangle: "rectangle";
     triangle: "triangle";
@@ -4548,7 +4803,6 @@ export const NodeShapes: z.ZodEnum<{
     "round-rectangle": "round-rectangle";
     barrel: "barrel";
     database: "database";
-    sphere: "sphere";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -4592,12 +4846,17 @@ export const NodeStyle: z.ZodObject<{
             diameter: "diameter";
             uniform: "uniform";
         }>>;
+        detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
+            full: "full";
+            low: "low";
+        }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
             diamond: "diamond";
             box: "box";
             vee: "vee";
             star: "star";
+            sphere: "sphere";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -4620,7 +4879,6 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";
-            sphere: "sphere";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -4666,6 +4924,26 @@ export const NodeStyle: z.ZodObject<{
         labelPaddingX: z.ZodOptional<z.ZodNumber>;
         labelPaddingY: z.ZodOptional<z.ZodNumber>;
         labelFitSquare: z.ZodOptional<z.ZodBoolean>;
+        model: z.ZodOptional<z.ZodString>;
+        modelSourceUp: z.ZodOptional<z.ZodEnum<{
+            x: "x";
+            y: "y";
+            z: "z";
+            detected: "detected";
+            "-y": "-y";
+            "-z": "-z";
+            "-x": "-x";
+        }>>;
+        modelTurn: z.ZodOptional<z.ZodNumber>;
+        modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">]>>;
+        modelFit: z.ZodOptional<z.ZodEnum<{
+            stretch: "stretch";
+            contain: "contain";
+        }>>;
+        modelCenter: z.ZodOptional<z.ZodEnum<{
+            bounds: "bounds";
+            origin: "origin";
+        }>>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -4685,6 +4963,7 @@ export const NodeStyle: z.ZodObject<{
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         icon: z.ZodOptional<z.ZodString>;
+        image: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     effect: z.ZodOptional<z.ZodObject<{
         glow: z.ZodOptional<z.ZodObject<{
@@ -4761,6 +5040,7 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             vee: "vee";
             star: "star";
+            sphere: "sphere";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -4783,7 +5063,6 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";
-            sphere: "sphere";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -4820,6 +5099,7 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             vee: "vee";
             star: "star";
+            sphere: "sphere";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -4842,7 +5122,6 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";
-            sphere: "sphere";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -5725,6 +6004,7 @@ export const PROJECT_FILE: Readonly<{
 // @public
 export interface ProjectApi {
     readonly dirty: boolean;
+    readonly id: string;
     markSaved(saved: SavedProject): void;
     readonly name: string | null;
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
@@ -5761,6 +6041,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
 // @public
 export interface ProjectSaveOptions {
+    readonly assets?: Readonly<Record<string, "embed" | "url">>;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
@@ -5851,6 +6132,8 @@ export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
     applyLighting(lighting: Lighting): void;
+    // @internal
+    bindShaderScene(sources: ShaderSceneSources): void;
     // (undocumented)
     camera: CameraManager;
     dispose(): void;
@@ -5868,12 +6151,19 @@ export class RenderManager implements Manager {
     graphRoot: TransformNode;
     holdFrames(): () => void;
     init(): Promise<void>;
+    // @internal
+    pickGroupOutline(x: number, y: number): GroupOutlinePick | null;
     requestFrame(): void;
     // @internal
     resize(): void;
     // (undocumented)
     scene: Scene;
     setPixelRatio(ratio: PixelRatio): void;
+    readonly shaderGuard: ShaderGuard;
+    // @internal
+    shaderPasses(): ReturnType<ShaderScene["passes"]>;
+    // @internal
+    shaderPicturePending(): boolean;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
     readonly ticks: {
@@ -5882,6 +6172,24 @@ export class RenderManager implements Manager {
         gpuBehind: number;
     };
 }
+
+// @public
+export interface RenderQuality {
+    readonly code?: RenderQualityCode;
+    readonly heavy: "on" | "off";
+    readonly level: "low" | "medium" | "high";
+    readonly motion: "on" | "half" | "paused" | "still";
+}
+
+// @public
+export interface RenderQualityChange {
+    readonly code: RenderQualityCode;
+    readonly from: RenderQuality;
+    readonly to: RenderQuality;
+}
+
+// @public
+export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-frame" | "guard.recovered";
 
 export { ReplayFetch }
 
@@ -6276,6 +6584,15 @@ export class SelectionManager implements Manager {
 // @public
 export interface SetLayoutOptions extends QueueableOptions {
     scope?: ScopeInput;
+}
+
+// @public
+export interface ShaderSettings {
+    readonly guard?: boolean;
+    readonly motion?: "system" | "on" | "off";
+    readonly quality?: "auto" | "low" | "medium" | "high";
+    readonly trustedHashes?: readonly string[];
+    readonly untrusted?: "hold" | "run" | "refuse";
 }
 
 // @public (undocumented)
@@ -6730,10 +7047,13 @@ export class UpdateManager implements Manager {
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
+    readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;
+    // @internal
+    repaintNodes(nodes: readonly Node_2[]): void;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(budgetMs?: number): void;

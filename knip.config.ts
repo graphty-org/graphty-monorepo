@@ -110,7 +110,6 @@ const config: KnipConfig = {
                 // esbuild from test/fidelity/oracles/tools/web/ and test/fidelity/generators/specimens/
                 "@resvg/resvg-js",
                 "@sigma/export-image",
-                "esbuild",
                 "graphology",
                 "sigma",
                 "svgcanvas",
@@ -274,6 +273,10 @@ const config: KnipConfig = {
                     : []),
                 // The self-contained bundle's entry, built by vite.bundle.config.ts.
                 "bundle.ts!",
+                // The lazily imported model chunk (design/rendering/node-models.md). Nothing imports it
+                // yet: drawing nodes as models, the package that adds the one dynamic import() of it,
+                // comes next, and until then tools/check-bundle-size.mjs builds it on its own.
+                "src/models/chunk.ts!",
                 // The types-only ./jsx entry. Its exports map entry names only a .d.ts, which knip
                 // does not map back to a source file, so it is listed for both runs.
                 "jsx.ts!",

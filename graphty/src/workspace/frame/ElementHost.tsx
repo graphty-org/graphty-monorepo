@@ -8,6 +8,7 @@ import { siteConfig } from "../../siteConfig";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
 import { LAYOUT_SEED } from "../layout/methods";
 import { ACCELERATION, readPreference } from "../settings/preferences";
+import { bindShaderSettings } from "../settings/shaderPreferences";
 import { useWorkspaceState } from "../state/WorkspaceContext";
 import { useSizeBound } from "./useSizeBound";
 
@@ -134,6 +135,8 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         if (defined && element !== null && session?.status.ready === true) {
             // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
             session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
+            // The reader's shader preferences and remembered approvals (Graph settings).
+            const unbindShaders = bindShaderSettings(element);
             setHosted(session);
             onReady(element, session);
             // The element disposes its session when it leaves the page, which React does not always
@@ -143,6 +146,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
                 onReady(null, null);
             });
             return () => {
+                unbindShaders();
                 off();
                 // Already handed down when the element left the page first.
                 if (session.status.ready) {

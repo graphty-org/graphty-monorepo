@@ -9,11 +9,13 @@ import {
 } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
+import { onSiteConfig } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
+import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { UsageDataCard } from "../privacy/UsageDataCard";
@@ -31,7 +33,7 @@ import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openFiles, openGenerated, openSample, openUrl, pictureOf } from "./open";
+import { openDataset, openFiles, openGenerated, openModel, openSample, openUrl, pictureOf } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -142,8 +144,11 @@ interface SampleTile {
     readonly field: string;
     readonly size: string;
     readonly sentence: string;
-    /** The address of a picture of the graph, when graph-samples publishes one. */
-    readonly picture: string | undefined;
+    /**
+     * The address of a picture of the graph, when graph-samples publishes one. Asked for when the
+     * tile draws: the address depends on the site's dataset address, which loads after this module.
+     */
+    readonly picture: () => string | undefined;
     /** A word on what opening it takes, for a large dataset. */
     readonly note: string | undefined;
     /** What the search box matches against. */
@@ -219,7 +224,7 @@ function sampleTiles(
                 field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
-                picture: dataset === undefined ? sample.picture : pictureOf(dataset),
+                picture: () => (dataset === undefined ? sample.picture : pictureOf(dataset)),
                 note: undefined,
                 words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
                 open: ({ store }: LibraryActions) => {
@@ -236,7 +241,7 @@ function sampleTiles(
                 field: FIELDS[dataset.name] ?? "Other",
                 size: sizeWords(dataset),
                 sentence: firstSentence(dataset.description),
-                picture: pictureOf(dataset),
+                picture: () => pictureOf(dataset),
                 note: noteOf(dataset),
                 words: `${dataset.title} ${HOOKS[dataset.name] ?? ""} ${FIELDS[dataset.name] ?? "Other"} ${dataset.description}`.toLowerCase(),
                 open: ({ store, ask }: LibraryActions) => {
@@ -257,7 +262,7 @@ function sampleTiles(
                     ? "nothing to set"
                     : generator.params.map((param) => param.plainName).join(", "),
             sentence: generator.description,
-            picture: pictureOf(generator),
+            picture: () => pictureOf(generator),
             note: undefined,
             words: `${generator.plainName} ${generator.name} ${GENERATED} ${generator.description}`.toLowerCase(),
             open: ({ configure }: LibraryActions) => {
@@ -438,12 +443,14 @@ function Headset(): React.JSX.Element {
 }
 
 /**
- * A tile's picture, or a plain stand-in where graph-samples publishes none.
+ * A tile's picture, or a plain stand-in where graph-samples publishes none. Drawn again once the
+ * site's configuration loads, which can move the picture to the site's own copy.
  * @param props - Component props
- * @param props.picture - The picture's address, or undefined
+ * @param props.address - Works out the picture's address, or undefined
  * @returns The picture
  */
-function TilePicture({ picture }: Readonly<{ picture: string | undefined }>): React.JSX.Element {
+function TilePicture({ address }: Readonly<{ address: () => string | undefined }>): React.JSX.Element {
+    const picture = useSyncExternalStore(onSiteConfig, address);
     return picture === undefined ? (
         <span className="ws-land-sample-pic ws-land-sample-none" aria-hidden>
             <GLYPHS.noPicture />
@@ -469,7 +476,7 @@ function LibraryTile({
     const generated = tile.field === GENERATED;
     return (
         <UnstyledButton className="ws-land-sample" aria-label={label} title={tile.sentence} onClick={onClick}>
-            <TilePicture picture={tile.picture} />
+            <TilePicture address={tile.picture} />
             <span className="ws-land-sample-tag">
                 {generated ? <GLYPHS.generated size={11} aria-hidden /> : null}
                 {tile.field}
@@ -710,10 +717,17 @@ export function StartScreen(): React.JSX.Element {
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window").
+    // The drop target is the whole window ("drop a file anywhere in this window"). graphty-element
+    // says whether it is a model before it is read as graph data.
     const onDrop = useCallback(
         (files: File[]) => {
-            openFiles(workspace, files);
+            void holdsModel(files).then((model) => {
+                if (model) {
+                    openModel(workspace.store, files[0]?.name ?? "Model", files);
+                } else {
+                    openFiles(workspace, files);
+                }
+            });
         },
         [workspace],
     );

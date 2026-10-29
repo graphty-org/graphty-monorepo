@@ -102,6 +102,7 @@
 /tools/llm-due.mjs @graphty-org/code-owners
 /tools/master-guard.mjs @graphty-org/code-owners
 /tools/merge-coverage.sh @graphty-org/code-owners
+/tools/nx-cache-proxy.mjs @graphty-org/code-owners
 /tools/pr-issue-link.mjs @graphty-org/code-owners
 /tools/prepush-inputs.mjs @graphty-org/code-owners
 /tools/push-base.mjs @graphty-org/code-owners
@@ -121,6 +122,7 @@
 /tools/visual-capture-plan.mjs @graphty-org/code-owners
 /tools/visual-flaky-report.mjs @graphty-org/code-owners
 /tools/visual-preview.sh @graphty-org/code-owners
+/tools/vitest-deps-reload.mjs @graphty-org/code-owners
 /tools/vitest-time-budget.mjs @graphty-org/code-owners
 /tools/wait-log.mjs @graphty-org/code-owners
 /tools/with-browser.sh @graphty-org/code-owners

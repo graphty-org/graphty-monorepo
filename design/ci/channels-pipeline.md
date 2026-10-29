@@ -205,6 +205,9 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   verdict, never `version`, `land`, `publish` or `promote-nightly`. The attempt rejoins the
   `release-train` group like any run (every run catches up first, so a pending run it replaces
   loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does.
+  A run dispatched with a workflow's `GITHUB_TOKEN` (actor `github-actions[bot]`: release-due's
+  `restart` and `candidate` runs) is the exception: GitHub starts no `release-rerun.yml` when such a
+  run ends, so its attempt 1 is the deciding one and files at once (#4359).
   `release-rerun.yml` is the one decider (`tools/release-rerun.mjs`, which `release-watch.yml` asks
   too, so the two never race): when it does not re-run an attempt that deferred, it files that
   attempt's red issue and bisect itself, and holds its commit when nothing is held (a failed job it
@@ -434,7 +437,7 @@ request, gets its own `ACTION NEEDED` line when green; the rest go in one daily 
 ### 6.3 Rulesets and secrets
 
 - Ruleset 23973898: bypass = deploy keys (a ruleset cannot single out one key, so every write deploy
-  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 164375816,
+  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 167635448,
   and files a `priority:critical` issue otherwise); code-owner review required with 0 approvals;
   stale reviews dismissed; last-push approval off. A pull request waiting for the owner is never
   merged with master unless it conflicts.

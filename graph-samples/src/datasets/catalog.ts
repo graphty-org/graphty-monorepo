@@ -39,9 +39,13 @@ const SMALL = {
     "go-slim-generic": goSlimGenericMeta,
 } satisfies Record<(typeof SMALL_DATASET_NAMES)[number], DatasetMeta>;
 
+// Marked pure so a bundler drops every dataset's metadata from a page that never reads DATASETS: Rollup sees on its
+// own that the map has no side effects, Rolldown (Vite 8) keeps the call without the annotation.
 /**
  * The metadata of every dataset (no graph data). Every dataset is `hosting: "remote"`: its graph
  * downloads from graphty.app with `fetchDataset(name)` (or, for a small one, the loader of its subpath
  * `@graphty/graph-samples/datasets/<name>`).
  */
-export const DATASETS: readonly DatasetMeta[] = [...SMALL_DATASET_NAMES.map((name) => SMALL[name]), ...HOSTED_DATASETS];
+export const DATASETS: readonly DatasetMeta[] = /* @__PURE__ */ SMALL_DATASET_NAMES.map(
+    (name): DatasetMeta => SMALL[name],
+).concat(HOSTED_DATASETS);

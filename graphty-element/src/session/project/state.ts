@@ -1,7 +1,7 @@
 /**
  * @file Project state: the fixed list of slices that make up a project, and nothing else.
  *
- * Everything a project file would save lives in one of the eleven slices below, and a change to a
+ * Everything a project file would save lives in one of the slices below, and a change to a
  * slice is undoable. Anything outside them (camera, hover, selection, a run still computing) is
  * exempt. See design/undo/undo-design.md section 3.
  *
@@ -175,6 +175,18 @@ export interface ProjectState {
     readonly attributes: ReadonlyMap<string, MeasurementDeclaration>;
     /** The names given to values, by `valueLabelKey(path, value)`. */
     readonly valueLabels: ReadonlyMap<string, string>;
+    /**
+     * The shaders pasted into the project or carried in by a file, by their namespaced id: the
+     * shader text, verbatim (design/rendering/shader-styles.md section 4.5). Whether one may run
+     * is the session's, not the project's, so it is not here.
+     */
+    readonly shaders: ReadonlyMap<string, ProjectShaderEntry>;
+}
+
+/** One shader the project holds: its text, as it was pasted or loaded. */
+export interface ProjectShaderEntry {
+    /** The shader text (section 4.1 of the shader design), verbatim. */
+    readonly text: string;
 }
 
 /** A counter that only ever increases, so a value it issued never names two different things. */
@@ -217,5 +229,6 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         notes: new Map(init.notes),
         attributes: new Map(init.attributes),
         valueLabels: new Map(init.valueLabels),
+        shaders: new Map(init.shaders),
     };
 }

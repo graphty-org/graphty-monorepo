@@ -344,12 +344,13 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
             await userEvent.click(screen.getByRole("button", { name: "Graph settings" }));
             const settings = await within(inspector).findByRole("tabpanel");
             // Flat titles, as the Style tab's: headings, not buttons that fold.
-            for (const title of ["Canvas", "Labels"]) {
+            // Background is a section of its own: Color, Image and Shader stack under its "+".
+            for (const title of ["Canvas", "Background", "Labels"]) {
                 within(settings).getByRole("heading", { name: title });
             }
             assert.isEmpty(settings.querySelectorAll('[data-collapsible="true"]'), "no section folds");
             const labels = [...settings.querySelectorAll(".cm-field-label, .cm-paint-label")].map((l) => l.textContent);
-            for (const label of ["Background", "Lighting", "Outline width"]) {
+            for (const label of ["Lighting", "Outline width"]) {
                 assert.include(labels, label, `${label} is drawn as a field label`);
             }
             await page.screenshot({ path: `${SHOTS}/graph-settings-${size}.png` });

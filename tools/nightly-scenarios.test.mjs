@@ -610,6 +610,7 @@ describe("the nightly path's scenario matrix", () => {
             encoding: "utf8",
             env: {
                 ...process.env,
+                GITHUB_ACTOR: "graphty-release-scheduler[bot]", // a run release-rerun.yml sees end (#4359)
                 ...filer,
                 GITHUB_RUN_ATTEMPT: "1",
                 RUN_ATTEMPT: filer.RUN_ATTEMPT ?? "1",

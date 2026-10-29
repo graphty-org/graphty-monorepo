@@ -20,15 +20,21 @@ import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
+import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
+import { modelsFreeing, modelsLoading } from "../models/ModelCache";
+import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
+import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
 import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
+import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
 import type { NodePaint, StylePainter } from "./StylePainter";
 
@@ -355,13 +361,25 @@ export class UpdateManager implements Manager {
     private stateIsFinished = false;
 
     /**
-     * Whether the frame most recently DRAWN drew that finished picture.
-     *
-     * This is the one a consumer waits on. It goes true only when a `scene.render()` completed
-     * while the state was finished, so "the layout converged" and "the camera was framed" and
-     * "somebody actually painted it" are all behind it.
+     * The record of work that will still change the picture, and its picture counter (issue
+     * #3546). Every source of such work is entered here, as a token or a watch; see PendingWork.
      */
-    private drawnFrameIsFinished = false;
+    readonly pending = new PendingWork();
+
+    /** The picture counter at the last frame drawn while nothing was pending; -1 before one. */
+    private finishedEpoch = -1;
+
+    /**
+     * Whether the frame most recently DRAWN drew the finished picture: one was drawn while nothing
+     * was pending, and nothing has changed the picture since (the counter has not moved).
+     *
+     * This is the one a consumer waits on, so "the layout converged" and "the camera was framed"
+     * and "somebody actually painted it" are all behind it.
+     * @returns True when the frame on screen was drawn at the current picture counter.
+     */
+    private get drawnFrameIsFinished(): boolean {
+        return this.finishedEpoch === this.pending.epoch;
+    }
 
     /**
      * Whether the outstanding framing request has nothing it could frame.
@@ -375,6 +393,17 @@ export class UpdateManager implements Manager {
 
     /** Watches the scene for a frame being drawn, so a finished state can be promoted. */
     private drawWatcher: Nullable<Observer<Scene>> = null;
+    private drawPhaseWatcher: Nullable<Observer<Scene>> = null;
+    /**
+     * Whether every drawn mesh had its shader when the frame now being drawn started drawing.
+     *
+     * Asked at the start of the draw, not after it: work done inside the frame before the draw --
+     * a `node.texture` picture landing repaints its nodes with a fresh material from
+     * `onBeforeRenderObservable` -- can hand a mesh a shader that is not compiled yet, so the
+     * frame silently skips it, and by the time the frame has drawn the shader is ready and the
+     * frame without the mesh would be called final (issue #4237).
+     */
+    private drewWithEveryShader = false;
 
     /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
     private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
@@ -408,7 +437,49 @@ export class UpdateManager implements Manager {
         // only thing that knows a draw finished. Watching the scene -- rather than counting update
         // passes -- is what keeps the flag honest when frames are pumped by hand: `stepFrames`
         // draws nothing and promotes nothing, `renderFrames` draws and promotes.
+        this.watchOwnWork();
         this.watchFrames();
+    }
+
+    /**
+     * Lend the scene's node shader drawing the bulk repaint, so nodes waking on a shader that
+     * became drawable are rebuilt together rather than one dispose at a time.
+     */
+    private lendShaderRepaint(): void {
+        NodeShaderDrawing.lendRepaint(this.graphContext.getScene(), (nodes) => {
+            this.repaintNodes(nodes as readonly Node[]);
+        });
+        // An edge drawn again because a shader became drawable takes new slots, which only an
+        // edge walk places.
+        EdgeShaderDrawing.lendWalk(this.graphContext.getScene(), () => {
+            this.forceEdgeWalk();
+        });
+    }
+
+    /**
+     * Draw nodes again from the paints the session holds for them, as a style pass does: every
+     * mesh about to be rebuilt disposed together first, the edges of the resized nodes found in
+     * one walk. For a change the style stack did not make -- a shader a node names became drawable.
+     * @param nodes - The nodes.
+     * @internal
+     */
+    repaintNodes(nodes: readonly Node[]): void {
+        const painter = this.graphContext.getStylePainter?.();
+        if (painter?.owns !== true) {
+            return;
+        }
+
+        const painted: [Node, NodePaint][] = [];
+        for (const node of nodes) {
+            const paint = node.isDisposed() ? null : painter.nodePaint(node.index);
+            if (paint !== null) {
+                painted.push([node, paint]);
+            }
+        }
+
+        this.paintNodes(painted);
+        this.graphContext.getMeshCache().prune();
+        this.sceneChanged = true;
     }
 
     /**
@@ -427,12 +498,18 @@ export class UpdateManager implements Manager {
      */
     private watchFrames(): void {
         const scene = this.graphContext.getScene();
+        attachPendingWork(scene, this.pending);
         this.drawWatcher = scene.onAfterRenderObservable.add(() => {
             this.noteFrameDrawn();
+        });
+        this.drawPhaseWatcher = scene.onBeforeDrawPhaseObservable.add(() => {
+            this.drewWithEveryShader =
+                !this.stateIsFinished || this.drawnFrameIsFinished || this.everyDrawnMeshIsReady();
         });
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
             this.viewMoved();
         });
+        this.lendShaderRepaint();
     }
 
     /**
@@ -450,6 +527,7 @@ export class UpdateManager implements Manager {
     dispose(): void {
         const scene = this.graphContext.getScene();
         scene.onAfterRenderObservable.remove(this.drawWatcher);
+        scene.onBeforeDrawPhaseObservable.remove(this.drawPhaseWatcher);
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
     }
 
@@ -1144,7 +1222,7 @@ export class UpdateManager implements Manager {
      */
     meshesAdded(): void {
         this.stateIsFinished = false;
-        this.drawnFrameIsFinished = false;
+        this.pending.changed();
     }
 
     /**
@@ -1155,20 +1233,21 @@ export class UpdateManager implements Manager {
      * on purpose; see {@link UpdateManager.frameIsStable}.
      */
     viewMoved(): void {
-        this.drawnFrameIsFinished = false;
+        this.pending.changed();
     }
 
     /**
      * Whether a picture the scene draws is still loading, so the frame on screen does not show it yet: an image
-     * annotation, painted onto its texture when the image arrives (issue #3383). Null when nothing loads that way.
+     * annotation, painted onto its texture when the image arrives (issue #3383), or a background tinted by group
+     * outlines laid out after it drew (issue #4243). Null when nothing loads that way. Asked as one entry of
+     * {@link UpdateManager.pending}; new work enters that record itself (`begin`, `track` or `watch`).
      */
     picturesLoading: (() => boolean) | null = null;
 
     /**
-     * Whether an operation is queued or running, so the graph is about to change (issue #3528). Null
-     * when nothing queues operations. Asked only by {@link UpdateManager.nothingIsOwed}: the frame
-     * on screen is final about the graph it shows, so {@link UpdateManager.frameIsStable}, the
-     * `graph-frame-stable` event and the on-demand loop's rest do not ask it.
+     * Whether an operation is queued or running, so the graph is about to change. Null when nothing queues
+     * operations. Kept for code that set it, and asked as one `wait` entry of {@link UpdateManager.pending}; new
+     * work enters that record itself.
      */
     operationsPending: (() => boolean) | null = null;
 
@@ -1176,13 +1255,15 @@ export class UpdateManager implements Manager {
     private readonly owedWaiters = new Set<() => void>();
 
     /**
-     * Whether nothing is still owed to the picture: no operation is queued or running, and the
-     * frame drawn is the finished one. The one question `waitForStableFrame()` asks; the pending-work
-     * record of issue #3546 replaces this body and `pictureIsFinished()`'s.
+     * Whether nothing is still owed to the picture: nothing in {@link UpdateManager.pending} is
+     * pending, a queued operation included, and the frame drawn is the finished one. The one question `waitForStableFrame()` asks.
      * @returns True when the picture on screen is final and nothing queued will change it.
      */
     nothingIsOwed(): boolean {
-        return this.operationsPending?.() !== true && this.frameIsStable;
+        // `wait` work (a queued operation, issue #3528) too: the frame on screen is final about
+        // the graph it shows, so `frameIsStable`, the frame announcement and the on-demand loop's
+        // rest do not ask it, but a wait for the final picture does.
+        return this.pending.firstPending("wait") === null && this.frameIsStable;
     }
 
     /**
@@ -1231,53 +1312,14 @@ export class UpdateManager implements Manager {
      * @returns One phrase naming the thing that is still moving.
      */
     whyFrameIsNotStable(): string {
-        if (this.layoutIsMoving()) {
-            return "the layout is still running";
+        const first = this.pending.firstPending();
+        if (first !== null) {
+            return first.reason;
         }
 
-        const painter = this.graphContext.getStylePainter?.();
-
-        if (painter?.hasPending === true) {
-            return "a style repaint is still queued";
-        }
-
-        if (painter?.isPainting === true) {
-            return "a style repaint is still painting";
-        }
-
-        if (this.deriving()) {
-            return "a change has not reached the picture yet, so its style repaint is still to come";
-        }
-
-        if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
-            return "the camera has not finished framing the graph";
-        }
-
-        if (this.viewMasksPending()) {
-            return "a filter or a selection has not been drawn yet";
-        }
-
-        if (this.followingSelection) {
-            return "the camera is still moving to the selection";
-        }
-
-        if (!this.dataManager.supportPoints.resting) {
-            return "the curves through their support points are still settling";
-        }
-
-        if (!this.everyDrawnMeshIsReady()) {
-            return "a mesh is still waiting for its shader";
-        }
-
-        if (this.picturesLoading?.() === true) {
-            return "an annotation's picture is still loading";
-        }
-
-        if (!this.drawnFrameIsFinished) {
-            return "nothing has drawn a frame since the graph stopped moving";
-        }
-
-        return "the picture is final";
+        return this.drawnFrameIsFinished
+            ? "the picture is final"
+            : "nothing has drawn a frame since the graph stopped moving";
     }
 
     /**
@@ -1295,60 +1337,83 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether the state this pass leaves behind is a picture that will not change again.
-     *
-     * What the picture still owes: {@link UpdateManager.frameIsStable}, the frame announcement and,
-     * through {@link UpdateManager.nothingIsOwed}, `waitForStableFrame()` all ask it here, so the
-     * pending-work record of issue #3546 replaces this body.
+     * Whether the state this pass leaves behind is a picture that will not change again: nothing
+     * in {@link UpdateManager.pending} is pending, asked live.
      * @returns True when nothing the element drives is still going to move.
      */
     private pictureIsFinished(): boolean {
-        if (this.layoutIsMoving()) {
-            return false;
-        }
+        return this.pending.idle;
+    }
 
-        const painter = this.graphContext.getStylePainter?.();
+    /**
+     * Enter the work this manager can see in {@link UpdateManager.pending}, in the order a
+     * timed-out wait names it. Each is a live question, asked every time completion is asked.
+     */
+    private watchOwnWork(): void {
+        const work = this.pending;
+        const scene = (): Scene => this.graphContext.getScene();
+        const painter = (): StylePainter | undefined => this.graphContext.getStylePainter?.();
 
+        work.watch("layout", "the layout is still running", () => this.layoutIsMoving());
+        work.watch(
+            "layout",
+            "a layout transition is still moving the nodes",
+            () => transitionsOf(this.layoutManager)?.moving === true,
+        );
         // Paint that has arrived and not been drawn, and paint that has not arrived yet: either
         // one changes the picture. See `willZoomToFit` for the second.
-        if (painter?.hasPending === true || this.styleIsPainting()) {
-            return false;
-        }
-
+        work.watch("style", "a style repaint is still queued", () => painter()?.hasPending === true);
+        work.watch("style", "a style repaint is still painting", () => painter()?.isPainting === true);
+        work.watch("style", "a change has not reached the picture yet, so its style repaint is still to come", () =>
+            this.deriving(),
+        );
         // An outstanding framing request only means the camera is about to move if there is
         // something for it to frame; see `framingHasNothingToFrame`.
-        if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
-            return false;
-        }
-
+        work.watch(
+            "framing",
+            "the camera has not finished framing the graph",
+            () => this.willZoomToFit() && !this.framingHasNothingToFrame,
+        );
         // The depth-independent size switched on or off and not yet applied to the meshes, or the
         // screen size on a map changed with the camera since the meshes were scaled.
-        if ((this.depthSizingPivot() !== null || this.screenSizingScale() !== null) !== this.depthScaled) {
-            return false;
-        }
-
-        if (this.screenSizingScale() !== this.screenScaled) {
-            return false;
-        }
-
-        // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
-        if (this.viewMasksPending() || this.followingSelection) {
-            return false;
-        }
-
-        // Curves through support points still settling around nodes that have stopped.
-        if (!this.dataManager.supportPoints.resting) {
-            return false;
-        }
-
-        if (this.picturesLoading?.() === true) {
-            return false;
-        }
-
+        work.watch(
+            "sizing",
+            "node sizes have not been fitted to the view yet",
+            () =>
+                (this.depthSizingPivot() !== null || this.screenSizingScale() !== null) !== this.depthScaled ||
+                this.screenSizingScale() !== this.screenScaled,
+        );
+        work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
+        work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
+        work.watch(
+            "curves",
+            "the curves through their support points are still settling",
+            () => !this.dataManager.supportPoints.resting,
+        );
+        // A model still loading replaces its nodes' placeholder shapes when it lands; a picture
+        // read and not yet on its nodes is painted onto them when it does.
+        work.watch("model", "a node's 3D model is still loading", () => modelsLoading(scene()));
+        work.watch("picture", "a node's picture is still loading", () => texturesLoading(scene()));
+        // A template nothing uses is freed by counting frames, which a graph drawing on demand
+        // stops making once the picture is finished.
+        work.watch("model", "an unused 3D model is still being freed", () => modelsFreeing(scene()));
+        // Set from outside by older code; see the two properties.
+        work.watch("picture", "a picture is still loading", () => this.picturesLoading?.() === true);
+        work.watch(
+            "operation",
+            "a queued operation has not finished",
+            () => this.operationsPending?.() === true,
+            "wait",
+        );
         // Walked only until a finished frame has been drawn, not on every idle frame: the walk is
         // one readiness question per mesh, and what brings a new shader variant -- a repaint, a
-        // load, a layout -- clears that flag on its way in.
-        return this.drawnFrameIsFinished || this.everyDrawnMeshIsReady();
+        // load, a layout -- moves the picture counter on its way in. Entered last: it is the most
+        // expensive question and the others usually answer first.
+        work.watch(
+            "shader",
+            "a mesh is still waiting for its shader",
+            () => !this.drawnFrameIsFinished && !this.everyDrawnMeshIsReady(),
+        );
     }
 
     /**
@@ -1445,7 +1510,12 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        this.drawnFrameIsFinished = true;
+        // A mesh this frame skipped for want of a shader: the next frame draws it.
+        if (!this.drewWithEveryShader) {
+            return;
+        }
+
+        this.finishedEpoch = this.pending.epoch;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
         this.wakeOwedWaiters();
     }
@@ -1469,11 +1539,15 @@ export class UpdateManager implements Manager {
         // Work waiting for this pass -- a style edit's paint, a layout, a framing -- changes what
         // the next frame draws, so it has to be announced again once that frame is drawn.
         if (!this.pictureIsFinished()) {
-            this.drawnFrameIsFinished = false;
+            this.pending.changed();
         }
 
+        // One clock reading for the whole pass, so every node of a layout transition is placed at
+        // the same moment; the move ends after the pass that placed its last frame.
+        const transitions = transitionsOf(this.layoutManager);
+        transitions?.beginPass();
         this.runUpdatePass(frameMs);
-        this.refreshScreenBorders();
+        transitions?.endPass();
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
         if (this.sizeNodesForDepth()) {
@@ -1483,6 +1557,7 @@ export class UpdateManager implements Manager {
             this.forceEdgeWalk();
             this.updateEdges();
         }
+        this.refreshScreenBorders();
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -1492,7 +1567,7 @@ export class UpdateManager implements Manager {
 
         if (!this.stateIsFinished) {
             // Something is moving again, so whatever was drawn before is no longer the last word.
-            this.drawnFrameIsFinished = false;
+            this.pending.changed();
         }
 
         // A pass that finds the drawn frame still final wakes its waiters even when it draws
@@ -1619,12 +1694,19 @@ export class UpdateManager implements Manager {
             // 1. Update edges (for manual node dragging)
             // 2. Handle zoom if requested
 
+            // A layout transition keeps moving the nodes after the layout itself has finished.
+            if (transitionsOf(this.layoutManager)?.active === true) {
+                this.updateNodes();
+            }
+
             // Always update edges to handle manual node dragging
             // Edges have built-in dirty tracking, so they won't do unnecessary work
             this.updateEdges();
+            this.frameTransition();
 
-            // Handle zoom to fit if requested
-            if (this.willZoomToFit()) {
+            // Handle zoom to fit if requested; a running transition frames where it lands, once
+            // it has landed, rather than the moving picture.
+            if (this.willZoomToFit() && transitionsOf(this.layoutManager)?.moving !== true) {
                 this.updateNodes();
                 this.updateEdges();
 
@@ -1651,9 +1733,10 @@ export class UpdateManager implements Manager {
         // Update nodes and edges
         this.updateNodes();
         this.updateEdges();
+        this.frameTransition();
 
         // Handle zoom to fit if needed
-        if (framing) {
+        if (framing && transitionsOf(this.layoutManager)?.moving !== true) {
             this.applyZoomToFit(this.measure());
         }
 
@@ -1856,6 +1939,31 @@ export class UpdateManager implements Manager {
         }
 
         this.statsManager.nodeUpdate.endMonitoring();
+    }
+
+    /** Set while a layout transition runs with a framing owed: the camera follows the move. */
+    private framingTransition = false;
+
+    /**
+     * While a layout transition moves the nodes and the camera owes a framing, frame the move
+     * every frame: the old layout's box eased into the new one's, grown to take in every node on
+     * its way. The request itself is left for the frame after the move, which then frames the
+     * same box it ended on, so the camera never jumps when the move ends.
+     */
+    private frameTransition(): void {
+        // A held move is a still picture, framed as one by the ordinary framing.
+        const transitions = transitionsOf(this.layoutManager);
+        if (transitions?.moving !== true) {
+            this.framingTransition = false;
+            return;
+        }
+
+        this.framingTransition ||= this.willZoomToFit();
+        const box = this.framingTransition ? this.measure() : undefined;
+        if (box !== undefined) {
+            const { min, max } = transitions.framing(box);
+            this.camera.zoomToBoundingBox(new Vector3(min.x, min.y, min.z), new Vector3(max.x, max.y, max.z));
+        }
     }
 
     /**

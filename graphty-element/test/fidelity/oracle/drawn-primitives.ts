@@ -237,6 +237,13 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
     const read = measureArrow(c.outline, line, end, { filled: look.filled, color: look.color });
     const backward = end !== "middle" && POINTING_BACK[shape] !== undefined && read.shape === POINTING_BACK[shape];
     const arrow = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    // an end's head its style draws part-way along the line is no head at the line's end: where along the line it sits
+    // is judged against the program's (pajek-graphstream-b: Pajek's and graphty's both at the middle, failed for
+    // standing 260 px off the line's end)
+    const position = c.position ?? 0;
+    if (end !== "middle" && position > 0 && position < 1) {
+        return { ...arrow, partWay: true };
+    }
     // a half arrow lies to one side of its line by its make
     const misplaced = end === "middle" ? 0 : capPlaceMiss(c.outline, line, end, !shape.startsWith("half"));
     return misplaced > 0 ? { ...arrow, misplaced } : arrow;
@@ -713,14 +720,26 @@ export function drawnPrimitives(
             ...drawnGroups.flatMap((g) => (!boxed(g) && g.label !== null ? [g.label] : [])),
         ],
         strays: [
-            ...(scene.annotations ?? []).map((a) => ({
-                tag: `annotation-${a.kind}`,
-                kind: a.kind === "text" ? ("text" as const) : ("shape" as const),
-                box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
-                fill: null,
-                stroke: null,
-                text: a.text ?? null,
-            })),
+            ...(scene.annotations ?? []).flatMap((a) => [
+                {
+                    tag: `annotation-${a.kind}`,
+                    kind: a.kind === "text" ? ("text" as const) : ("shape" as const),
+                    box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
+                    fill: null,
+                    stroke: null,
+                    text: a.text ?? null,
+                },
+                // an arrow's heads are shapes of their own to a reader, as the program's drawing has them (Cytoscape
+                // desktop's annotation arrows on the specimen-images-charts pages, 68 heads a page read as missing)
+                ...(a.heads ?? []).map((h) => ({
+                    tag: "annotation-arrow-head",
+                    kind: "shape" as const,
+                    box: { x0: h.x, y0: h.y, x1: h.x + h.w, y1: h.y + h.h },
+                    fill: null,
+                    stroke: null,
+                    text: null,
+                })),
+            ]),
             ...linelessCaps(scene, drawn),
         ].map((s, index) => ({ index, ...s })),
     };

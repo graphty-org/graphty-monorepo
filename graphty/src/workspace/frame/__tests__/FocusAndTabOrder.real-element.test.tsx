@@ -232,10 +232,11 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
         await userEvent.click(await inspector().findByRole("tab", { name: /^Node/ }));
-        const add = await inspector().findByRole("button", { name: "Add to node shape" });
+        // Fill holds one property, Color, which Everything sets (Shape's "+" still offers a sprite).
+        const add = await inspector().findByRole("button", { name: "Add to node fill" });
         assert.strictEqual(add.getAttribute("aria-disabled"), "true");
         assert.strictEqual(add.tabIndex, -1, "a + that adds nothing is a dead stop");
-        assert.strictEqual(add.getAttribute("aria-description"), "Everything in node shape is set");
+        assert.strictEqual(add.getAttribute("aria-description"), "Everything in node fill is set");
     });
 
     it("disabled Undo and Redo stay Tab stops; the canvas toolbar is entered at Analyze", async () => {
@@ -285,13 +286,13 @@ describe("focus and Tab order in the workspace, on the real element", () => {
     it("Escape leaves the layer-checking mode before it clears a selection", async () => {
         const { session } = await openRings();
         await session.selection.apply({ nodes: ["n1"] });
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Select layers..." }));
-        await screen.findByText("Check the layers to select them");
+        await userEvent.click(await treeRow("Everything"), { button: "right" });
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Select more" }));
+        await screen.findByText("1 selected");
         screen.getByRole("button", { name: "Main menu" }).focus();
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(screen.queryByText("Check the layers to select them"));
+            assert.isNull(screen.queryByText("1 selected"));
         });
         assert.strictEqual(session.selection.size, 1, "the same Escape cleared the selection");
     });

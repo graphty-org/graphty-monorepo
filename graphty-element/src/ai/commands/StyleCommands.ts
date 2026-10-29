@@ -17,6 +17,7 @@
 
 import { z } from "zod";
 
+import type { ShaderUse } from "../../catalog/shaders";
 import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
@@ -68,6 +69,31 @@ const NodeStyleParamsSchema = z
                     "so asking for this is answered with the reason rather than applied",
             ),
         enabled: z.boolean().optional().describe("Whether the node is visible"),
+        shader: z
+            .string()
+            .optional()
+            .describe("A node shader from the shader catalog to draw the nodes with, by its id, at its own place"),
+        shaderText: z
+            .string()
+            .optional()
+            .describe(
+                "Shader text the person pasted or asked for (GLSL with a graphty-shader 1 header). It is added to " +
+                    "the project and held until the person approves it in the app; the nodes draw as before until then",
+            ),
+        model: z
+            .string()
+            .optional()
+            .describe(
+                "Draw the nodes as a 3D model: a model id ('asset:...', such as 'asset:sample/server') or the URL " +
+                    "of a .glb, .gltf or .obj file. A URL is fetched only after the reader allows its site",
+            ),
+        texture: z
+            .string()
+            .optional()
+            .describe(
+                "A picture drawn on the nodes (a PNG, JPEG or WebP): a picture id ('asset:...') or a URL. " +
+                    "A URL is fetched only after the reader allows its site",
+            ),
     })
     .describe("Style properties for nodes");
 
@@ -132,6 +158,20 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
 
     if (params.outlineColor !== undefined) {
         set["node.outline"] = params.outlineColor;
+    }
+
+    if (params.shader !== undefined) {
+        set["node.shaders"] = [{ shader: params.shader }];
+    }
+
+    // A URL here is not fetched by the element on the model's say-so: the layer is the AI's, so
+    // the fetch waits in `session.network` for the reader unless the page allowed the host.
+    if (params.model !== undefined) {
+        set["node.model"] = params.model;
+    }
+
+    if (params.texture !== undefined) {
+        set["node.texture"] = params.texture;
     }
 
     // "Not visible" is said as fully transparent, because hiding an element is the visibility
@@ -303,7 +343,7 @@ async function addLayer(
 export const findAndStyleNodes: GraphCommand = {
     name: "findAndStyleNodes",
     description:
-        "Style the nodes matching a selector by adding a style layer. Takes the same selector and connectedBy as findNodes and zoomToNodes; connectedBy picks nodes by their edges' fields. Styles include color, size, shape, glow color and outline color.",
+        "Style the nodes matching a selector by adding a style layer. Takes the same selector and connectedBy as findNodes and zoomToNodes; connectedBy picks nodes by their edges' fields. Styles include color, size, shape, glow color, outline color, a 3D model and a picture (texture), each an id or a URL.",
     parameters: z.object({
         selector: z.string().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
         connectedBy: z.string().optional().describe(CONNECTED_BY_SYNTAX),
@@ -340,6 +380,14 @@ export const findAndStyleNodes: GraphCommand = {
             input: "Change nodes to boxes",
             params: { selector: "", style: { shape: "box" }, layerName: "box-shapes" },
         },
+        {
+            input: "Draw the servers as https://example.com/models/rack.glb",
+            params: {
+                selector: "data.type == 'server'",
+                style: { model: "https://example.com/models/rack.glb" },
+                layerName: "server-models",
+            },
+        },
     ],
 
     async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
@@ -356,13 +404,25 @@ export const findAndStyleNodes: GraphCommand = {
         };
 
         const { set, unsupported } = nodeChannels(styleParams);
+        const writer = writerOf(graph, context);
 
-        return addLayer(
-            writerOf(graph, context),
-            layerSpecOf(layerName, "node", selector, set, connectedBy),
-            unsupported,
-            "node",
-        );
+        if (styleParams.shaderText !== undefined) {
+            // Text from a model is content, never the reader's own: it is held until the reader
+            // approves it, so a prompt cannot make the element run a shader nobody looked at.
+            const added = await writer.shaders.add(styleParams.shaderText, { source: "content", onTaken: "rename" });
+            if (!added.ok) {
+                return {
+                    success: false,
+                    message: `That shader could not be added: ${added.problems.map((problem) => problem.code).join(", ")}`,
+                    data: { problems: added.problems },
+                };
+            }
+
+            const use: ShaderUse = { shader: added.descriptor.id };
+            set["node.shaders"] = [...((set["node.shaders"] as readonly ShaderUse[] | undefined) ?? []), use];
+        }
+
+        return addLayer(writer, layerSpecOf(layerName, "node", selector, set, connectedBy), unsupported, "node");
     },
 };
 

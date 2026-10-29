@@ -370,6 +370,35 @@ Judgment calls a reviewer may still challenge: which alias each foreign arrow or
 rather than a coincidence (the planner's guards removed every coincidence found in 1,936 real and
 fixture files, and cannot prove none remain).
 
+## Round 5: judged against the programs' own drawings (2026-10-28)
+
+The sections above measured the prototype against the readers' own values. Since then the import has been judged
+against the drawings the real programs make of each file (the oracle SVGs in `graph-io/test/fidelity/oracles/`, compared
+by `graphty-element/test/fidelity/oracle/`). Round 5 first audited that comparator, then fixed the drawing problems it
+ranked worst. Counting only drawings made by each file's own program (stand-in drawings such as draw.io's for yEd files
+are not the judge):
+
+| measure                          | before round 5          | round-5 comparator, same drawing | after round 5          |
+| -------------------------------- | ----------------------- | -------------------------------- | ---------------------- |
+| real files: failing elements     | 3,597 of 32,574 (11.0%) | 2,879 (8.8%)                     | 2,491 of 32,512 (7.7%) |
+| real files: clean                | 23 of 80                | 20 of 80                         | 20 of 80               |
+| specimen pages: failing elements | 1,308 of 20,094 (6.5%)  | 1,049 (5.2%)                     | 800 (4.0%)             |
+| specimen pages: clean            | 261 of 377              | 261                              | 271                    |
+
+"After" is master with the comparator and arrowhead changes merged plus the four round-5 pull requests still open
+(dashed routes, label pairing, DOT table outlines, Cytoscape chart marks). The comparator step lowered the count by
+removing false failures (tiny-label boxes, Java's font for Calibri, Pajek's mid-line heads) and raised it where it
+newly sees real defects (uniformly small nodes and straight lines where the program draws its own layout), which is
+why three real files stopped being clean. The drawing changes then cut arrowhead length and width failures from about
+120 to 14 each, node outline failures from 74 to 12, Cytoscape chart marks by 54 per format, and label placement
+failures from 162 to 90. A Graphviz change that hands Graphviz the label-sized nodes would take DOT real files from
+1,074 to 646 failing elements; it waits on an owner decision about one sample.
+
+Still open and largest: Graphviz node positions (#4203), one vis-network file's line widths (#4268), Cytoscape chart
+axes (#4249), and labeled boxes drawn as dots on a computed layout (#3103).
+
+See `graph-io/test/fidelity/oracles/ISSUES.md`, section "Round 5", for every number, its cause and the pending decisions.
+
 ## Per-file results, second real-file collection
 
 "Rules" lists the rules per role and what the planner recovered ("by X": a discrete mapping on X;

@@ -26,7 +26,13 @@ const PAGES = new Set<string>([
     "data-sources",
     "local-runs",
 ]);
-const KINDS = new Set(["full", "pr-bins"]);
+/** The slow sections, their ranges and run kinds (the first is the default). */
+const SECTIONS: Record<string, { ranges: string[]; kinds?: string[] }> = {
+    "ci/shards": { ranges: ["7d", "28d"], kinds: ["full", "pr-bins"] },
+    "flaky/hotspots": { ranges: ["7d", "28d"] },
+    // The runner history: 15-minute buckets are kept 8 days, so 7 d only.
+    "runners/jobs": { ranges: ["7d"] },
+};
 const ALIAS: Record<string, string> = { local: "local-runs" };
 
 let store: Store | undefined;
@@ -47,19 +53,14 @@ export function routeOf(
         if (!(page === "costs" ? SLOW : RANGES).has(range)) return { status: 400, code: "bad_range" };
         return { kind: "page", page, range: range as Range | SlowRange };
     }
-    const range = (query.range ?? "7d") as SlowRange;
-    if (!SLOW.has(range)) return { status: 400, code: "bad_range" };
-    const section = parts[3];
-    if (page === "ci" && section === "shards") {
-        const runKind = query.kind ?? "full";
-        if (!KINDS.has(runKind)) return { status: 400, code: "bad_kind" };
-        return { kind: "section", page, section, range, runKind };
-    }
-    if (page === "flaky" && section === "hotspots") return { kind: "section", page, section, range };
-    // The runner history: 15-minute buckets are kept 8 days, so 7 d only.
-    if (page === "runners" && section === "jobs")
-        return range === "7d" ? { kind: "section", page, section, range } : { status: 400, code: "bad_range" };
-    return { status: 404, code: "unknown_section" };
+    const section = SECTIONS[`${page}/${parts[3]}`];
+    if (!section) return { status: 404, code: "unknown_section" };
+    const range = query.range ?? "7d";
+    if (!section.ranges.includes(range)) return { status: 400, code: "bad_range" };
+    const route = { kind: "section" as const, page, section: parts[3], range: range as SlowRange };
+    if (!section.kinds) return route;
+    const runKind = query.kind ?? section.kinds[0];
+    return section.kinds.includes(runKind) ? { ...route, runKind } : { status: 400, code: "bad_kind" };
 }
 
 /**

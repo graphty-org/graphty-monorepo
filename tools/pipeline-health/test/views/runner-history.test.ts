@@ -73,5 +73,17 @@ describe("runner history", () => {
         });
         expect(routeOf("/v1/page/runners/jobs", {})).toMatchObject({ kind: "section", range: "7d" });
         expect(routeOf("/v1/page/runners/jobs", { range: "28d" })).toEqual({ status: 400, code: "bad_range" });
+        // The other slow sections keep their routes.
+        expect(routeOf("/v1/page/ci/shards", { range: "28d" })).toMatchObject({ section: "shards", runKind: "full" });
+        expect(routeOf("/v1/page/ci/shards", { kind: "pr-bins" })).toMatchObject({ range: "7d", runKind: "pr-bins" });
+        expect(routeOf("/v1/page/ci/shards", { kind: "x" })).toEqual({ status: 400, code: "bad_kind" });
+        expect(routeOf("/v1/page/flaky/hotspots", { range: "28d" })).toEqual({
+            kind: "section",
+            page: "flaky",
+            section: "hotspots",
+            range: "28d",
+        });
+        expect(routeOf("/v1/page/flaky/hotspots", { range: "1h" })).toEqual({ status: 400, code: "bad_range" });
+        expect(routeOf("/v1/page/runners/holders", {})).toEqual({ status: 404, code: "unknown_section" });
     });
 });

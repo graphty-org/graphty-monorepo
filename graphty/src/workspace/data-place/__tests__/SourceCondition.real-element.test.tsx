@@ -51,7 +51,7 @@ async function openWithGraph(): Promise<GraphSession> {
  */
 async function newCardOn(name: string): Promise<void> {
     await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name }));
+    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
 }
 
 /**
@@ -96,8 +96,8 @@ describe("picking nodes by a condition card from the Data place", () => {
         const session = await openWithGraph();
         // One load: no Data source in "+".
         await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
-        await screen.findByRole("menuitem", { name: "group" });
-        assert.isNull(screen.queryByRole("menuitem", { name: "Data source" }));
+        await screen.findByRole("option", { name: /^group(,|$)/ });
+        assert.isNull(screen.queryByRole("option", { name: "Data source" }));
         await userEvent.keyboard("{Escape}");
 
         await session.data.import(
@@ -119,7 +119,7 @@ describe("picking nodes by a condition card from the Data place", () => {
         assert.deepEqual(session.visibility.conditions[0].rule, { kind: "source", sources: [people.key] });
         assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
         // The card is named for the load, not its key, and counts both kinds.
-        const card = await within(screen.getByRole("region", { name: "Data place" })).findByRole("listitem", {
+        const card = await within(screen.getByRole("region", { name: "Data place" })).findByRole("group", {
             name: /^from people\.json/,
         });
         assert.lengthOf(within(card).getAllByText(/ of /), 2);
@@ -137,7 +137,7 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.lengthOf(session.data.sources(), 1);
         });
-        await within(screen.getByRole("region", { name: "Data place" })).findByRole("listitem", {
+        await within(screen.getByRole("region", { name: "Data place" })).findByRole("group", {
             name: /^from a removed source/,
         });
     });

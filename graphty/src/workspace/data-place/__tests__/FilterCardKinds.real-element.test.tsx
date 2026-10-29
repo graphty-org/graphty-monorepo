@@ -1,6 +1,6 @@
 /**
  * Each kind of filter card on the REAL graphty-element: a new card is written only by its first
- * value (Escape, or leaving it with none, drops it), a category card holds several values, a text
+ * value (only Escape takes back a card with none), a category card holds several values, a text
  * card writes what is typed once it is committed and lists the column's values in the order a
  * reader counts them, and a new card and a match picked hand focus to the value.
  */
@@ -80,7 +80,7 @@ async function openPeople(): Promise<{ session: GraphSession; store: WorkspaceSt
  */
 async function newCardOn(name: string): Promise<void> {
     await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name }));
+    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${name}(,|$)`) }));
 }
 
 /**
@@ -97,26 +97,36 @@ describe("Each kind of filter card", () => {
         await page.viewport(1366, 768);
     });
 
-    it("a new card left with no value writes nothing and is gone", async () => {
+    it("a new card left with no value writes nothing and stays until Escape takes it back", async () => {
         const { session, store } = await openPeople();
         await newCardOn("role");
         await screen.findByRole("group", { name: "role values" });
-        // Focus leaving for another control drops it.
+        // Focus leaving for another control keeps it: only Escape takes a card back.
         await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("group", { name: "role values" }));
-        });
         await userEvent.keyboard("{Escape}");
+        assert.equal(cardsDrawn(), 1);
+        assert.lengthOf(session.visibility.conditions, 0);
+        within(screen.getByRole("group", { name: "role values" }))
+            .getByRole("checkbox", { name: /^board/ })
+            .focus();
+        await realKeys.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.equal(cardsDrawn(), 0);
+        });
         assert.lengthOf(session.visibility.conditions, 0);
         assert.equal(session.visibility.summary.visibleNodes, 24);
         assert.equal(store.get().notice, null);
+        assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
     });
 
     it("a role card holds board and staff together", async () => {
         const { session } = await openPeople();
         await newCardOn("role");
         const values = await screen.findByRole("group", { name: "role values" });
-        await userEvent.click(within(values).getByRole("checkbox", { name: /^board/ }));
+        // A value row reads box, name, then its count dimmed at the right; named as the Style card names it.
+        const board = within(values).getByRole("checkbox", { name: "board, 3 nodes" });
+        assert.equal(board.closest(".mantine-Checkbox-root")?.textContent, "board3");
+        await userEvent.click(board);
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
@@ -131,14 +141,14 @@ describe("Each kind of filter card", () => {
             });
         });
         assert.equal(session.visibility.summary.visibleNodes, 8);
-        await screen.findByRole("listitem", { name: "role is board or staff, Hide" });
+        await screen.findByRole("group", { name: "role is board or staff, Hide" });
         assert.equal(cardsDrawn(), 1);
     });
 
     it("a name card opens with focus on its text, lists values in natural order, and writes on Enter as one step", async () => {
         const { session } = await openPeople();
         await realKeys.click(await screen.findByRole("button", { name: "Add filter" }));
-        await realKeys.click(await screen.findByRole("menuitem", { name: "name" }));
+        await realKeys.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         const match = await screen.findByRole<HTMLInputElement>("combobox", { name: "name: how to match" });
         assert.equal(match.value, "Contains");
         const box = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
@@ -175,13 +185,13 @@ describe("Each kind of filter card", () => {
         });
         assert.equal(session.history.position, before + 1);
         assert.equal(session.visibility.summary.visibleNodes, 6);
-        await screen.findByRole("listitem", { name: "name contains Mme, Hide" });
+        await screen.findByRole("group", { name: "name contains Mme, Hide" });
     });
 
-    it("picking a match hands focus to the value; Escape drops a new card", async () => {
+    it("picking a match hands focus to the value; Escape with a value writes it and goes to the on box", async () => {
         const { session } = await openPeople();
         await realKeys.click(await screen.findByRole("button", { name: "Add filter" }));
-        await realKeys.click(await screen.findByRole("menuitem", { name: "name" }));
+        await realKeys.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         await realKeys.click(await screen.findByRole("combobox", { name: "name: how to match" }));
         await realKeys.click(await screen.findByRole("option", { name: "Starts with" }));
         const text = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
@@ -190,12 +200,12 @@ describe("Each kind of filter card", () => {
         });
         await realKeys.keyboard("GAL");
         await screen.findByRole("listbox");
-        // The first Escape closes the list of names; the next drops the card, unwritten.
+        // The first Escape closes the list of names; the next writes the card and keeps it.
         await realKeys.keyboard("{Escape}{Escape}");
         await waitFor(() => {
-            assert.equal(cardsDrawn(), 0);
+            assert.equal(document.activeElement?.getAttribute("aria-label"), "Apply name starts with GAL");
         });
-        assert.lengthOf(session.visibility.conditions, 0);
-        assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");
+        assert.equal(cardsDrawn(), 1);
+        assert.lengthOf(session.visibility.conditions, 1);
     });
 });

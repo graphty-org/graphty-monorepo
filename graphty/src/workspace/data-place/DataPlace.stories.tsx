@@ -183,7 +183,7 @@ export const TwoSources: Story = {
         await userEvent.click(
             await within(canvasElement).findByRole("button", { name: "Add filter" }, storyWaitOptions(1000)),
         );
-        await within(document.body).findByRole("menuitem", { name: "Data source" }, storyWaitOptions(1000));
+        await within(document.body).findByRole("option", { name: "Data source" }, storyWaitOptions(1000));
     },
 };
 
@@ -195,7 +195,8 @@ export const TwoSources: Story = {
 async function addFilter(canvasElement: HTMLElement, item: string): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
     await userEvent.click(await place.findByRole("button", { name: "Add filter" }, storyWaitOptions(1000)));
-    await userEvent.click(await within(document.body).findByRole("menuitem", { name: item }, storyWaitOptions(1000)));
+    const named = new RegExp(`^${item}(,|$)`);
+    await userEvent.click(await within(document.body).findByRole("option", { name: named }, storyWaitOptions(1000)));
 }
 
 /**
@@ -233,11 +234,7 @@ export const FilterCards: Story = {
         // Select: the largest component, its toggle switched to Select.
         await addFilter(canvasElement, "Largest component");
         await holds(element, 2);
-        const largest = await place.findByRole(
-            "listitem",
-            { name: /^in the largest component/ },
-            storyWaitOptions(1000),
-        );
+        const largest = await place.findByRole("group", { name: /^in the largest component/ }, storyWaitOptions(1000));
         await userEvent.click(within(largest).getByRole("radio", { name: "Select" }));
 
         // Neighbors of the selected node.
@@ -253,7 +250,7 @@ export const FilterCards: Story = {
             effect: "keep",
             rule: { kind: "not", of: { kind: "text", reads: "data.label", mode: "substring", text: "Cos" } },
         });
-        await place.findByRole("listitem", { name: /^not: label contains Cos/ }, storyWaitOptions(1000));
+        await place.findByRole("group", { name: /^not: label contains Cos/ }, storyWaitOptions(1000));
         await element.waitForStableFrame();
     },
 };

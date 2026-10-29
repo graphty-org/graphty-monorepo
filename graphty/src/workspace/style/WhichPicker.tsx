@@ -1,6 +1,7 @@
 import { focusWithRing, useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, HistoryStepId, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
+    ActionIcon,
     Autocomplete,
     Button,
     Checkbox,
@@ -1167,6 +1168,17 @@ async function announceEmpty(
     return `${String(empty.length)} ${verb} nothing: ${empty.join(", ")}`;
 }
 
+/** A row of the add list that is not a field (Largest component): its name, its icon and what it does. */
+export interface ExtraItem {
+    readonly key: string;
+    readonly name: string;
+    readonly glyph: (typeof GLYPHS)[keyof typeof GLYPHS];
+    readonly onPick: () => void;
+}
+
+/** The option value an extra row is listed under, apart from every field's `<side>:<path>`. */
+const EXTRA = "extra:";
+
 /**
  * "+ Add a condition": a searchable list of every field of the kind, grouped Data, Results and
  * Structure; a field that is already a condition is marked, and picking it goes to that card.
@@ -1176,6 +1188,11 @@ async function announceEmpty(
  * @param props.used - the card keys already drawn
  * @param props.onAdd - adds a card on a field
  * @param props.onElsewhere - goes to the other kind's tab with a card on its field
+ * @param props.bySide - groups the fields Nodes and Edges
+ * @param props.extra - rows that are not fields, listed last under Structure
+ * @param props.plus - draws the opener as a "+" icon button with this name
+ * @param props.opened - opens the list from outside
+ * @param props.onOpened - told when the list closes
  * @returns The control
  */
 export function AddCondition({
@@ -1184,12 +1201,27 @@ export function AddCondition({
     used,
     onAdd,
     onElsewhere,
+    bySide = false,
+    extra = [],
+    plus,
+    opened,
+    onOpened,
 }: Readonly<{
     fields: readonly CardField[];
     elsewhere?: readonly CardField[];
     used: readonly string[];
     onAdd: (field: CardField) => void;
     onElsewhere?: (field: CardField) => void;
+    /** Groups the fields Nodes and Edges by the kind they are on (the Filters "+"), not Data, Results, Structure. */
+    bySide?: boolean;
+    /** Rows that are not a field (Largest component), listed last as Structure. */
+    extra?: readonly ExtraItem[];
+    /** Draws the opener as a "+" icon button with this name and tooltip, not "Add a condition". */
+    plus?: string;
+    /** Opens the list from outside (the toolbar's Filters). */
+    opened?: boolean;
+    /** Told when the list closes, so `opened` can be put back. */
+    onOpened?: (opened: boolean) => void;
 }>): React.JSX.Element {
     const [search, setSearch] = useState("");
     // The option Enter takes, which the search names as its active descendant.
@@ -1202,10 +1234,11 @@ export function AddCondition({
             combobox.resetSelectedOption();
             setSearch("");
             setActive(null);
+            onOpened?.(false);
         },
         onDropdownOpen: () => {
-            // As wide as the cards it adds to, so the list stays inside the inspector.
-            const column = button.current?.closest(".ws-which-open");
+            // As wide as the cards it adds to, so the list stays inside the inspector (or the Data place).
+            const column = button.current?.closest(".ws-which-open, .dp");
             if (column instanceof HTMLElement && column.clientWidth > 0) {
                 setWidth(column.clientWidth);
             }
@@ -1215,10 +1248,16 @@ export function AddCondition({
     const typed = search.trim().toLowerCase();
     const found = (each: CardField): boolean => typed === "" || each.name.toLowerCase().includes(typed);
     // A name that starts with the typed text first, in its group, and its group first.
+    const sections: readonly { group: string; has: (field: CardField) => boolean }[] = bySide
+        ? [
+              { group: "Nodes", has: (f) => f.on === "node" },
+              { group: "Edges", has: (f) => f.on === "edge" },
+          ]
+        : (["Data", "Results", "Structure"] as const).map((group) => ({ group, has: (f) => f.group === group }));
     const groups = prefixFirst(
-        (["Data", "Results", "Structure"] as const).flatMap((group) => {
+        sections.flatMap(({ group, has }) => {
             const items = prefixFirst(
-                fields.filter((f) => f.group === group && found(f)),
+                fields.filter((f) => has(f) && found(f)),
                 (each) => each.name,
                 search,
             );
@@ -1227,7 +1266,13 @@ export function AddCondition({
         ({ items }) => items[0].name,
         search,
     );
-    const count = groups.reduce((sum, { items }) => sum + items.length, 0);
+    // The rows that are not fields stay last, under Structure, whatever is typed.
+    const extras = prefixFirst(
+        extra.filter((each) => typed === "" || each.name.toLowerCase().includes(typed)),
+        (each) => each.name,
+        search,
+    );
+    const count = groups.reduce((sum, { items }) => sum + items.length, 0) + extras.length;
     // Typed on one kind's tab, a value the other kind carries is pointed to its tab.
     const other = typed === "" ? undefined : prefixFirst(elsewhere.filter(found), (each) => each.name, search)[0];
     const otherTab = other?.on === "edge" ? "Edge" : "Node";
@@ -1256,6 +1301,13 @@ export function AddCondition({
             store.set({ announcement: spoken });
         }
     }, [nothing, spoken, store]);
+    // Opened from outside (the toolbar's Filters): the list opens, its search focused.
+    const { openDropdown } = combobox;
+    useEffect(() => {
+        if (opened === true) {
+            openDropdown();
+        }
+    }, [opened, openDropdown]);
     // After typing, the first match is the active option, so Enter takes it with no arrow key.
     useEffect(() => {
         if (!dropdownOpened) {
@@ -1321,35 +1373,55 @@ export function AddCondition({
             withinPortal
             onOptionSubmit={(value) => {
                 const field = fields.find((f) => keyOf(f) === value);
+                const other = extra.find((each) => `${EXTRA}${each.key}` === value);
                 combobox.closeDropdown();
                 if (field !== undefined) {
                     onAdd(field);
                 }
+                other?.onPick();
             }}
         >
             <Combobox.Target withAriaAttributes={false}>
-                <Button
-                    ref={button}
-                    size="compact-xs"
-                    variant="subtle"
-                    leftSection={<GLYPHS.add size={12} aria-hidden />}
-                    data-add
-                    aria-haspopup="listbox"
-                    aria-expanded={dropdownOpened}
-                    onClick={() => {
-                        combobox.toggleDropdown();
-                    }}
-                    onKeyDown={(event) => {
-                        // An open list takes Escape; the picker around it stays open.
-                        if (event.key === "Escape" && dropdownOpened) {
-                            event.preventDefault();
-                            combobox.closeDropdown();
-                        }
-                    }}
-                    style={{ alignSelf: "flex-start" }}
-                >
-                    Add a condition
-                </Button>
+                {plus === undefined ? (
+                    <Button
+                        ref={button}
+                        size="compact-xs"
+                        variant="subtle"
+                        leftSection={<GLYPHS.add size={12} aria-hidden />}
+                        data-add
+                        aria-haspopup="listbox"
+                        aria-expanded={dropdownOpened}
+                        onClick={() => {
+                            combobox.toggleDropdown();
+                        }}
+                        onKeyDown={(event) => {
+                            // An open list takes Escape; the picker around it stays open.
+                            if (event.key === "Escape" && dropdownOpened) {
+                                event.preventDefault();
+                                combobox.closeDropdown();
+                            }
+                        }}
+                        style={{ alignSelf: "flex-start" }}
+                    >
+                        Add a condition
+                    </Button>
+                ) : (
+                    <Tooltip label={plus}>
+                        <ActionIcon
+                            ref={button}
+                            variant="subtle"
+                            data-add
+                            aria-label={plus}
+                            aria-haspopup="listbox"
+                            aria-expanded={dropdownOpened}
+                            onClick={() => {
+                                combobox.toggleDropdown();
+                            }}
+                        >
+                            <GLYPHS.add size={14} aria-hidden />
+                        </ActionIcon>
+                    </Tooltip>
+                )}
             </Combobox.Target>
             <Combobox.Dropdown>
                 <Combobox.Search // NOSONAR(S6811): aria-description is a global ARIA 1.3 attribute, valid on a combobox
@@ -1378,7 +1450,7 @@ export function AddCondition({
                     style={{ overflowY: "auto" }}
                     aria-label="Attributes"
                 >
-                    {groups.length === 0 ? (
+                    {count === 0 ? (
                         <Combobox.Empty>
                             {nothingWords}
                             {goElsewhere !== undefined && other !== undefined && (
@@ -1402,44 +1474,62 @@ export function AddCondition({
                             )}
                         </Combobox.Empty>
                     ) : (
-                        groups.map(({ group, items }) => (
-                            <Combobox.Group key={group} label={group}>
-                                {items.map((field) => {
-                                    const key = keyOf(field);
-                                    const inUse = used.includes(key);
-                                    // The icon the Vary by list draws for the same value; the node id reads as text.
-                                    const Glyph = glyphOf(field.kind);
-                                    return (
-                                        <Combobox.Option
-                                            key={key}
-                                            value={key}
-                                            // Its fact and whether it is a condition already are part of
-                                            // what it is: "Degree, 1 to 36", as in the Vary by list.
-                                            aria-label={[
-                                                field.name,
-                                                ...(field.fact === undefined ? [] : [field.fact]),
-                                                ...(inUse ? ["already a condition"] : []),
-                                            ].join(", ")}
-                                        >
-                                            <Group gap={8} wrap="nowrap" justify="space-between">
-                                                <Group gap={8} wrap="nowrap">
-                                                    <Glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
-                                                    <span>
-                                                        {field.name}
-                                                        {inUse ? " (already a condition)" : ""}
-                                                    </span>
+                        <>
+                            {groups.map(({ group, items }) => (
+                                <Combobox.Group key={group} label={group} role="group" aria-label={group}>
+                                    {items.map((field) => {
+                                        const key = keyOf(field);
+                                        const inUse = used.includes(key);
+                                        // The icon the Vary by list draws for the same value; the node id reads as text.
+                                        const Glyph = glyphOf(field.kind);
+                                        return (
+                                            <Combobox.Option
+                                                key={key}
+                                                value={key}
+                                                // Its fact and whether it is a condition already are part of
+                                                // what it is: "Degree, 1 to 36", as in the Vary by list.
+                                                aria-label={[
+                                                    field.name,
+                                                    ...(field.fact === undefined ? [] : [field.fact]),
+                                                    ...(inUse ? ["already a condition"] : []),
+                                                ].join(", ")}
+                                            >
+                                                <Group gap={8} wrap="nowrap" justify="space-between">
+                                                    <Group gap={8} wrap="nowrap">
+                                                        <Glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
+                                                        <span>
+                                                            {field.name}
+                                                            {inUse ? " (already a condition)" : ""}
+                                                        </span>
+                                                    </Group>
+                                                    {field.fact !== undefined && (
+                                                        <Text size="xs" c="dimmed" span>
+                                                            {field.fact}
+                                                        </Text>
+                                                    )}
                                                 </Group>
-                                                {field.fact !== undefined && (
-                                                    <Text size="xs" c="dimmed" span>
-                                                        {field.fact}
-                                                    </Text>
-                                                )}
+                                            </Combobox.Option>
+                                        );
+                                    })}
+                                </Combobox.Group>
+                            ))}
+                            {extras.length > 0 && (
+                                <Combobox.Group label="Structure" role="group" aria-label="Structure">
+                                    {extras.map((each) => (
+                                        <Combobox.Option
+                                            key={each.key}
+                                            value={`${EXTRA}${each.key}`}
+                                            aria-label={each.name}
+                                        >
+                                            <Group gap={8} wrap="nowrap">
+                                                <each.glyph size={14} aria-hidden style={{ flexShrink: 0 }} />
+                                                <span>{each.name}</span>
                                             </Group>
                                         </Combobox.Option>
-                                    );
-                                })}
-                            </Combobox.Group>
-                        ))
+                                    ))}
+                                </Combobox.Group>
+                            )}
+                        </>
                     )}
                 </Combobox.Options>
             </Combobox.Dropdown>
@@ -1552,6 +1642,7 @@ function CardEditor({
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
  * @param props.blank - a new card with no value picked yet: a yes-or-no card shows no choice
+ * @param props.variant - "filter": a value row reads box, name, then its count dimmed at the right
  * @returns The body
  */
 export function CardBody({
@@ -1560,22 +1651,24 @@ export function CardBody({
     side,
     onChange,
     blank = false,
+    variant,
 }: Readonly<{
     session: GraphSession;
     card: Card;
     side: Side;
     onChange: OnCard;
     blank?: boolean;
+    variant?: "filter";
 }>): React.JSX.Element | null {
     switch (card.type) {
         case "number":
             return <NumberCard session={session} card={card} side={side} onChange={onChange} />;
         case "category":
-            return <CategoryCard session={session} card={card} side={side} onChange={onChange} />;
+            return <CategoryCard session={session} card={card} side={side} onChange={onChange} variant={variant} />;
         case "text":
             return <TextCard session={session} card={card} onChange={onChange} />;
         case "source":
-            return <SourceCard session={session} card={card} side={side} onChange={onChange} />;
+            return <SourceCard session={session} card={card} side={side} onChange={onChange} variant={variant} />;
         case "yes-no":
             return (
                 <MatchSelect
@@ -2080,6 +2173,41 @@ function NumberCard({
 const SHOWN_VALUES = 8;
 
 /**
+ * A value row's checkbox label: "Paris, 4 nodes" in a layer's card; in a filter card the name and
+ * the count dimmed at the right, named as the layer's card says it.
+ * @param variant - "filter", or undefined for a layer's card.
+ * @param label - the value's name.
+ * @param count - how many carry it.
+ * @param side - nodes or edges.
+ * @returns the checkbox's label props.
+ */
+function valueRow(
+    variant: "filter" | undefined,
+    label: string,
+    count: number,
+    side: Side,
+): Pick<React.ComponentProps<typeof Checkbox>, "label" | "aria-label" | "styles"> {
+    const words = `${label}, ${many(count, side)}`;
+    if (variant === undefined) {
+        return { label: words };
+    }
+    return {
+        "aria-label": words,
+        styles: { body: { width: "100%" }, labelWrapper: { flex: 1, minWidth: 0 } },
+        label: (
+            <Group gap={4} wrap="nowrap" justify="space-between">
+                <Text size="xs" truncate span>
+                    {label}
+                </Text>
+                <Text size="xs" c="dimmed" span>
+                    {formatNumber(count)}
+                </Text>
+            </Group>
+        ),
+    };
+}
+
+/**
  * A category card: a checklist of the values by count, ticked ones being alternatives; over 8 a
  * search, the top 8 and "Show all N"; "(no value)" when some elements have none.
  * @param props - Component props
@@ -2087,6 +2215,7 @@ const SHOWN_VALUES = 8;
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
+ * @param props.variant - "filter": each value's count dimmed at the right
  * @returns The body
  */
 function CategoryCard({
@@ -2094,11 +2223,13 @@ function CategoryCard({
     card,
     side,
     onChange,
+    variant,
 }: Readonly<{
     session: GraphSession;
     card: Extract<Card, { type: "category" }>;
     side: Side;
     onChange: OnCard;
+    variant?: "filter";
 }>): React.JSX.Element {
     const { name, path } = card.field;
     const counts = useMemo(() => session.data.valueCounts(path, { kind: side }), [session, path, side]);
@@ -2147,7 +2278,7 @@ function CategoryCard({
                             <Checkbox
                                 key={each.value}
                                 size="xs"
-                                label={`${each.label}, ${many(each.count, side)}`}
+                                {...valueRow(variant, each.label, each.count, side)}
                                 data-enter-done
                                 checked={card.values.includes(each.value)}
                                 onChange={(event) => {
@@ -2158,7 +2289,7 @@ function CategoryCard({
                         {counts.missing > 0 && (
                             <Checkbox
                                 size="xs"
-                                label={`(no value), ${many(counts.missing, side)}`}
+                                {...valueRow(variant, "(no value)", counts.missing, side)}
                                 data-enter-done
                                 checked={card.gaps}
                                 onChange={(event) => {
@@ -2193,6 +2324,7 @@ function CategoryCard({
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
+ * @param props.variant - "filter": each value's count dimmed at the right
  * @returns The body
  */
 function SourceCard({
@@ -2200,11 +2332,13 @@ function SourceCard({
     card,
     side,
     onChange,
+    variant,
 }: Readonly<{
     session: GraphSession;
     card: Extract<Card, { type: "source" }>;
     side: Side;
     onChange: OnCard;
+    variant?: "filter";
 }>): React.JSX.Element {
     const { name } = card.field;
     return (
@@ -2213,7 +2347,12 @@ function SourceCard({
                 <Checkbox
                     key={load.key}
                     size="xs"
-                    label={`${sourceName(load)}, ${many(side === "node" ? load.counts.nodes : load.counts.edges, side)}`}
+                    {...valueRow(
+                        variant,
+                        sourceName(load),
+                        side === "node" ? load.counts.nodes : load.counts.edges,
+                        side,
+                    )}
                     data-enter-done
                     checked={card.sources.includes(load.key)}
                     onChange={(event) => {

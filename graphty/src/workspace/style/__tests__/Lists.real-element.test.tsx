@@ -236,7 +236,7 @@ describe("the app's lists", () => {
             session.data.addNodes(names.map((name, i) => ({ id: `n${String(i)}`, name }))),
         );
         await userEvent.click(await screen.findByRole("button", { name: "Add filter" }, { timeout: TIMEOUT_MS }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "name" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         const is = await screen.findByRole("combobox", { name: "name: text to match" });
         await userEvent.type(is, "Mme");
         await waitFor(() => {

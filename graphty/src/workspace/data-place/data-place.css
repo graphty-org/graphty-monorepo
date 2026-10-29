@@ -159,11 +159,29 @@
     padding-inline-start: 18px;
 }
 
-/* The Filters section's cards (design/data/filter-cards.md section 5): a plain list, one card each. */
+/* The Filters section's cards (design/data/filter-cards.md section 5): a plain list, one card each,
+   at the section's own edges (the section pads the panel). */
 .dp-filters {
     margin: 0;
-    padding: 0 8px 0 16px;
+    padding: 0;
     list-style: none;
+}
+
+/* A card's header: its field's name takes the room, its count and remove button after it. */
+.dp-filter-name {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    font: inherit;
+    text-align: start;
+}
+
+/* A resting card's summary line, under its switches. */
+.dp-filter-summary {
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: start;
 }
 
 /* An off card keeps its count and its values, dimmed. */

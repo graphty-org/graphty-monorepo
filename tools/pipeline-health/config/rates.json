@@ -6,8 +6,10 @@
         "usdPerMin": { "on_demand": 0.018, "spot": 0.0045 }
     },
     "llm": {
-        "$comment": "One paid step per release.yml run that sent paid calls (tools/llm-spend.mjs: COST_PER_RUN 0.94, PAID conclusions). Checked 2026-10-12.",
+        "$comment": "An estimate of CI's Gemini spend, as tools/llm-spend.mjs counts it: a flat 0.94 USD per paid step (measured 2026-10-12 as 194 calls at 0.00485 USD, tmp/ai-cost/report.md; October 2026 averaged 189 calls a release run, 375 for the one bisect point). A paid step is release.yml's LLM regression step, or the test step of a point of a bisect of the llm lane (run name 'Bisect (llm lane)'; legacyBisectRuns lists the one from before the name said so), with a PAID conclusion. Local runs with the same key are not counted. Checked 2026-10-29.",
         "step": "LLM regression tests",
+        "bisectStep": "Run the failing files",
+        "legacyBisectRuns": [40492117633],
         "usdPerPaidStep": 0.94,
         "paidConclusions": ["success", "failure", "cancelled"]
     },

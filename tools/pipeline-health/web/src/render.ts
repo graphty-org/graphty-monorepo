@@ -400,8 +400,8 @@ const TABLES: Record<string, { cls: string; cols: [string, string][] }> = {
         cls: "t-cost",
         cols: [
             ["line", "line"],
-            ["projected", "projected, USD"],
-            ["sofar", "so far / budget"],
+            ["projected", "projected month-end, USD"],
+            ["sofar", "spent so far / budget"],
             ["spark", "projection by day"],
             ["state", "state"],
         ],

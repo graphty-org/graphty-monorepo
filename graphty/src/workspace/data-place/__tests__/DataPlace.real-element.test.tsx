@@ -467,9 +467,9 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         const row = await place().findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
-        const main = row.querySelector<HTMLElement>(".dp-source-main");
+        const main = row.querySelector(".dp-source-main") as HTMLElement | null;
         assert.isNotNull(main);
-        await userEvent.dblClick(main as HTMLElement);
+        await userEvent.dblClick(main);
         const input = await screen.findByRole("textbox", { name: "Source name" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, input);
@@ -479,7 +479,9 @@ describe("the Data place's sidebar on the real element", () => {
             assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
         });
 
-        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>(".dp-source-main")?.focus();
+        (place().getByRole("listitem", { name: "auth-log.csv" }) as HTMLElement)
+            .querySelector<HTMLElement>(".dp-source-main")
+            ?.focus();
         await userEvent.keyboard("{F2}");
         const again = await screen.findByRole("textbox", { name: "Source name" });
         await userEvent.clear(again);

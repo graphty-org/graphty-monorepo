@@ -151,6 +151,30 @@ async function pick(scope: HTMLElement, label: string, option: RegExp | string):
 }
 
 /**
+ * Picks an entry of a select with the keyboard: opens it, walks the highlight down to the entry
+ * and presses Enter. For a list that runs past the popover's visible body, where a click has to
+ * scroll the popover and the list moves under the pointer (compact-mantine defect, #4484).
+ * @param scope - where the select is.
+ * @param label - the select's label.
+ * @param option - the entry's name.
+ */
+async function pickByKeys(scope: HTMLElement, label: string, option: string): Promise<void> {
+    await userEvent.click(within(scope).getByRole("combobox", { name: label }));
+    const target = await within(scope).findByRole("option", { name: option });
+    const highlighted = (): boolean => target.hasAttribute("data-combobox-selected");
+    for (const _ of within(scope).getAllByRole("option")) {
+        if (highlighted()) {
+            break;
+        }
+        await userEvent.keyboard("{ArrowDown}");
+    }
+    await waitFor(() => {
+        assert.isTrue(highlighted(), `${option} is highlighted`);
+    });
+    await userEvent.keyboard("{Enter}");
+}
+
+/**
  * Switches the view to 2D or 3D with the canvas toolbar's View menu.
  * @param mode - the view.
  */
@@ -287,7 +311,7 @@ describe("the location map", () => {
         const map = within(popover).getByRole<HTMLInputElement>("combobox", { name: "Map" });
         assert.strictEqual(map.value, "Natural Earth", "the bundled world map until one is chosen");
 
-        await pick(popover, "Map", "None");
+        await pickByKeys(popover, "Map", "None");
         await waitFor(() => {
             assert.deepStrictEqual(element.session.layout.options.map, { source: "none" });
         });
@@ -296,7 +320,7 @@ describe("the location map", () => {
 
         // A map of the reader's own: tiles from an address, with the credit it requires, which
         // the element draws on the canvas.
-        await pick(popover, "Map", "Tiles");
+        await pickByKeys(popover, "Map", "Tiles");
         await userEvent.fill(within(popover).getByRole("textbox", { name: "Credit" }), "Test tiles");
         await userEvent.fill(
             within(popover).getByRole("textbox", { name: "Address" }),
@@ -313,7 +337,7 @@ describe("the location map", () => {
         await within(popover).findByText("Not reachable", undefined, { timeout: TIMEOUT_MS });
         assert.notInclude(element.basemapStatus.attribution, "Test tiles");
 
-        await pick(popover, "Map", "Natural Earth");
+        await pickByKeys(popover, "Map", "Natural Earth");
         await waitFor(() => {
             assert.deepStrictEqual(element.session.layout.options.map, { source: "natural-earth" });
         });

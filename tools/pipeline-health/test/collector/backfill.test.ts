@@ -191,6 +191,50 @@ describe("backfill", () => {
         expect(await getCursor(store, PRS_CURSOR)).toBeUndefined();
     });
 
+    it("a repair stopped at its deadline continues where it stopped, and once done reads nothing", async () => {
+        // 2026-10-29: every invocation of a repair started again at its first day and workflow, re-read the same 419
+        // runs until its deadline, and spent the day's write budget writing them over and over.
+        const release = (id: number, day: string, i: number) => ({
+            ...master,
+            id,
+            path: ".github/workflows/release.yml",
+            created_at: `${day}T0${i}:00:00Z`,
+        });
+        const runs = [
+            ...[0, 1, 2, 3].map((i) => release(3000 + i, "2026-10-24", i)),
+            ...[0, 1].map((i) => release(3100 + i, "2026-10-25", i)),
+        ];
+        const repair = { days: ["2026-10-24", "2026-10-25"], workflows: ["release.yml"] };
+        const store = new MemoryStore();
+        const c = clock();
+        // 1 s a call: 2026-10-24's first page (a list and 3 runs' jobs) is written; the deadline falls in its second.
+        const first = await backfill({
+            ...options(store, fake({ runs }), c),
+            perHour: 3600,
+            deadline: NOW + 4_000,
+            repair,
+        });
+        expect(first).toMatchObject({ done: false, stopped: "deadline", runs: 3 });
+
+        const g = fake({ runs });
+        const second = await backfill({ ...options(store, g), repair });
+        expect(second).toMatchObject({ done: true, runs: 3 });
+        const listed = g.urls.filter((u) => u.includes("/workflows/release.yml/runs?"));
+        expect(
+            listed.map((u) => `${new URL(u).searchParams.get("created")}/${new URL(u).searchParams.get("page")}`),
+        ).toEqual(["2026-10-24/2", "2026-10-25/1"]);
+        expect(homes(store, "run")).toHaveLength(6);
+
+        const h = fake({ runs });
+        expect(await backfill({ ...options(store, h), repair })).toMatchObject({ done: true, runs: 0 });
+        expect(h.urls).toEqual([]);
+        // A different repair starts from its own beginning.
+        const k = fake({ runs });
+        expect(
+            await backfill({ ...options(store, k), repair: { days: ["2026-10-25"], workflows: ["release.yml"] } }),
+        ).toMatchObject({ done: true, runs: 2 });
+    });
+
     it("stops at the days the earlier oldest-first backfill loaded (its cursor's day, reloaded whole)", async () => {
         const store = new MemoryStore();
         await setCursor(store, `backfill#${REPO}`, JSON.stringify({ day: "2026-10-25", page: 2 }), NOW);

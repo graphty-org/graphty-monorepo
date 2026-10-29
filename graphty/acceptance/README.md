@@ -12,15 +12,36 @@ The routes began as the success paths of the design studio's tier 3 study
 
 ## Running it
 
-Build the app first, then run every route, or only some:
+`tools/acceptance.mjs` runs the routes a change can affect, or every route. It builds the app first
+(nx caches an unchanged tree):
 
 ```bash
-pnpm exec nx run graphty:build                         # graphty/dist
-node graphty/acceptance/run.mjs                           # every route, on up to 4 browsers
-node graphty/acceptance/run.mjs --only t39a,t46           # routes whose id starts with one of these
-node graphty/acceptance/run.mjs --workers 1               # one browser
-node graphty/acceptance/run.mjs --list                    # the routes and their checks; runs nothing
-node graphty/acceptance/run.mjs --dist <dir>              # another build of the app
+node tools/acceptance.mjs run                        # the routes this branch's change can affect
+node tools/acceptance.mjs run --base origin/master   # measured from another base (default: the push base)
+node tools/acceptance.mjs run --all                  # every route
+node tools/acceptance.mjs select                     # the selected routes and why; runs nothing
+node tools/acceptance.mjs run --all --dist <dir>     # a frozen build, as the design studio runs it
+```
+
+A change selects routes by what the app's build runs, read from its source maps: a changed file the
+build bundles selects every route, a test, story or doc selects none, code of an app package the build
+does not run selects none, and any other file of an app package (CSS, HTML, `public/`, a
+`package.json`, a config) selects every route. A changed data file selects only the routes that open
+it, and a change to this folder's code or a shared root input selects every route. Nothing runs
+automatically: run it yourself on a branch that touches the app, and `--all` after a large change.
+It exits 0 when every selected route passed (or none was selected), 1 when one failed, 4 when it
+could not run (no build, no GPU). Each run keeps `selection.json` (what changed, which routes and
+why), `report.json` and the end screens in the main checkout's `tmp/acceptance/runs/`.
+
+The runner underneath walks the routes it is given:
+
+```bash
+pnpm exec nx run graphty:build                  # graphty/dist
+node graphty/acceptance/run.mjs                 # every route, on up to 4 browsers
+node graphty/acceptance/run.mjs --only t39a,t46 # routes whose id starts with one of these
+node graphty/acceptance/run.mjs --workers 1     # one browser
+node graphty/acceptance/run.mjs --list          # the routes and their checks; runs nothing
+node graphty/acceptance/run.mjs --dist <dir>    # another build of the app
 ```
 
 It prints one line per route as it finishes, then a table of every route's result and time, the

@@ -1,6 +1,8 @@
 # AI-checked acceptance tests for the graphty app
 
-Status: Proposed, 2026-10-22. Issue #3272. Design only; nothing here is built yet.
+Status: Proposed, 2026-10-22. Issue #3272. Built so far: the routes in `graphty/acceptance/` (outcome checks only,
+no step screenshots yet) and `tools/acceptance.mjs run` and `select` (section 9) without a model, selecting by
+the files the app's build bundles, read from its source maps, rather than by per-route coverage (section 5.3).
 
 This document describes how the graphty app's study tasks become scripted acceptance tests that run
 on every change that can affect them, compare a screenshot of every step with the same step on the

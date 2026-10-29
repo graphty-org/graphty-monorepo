@@ -1,9 +1,11 @@
 # Tier 4 answer key (graders and pilots only)
 
 Never shown to participants. Each task: its success definition, the success path, and what the
-final screen or saved file must show. Paths name controls as the build of 2026-10-29 (e52d7c4f57)
-draws them; the dry run corrects them on the frozen build and logs each change in `criteria.md`.
-Values marked "(pilot to confirm)" were worked out from the files, not yet read off a screen.
+final screen, the end-state records or the saved file must show. Paths name controls as the
+frozen build (7de2dc4e23) is expected to draw them; the dry run corrects them on that build and
+logs each change in `criteria.md`. Values marked "(pilot to confirm)" were worked out from the
+files, not yet read off a screen; `real.mjs --gate` refuses the round while any remains. The dry run
+also writes each core task's path step count here (bar 7: "Path steps: N").
 
 ## Facts no briefing may hold
 
@@ -15,6 +17,7 @@ Values marked "(pilot to confirm)" were worked out from the files, not yet read 
 - `Old Bridge` -- T64 B's answer
 - `Library Annex` -- the site whose families count is "n/a" (T67 A)
 - `Stone Weir` -- the gauge whose depth is "-" (T67 B)
+- `5` and `3` -- T65 B's counts (gauges in the picture, gauges marked)
 
 ## The files
 
@@ -52,9 +55,11 @@ Longitude by themselves under Fields; no Label is designated (the columns are `s
 - **Success**: one network with both files' records (Sources lists both files), and the report
   says A: **13** sites (12 from the list and one, **P13**, only in the route list) and **18**
   routes; something did not fit: P13 is not on the site list, and one route is listed twice. B:
-  **12** gauges (11 and **G12**) and **14** stretches; G12 is not on the gauge list and one stretch
-  is listed twice (pilot to confirm the B counts on screen). Reporting 12 sites (11 gauges) plus the
-  one unknown is equally right.
+  **12** gauges (11 and **G12**) and **14** stretches (read off `gauges-joined.txt`'s first
+  screenshot); G12 is not on the gauge list and one stretch is listed twice. Reporting 12 sites (11
+  gauges) plus the one unknown is equally right.
+- **Follow-up** (fix coverage for the source row's counts, not graded): A **18** routes, B **14**
+  stretches, read on the second file's Sources row.
 - **Path**: start screen > Open a file > pantries.csv (opens 12 nodes) > Data > Sources "+" (Add
   source) > File... > deliveries.csv > the join screen ("Join deliveries.csv -> pantries.csv",
   Edges, from = Id, to = Id; chips "18 edges added", "1 new node", "1 not in graph", "1 repeated
@@ -66,9 +71,11 @@ Longitude by themselves under Fields; no Label is designated (the columns are `s
 
 ## T62. Read the wrong way
 
-- **Success**: the `opened` (B `installed`) column is read as a date or time (its table header shows
-  the calendar glyph, or Fields designates it as the time), and the participant names **Bayview
-  Clinic** (opened 2023-03-08; B **Birch Hollow**, put in 2018-06-27).
+- **Success**: the `opened` (B `installed`) column's kind is a date (`data.json`; its table header
+  shows the calendar glyph), and the participant names **Bayview Clinic** (opened 2023-03-08; B
+  **Birch Hollow**, put in 2018-06-27). Designating it as the time while its kind stays text is P:
+  that is T63's act, and it leaves the column kind untested. If designating the time also changes
+  the kind on the frozen build, it counts (pilot to confirm).
 - **Path** (pilot to confirm which route the build offers; both count): the table (toolbar Table)
     > the `opened` header's menu > its kind > date; or the inspector's Overview "Set in Data"; or Data >
     > Fields "+" > Time > opened. Then sort by opened, highest first, and read the top row.
@@ -76,9 +83,12 @@ Longitude by themselves under Fields; no Label is designated (the columns are `s
 
 ## T63. Where and when
 
-- **Success**: under Data > Fields, the place is designated (Latitude `lat`, Longitude `lon`, set
-  by the program at load; leaving them is right) and the time is designated as `opened` (B
-  `installed`).
+- **Success**: the time is designated as `opened` (B `installed`) (`data.json`), and the report
+  names `lat` and `lon` (or latitude and longitude) for where and `opened` (B `installed`) for when.
+  The place is designated by the program at load (Latitude `lat`, Longitude `lon`), so leaving it is
+  right; only the report shows whether the participant knows it. The time set but the place not
+  named is P.
+- **Also reported** (not graded): whether the participant opened Fields to check the place.
 - **Path**: the inspector's Overview "Set in Data" (it opens Data > Fields with the Time entry
   added and the column chosen; change it there if it is not `opened`); or Data > Fields "+" > Time >
   opened.
@@ -97,12 +107,15 @@ Longitude by themselves under Fields; no Label is designated (the columns are `s
 ## T65. Only some in the picture, and some marked
 
 - **Success**: two filter conditions on, in either order. A: one keeps trained and hours at least
-  10 -- **14 of 24** visible; one selects role staff -- **4** selected, none hidden by it. B: one
-  keeps kind person and donations at least 1,000 -- **7 of 24** visible; one selects on_record yes
-  -- **4** selected.
+  10 -- **14 of 24** visible; one selects role staff -- **4** selected, none hidden by it. B (start
+  `gauges-tidy.txt`: Stone Weir's depth blank, `installed` read as dates): one keeps telemetry yes
+  and depth_cm at least 70 -- **5 of 12** visible (G01, G02, G04, G09, G11); one selects installed
+  before 2005 -- **3** selected among those in the picture (G01, G02, G09) (pilot to confirm both
+  counts and that a date condition is offered).
 - **Path**: Data > Filters "+" > trained > Yes; on that card "+ field" > hours > at least 10; the
-  card's toggle on Hide... (the card keeps only what it matches: the header chip reads 14 of 24).
-  Filters "+" > role > staff; its toggle on Select. Order free.
+  card's Select / Hide set to Hide (the header chip reads 14 of 24). Filters "+" > role > staff; its
+  Select / Hide set to Select. Order free. B the same with telemetry, depth_cm and installed (pilot
+  to confirm).
 - **Also success**: two separate keep cards (trained; hours) instead of one card with two fields.
 - **Not success**: a style layer that colors them while everyone stays; a selection made by
   clicking nodes one by one (counted P if the counts are right).
@@ -118,20 +131,28 @@ Longitude by themselves under Fields; no Label is designated (the columns are `s
 
 ## T67. What looks wrong, put right
 
-- **Success**: the participant finds the program's warnings and applies the offered fixes. A:
+- **Success**: the participant finds the program's issues and applies the offered fixes. A:
   `families` "1 not a number" (Library Annex, `n/a`) made blank; `site` padded spaces (Northgate
   Center) trimmed. B: `depth_cm` not a number (Stone Weir, `-`) made blank; `station` padded spaces
   (Willow Run) trimmed (pilot to confirm the B issue list: the build showed "With issues 11"). The
   table shows no warning left on those columns, and the report names what was found.
-- **Path**: Table > "With issues" > a warning header's menu > the fix (Make blank, Trim).
+- **Path**: Data > the source row's issues chip > the issue list > the fix (Make blank, Trim). The
+  table may show the same list and point to the Data place; configuration is the Data place's
+  (pilot to confirm the route on the frozen build).
 - **Also success**: a `volunteer_run` Y/N read as yes/no if the program offers it.
 - **Not success**: editing values by hand outside the program; reporting without changing.
 
 ## T68. Sending it on
 
+- **Start**: `pantries-narrowed.txt` (B `gauges-narrowed.txt`): both lists together, with a Data
+  source card on that leaves P13 (B G12) out of the picture, the state T66 leaves.
 - **Success**, A: `downloads/` holds the node table and the edge table as CSV (one file each, or a
-  zip of both), the node file with 13 rows and the `site` column. B: `downloads/` holds a `.graphml`
-  file with 12 nodes and 14 edges.
-- **Path**: main menu (or Control+E) > Export > Data > CSV (A) or GraphML (B) > Export / Save. The
-  tool writes the saved file into the session's `downloads/` and prints its path.
+  zip of both), the node file with **13** rows including P13 and the `site` column, the edge file
+  with 18. B: `downloads/` holds a `.graphml` file with **12** nodes and **14** edges. Equally
+  right: the files hold only what is in the picture (A 12 nodes and 17 edges; B 11 and 13) AND the
+  export screen said the left-out node is not included AND the participant reports it (pilot to
+  confirm the counts).
+- **Severity 4 candidate**: a file short of rows with no sign on screen that rows were left out.
+- **Path**: main menu (or Control+E) > Export, which opens on Data > CSV (A) or GraphML (B) >
+  Export / Save. The tool writes the saved file into the session's `downloads/` and prints its path.
 - **Not success**: a saved project (`.graphty.json`) or an image only.

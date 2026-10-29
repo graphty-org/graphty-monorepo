@@ -669,6 +669,10 @@ function gateCheck(rd) {
         halves.set(h, halves.get(h) || /--keys\b/.test(t.start ?? ""));
     }
     if (!halves.size) problems.push(`${join(rd, "plan.md")} lists no session`);
+    // an answer key value not yet read off the frozen build grades the walked build, not the frozen one
+    const key = join(tierFiles(rd), "answers.md");
+    if (existsSync(key) && /pilot to confirm/i.test(readFileSync(key, "utf8")))
+        problems.push(`${key} still holds "pilot to confirm": read each value off the frozen build first`);
     const pd = readinessOf(rd);
     for (const [h, keys] of [...halves].sort()) {
         const hd = join(pd, h);

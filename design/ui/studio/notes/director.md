@@ -5,114 +5,50 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-23 (Location in the Fields list ruled: one "+" pick per kind; menu sections
-ruled; both issue #3315; earlier: timeline prototype review ruled: `timeline/decisions.md`; location map
-prototype reviews triaged into `location-map/decisions.md`).
-Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
-history.
+Last updated: 2026-10-29 (tier 4 criteria reviewed and frozen on build 7de2dc4e23).
+Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21 and 2026-10-29; the full
+earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-10-21) Shaders, second redesign: `design/rendering/shader-studio/decisions-v2.md`. One
-  Shaders section and one gallery per tab; place (on the node, instead of, on top, around, behind,
-  around the group, along the line) is an option on the row; no timing tags (layer condition, the
-  layer's `keep`, clocks as values); `minSize` only where a shader declares it; Wireframe is the
-  released channel plus additive `node.meshDetail`. Lesson: the first redesign kept the old
-  section-per-target structure because it existed; the owner caught it. Start a redesign from the
-  user's three questions, then check what survives, not the other way round.
-- (2026-10-23) LOCATION IN THE FIELDS LIST (issue #3315, owner: the Location "+" does not follow
-  the patterns; a gear for the kind, or one "+" per kind). RULED: one "+" pick per kind of
-  location. The nodes' "+" offers Latitude, Longitude, Coordinates, Country, Region and City as
-  ordinary Fields entries, each its kind's name, one column and a minus, exactly like Label, Weight
-  and Time. Deleted: the "Read as" select, the Place type and Within sub-rows, and the "Auto"
-  place type in the app. Reasons: every other entry's control is a column and Location's was a
-  mode, which is the rule the owner tripped on; a gear fails the latitude and longitude pair (two
-  columns cannot sit in one row's picker) and hides a choice that changes the row's shape; the
-  kind is a fact of the column, so it belongs in the "+" pick, not a setting; "Within" stops being
-  a control because a City entry beside a Country or Region entry already says it. Element work
-  (additive, team's call): `ColumnRole` gains `latitude`, `longitude`, `coordinates`, `country`,
-  `region`, `city`, set through `data.setRole` like the other entries; the element resolves the
-  source (a full pair, else coordinates, else the finest place narrowed by the next coarser one
-  listed), reports a detected column with its resolved role (never `auto`), and marks a listed
-  role it is not reading with a code (`location.unused`, params naming the source in effect).
-  Rejected: the gear (above); an in-row kind select like Figma's effect type (two selects in 240
-  px, and no other Fields entry can change its kind in place); a "Location" heading or group in
-  the "+" menu (the menu stays flat, so it never mixes grouped and ungrouped items).
-- (2026-10-23, issue #3315) MENU SECTIONS RULED: every pick list of catalog choices (Layout,
-  Analyze) uses section headings, never indentation, and every row sits under a heading; Layout
-  gains four headings from the catalog's `family` fact and loses its indented engine rows.
-  See the decision of the same date under "Decisions and reasons" for the build spec.
-- (2026-10-22) TIMELINE PROTOTYPE REVIEWED (four lenses on `feat/timeline-prototype`); rulings in
-  `timeline/decisions.md`, items TL-01 to TL-32, ten rejected. Severity 1 first: Rerun throws
-  `E_DUPLICATE_ID` after any window move for a named run (TL-01); a no-times column is accepted as
-  the field and a field change leaves a hidden window with no way to clear it (TL-04, TL-05); a
-  stale result reads current when node counts match (TL-03, staleness must compare the window).
-- (2026-10-22) Timeline architecture calls: Results, Mode and Step become field playback settings
-  (`time.settings`, project key `visibility.playback`) so "Show all time" keeps them (TL-12);
-  owner's three values and the `"stale"` default unchanged. One shared histogram brush in
-  compact-mantine fixes alignment, body drag, value text and touch size for every caller (TL-16).
-  Bins, Auto step, ends, jump-to-end and parsing typed dates are element facts; the dock computes
-  no widths (TL-11, TL-18, TL-22, TL-23). Commit 530c136's app-side "Time" precedence is a
-  workaround to delete once TL-06 lands.
-- (2026-10-22) Held against earlier rulings: no pre-set time field on samples ("nothing pre-done in
-  a first session"); no Time chip on the owner-approved Samples dialog; the selection line moves
-  over the histogram because a new row breaks "the drawing moves only when the reader asks"; F6
-  gains the dock as a sixth region only while it is shown.
-- (2026-10-22) LOCATION MAP PROTOTYPE (branch feat/location-map-prototype, build 3137c48f2f):
-  four reviews triaged into `location-map/decisions.md`. 23 items to do, 8 rejected or deferred,
-  and the open one-way doors for the owner. The worst finding: Map that cannot run said nothing
-  and showed "Applied" (three reviews). Fix order: false screens first (refusal, half-filled
-  pair, undo), then lost data (detection, antimeridian, unplaced), then legibility (contrast,
-  node scale, tiles).
-- (2026-10-22) Decided myself: preset views follow the map's facing only while a map frame is
-  active, which settles the Isometric item; wheel zoom centers on the pointer only on a map. The
-  map picker keeps its home in Graph settings, renamed "Source", with one read-only row in the
-  layout form that leads to it. Rejected: clicking a node no longer moving the map (owner's
-  2026-10-20 glide), a combined pair picker, location roles at import.
-- (2026-10-22) Lesson: the reviewers all asked for a refusal mechanism that already exists
-  (`CostEstimate.refusal`, `layout.needs-grouping`). Grep the existing coded-fact paths before
-  naming a new element mechanism.
-- (2026-10-21) TIER 3 REPORT REWRITTEN with round 1's results; the subagent harness again refused
-  `tier3/report.md`, so the text went back to the orchestrator to write. Next move is the owner's:
-  whether to fund round 2. Owner list is ELEVEN, not nine: the earlier draft missed the edge
-  line-width unit (2026-10-09) and the bare number in rules (2026-10-07); the fold region is
-  settled by the owner's 2026-10-10 minor-release ruling (tier 2 report says so).
-- (2026-10-21) TIER 3 ROUND 1 CLOSED; THE STUDIO STOPPED at the 1-round cap without meeting the
-  bars. Read `tier3/rounds/round-1/insights.md` first. 55 of 56 sessions succeeded; the round is
-  at its ceiling: signal is in cost, routes and problems, not success.
-- (2026-10-21) Bar 5 fails only on the two severity 3 backlog items carried in (the node Fill "+"
-  one-node layer; the folder chain icon painting every cluster one color, reached by 0 sessions).
-  No new severity 3 survived the two skeptics. Bar 1's only F is the grading rule's: `#FFD700` is
-  drawn yellow but `colorWord` names it "gold".
-- (2026-10-21) Fix first, in compact-mantine: `colorWord` returns CSS keywords before hue, so the
-  spoken name and the grade disagree with what is drawn. One shared fix serves grading and
-  screen readers.
-- (2026-10-21) Top design problems (all severity 2): with nothing picked, the Graph inspector's
-  Style tab gives no route to node color (9 sessions); a new style line starts at the value
-  everything already has (Fill `6366F1`, Width 8 with no unit), so it looks broken; nothing marks
-  which rows or nodes a layer paints; color entry is hex first and never says words work.
-- (2026-10-21) Keyboard: inspector F6 stop has no focus ring (WCAG 2.4.7); both "Samples"
-  controls leave focus behind; 30+ Tabs to a sample card. One persona only; cost, not failure.
-- (2026-10-21) Six build defects with repros (see insights): "+" click lost while find list open;
-  one hue-bar click closes the picker; ~130 px move on first color with a selection held (same
-  family as the backlog `followSelection` vs `setViewInsets` jump); "community" filter misses;
-  swatch focus drawn as hex box focus. The wheel-zoom claim is a tool artifact until a 30-notch
-  repro.
-- (2026-10-21) Light-theme contrast is ONE element (the "Autosave: saved" chip, 2.17:1), not every
-  screen as the pre-round draft said. Round 1's 11 voids were one runner mechanism (start inside
-  the participant's turn); 0 Sonnet sessions.
-- (2026-10-21) Owed before any next round: `score.mjs` bar 4 start from first steps line after
-  open; criteria decision on CSS keywords inside the asked hue's band; a measure separating
-  avoiding the `<<Layer>>` token from understanding it; read tasks for leading (the answer key
-  names most problems graders cite).
-- (2026-10-21) Fix order after the go: `colorWord`, bar 6, bar 8, the two carried-in 3s, the
-  four severity 2 design problems, the six repro'd defects; raw `>` card before T42 runs.
-- (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak. Do not let a
-  ceiling round read as "the product is easy".
+- (2026-10-29) TIER 4 (data management, returning users) FROZEN on 7de2dc4e23, served from the
+  studio worktree's `tmp/study-builds/tier4-r1-7de2dc4e23` (read-only copy; the main checkout's
+  `.study-builds` is off limits to studio agents). One round, 28 sessions (26 pointer + Sam's 2),
+  seven bars. Next: the dry run.
+- (2026-10-29) The round cannot start until the dry run delivers: every "pilot to confirm" read off
+  the frozen build (`real.mjs --gate` now refuses it); three new setups (`gauges-tidy`,
+  `pantries-narrowed`, `gauges-narrowed`); `--end` writing `data.json` plus the end-state check;
+  a scripted tier 4 walk with wording and axe; path step counts; the words-at-rest budget.
+  Engineer items are refusals in the gate where possible -- prose asks have failed three times.
+- (2026-10-29) Bars: 1 success (pointer sessions only, 2 of 2 / 3 of 4); 2 false done 0; 3 wrong
+  turns median <= 2; 4 severity 3-4 open 0 (end-state check counts); 5 keyboard (Sam S/SD + axe 0
+  serious/critical on tier 4 screens); 6 owner's data rules 0; 7 core-task median steps <= key
+  path + 3.
+- (2026-10-29) Confirmation rule: the screenshot audit confirms only what a screenshot shows;
+  hotkey and table-only violations need a scripted repro; expert finding + repro counts.
+- (2026-10-29) Wording: search the app's own strings for every prompt word, not a hand list. Found
+  "web address" (T60 box label), "stronger"/"farther apart" (T64's option), "picked" (Style card),
+  "at least" (filter summary). The tier 4 walk must automate this.
+- (2026-10-29) Every start must match the persona's history: a joined, tidied or narrowed project
+  is "set up by a colleague or friend", so the person has still never done the act themselves.
+- (2026-10-29) A task half the program does for you cannot fail (T63's place, set at load): ask
+  the participant to report it, or change the data. T68 starts narrowed so a silent row drop shows.
+- (2026-10-23) Location in Fields: one "+" pick per kind (Latitude, Longitude, Coordinates,
+  Country, Region, City), each an ordinary entry; element `ColumnRole` gains them (additive).
+  Menu sections: every catalog pick list (Layout, Analyze) uses headings, never indentation.
+- (2026-10-22) Timeline and location map prototypes ruled in `timeline/decisions.md` and
+  `location-map/decisions.md`; severity 1 items first (Rerun `E_DUPLICATE_ID`, no-times column
+  accepted, Map that cannot run shows "Applied").
+- (2026-10-22) Lesson: grep the existing coded-fact paths (`CostEstimate.refusal`,
+  `layout.needs-grouping`) before naming a new element mechanism.
+- (2026-10-21) Shaders redesign lesson: start a redesign from the user's questions, not the old
+  structure (`design/rendering/shader-studio/decisions-v2.md`).
+- (2026-10-21) Tier 3 closed after 1 round, 55 of 56 successes: signal is in cost, routes and
+  problems, not success. Same-model participants: a failure is strong evidence, a pass is weak.
+- (2026-10-21) Owed from tier 3: `colorWord` CSS keywords fix in compact-mantine; the four
+  severity 2 Style problems; six repro'd defects (`tier3/rounds/round-1/insights.md`).
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk
   those. A docs-only commit never refreezes.
-- (2026-10-13) PUSH BLOCKED by SonarQube findings on the studio branch's lines; needs an engineer
-  unit with the owner's leave. No bypass trailer.
 - Owner items open: eleven, all breaking, defaults or a saved-file format (`owner-decisions.md`).
 
 ## Priorities and values
@@ -154,52 +90,24 @@ history.
 
 ## Decisions and reasons
 
-- **2026-10-23, Layout and Analyze section pattern (owner question, issue #3315).** The owner:
-  the two menus must share one pattern, indent or headings, and either every item is in a
-  section or none is. Today Analyze uses headings (Recent, Rank nodes and edges, Find groups,
-  Find paths and edge sets, Measure the graph) with every row under one; Layout uses neither
-  for most rows and indents only Force's six engines, with the eight Graphviz engines flat
-  among the rest (28 rows, one Tab stop each). Decision: headings for both, every row
-  under one, no indentation in any pick list. Reasons: (1) indentation shows one level of
-  "child of the row above" and cannot carry the Graphviz engines, which belong to three
-  different arrangements, so it would stay partial, which is what the owner rejected; (2)
-  Analyze's headings already passed tiers 1-3, and a 28-row list needs landmarks at least as
-  much; (3) headings are a Figma-native pattern (layer and plugin menus) and the
-  ARIA group-in-listbox pattern Analyze already ships, so this is one built-in, not a new
-  control; (4) the element already declares `family` for every layout, so the grouping is the
-  app reading an element fact, like Analyze reading result shapes -- no graph logic in the
-  app, no element change. Rejected: indentation for both (Analyze has no parent rows to
-  indent under, and invented parents become clickable-looking non-options); flat lists with
-  no sections (Analyze would lose the landmarks its tree tests depend on); a Force parent row
-  that expands (a disclosure inside a listbox, a second interaction rule only this list uses);
-  moving engines into the Force form as an "Engine" select (worth considering, but it hides
-  engines the owner asked to see in the list and is a separate question); a Filter box on
-  Layout (28 rows fit; revisit if a plugin pushes it past about 40). Section words are mine
-  to change after a tree test, the pattern is not.
-  Spec for both lists: inside the listbox, one `role="group"` per section with `aria-label` =
-  its heading, the heading drawn as Analyze draws it today (`Text size="xs" fw={600}
-c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every option
-  inside exactly one group; no `pl` or `data-nested` indent anywhere; an empty section is not
-  drawn. Layout sections, in this order, from the catalog's `family` fact on each descriptor
-  (the app owns the words and order, the element only the fact): `force` -> "Force-directed",
-  `geometric` -> "Shapes", `hierarchical` -> "Hierarchy", `special` and any family the app does
-  not know (a plugin's) -> "Other". Rows inside a section keep catalog order, so Force's
-  default row comes first, then its engines (D3 Force, ForceAtlas2, Spring, Kamada-Kawai,
-  Spring Electrical, ARF), then the Graphviz engines of that family with their "Graphviz"
-  suffix (Stress, Spring embedder, Multilevel spring). Hierarchy: Tree, Two columns, Columns by
-  group, Layered. Shapes: Circle, Rings around a node, Grid, Rings by group, Spiral, Spectral,
-  No crossings, Random, Circles, Rings. Other: Keep positions, Map, Clusters, Treemap. Each
-  row is unchanged otherwise (check, name, Graphviz suffix, Recommended, slow, dimmed line,
-  reason). Analyze keeps Recent and its four headings exactly as they are. Keyboard in Layout:
-  the list is one Tab stop (roving tabindex on the checked row, else the first enabled row);
-  ArrowDown/ArrowUp move across sections and skip headings, Home/End go to the first/last
-  row, Enter or Space opens a row, Esc steps back from the form and a second Esc closes (as
-  now). Analyze's keyboard is unchanged; its arrows already skip headings. Command menus (the
-  main menu, a row's menu) are not pick lists: they keep dividers between groups and no
-  headings. The Style tab's "+ Set another property" and the table's Columns chooser already
-  follow the rule (Menu.Label sections, every item in one) and stay. A test asserts every
-  `family` in the element's layout catalog maps to a heading, as `words.ts` does for result
-  shapes, and a real-input test walks the Layout list by arrows and reads the group names.
+- **2026-10-29, tier 4 criteria reviewed and frozen** (three reviews: researcher, user advocate,
+  red team; they agreed on most points). Taken: grade from step log and end-state records
+  (`data.json`), not the last screenshot alone; end-state check in bar 4; audit confirms only what a
+  screenshot shows, expert + repro counts; bar 1 pointer-only with stated arithmetic; axe in bar 5;
+  new bar 7 (core median steps <= key path + 3, fixed before data); gate refuses "pilot to
+  confirm"; fix coverage reported. Tasks: T60/T64/T65 echoes removed; T65 B moved to the gauges
+  (yes/no, number, date) on a tidied start; T63 must name the place columns; T62 needs a changed
+  kind; T68 starts narrowed; Sam takes T61 A (file chooser, join screen) instead of T62 A; histories
+  rewritten so each start is the person's or a colleague's saved project; 28 sessions. Not taken:
+  a new single "lat, lon" data file for T63 (re-walks every gauge setup; the report requirement
+  gives the half a fail mode at no cost); starting T60 B from an open project for the Sources "+"
+  door (it would merge two networks and muddy the counts; reported as not re-tested). Build:
+  rebuilt `graphty/dist` at 7de2dc4e23 (the dist on disk was 90e0f8470c, before the SonarQube
+  refactor) and copied read-only.
+- **2026-10-23, Layout and Analyze section pattern (issue #3315)** (summarized 2026-10-29; full
+  spec in git history). Headings for both lists, every row under one, no indentation; Layout's
+  sections come from the catalog's `family` fact (Force-directed, Shapes, Hierarchy, Other), the
+  app owning words and order. Rejected: indentation, flat lists, an expanding Force row.
 - **2026-10-21, tier 3 report after round 1.** Rewrote the report around round 1 (bars table per
   round, per-task table, learnings in insight order, changes by package with whether round 1
   confirmed them). Reasons for the calls in it: bar 1's F is reported as the rule's, not the
@@ -290,6 +198,11 @@ c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every
 
 ## Tried: worked / did not work
 
+- 2026-10-29 (tier 4 freeze) -- Worked: searching `graphty/src` strings for each prompt word; it
+  found four echoes the hand-written avoid list missed. Worked: starting the changed
+  `volunteers.txt` setup on the frozen build before committing it (a PageRank layer coloring 24
+  people, no SETUP FAILED). Did not work (found by review): a roster whose per-task starts were
+  right but whose persona histories never mentioned those files.
 - 2026-10-21 (round 1) -- Worked: two independent skeptic checks with a drop/weaken rule; they cut
   every new severity 3 to 2 and caught a tool artifact (wheel zoom from one synthetic event) and
   an automation artifact (storage notice). Did not work: tasks whose wording leads (the answer key

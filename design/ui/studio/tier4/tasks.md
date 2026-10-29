@@ -18,9 +18,9 @@ round plan: `criteria.md`. Participants and which tasks they take: `roster.md`.
   `empty` where the task is about starting fresh. Keyboard-only Sam's start adds `--keys`.
 - **Files** a prompt says the participant has are in `../tool/files/` and reach the app by the
   tool's `--upload` (the participant names the file): `pantries.csv`, `deliveries.csv`,
-  `gauges.csv`, `flows.csv`, `volunteers.graphml`, `sources.graphml`. A **web address** in a prompt
+  `gauges.csv`, `flows.csv`, `volunteers.graphml`, `sources.graphml`. An **address** in a prompt
   is typed or pasted by the participant; it serves the same file from GitHub.
-- **A follow-up** (T65 only) is asked by the tool at the participant's first `--end`, word for word.
+- **A follow-up** (T61 and T65) is asked by the tool at the participant's first `--end`, word for word.
 - **Step notes** are one or two sentences, in character. No step cap.
 
 ## Words
@@ -33,8 +33,12 @@ format, label, weight, time, location, latitude, longitude, category, number, te
 id, key, node, edge, attribute, Sources, Fields, Filters, panel, menu, button, tab, add, load,
 open (except "open" for a file in Excel), import, merge, match, blank, trim.
 
-**Kept on purpose:** `file`, `spreadsheet`, `list`, `web address` -- the everyday words for what the
-person has; the start screen and the file chooser use them too, and no everyday word replaces them.
+**Also avoided** (words the success path's controls show, found by searching the app's own text):
+web address, picked, stronger, farther, apart, at least.
+
+**Kept on purpose:** `file`, `spreadsheet`, `list` -- the everyday words for what the person has; the
+start screen and the file chooser use them too, and no everyday word replaces them. The address
+itself is given, never named: it says what it is.
 The file names (`pantries.csv`, `deliveries.csv`, `gauges.csv`, `flows.csv`, `volunteers.graphml`,
 `sources.graphml`) -- the person's own files, which the app shows once read. `network` -- the
 persona's own word for the whole thing; the app's start screen uses it. `name` -- the everyday word
@@ -52,15 +56,18 @@ program reads (T68 B); the person would name it, as Maren and Dana would.
 | T62  | A column the program read the wrong way, set right      | pantries.csv (when each site opened) | gauges.csv (when each went in) |
 | T63  | Where and when: ready for a map and a year-by-year view | pantries + deliveries                | gauges + flows                 |
 | T64  | What each thing is called, and what makes a tie strong  | pantries + deliveries                | gauges + flows                 |
-| T65  | Only some of them in the picture, and some marked       | volunteers.graphml                   | sources.graphml                |
+| T65  | Only some of them in the picture, and some marked       | volunteers.graphml                   | gauges + flows (tidied)        |
 | T66  | Leave out what came only from the second list           | pantries + deliveries                | gauges + flows                 |
 | T67  | What looks wrong in a file, put right                   | pantries.csv                         | gauges.csv                     |
 | T68  | Sending the data to someone else                        | pantries + deliveries (spreadsheets) | gauges + flows (GraphML)       |
 
+T68 starts with one node left out of the picture (the state T66 leaves), so an export that drops
+rows without saying so can be seen.
+
 What each task reaches: a web address (T60); the second-file flow that puts two tables together
 and what it says did not fit (T61); a column's kind (T62); designating the time and place (T63) and
 the name and the strength (T64); condition cards with Select and Hide and their counts, two cards
-in either order (T65); the Data source card with two sources loaded (T66); the data issues and
+in either order, on a yes/no, a number and a date (T65); the Data source card with two sources loaded (T66); the data issues and
 their fixes (T67); export of tables and of a network file (T68).
 
 ### T60. From a web address (two datasets)
@@ -68,11 +75,10 @@ their fixes (T67); export of tables and of a network file (T68).
 - **Prompt A (sources.graphml):** "A colleague put the newest copy of your sources network online
   instead of emailing it. It is at
   https://raw.githubusercontent.com/graphty-org/graphty-monorepo/master/design/ui/studio/tool/files/sources.graphml
-  -- bring it into the program straight from that web address, without saving it to your computer
-  first. Then tell us how many people and organizations it holds, and how many ties join them."
+  -- bring it into the program straight from there, without saving it to your computer first. Then tell us how many people and organizations it holds, and how many ties join them."
 - **Prompt B (yeast-galactose.graphml):** "The lab's yeast gene network is published online at
   https://raw.githubusercontent.com/graphty-org/graphty-monorepo/master/design/ui/studio/tool/files/yeast-galactose.graphml
-  -- bring it into the program straight from that web address, without downloading it first. Then
+  -- bring it into the program straight from there, without downloading it first. Then
   tell us how many genes it holds and how many interactions join them."
 
 ### T61. Two spreadsheets as one network (two datasets)
@@ -87,6 +93,9 @@ their fixes (T67); export of tables and of a network file (T68).
   gauge to the next, with its length in kilometers. Put them together so the gauges and the
   stretches between them are one network. Then tell us how many gauges and how many stretches the
   network has, and whether anything in the stretch list did not fit the gauge list."
+- **Follow-up** (asked after the participant's first `--end`):
+    - A: "How many of the routes came from the second spreadsheet, and where did you read that?"
+    - B: "How many of the stretches came from the second spreadsheet, and where did you read that?"
 
 ### T62. Read the wrong way (two datasets)
 
@@ -101,34 +110,38 @@ their fixes (T67); export of tables and of a network file (T68).
 
 - **Prompt A (pantries + deliveries):** "Next month you will show the board where the food bank's
   sites are and how the network grew year by year. Set the program up now so it knows where each
-  site is and when each one opened. Tell us when it is set."
+  site is and when each one opened. Tell us when it is set, and what in your list it goes by for
+  where each site is and for when each one opened."
 - **Prompt B (gauges + flows):** "Next month you will show the river council where the gauges are
   and how the network grew over the years. Set the program up now so it knows where each gauge is
-  and when each one was put in. Tell us when it is set."
+  and when each one was put in. Tell us when it is set, and what in your list it goes by for where
+  each gauge is and for when each one was put in."
 
 ### T64. What it is called, and what makes a tie strong (two datasets)
 
 - **Prompt A (pantries + deliveries):** "Everywhere the program names a site, it should use the
   site's own name, not its code. And when the program measures the network, a route the van drove
-  more often should count as a stronger tie. Set both up, then tell us what the program now calls
+  more often should matter more. Set both up, then tell us what the program now calls
   the site whose code is P05."
 - **Prompt B (gauges + flows):** "Everywhere the program names a gauge, it should use the
-  station's own name, not its code. And when the program measures the network, a longer stretch of
-  river should count as the two gauges being farther apart. Set both up, then tell us what the
+  station's own name, not its code. And when the program measures the network, a path between two
+  gauges should be judged by how many kilometers of river it covers, not by how many stretches it
+  crosses. Set both up, then tell us what the
   program now calls the gauge whose code is G05."
 
 ### T65. Only some in the picture, and some marked (two datasets)
 
 - **Prompt A (volunteers.graphml):** "For a thank-you event you only want to see the volunteers who
-  are trained and gave at least 10 hours; everyone else should be out of the picture for now,
-  without deleting anyone. Then, among those still in the picture, make the staff members stand out
-  as picked, without taking anyone else away. Tell us how many people are still in the picture and
-  how many are picked."
-- **Prompt B (sources.graphml):** "For a story you only want to see the individual people who
-  donated at least 1,000; companies, agencies and smaller donors should be out of the picture for
-  now, without deleting anyone. Then, among those still in the picture, make the ones who spoke on
-  the record stand out as picked, without taking anyone else away. Tell us how many are still in
-  the picture and how many are picked."
+  are trained and gave 10 hours or longer; everyone else should be out of the picture for now,
+  without deleting anyone. Then, among those still in the picture, mark the staff members as the
+  ones you are working with right now, without taking anyone else away. Tell us how many people are
+  still in the picture and how many are marked."
+- **Prompt B (gauges + flows, tidied):** "For the council's field day you only want to see the
+  gauges that send their readings by themselves and are 70 cm deep or deeper; every other gauge
+  should be out of the picture for now, without deleting any. Then, among those still in the
+  picture, mark the ones put in before 2005 as the ones you are working with right now, without
+  taking any other gauge away. Tell us how many gauges are still in the picture and how many are
+  marked."
 - **Follow-up** (asked after the participant's first `--end`):
     - A: "Would it have made any difference if you had set those up in the other order? How can you tell?"
     - B: "Would it have made any difference if you had set those up in the other order? How can you tell?"
@@ -170,6 +183,6 @@ their fixes (T67); export of tables and of a network file (T68).
 | T63  | The inspector's "Set as time"; the table's column menu; the Map layout before anything is designated                                 |
 | T64  | The Style panel's Text for the name; the Analyze list for a weight; the table's column menu                                          |
 | T65  | The find box (typing a rule); a style layer's Which nodes instead of a filter; the toolbar's filter button                           |
-| T66  | Removing the second source; a card on the id column; the Data source card                                                            |
-| T67  | The table's warning marks first; the inspector of a source; the Data place's Sources row                                             |
-| T68  | Control+S (save the project) instead of export; the Export dialog's image tab first                                                  |
+| T66  | Removing the second source; a card on the id column; a style layer that fades the node                                               |
+| T67  | The table's warning marks first; the inspector of a source; the table's column header menu                                           |
+| T68  | Control+S (save the project) instead of export; the Export dialog's image tab first; turning the left-out node back on first         |

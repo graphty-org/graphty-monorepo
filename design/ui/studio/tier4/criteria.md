@@ -1,4 +1,6 @@
-The study runs on build <sha> served from <dir>
+The study runs on build 7de2dc4e23 served from /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/tmp/study-builds/tier4-r1-7de2dc4e23
+
+Frozen on 2026-10-29 for the tier 4 rounds.
 
 # Success criteria and round plan: data management (tier 4)
 
@@ -9,13 +11,28 @@ name, filtering with condition cards, reviewing what the program says is wrong i
 sending the data out again. The owner wants this tier done in 12 to 24 hours, so it runs **one
 round** of sessions on a small panel, after one dry-run fix pass where possible.
 
+What this round measures: the **first use of the data features by people who already know the
+app**. Every participant has used graphty before, but none has used these features. It does not
+measure the cost of doing a data task a second time, and it does not study replacing a file with a
+newer one while keeping the work done on it. The report says both.
+
 Tasks: `tasks.md`. Answer key: `answers.md`. Participants: `roster.md`. Binding decisions:
 `decided.md`. Defects below the session-ready bar: `backlog.md`.
 
 ## Grades
 
-Each session is graded only from its last screenshot and the files it saved (`downloads/`), never
-from the participant's own rating, against the task's success definition in `answers.md`.
+Each session is graded against the task's success definition in `answers.md`, never from the
+participant's own rating, from what the session recorded:
+
+- its screenshots, the last one first;
+- its step log (`route.jsonl` and the participant's step notes), for wrong turns and false "done";
+- the files it saved (`downloads/`);
+- its end-state records: `work.json`, `styles.json` and `data.json` (the sources, each column's
+  kind and role, each filter card with Select or Hide, on or off and its count, and the node, edge,
+  visible and selected counts). What a task changes in Data > Fields or Filters is graded from
+  `data.json` when the last screenshot does not show it.
+
+Grades:
 
 - **S** -- success on the answer key's path or an equivalent one.
 - **SD** -- success after a detour the participant recovered from by themselves.
@@ -27,29 +44,57 @@ from the participant's own rating, against the task's success definition in `ans
 A **wrong turn** is a step that leaves the answer key's path and is later taken back or abandoned
 (opening a place the task does not need, a menu closed with nothing picked, an undo of the
 participant's own step). A **false "done"** is a participant saying it is finished while the
-screen shows otherwise.
+screen or the end-state records show otherwise.
 
 ## Bars that decide "done" (all must hold in the round)
 
-| #   | Bar                    | Target                                                                                                                                                                                                                                                    | Counted from                                                                                                |
-| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 1   | Task success           | At least 75% S or SD of each task's valid sessions, and no dataset half with 0 successes                                                                                                                                                                  | The grades' first lines (`Grade:`), counted by the researcher                                               |
-| 2   | False "done"           | 0 in the round                                                                                                                                                                                                                                            | The grades (`False done:`)                                                                                  |
-| 3   | Wrong turns            | Median at most 2 per task                                                                                                                                                                                                                                 | The grades (`Wrong turns:`)                                                                                 |
-| 4   | Severity 3 and 4 open  | 0 confirmed severity 3 or 4 problems                                                                                                                                                                                                                      | Grades, expert walkthroughs and the screenshot audit, after both skeptics                                   |
-| 5   | Keyboard               | Sam's sessions S or SD, with no confirmed keyboard block                                                                                                                                                                                                  | Sam's grades                                                                                                |
-| 6   | The owner's data rules | 0 confirmed violations: configuration reachable only from the table; a hotkey with no visible button showing its key; "links" or "ties" on screen for edges; a sentence on screen where a control would do; an owner-approved surface removed or restyled | The Figma product designer's and the interaction designer's walkthroughs, confirmed by the screenshot audit |
+| #   | Bar                    | Target                                                                                                                                                                                                                                                    | Counted from                                                                                                  |
+| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| 1   | Task success           | At least 75% S or SD of each task's valid pointer sessions, and no dataset half with 0 successes. On a 2-session task that means 2 of 2; on a 4-session task, 3 of 4. Sam's sessions are not counted here                                                 | The grades' first lines (`Grade:`), counted by the researcher                                                 |
+| 2   | False "done"           | 0 in the round                                                                                                                                                                                                                                            | The grades (`False done:`)                                                                                    |
+| 3   | Wrong turns            | Median at most 2 per task                                                                                                                                                                                                                                 | The grades (`Wrong turns:`)                                                                                   |
+| 4   | Severity 3 and 4 open  | 0 confirmed severity 3 or 4 problems                                                                                                                                                                                                                      | Grades, the end-state check, expert walkthroughs and the screenshot audit, after both skeptics                |
+| 5   | Keyboard               | Sam's sessions S or SD, with no confirmed keyboard block; and 0 serious or critical axe findings on every tier 4 data screen, at 1440 x 900 and 900 x 700, in both themes                                                                                 | Sam's grades; the scripted walk of the tier 4 screens                                                         |
+| 6   | The owner's data rules | 0 confirmed violations: configuration reachable only from the table; a hotkey with no visible button showing its key; "links" or "ties" on screen for edges; a sentence on screen where a control would do; an owner-approved surface removed or restyled | The Figma product designer's and the interaction designer's walkthroughs, confirmed as set out below          |
+| 7   | Cost on core tasks     | Median steps per core task (T61, T62, T65, T67) at most the answer key's path plus 3                                                                                                                                                                      | The step logs, against each path's step count, which the dry run writes into `answers.md` on the frozen build |
 
 **Severity** (bar 4): 4 -- data lost or wrong with no sign (a file read wrong and shown as right, a
 filter that hides more than it says, an export that drops rows); 3 -- a task blocked for most
 people or a result a reader would misread; 2 -- friction a person recovers from; 1 -- wording or
 cosmetic; 0 -- not a problem.
 
-**Confirmed** means: seen in two sessions on different task halves; or one session plus a scripted
-`real.mjs` repro; or an expert finding that a session or the screenshot audit also shows. Each
-confirmed finding survives two skeptics before it counts.
+**Confirmed** means one of:
 
-**Experts and audit, every round** (they feed bars 4 and 6):
+- seen in two sessions on different task halves;
+- one session plus a scripted `real.mjs` repro;
+- an expert finding plus a scripted `real.mjs` repro;
+- an expert finding about something a screenshot shows (truncation, overlap, a clipped menu, an
+  empty state, the words on screen), also seen in the screenshot audit. The audit confirms nothing
+  else.
+
+Each confirmed finding survives two skeptics before it counts.
+
+**Bar 6, how each rule is confirmed:**
+
+- A hotkey with no visible button, and configuration reachable only from the table: a scripted
+  `real.mjs` repro. A screenshot cannot show either.
+- "Links" or "ties" on screen, and an approved surface removed or restyled: the screenshot audit.
+  Restyling is judged against reference screenshots of the approved surfaces, which the dry run
+  lists in `decided.md` and takes from build e52d7c4f57, before any tier 4 fix.
+- A sentence where a control would do: the content designer's words-at-rest count per data screen,
+  against principle 5's budget, fixed in the dry run before any session.
+
+**The end-state check** (bar 4) is a script run over every session's `data.json`:
+
+- each filter card's count chip against what the element shows and selects;
+- each join chip against the node and edge counts;
+- each exported file's row count against the network.
+
+A mismatch is a severity 4 candidate confirmed by the script itself. This is the only check that can
+catch "a filter that hides more than it says" and "an export that drops rows"; a grader looking at
+a picture cannot.
+
+**Experts and audit, every round** (they feed bars 4, 5 and 6):
 
 - The **Figma product designer**: every data screen against Figma's own patterns where Figma solved
   the problem (lists, properties panels, menus, variable and data panels) and against graphty's
@@ -59,18 +104,46 @@ confirmed finding survives two skeptics before it counts.
   control for the same job, the same keys, the same undo, the same Escape and Tab behavior;
   `decided.md`).
 - The **accessibility specialist**: every data screen by keyboard and with the screen-reader text
-  (`real.mjs --read`), at 1440 x 900 and 900 x 700. Findings of severity 3 or 4 count against bar 4.
+  (`real.mjs --read`), at 1440 x 900 and 900 x 700, including the screens Sam's tasks do not reach
+  (the web address box, the issue list, the export dialog). Findings of severity 3 or 4 count
+  against bar 4 once confirmed; a keyboard block counts against bar 5.
 - The **design engineer's screenshot audit**: every screen the sessions and pilots reached, at
   1440 x 900 and 900 x 700 (truncation, overlap, clipped menus, empty states).
 
+Findings of severity 1 and 2, from the experts and the audit, gate nothing. The report lists them by
+screen, so they reach the fix list.
+
+## Before the first session
+
+The round may not start until all of these hold on the frozen build. `real.mjs --gate` refuses the
+first two by itself; the dry run owns the rest.
+
+1. The first line of this file names the frozen build (done above).
+2. `answers.md` holds no "pilot to confirm": every value and path is read off the frozen build.
+3. Every setup in `roster.md` starts on the frozen build without `SETUP FAILED`, including the
+   three the dry run writes (`gauges-tidy.txt`, `pantries-narrowed.txt`, `gauges-narrowed.txt`).
+4. `real.mjs --end` writes `data.json` (see "Grades"), and the end-state check runs on a pilot's
+   folder. Owner: the design engineer.
+5. A scripted walk of the tier 4 screens (the web address box, Sources "+", the join screen, Fields
+   "+", the Filters picker, the issue list, Export on Data) passes `wording.mjs` against
+   `tasks.md` using the frozen build's own strings, and runs axe for bar 5. Owner: the design
+   engineer.
+6. Each core task's path step count is written in `answers.md` (bar 7).
+7. The words-at-rest budget per data screen is written in this file's change log (bar 6).
+
 ## Measures reported every round (not gates)
 
-- Median steps per task against the answer key's path.
-- Which route each success took (for example: the table's column menu or the Data place; a Data
-  source card or a Hide on a value).
+- Median steps per task against the answer key's path, for every task (bar 7 covers the core ones).
+- The first door each session tried (the Data place, the table, the Style tab, the inspector, the
+  start screen), and which route each success took.
+- **Fix coverage**: for each decided fix R1 to R15 in `decided.md`, the sessions that reached it on
+  its route, or "not re-tested". An unreached fix is never reported as passed.
+- T63: whether the participant's report named the place columns (graded) and whether they opened
+  Fields to check them.
 - Problems by kind and severity, and by the package that owns them (graphty-element, graphty app,
   compact-mantine).
 - Words on each data screen at rest, counted by hand by the content designer.
+- Sessions run on Sonnet after an API error, counted apart.
 
 ## Round plan
 
@@ -79,19 +152,21 @@ confirmed finding survives two skeptics before it counts.
   on the frozen build. The dry run fixes only a crash, a blocked task or a result that would spoil
   a grade on a success path or a listed detour; everything else goes to `backlog.md`. One fix pass
   where possible, two at most; still not ready after two, the studio stops for the owner.
-- **Sessions**: at most 30, planned from `roster.md` (about 28). Core tasks (T61, T62, T65, T67)
-  run 4 sessions each (2 per half); the other five run 2 (1 per half); Sam runs 2.
-- At most **8 participants alive at once** (the browser gate's 8 GPU slots).
+- **Sessions**: at most **30 in the round**; `roster.md` plans 28. Core tasks (T61, T62, T65, T67)
+  run 4 pointer sessions each (2 per half); the other five run 2 (1 per half); Sam runs 2 more,
+  keyboard only, counted only in bar 5.
+- At most **8 participants alive at once** (the browser gate's 8 slots).
 - **No step cap.** A session ends when the participant is done, gives up, or repeats without
   progress.
 - **Step notes** are one or two sentences, in character.
 - **Retry on an API error**: the same prompt from a clean folder, then once on Sonnet; the model is
-  recorded and Sonnet sessions are counted apart.
-- A **follow-up question** (T65 only) is asked by the workflow after the participant's first `--end`.
+  recorded in the session's grade, and Sonnet sessions are counted apart.
+- A **follow-up question** (T61 and T65) is asked by the workflow after the participant's first
+  `--end`.
 
 ## When the studio stops
 
-- All six bars hold: the study is done; the director writes `report.md`.
+- All seven bars hold: the study is done; the director writes `report.md`.
 - The round ran and a bar fails: the studio still stops after this one round (the owner's time
   box); the decided fixes of the round are made, landed and reported, and the report names what
   would need another round.
@@ -102,3 +177,31 @@ confirmed finding survives two skeptics before it counts.
 ## Change log
 
 - 2026-10-29: written for tier 4 (data management), one round, before any session.
+- 2026-10-29: frozen on build 7de2dc4e23, which holds the fifteen decided fixes. Changes from the
+  criteria reviews, each with its reason:
+    - Grades read the step log and the end-state records, not only the last screenshot. Four of
+      nine tasks change Data > Fields or Filters, which the last screenshot shows only if the
+      participant ends there, and wrong turns cannot be counted from one picture.
+    - The end-state check joins bar 4. It is the only check that can see bar 4's own severity 4
+      cases (a filter or an export that drops rows silently).
+    - "Confirmed" no longer lets the screenshot audit confirm an expert finding it cannot see; an
+      expert finding plus a scripted repro now counts. Bar 6's hotkey and table-only rules are
+      confirmed by repro, its wording rules by the audit and a word budget.
+    - Bar 1 counts pointer sessions only and states its arithmetic. Sam's two sessions had been
+      counted inside the core halves, which left two halves with one pointer session.
+    - Bar 5 adds scripted axe on the tier 4 screens. Sam's two sessions alone never reach the web
+      address box, the issue list or the export dialog; tier 3's axe bar had been dropped.
+    - Bar 7 (cost) is new. Tier 3 ended at 55 of 56 successes, so success alone cannot tell the
+      builds apart; steps and the first door can. The limit is fixed now and never re-set from the
+      round's data.
+    - "Before the first session" is new. The answer key held values worked out from the files, not
+      read off a screen, and three paths predated the decided fixes.
+    - Fix coverage is reported, so a fix no task reaches is "not re-tested", never passed.
+    - Tasks, answer key and roster changed with these reasons (see each file): three prompts no
+      longer echo the words of the control they test (T60, T64, T65); T65 B moves to the river
+      gauges so the filter wording meets a second domain and a date condition; T63 must name the
+      place columns, because the program sets them at load and that half could not fail; T62
+      counts only a changed column kind; T68 starts with one node left out of the picture, so an
+      export that drops rows can be seen; every returning persona starts from a project that
+      matches their history; Sam takes T61 so the keyboard meets the file chooser and the join
+      screen; two pointer sessions added (28 in all).

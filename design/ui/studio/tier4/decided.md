@@ -152,7 +152,7 @@ screen. Items the red team showed to be owner calls are under "for the owner" in
   selection and Time window. Each group is `role=group` named by its heading. Why: three reviews
   (Figma, IA, visual) found the same act drawn by two pickers; decided.md says the filters ARE the
   Style cards. Pattern reused: `AddCondition` (arrows, Enter, Escape as decided). Re-test: "narrow
-  the picture to people who put in a lot of time" (T65 B words), with no field name given.
+  the picture to the volunteers who did the most" (T65 A's subject), with no field name given.
 - **R3. A text card previews its count while typing and writes on commit** (Filters.tsx). The count
   follows each keystroke as a preview that writes nothing, as the Style card does; the condition is
   written on blur, Enter, Tab out, and Escape when the card holds a value (Escape then keeps the
@@ -173,7 +173,8 @@ screen. Items the red team showed to be owner calls are under "for the owner" in
   (words only; the visible label is the owner's question). Why: visual and Figma walks: three cards
   fill the 240 px panel, the field name sits on a third line at 9 px, values read as sentences.
   Pattern reused: the Style Which nodes held-card header and summary row. Re-test: T65 with two
-  cards, then "which of your two rules marks people without hiding anyone?" answered from the panel.
+  cards, then "which of your two rules marks some while leaving everyone in the picture?" answered
+  from the panel.
 
 ### Time role (`data-place/Fields.tsx`, `data-place/TimeCard.tsx`)
 
@@ -192,8 +193,8 @@ screen. Items the red team showed to be owner calls are under "for the owner" in
 - **R6. Turning a filter card on or off keeps the camera** (graphty-element). Find first whether the
   ~70 px shift is a re-frame or a layout re-run on the visible nodes, and fix it at that cause; the
   view moves only on Frame (f), Reset view or opening a graph (decided.md, 2026-10-19). Why:
-  interaction walk w3 03-05. Re-test: a participant hides and shows a group twice and is asked
-  whether anything moved; the script compares node screen positions before and after.
+  interaction walk w3 03-05. Re-test: a participant takes a group out of the picture and brings it
+  back, twice, and is asked whether anything moved; the script compares node screen positions before and after.
 
 ### Data place menus (`data-place/MenuItems.tsx`, `AddSourceMenu.tsx`, `SourceRow.tsx`)
 

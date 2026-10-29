@@ -378,7 +378,7 @@ launches with no flags and sees no WebGPU at all, which is what the five CI shar
 - `interactions` - Interaction tests
 - `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in the CI browser shards
 - `lifecycle` - autosave across reloads, closes, discards, freezes, crashes and kills: Node tests that launch Chromium, Firefox and WebKit (Playwright's library API) and Chrome for Testing over the raw DevTools protocol, on the built `./bundle`; its own CI shard, `graphty-element-lifecycle`, with `autosave-engines`
-- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default; its key in `VITE_GOOGLE_API_KEY`). Runs in every release.yml test of a candidate (modes full, restart and candidate, and the owner's shadow and legacy runs; never promote-nightly), never on a pull request or a master push; `tools/llm-spend.mjs` warns at $60 in a month
+- `llm-regression` - LLM regression tests: real, paid calls to the provider `LLM_REGRESSION_PROVIDER` names (`google` by default; its key in `GOOGLE_API_KEY`, or `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`; never `VITE_`-prefixed, which the browser project would put on `import.meta.env`). Runs in every release.yml test of a candidate (modes full, restart and candidate, and the owner's shadow and legacy runs; never promote-nightly), never on a pull request or a master push; `tools/llm-spend.mjs` warns at $60 in a month
 
 Run one project:
 

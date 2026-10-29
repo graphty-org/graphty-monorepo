@@ -4533,10 +4533,10 @@ describe("release.yml", () => {
         );
         assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
-        assert.match(llm, /VITE_LLM_REGRESSION_PROVIDER: google\n/);
-        assert.match(llm, /VITE_GOOGLE_API_KEY: \$\{\{ secrets.GOOGLE_API_KEY \}\}/);
+        assert.match(llm, /LLM_REGRESSION_PROVIDER: google\n/);
+        assert.match(llm, /GOOGLE_API_KEY: \$\{\{ secrets.GOOGLE_API_KEY \}\}/);
         // the tests skip without a key; the job must fail instead, naming the secret, before vitest runs
-        const check = llm.indexOf('if [ -z "${VITE_GOOGLE_API_KEY}" ]; then');
+        const check = llm.indexOf('if [ -z "${GOOGLE_API_KEY}" ]; then');
         assert.ok(check > 0, "checks the key is non-empty");
         assert.match(
             llm.slice(check),

@@ -148,8 +148,8 @@ jobs:
             - name: Run the failing files
               env:
                   BISECT_ROOT: ${{ github.workspace }}
-                  VITE_LLM_REGRESSION_PROVIDER: ${{ inputs.lane == 'llm' && 'google' || '' }}
-                  VITE_GOOGLE_API_KEY: ${{ inputs.lane == 'llm' && secrets.GOOGLE_API_KEY || '' }}
+                  LLM_REGRESSION_PROVIDER: ${{ inputs.lane == 'llm' && 'google' || '' }}
+                  GOOGLE_API_KEY: ${{ inputs.lane == 'llm' && secrets.GOOGLE_API_KEY || '' }}
                   SHA: ${{ matrix.sha }}
               run: |
                   mkdir -p "$RUNNER_TEMP/result"

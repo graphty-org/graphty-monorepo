@@ -19,9 +19,9 @@ import { SchemaManager } from "../../src/ai/schema";
 import type { Graph } from "../../src/Graph";
 import {
     getLlmRegressionApiKey,
-    getLlmRegressionKeyVariable,
     getLlmRegressionModel,
     getLlmRegressionProvider,
+    getSkipReason,
 } from "./llm-regression-env";
 import { createMockGraphContext } from "./mock-graph-context";
 
@@ -156,7 +156,7 @@ const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "retryOn">> = {
 export interface LlmRegressionTestHarnessOptions {
     /** Test graph fixture data */
     graphData?: TestGraphFixture;
-    /** Model to use (defaults to VITE_LLM_REGRESSION_MODEL, else the provider's default) */
+    /** Model to use (defaults to LLM_REGRESSION_MODEL, else the provider's default) */
     model?: string;
     /** Temperature setting (defaults to 0 for determinism) */
     temperature?: number;
@@ -254,12 +254,10 @@ export class LlmRegressionTestHarness {
     static create(options: LlmRegressionTestHarnessOptions = {}): Promise<LlmRegressionTestHarness> {
         const apiKey = getLlmRegressionApiKey();
         if (!apiKey) {
-            throw new Error(
-                `${getLlmRegressionKeyVariable()} environment variable is required for LLM regression tests`,
-            );
+            throw new Error(getSkipReason());
         }
 
-        // The provider VITE_LLM_REGRESSION_PROVIDER names (google by default)
+        // The provider LLM_REGRESSION_PROVIDER names (google by default)
         const provider = new ToolCallCapturingProvider(getLlmRegressionProvider());
         provider.configure({
             apiKey,

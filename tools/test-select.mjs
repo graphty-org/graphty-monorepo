@@ -1664,6 +1664,15 @@ const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
 export const STORY_BIN_LIMIT_MS = 3 * 60_000;
 
 /**
+ * The most Stories jobs a pull request's light check plans: past it, every bin's limit grows (in steps of 30 s, up to
+ * STORY_BIN_MAX_MS) until the bins fit. 37 bins of 3 min for a change that runs every story queued for runners
+ * beside the test jobs and spanned 9 to 19 minutes, the pull request's critical path, while each ran 1 to 5 (#3448).
+ */
+export const STORY_JOB_BUDGET = 9;
+/** The longest a Stories bin's capture may be planned when the job budget packs it: under the job's 20-minute limit. */
+export const STORY_BIN_MAX_MS = 12 * 60_000;
+
+/**
  * A story's capture time, per project (all of its modes, the job's browsers): the light check's own Stories jobs'
  * capture seconds divided by the stories (`export const` of a capitalized name) in their files, PR runs
  * 40388949450, 40390361128 and 40394323379 (2026-10-26), rounded up. A project not listed counts NO_HISTORY_MS a
@@ -1756,7 +1765,7 @@ function storyUnits(file, count, recordedMs, rate) {
 
 /**
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most STORY_BIN_LIMIT_MS, a file counted at the longer of its recorded time and its
+ * files packed into bins of at most STORY_BIN_LIMIT_MS (more when that makes over STORY_JOB_BUDGET bins), a file counted at the longer of its recorded time and its
  * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
  * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
  * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
@@ -1768,7 +1777,7 @@ function storyUnits(file, count, recordedMs, rate) {
  * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
  */
 export function storyBins(stories, projects, listFiles, durations = {}, storiesIn = () => 1) {
-    const out = [];
+    const plans = [];
     for (const s of stories) {
         const { storybook } = projects[s.project];
         const dir = storybook.replace(/\/storybook-static$/u, "");
@@ -1783,19 +1792,26 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
         // a changed baseline's story is one capture at the project's rate, packed with the files (#4401: 300 ids in
         // one bin overran the job's limit); `id:` keeps it apart from a repository path
         for (const id of s.baselines) unitMs.set(`id:${id}`, rate);
-        const bins = packBins([...unitMs.keys()], unitMs, STORY_BIN_LIMIT_MS, 0);
-        bins.forEach((bin, i) =>
-            out.push({
-                name: `${s.project}-${i + 1}`,
-                project: s.project,
-                storybook,
-                files: bin.files.filter((u) => !u.startsWith("id:")),
-                ids: bin.files.filter((u) => u.startsWith("id:")).map((u) => u.slice(3)),
-                ms: bin.ms,
-            }),
-        );
+        plans.push({ project: s.project, storybook, unitMs });
     }
-    return out;
+    const pack = (limit) => plans.map((p) => packBins([...p.unitMs.keys()], p.unitMs, limit, 0));
+    // one limit for every project, the smallest that fits the job budget, so no job is longer than it must be
+    let limit = STORY_BIN_LIMIT_MS;
+    let packed = pack(limit);
+    while (packed.flat().length > STORY_JOB_BUDGET && limit < STORY_BIN_MAX_MS) {
+        limit += 30_000;
+        packed = pack(limit);
+    }
+    return plans.flatMap((p, k) =>
+        packed[k].map((bin, i) => ({
+            name: `${p.project}-${i + 1}`,
+            project: p.project,
+            storybook: p.storybook,
+            files: bin.files.filter((u) => !u.startsWith("id:")),
+            ids: bin.files.filter((u) => u.startsWith("id:")).map((u) => u.slice(3)),
+            ms: bin.ms,
+        })),
+    );
 }
 
 // --- building the import graph of one package, in a child process ------------------------------------

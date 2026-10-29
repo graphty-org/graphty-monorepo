@@ -7946,7 +7946,9 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
         assert.match(stories, /name: story-references-\$\{\{ github\.run_attempt \}\}/);
         const refs = job(ci, "story-references");
         assert.match(refs, /\n {8}continue-on-error: true\n/, "a reference is an aid: its job never fails the run");
-        assert.match(refs, /for project in \$\(jq -r '\[\.include\[\]\.project\] \| unique\[\]' <<<"\$MATRIX"\)/);
+        assert.match(refs, /for project in \$\(jq -r '\.projects \| keys\[\]' visual-review\.config\.json\)/);
+        // it starts with the Build job, not after it: the Stories jobs wait for it (#3448)
+        assert.doesNotMatch(refs, /\n {8}needs:/);
         assert.match(refs, /node visual-review\/trusted\/cli\.mjs reference --project "\$project"/);
         assert.match(refs, /VISUAL_REVIEW_API_CACHE: \$\{\{ runner\.temp \}\}\/github-api/);
         assert.match(refs, /git archive "\$src" visual-review\/capture visual-review\/trusted \| tar -x/);

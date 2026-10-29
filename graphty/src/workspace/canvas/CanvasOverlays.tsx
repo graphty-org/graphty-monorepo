@@ -22,9 +22,11 @@ const ENDED: Partial<Record<RunStatus, string>> = { succeeded: "finished", faile
 /**
  * The element's events after which the legend or the node count may read differently: a filter
  * step changes what the key counts. `style:batch-changed` closes a repaint once, however many
- * edits it carried (a grouping run adds a layer per group).
+ * edits it carried (a grouping run adds a layer per group). `project:derived`, not
+ * `project:changed`: a data edit's categories and domains are prepared by the pass after the
+ * commit, and a legend read at the commit keeps the old ones.
  */
-const REDRAW_EVENTS = ["style:batch-changed", "run:changed", "project:changed", "visibility:changed"] as const;
+const REDRAW_EVENTS = ["style:batch-changed", "run:changed", "project:derived", "visibility:changed"] as const;
 
 /** What the canvas draws from, read from the session. */
 interface CanvasReading {

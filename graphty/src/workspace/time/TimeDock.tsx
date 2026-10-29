@@ -187,6 +187,60 @@ function ReadoutEntry({
 }
 
 /**
+ * What the brush's gesture does: a whole window dragged slides the element's cursor, the graph
+ * following, and its release commits it; an end dragged is drawn here and set on release. One
+ * gesture, one undoable step.
+ * @param session - The session.
+ * @param store - The workspace store, for errors and the announcement.
+ * @param setDrag - Sets the brush drawn while an end is dragged.
+ * @param sliding - Whether a whole-window drag is under way.
+ * @returns The brush's change handlers.
+ */
+function brushGesture(
+    session: GraphSession,
+    store: WorkspaceStore,
+    setDrag: (value: [number, number] | null) => void,
+    sliding: React.RefObject<boolean>,
+): { onChange: (value: [number, number]) => void; onChangeEnd: (value: [number, number]) => void } {
+    const { time } = session;
+
+    return {
+        onChange: (value) => {
+            time.pause();
+            const at = time.current;
+            if (at !== null && at.mode !== "cumulative" && value[1] - value[0] === Number(at.to) - Number(at.from)) {
+                // The whole window dragged: the graph follows the drag, row by row, and the
+                // release records it.
+                setDrag(null);
+                sliding.current = true;
+                time.seek(value[0], { commit: false }).then(() => undefined, reportTimeError(store));
+                return;
+            }
+            setDrag(value);
+        },
+        onChangeEnd: (value) => {
+            time.pause();
+            // A slid cursor is committed as a step of its own, never merged into the window step
+            // before it (#4400).
+            const moved: PromiseLike<unknown> = sliding.current
+                ? time.commit()
+                : time.window({ ...time.current, from: value[0], to: value[1] });
+            sliding.current = false;
+            moved.then(
+                () => {
+                    setDrag(null);
+                    announceWindow(session, store);
+                },
+                (error: unknown) => {
+                    setDrag(null);
+                    reportTimeError(store)(error);
+                },
+            );
+        },
+    };
+}
+
+/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
@@ -368,41 +422,7 @@ export function TimeDock(): React.JSX.Element | null {
                                 ? instantWords(value, unit, step)
                                 : `${rangeWords(bin.start, bin.end, unit, bin.step)}: ${countWords(countOf(bin), noun)}`;
                         },
-                        onChange: (value) => {
-                            time.pause();
-                            const at = time.current;
-                            if (
-                                at !== null &&
-                                at.mode !== "cumulative" &&
-                                value[1] - value[0] === Number(at.to) - Number(at.from)
-                            ) {
-                                // The whole window dragged: the graph follows the drag, row by row,
-                                // and the release records it.
-                                setDrag(null);
-                                sliding.current = true;
-                                time.seek(value[0], { commit: false }).then(() => undefined, reportTimeError(store));
-                                return;
-                            }
-                            setDrag(value);
-                        },
-                        onChangeEnd: (value) => {
-                            // One gesture, one undoable step.
-                            time.pause();
-                            const moved: PromiseLike<unknown> = sliding.current
-                                ? time.commit()
-                                : time.window({ ...window, from: value[0], to: value[1] });
-                            sliding.current = false;
-                            moved.then(
-                                () => {
-                                    setDrag(null);
-                                    announceWindow(session, store);
-                                },
-                                (error: unknown) => {
-                                    setDrag(null);
-                                    reportTimeError(store)(error);
-                                },
-                            );
-                        },
+                        ...brushGesture(session, store, setDrag, sliding),
                     }}
                 />
             </div>

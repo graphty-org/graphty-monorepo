@@ -205,12 +205,11 @@ export function nextSlot(now) {
 export function notices({ before, after, notified, now }) {
     const out = [];
     const n = `${after} ${after === 1 ? "picture" : "pictures"}`;
-    if (before === 0 && after > 0 && !(now - (notified.queue ?? -Infinity) < QUEUE_EVERY)) {
+    if (before === 0 && after > 0 && now - (notified.queue ?? -Infinity) >= QUEUE_EVERY) {
         out.push({ kind: "queue", outcome: "rolling-queue", what: `${n} changed on master` });
     }
     const slot = nextSlot(now);
-    const due =
-        slot - now <= SLOT_EARLY && slot - now >= SLOT_LATE && !((notified.slot ?? -Infinity) >= slot - SLOT_EARLY);
+    const due = slot - now <= SLOT_EARLY && slot - now >= SLOT_LATE && (notified.slot ?? -Infinity) < slot - SLOT_EARLY;
     if (after > 0 && due) {
         const hhmm = new Date(slot).toISOString().slice(11, 16);
         out.push({ kind: "slot", outcome: "rolling-slot", what: `The ${hhmm} UTC slot holds nightly for ${n}` });
@@ -296,25 +295,31 @@ async function main(argv, env) {
     if (!r.ok) throw new Error(`POST ${path}: ${r.why}`);
     console.error(`story-slices ${command}: ${JSON.stringify(r.data)} (${body.units.length} units)`);
     const after = before && (await queue());
-    if (!after) return; // never a notice on a guess
-    // ponytail: bins finishing together can each send the same notice once; the store's times stop a second round
+    if (after) await tellOwner({ cfg, path, body, before, after, env }); // never a notice on a guess
+}
+
+/**
+ * Sends the owner's notices a bin's post calls for, and records in the store the ones Pushover took.
+ * ponytail: bins finishing together can each send the same notice once; the store's times stop a second round
+ * @param o the facts
+ * @param o.cfg the store's client settings
+ * @param o.path the route the bin posted to
+ * @param o.body what it posted
+ * @param o.before the store's story captures answer before the post
+ * @param o.after its answer after
+ * @param o.env holds the Pushover secrets, REVIEW_URL and RUN_URL
+ */
+async function tellOwner({ cfg, path, body, before, after, env }) {
     const sent = [];
-    for (const n of notices({
+    const due = notices({
         before: before.summary.queue,
         after: after.summary.queue,
         notified: after.notified,
         now: Date.now(),
-    })) {
-        const url = env.REVIEW_URL || env.RUN_URL;
-        if (
-            await push(
-                n.outcome,
-                { what: n.what, run: url, sha: o.sha, urlTitle: env.REVIEW_URL ? "Review" : "Open run" },
-                env,
-                fetch,
-                (l) => console.error(l),
-            )
-        )
+    });
+    const link = { run: env.REVIEW_URL || env.RUN_URL, urlTitle: env.REVIEW_URL ? "Review" : "Open run" };
+    for (const n of due) {
+        if (await push(n.outcome, { what: n.what, sha: body.sha, ...link }, env, fetch, (l) => console.error(l)))
             sent.push(n.kind);
     }
     if (sent.length) {

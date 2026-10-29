@@ -73,8 +73,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     try {
         const w = await main(pr);
-        console.log(`rolling-merge #${pr}: ${w.merge ? "merged" : w.retry ? "not now" : "refused"}: ${w.why}`);
-        process.exit(w.merge ? 0 : w.retry ? 2 : 1);
+        let outcome = "refused";
+        let code = 1;
+        if (w.merge) [outcome, code] = ["merged", 0];
+        else if (w.retry) [outcome, code] = ["not now", 2];
+        console.log(`rolling-merge #${pr}: ${outcome}: ${w.why}`);
+        process.exit(code);
     } catch (e) {
         console.error(`rolling-merge: ${e.message}`);
         process.exit(1);

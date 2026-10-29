@@ -281,6 +281,60 @@ describe("Cytoscape charts", () => {
             const small = axes(',"cy_showDomainAxis":true');
             expect((small.chartOffsetY as number) + (small.chartHeight as number) * 30).toBeCloseTo(20.89, 1);
         });
+
+        it("never throws or floods on malformed axis options", () => {
+            const both = ',"cy_showRangeAxis":true,"cy_showDomainAxis":true';
+            // a position naming an Object.prototype member reads as STANDARD
+            for (const p of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf", "LEFT"]) {
+                const v = axes(`${both},"cy_domainLabelPosition":"${p}"`);
+                expect(
+                    texts(v)
+                        .filter(([, , w]) => /^[a-c]$/.test(w))
+                        .every(([, , , , r]) => r === 0),
+                ).toBe(true);
+            }
+            // bad font sizes and ranges fall back or draw no ticks, never throw
+            for (const o of ['"x"', "-3", "1e-9", "1e9", "1e400", "null"]) {
+                expect(() => axes(`${both},"cy_axisLabelFontSize":${o}`)).not.toThrow();
+            }
+            // a plot its labels squeeze to nothing gets no axes at all, so nothing is offset far off the node
+            const huge = axes(`${both},"cy_axisLabelFontSize":1e9`);
+            expect(huge.chartOffsetX).toBeUndefined();
+            expect(huge.shapeTexts).toBeUndefined();
+            // a labels column holding objects names nothing with them
+            DATA.oddLabels = ["X", null, {}];
+            const odd = texts(axes(`${both},"cy_domainLabelsColumn":"oddLabels"`)).map(([, , w]) => w);
+            delete DATA.oddLabels;
+            expect(odd).not.toContain("[object Object]");
+            expect(odd).toContain("X");
+        });
+
+        it("draws at most 100 tick numbers however tall the node, with the unit's own decimals", () => {
+            const out: Partial<Record<string, StyleColumn>> = { width: [1e7], height: [1e7] };
+            const graphics: Record<string, unknown> = {
+                NODE_CUSTOMGRAPHICS_1: `${BAR},"cy_showRangeAxis":true}`,
+            };
+            readCytoscapeCharts(
+                out,
+                1,
+                (vp) => graphics[vp] ?? null,
+                (column) => DATA[column] ?? null,
+                true,
+            );
+            expect((JSON.parse(String(out.shapeTexts?.[0])) as unknown[]).length).toBeLessThanOrEqual(100);
+            // a unit of 2.5 writes one decimal, as JFreeChart's "0.0" does: 0.0 2.5 5.0 ...
+            const tall: Partial<Record<string, StyleColumn>> = { width: [60], height: [60] };
+            readCytoscapeCharts(
+                tall,
+                1,
+                () => `${BAR},"cy_showRangeAxis":true,"cy_axisLabelFontSize":4}`,
+                (column) => DATA[column] ?? null,
+                true,
+            );
+            const ticks = (JSON.parse(String(tall.shapeTexts?.[0])) as [number, number, string][]).map(([, , w]) => w);
+            expect(ticks).toContain("2.5");
+            expect(ticks).not.toContain("2.50");
+        });
     });
 
     it("colors a chart by its cy_colorScheme when it names no colors, as Cytoscape's ColorScheme does", () => {

@@ -276,7 +276,7 @@ function domainNames(
 ): string[] {
     const listed = typeof options.cy_domainLabelsColumn === "string" ? value(options.cy_domainLabelsColumn) : null;
     if (Array.isArray(listed)) {
-        return listed.map((v) => (v === null || v === undefined ? "" : String(v)));
+        return listed.map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : ""));
     }
     // ponytail: a list column's categories are named by Cytoscape (the line chart's fourth and fifth show as "..."),
     // left unnamed until a sample shows what it calls them
@@ -753,13 +753,17 @@ const AXIS_LABEL_FONT_SIZE = 1;
  * fractions of its width and height (`CategoryLabelPositions`: STANDARD the top's middle, UP_45 the top right corner,
  * UP_90 the right end's middle, DOWN_45 the top left, DOWN_90 the left end's middle).
  */
-const DOMAIN_LABEL_POSITIONS: Readonly<Record<string, { turn: number; pin: readonly [number, number] }>> = {
-    STANDARD: { turn: 0, pin: [0, -0.5] },
-    UP_45: { turn: -45, pin: [0.5, -0.5] },
-    UP_90: { turn: -90, pin: [0.5, 0] },
-    DOWN_45: { turn: 45, pin: [-0.5, -0.5] },
-    DOWN_90: { turn: 90, pin: [-0.5, 0] },
-};
+const DOMAIN_LABEL_POSITIONS: ReadonlyMap<string, { turn: number; pin: readonly [number, number] }> = new Map([
+    ["STANDARD", { turn: 0, pin: [0, -0.5] }],
+    ["UP_45", { turn: -45, pin: [0.5, -0.5] }],
+    ["UP_90", { turn: -90, pin: [0.5, 0] }],
+    ["DOWN_45", { turn: 45, pin: [-0.5, -0.5] }],
+    ["DOWN_90", { turn: 90, pin: [-0.5, 0] }],
+]);
+const STANDARD_POSITION = { turn: 0, pin: [0, -0.5] } as const;
+
+/** The most tick numbers one range axis draws, however tall its plot, so one odd node never floods the scene. */
+const MAX_TICKS = 100;
 
 /** The steps JFreeChart's standard tick units take in each power of ten (`NumberAxis.createStandardTickUnits`). */
 const TICK_STEPS = [1, 2.5, 5];
@@ -795,9 +799,11 @@ function tickUnit(span: number, length: number, label: number): number {
  * @returns the text
  */
 function tickText(v: number, unit: number): string {
-    // ponytail: the decimals of a unit like 2.5 follow its own digits; only units 5 and 25 are measured
-    const decimals = Math.max(0, Math.min(6, -Math.floor(Math.log10(unit - Math.trunc(unit) || 1) + 1e-9) + 1));
-    const digits = Number.isInteger(unit) ? 0 : decimals;
+    // the unit's own decimals (2.5 "0.0", 0.25 "0.00"), at most 6
+    let digits = 0;
+    while (digits < 6 && Math.abs(Math.round(unit * 10 ** digits) - unit * 10 ** digits) > 1e-9 * unit * 10 ** digits) {
+        digits++;
+    }
     return v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
@@ -846,7 +852,7 @@ function chartAxes(
     ];
     const width = (text: string): number => f * dialogWidth(text);
     // the domain axis first: the range axis' ticks depend on the plot's height
-    const position = DOMAIN_LABEL_POSITIONS[String(options.cy_domainLabelPosition)] ?? DOMAIN_LABEL_POSITIONS.STANDARD;
+    const position = DOMAIN_LABEL_POSITIONS.get(String(options.cy_domainLabelPosition)) ?? STANDARD_POSITION;
     const names = values.map((_, k) => nameOf(k) ?? "");
     if (domain) {
         const r = (position.turn * Math.PI) / 180;
@@ -860,14 +866,18 @@ function chartAxes(
         plot.x0 += Math.max(width(endText(lo)), width(endText(hi))) + AXIS_ROOM;
     }
     const [pw, ph] = [plot.x1 - plot.x0, plot.y1 - plot.y0];
+    // labels that squeeze the plot to nothing: no axes, so no chart is offset far off its node
+    if (!(pw > 0 && ph > 0)) {
+        return null;
+    }
     const texts: ChartText[] = [
-        ...(range && pw > 0 && ph > 0 && hi > lo ? rangeTicks(plot, [lo, hi], line, width) : []),
-        ...(domain && pw > 0 ? categoryNames(plot, plotted, names, position, { line, width }) : []),
+        ...(range && hi > lo ? rangeTicks(plot, [lo, hi], line, width) : []),
+        ...(domain ? categoryNames(plot, plotted, names, position, { line, width }) : []),
     ].map(([x, y, text, turn]) => put(x, y, text, turn));
     return {
         plot: {
-            chartWidth: num6(Math.max(0, pw) / w),
-            chartHeight: num6(Math.max(0, ph) / h),
+            chartWidth: num6(pw / w),
+            chartHeight: num6(ph / h),
             chartOffsetX: num6((plot.x0 + plot.x1) / 2),
             chartOffsetY: num6((plot.y0 + plot.y1) / 2),
         },
@@ -900,7 +910,8 @@ function rangeTicks(
 ): [number, number, string, number][] {
     const [lo, hi] = range;
     const ph = plot.y1 - plot.y0;
-    const unit = tickUnit(hi - lo, ph, line + 2 * TICK_LABEL_INSETS);
+    // never more than MAX_TICKS: a label at least a 99th of the plot tall
+    const unit = tickUnit(hi - lo, ph, Math.max(line + 2 * TICK_LABEL_INSETS, ph / (MAX_TICKS - 1)));
     const out: [number, number, string, number][] = [];
     for (let k = Math.ceil(lo / unit - 1e-9); Number.isFinite(unit) && k * unit <= hi + 1e-9 * unit; k++) {
         // never "-0"

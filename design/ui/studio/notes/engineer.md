@@ -17,18 +17,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0.  (2026-10-29) Every door that adds a data file to an open project goes through
+0.  (2026-10-29) A column's kind alone draws it: cells (`timeValue` in `time/timeActions.ts` formats
+    only a column typed date, to the day), the sort caption (`sortCaption`, by `descriptor.type`) and
+    every glyph (`typeOf` in `data-place/words.ts` maps a non-date column whose measurement is "time"
+    -- the Time role -- back to number or text). The Time role shows only as the header's Time chip.
+    Test: `table/__tests__/TableDates.real-element.test.tsx` "draws a text column with the Time role".
+    STILL OPEN: a mixed column (families, depth_cm) draws the mixed glyph in the table header but Aa in
+    Fields' lists; `TypeGlyph` has no "mixed".
+1.  (2026-10-29) Every door that adds a data file to an open project goes through
     `addSource` in `start/open.ts` (join screen onto a graph with data): Sources + File..., Open
     project or file..., a window or canvas drop, Quick actions > Add data... (now
     `chooseAndOpenFile`), and a Recent entry that is a data file (`openedData` in
     `project/actions.ts`). The older "Add to <project>" Data page is reachable from no door; only
     New from data... (a new graph) and Replace still open the Data page. Test:
     `join/__tests__/JoinScreen.real-element.test.tsx` "opens from Quick actions > Add data...".
-1.  (2026-10-29) A re-walk after a rebuild must run with `REAL_WARM_POOL=0`: a warm browser of the
+2.  (2026-10-29) A re-walk after a rebuild must run with `REAL_WARM_POOL=0`: a warm browser of the
     same build stamp (the stamp is HEAD, not the dist's content) keeps the app it loaded BEFORE the
     rebuild, so the replay shows the old code pixel for pixel. `session.log` says "took over warm
     browser"; pixel-diff an old and new screenshot to catch it.
-2.  (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
+3.  (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
     match (Before -> After, Between -> Before) clears the box but the filter keeps the old bounds,
     so the card reads "After [empty]" while its count and the marks still show Before 2005
     (re-walk T65B-path/17.png, 24.png). Fix: a date card with no bound must write no condition (or
@@ -83,6 +90,16 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
 
 ## Decisions and reasons
 
+- 2026-10-29: The Time role no longer changes how a column is drawn. `timeValue(session, value,
+date)` lost its kind and column arguments: a text or number time field shows its raw values, and a
+  date column is written to the day whatever the timeline's unit (a date column's unit is ms anyway).
+  `typeOf` reads measurement "time" on a type other than "time" as the type's own measurement. Why:
+  setting the Time on a text column of ISO days drew dates and a calendar glyph in Fields while the
+  header said Aa and the caption A to Z (decided.md, "A column's kind is drawn one way everywhere").
+  The element's sort was never by date for a text column: ISO days sort the same as text.
+  Evidence: re-walk `design/ui/studio/tmp/r1-dry1-U4/T62A-w2-inspector/02.png` (2015-03-02, Aa + Time
+  chip), `T62A-w3-fields/07.png` (Aa in the Time list), `10.png` and `11.png` (after Type > date:
+  calendar glyph, dates, "Sorted by opened, newest first"), `T62B-w2-detours/05.png`.
 - 2026-10-29: A Sources row's name and join ratio sit in `.dp-source-label` (`flex: 1 1 0; width: 0`),
   and the row button lost its `min-width: 0`. Why: with `min-width: 0` the button shrank below its
   icon and count chips, so the chips spilled under the issue chip after it ("3611" for 331 / 361).
@@ -184,6 +201,9 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
 
 ## Tried: worked / did not work
 
+- 2026-10-29 worked: a `--replay` without `--end-on-diverge` stays open on the diverged
+  screen; carry on by hand with `--step`, then `--end`. `--end-on-diverge` when only the first
+  changed screen matters.
 - 2026-10-29 worked: a real-element test that loads a 1,000-edge chain CSV with one padded value at
   the default (= narrowest, `PANEL_MIN` 240) left panel and compares the chips' boxes
   (`SourceIssues.real-element.test.tsx`); it failed on the old CSS (edge chip right 267 > issue

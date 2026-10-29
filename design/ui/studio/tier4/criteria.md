@@ -1,4 +1,4 @@
-The study runs on build 7de2dc4e23 served from /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/tmp/study-builds/tier4-r1-7de2dc4e23
+The study runs on build 0ffeae2ef5 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1-0ffeae2ef5
 
 Frozen on 2026-10-29 for the tier 4 rounds.
 
@@ -205,3 +205,7 @@ first two by itself; the dry run owns the rest.
       export that drops rows can be seen; every returning persona starts from a project that
       matches their history; Sam takes T61 so the keyboard meets the file chooser and the join
       screen; two pointer sessions added (28 in all).
+- 2026-10-29: round 1 build moved from 7de2dc4e23 (served from
+  .worktrees/design-studio-tier4/tmp/study-builds/tier4-r1-7de2dc4e23) to 0ffeae2ef5, the same
+  studio work with the current master merged in, so the round does not run on a stale app. No
+  criteria changed.

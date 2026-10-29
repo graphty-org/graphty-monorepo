@@ -530,6 +530,13 @@ task, result, reason, screenshots (`<route>.png`, and `<route>.ui.png` with thos
 a pilot agent only to a task whose route failed or has none, and only the `changed` and `new` screens
 to a reviewer. `node --test $T/dry-run-pass.test.mjs` checks how it finds the earlier pass.
 
+What a `same` screen does not show: the drawing and the status bar are covered, so a drawing problem
+the outcome checks cannot read (labels gone, nodes off screen, a blank canvas) or an error chip in the
+status bar reads as `same` and no reviewer looks at it. An `unstable` screen is logged and not
+reviewed, so a real change on a route that also flickers between runs is hidden until the route is
+made stable. Pilots walk the detours and the keyboard walk; a route that passes is not looked at
+screen by screen.
+
 ## Checking the tool
 
 ```bash

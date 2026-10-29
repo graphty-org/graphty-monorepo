@@ -130,9 +130,10 @@ true` rather than resuming the old one (see the lessons below).
    session-ready bar (see the lessons), fixes only crashes, blocked tasks and grading-spoiling
    results, sends everything else to `backlog.md`, re-walks the routes each fix group touched and
    reverts a group that regresses, lands the pass, freezes a new build, and re-pilots the same way
-   with only the touched routes beside the scripted success paths: a task whose script passed and
-   whose every earlier route still matches keeps its earlier result, and a pilot agent walks only
-   the routes that diverged, from where they diverged. It exits as soon as the bar holds, and after
+   with only the touched routes beside the scripted success paths: a task whose script passed,
+   whose earlier keyboard walk and detours still match, and that no touched route may belong to keeps
+   that earlier pass's result (with its defects); otherwise a pilot agent walks the routes that
+   diverged or were never walked and carries over the earlier report's findings for the rest. It exits as soon as the bar holds, and after
    `dryRunPasses` (2) fix passes that still leave blockers it stops for the owner with the list.
 3. **Rounds** -- the researcher plans sessions (`real.mjs --brief` writes each participant's
    briefing in a folder outside the studio's files, and a session that read anything else is

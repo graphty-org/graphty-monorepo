@@ -2774,6 +2774,19 @@ export class Edge {
     }
 
     /**
+     * What decides how far a line runs on under an end cap: the line's width and the cap's size and breadth.
+     * @param style - The edge's style
+     * @param arrow - The end cap's style
+     * @returns The values
+     */
+    private static capOf(
+        style: EdgeStyleConfig,
+        arrow: EdgeStyleConfig["arrowHead"],
+    ): { lineWidth?: number; size?: number; breadth?: number } {
+        return { lineWidth: style.line?.width, size: arrow?.size, breadth: arrow?.width };
+    }
+
+    /**
      * How far back from where it meets its target the line stops for its arrow head: the head's gap off the node
      * plus the length of line the head covers. Zero without a head, or with one drawn part-way along.
      * @returns The distance, in scene units.
@@ -2784,7 +2797,7 @@ export class Edge {
             return 0;
         }
 
-        const geometry = EdgeMesh.getArrowGeometry(head.type);
+        const geometry = EdgeMesh.getArrowGeometry(head.type, Edge.capOf(this.currentStyle, head));
         // a 2D cap is drawn at full size (see placeArrowHead)
         const scale = this.arrowCap?.is2D === true ? 1 : (geometry.scaleFactor ?? 1);
         return (
@@ -3375,7 +3388,7 @@ export class Edge {
         const arrowType = arrowStyle.arrowHead?.type;
         const arrowSize = arrowStyle.arrowHead?.size ?? 1;
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
-        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
+        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(arrowStyle, arrowStyle.arrowHead));
 
         // PHASE 4: Override scaleFactor for 2D arrows
         // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
@@ -3434,7 +3447,7 @@ export class Edge {
 
         // Use common arrow geometry functions for positioning
         const arrowType = style.arrowHead?.type;
-        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
+        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(style, style.arrowHead));
 
         // PHASE 4: Override scaleFactor for 2D arrows
         // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
@@ -3492,7 +3505,7 @@ export class Edge {
         // Get tail arrow dimensions and geometry
         const tailSize = tailStyle.arrowTail?.size ?? 1;
         const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
-        const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
+        const tailGeometry = EdgeMesh.getArrowGeometry(tailType, Edge.capOf(tailStyle, tailStyle.arrowTail));
 
         // PHASE 4: Override scaleFactor for 2D tail arrows
         if (arrowTailCap.is2D && tailGeometry.scaleFactor !== undefined) {
@@ -3762,7 +3775,7 @@ export class Edge {
         const arrowSize = style.arrowHead?.size ?? 1;
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
         const arrowType = style.arrowHead?.type ?? "normal";
-        const geometry = EdgeMesh.getArrowGeometry(arrowType);
+        const geometry = EdgeMesh.getArrowGeometry(arrowType, Edge.capOf(style, style.arrowHead));
 
         // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
         if (this.arrowCap?.is2D && geometry.scaleFactor !== undefined) {

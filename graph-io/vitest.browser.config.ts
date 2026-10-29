@@ -9,7 +9,7 @@ const src = fileURLToPath(new URL("./src/", import.meta.url));
 
 // The network sources in a real browser: what Chromium refuses, and how ctx.fetch tells the causes
 // apart, against a local server on another origin with and without CORS headers
-// (test/sources/browser/cors-server.ts). CI shard graph-io-browser.
+// (test/sources/browser/cors-server.ts), and the fidelity stories' own browser tests. CI shard graph-io-browser.
 export default defineConfig({
     resolve: {
         alias: [{ find: /^@graphty\/graph-io$/, replacement: `${src}index.ts` }],
@@ -24,7 +24,7 @@ export default defineConfig({
             provider: playwright(),
             instances: [{ browser: "chromium" }],
         },
-        include: ["test/sources/browser/**/*.test.ts"],
+        include: ["test/sources/browser/**/*.test.ts", "fidelity-stories/**/*.browser.test.ts"],
         testTimeout: 60000,
         hookTimeout: 60000,
     },

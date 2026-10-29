@@ -370,6 +370,46 @@ function disposeEdgeMeshes(edge: Edge): void {
     }
 }
 
+/**
+ * The project-state keys a pass can write without changing the picture by itself, by slice; null
+ * for every key of the slice.
+ *
+ * - `visibility`: the filter, its steps, the time window, the context and the playback settings
+ *   reach the canvas only as the view masks (ghosts included), which the update loop watches by
+ *   version (`UpdateManager.viewMasksPending`), so the frame a moved mask needs is drawn unasked.
+ * - The time field and its unit: they say which column holds time, and nothing is drawn from
+ *   them; what a window then hides is a mask.
+ */
+const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string> | null>>> = {
+    visibility: null,
+    config: new Set([
+        "data.knownFields.nodeTimePath",
+        "data.knownFields.nodeTimeUnit",
+        "data.knownFields.edgeTimePath",
+        "data.knownFields.edgeTimeUnit",
+    ]),
+};
+
+/**
+ * Whether a derivation pass wrote only keys that draw nothing (see {@link KEYS_THAT_DRAW_NOTHING}).
+ * @param dirty - The keys the pass derived, by slice.
+ * @returns True when the pass needs no frame of its own.
+ */
+function drawsNothing(dirty: ReadonlyMap<string, ReadonlySet<string>>): boolean {
+    if (dirty.size === 0) {
+        return false;
+    }
+
+    for (const [slice, keys] of dirty) {
+        const quiet = KEYS_THAT_DRAW_NOTHING[slice];
+        if (quiet === undefined || (quiet !== null && [...keys].some((key) => !quiet.has(key)))) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
 const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
 
@@ -868,6 +908,8 @@ export class Graph implements GraphContext {
                 // The map made or showed meshes, usually just before the scene draws: a frozen list
                 // of what is drawn would leave them out of this frame and the frames after it.
                 this.updateManager.thawActiveMeshes();
+                // The map changed the picture, so the frame drawn before it is not the final one.
+                this.updateManager.pending.changed();
                 this.renderManager.requestFrame();
             },
             (status) => {
@@ -1230,9 +1272,13 @@ export class Graph implements GraphContext {
         this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesQueued;
 
         // Every change to project state reaches the picture through a pass, so a graph drawn on
-        // demand draws the frame after each one: a style, the data, a setting, an undo.
-        lane.passEnded = () => {
-            this.renderManager.requestFrame();
+        // demand draws the frame after each one: a style, the data, a setting, an undo. Not after
+        // a pass that wrote only keys that draw nothing (see KEYS_THAT_DRAW_NOTHING): on a software
+        // GPU every frame costs the page 200 to 800 ms of its main thread under load (#4196).
+        lane.passEnded = (dirty) => {
+            if (!drawsNothing(dirty)) {
+                this.renderManager.requestFrame();
+            }
         };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
@@ -1341,9 +1387,35 @@ export class Graph implements GraphContext {
         // settling layout ends with, and the finished picture, wait for it (issue #3378).
         this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
         // A queued operation, or a queued command waiting beside the queue for a key, is going to
-        // change the picture, so the frame is not final until it has run (issue #3528).
-        this.updateManager.operationsPending = () =>
-            this.operationQueue.hasWork || dispatcherOf(this.session).hasWaiters;
+        // change the picture, so a wait for the final picture waits for it too (issue #3528).
+        this.updateManager.pending.watch(
+            "operation",
+            "a queued operation has not finished",
+            () => this.operationsPending(),
+            "wait",
+        );
+        // A load that holds a place in the session's load line and has not dispatched its step yet:
+        // its module import, download, unzip or format detection is still running.
+        this.updateManager.pending.watch(
+            "load",
+            "a data load has not reached the graph yet",
+            () => loadLineOf(dispatcherOf(this.session)).size > 0,
+            "wait",
+        );
+        // Work the graph starts outside the update pass that will still change the picture, entered
+        // in the one record of it (issue #3546): a file's picture annotation, painted onto its
+        // texture when the image arrives (issue #3383), and the map under a geographic layout --
+        // its module import, its tiles and their shaders.
+        this.updateManager.pending.watch(
+            "picture",
+            "an annotation's picture is still loading",
+            () => this.#annotations?.isLoading === true,
+        );
+        this.updateManager.pending.watch(
+            "basemap",
+            "the map under the graph is still loading",
+            () => this.basemapManager.loading,
+        );
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -5554,10 +5626,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
-        await loadsAhead.get(this)?.();
-        // Suggested styles first: their reordering moves reach the queue only once they are due.
-        await this.#suggestionsStacked;
-        await this.untilQueueDrained();
+        await this.untilNothingIsAhead();
         // Style edits are not queued: they are written at once and repainted on the session's
         // derivation lane, which this waits for, along with anything a finished run painted.
         await this.session.styles.settled();
@@ -5694,12 +5763,7 @@ export class Graph implements GraphContext {
         do {
             // The queue first: a layout change or a data load that has not run yet is going to move
             // the picture, so a frame that is final right now is final about the wrong graph.
-            // Suggested styles before the queue, because they queue their reordering only once
-            // they are due. Loads not queued yet (the element's, held behind the autosave restore)
-            // before both.
-            await loadsAhead.get(this)?.();
-            await this.#suggestionsStacked;
-            await this.untilQueueDrained();
+            await this.untilNothingIsAhead();
             await this.untilNothingIsOwed(wait);
 
             // The picture is final, but the label counts it drew are announced a few frames later
@@ -5709,6 +5773,18 @@ export class Graph implements GraphContext {
                 await declutter.whenPublished();
             }
         } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
+    }
+
+    /**
+     * Wait for what both settle waits wait for first, written once so the two cannot drift
+     * (issue #3376 had to add the loads twice): loads not queued yet (the element's, held behind
+     * the autosave restore), then suggested styles, which queue their reordering only once they
+     * are due, then the queue.
+     */
+    private async untilNothingIsAhead(): Promise<void> {
+        await loadsAhead.get(this)?.();
+        await this.#suggestionsStacked;
+        await this.untilQueueDrained();
     }
 
     /**
@@ -5739,11 +5815,19 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether an operation is queued or running, or a queued command waits beside the queue for a key.
+     * @returns True while the graph is about to change.
+     */
+    private operationsPending(): boolean {
+        return this.operationQueue.hasWork || dispatcherOf(this.session).hasWaiters;
+    }
+
+    /**
      * What is still moving, for the message a timed-out wait carries.
      * @returns One phrase naming what has not finished.
      */
     private whyTheFrameIsNotStable(): string {
-        if (this.updateManager.operationsPending?.() === true) {
+        if (this.operationsPending()) {
             const queue = this.operationQueue.getStats();
             const count = queue.pending + queue.size;
             return count > 0
@@ -8149,6 +8233,7 @@ export class Graph implements GraphContext {
         if (this.#annotations?.scene !== this.scene) {
             // a picture that arrives after the frame was called final has to be drawn, on demand too
             this.#annotations = new AnnotationMeshes(this.scene, () => {
+                this.updateManager.pending.changed();
                 this.renderManager.requestFrame();
             });
         }

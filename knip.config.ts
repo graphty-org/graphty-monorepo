@@ -110,7 +110,6 @@ const config: KnipConfig = {
                 // esbuild from test/fidelity/oracles/tools/web/ and test/fidelity/generators/specimens/
                 "@resvg/resvg-js",
                 "@sigma/export-image",
-                "esbuild",
                 "graphology",
                 "sigma",
                 "svgcanvas",

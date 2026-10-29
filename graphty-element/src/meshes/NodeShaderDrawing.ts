@@ -49,6 +49,7 @@ import {
 } from "../catalog/shaders";
 import type { Rgba } from "../catalog/types";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import { trackOnScene } from "../managers/PendingWork";
 import { type HostShader, shadersControllerOf } from "../session/shaders";
 import { drawnUses } from "../session/styles/channels";
 import type { GraphSession } from "../session/types";
@@ -844,7 +845,12 @@ export class NodeShaderDrawing {
         }
 
         this.resolving.add(id);
-        void Promise.all([controller.drawable(id), this.load(host)]).then(
+        void trackOnScene(
+            this.scene,
+            "shader",
+            "a node shader is still loading",
+            Promise.all([controller.drawable(id), this.load(host)]),
+        ).then(
             ([shader]) => {
                 this.resolving.delete(id);
                 if (this.disposed) {

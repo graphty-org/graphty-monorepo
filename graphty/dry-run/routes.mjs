@@ -35,13 +35,12 @@ async function openSample(u, sample) {
 }
 
 /**
- * "Open a file", the file chosen in the browser's chooser, then Load on the read-the-file page.
+ * "Open a file" and the file chosen in the browser's chooser: the graph opens at once.
  * @param u the user's hands (README.md)
  * @param file a file in design/ui/studio/tool/files/
  */
 async function openFile(u, file) {
     await u.upload(u.page.getByRole("button", { name: /^Open a file/ }), file);
-    await u.click("Load");
     await u.page.getByRole("treeitem", { name: /^Everything,/ }).waitFor();
 }
 

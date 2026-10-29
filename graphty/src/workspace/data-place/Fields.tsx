@@ -1,5 +1,5 @@
-import { ControlSection, EntityChip, FieldRow } from "@graphty/compact-mantine";
-import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
+import { ControlSection, EntityChip, FieldRow, focusWithRing, ListboxCheck } from "@graphty/compact-mantine";
+import type { GraphSession, LoadedSource, ValueType } from "@graphty/graphty-element/session";
 import { ActionIcon, Select, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -9,12 +9,15 @@ import { formatNumber } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddButton } from "../style/Section";
+import { failWords } from "../table/columns";
 import { designate, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import { useTimeFieldVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
+import { TypeGlyphIcon } from "./TypeGlyphIcon";
 import {
     columnChoices,
+    columnGlyph,
     DIRECTIONS,
     type EntryId,
     FIELD_ENTRIES,
@@ -32,6 +35,7 @@ import {
     sidesOf,
     sourceName,
     tableRoles,
+    type TypeGlyph,
     unusedWords,
 } from "./words";
 
@@ -57,6 +61,92 @@ const ENTRY_GLYPHS: Readonly<Record<EntryId, (typeof GLYPHS)[keyof typeof GLYPHS
     sourceKind: GLYPHS.category,
     targetKind: GLYPHS.category,
 };
+
+/** A pick list's choice: a value, or a value with its label, its kind's glyph and a detail. */
+type Choice =
+    string | { readonly value: string; readonly label: string; readonly glyph?: TypeGlyph; readonly detail?: string };
+
+/** The type an entry's column is read as, where it must be one: the rest list "N will not convert". */
+const ENTRY_TYPES: Partial<Readonly<Record<EntryId, ValueType>>> = {
+    weight: "number",
+    time: "date",
+    latitude: "number",
+    longitude: "number",
+};
+
+/**
+ * An entry's column choices, each with its kind's glyph: the ones that fit first (already the
+ * type the entry reads, then every value converting), then the rest, each saying how many of its
+ * values will not convert, as the header's Type menu does.
+ * @param session - the element's session.
+ * @param attributes - `data.attributes()`.
+ * @param side - nodes or edges.
+ * @param entry - the entry.
+ * @param names - the column names it offers.
+ * @returns the choices.
+ */
+function columnOptions(
+    session: GraphSession,
+    attributes: ReturnType<GraphSession["data"]["attributes"]>,
+    side: FieldSide,
+    entry: EntryId,
+    names: readonly string[],
+): Choice[] {
+    const kind = KIND_OF[side];
+    const type = ENTRY_TYPES[entry];
+    const ranked = names.map((name) => {
+        const column = attributes.find((a) => a.kind === kind && a.name === name);
+        if (column === undefined) {
+            return { rank: 0, choice: { value: name, label: name } };
+        }
+        const glyph = columnGlyph(session, column);
+        const already = type === undefined || (type === "number" ? isNumeric(column) : column.measurement === "time");
+        const detail = already ? undefined : failWords(session, { kind, name }, type);
+        let rank = 0;
+        if (detail !== undefined) {
+            rank = 2;
+        } else if (!already) {
+            rank = 1;
+        }
+        return { rank, choice: { value: name, label: name, glyph, ...(detail === undefined ? {} : { detail }) } };
+    });
+    return ranked.sort((a, b) => a.rank - b.rank).map((each) => each.choice);
+}
+
+/**
+ * Draws a column choice: the list's check, its kind's glyph, its name and its detail.
+ * @param input - Mantine's option.
+ * @param input.option - the option.
+ * @param input.option.value - its value.
+ * @param input.option.label - its label.
+ * @param choices - the choices, for their glyphs and details.
+ * @returns the option's content.
+ */
+function renderChoice(
+    { option }: { option: { value: string; label: string } },
+    choices: readonly Choice[],
+): React.ReactNode {
+    const choice = choices.find((each) => typeof each !== "string" && each.value === option.value);
+    const glyph = typeof choice === "string" ? undefined : choice?.glyph;
+    const detail = typeof choice === "string" ? undefined : choice?.detail;
+    return (
+        <>
+            <ListboxCheck />
+            {glyph === undefined ? null : (
+                // The type glyph at its own 14 px, as the table's headers draw it.
+                <span aria-hidden="true" style={{ display: "inline-flex", flex: "none", marginInlineEnd: 6 }}>
+                    <TypeGlyphIcon glyph={glyph} />
+                </span>
+            )}
+            <span className="cm-listbox-label">{option.label}</span>
+            {detail === undefined ? null : (
+                <Text span size="xs" c="dimmed" ml="auto" pl="xs">
+                    {detail}
+                </Text>
+            )}
+        </>
+    );
+}
 
 /** A side's word in a control's name. */
 const SIDE_WORD: Readonly<Record<FieldSide, string>> = { nodes: "Node", edges: "Edge" };
@@ -93,7 +183,7 @@ function PickRow({
     repick?: boolean;
     onPick: (value: string | null) => void;
 }>): React.JSX.Element {
-    const none = withNone ? [{ value: NONE, label: "none" }] : [];
+    const none = withNone ? [{ value: NONE, label: "None" }] : [];
     return (
         <FieldRow>
             <Text size="xs" truncate className={sub ? "dp-sub-label" : undefined}>
@@ -163,7 +253,7 @@ function EntryRow({
     entry: FieldEntry;
     name: string;
     value: string | null;
-    choices: readonly (string | { readonly value: string; readonly label: string })[];
+    choices: readonly Choice[];
     opened: boolean;
     repick?: boolean;
     note?: string;
@@ -199,7 +289,12 @@ function EntryRow({
                 aria-label={name}
                 aria-description={note}
                 allowDeselect={false}
-                data={choices.map((choice) => (typeof choice === "string" ? { value: choice, label: choice } : choice))}
+                data={choices.map((choice) =>
+                    typeof choice === "string"
+                        ? { value: choice, label: choice }
+                        : { value: choice.value, label: choice.label },
+                )}
+                renderOption={(input) => renderChoice(input, choices)}
                 value={value}
                 autoFocus={opened}
                 defaultDropdownOpened={opened}
@@ -341,6 +436,22 @@ function SideGroup({
             setAdding(null);
         }
     }, [settled]);
+    // An entry asked for from elsewhere (the Overview's Set in Data) is brought into view and
+    // focused once it is listed.
+    const wanted = useWorkspaceState((state) => state.fieldsEntry);
+    const wantedHere = wanted?.startsWith(`${side}:`) === true ? wanted.slice(side.length + 1) : null;
+    const ready = wantedHere !== null && presentNow.has(wantedHere as EntryId);
+    useEffect(() => {
+        if (!ready) {
+            return;
+        }
+        const field = group.current?.querySelector<HTMLElement>(`[data-entry="${wantedHere ?? ""}"] input`);
+        if (field !== null && field !== undefined) {
+            field.scrollIntoView({ block: "nearest" });
+            focusWithRing(field);
+        }
+        store.set({ fieldsEntry: null });
+    }, [ready, wantedHere, group, store]);
     if (session === null) {
         return null;
     }
@@ -374,7 +485,17 @@ function SideGroup({
                 <EntryRow
                     key={entry.id}
                     {...common}
-                    choices={endKind ? kindChoices(roles, holder) : columnChoices(attributes, source, side, holder)}
+                    choices={
+                        endKind
+                            ? kindChoices(roles, holder)
+                            : columnOptions(
+                                  session,
+                                  attributes,
+                                  side,
+                                  entry.id,
+                                  columnChoices(attributes, source, side, holder),
+                              )
+                    }
                     onPick={(picked) => {
                         if (source !== undefined) {
                             onReload({ mapping: remap(source, side, { [key]: picked }) });
@@ -391,7 +512,6 @@ function SideGroup({
         }
         const role = entry.role ?? "label";
         const numeric = entry.id === "weight";
-        const offeredColumns = numeric ? attributes.filter((a) => isNumeric(a) || a.name === holder) : attributes;
         if (entry.id === "time") {
             return (
                 <TimeEntry
@@ -399,7 +519,7 @@ function SideGroup({
                     session={session}
                     store={store}
                     common={common}
-                    offered={offeredColumns}
+                    offered={attributes}
                     source={source}
                     onRemove={focusPlus}
                 />
@@ -415,7 +535,13 @@ function SideGroup({
                     // A location the element found is only preselected: picking it designates it.
                     repick={isLocation && located?.from === "detected"}
                     note={unused === undefined ? undefined : unusedWords(unused)}
-                    choices={columnChoices(offeredColumns, source, side, holder)}
+                    choices={columnOptions(
+                        session,
+                        attributes,
+                        side,
+                        entry.id,
+                        columnChoices(attributes, source, side, holder),
+                    )}
                     onPick={(picked) => {
                         session.data.setRole({ kind, name: picked }, role).catch(onFail);
                     }}
@@ -495,16 +621,14 @@ function TimeEntry({
 }>): React.JSX.Element {
     const { side, value: holder } = common;
     const kind = KIND_OF[side];
-    const isTime = (name: string): boolean =>
-        offered.find((a) => a.kind === kind && a.name === name)?.measurement === "time";
-    const names = columnChoices(offered, source, side, holder);
+    const names = columnOptions(session, offered, side, "time", columnChoices(offered, source, side, holder));
     const column = offered.find((a) => a.kind === kind && a.name === holder);
     const unit = UNIT_CHOICES.find((choice) => choice.value === unitOf(session))?.label ?? null;
     return (
         <>
             <EntryRow
                 {...common}
-                choices={[...names.filter(isTime), ...names.filter((name) => !isTime(name))]}
+                choices={names}
                 onPick={(picked) => {
                     designateTime(session, store, side, picked);
                 }}

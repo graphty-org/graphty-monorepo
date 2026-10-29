@@ -2,15 +2,18 @@ import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
 import type { DataIssue } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
+import { FIELD_ENTRIES, FIELD_ROWS } from "../../data-place/words";
 import {
     countOf,
     elementSort,
     fixLabel,
     groupName,
     headerIconsLabel,
+    headerRoles,
     issueLabel,
     issuePlace,
     keyColumnOf,
+    ROLE_WORDS,
     rolePill,
     sortCaption,
     type TableColumnChoice,
@@ -26,6 +29,43 @@ const RANK: TableColumnChoice = {
     run: "pagerank",
 };
 const NAME: TableColumnChoice = { id: "a:name", header: "name", group: "attribute", numeric: false, attribute: "name" };
+
+describe("one role list", () => {
+    it("draws the header's Role menu and Fields in the same words and order, ends only on edges", () => {
+        const words = (kind: "node" | "edge"): string[] => headerRoles(kind).map((role) => ROLE_WORDS[role]);
+        assert.deepEqual(words("node"), [
+            "Id",
+            "Label",
+            "Kind",
+            "Weight",
+            "Time",
+            "Latitude",
+            "Longitude",
+            "Coordinates",
+            "Country",
+            "Region",
+            "City",
+        ]);
+        assert.deepEqual(words("edge"), ["Source", "Target", "Id", "Kind", "Weight", "Time"]);
+        // A load that cannot be read again offers only the roles a column takes in place, as
+        // Fields does.
+        assert.notIncludeMembers(headerRoles("node", false), ["key", "kind"]);
+        assert.deepEqual(headerRoles("edge", false), ["weight", "time"]);
+        // Fields lists the same roles: its fixed rows, then its "+" entries that are roles.
+        for (const [side, kind] of [
+            ["nodes", "node"],
+            ["edges", "edge"],
+        ] as const) {
+            const fields = [
+                ...FIELD_ROWS.filter((row) => row.side === side).map((row) => row.label),
+                ...FIELD_ENTRIES[side]
+                    .filter((entry) => entry.load !== "sourceKind" && entry.load !== "targetKind")
+                    .map((entry) => entry.name),
+            ];
+            assert.deepEqual(fields, words(kind));
+        }
+    });
+});
 
 describe("the table dock's words and sorts", () => {
     it("names a header's icons for a screen reader: type, role, origin", () => {

@@ -3,25 +3,14 @@ import "./data-place.css";
 import type { SourceKey } from "@graphty/graphty-element/session";
 import React from "react";
 
-import { GLYPHS, SOURCE_GLYPHS } from "../glyphs";
+import { SOURCE_GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
 import { ServerPlace } from "../server/ServerForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
 import { Sources } from "./Sources";
-import type { SourceKind, TypeGlyph } from "./words";
-
-const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
-    category: <GLYPHS.category size={14} aria-hidden />,
-    text: <GLYPHS.text size={14} aria-hidden />,
-    number: <GLYPHS.number size={14} aria-hidden />,
-    ordinal: <GLYPHS.ordinal size={14} aria-hidden />,
-    time: <GLYPHS.time size={14} aria-hidden />,
-    "yes-no": <GLYPHS.yesNo size={14} aria-hidden />,
-    unknown: <GLYPHS.unknown size={14} aria-hidden />,
-    result: <GLYPHS.measure size={14} aria-hidden />,
-};
+import type { SourceKind } from "./words";
 
 /**
  * A source's icon, which the source inspector's header draws.
@@ -32,16 +21,6 @@ const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
 export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX.Element {
     const { icon: Icon, color } = SOURCE_GLYPHS[kind];
     return <Icon size={14} color={color} aria-hidden />;
-}
-
-/**
- * An attribute's type icon, which the attribute inspector's header draws.
- * @param props - Component props
- * @param props.glyph - The attribute's type glyph
- * @returns The icon
- */
-export function TypeGlyphIcon({ glyph }: Readonly<{ glyph: TypeGlyph }>): React.JSX.Element {
-    return <>{TYPE_GLYPHS[glyph]}</>;
 }
 
 /**

@@ -527,6 +527,12 @@ export interface ColorWrite {
 }
 
 // @public
+export const COLUMN_ROLES: Readonly<Record<"node" | "edge", {
+    readonly inPlace: readonly ColumnRole[];
+    readonly atLoad: readonly ColumnRole[];
+}>>;
+
+// @public
 export interface ColumnEncodingSpec extends EncodingOptions {
     readonly column: ColumnRef;
     readonly values?: Readonly<Record<string, string | number>>;

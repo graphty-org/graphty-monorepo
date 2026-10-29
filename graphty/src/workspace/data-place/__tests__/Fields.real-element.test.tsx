@@ -207,6 +207,39 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.isNull(section.queryByRole("option", { name: "none" }));
     });
 
+    it("lists the columns that fit a field first, each with its kind's glyph, and says how many of the rest will not convert", async () => {
+        await dropCsv("code,count,size\nA,1,10\nB,2,x\nC,3,30\n");
+        const section = await fields();
+        await userEvent.click(await section.findByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
+        await screen.findByRole("option", { name: /^count/ });
+        const options = screen.getAllByRole("option");
+        assert.deepEqual(
+            options.map((each) => each.textContent),
+            ["count", "size1 will not convert", "code3 will not convert"],
+        );
+        for (const each of options) {
+            // The list's check, then the column's type glyph.
+            assert.lengthOf(each.querySelectorAll("svg"), 2, `${each.textContent ?? ""} has a glyph`);
+        }
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("checks a found location as the column's role in its header's Role menu, as Fields lists it", async () => {
+        await dropCsv("name,lat,lon\nA,42.1,-71.1\nB,42.2,-71.2\nC,42.3,-71.3\n");
+        const section = await fields();
+        await waitFor(() => {
+            assert.equal(shown(section, "Node latitude column"), "lat");
+        });
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        await userEvent.click(await screen.findByRole("button", { name: "Options for lat" }, { timeout: TIMEOUT_MS }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        const latitude = await screen.findByRole("menuitemradio", { name: "Latitude" });
+        assert.equal(latitude.getAttribute("aria-checked"), "true");
+        assert.equal(screen.getByRole("menuitemradio", { name: "None" }).getAttribute("aria-checked"), "false");
+        await userEvent.keyboard("{Escape}");
+    });
+
     it("adds Time from +, removes it with the minus, and it stays gone after a reload", async () => {
         // The sample comes in through the Data place's own door, as in the airline test above, so
         // no click waits behind the start screen's turning graph or the sample's layout.

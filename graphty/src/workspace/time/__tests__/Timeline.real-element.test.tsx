@@ -87,7 +87,10 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
     } else {
         await userEvent.click(entry);
     }
-    await userEvent.click(await screen.findByRole("option", { name: column }));
+    // A column that does not fit names how many of its values will not convert after its name.
+    await userEvent.click(
+        await screen.findByRole("option", { name: new RegExp(String.raw`^${column}(\s*[\d,]+ will not convert)?$`) }),
+    );
 }
 
 /**
@@ -492,12 +495,17 @@ describe("the timeline on the real element", () => {
 });
 
 describe("the Overview and the import of time", () => {
-    it("offers the column that reads as time, and reads the visible graph while a window is on", async () => {
+    it("offers the column that reads as time as a door to Fields, and reads the visible graph while a window is on", async () => {
         const { session } = await open(OFFICE_EMAIL, "graph");
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("button", { name: "Set as time" }));
+        await userEvent.click(await inspector.findByRole("button", { name: "Set in Data" }));
+        // The door opens the Time entry's home, Data > Fields, with the column chosen and focused.
+        const place = await screen.findByRole("region", { name: "Data place" });
         await waitFor(() => {
             assert.deepEqual(session.time.field, { edges: { start: "sent" } });
+            const time = within(place).getByRole<HTMLInputElement>("combobox", { name: "Edge time" });
+            assert.equal(time.value, "sent");
+            assert.strictEqual(document.activeElement, time);
         });
         await act(async () => {
             await session.time.setSettings({ step: "week" });

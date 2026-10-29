@@ -52,6 +52,17 @@ behavior meanwhile.
    to a locked component's look. Options: (a) add the option to FileSource, opt-in, under a
    `Figma-Approved` trailer; (b) keep Enter as the only way to open an address.
 
+## 2026-10-29 -- Decided by the team: the roles a column can take are an element fact (graphty-element, compact-mantine)
+
+graphty-element, non-breaking: a new export `COLUMN_ROLES` from `./session` lists, per kind of
+column, the roles `data.setRole` gives a column of loaded rows (`inPlace`) and the roles the rows
+are made from, which take effect only by reading the load again (`atLoad`). Facts only, no order or
+words. The app drew two role lists from its own copies (the table header's Role menu and Data >
+Fields); both now read this, so a role the element adds reaches every list (tier 4, R10).
+compact-mantine, non-breaking: `ListboxCheck` (the themed list's check column) is exported, so a
+list option drawn with a glyph and a detail keeps the list's check. No look, token or Figma test
+changes.
+
 ## 2026-10-23 -- Owner approval: compact-mantine is locked to its Figma spec (compact-mantine)
 
 Owner approved the 24 departures in figma-spec.md section 14; any other departure, or a change to one

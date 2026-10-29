@@ -189,33 +189,31 @@ describe("the Data place's sidebar on the real element", () => {
         });
     });
 
-    it("reads an event table as edges from two node columns' Role menus", async () => {
-        const session = await openDataPlace();
+    it("draws a node column's Role menu as Fields' one list, the current role checked, with no ends", async () => {
+        await openDataPlace();
+        // The auth log's ends are not found from its values, so it opens in the table as nodes.
         drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
-        const header = async (name: string): Promise<HTMLElement> => {
-            const label = (await screen.findAllByTestId("data-table-header-label", {}, { timeout: TIMEOUT_MS })).find(
-                (each) => each.textContent === name,
-            );
-            const cell = label?.closest<HTMLElement>('[data-testid="data-table-header"]');
-            if (cell === null || cell === undefined) {
-                throw new Error(`no header ${name}`);
-            }
-            return cell;
-        };
-        for (const [column, role] of [
-            ["user", "Source"],
-            ["host", "Target"],
-        ]) {
-            await userEvent.click(within(await header(column)).getByRole("button", { name: `Options for ${column}` }));
-            await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
-            await userEvent.click(await screen.findByRole("menuitemradio", { name: role }));
-        }
-        await waitFor(
-            () => {
-                assert.lengthOf(session.data.edges(), 4);
-            },
-            { timeout: TIMEOUT_MS },
+        const label = (await screen.findAllByTestId("data-table-header-label", {}, { timeout: TIMEOUT_MS })).find(
+            (each) => each.textContent === "user",
         );
+        const cell = label?.closest<HTMLElement>('[data-testid="data-table-header"]');
+        if (cell === null || cell === undefined) {
+            throw new Error("no header user");
+        }
+        await userEvent.click(within(cell).getByRole("button", { name: "Options for user" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        await screen.findByRole("menuitemradio", { name: "None" });
+        const radios = screen.getAllByRole("menuitemradio");
+        const roles = radios.map((each) => each.textContent);
+        assert.includeMembers(roles, ["None", "Id", "Label", "Kind", "Weight", "Time", "Latitude", "City"]);
+        assert.notInclude(roles, "Source");
+        assert.notInclude(roles, "Target");
+        // Exactly one role is checked: the column's own.
+        assert.lengthOf(
+            radios.filter((each) => each.getAttribute("aria-checked") === "true"),
+            1,
+        );
+        await userEvent.keyboard("{Escape}");
     });
 
     it("offers only number columns as the weight", async () => {
@@ -306,14 +304,14 @@ describe("the Data place's sidebar on the real element", () => {
         await loadLog(session);
         // The Filters section's "+": the fields, and no Data source with one load.
         await userEvent.click(await place().findByRole("button", { name: "Add filter" }));
-        await screen.findAllByRole("menuitem");
-        assert.isNull(screen.queryByRole("menuitem", { name: "Data source" }));
+        await screen.findAllByRole("option");
+        assert.isNull(screen.queryByRole("option", { name: "Data source" }));
         await userEvent.keyboard("{Escape}");
 
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await place().findByRole("listitem", { name: "hosts.csv" });
         await userEvent.click(place().getByRole("button", { name: "Add filter" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Data source" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Data source" }));
         const card = await screen.findByRole("group", { name: "Data source values" });
         const [first] = session.data.sources();
         await userEvent.click(

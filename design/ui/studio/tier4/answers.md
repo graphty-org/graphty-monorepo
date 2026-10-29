@@ -79,7 +79,9 @@ Longitude by themselves under Fields; no Label is designated (the columns are `s
 - **Success**: under Data > Fields, the place is designated (Latitude `lat`, Longitude `lon`, set
   by the program at load; leaving them is right) and the time is designated as `opened` (B
   `installed`).
-- **Path**: the inspector's Overview "Set as time"; or Data > Fields "+" > Date or time > opened.
+- **Path**: the inspector's Overview "Set in Data" (it opens Data > Fields with the Time entry
+  added and the column chosen; change it there if it is not `opened`); or Data > Fields "+" > Time >
+  opened.
 - **Not success**: the time left undesignated; a column changed to the wrong kind.
 
 ## T64. Its name, and what makes a tie strong

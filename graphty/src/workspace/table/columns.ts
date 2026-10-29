@@ -7,17 +7,18 @@
  */
 
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type {
-    ColumnRef,
-    ColumnRole,
-    DataIssue,
-    FixCode,
-    GraphSession,
-    LoadedSource,
-    RecordSort,
-    ResultSort,
-    SummaryGroup,
-    ValueType,
+import {
+    COLUMN_ROLES,
+    type ColumnRef,
+    type ColumnRole,
+    type DataIssue,
+    type FixCode,
+    type GraphSession,
+    type LoadedSource,
+    type RecordSort,
+    type ResultSort,
+    type SummaryGroup,
+    type ValueType,
 } from "@graphty/graphty-element/session";
 
 import { loadValue, tableRoles } from "../data-place/words";
@@ -188,16 +189,38 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
 }
 
 /**
- * The roles a header's Role menu offers for a kind: what a load reads the kind's rows with, less
- * the edge id, which a reader never picks here. A node column also offers source and target,
- * which read its table's rows as edges once both ends are picked.
+ * Every role in the order the app lists them, wherever a list of roles is drawn: the header's
+ * Role menu and Data > Fields (its fixed rows, then its "+" entries).
+ */
+const ROLE_ORDER: readonly ColumnRole[] = [
+    "source",
+    "target",
+    "key",
+    "edgeId",
+    "label",
+    "kind",
+    "weight",
+    "time",
+    "latitude",
+    "longitude",
+    "coordinates",
+    "country",
+    "region",
+    "city",
+];
+
+/**
+ * The roles a header's Role menu offers for a kind: every role graphty-element says a column of
+ * the kind can take (`COLUMN_ROLES`), in the app's order; the roles the rows are made from only
+ * when the column's load can be read again, as Fields offers them. Source and target are an edge
+ * table's; a table of nodes is read as edges from Fields' "Rows are".
  * @param kind - nodes or edges.
+ * @param reloadable - whether the column's load can be read again.
  * @returns the roles.
  */
-export function headerRoles(kind: RecordKind): ColumnRole[] {
-    return kind === "node"
-        ? ["key", "label", "time", "kind", "source", "target"]
-        : ["source", "target", "weight", "time", "kind"];
+export function headerRoles(kind: RecordKind, reloadable = true): ColumnRole[] {
+    const { inPlace, atLoad } = COLUMN_ROLES[kind];
+    return ROLE_ORDER.filter((role) => inPlace.includes(role) || (reloadable && atLoad.includes(role)));
 }
 
 /**
@@ -212,9 +235,31 @@ export const ROLE_WORDS: Readonly<Record<string, string>> = {
     kind: "Kind",
     weight: "Weight",
     time: "Time",
-    location: "Location",
-    edgeId: "Edge id",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    coordinates: "Coordinates",
+    country: "Country",
+    region: "Region",
+    city: "City",
+    edgeId: "Id",
 };
+
+/**
+ * How many values would not convert to a type, as a Type or a column list says before it is
+ * chosen.
+ * @param session - the element's session.
+ * @param ref - the column.
+ * @param type - the type.
+ * @returns such as "1 will not convert", or undefined when every value converts.
+ */
+export function failWords(session: GraphSession, ref: ColumnRef, type: ValueType): string | undefined {
+    try {
+        const { fails } = session.data.previewType(ref, type);
+        return fails === 0 ? undefined : `${String(fails)} will not convert`;
+    } catch {
+        return undefined;
+    }
+}
 
 /**
  * The role pill a header shows, or undefined: none on a key column, whose key glyph says it, and

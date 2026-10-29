@@ -11,6 +11,7 @@ import type {
     ColumnRef,
     ColumnRole,
     Endpoint,
+    GraphSession,
     ImportReport,
     LeftOutEdge,
     LoadedSource,
@@ -548,10 +549,10 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
         ...LOCATION_ENTRIES,
     ],
     edges: [
+        { id: "edgeId", name: "Id", load: "edgeId" },
+        { id: "kind", name: "Kind", load: "kind" },
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
-        { id: "kind", name: "Kind", load: "kind" },
-        { id: "edgeId", name: "Id", load: "edgeId" },
         { id: "sourceKind", name: "Kind of source", load: "sourceKind" },
         { id: "targetKind", name: "Kind of target", load: "targetKind" },
     ],
@@ -712,4 +713,20 @@ export function remap(
     const tables = Object.entries(source.mapping?.tables ?? {});
     const id = tables.find(([, table]) => table.rowsAre === side)?.[0];
     return tables.length <= 1 || id === undefined ? roles : { tables: { [id]: roles } };
+}
+
+/**
+ * The glyph the Data place's row draws for a column: free text as text, not as groups.
+ * @param session - the session.
+ * @param column - the column.
+ * @returns the glyph.
+ */
+export function columnGlyph(session: GraphSession, column: AttributeDescriptor): TypeGlyph {
+    if (column.origin === "result") {
+        return "result";
+    }
+    const readable = session.data
+        .readableValues()
+        .find((value) => value.on === column.kind && value.path === column.path);
+    return typeOf(column.measurement, column.type, readable?.kind).glyph;
 }

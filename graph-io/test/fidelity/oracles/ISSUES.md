@@ -4568,30 +4568,55 @@ commit (f0b669df00), round 4's last recording commit (0ba5008d36), master before
 - **26 of the 27 samples were already red at round 4's own measurement**: f0b669df00 fails 30 samples against its
   own records (309 clean, 10,378 failing elements). Round 4 said so ("not green against its own records") and left
   the recording pass undone. Their drawings did not change between 0ba5008d36 and 780b7edbe6.
-- **The +110 is two changes that partly cancel.** `dot-real-siblings` went from 225 to 476 failing elements: all
-  284 edges now fail edge.width. The edges are as wide as before. A bisect over the 1,351 commits between
-  f0b669df00 and 0ba5008d36 names f987a1bc9a (2026-10-26, labels drawn and measured unhinted so their pixels do not
-  depend on load order): the unhinted labels measure a little differently, this file's nodes are sized to their
-  labels, so graphty's Graphviz run spaces them 2.7 percent differently (fitted scale 1.047 to 1.075), and on lines
-  0.22 units wide that moves the width ratio from inside [0.9, 1.1] to 1.101. It moved no other sample. The Graphviz label-size branch (#4203, pull request #4410) hands Graphviz the
-  label-sized nodes and takes every one of these edge.width failures away. Against it, eight `gml-specimen-*` pages
-  went from 160 failing elements to none when their oracle became OGDF's own drawing, with the two stand-ins judged
-  beside it (802cb125e1): an oracle change, not a drawing change.
-- **The 11 samples round 5 added** are elements its comparator newly judges on unchanged drawings (listed under
-  "Round 5", "The full-run gate"), and three more (`cx2-wp1449-tlr`, `json-cyjs-perf`, `json-cyjs-tokyo`) fail only
-  since the comparator pairs same-name twin nodes apart (#4265): graphty's drawing of them is identical to round 5's.
-  The four `syn-mappings` copies add one route each since round 5's arrowheads: the sinewave line stops short of its
-  larger half arrow, open as #4253.
+- **The +110, split.** 19 of it is already in a fresh run of round 4's own measurement commit: f0b669df00 fails
+  10,378 elements against the 10,359 round 4 reported. The other +91, from f0b669df00 to 780b7edbe6, is two changes
+  that partly cancel (+251 - 160). `dot-real-siblings` went from 225 to 476 failing elements: all 284 edges now fail
+  edge.width. The edges are as wide as before. A bisect over the 1,351 commits between f0b669df00 and 0ba5008d36
+  names f987a1bc9a (2026-10-26, labels drawn and measured unhinted so their pixels do not depend on load order): the
+  unhinted labels measure a little differently, this file's nodes are sized to their labels, so graphty's Graphviz
+  run spaces them 2.7 percent differently (fitted scale 1.047 to 1.075), and on lines 0.22 units wide that moves the
+  width ratio from inside [0.9, 1.1] to 1.101. No reader can see it; the comparator's edge.width is too strict on
+  sub-pixel lines (#4451). It moved no other sample. Against it, eight `gml-specimen-*` pages went from 160 failing
+  elements to none when their oracle became OGDF's own drawing, with the two stand-ins judged beside it
+  (802cb125e1): an oracle change, not a drawing change.
+- **The 11 samples round 5 added** are elements its comparator newly judges (listed under "Round 5", "The full-run
+  gate"). Three more were classified element by element against round 5's own run, judged again by today's
+  comparator (`GRAPHTY_ORACLE_BASELINE`; until this change a baseline outside the worktree was silently unreadable,
+  so every element came out "unclassified"): of their 76 elements, 33 already failed in round 5's run (most of
+  `json-cyjs-perf`'s arrows, `json-cyjs-tokyo`'s extra nodes and sizes, failing since round 4), 24 appear with the
+  comparator's twin pairing (#4265) on round 5's drawings, and 19 in the position-matched views of `cx2-wp1449-tlr`
+  and `json-cyjs-tokyo` come from a drawing change since round 5 that is not explained yet (#4452). Whether the
+  twin pairing pairs twins rightly is not settled.
+- **One recorded element is a drawing regression.** The four `syn-mappings` copies each add one route since round
+  5's arrowheads (#4254): the sinewave line stops short of its larger half arrow, open as #4253. It is in the known
+  failures now, so the gate no longer shows it.
 
 What changed:
 
 - The 6-hour full run now runs the whole comparison: four shards, `graphty-element-fidelity-1` to `-4`
   (`tools/ci-test-matrix.mjs`), each judging every fourth sample (`GRAPHTY_ORACLE_SLICE`), without a GPU, never on a
-  pull request or in the pre-push gate. A sample fails only for an element the known failures do not list. Without a
-  GPU the 563 samples take 807 s of comparison on the workstation, about 200 s a slice.
+  pull request or in the pre-push gate. A sample fails only for an element the known failures do not list. Timed on
+  CI runners by a dispatch of the four shards (run 40890370190): 285 to 355 s of samples a slice, 6 to 8 minutes a
+  job, against the job's 30. The runner fails exactly the elements the workstation fails. A sample judged two ways
+  on the same inputs is never quarantined as flaky: it fails the run.
 - The failures above are recorded with `fidelity:ratchet --add`, one reason per group (the `reasons` at the end of
   `oracle-known-failures.json`): 95 elements failing since round 4's measurement on real-program oracles, 548 on
-  stand-in drawings, 272 newly judged by round 5's comparator, 76 from the twin pairing and 24 on the `syn-mappings`
-  copies. The same run took 3,360 known failures that pass now off the list and raised 842 floors; none went down.
-- Not recorded: `dot-real-siblings`, whose failures come from the layout change above and which #4410 changes again.
-  Until #4410 lands, the full run's fidelity shard that holds `dot-real-siblings` fails on it.
+  stand-in drawings, 272 newly judged by round 5's comparator, 76 in the three samples above and 24 on the
+  `syn-mappings` copies. The same run took 3,360 known failures that pass now off the list and raised 842 floors;
+  none went down.
+
+For the owner to decide: 643 of the 1,015 recorded elements are not newly seen. 95 on real-program oracles and 548
+on stand-ins have failed since round 4's measurement on 2026-10-22, and recording them turns 26 red samples green
+with no drawing changed. The 95 were recorded without looking at each one, and they include visible defects, such
+as two edges missing from `cx2-signor-aml` (135->20, 92->27). "The drawing did not change" rests on the same element
+failing the same property at each commit with equal counts; geometry was not compared, so an element that got worse
+is not ruled out. The 272 round-5 elements include comparator misreadings rather than graphty defects (vis-network
+heads and bent lines, Pajek part-way heads, edge.wiggle, #4272), which the round 6 comparator branch takes off.
+
+Not recorded yet: the Graphviz label-size change (#4203, pull request #4410). Measured by merging #4410 at
+149ad24299 over these records: six samples fail the full gate, 100 elements in all (`tmp/style-round6/runs/with4410`
+in the main checkout): `dot-real-siblings` (no edge.width any more, but 8 node positions, 22 routes and 4 curves),
+`dot-synth-edges-clusters` (15 edge labels off their lines, 2 node positions), `dot-synth-nodes` (4 node heights,
+3 positions), `dot-real-crazy` (#4410 records its own), `dot-profile` and `dot-real-depcruise`. Without #4410,
+`dot-real-siblings` fails on its 284 edge widths alone. They are recorded once #4410 is on master, from a full
+gate run with it, under the owner's 2026-10-29 acceptance of that trade; slices 1, 2 and 3 hold the six samples.

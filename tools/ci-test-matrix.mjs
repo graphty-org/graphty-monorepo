@@ -303,10 +303,12 @@ const OFF_SHARDS = [
     // against the programs' own drawings): a sample fails only when an element fails a property that
     // oracle-known-failures.json does not list. Pull requests run its 28-sample subset (oracle-scorecard.test.ts, in
     // the browser shards); the whole set drifted red unseen for a week with nothing running it (issue #4270), so the
-    // 6-hour full run runs it, in slices of every 4th sample (GRAPHTY_ORACLE_SLICE). Without a GPU it took 1,403 s
-    // of samples on the workstation (gexf-hsk-chars 65 s the longest), so about 6 minutes a slice there and under the
-    // test job's 30 minutes on a runner. The gate's elements are the same with and without a GPU (#4270); only the
-    // raster regions differ, and they are reported, never gated. No coverage: the fidelity project measures none.
+    // 6-hour full run runs it, in slices of every 4th sample (GRAPHTY_ORACLE_SLICE). Timed on ubuntu-24.04 runners
+    // without a GPU (a dispatch of ci.yml with these four shards, run 40890370190, 2026-10-29): 285 to 355 s of
+    // samples a slice, 6 to 8 minutes a job with its setup, against the job's 30; 807 s for all 563 on the
+    // workstation. The gate's elements are the same with and without a GPU, and on the runner and the workstation
+    // (#4270); only the raster regions differ, and they are reported, never gated. No coverage: the fidelity
+    // project measures none.
     ...[1, 2, 3, 4].map((n) => ({
         shard: `graphty-element-fidelity-${n}`,
         package: "graphty-element",

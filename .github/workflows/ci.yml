@@ -2035,6 +2035,8 @@ jobs:
             actions: read
             # The early verdict (the last step) posts a failed "All Checks Pass" check run.
             checks: write
+            # The health API's credential (tools/results/post-unstable-stories.mjs posts the unstable stories)
+            id-token: write
         timeout-minutes: 20
         strategy:
             fail-fast: false
@@ -2180,6 +2182,21 @@ jobs:
                           echo "No capture: no story of this bin is in the built Storybook, or capture did not start."
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
+
+            # An unstable story drew two pictures on the same inputs: a flaky detection on the health dashboard,
+            # as a story test's flake is (#4373). Fire and forget: never fails the job.
+            - name: Record the unstable stories as flaky
+              if: always() && steps.pick.outputs.stories != ''
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  FILES: ${{ toJSON(matrix.files) }}
+                  PROJECT: ${{ matrix.project }}
+                  BIN: ${{ matrix.name }}
+                  STORYBOOK: ${{ matrix.storybook }}
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  [[ -f "$f" ]] || exit 0
+                  node tools/results/post-unstable-stories.mjs "$PROJECT" "$BIN" "$f" "$STORYBOOK/index.json" "$FILES"
 
             # What blocks: a story that failed (did not render, its play function threw, its wait never settled)
             # or was unstable (two shots on the same inputs disagreed), judged by visual-review's storyVerdict

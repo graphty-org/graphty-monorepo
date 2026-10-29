@@ -34,7 +34,8 @@ import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
 import type { BasemapConfig, BasemapStatus, GlobeLook, MapFrameFact } from "./config/Basemap";
-import { flatMapReach, type LocationMapFrame } from "./layout/locationMap/place";
+import type { LocationMapFrame } from "./layout/locationMap/place";
+import { flatMapReach } from "./layout/locationMap/reach";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
 

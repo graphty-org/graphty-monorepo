@@ -26,7 +26,7 @@ const SITES_CSV = "id,name,families\nA,Alpha,3\nB, Beta ,4\nC,Gamma,5\n";
  * Renders the workspace on the Data place with a project open, loads the sites and waits for them.
  * @returns the element's session.
  */
-async function openSites(): Promise<GraphSession> {
+async function openSites(file = new File([SITES_CSV], "sites.csv")): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Sites", id: 1 }, place: "data" })} />);
     let session: GraphSession | undefined;
     await waitFor(
@@ -41,7 +41,7 @@ async function openSites(): Promise<GraphSession> {
     }
     // A synthetic drop, the one exception to real input: a page cannot drag a file from the system.
     const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(new File([SITES_CSV], "sites.csv"));
+    dataTransfer.items.add(file);
     for (const type of ["dragover", "drop"]) {
         globalThis.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
     }
@@ -98,5 +98,26 @@ describe("a Sources row's issues", () => {
             assert.isNull(screen.queryByRole("dialog", { name: "Issues in sites.csv" }));
             assert.equal(document.activeElement, chip);
         });
+    });
+
+    it("draws the row's counts whole beside its issue chip at the narrowest left panel", async () => {
+        // A chain of 1,000 edges (1,001 nodes) with one padded value: two wide count chips and an
+        // issue chip in a row at the left panel's narrowest width, which is also its default.
+        const rows = Array.from({ length: 1000 }, (_, i) => `n${String(i)},n${String(i + 1)},${i === 0 ? " x " : "x"}`);
+        const name = "a-long-file-name-for-the-row.csv";
+        await openSites(new File([`source,target,kind\n${rows.join("\n")}\n`], name));
+        const place = within(screen.getByRole("region", { name: "Data place" }));
+        const row = await place.findByRole("listitem", { name }, { timeout: TIMEOUT_MS });
+        const issues = await within(row).findByRole("button", { name: `1 issue in ${name}` }, { timeout: TIMEOUT_MS });
+        await waitFor(() => {
+            assert.include(row.textContent, "1,000");
+        });
+        const chips = [...row.querySelectorAll(".dp-source-chips > *"), issues].map((each) =>
+            each.getBoundingClientRect(),
+        );
+        assert.lengthOf(chips, 3, "a node chip, an edge chip and the issue chip");
+        for (let i = 1; i < chips.length; i++) {
+            assert.isAtMost(chips[i - 1].right, chips[i].left, `chip ${String(i + 1)} covers chip ${String(i)}`);
+        }
     });
 });

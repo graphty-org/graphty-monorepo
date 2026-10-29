@@ -251,16 +251,18 @@ export function SourceRow({
                             }}
                         >
                             <span className="dp-source-icon">{KIND_ICONS[source.kind]}</span>
-                            <Tooltip label={name} openDelay={500}>
-                                <span className="dp-source-name">{name}</span>
-                            </Tooltip>
-                            {match === null ? null : (
-                                <Tooltip label={joinWords(source)}>
-                                    <span className="dp-quiet" aria-hidden>
-                                        {match}
-                                    </span>
+                            <span className="dp-source-label">
+                                <Tooltip label={name} openDelay={500}>
+                                    <span className="dp-source-name">{name}</span>
                                 </Tooltip>
-                            )}
+                                {match === null ? null : (
+                                    <Tooltip label={joinWords(source)}>
+                                        <span className="dp-quiet" aria-hidden>
+                                            {match}
+                                        </span>
+                                    </Tooltip>
+                                )}
+                            </span>
                             {match === null ? null : <VisuallyHidden>{joinWords(source)}</VisuallyHidden>}
                             {counted === "" ? null : (
                                 <Tooltip label={counted}>

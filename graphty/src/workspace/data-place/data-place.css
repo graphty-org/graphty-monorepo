@@ -48,12 +48,13 @@
     background: var(--mantine-color-default-hover);
 }
 
+/* The button never shrinks below its icon and count chips (its label counts as no width there), so
+   the issue chip after it never covers them: the name is what gives way. */
 .dp-source-main {
     display: flex;
     flex: 1;
     align-items: center;
     gap: 6px;
-    min-width: 0;
     /* Room inside the button, so its inset focus ring clears the text. */
     padding: 2px 4px;
     border: 0;
@@ -72,9 +73,18 @@
     color: var(--mantine-color-dimmed);
 }
 
+.dp-source-label {
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    gap: 6px;
+    width: 0;
+    min-width: 0;
+}
+
 .dp-source-name {
     flex: 1 1 auto;
-    min-width: 4em;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -82,7 +92,7 @@
 
 /* The join ratio gives way well before the name does (its words stay in its tooltip and name); the
    chips keep their size. */
-.dp-source-main .dp-quiet {
+.dp-source-label .dp-quiet {
     flex: 0 1000 auto;
     min-width: 0;
     overflow: hidden;

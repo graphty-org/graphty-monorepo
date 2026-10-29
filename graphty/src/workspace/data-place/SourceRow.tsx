@@ -1,6 +1,6 @@
 import { ContextMenu, EntityChip, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { LoadedSource } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Menu, TextInput, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import type { SourceRowCommand } from "../commands/registry";
@@ -9,7 +9,7 @@ import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { IssuesList } from "../table/IssuesList";
-import { joinMatch, serverCount, sourceName } from "./words";
+import { countWords, joinMatch, joinWords, serverCount, sourceName } from "./words";
 
 const KIND_ICONS: Readonly<Record<LoadedSource["kind"], React.ReactNode>> = {
     file: <GLYPHS.file size={14} aria-hidden />,
@@ -155,8 +155,10 @@ function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: str
 
 /**
  * One Sources row (spec section 3.2): the kind's icon, the name, the node and edge chips (none for
- * a count of 0); a joined table's link and matched rows; a server load's node chip "500 of 40,000". On hover
- * or focus, Load more, Refresh and "..." take the chips' place, and a running one stays drawn busy. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
+ * a count of 0, named "13 nodes, 18 edges"); a joined table's matched rows when some did not join; a
+ * server load's node chip "500 of 40,000". The name gives way last and shows in full in a tooltip.
+ * On hover or focus, Load more, Refresh and "..." appear after the chips, and a running one stays
+ * drawn busy. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
  * that applies, and Rename. A load with open issues shows a warning chip with their count, which
  * opens its issue list.
  * @param props - Component props
@@ -205,6 +207,7 @@ export function SourceRow({
         });
     };
     const match = joinMatch(source);
+    const counted = countWords(source);
     const menuItems = items.map((item) => (
         <CommandMenuItem
             key={item.id}
@@ -247,23 +250,33 @@ export function SourceRow({
                             }}
                         >
                             <span className="dp-source-icon">{KIND_ICONS[source.kind]}</span>
-                            <span className="dp-source-name">{name}</span>
+                            <Tooltip label={name} openDelay={500}>
+                                <span className="dp-source-name">{name}</span>
+                            </Tooltip>
                             {match === null ? null : (
-                                <span className="dp-quiet" aria-label={`${match} matched`}>
-                                    {match}
-                                </span>
+                                <Tooltip label={joinWords(source)}>
+                                    <span className="dp-quiet" aria-hidden>
+                                        {match}
+                                    </span>
+                                </Tooltip>
                             )}
-                            <span className="dp-source-chips">
-                                {source.counts.nodes === 0 ? null : (
-                                    // A server load's chip reads "100 of 171" when its source says how many it holds.
-                                    <EntityChip kind="node">
-                                        {serverCount(source.counts.nodes, source.total)}
-                                    </EntityChip>
-                                )}
-                                {source.counts.edges === 0 ? null : (
-                                    <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>
-                                )}
-                            </span>
+                            {match === null ? null : <VisuallyHidden>{joinWords(source)}</VisuallyHidden>}
+                            {counted === "" ? null : (
+                                <Tooltip label={counted}>
+                                    <span className="dp-source-chips" aria-hidden>
+                                        {source.counts.nodes === 0 ? null : (
+                                            // A server load's chip reads "100 of 171" when its source says how many it holds.
+                                            <EntityChip kind="node">
+                                                {serverCount(source.counts.nodes, source.total)}
+                                            </EntityChip>
+                                        )}
+                                        {source.counts.edges === 0 ? null : (
+                                            <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>
+                                        )}
+                                    </span>
+                                </Tooltip>
+                            )}
+                            {counted === "" ? null : <VisuallyHidden>{counted}</VisuallyHidden>}
                         </button>
                     )}
                     {renaming ? null : <IssuesChip source={source} name={name} />}
@@ -293,7 +306,12 @@ export function SourceRow({
                         )}
                         <Menu position="bottom-end">
                             <Menu.Target>
-                                <ActionIcon variant="subtle" size="sm" aria-label={`${name} menu`}>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size="sm"
+                                    className="dp-source-more"
+                                    aria-label={`${name} menu`}
+                                >
                                     <GLYPHS.more size={14} aria-hidden />
                                 </ActionIcon>
                             </Menu.Target>

@@ -356,59 +356,115 @@ function writable(target, locals) {
  * @returns one line per finding, empty for code that keeps to itself
  */
 export function scan(root, sf, free = null) {
-    const locals = localsOf(root);
+    const ctx = { locals: localsOf(root), free, sf };
     const found = [];
-    const say = (why, n) => found.push(`${why}: ${code(n, sf)}`);
-    const nameUse = (name, n) => {
-        if (META_PROPS.has(name)) say(`reaches past an object's shape (${name})`, n);
-        else if (free && PAGE_ESCAPES.has(name)) say(`goes past the user's hands (${name})`, n);
-        else return false;
-        return true;
-    };
     const visit = (n) => {
-        const target = writeTarget(n);
-        if (target !== undefined && !ts.isCallExpression(n) && !writable(target, locals)) {
-            return say(`writes to ${rootName(target) ?? code(target, sf)}`, n);
-        }
-        if (ts.isCallExpression(n)) {
-            const callee = n.expression;
-            if (callee.kind === ts.SyntaxKind.ImportKeyword) return say("imports code at run time", n);
-            const first = n.arguments[0];
-            if (target !== undefined && !(first && (ts.isObjectLiteralExpression(first) || writable(first, locals))))
-                return say(`writes to ${rootName(first) ?? "an object"}`, n);
-            if (ts.isPropertyAccessExpression(callee) && MUTATING_METHODS.has(callee.name.text)) {
-                const root = rootName(callee.expression);
-                if (root === undefined || root === "this" || !locals.has(root))
-                    return say(`changes ${root ?? "an object"} in place`, n);
-            }
-        }
-        if (ts.isPropertyAccessExpression(n)) {
-            if (nameUse(n.name.text, n)) return undefined;
-            return visit(n.expression);
-        }
-        if (ts.isElementAccessExpression(n)) {
-            const key = n.argumentExpression;
-            if (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) {
-                if (nameUse(key.text, n)) return undefined;
-            } else if (free && !ts.isNumericLiteral(key) && !ts.isPrefixUnaryExpression(key)) {
-                return say("computes a property name", n);
-            }
-        }
-        if (ts.isPropertyAssignment(n) || ts.isMethodDeclaration(n) || ts.isFunctionDeclaration(n)) {
-            if (n.name && ts.isComputedPropertyName(n.name)) visit(n.name);
-            return n.forEachChild((k) => {
-                if (k !== n.name) visit(k);
-            });
-        }
-        if (n.kind === ts.SyntaxKind.ThisKeyword && free) return say("reads this", n);
-        if (ts.isIdentifier(n)) {
-            if ((free ? FREE_GLOBALS : GLOBALS).has(n.text)) return say(`reaches ${n.text}`, n);
-            if (free?.has(n.text)) return say(`reads ${n.text}, which the checks rely on`, n);
-        }
-        return n.forEachChild(visit);
+        const why = writeFinding(n, ctx) ?? callFinding(n, ctx) ?? accessFinding(n, ctx) ?? nameFinding(n, ctx);
+        if (why) found.push(`${why}: ${code(n, sf)}`);
+        else children(n).forEach(visit);
     };
     visit(root);
     return found;
+}
+
+/**
+ * The parts of a node scan() looks into: not the name of a property read, a property key or a
+ * function's own name, which are not variables.
+ * @param n the node
+ * @returns its children to scan
+ */
+function children(n) {
+    if (ts.isPropertyAccessExpression(n)) return [n.expression];
+    const kids = [];
+    n.forEachChild((k) => {
+        kids.push(k);
+    });
+    const named = ts.isPropertyAssignment(n) || ts.isMethodDeclaration(n) || ts.isFunctionDeclaration(n);
+    return named && n.name && !ts.isComputedPropertyName(n.name) ? kids.filter((k) => k !== n.name) : kids;
+}
+
+/**
+ * A write past the code's own locals: an assignment, ++, delete, Object.assign and the like.
+ * @param n the node
+ * @param ctx what scan() knows of the code
+ * @param ctx.locals the code's own names (localsOf)
+ * @param ctx.sf its source file
+ * @returns why it is a finding, or nothing
+ */
+function writeFinding(n, { locals, sf }) {
+    const target = writeTarget(n);
+    if (target === undefined) return undefined;
+    if (!ts.isCallExpression(n))
+        return writable(target, locals) ? undefined : `writes to ${rootName(target) ?? code(target, sf)}`;
+    if (ts.isObjectLiteralExpression(target) || writable(target, locals)) return undefined;
+    return `writes to ${rootName(target) ?? "an object"}`;
+}
+
+/**
+ * A call that loads code or changes, in place, an object the code did not declare.
+ * @param n the node
+ * @param ctx what scan() knows of the code
+ * @param ctx.locals the code's own names (localsOf)
+ * @returns why it is a finding, or nothing
+ */
+function callFinding(n, { locals }) {
+    if (!ts.isCallExpression(n)) return undefined;
+    const callee = n.expression;
+    if (callee.kind === ts.SyntaxKind.ImportKeyword) return "imports code at run time";
+    if (!ts.isPropertyAccessExpression(callee) || !MUTATING_METHODS.has(callee.name.text)) return undefined;
+    const root = rootName(callee.expression);
+    return root === undefined || root === "this" || !locals.has(root)
+        ? `changes ${root ?? "an object"} in place`
+        : undefined;
+}
+
+/**
+ * A property read that goes past an object's shape, past the user's hands (free code), or by a
+ * computed name (free code).
+ * @param n the node
+ * @param ctx what scan() knows of the code
+ * @param ctx.free the protected names, for free code
+ * @returns why it is a finding, or nothing
+ */
+function accessFinding(n, { free }) {
+    let key;
+    if (ts.isPropertyAccessExpression(n)) key = n.name.text;
+    else if (!ts.isElementAccessExpression(n)) return undefined;
+    else if (ts.isStringLiteral(n.argumentExpression) || ts.isNoSubstitutionTemplateLiteral(n.argumentExpression))
+        key = n.argumentExpression.text;
+    else if (free && !ts.isNumericLiteral(n.argumentExpression) && !ts.isPrefixUnaryExpression(n.argumentExpression))
+        return "computes a property name";
+    if (META_PROPS.has(key)) return `reaches past an object's shape (${key})`;
+    if (free && PAGE_ESCAPES.has(key)) return `goes past the user's hands (${key})`;
+    return undefined;
+}
+
+/**
+ * A name that reaches the whole runtime, or, in free code, `this` or a name the checks rely on.
+ * @param n the node
+ * @param ctx what scan() knows of the code
+ * @param ctx.free the protected names, for free code
+ * @returns why it is a finding, or nothing
+ */
+function nameFinding(n, { free }) {
+    if (free && n.kind === ts.SyntaxKind.ThisKeyword) return "reads this";
+    if (!ts.isIdentifier(n)) return undefined;
+    if ((free ? FREE_GLOBALS : GLOBALS).has(n.text)) return `reaches ${n.text}`;
+    return free?.has(n.text) ? `reads ${n.text}, which the checks rely on` : undefined;
+}
+
+/**
+ * Add a top-level statement of routes.mjs to its protected units.
+ * @param out the units and their nodes
+ * @param s the statement
+ * @param sf its source file
+ * @returns the statement
+ */
+function addUnit(out, s, sf) {
+    const [name, text] = unitOf(s, sf, "routes.mjs");
+    out.units.set(name, text);
+    out.nodes.set(name, s);
+    return s;
 }
 
 /**
@@ -429,21 +485,13 @@ function routesUnits(text) {
         }
         for (const n of boundNames(s)) declared.set(n, s);
         if (ts.isImportDeclaration(s)) imported.push(...boundNames(s));
-        if (ts.isImportDeclaration(s) || !boundNames(s).length) {
-            const [name, text] = unitOf(s, sf, "routes.mjs");
-            out.units.set(name, text);
-            out.nodes.set(name, s);
-            out.roots.push(s);
-        }
+        if (ts.isImportDeclaration(s) || !boundNames(s).length) out.roots.push(addUnit(out, s, sf));
     }
     const reached = reach(out.roots, declared);
     for (const s of sf.statements) {
         if (routesArray(s) || ts.isImportDeclaration(s) || !boundNames(s).length) continue;
-        if (boundNames(s).some((n) => reached.has(n))) {
-            const [name, text] = unitOf(s, sf, "routes.mjs");
-            out.units.set(name, text);
-            out.nodes.set(name, s);
-        } else out.free.push(s);
+        if (boundNames(s).some((n) => reached.has(n))) addUnit(out, s, sf);
+        else out.free.push(s);
     }
     const names = new Set([...reached, ...imported, "routes", "this", "globalThis"]);
     for (const [name, node] of out.nodes) out.nodes.set(name, { node, sf });

@@ -5,6 +5,7 @@ import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@grap
 import { Button, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { APP_GLOBE_SOURCE } from "../../constants/globe";
 import { groupsAnnouncement, pathAnnouncement } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { selectedNameWords } from "../inspector/words";
@@ -139,7 +140,7 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
 
 /**
  * The widest data, in degrees of latitude or longitude, the app draws over a street map rather
- * than the bundled Natural Earth picture, which is a 2048 pixel world: at the scale of a country or
+ * than the bundled Natural Earth picture, which is a 4096 pixel world: at the scale of a country or
  * a city it is a blur.
  */
 const DETAILED_MAP_SPAN = 20;
@@ -152,10 +153,11 @@ const DETAILED_MAP_SPAN = 20;
 const DETAILED_MAP_SOURCE = "openstreetmap";
 
 /**
- * Draws data of a country or a city over a detailed street map. The element's own default is the
- * bundled world picture, which contacts no third party; choosing a tiled source is the app's
- * call. Made once per project, the first time a flat map is drawn while the reader has chosen no
- * map, as the layout's `map` option, so the Map form names it and the reader can change it.
+ * Draws data of a country or a city over a detailed street map, and wider data on a globe over
+ * NASA's Blue Marble satellite picture, so the globe reads as the earth. The element's own default
+ * is the bundled world picture, which contacts no third party; choosing a tiled source is the
+ * app's call. Made once per project, the first time a 2D or 3D map is drawn while the reader has chosen
+ * no map, as the layout's `map` option, so the Map form names it and the reader can change it.
  */
 function useDetailedMapForSmallData(): void {
     const { element } = useWorkspace();
@@ -168,21 +170,18 @@ function useDetailedMapForSmallData(): void {
         const onBasemap = (): void => {
             const frame = element.mapFrame;
             const { layout } = session;
-            if (
-                chosen ||
-                frame?.surface !== "flat" ||
-                layout.id !== "location-map" ||
-                (layout.options.map ?? null) !== null
-            ) {
+            if (chosen || frame === null || layout.id !== "location-map" || (layout.options.map ?? null) !== null) {
                 return;
             }
             const [[west, south], [east, north]] = frame.bounds;
-            if (Math.max(east - west, north - south) > DETAILED_MAP_SPAN) {
+            const small = Math.max(east - west, north - south) <= DETAILED_MAP_SPAN;
+            if (!small && frame.mapDimension !== "3d") {
                 return;
             }
             chosen = true;
             // Only the map changes: the element swaps it under nodes that stay where they are.
-            void layout.set("location-map", { options: { ...layout.options, map: { source: DETAILED_MAP_SOURCE } } });
+            const source = small ? DETAILED_MAP_SOURCE : APP_GLOBE_SOURCE;
+            void layout.set("location-map", { options: { ...layout.options, map: { source } } });
         };
         element.addEventListener("basemap-status", onBasemap);
         return () => {
@@ -219,7 +218,10 @@ function useLayoutWarningNotice(): void {
             if (words === null || layoutType !== session.layout.id) {
                 return;
             }
-            const key = JSON.stringify([layoutType, session.layout.options, words]);
+            // The picture under the map (`map`, which the app may choose after the first run)
+            // places no node, so it does not make a count new.
+            const { map: _map, ...placing } = session.layout.options;
+            const key = JSON.stringify([layoutType, placing, words]);
             if (key === posted) {
                 return;
             }

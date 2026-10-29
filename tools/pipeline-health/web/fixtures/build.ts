@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url";
 
 import type {
     CategoryStatus,
+    ChannelOutcome,
+    ChannelTile,
     Cmp,
     Episode,
     Fact,
@@ -831,7 +833,55 @@ const sources: SourceAge[] = [
     { id: "local", lastWrite: t("14:30"), limitS: null, state: "idle" },
 ];
 
-const overview: OverviewResponse = { page: "overview", range: "1h", generated: GEN, categories, episodes, sources };
+// ---------------------------------------------------------------- release channels
+
+/** Attempts from a string of outcomes, oldest first ("o" ok, "x" failed, "h" held, "c" cancelled), every `everyMin`. */
+function attempts(spec: string, last: string, everyMin: number, run: number): ChannelTile["attempts"] {
+    const OUT: Record<string, ChannelOutcome> = { o: "ok", x: "bad", h: "held", c: "cancelled" };
+    const end = Date.parse(t(last));
+    return [...spec].map((c, i) => ({
+        at: new Date(end - (spec.length - 1 - i) * everyMin * 60_000).toISOString(),
+        outcome: OUT[c],
+        run: run + i,
+    }));
+}
+
+const channels: ChannelTile[] = [
+    {
+        id: "canary",
+        state: "ok",
+        sha: "3f2a91c0d5e4b7a8c9d0e1f2a3b4c5d6e7f8a9b0",
+        at: t("22:48"),
+        attempts: attempts("oooooooooooxoo", "22:48", 25, 40245000001),
+        link: "/releases",
+    },
+    {
+        id: "nightly",
+        state: "warn",
+        sha: "9c41d07e2b8a6f3c1d5e7a9b0c2d4e6f8a1b3c5d",
+        at: t("12:41"),
+        attempts: attempts("ooxoohoooh", "18:24", 360, 40240000001),
+        link: "/releases",
+    },
+    {
+        id: "production",
+        state: "ok",
+        sha: "b7e03a1f9d2c4e6a8b0c1d3e5f7a9b2c4d6e8f0a",
+        at: t("10-22 17:05"),
+        attempts: attempts("ocxo", "10-22 17:05", 1440, 40200000001),
+        link: "/releases",
+    },
+];
+
+const overview: OverviewResponse = {
+    page: "overview",
+    range: "1h",
+    generated: GEN,
+    categories,
+    episodes,
+    sources,
+    channels,
+};
 
 // ---------------------------------------------------------------- sections
 
@@ -2108,6 +2158,11 @@ for (const range of RANGES)
         page: "overview",
         range,
         categories: grayStatus.categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
+        channels: [
+            channels[0],
+            { id: "nightly", state: "nodata", sha: null, at: null, attempts: [], link: "/releases" },
+            channels[2],
+        ],
     } satisfies OverviewResponse);
 for (const range of ["7d", "28d"] as SlowRange[]) {
     const secs = costSections(range).map((s) =>

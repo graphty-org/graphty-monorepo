@@ -13,7 +13,14 @@ import type {
     TestItem,
 } from "../model/items.js";
 import { DAY, HOUR, MIN } from "../model/items.js";
-import { type LaneJob, NOT_A_TRAIN, type OwnerWait, type ReleaseSeen, type WorkflowState } from "../model/snapshots.js";
+import {
+    type ChannelAttempt,
+    type LaneJob,
+    NOT_A_TRAIN,
+    type OwnerWait,
+    type ReleaseSeen,
+    type WorkflowState,
+} from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -624,6 +631,9 @@ const BAD = new Set(["failure", "timed_out", "cancelled", "startup_failure", "ac
 /** "full" from "Release (full)"; runs before 2026-10-25 18:00 say just "Release" (legacy). */
 export const releaseMode = (title: string | undefined): string => /\(([\w-]+)\)/.exec(title ?? "")?.[1] ?? "legacy";
 
+/** release.yml's job that deploys nightly.graphty.app once the candidate was promoted. */
+const NIGHTLY_SITE = "Deploy the nightly site";
+
 const jobsOf = (jobs: GhJob[], name: string) => jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
 
 function laneOf(jobs: GhJob[], name: string): LaneResult {
@@ -645,6 +655,8 @@ export interface ReleaseAttempt {
     jobs: Partial<Record<Lane, LaneJob>>;
     /** The first job that failed, wherever it is (for an attempt that failed before its lanes). */
     failedJob?: string;
+    /** Its "Deploy the nightly site" job: passed means it promoted the candidate to nightly. */
+    nightly: LaneResult;
 }
 
 function laneJob(mine: GhJob[], name: string): LaneJob | undefined {
@@ -705,7 +717,46 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
     const failed = jobs
         .filter((j) => BAD.has(j.conclusion ?? ""))
         .sort((a, b) => msOr(a.completed_at) - msOr(b.completed_at))[0];
-    return { mode, lanes, tested, red, jobs: laneJobs, ...(failed ? { failedJob: failed.name } : {}) };
+    const nightly = laneOf(jobs, NIGHTLY_SITE);
+    return { mode, lanes, tested, red, jobs: laneJobs, nightly, ...(failed ? { failedJob: failed.name } : {}) };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The release channels (#4460): canary's deploys and production's promotions. Nightly's are release attempts.
+
+/** A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed. */
+const runOutcome = (conclusion: string | null): ChannelAttempt["outcome"] => {
+    if (conclusion === "success") return "ok";
+    return conclusion === "cancelled" ? "cancelled" : "bad";
+};
+
+/** Canary's attempts, newest first: finished deploy-pages.yml runs; a skipped run (master's build was red) is none. */
+export function canaryAttempts(runs: GhRun[]): ChannelAttempt[] {
+    return runs
+        .filter((r) => r.status === "completed" && r.conclusion !== "skipped")
+        .map((r) => ({
+            at: Date.parse(r.updated_at),
+            outcome: runOutcome(r.conclusion),
+            // run-name is "Deploy <the built commit>"; the run's own head is master's newest commit.
+            sha: /\b[0-9a-f]{40}\b/.exec(r.display_title ?? "")?.[0] ?? r.head_sha,
+            run: r.id,
+        }))
+        .sort((a, b) => b.at - a.at);
+}
+
+/**
+ * A finished promote.yml run as a production promotion: it moved channel/production, or its promotion failed. A dry
+ * run, a configuration redeploy or a nightly rollback is null. ponytail: a failed dry run counts as a failed
+ * promotion, since the jobs API does not say which runs were dry; read the run's inputs if that misleads.
+ */
+export function promotion(run: GhRun, jobs: GhJob[]): ChannelAttempt | null {
+    const move = jobs.find((j) => j.name.startsWith("Move channel/"));
+    if (move?.name !== "Move channel/production") return null;
+    const moved = laneOf(jobs, move.name);
+    if (moved !== "passed" && moved !== "failed" && laneOf(jobs, "Promote (owner approval)") !== "failed") return null;
+    // A run that succeeded without moving the channel failed its promotion (its promote job did).
+    const failed = run.conclusion === "success" ? "failure" : run.conclusion;
+    return { at: Date.parse(run.updated_at), outcome: moved === "passed" ? "ok" : runOutcome(failed), run: run.id };
 }
 
 /** The scheduler's App dispatches the train; anything else is ad hoc. */
@@ -856,7 +907,13 @@ export function stressQuiet(runs: Pick<StressCursorRun, "at" | "foundFailures">[
 
 export interface Rates {
     t4: { bootMin: number; usdPerMin: Record<string, number> };
-    llm: { step: string; usdPerPaidStep: number; paidConclusions: string[] };
+    llm: {
+        step: string;
+        bisectStep: string;
+        legacyBisectRuns: number[];
+        usdPerPaidStep: number;
+        paidConclusions: string[];
+    };
     fixedMonthly: Record<string, { usd: number } | null>;
 }
 
@@ -882,16 +939,30 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
     };
 }
 
+/** Whether a bisect.yml run bisects the llm lane: its run name says so, or it is listed from before the name did. */
+const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates) =>
+    !!run && (/\bllm lane\b/.test(run.display_title ?? "") || rates.llm.legacyBisectRuns.includes(run.id));
+
 /** The step after the LLM tests whose name carries the run's logged cost (release.yml, tools/llm-spend.mjs). */
 const LLM_COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
 
 /**
- * Paid LLM test steps (as tools/llm-spend.mjs counts them): the job's logged cost when its cost step names one,
- * else each paid step times the flat per-run cost.
+ * Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost: release.yml's LLM regression step,
+ * and the test step of each point of a bisect of the llm lane. A job whose cost step logged its real cost is priced at
+ * that instead.
  */
-export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
+export function llmCost(
+    j: GhJob,
+    repo: string,
+    rates: Rates,
+    workflow?: string,
+    run?: Pick<GhRun, "id" | "display_title">,
+): CostItem | undefined {
+    const bisect = workflow === "bisect.yml";
+    if (bisect && !llmBisect(run, rates)) return undefined;
+    const step = bisect ? rates.llm.bisectStep : rates.llm.step;
     const paid = (j.steps ?? []).filter(
-        (s) => s.name === rates.llm.step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
+        (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
     if (!paid.length) return undefined;
     const logged = (j.steps ?? []).map((s) => LLM_COST_STEP.exec(s.name)?.[1]).find((v) => v !== undefined);

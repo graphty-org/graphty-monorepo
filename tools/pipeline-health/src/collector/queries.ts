@@ -84,3 +84,11 @@ export const REPO_FILES_QUERY = `query($owner: String!, $name: String!) {
     advisory: object(expression: "HEAD:tools/ci-advisory-checks.json") { ... on Blob { text } }
   }
 }`;
+
+/** The heads of channel/nightly and channel/production: the commit each channel serves. */
+export const CHANNEL_REFS_QUERY = `query($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    nightly: ref(qualifiedName: "refs/heads/channel/nightly") { target { oid } }
+    production: ref(qualifiedName: "refs/heads/channel/production") { target { oid } }
+  }
+}`;

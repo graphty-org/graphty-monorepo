@@ -225,6 +225,10 @@ else
     # not only by the root, where hoisting hides the gap until the package builds somewhere else.
     run_step "Declared build tools" "pnpm run check:declared-tools"
 
+    # No branch removes or changes an outcome check of the dry run (graphty/dry-run/), or the code
+    # that decides one passes, except a check-change branch (graphty/dry-run/README.md). Under a second.
+    run_step "Dry-run outcome checks kept" "pnpm run check:dry-run-checks"
+
     # release-hold.json names only real nx projects, each with a reason and a date.
     run_step "Release hold list" "pnpm run check:release-hold"
 

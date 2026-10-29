@@ -220,6 +220,27 @@ describe("the Add a condition list", () => {
             assert.deepEqual(names, ["Node id"]);
         });
     });
+
+    it("lists a column that arrives while the picker is open", async () => {
+        // The picker opened before the graph's data arrived (a fast reader, or a slow open).
+        const session = await open(async () => {});
+        const { region } = await openPicker(session);
+        await session.data.addNodes([
+            { id: "a", role: "x" },
+            { id: "b", role: "y" },
+        ]);
+        await openList(region);
+        const list = await screen.findByRole("listbox", { name: "Attributes" });
+        await waitFor(() => {
+            const names = within(list)
+                .getAllByRole("option")
+                .map((each) => each.getAttribute("aria-label"));
+            assert.isTrue(
+                names.some((name) => name?.startsWith("role, ")),
+                `role is listed: ${names.join("; ")}`,
+            );
+        });
+    });
 });
 
 describe("the cards", () => {

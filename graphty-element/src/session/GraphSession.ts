@@ -1445,19 +1445,27 @@ function layoutOf(
             await dispatch({ op: "view.dimension", dimension });
         },
         optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
-            const ignored = (dimension ?? choice().dimension) === "2d" && IGNORED_IN_2D_OPTIONS.has(`${id}.${option}`);
+            const drawn =
+                (dimension ?? choice().dimension) === "2d" ? IGNORED_IN_2D_OPTIONS.get(`${id}.${option}`) : undefined;
+            const params: Record<string, string> = { setting: option };
+            if (drawn !== undefined) {
+                params.drawn = drawn;
+            }
             return Object.freeze({
-                inEffect: !ignored,
-                code: ignored ? "setting.notIn2d" : "setting.inEffect",
-                params: Object.freeze({ setting: option }),
+                inEffect: drawn === undefined,
+                code: drawn === undefined ? "setting.inEffect" : "setting.notIn2d",
+                params: Object.freeze(params),
             });
         },
         locationColumns: locate,
     });
 }
 
-/** The layout options the 2D view ignores, as `<layout>.<option>`: it always draws the location map flat. */
-const IGNORED_IN_2D_OPTIONS: ReadonlySet<string> = new Set(["location-map.surface"]);
+/**
+ * The layout options the 2D view ignores, as `<layout>.<option>`, with the value it draws instead:
+ * it always draws the location map's 2D map.
+ */
+const IGNORED_IN_2D_OPTIONS: ReadonlyMap<string, string> = new Map([["location-map.mapDimension", "2d"]]);
 
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;

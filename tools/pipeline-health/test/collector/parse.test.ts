@@ -4,6 +4,7 @@ import rates from "../../config/rates.json" with { type: "json" };
 import { DAY, MIN } from "../../src/model/items.js";
 import type { ReleaseSeen } from "../../src/model/snapshots.js";
 import {
+    canaryAttempts,
     classifyCancel,
     failedInRow,
     family,
@@ -45,6 +46,7 @@ import {
     type GqlPr,
     type Rates,
     type SuiteNode,
+    promotion,
 } from "../../src/collector/parse.js";
 import { nextShared } from "../../src/collector/snapshots.js";
 import { fixture, masterRuns, NOW } from "./fake-github.js";
@@ -446,6 +448,59 @@ describe("release lanes", () => {
     });
 });
 
+describe("release channels", () => {
+    const base = fixture<{ workflow_runs: GhRun[] }>("release-runs.json").workflow_runs[0];
+    const run = (id: number, conclusion: string, at: string, more: Partial<GhRun> = {}): GhRun => ({
+        ...base,
+        id,
+        status: "completed",
+        conclusion,
+        updated_at: at,
+        ...more,
+    });
+    const j = (name: string, conclusion: string) => ({ name, status: "completed", conclusion }) as GhJob;
+
+    it("canary: newest first, the built commit from the run name, a skipped run (red build) is no attempt", () => {
+        const sha = "b".repeat(40);
+        const got = canaryAttempts([
+            run(1, "success", "2026-10-26T01:00:00Z", { display_title: `Deploy ${sha}` }),
+            run(2, "skipped", "2026-10-26T02:00:00Z"),
+            run(3, "failure", "2026-10-26T03:00:00Z", { head_sha: "c".repeat(40) }),
+            run(4, "cancelled", "2026-10-26T00:00:00Z"),
+            { ...run(5, "success", "2026-10-26T04:00:00Z"), status: "in_progress", conclusion: null },
+        ]);
+        expect(got).toEqual([
+            { at: Date.parse("2026-10-26T03:00:00Z"), outcome: "bad", sha: "c".repeat(40), run: 3 },
+            { at: Date.parse("2026-10-26T01:00:00Z"), outcome: "ok", sha, run: 1 },
+            { at: Date.parse("2026-10-26T00:00:00Z"), outcome: "cancelled", sha: base.head_sha, run: 4 },
+        ]);
+    });
+
+    it("production: a run that moved channel/production, or whose promotion failed; dry runs and nightly are none", () => {
+        const at = "2026-10-26T05:00:00Z";
+        const ok = promotion(run(1, "success", at), [
+            j("Promote (owner approval)", "success"),
+            j("Move channel/production", "success"),
+        ]);
+        expect(ok).toEqual({ at: Date.parse(at), outcome: "ok", run: 1 });
+        const failed = promotion(run(2, "failure", at), [
+            j("Promote (owner approval)", "failure"),
+            j("Move channel/production", "skipped"),
+        ]);
+        expect(failed?.outcome).toBe("bad");
+        const dry = [j("Promote (owner approval)", "success"), j("Move channel/production", "skipped")];
+        expect(promotion(run(3, "success", at), dry)).toBeNull();
+        const nightly = [j("Promote (owner approval)", "success"), j("Move channel/nightly", "success")];
+        expect(promotion(run(4, "success", at), nightly)).toBeNull();
+    });
+
+    it("a release attempt records whether its nightly site job ran", () => {
+        const a = releaseAttempt(base, [j("Deploy the nightly site / Deploy", "success")]);
+        expect(a.nightly).toBe("passed");
+        expect(releaseAttempt(base, []).nightly).toBe("absent");
+    });
+});
+
 describe("costs", () => {
     const tested = jobs("jobs-release-tested-40119894804.json");
 
@@ -474,17 +529,33 @@ describe("costs", () => {
 
     it("prices an LLM run at the cost its cost step logged, when it has one", () => {
         const llm = tested.find((x) => x.name === "LLM regression")!;
-        const logged = {
-            ...llm,
-            steps: [...(llm.steps ?? []), { ...llm.steps![0], name: "LLM regression cost: 0.2871 USD" }],
-        };
+        const step = (name: string) => ({ ...llm.steps![0], name });
+        const logged = { ...llm, steps: [...llm.steps!, step("LLM regression cost: 0.2871 USD")] };
         expect(llmCost(logged, REPO, R)).toMatchObject({ line: "llm", usd: 0.2871 });
         // a cost step that did not run names no number: the flat rate stands
-        const skipped = {
-            ...llm,
-            steps: [...(llm.steps ?? []), { ...llm.steps![0], name: "LLM regression cost:  USD" }],
-        };
+        const skipped = { ...llm, steps: [...llm.steps!, step("LLM regression cost:  USD")] };
         expect(llmCost(skipped, REPO, R)).toMatchObject({ usd: 0.94 });
+    });
+
+    it("prices each point of a bisect of the llm lane, and no point of another lane", () => {
+        // bisect.yml run 40492117633 (2026-10-27) bisected the llm lane before the run name carried the lane: one
+        // point, its paid step "Run the failing files" (375 Gemini calls).
+        const run = fixture<GhRun>("run-bisect-llm-40492117633.json");
+        const point = fixture<{ jobs: GhJob[] }>("jobs-bisect-llm-40492117633.json").jobs.find((j) =>
+            j.name.startsWith("Point "),
+        )!;
+        expect(llmCost(point, REPO, R, "bisect.yml", run)).toMatchObject({
+            id: `llm#${REPO}/122148555385`,
+            line: "llm",
+            workflow: "bisect.yml",
+            usd: 0.94,
+        });
+        const named = { id: 1, display_title: "Bisect (llm lane)" };
+        expect(llmCost(point, REPO, R, "bisect.yml", named)).toMatchObject({ usd: 0.94 });
+        expect(llmCost(point, REPO, R, "bisect.yml", { id: 1, display_title: "Bisect (ci lane)" })).toBeUndefined();
+        expect(llmCost(point, REPO, R, "bisect.yml", { id: 1, display_title: "Bisect" })).toBeUndefined();
+        // the bisect's step name means nothing in release.yml
+        expect(llmCost(point, REPO, R, "release.yml", run)).toBeUndefined();
     });
 
     it("spreads fixed monthly lines over the month", () => {

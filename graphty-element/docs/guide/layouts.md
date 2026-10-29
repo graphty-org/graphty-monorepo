@@ -343,16 +343,31 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
     });
     ```
 
-- **Surface.** The 2D view always draws a flat map with straight edges. In 3D, `surface: "flat"`
-  (the default) raises each edge as an arc over the map, and `surface: "globe"` draws a globe
-  with great-circle arcs. The edge style `line.route` (`straight`, `arc`, `great-circle`) and
+- **Map dimension.** The 2D view always draws a 2D (flat) map with straight edges. In the 3D view,
+  `mapDimension: "3d"` (the default) draws a 3D map, a globe, with great-circle arcs above it, and
+  `mapDimension: "2d"` draws the 2D map with each edge raised as an arc over it. A 3D map asked
+  for in the 2D view is kept and drawn again when the view goes back to 3D. The edge style `line.route` (`straight`, `arc`, `great-circle`) and
   `line.arcHeight` override the arcs per edge.
 - **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
-  the whole world. `size` is the map's width (or the globe's radius) in scene units.
+  the whole world. `size` is the map's width in scene units; a globe's radius is `size`, or more
+  when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
+  the whole globe, which fills the view.
+- **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
+  than `size` makes it while nodes and edges keep their size (in scene units, or on screen with
+  `nodeScale: "screen"`), so a dense region (an airline network over the United States or
+  Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
+  three times the room between neighbors. The camera still opens framed on the whole map.
+- **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
+  so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
+  whatever the zoom, measured at the map's surface, with its arrowheads in proportion.
+- **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
+  draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
+  and lights one side from where the sun is overhead. Each part is off unless set; a view
+  setting, not saved with the project.
 - **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
   or stays where it was (`"leave"`), never to latitude 0, longitude 0, and the element emits a
   `layout-warning` with code `W_LOCATION_UNPARSED` and `params: { missing, unparsed, total, samples }`.
-- **The map.** The layout's `map` option picks the picture, on the flat map and wrapped onto the
+- **The map.** The layout's `map` option picks the picture, on the 2D map and wrapped onto the
   globe alike: unset (`null`), the bundled Natural Earth world image (no network);
   `{ source: "openstreetmap" }` or another named keyless source (`BASEMAP_SOURCE_DESCRIPTORS` in
   `@graphty/graphty-element/catalog` lists them); `{ tiles, attribution }` for any XYZ tile service;
@@ -360,7 +375,7 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
   Setting a new `map` on the applied layout swaps the picture without moving a node:
 
     ```javascript
-    g.layoutConfig = { location: "where", surface: "globe", map: { source: "nasa-gibs-blue-marble" } };
+    g.layoutConfig = { location: "where", mapDimension: "3d", map: { source: "nasa-gibs-blue-marble" } };
     ```
 
     The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.

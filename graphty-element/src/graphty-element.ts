@@ -36,7 +36,7 @@ import type {
     GraphSelectionStyleInput,
     ViewMode,
 } from "./config";
-import type { BasemapStatus, MapFrameFact } from "./config/Basemap";
+import type { BasemapStatus, GlobeLook, MapFrameFact } from "./config/Basemap";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import { DEFAULT_LIGHTING, type Lighting } from "./config/Lighting";
 import type { PartialXRConfig } from "./config/xr-config-schema";
@@ -3185,6 +3185,33 @@ export class Graphty extends LitElement {
 
     /** See {@link attributionOffset}. */
     #attributionOffset = 0;
+
+    /**
+     * How the globe under the `location-map` layout looks beyond its map.
+     * @remarks
+     * Three parts, each off unless set: `atmosphere` (a thin blue glow of air around the rim),
+     * `sun` (where the sun is overhead; the far side is drawn dark) and `background` (a colour
+     * the canvas is cleared to while the globe is drawn, in place of the graph's own background).
+     * A 2D map ignores it. A preference of this view, not saved with the project.
+     * @since 3.31.0
+     * @example
+     * ```typescript
+     * element.globeLook = { atmosphere: true, background: "#05070d" };
+     * ```
+     * @returns The look
+     */
+    @property({ attribute: false })
+    get globeLook(): GlobeLook {
+        return this.#graph.getGlobeLook();
+    }
+    /**
+     * Sets how the globe looks.
+     */
+    set globeLook(value: GlobeLook) {
+        const oldValue = this.globeLook;
+        this.#graph.setGlobeLook(value ?? {});
+        this.requestUpdate("globeLook", oldValue);
+    }
 
     /**
      * How long every animated camera move takes, in milliseconds.

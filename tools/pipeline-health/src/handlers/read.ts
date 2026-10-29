@@ -56,6 +56,9 @@ export function routeOf(
         return { kind: "section", page, section, range, runKind };
     }
     if (page === "flaky" && section === "hotspots") return { kind: "section", page, section, range };
+    // The runner history: 15-minute buckets are kept 8 days, so 7 d only.
+    if (page === "runners" && section === "jobs")
+        return range === "7d" ? { kind: "section", page, section, range } : { status: 400, code: "bad_range" };
     return { status: 404, code: "unknown_section" };
 }
 

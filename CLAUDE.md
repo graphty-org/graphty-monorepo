@@ -767,7 +767,8 @@ closes or its entry expires (14 days at most).
   `local/no-test-timing` rule apply, and "timing" or "load" is not a cause without the mechanism.
 - **Close the issue with the fix** (`Fixes #N` in the commit), so the test leaves quarantine when it merges.
 - **Never add a test to `tools/test-quarantine.json` by hand.** Entries come only from the tooling.
-- **GPU tests are never quarantined** (`webgpu-graph-algorithms*`), nor the screenshot gate.
+- **GPU tests are never quarantined** (`webgpu-graph-algorithms*`), nor the screenshot gate, nor the style
+  fidelity slices (`graphty-element-fidelity-*`: a sample judged two ways on the same inputs is a determinism defect).
 - **A consistent failure still blocks.** A test that fails on the retry too fails CI unless it is already
   quarantined. Never re-run hoping for a pass when a non-quarantined test failed: fix it.
 - `GRAPHTY_TEST_QUARANTINE=0` switches it off, for debugging only.

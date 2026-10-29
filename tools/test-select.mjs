@@ -1602,12 +1602,55 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
 }
 
 /**
+ * Packages and everything they depend on in nx's graph, transitively.
+ * @param names the packages
+ * @param deps nx's dependencies by project name (projectGraph().deps); none counts the names alone
+ * @returns the closure
+ */
+function withDeps(names, deps) {
+    const out = new Set(names);
+    for (const name of out) {
+        for (const dep of deps?.get(name) ?? []) {
+            out.add(dep);
+        }
+    }
+    return [...out];
+}
+
+/**
+ * The stories of a project test-select-mutate --stories has not proven: every story when a package that draws it is
+ * selected at all, or a changed file that is not storyless lies in a package those depend on (file-level selection
+ * can select none of a dependent's tests for a dependency's change that its stories still draw) or outside every
+ * package (a tool a Storybook imports, what defines the Stories job), else none.
+ * @param project the visual-review project id
+ * @param shards `[{ shard: SHARDS entry, sel: selectShards() entry }]`
+ * @param drawnBy packages that draw the project
+ * @param deps their dependencies, transitively
+ * @param drawable the changed files that are not storyless
+ * @param packages every package's directory
+ * @returns `{ mode, files, reasons }`
+ */
+function unprovenStories(project, shards, drawnBy, deps, drawable, packages) {
+    const proof = `test-select-mutate --stories has not proven ${project}`;
+    const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
+    if (hit) {
+        return { mode: "all", files: [], reasons: [`${hit.shard.package} is selected and ${proof}`] };
+    }
+    const inPkg = (f, pkgs) => pkgs.some((p) => f.startsWith(`${p}/`));
+    const dep = drawable.find((f) => inPkg(f, deps) || !inPkg(f, packages));
+    return dep
+        ? { mode: "all", files: [], reasons: [`${dep} may reach its stories and ${proof}`] }
+        : { mode: "none", files: [], reasons: [`${project}: no package that draws it is selected`] };
+}
+
+/**
  * Which stories of each visual-review project a change runs: every story on a global input (test-select-rules
  * "stories"), the stories whose import closure reaches a changed file (the storybook shards' selection),
  * and every story whose baseline changed. Unknown means run: a project without a story import graph runs
- * whole whenever a package that draws it is selected, and a project not in the rules' selectProjects (not yet
- * proven by `test-select-mutate.mjs --stories`) runs whole on every change, except a change only to CI and tool
- * files no story reads (the rules' storyless), which runs none.
+ * whole whenever a package that draws it is selected, and so does a project not in the rules' selectProjects (not
+ * yet proven by `test-select-mutate.mjs --stories`; drawnBy, default its own package), or when a changed file
+ * that is not storyless lies in a package those depend on or outside every package, and otherwise runs none.
+ * A change only to files no story reads (the rules' storyless: CI, tools, design, docs, Markdown) runs none.
  * @param input what the change is
  * @param input.projects visual-review.config.json `projects`
  * @param input.changed changed repo-relative paths
@@ -1616,16 +1659,20 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
  * @param input.selection selectShards() for them
  * @param input.rules loadRules(root).stories
  * @param input.lockMoved lockMoves() for the change (false when the lockfile did not change)
+ * @param input.deps nx's dependencies by project name (projectGraph().deps), which an unproven project's drawnBy
+ *   packages bring in
  * @returns `[{ project, mode: "all"|"files"|"none", files, baselines, reasons }]`; baselines are the story ids
  *   whose baseline image changed, which run whatever the mode
  */
-export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved }) {
+export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved, deps }) {
     const paired = shards.map((shard) => ({ shard, sel: selection.find((s) => s.shard === shard.shard) }));
     const known = paired.filter((p) => p.sel);
-    // CI and tool files no story reads (test-select-rules stories.storyless); a test that names one selects its
+    // CI, tool, design and docs files no story reads (test-select-rules stories.storyless); a test that names one selects its
     // package, which says nothing about a story reading it
-    const storyless =
-        !everything && changed.length > 0 && changed.every((f) => (rules.storyless ?? []).some((re) => re.test(f)));
+    const isStoryless = (f) => (rules.storyless ?? []).some((re) => re.test(f));
+    const storyless = !everything && changed.length > 0 && changed.every(isStoryless);
+    const drawable = changed.filter((f) => !isStoryless(f));
+    const packages = [...new Set(shards.map((s) => s.package))];
     return Object.entries(projects).map(([project, cfg]) => {
         const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
         const pkg = dir.split("/")[0];
@@ -1641,13 +1688,10 @@ export function selectStories({ projects, changed, everything, shards, selection
         if (!global && storyless) {
             sel = { mode: "none", files: [], reasons: ["the change touches only files no story reads"] };
         } else if (!global) {
+            const drawnBy = rules.drawnBy[project] ?? [pkg];
             sel = rules.selectProjects.includes(project)
-                ? storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg])
-                : {
-                      mode: "all",
-                      files: [],
-                      reasons: [`${project} runs whole until test-select-mutate --stories proves its selection`],
-                  };
+                ? storiesFromTests(project, pkg, known, drawnBy)
+                : unprovenStories(project, known, drawnBy, withDeps(drawnBy, deps), drawable, packages);
         }
         return { project, ...sel, baselines };
     });
@@ -2797,7 +2841,7 @@ function graphChild(root, dir, config, on = false) {
  * @param deferDownstream selectPackages' option of that name
  * @param lockRefs `{ base, head }` (head null for the working tree) to read a changed lockfile between; without
  *   it a changed lockfile runs everything
- * @returns `{ everything, packages, shards }`
+ * @returns `{ everything, packages, shards, deps }` (deps: nx's dependencies by project name)
  */
 export async function selectChange(root, changed, shards, graphs, deferDownstream = false, lockRefs = null) {
     const graph = projectGraph(root);
@@ -2824,6 +2868,7 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     return {
         ...sel,
         shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+        deps: graph.deps,
     };
 }
 
@@ -2917,6 +2962,7 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
         selection: selection.shards,
         rules,
         lockMoved,
+        deps: selection.deps,
     });
     const listFiles = (dir) =>
         execFileSync("git", ["ls-files", "--", dir], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);

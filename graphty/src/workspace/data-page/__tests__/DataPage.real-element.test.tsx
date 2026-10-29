@@ -388,10 +388,11 @@ describe("the Data page on the real element", () => {
             () => {
                 assert.strictEqual(store.get().page, "panels");
                 assert.match(store.get().notice?.message ?? "", /^Opened /);
-                assert.strictEqual(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 77);
             },
             { timeout: TIMEOUT_MS },
         );
+        // The notice is written once the project has opened, so its graph is all in.
+        assert.strictEqual(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 77);
         assert.isNull(screen.queryByText(/holds no nodes or edges/));
     });
 

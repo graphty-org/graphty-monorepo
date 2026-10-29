@@ -14,6 +14,7 @@ import { browserProjects, type GraphSession } from "@graphty/graphty-element/ses
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -106,14 +107,7 @@ async function elementSession(previous?: GraphSession): Promise<GraphSession> {
  */
 async function buildProject(store: WorkspaceStore): Promise<{ session: GraphSession; before: Snapshot }> {
     render(<Workspace store={store} />);
-    await pickSample("Florentine families");
-    const session = await elementSession();
-    await waitFor(
-        () => {
-            assert.equal(session.data.statistics().nodeCount, 15);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await openBy(store, () => pickSample("Florentine families"));
     await session.runs.start("degree");
     await session.styles.add({
         name: "All in orange",
@@ -614,14 +608,7 @@ describe("a saved sample opened again with Open a file, on the real element", ()
         try {
             const store = createWorkspaceStore();
             render(<Workspace store={store} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Books about US politics sample" }));
-            const session = await elementSession();
-            await waitFor(
-                () => {
-                    assert.equal(session.data.statistics().nodeCount, 105);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            const session = await openBy(store, () => pickSample("Books about US politics"));
             const counts = { nodes: session.data.nodes().length, edges: session.data.edges().length };
             assert.deepEqual(counts, { nodes: 105, edges: 441 });
 

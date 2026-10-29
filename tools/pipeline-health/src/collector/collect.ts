@@ -1103,7 +1103,7 @@ async function slices(c: Cycle, xs: Collected[]) {
     let decision = decideSlice({ ...input, store: null });
     const needed = decision.action === "none" && decision.reason === "store-unavailable";
     // The dashboard reads the store every 15 minutes too, so the set's age and the review lag stay current.
-    if (s.readStore && (needed || (await c.due("story-captures", 15 * MIN)))) {
+    if (s.readStore && (needed || (await c.due("capture-read", 15 * MIN)))) {
         const body = await s.readStore().catch((e: unknown) => {
             c.errors.slicesStore = message(e);
             return undefined;
@@ -1138,7 +1138,7 @@ async function captureMetrics(c: Cycle, body: StoryCaptures) {
         c.items.push({ ...obs("release.review_lag_ms", lag, c.now), id: `release.review_lag_ms#${c.now}.${k}` }),
     );
     await c.setJson("review-lag", review.state);
-    await setCursor(c.d.store, "story-captures", String(c.now), c.now);
+    await setCursor(c.d.store, "capture-read", String(c.now), c.now);
     await recordSource(c.d.store, "story-slices", c.now, { ok: true });
 }
 

@@ -419,6 +419,10 @@ export async function buildViews(store: Store, nowMs: number, ev: Evaluation, cf
         }
     }
     const generated = iso(nowMs);
+    out.push({
+        route: { kind: "section", page: "runners", section: "jobs", range: "7d" },
+        body: { page: "runners", range: "7d", generated, section: await jobs(b.reads, "7d") },
+    });
     for (const range of SLOW_RANGES) {
         out.push({ route: { kind: "page", page: "costs", range }, body: await b.costs(range) });
         for (const runKind of ["full", "pr-bins"] as const) {

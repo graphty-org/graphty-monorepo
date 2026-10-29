@@ -2013,10 +2013,14 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
                 lockMoved: false,
             });
         assert.ok(run(ciOnly).every((p) => p.mode === "none"));
-        assert.ok(
-            run([...ciOnly, "graphty/src/App.tsx"]).every((p) => p.mode === "all"),
-            "a package file runs them",
+        const app = Object.fromEntries(
+            run(
+                [...ciOnly, "graphty/src/App.tsx"],
+                none.map((s) => (s.shard === "graphty-1" ? sel(s.shard, "all") : s)),
+            ).map((p) => [p.project, p.mode]),
         );
+        assert.equal(app.graphty, "all", "a package file runs the projects its package draws");
+        assert.equal(app["graphty-element"], "none", "and no other");
         assert.ok(
             run(["tools/features-on.mjs"]).every((p) => p.mode === "all"),
             "a tool a Storybook imports",
@@ -2047,6 +2051,74 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
             baseline.every((p) => p.mode === "all"),
             "a baseline is not a CI file",
         );
+    });
+
+    describe("a project test-select-mutate --stories has not proven", () => {
+        const unproven = { ...stories, selectProjects: [] };
+        const all = [...shards, byName("graph-format"), byName("compact-mantine")];
+        // nx's dependencies, as projectGraph() reads them (the parts these cases need)
+        const deps = new Map([
+            ["graphty-element", new Set(["graph-format", "graph-io", "layout", "algorithms"])],
+            ["graphty", new Set(["graphty-element", "compact-mantine", "graph-format", "graph-io"])],
+            ["graph-io", new Set(["graph-format"])],
+            ["layout", new Set(["graph-format"])],
+            ["algorithms", new Set(["graph-format"])],
+            ["cytoscape-extensions", new Set(["layout", "algorithms", "graph-io", "graph-format"])],
+        ]);
+        const modes = (changed, selected) =>
+            Object.fromEntries(
+                selectStories({
+                    projects,
+                    changed,
+                    everything: null,
+                    shards: all,
+                    selection: all.map((s) => sel(s.shard, selected.includes(s.shard) ? "all" : "none")),
+                    rules: unproven,
+                    lockMoved: false,
+                    deps,
+                }).map((p) => [p.project, p.mode]),
+            );
+
+        it("runs no story for a change only to design, docs and Markdown files", () => {
+            const out = modes(["design/ci/channels-pipeline.md", "docs/index.md", "graphty/CLAUDE.md"], []);
+            assert.ok(
+                Object.values(out).every((m) => m === "none"),
+                JSON.stringify(out),
+            );
+            const mdx = modes(["compact-mantine/stories/components/color/Overview.mdx"], ["compact-mantine"]);
+            assert.equal(mdx["compact-mantine"], "all", "an .mdx page is a story");
+        });
+
+        it("runs a dependent's stories whole when only a package it depends on is selected", () => {
+            const out = modes(["graph-format/src/snapshot.ts"], ["graph-format"]);
+            for (const project of ["graphty-element", "graphty", "graph-io-fidelity", "layout", "algorithms"]) {
+                assert.equal(out[project], "all", project);
+            }
+            assert.equal(out["compact-mantine"], "none");
+        });
+
+        it("runs none of the projects an unrelated package's change cannot reach", () => {
+            const out = modes(["compact-mantine/src/components/Foo.tsx"], ["compact-mantine"]);
+            assert.equal(out["compact-mantine"], "all");
+            assert.equal(out.graphty, "all", "graphty draws compact-mantine");
+            for (const project of [
+                "graphty-element",
+                "graph-io-fidelity",
+                "layout",
+                "algorithms",
+                "cytoscape-extensions",
+            ]) {
+                assert.equal(out[project], "none", project);
+            }
+        });
+
+        it("runs every project whole for a file outside every package that is not storyless", () => {
+            const out = modes(["tools/features-on.mjs"], []);
+            assert.ok(
+                Object.values(out).every((m) => m === "all"),
+                JSON.stringify(out),
+            );
+        });
     });
 
     it("keeps every tools/ file a Storybook, story-test config or story code imports out of storyless", () => {
@@ -2093,13 +2165,17 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         assert.ok(Object.values(pick(none, [], { everything: "nx.json" })).every((p) => p.mode === "all"));
     });
 
-    it("runs every story of a project not yet proven by test-select-mutate --stories, on any change", () => {
+    it("runs every story of a project not yet proven by test-select-mutate --stories when its package is selected", () => {
         assert.ok(Array.isArray(loadRules(ROOT).stories.selectProjects), "the rules list the proven projects");
-        const out = pick(none, ["graphty-element/src/a.ts"], { rules: { ...stories, selectProjects: ["layout"] } });
+        const selection = none.map((s) => (s.shard === "graphty-element-storybook-1" ? sel(s.shard, "files") : s));
+        const out = pick(selection, ["graphty-element/src/a.ts"], {
+            rules: { ...stories, selectProjects: ["layout"] },
+        });
         assert.equal(out.layout.mode, "none", "a proven project is selected as before");
         assert.equal(out["graphty-element"].mode, "all");
         assert.match(out["graphty-element"].reasons[0], /test-select-mutate --stories/u);
-        assert.equal(out.graphty.mode, "all", "even with nothing of it changed");
+        assert.equal(out.graphty.mode, "none", "nothing that draws it is selected");
+        assert.match(out.graphty.reasons[0], /no package that draws it is selected/u);
     });
 
     it("runs a story whose baseline changed", () => {

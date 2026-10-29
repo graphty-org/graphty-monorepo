@@ -321,9 +321,10 @@ interface DispatcherEvents {
     /** After the derivation pass: the per-domain events. One per step an undo or restore passes. */
     derived?: (change: ProjectChange) => void;
     /**
-     * `project:derived`: once per `project` change, after its `derived` events, when every hook
-     * of the pass that took it has run, so a read of any derived value (the legend, the counts)
-     * is current.
+     * `project:derived`: once the lane is idle -- every pass has run, whatever scheduled it, and
+     * none waits -- after the `derived` events, so a read of any derived value (the legend, the
+     * counts) is current. Carries every slice changed or derived since the last one; changes in
+     * one burst share one.
      */
     caughtUp?: (change: ProjectChange) => void;
     /** Every command dispatched, as it arrives, before it runs; the doors test spies here. */
@@ -853,6 +854,8 @@ export class Dispatcher {
     private readonly reasons: HistoryReason[] = [];
     /** What the history's charges were last measured against: the resident token and the retained version. */
     private charged = { token: Number.NaN, retained: -1 };
+    /** What `caughtUp` owes: the slices changed or derived since it last fired, and the cause. */
+    private owed: { slices: Set<string>; cause: HistoryCause } | null = null;
     /** The token of every snapshot id index a charged run result reads through. */
     private readonly indexTokens = new Set<number>();
     /** Above zero while a listener runs: a history call made then waits for a microtask. */
@@ -903,6 +906,14 @@ export class Dispatcher {
             session: true,
         });
         this.events = { ...options.events };
+        // A pass with no commit behind it (a deferred repaint, an import's end) is owed an event
+        // too: its paint is what a reader of the legend waits for.
+        this.lane.drained = (slices) => {
+            this.owe(slices, this.lane.passCause);
+            void Promise.resolve().then(() => {
+                this.catchUp();
+            });
+        };
         this.clock = options.now ?? Date.now;
         this.scheduler = options.scheduler ?? NO_SCHEDULER;
         this.baselineOpen = options.baselineWindow === true;
@@ -1553,7 +1564,7 @@ export class Dispatcher {
 
     /**
      * Publish a change: `project` and the pending `history` reasons now, the `derived` events
-     * and then `caughtUp` once the pass has run.
+     * once the pass has run, and `caughtUp` once the lane is idle.
      * @param change - What changed, for `project`.
      * @param derived - The per-domain changes, one per step.
      */
@@ -1572,14 +1583,41 @@ export class Dispatcher {
             this.history.recharge((patch, seen) => patchCharge(patch, token, seen, this.indexTokens), full);
         }
 
+        this.owed = { slices: new Set([...(this.owed?.slices ?? []), ...change.slices]), cause: change.cause };
         this.notify(() => this.events.project?.(change));
         this.flushHistory();
         void this.lane.settled().then(() => {
             for (const each of derived) {
                 this.notify(() => this.events.derived?.(each));
             }
-            this.notify(() => this.events.caughtUp?.(change));
+            this.catchUp();
         });
+    }
+
+    /**
+     * Add slices to what `caughtUp` owes.
+     * @param slices - The slices.
+     * @param cause - What moved them; a commit's cause wins over a pass's.
+     */
+    private owe(slices: Iterable<string>, cause: HistoryCause): void {
+        this.owed ??= { slices: new Set(), cause };
+        for (const slice of slices) {
+            this.owed.slices.add(slice);
+        }
+    }
+
+    /**
+     * Fire the owed `caughtUp` once the lane is idle and no repaint is owed; the pass still to
+     * run, or the one that pays the owed repaint (`graphWriteEnded`), fires it when it ends.
+     */
+    private catchUp(): void {
+        const { owed } = this;
+        if (owed === null || this.lane.deriving || this.paintOwed) {
+            return;
+        }
+
+        this.owed = null;
+        this.notify(() => this.events.caughtUp?.({ slices: [...owed.slices], cause: owed.cause }));
     }
 
     /**

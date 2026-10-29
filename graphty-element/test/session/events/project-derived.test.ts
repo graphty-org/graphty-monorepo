@@ -3,10 +3,12 @@
  * #3543, #3529). `project:changed` fires at commit, before the derivation lane's pass; a data
  * edit repaints in the `graph` hook, a run in `runs`, a note in `notes`, and none of them
  * publishes a `style:changed`. A legend read on `project:changed` alone kept the previous pass's
- * categories, and no later event asked for another read.
+ * categories, and no later event asked for another read. A pass can also start with no commit
+ * behind it -- the element's deferred whole-graph repaint (`graph.touch("paint")`) and an import's
+ * end (`graph.touch("import:settled")`) -- and that pass is what paints, so it is owed an event too.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import { createGraphSession, type GraphSession } from "../../../src/session";
@@ -135,5 +137,28 @@ describe("project:derived", () => {
         const last = published.at(-1) ?? -1;
         const unannounced = finished.filter((each) => each.at > last);
         assert.deepEqual(unannounced, [], "no hook finished after the last project:derived");
+    });
+
+    it("a pass with no commit behind it is followed by one too", async () => {
+        const s = createGraphSession();
+        await s.data.addNodes([{ id: "a", kind: "x" }]);
+        const { lane, graph } = dispatcherOf(s);
+        await lane.settled();
+        const seen: string[][] = [];
+        s.on("project:derived", (event) => {
+            seen.push([...event.slices]);
+        });
+        let ran = 0;
+        lane.register("graph", () => {
+            ran++;
+        });
+
+        // What the element does when a repaint it put off is owed, and at the end of an import.
+        graph.touch("paint");
+        await lane.settled();
+        assert.strictEqual(ran, 1, "the touch started a pass");
+        await vi.waitFor(() => {
+            assert.deepEqual(seen, [["graph"]], "the pass is followed by a project:derived");
+        });
     });
 });

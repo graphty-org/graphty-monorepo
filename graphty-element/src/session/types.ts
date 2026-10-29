@@ -2918,8 +2918,10 @@ export interface SessionEventMap {
      */
     "project:changed": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
     /**
-     * The picture has caught up with a project change: published once per `project:changed`,
-     * after every hook deriving it has run and after the per-domain events it causes. THE event
+     * The picture has caught up with every project change made so far: published once nothing is
+     * left to derive or repaint -- after the per-domain events, and after any repaint the element
+     * put off or started on its own -- with every slice changed or derived since the last one
+     * (changes made in one burst share one event; `cause` is the latest change's). THE event
      * for a consumer that re-reads derived state -- `styles.legend()`, `styles.counts()`,
      * `styles.explain()` -- after any change, including an edit to data alone, which publishes no
      * `style:changed`. Read on `project:changed`, those answer for the previous pass.

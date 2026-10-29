@@ -99,9 +99,10 @@ describe("support points", () => {
         assert.isAbove(Math.abs(4 * small[0][1] - fixed[0][1]), 2);
     });
 
-    it("take the drawing's unit as the size vis-network's forces hold the drawing at, near 1 on vis-network's own drawings", () => {
-        // vis-network's own node places for four files that keep its default physics: the forces balance them in
-        // file px, so the unit found from the drawing alone is close to 1 there
+    it("take the drawing's unit as the size vis-network's forces hold the drawing at, 1 on vis-network's own drawings", () => {
+        // vis-network's own node and support point places for four files that keep its default physics: the forces
+        // balance them in file px, so the unit found from the drawing alone is 1 there, within 1.5% (with every point
+        // at its edge's middle instead it came out up to 6% small: transparency 0.937)
         // lesmiserables runs its forceAtlas2Based solver with constants of its own
         const lesmis: SupportForces = {
             model: "forceAtlas2",
@@ -119,18 +120,25 @@ describe("support points", () => {
             );
             const ref = JSON.parse(readFileSync(url, "utf8")) as {
                 nodes: { id: string; x: number; y: number }[];
-                edges: { source: string; target: string }[];
+                edges: { source: string; target: string; points: number[][] }[];
             };
             const byId = new Map(ref.nodes.map((n) => [n.id, at(n.x, n.y)]));
             const nodes = [...byId.values()];
-            const edges = ref.edges.flatMap((e): SupportEdge[] => {
+            // the reference records each dynamic curve's support point as the middle of its three points
+            const kept = ref.edges.filter((e) => {
                 const [src, dst] = [byId.get(e.source), byId.get(e.target)];
-                return src === undefined || dst === undefined || src === dst ? [] : [{ src, dst, forces }];
+                return src !== undefined && dst !== undefined && src !== dst;
             });
-            const unit = balancedUnit(nodes, edges);
+            const edges = kept.map((e): SupportEdge => ({
+                src: byId.get(e.source) as Xyz,
+                dst: byId.get(e.target) as Xyz,
+                forces,
+            }));
+            const points = new Float64Array(kept.flatMap((e) => e.points[1]));
+            const unit = balancedUnit(nodes, edges, points);
             assert.isNotNull(unit);
-            assert.isAbove(unit ?? 0, 0.9, sample);
-            assert.isBelow(unit ?? 0, 1.1, sample);
+            assert.isAbove(unit ?? 0, 0.985, sample);
+            assert.isBelow(unit ?? 0, 1.015, sample);
         }
     });
 

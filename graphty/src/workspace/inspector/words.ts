@@ -528,11 +528,11 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
 
 /** What Filter to neighbors does, and where it is turned off. */
-export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its step in Filters turns it off";
+export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";
 
-/** Why Filter to neighbors is disabled: its step is already on at the reach shown. */
+/** Why Filter to neighbors is disabled: its card is already on at the reach shown. */
 export const NEIGHBOR_FILTER_APPLIED_WORDS =
-    "The drawing already shows only this neighborhood. Its step in Filters turns it off";
+    "The drawing already shows only this neighborhood. Its card in Filters turns it off";
 
 /**
  * A selection's size, leaving out a zero half ("2 nodes selected", "3 nodes, 1 edge selected").

@@ -6,11 +6,13 @@ import {
     NullEngine,
     Scene,
     type StandardMaterial,
+    UniversalCamera,
     Vector3,
     VertexBuffer,
 } from "@babylonjs/core";
 
-import { FlatMap, Globe, type MapSource, mapSources, type TextureLoader } from "../src/index.js";
+import { LAYER_GAP, sunShade } from "../src/globe.js";
+import { FlatMap, Globe, latLonToSphere, type MapSource, mapSources, type TextureLoader } from "../src/index.js";
 
 interface Request {
     url: string;
@@ -379,27 +381,41 @@ describe("FlatMap tile recovery and edges", () => {
         expect(shownMeshes(scene).some((m) => m.name.includes("natural-earth"))).toBe(true);
     });
 
-    it("draws on past the data's box with beyond: continue, a world to each side", async () => {
+    it.each([
+        ["in one hemisphere", -75, -73],
+        ["across the antimeridian", 170, 190],
+    ] as const)("draws on past a data box %s with beyond: continue, one world wide", async (_, west, east) => {
         const tiles = loader(scene);
         const box = {
             bounds: [
-                [-75, 40],
-                [-73, 41],
+                [west, -10],
+                [east, 10],
             ] as const,
         };
-        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load, frame: box, beyond: "continue" });
+        const map = new FlatMap(scene, {
+            sources: [OSM],
+            loadTexture: tiles.load,
+            frame: box,
+            beyond: "continue",
+            maxConcurrentLoads: 100,
+        });
         expect(map.beyond).toBe("continue");
         view(1e6);
         map.update();
-        expect(tiles.requests.map((r) => r.url)).toEqual(Array(3).fill("https://tile.openstreetmap.org/0/0/0.png"));
         await tiles.answerAll();
         map.update();
-        const xs = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.center.x);
-        // The data's box is 100 units across: a whole world is about 18,000 units.
-        expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(10_000);
+        // The map's extent is exactly one world, centered on the data: no copy beside it.
+        const boxes = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox);
+        const world = map.toScene({ lat: 0, lon: 180 }).x - map.toScene({ lat: 0, lon: -180 }).x;
+        const left = Math.min(...boxes.map((b) => b.minimum.x));
+        const right = Math.max(...boxes.map((b) => b.maximum.x));
+        expect(right - left).toBeCloseTo(world, 3);
+        expect((left + right) / 2).toBeCloseTo(0, 3);
         map.beyond = "clip";
         map.update();
-        expect(Math.max(...shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.maximum.x))).toBeCloseTo(50);
+        expect(Math.max(...shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.maximum.x))).toBeCloseTo(
+            map.frame.width / 2,
+        );
     });
 
     it("draws a box across the antimeridian from the world's two copies", async () => {
@@ -481,6 +497,64 @@ describe("Globe", () => {
         scene.getEngine().dispose();
     });
 
+    it("keeps a layer drawn under a tile service below its tiles everywhere, close to the surface", async () => {
+        // The bundled world's patch is facets between points on the sphere, and so are the tiles
+        // over it; where its points stood on the sphere they poked through the tiles' facets, and
+        // close to the surface the reader saw light diamonds of it over the satellite picture.
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 104, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const globe = new Globe(scene, {
+            sources: [mapSources["natural-earth"], OSM],
+            loadTexture: tiles.load,
+            maxConcurrentLoads: 1000,
+        });
+        for (let round = 0; round < 30; round++) {
+            globe.update();
+            if (tiles.requests.length === 0) {
+                break;
+            }
+            await tiles.answerAll();
+        }
+        globe.update();
+        const radii = (mesh: Mesh): number[] => {
+            const p = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+            const out: number[] = [];
+            for (let i = 0; i < p.length; i += 3) {
+                out.push(Math.hypot(p[i], p[i + 1], p[i + 2]));
+            }
+            return out;
+        };
+        // The lowest a facet comes is near its middle: the mean of its three corners.
+        const facetMiddles = (mesh: Mesh): number[] => {
+            const p = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+            const index = mesh.getIndices() ?? [];
+            const out: number[] = [];
+            for (let i = 0; i < index.length; i += 3) {
+                const [a, b, c] = [index[i] * 3, index[i + 1] * 3, index[i + 2] * 3];
+                out.push(
+                    Math.hypot(
+                        (p[a] + p[b] + p[c]) / 3,
+                        (p[a + 1] + p[b + 1] + p[c + 1]) / 3,
+                        (p[a + 2] + p[b + 2] + p[c + 2]) / 3,
+                    ),
+                );
+            }
+            return out;
+        };
+        const shown = shownMeshes(scene);
+        const base = shown.filter((m) => m.name.includes("natural-earth"));
+        const top = shown.filter((m) => m.name.includes("openstreetmap"));
+        expect(base.length).toBeGreaterThan(0);
+        expect(Math.max(...top.map((t) => Number(/\|(\d+)\/\d+\/\d+$/.exec(t.name)?.[1])))).toBeGreaterThanOrEqual(6);
+        const baseHighest = Math.max(...base.flatMap(radii));
+        const topLowest = Math.min(...top.flatMap(facetMiddles));
+        expect(baseHighest, "the bundled world never reaches the tiles over it").toBeLessThan(topLowest);
+        expect(baseHighest).toBeCloseTo(100 * (1 - LAYER_GAP), 6);
+        expect(Math.max(...top.flatMap(radii)), "the top layer stays on the sphere").toBeCloseTo(100, 6);
+        scene.getEngine().dispose();
+    });
+
     it("wraps the world picture onto a sphere, each point at its own place, shaded round", async () => {
         const scene = new Scene(new NullEngine());
         new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
@@ -552,6 +626,165 @@ describe("Globe", () => {
         expect(Math.max(...ys.map((b) => b.maximum.y))).toBeCloseTo(100);
         expect(Math.min(...ys.map((b) => b.minimum.y))).toBeCloseTo(-100);
         expect(globe.attribution).toEqual(["(c) OpenStreetMap contributors"]);
+        scene.getEngine().dispose();
+    });
+
+    it("loads finer tiles as the camera nears the surface, only around the point below it", async () => {
+        const scene = new Scene(
+            new NullEngine({
+                renderWidth: 1200,
+                renderHeight: 900,
+                textureSize: 512,
+                deterministicLockstep: false,
+                lockstepMaxSteps: 4,
+            }),
+        );
+        const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 400, Vector3.Zero(), scene);
+        camera.minZ = 0.01;
+        const tiles = loader(scene);
+        const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 1000 });
+        const deepest = (): number => Math.max(...tiles.requests.map((r) => zoomOf(r.url)));
+        globe.update();
+        const far = deepest();
+        await tiles.answerAll();
+
+        // 1 unit above the surface at latitude 0, longitude 0 (the radius is 100)
+        camera.radius = 101;
+        globe.update();
+        const near = deepest();
+        expect(near, "much finer near the surface").toBeGreaterThanOrEqual(far + 4);
+        for (const { url } of tiles.requests.filter((r) => zoomOf(r.url) === near)) {
+            const [, z, x] = /\/(\d+)\/(\d+)\/\d+\.png$/.exec(url) ?? [];
+            const lon = ((Number(x) + 0.5) / 2 ** Number(z)) * 360 - 180;
+            expect(Math.abs(lon), url).toBeLessThan(10);
+        }
+        await tiles.answerAll();
+        globe.update();
+        const drawn = shownMeshes(scene).map((m) => Number(/\|(\d+)\/\d+\/\d+$/.exec(m.name)?.[1]));
+        expect(Math.max(...drawn), "the fine tiles are drawn once loaded").toBe(near);
+        scene.getEngine().dispose();
+    });
+
+    // Close to the surface, the camera sees a small cap of the globe. A coarse tile around it was
+    // judged by nine points on it: behind the horizon when none of them was in that cap, so the
+    // tile and everything finer under it was dropped (a hole), and as far away as the nearest of
+    // them, so the tile under the camera was left coarse.
+    it.each([
+        [20, 20, -67],
+        [8, 20, -67],
+        [2, 20, -67],
+        [2, -31, 112],
+        [0.5, 52, 13],
+    ])(
+        "%s units above (%s, %s): no hole, and the tile below at the level its size on screen asks for",
+        async (height, lat, lon) => {
+            const H = 900;
+            const scene = new Scene(
+                new NullEngine({
+                    renderWidth: 1200,
+                    renderHeight: H,
+                    textureSize: 512,
+                    deterministicLockstep: false,
+                    lockstepMaxSteps: 4,
+                }),
+            );
+            const camera = new UniversalCamera("camera", Vector3.Zero(), scene);
+            const at = latLonToSphere({ lat, lon }, 100 + height);
+            camera.position.set(at.x, at.y, at.z);
+            camera.setTarget(Vector3.Zero());
+            camera.minZ = height / 4;
+            camera.getViewMatrix(true);
+            const tiles = loader(scene);
+            const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 1000 });
+            for (let round = 0; round < 40; round++) {
+                globe.update();
+                if (tiles.requests.length === 0) {
+                    break;
+                }
+                await tiles.answerAll();
+            }
+            globe.update();
+            expect(tiles.requests, "every wanted tile was asked for and loaded").toHaveLength(0);
+
+            let seen = 0;
+            for (let j = 1; j < 15; j++) {
+                for (let i = 1; i < 20; i++) {
+                    const ray = scene.createPickingRay((1200 * i) / 20, (H * j) / 15, null, camera);
+                    const o = ray.origin;
+                    const d = ray.direction;
+                    const b = Vector3.Dot(o, d);
+                    if (b * b - o.lengthSquared() + 100 * 100 < 0) {
+                        continue;
+                    }
+                    seen++;
+                    const hit = scene.pickWithRay(ray, (m) => m.name.includes("-tile-") && m.isEnabled());
+                    expect(hit?.hit, `a tile is drawn at pixel ${String(i)}, ${String(j)}`).toBe(true);
+                }
+            }
+            expect(seen).toBeGreaterThan(0);
+
+            // The tile under the middle of the view: a texel at most a pixel, its parent's more.
+            const below = scene.pickWithRay(
+                scene.createPickingRay(600, H / 2, null, camera),
+                (m) => m.name.includes("-tile-") && m.isEnabled(),
+            );
+            const z = Number(/\|(\d+)\/\d+\/\d+$/.exec(below?.pickedMesh?.name ?? "")?.[1]);
+            // A tile's width there: the circumference over 2^z, narrowed by the latitude.
+            const pixels = (level: number): number =>
+                (((2 * Math.PI * 100 * Math.cos((lat * Math.PI) / 180)) / 2 ** level) * H) /
+                (2 * height * Math.tan(camera.fov / 2));
+            expect(pixels(z - 1), `level ${String(z)} is fine enough`).toBeGreaterThan(256);
+            expect(z, "not finer than the source has").toBeLessThanOrEqual(19);
+            scene.getEngine().dispose();
+        },
+    );
+
+    it("shades the side away from a sun dark, with a soft twilight, and none without one", async () => {
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const globe = new Globe(scene, { loadTexture: tiles.load });
+        globe.update();
+        await tiles.answerAll();
+        globe.update();
+        expect(shownMeshes(scene)[0].getVerticesData(VertexBuffer.ColorKind), "no sun, no shading").toBeNull();
+
+        globe.sun = { lat: 0, lon: 0 };
+        globe.update();
+        const [mesh] = shownMeshes(scene);
+        const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        const colors = mesh.getVerticesData(VertexBuffer.ColorKind) ?? [];
+        const sun = latLonToSphere({ lat: 0, lon: 0 }, 1);
+        for (let i = 0; i < positions.length / 3; i++) {
+            const p = { x: positions[3 * i], y: positions[3 * i + 1], z: positions[3 * i + 2] };
+            expect(colors[4 * i]).toBeCloseTo(sunShade(p, sun), 6);
+        }
+        const at = (lat: number, lon: number): number => sunShade(latLonToSphere({ lat, lon }, 100), sun);
+        expect(at(0, 0), "noon").toBe(1);
+        expect(at(0, 180), "midnight").toBeCloseTo(0.2);
+        expect(at(0, 88)).toBeGreaterThan(at(0, 92));
+        expect(at(0, 92)).toBeGreaterThan(at(0, 100));
+        scene.getEngine().dispose();
+    });
+
+    it("draws the air's glow around the rim when asked, at the globe's radius, and removes it", () => {
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
+        const globe = new Globe(scene, { atmosphere: true, loadTexture: loader(scene).load });
+        const air = (): Mesh | undefined =>
+            scene.meshes.find((m) => m.name.endsWith("-atmosphere")) as Mesh | undefined;
+        expect(globe.atmosphere).toBe(true);
+        expect(air()?.parent).toBe(globe.root);
+        expect(air()?.isPickable).toBe(false);
+        expect(air()?.scaling.x).toBeCloseTo(106);
+        expect((air()?.material as StandardMaterial).alphaMode, "added onto what is behind").toBe(1);
+        globe.radius = 10;
+        expect(air()?.scaling.x).toBeCloseTo(10.6);
+        globe.atmosphere = false;
+        expect(air()).toBeUndefined();
+        expect(new Globe(scene, { name: "plain", loadTexture: loader(scene).load }).atmosphere, "off by default").toBe(
+            false,
+        );
         scene.getEngine().dispose();
     });
 });

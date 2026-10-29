@@ -16,7 +16,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
-import { addStepCondition } from "./stepCards";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -305,17 +304,16 @@ describe("the Data place's sidebar on the real element", () => {
     it("offers the Data source condition only once two sources are loaded", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        // Tier 3's filter step editor: Add filter step, then its Which nodes' Add a condition list.
-        await userEvent.click(await place().findByRole("button", { name: "Add filter step" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
-        await screen.findAllByRole("option");
-        assert.isNull(screen.queryByRole("option", { name: "Data source" }));
-        await userEvent.keyboard("{Escape}{Escape}");
+        // The Filters section's "+": the fields, and no Data source with one load.
+        await userEvent.click(await place().findByRole("button", { name: "Add filter" }));
+        await screen.findAllByRole("menuitem");
+        assert.isNull(screen.queryByRole("menuitem", { name: "Data source" }));
+        await userEvent.keyboard("{Escape}");
 
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await place().findByRole("listitem", { name: "hosts.csv" });
-        await userEvent.click(place().getByRole("button", { name: "Add filter step" }));
-        await addStepCondition("Data source");
+        await userEvent.click(place().getByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Data source" }));
         const card = await screen.findByRole("group", { name: "Data source values" });
         const [first] = session.data.sources();
         await userEvent.click(
@@ -323,9 +321,8 @@ describe("the Data place's sidebar on the real element", () => {
                 name: new RegExp(`^auth-log\\.csv, ${String(first.counts.nodes)} nodes$`),
             }),
         );
-        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
         await waitFor(() => {
-            assert.deepEqual(session.visibility.steps[0]?.rule, { kind: "source", sources: [first.key] });
+            assert.deepEqual(session.visibility.conditions[0]?.rule, { kind: "source", sources: [first.key] });
         });
     });
 

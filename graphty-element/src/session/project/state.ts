@@ -14,7 +14,7 @@
 import type { CameraState } from "../../camera/types";
 import type {
     EdgeId,
-    FilterStep,
+    FilterCondition,
     LayoutId,
     MeasurementDeclaration,
     NodeId,
@@ -130,8 +130,11 @@ export interface VisibilityState {
     readonly filter: RuleTree | null;
     readonly window: TimeWindow | null;
     readonly showContext: boolean;
-    /** The filter steps; the ones that are on combine with the filter by AND. */
-    readonly steps: readonly FilterStep[];
+    /**
+     * The filter conditions, in the order they were added. The steps API is a view of the keep
+     * and exclude ones (`visibility/conditions.ts`).
+     */
+    readonly conditions: readonly FilterCondition[];
     /** How `session.time` moves windows, or null for every default. */
     readonly playback?: TimePlayback | null;
 }
@@ -223,7 +226,7 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         styles: init.styles ?? Object.freeze([]),
         visibility:
             init.visibility ??
-            Object.freeze({ filter: null, window: null, showContext: false, steps: Object.freeze([]) }),
+            Object.freeze({ filter: null, window: null, showContext: false, conditions: Object.freeze([]) }),
         sets: new Map(init.sets),
         views: new Map(init.views),
         notes: new Map(init.notes),

@@ -289,6 +289,21 @@ export class ArrowCapBatch {
     }
 
     /**
+     * Give one slot the length the billboard shader draws it at, keeping its colour. A no-op on a
+     * batch whose caps hold their size in their matrix.
+     * @param index - The slot.
+     * @param size - The cap's length in world units.
+     */
+    setBillboardSize(index: number, size: number): void {
+        if (this.gone || !this.billboard) {
+            return;
+        }
+
+        this.billboard.arrowSize[index] = size;
+        this.dirty.add("arrowSize");
+    }
+
+    /**
      * Give one slot the size and colour the billboard shader draws it at. A no-op on a batch
      * whose caps hold both on their material.
      * @param index - The slot.
@@ -569,6 +584,15 @@ export class ArrowCap {
     readonly size: number;
 
     /**
+     * How much larger or smaller than its size the cap is drawn, as its node is (a node kept one
+     * size on screen, or drawn at one depth's size): 1 unless {@link setScale} said otherwise.
+     */
+    private scale = 1;
+
+    /** The length the billboard shader was given at scale 1, or null before it was given one. */
+    private billboardLength: number | null = null;
+
+    /**
      * Take a slot in a batch for one cap.
      * @param batch - The batch that draws it.
      * @param size - Its size, as a uniform scale on the batch's normalized geometry.
@@ -621,7 +645,7 @@ export class ArrowCap {
      * @returns The span.
      */
     get span(): number {
-        return this.batch?.spanOf(this.slot, this.size) ?? 0;
+        return this.batch?.spanOf(this.slot, this.size * this.scale) ?? 0;
     }
 
     /**
@@ -691,7 +715,23 @@ export class ArrowCap {
             return;
         }
 
-        this.batch.placeOriented(this.slot, position, null, this.size);
+        this.batch.placeOriented(this.slot, position, null, this.size * this.scale);
+    }
+
+    /**
+     * Draw this cap larger or smaller than its size, as the node it stands on is drawn; the next
+     * {@link place} puts it there at that scale.
+     * @param scale - The factor; 1 is its own size.
+     */
+    setScale(scale: number): void {
+        if (scale === this.scale || Number.isNaN(scale) || scale <= 0) {
+            return;
+        }
+
+        this.scale = scale;
+        if (this.batch?.billboarded && this.billboardLength !== null) {
+            this.batch.setBillboardSize(this.slot, this.billboardLength * scale);
+        }
     }
 
     /**
@@ -716,7 +756,7 @@ export class ArrowCap {
         Quaternion.RotationAxisToRef(Vector3.Forward(), angle, scratchRotation);
         // "Turn into the plane first, then along the line" composes as alongLine * intoPlane.
         scratchRotation.multiplyInPlace(INTO_XY_PLANE);
-        this.batch?.placeOriented(this.slot, position, scratchRotation, this.size);
+        this.batch?.placeOriented(this.slot, position, scratchRotation, this.size * this.scale);
     }
 
     /**
@@ -725,7 +765,8 @@ export class ArrowCap {
      * @param colour - Its colour, as a hex string.
      */
     setAppearance(size: number, colour: string): void {
-        this.batch?.setAppearance(this.slot, size, colour);
+        this.billboardLength = size;
+        this.batch?.setAppearance(this.slot, size * this.scale, colour);
     }
 
     /**

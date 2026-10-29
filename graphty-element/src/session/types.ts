@@ -3121,8 +3121,10 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
- * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
- * | `visibility.steps` | none: several steps changed at once, or a reorder |
+ * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id (an edit made through `setSteps`) |
+ * | `visibility.condition-add`, `visibility.condition-on`, `visibility.condition-off`, `visibility.condition-remove` | `id`: the filter condition's id; `effect`: its effect (`"keep"`, `"exclude"` or `"select"`) |
+ * | `visibility.condition-edit` | `id`; `effect`: its effect after the edit; `previousEffect`: its effect before |
+ * | `visibility.steps` | none: several steps or conditions changed at once, or a reorder |
  * | `visibility.playback` | none: how `session.time` moves windows changed |
  * | `time.field` | `column`: the column designated as the time field |
  * | `time.clear-field` | none |
@@ -3218,6 +3220,11 @@ export type HistoryCode =
     | "visibility.step-on"
     | "visibility.step-off"
     | "visibility.step-remove"
+    | "visibility.condition-add"
+    | "visibility.condition-edit"
+    | "visibility.condition-on"
+    | "visibility.condition-off"
+    | "visibility.condition-remove"
     | "visibility.steps"
     | "visibility.playback"
     | "time.field"
@@ -3444,6 +3451,8 @@ export interface CommandOutcomeMap {
     "visibility.context": Promise<void>;
     /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
     "visibility.steps": Promise<void>;
+    /** Settles once the conditions are recorded and the pass that evaluates the masks has run. */
+    "visibility.conditions": Promise<void>;
     /** Settles once the playback settings are recorded. */
     "visibility.playback": Promise<void>;
     /** The new set's id, once it is recorded. */
@@ -3627,8 +3636,9 @@ export interface SessionLayout {
     setDimension(dimension: "2d" | "3d"): Promise<void>;
     /**
      * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
-     * `surface` is `setting.notIn2d`, because the 2D view always draws its flat map. A form shows
-     * an option not in effect disabled, with words for the code.
+     * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
+     * `params.drawn` is the value the view draws instead (`"2d"`). A form shows an option not in
+     * effect disabled, or offering only that value, with words for the code.
      * @param id - The layout's catalogue id.
      * @param option - The option's name.
      * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.

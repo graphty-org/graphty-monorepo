@@ -322,8 +322,9 @@ const LineStyle = z.strictObject({
     route: z.enum(["straight", "arc", "great-circle"]).optional(),
     /**
      * How high a raised route (`route` "arc" or "great-circle") rises at its middle, as a share of
-     * the distance between its ends along the map or the globe. Unset, 0.25 for an arc and 0.1 for a
-     * great circle; 0 draws it flat.
+     * the straight distance between its ends (across the map for an arc). Unset, 0.25 for an arc
+     * and 0.1 for a great circle, which then rises at most a fifth of the globe's radius; 0 draws it
+     * flat.
      */
     arcHeight: z.number().nonnegative().optional(),
     /**

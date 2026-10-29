@@ -696,6 +696,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 },
                 edge: {
                     width: v(1, `${VIS} lines 25160-25290`),
+                    // no line is drawn thinner on screen, whatever its width or the zoom (width 0 included)
+                    minScreenWidth: v(0.3, `${VIS9} EdgeBase.getLineWidth: max(width, 0.3 / view.scale)`),
                     outlineColor: v("#6f6f6f", `${VIS} lines 25160-25290 (background.color)`),
                     lineStyle: v("solid", `${VIS} lines 25160-25290 (dashes false)`),
                     sourceArrow: v("none", `${VIS} lines 25160-25290`),

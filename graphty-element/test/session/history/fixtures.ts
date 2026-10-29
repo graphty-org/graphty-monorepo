@@ -574,6 +574,29 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "visibility.steps", steps: [] },
     },
     {
+        name: "visibility.conditions: add a keep, an exclude and a select condition",
+        tags: BOTH,
+        command: {
+            op: "visibility.conditions",
+            conditions: [
+                { id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } },
+                { id: "c2", on: true, effect: "exclude", rule: { kind: "degree", min: 2 } },
+                { id: "c3", on: true, effect: "select", rule: { kind: "degree", min: 1 } },
+            ],
+        },
+    },
+    {
+        name: "visibility.conditions: change a condition's effect",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setConditions([{ id: "c1", effect: "keep", rule: { kind: "degree", min: 2 } }]);
+        },
+        command: {
+            op: "visibility.conditions",
+            conditions: [{ id: "c1", on: true, effect: "exclude", rule: { kind: "degree", min: 2 } }],
+        },
+    },
+    {
         name: "visibility.playback",
         tags: BOTH,
         command: { op: "visibility.playback", playback: { mode: "cumulative", step: "week", results: "keep" } },

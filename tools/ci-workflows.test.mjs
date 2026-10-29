@@ -4502,29 +4502,34 @@ describe("release.yml", () => {
         assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
-    it("runs the paid LLM tests once a UTC day, after a green CI lane, or on a person's dispatch", () => {
-        const due = llm.indexOf("run: node tools/llm-due.mjs");
-        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@"), "decides before installing anything");
-        assert.match(llm, /id: due\n/);
-        assert.match(llm, /actions: read/);
-        // every step after the decision is skipped when the lane is not due, so the job passes without paying
-        const after = llm
-            .slice(due)
-            .split(/\n\s+- (?:name|uses): /)
-            .slice(1);
-        assert.equal(after.length, 5);
-        for (const step of after) assert.match(step, /\n\s+if: steps.due.outputs.due == 'true'(\n|$)/);
+    it("runs the paid LLM tests in every release test of a candidate, with no once-a-day gate (owner, 2026-10-29)", () => {
+        // no step decides whether the lane is due: every step runs whenever the job runs
+        assert.doesNotMatch(llm, /steps\.due|llm-due/);
+        assert.doesNotMatch(llm.slice(llm.indexOf("\n        steps:")), /\n\s+if: /, "no step-level gate");
+        // the job runs only when the pick chose a candidate to test, never in promote-nightly (which tests nothing)
         assert.match(
-            readFileSync(new URL("./llm-due.mjs", import.meta.url), "utf8"),
-            /export const STEP = "LLM regression tests";/,
+            llm,
+            /if: \$\{\{ !cancelled\(\) && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true'/,
         );
-        assert.match(llm, /- name: LLM regression tests\n/, "the step llm-due.mjs counts");
+        // the month's spend is still checked (spend:llm), before installing anything, and never stops the run
+        const spend = llm.indexOf("run: node tools/llm-spend.mjs");
+        assert.ok(spend > 0 && spend < llm.indexOf("uses: pnpm/action-setup@"), "checks the spend first");
+        assert.match(llm, /actions: read/);
+        const script = readFileSync(new URL("./llm-spend.mjs", import.meta.url), "utf8");
+        assert.match(script, /export const STEP = "LLM regression tests";/);
+        assert.match(script, /const MONTHLY_CEILING = 60;/);
+        assert.match(llm, /- name: LLM regression tests\n/, "the step llm-spend.mjs counts");
+        // the paid project runs nowhere else: not on a pull request, a master push or any other workflow
+        for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
+            if (name === "release.yml" || !/\.ya?ml$/.test(name)) continue;
+            assert.doesNotMatch(workflow(name), /--project[ =]llm-regression/, name);
+        }
     });
 
     it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
         assert.match(
             llm,
-            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
         );
         assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
@@ -7937,6 +7942,21 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
         assert.equal(capture.coe, undefined, "a capture crash fails the job");
         // its partial captures are not visual-* artifacts, which the visual gate and the flaky report read
         assert.match(stories, /name: stories-\$\{\{ matrix\.name \}\}-\$\{\{ github\.run_attempt \}\}/);
+    });
+
+    it("finds master's newest capture once per run, not once per Stories job (#4318)", () => {
+        // each Stories job walking master's commits itself spent about 20 Actions-token calls a job
+        assert.doesNotMatch(stories, /visual-review reference|GH_TOKEN/);
+        assert.match(stories, /needs: \[packages, build, story-references\]/);
+        assert.match(stories, /name: story-references-\$\{\{ github\.run_attempt \}\}/);
+        const refs = job(ci, "story-references");
+        assert.match(refs, /\n {8}continue-on-error: true\n/, "a reference is an aid: its job never fails the run");
+        assert.match(refs, /for project in \$\(jq -r '\.projects \| keys\[\]' visual-review\.config\.json\)/);
+        // it starts with the Build job, not after it: the Stories jobs wait for it (#3448)
+        assert.doesNotMatch(refs, /\n {8}needs:/);
+        assert.match(refs, /node visual-review\/trusted\/cli\.mjs reference --project "\$project"/);
+        assert.match(refs, /VISUAL_REVIEW_API_CACHE: \$\{\{ runner\.temp \}\}\/github-api/);
+        assert.match(refs, /git archive "\$src" visual-review\/capture visual-review\/trusted \| tar -x/);
     });
 
     it("captures with the old visual-review capture, the base branch's copy, and only the selected stories", () => {

@@ -163,16 +163,16 @@ export class OrbitInputController {
     };
 
     /**
-     * How far some wheel notches move the camera: each notch out multiplies its distance by
-     * NOTCH_ZOOM and each notch in divides it by the same, so a turn out undoes a
+     * How far some wheel notches move the camera: each notch out multiplies its distance (over a
+     * globe, its height above the surface) by NOTCH_ZOOM and each notch in divides it by the
+     * same, so a turn out undoes a
      * turn in. Adding the same share of the distance either way zoomed in 1/0.9 a notch and out
      * only 1/1.1, and three turns out did not undo three turns in.
      * @param notches - Notches; negative zooms in.
      * @returns The distance delta.
      */
     private notchDistance(notches: number): number {
-        const distance = this.controller.cameraDistance;
-        return distance * NOTCH_ZOOM ** notches - distance;
+        return this.controller.zoomDelta(NOTCH_ZOOM ** notches);
     }
 
     /**

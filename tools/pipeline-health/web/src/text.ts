@@ -427,7 +427,11 @@ export const MEMBER: Record<MemberId, MemberText> = {
         headline: "Spend projected",
     },
     "costs.t4": { name: "T4 GPU", short: "T4 GPU", def: "projected, machine.dev" },
-    "costs.llm": { name: "LLM regression", short: "LLM regression", def: "projected, Gemini" },
+    "costs.llm": {
+        name: "LLM regression (CI, estimated)",
+        short: "LLM regression, CI estimate projected to month-end,",
+        def: "projected to month-end; estimated from CI's paid runs at a flat rate, Gemini",
+    },
     "costs.aws": { name: "AWS", short: "AWS", def: "month to date, Cost Explorer" },
     "costs.cloudflare_usage": {
         name: "Cloudflare usage",
@@ -496,7 +500,7 @@ export const LABEL: Record<string, string> = {
     "cause.flaky": "flaky",
     "cause.infrastructure": "infrastructure",
     "cost.t4": "T4 GPU",
-    "cost.llm": "LLM regression",
+    "cost.llm": "LLM regression (CI, estimated)",
     "cost.sentry": "Sentry",
     "cost.github": "GitHub",
     "cost.cloudflare": "Cloudflare",
@@ -783,7 +787,8 @@ const S: Record<string, (p: P) => string> = {
     "costs.value_by_workflow": () => "List-price value by workflow, not money, this month so far, USD",
     "cost.t4.rate": (p) =>
         `machine.dev, on demand ${fmtN(num(p, "usd_min"))} USD/min, +${fmtN(num(p, "boot_min"))} min boot per job`,
-    "cost.llm.rate": (p) => `Gemini, one paid run a day at ${fmtN(num(p, "usd"))} USD`,
+    "cost.llm.rate": (p) =>
+        `Gemini, CI only: ${fmtN(num(p, "usd"))} USD per paid release run or llm bisect point; local runs not counted`,
     "cost.plan": () => "plan",
     "cost.github.plan": (p) => `Team, ${fmtN(num(p, "seats"))} seats`,
     "cost.cloudflare.plan": () => "Workers Paid",

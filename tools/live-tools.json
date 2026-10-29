@@ -28,5 +28,10 @@
         "worktree": ".worktrees/worktree-cleanup-live",
         "servers": ["worktree-cleanup"],
         "test": "node tools/worktree-cleanup.test.mjs"
+    },
+    "pipeline-health-local": {
+        "worktree": ".worktrees/pipeline-health-local-live",
+        "servers": ["pipeline-health-local"],
+        "test": "cd tools/pipeline-health && node --test local/collector.test.mjs"
     }
 }

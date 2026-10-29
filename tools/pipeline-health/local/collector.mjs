@@ -20,9 +20,9 @@
 //   node tools/pipeline-health/local/collector.mjs --watch     # post what is new every 60 s
 //   --root <dir> reads another checkout's tmp/ (default: the main checkout of this repository).
 //
-// Under servherd (from the main checkout, so it keeps running when worktrees go):
-//   servherd_start({ name: "pipeline-health-local", cwd: "<repo>",
-//     command: "node tools/pipeline-health/local/collector.mjs --watch" })
+// Under servherd, from its live copy (tools/live-tools.json; tools/live.sh pipeline-health-local <branch> updates it):
+//   servherd_start({ name: "pipeline-health-local", cwd: "<repo>/.worktrees/pipeline-health-local-live",
+//     command: "node tools/pipeline-health/local/collector.mjs --watch --root <repo>" })
 //
 // The cursor is <root>/tmp/pipeline-health-local/cursor.json. A failed post logs one line and leaves
 // the cursor where it was, so the next pass sends the same rows again; a post the API refuses for its

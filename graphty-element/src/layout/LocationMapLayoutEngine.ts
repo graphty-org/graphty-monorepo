@@ -89,11 +89,13 @@ const locationMapOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    surface: {
-        schema: z.enum(["flat", "globe"]).default("flat"),
+    mapDimension: {
+        schema: z.enum(["2d", "3d"]).default("3d"),
         meta: {
-            label: "Surface",
-            description: "A flat map or a globe; the 2D view always draws the flat map",
+            label: "Map Dimension",
+            description:
+                "In the 3D view, a 3D map (the globe) or a 2D map (a flat map, edges arced above it); " +
+                "the 2D view always draws the 2D map",
         },
     },
     projection: {
@@ -116,6 +118,16 @@ const locationMapOptionsSchema = defineOptions({
         meta: {
             label: "Size",
             description: "Scene units across the shown map, or the globe's radius",
+            advanced: true,
+        },
+    },
+    mapScale: {
+        schema: z.number().positive().default(1),
+        meta: {
+            label: "Map Scale",
+            description:
+                "How many times larger the map (flat or globe) is drawn than Size makes it, with nodes " +
+                "and edges kept their size, so nodes close together draw further apart",
             advanced: true,
         },
     },
@@ -172,16 +184,19 @@ const LocationMapLayoutConfig = z.strictObject({
     latitude: z.string().nullable().default(null),
     longitude: z.string().nullable().default(null),
     format: z.enum(FORMATS).default("auto"),
-    surface: z.enum(["flat", "globe"]).default("flat"),
+    mapDimension: z.enum(["2d", "3d"]).default("3d"),
     projection: z.enum(["auto", "web-mercator", "equirectangular"]).default("auto"),
     extent: z.enum(["data", "world"]).default("data"),
     size: z.number().positive().default(100),
+    mapScale: z.number().positive().default(1),
     unplaced: z.enum(["tray", "leave"]).default("tray"),
     overlap: z.enum(["spread", "stack"]).default("spread"),
     nodeScale: z.enum(["scene", "screen"]).default("scene"),
     map: Basemap.nullable().default(null),
     gazetteer: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
     dim: z.number().default(3),
+    /** The view's dimension, set by the element alone; a 3D view may lay the map out with `dim` 2. */
+    view: z.union([z.literal(2), z.literal(3)]).optional(),
 });
 type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
 
@@ -198,9 +213,10 @@ type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
  *
  * Nodes with no usable location go to a tray below the map (or stay where they were) and are
  * reported as `W_LOCATION_UNPARSED` and `W_LOCATION_OUT_OF_RANGE`; they are never put at latitude
- * 0, longitude 0. The 2D view always draws the flat map; in 3D `surface` picks a flat map or a
- * globe. Each answer publishes {@link LocationMapLayout.geoFrame}, which the map and the edges'
- * default route follow. A graph with no location the layout can find is refused when the layout
+ * 0, longitude 0. The 2D view always draws a 2D (flat) map with straight edges; in the 3D view
+ * `mapDimension` picks the 3D map, a globe (the default), or the 2D map with edges arced above it.
+ * Each answer publishes {@link LocationMapLayout.geoFrame}, which the map and the edges' default
+ * route follow. A graph with no location the layout can find is refused when the layout
  * starts, so the previous layout stays drawn: the refusal is `layout.needs-location`, the code the
  * layout's cost estimate gives before it is chosen.
  */
@@ -221,7 +237,10 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
     constructor(opts: Partial<LocationMapLayoutConfigType> = {}) {
         super(opts);
         this.config = LocationMapLayoutConfig.parse(opts);
-        this.dimensions = layoutDim(this.config.dim);
+        // In the 3D view the map type picks the map: a globe needs three coordinates whatever the
+        // layout's own shape (`dim`) asks for.
+        const globe = (this.config.view ?? this.config.dim) === 3 && this.config.mapDimension === "3d";
+        this.dimensions = globe ? 3 : layoutDim(this.config.dim);
     }
 
     /**
@@ -232,7 +251,7 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      *     layout runs again.
      */
     takeDrawingOptions(options: Readonly<Record<string, unknown>>): boolean {
-        const parsed = LocationMapLayoutConfig.safeParse({ ...options, dim: this.config.dim });
+        const parsed = LocationMapLayoutConfig.safeParse({ ...options, dim: this.config.dim, view: this.config.view });
         if (!parsed.success) {
             return false;
         }
@@ -249,12 +268,12 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
     }
 
     /**
-     * The view's dimension, as the layout's `dim`.
+     * The view's dimension, as the layout's `dim` (which a 3D view may set to 2) and as `view`.
      * @param dimension - 2 or 3.
-     * @returns The option.
+     * @returns The options.
      */
     static getOptionsForDimension(dimension: 2 | 3): object {
-        return { dim: dimension };
+        return { dim: dimension, view: dimension };
     }
 
     /**
@@ -377,8 +396,18 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      * @returns The options and the view's dimension.
      */
     #placeOptions(): PlaceOptions {
-        const { format, surface, projection, extent, size, unplaced, overlap } = this.config;
-        return { format, surface, projection, extent, size, unplaced, overlap, dimensions: this.dimensions };
+        const { format, mapDimension, projection, extent, size, mapScale, unplaced, overlap } = this.config;
+        return {
+            format,
+            surface: mapDimension === "3d" ? "globe" : "flat",
+            projection,
+            extent,
+            size,
+            mapScale,
+            unplaced,
+            overlap,
+            dimensions: this.dimensions,
+        };
     }
 
     /**

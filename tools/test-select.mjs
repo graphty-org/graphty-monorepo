@@ -1764,19 +1764,17 @@ function storyUnits(file, count, recordedMs, rate) {
 }
 
 /**
- * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most STORY_BIN_LIMIT_MS (more when that makes over STORY_JOB_BUDGET bins), a file counted at the longer of its recorded time and its
- * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
- * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
- * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
+ * Each project's story binning units and their planned ms, before packing: every story file of a project selected
+ * whole, else its selected files, a file longer than a bin split into `<file>#<k>/<n>` parts, and a changed
+ * baseline's story id as `id:<id>`. The rolling slices (tools/channel/story-slices.mjs) order these units.
  * @param stories selectStories()
  * @param projects visual-review.config.json `projects`
  * @param listFiles (dir) => the repository paths under dir
  * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
  * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
- * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
+ * @returns `[{ project, storybook, unitMs }]`, unitMs a Map(unit -> ms)
  */
-export function storyBins(stories, projects, listFiles, durations = {}, storiesIn = () => 1) {
+export function storyUnitPlans(stories, projects, listFiles, durations = {}, storiesIn = () => 1) {
     const plans = [];
     for (const s of stories) {
         const { storybook } = projects[s.project];
@@ -1794,16 +1792,18 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
         for (const id of s.baselines) unitMs.set(`id:${id}`, rate);
         plans.push({ project: s.project, storybook, unitMs });
     }
-    const pack = (limit) => plans.map((p) => packBins([...p.unitMs.keys()], p.unitMs, limit, 0));
-    // one limit for every project, the smallest that fits the job budget, so no job is longer than it must be
-    let limit = STORY_BIN_LIMIT_MS;
-    let packed = pack(limit);
-    while (packed.flat().length > STORY_JOB_BUDGET && limit < STORY_BIN_MAX_MS) {
-        limit += 30_000;
-        packed = pack(limit);
-    }
-    return plans.flatMap((p, k) =>
-        packed[k].map((bin, i) => ({
+    return plans;
+}
+
+/**
+ * Story binning units packed into bins of at most `limitMs`, named `<project>-<n>`.
+ * @param plans storyUnitPlans() (or a subset of their units)
+ * @param [limitMs] the most one bin may hold
+ * @returns `[{ name, project, storybook, files, ids, ms }]`
+ */
+export function packStoryBins(plans, limitMs = STORY_BIN_LIMIT_MS) {
+    return plans.flatMap((p) =>
+        packBins([...p.unitMs.keys()], p.unitMs, limitMs, 0).map((bin, i) => ({
             name: `${p.project}-${i + 1}`,
             project: p.project,
             storybook: p.storybook,
@@ -1812,6 +1812,41 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
             ms: bin.ms,
         })),
     );
+}
+
+/**
+ * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
+ * files packed into bins of at most STORY_BIN_LIMIT_MS (more when that makes over `jobBudget` bins), a file counted at the longer of its recorded time and its
+ * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
+ * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
+ * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
+ * @param stories selectStories()
+ * @param projects visual-review.config.json `projects`
+ * @param listFiles (dir) => the repository paths under dir
+ * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
+ * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
+ * @param [options] binning options
+ * @param [options.jobBudget] the most bins before every bin's limit grows (STORY_JOB_BUDGET); Infinity keeps every
+ *   bin at STORY_BIN_LIMIT_MS (the rolling slices, design/visual-testing/early-capture.md 4a)
+ * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
+ */
+export function storyBins(
+    stories,
+    projects,
+    listFiles,
+    durations = {},
+    storiesIn = () => 1,
+    { jobBudget = STORY_JOB_BUDGET } = {},
+) {
+    const plans = storyUnitPlans(stories, projects, listFiles, durations, storiesIn);
+    // one limit for every project, the smallest that fits the job budget, so no job is longer than it must be
+    let limit = STORY_BIN_LIMIT_MS;
+    let packed = packStoryBins(plans, limit);
+    while (packed.length > jobBudget && limit < STORY_BIN_MAX_MS) {
+        limit += 30_000;
+        packed = packStoryBins(plans, limit);
+    }
+    return packed;
 }
 
 // --- building the import graph of one package, in a child process ------------------------------------

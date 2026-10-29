@@ -1,7 +1,8 @@
 # Early screenshot capture: rolling slices and idle-time capture
 
 Date: 2026-10-29. Issue #4540. Status: design and plan, revised after three reviews (CI cost, owner rules,
-owner flow); nothing built yet.
+owner flow); plan steps 1 to 3 built (step 3: the slice planner, the reach rows and `story-slices.yml`, which
+nothing dispatches yet).
 
 Every story's picture is rendered fresh from master many times a day, in small slices: a fixed small
 slice after green master builds while runners are free, and more slices while GitHub's runners are
@@ -173,7 +174,10 @@ takes `sha` (a master commit whose build is green), `mode` (`base` or `idle`), `
 it.
 
 **The rotation unit** is what `storyBins()` packs: one story file of one project, or one `#k/n` split of a
-heavy file. Its age is the oldest newest-capture of any story in it (never captured counts as oldest).
+heavy file. Its age is when a slice last rendered it whole (never rendered counts as oldest): each bin posts the
+units it rendered, only when its capture finished, so a bin that broke part way leaves its units oldest. A
+story's own newest capture is not used for this, because a story that was deleted keeps its last row and would
+hold its unit's age down for ever.
 
 **What a slice holds** (`tools/channel/story-slices.mjs plan`, run in the slice's first job):
 
@@ -187,8 +191,9 @@ heavy file. Its age is the oldest newest-capture of any story in it (never captu
    whatever changed.
 3. **Packed at a fixed 3-minute limit, never stretched.** `storyBins()` gains an optional
    `{ jobBudget }` (default today's 9; the planner passes `Infinity`), so the limit stays at 3 minutes.
-   The planner takes units in order until their planned time fills `bins` x 3 minutes, groups them by
-   project, and packs each group. A `base` slice is 2 bins, an `idle` slice 6.
+   The planner takes units in order while every project's chosen units still pack into `bins` bins in all
+   (a bin never mixes projects), passing over a unit that would need one more bin and trying the next. A
+   `base` slice is 2 bins, an `idle` slice 6.
 
 Because the order comes from the store's record of what was captured (section 4c), a slice that was
 cancelled, skipped or failed leaves its units oldest, so the next one takes them. Nothing depends on every
@@ -287,12 +292,16 @@ None of this touches graphty-agent's 5,000 an hour.
 - **Index.** The results store (`tools/results-service`) gets tables `story_capture` (project, story id
   and mode, commit, the commit's `visual-baselines` tree, run id, attempt, artifact name, status:
   unchanged, changed, new, unseeded, unstable, failed; the hash of the picture and of the baseline it was
-  compared with; the time) and `story_reach` (commit, story unit). Index on (project, story, mode, run id, attempt).
+  compared with; the time), `story_unit` (project, unit, commit, run id, attempt, time: when a bin rendered a
+  rotation unit whole, migration 0008) and `story_reach` (commit, story unit). Index on (project, story, mode,
+  run id, attempt).
   Pruning keeps the newest row per story plus 7 days, matching the artifact retention (about 25,000 rows a
   day at the cap, about 5 MB, within Workers Paid D1 limits). `POST /v1/story-captures` is written only by
   `story-slices.yml` on master and `POST /v1/story-reach` only by ci.yml on master (OIDC
-  `job_workflow_ref`). `GET /v1/story-captures` answers the newest capture of each story and a summary:
-  the last sliced commit, the oldest newest-capture, and the rolling queue size.
+  `job_workflow_ref`). `GET /v1/story-captures` answers the newest capture of each story, each unit's newest
+  whole render, and a summary: the last sliced commit, the oldest newest-capture, and the rolling queue size.
+  `GET /v1/story-reach?shas=` answers the units the listed commits (at most 100, D1's bound-parameter limit)
+  reach.
 - **Freshness rules.** A picture is always shown with the commit and run it was rendered from. For a
   story, only its newest capture counts (highest run id, then attempt; never the time it was written, so a late
   re-run of an older slice cannot hide a newer render); an older one is never shown once a newer one exists. A rolling
@@ -467,6 +476,20 @@ gate step and story-test jobs.
    with a test in `tools/tool-tests.txt` that checks its triggers, permissions, concurrency, the restore-only
    cache, the exact-commit artifact download, and that it never touches `visual-baselines/`. Merges
    dormant: nothing dispatches it yet.
+
+    **As built** (`tools/channel/story-slices.mjs`, its test, and `.github/workflows/story-slices.yml`):
+    `storyBins()` was split into `storyUnitPlans()` (the units and their planned time) and `packStoryBins()`,
+    which the planner reuses. The store gained `story_unit` (migration 0008), `units` on a slice's post and
+    answer, and `GET /v1/story-reach`, because the planner needs a unit's age and a merge's reach and the step 2
+    endpoints answered neither. The replay test runs the rotation over master's 280 recorded units (about 98
+    capture-minutes): at 6 bins a slice the whole set is rendered in 7 slices, and again in the next 7. When the
+    oldest units cannot fit, the planner fills a slice's remaining room with the next-oldest units, so a unit can
+    be rendered twice before a big one is rendered once; the full set still completes each pass. **Reach is
+    all-or-nothing today:** the story selector selects no project by file yet (`selectProjects` in
+    `test-select-rules.json` is empty until `test-select-mutate.mjs --stories` proves one), so every merge's
+    reach row is `<project>:*` for all seven projects and the order is by age alone. Reach starts to order work
+    as projects join `selectProjects`; nothing in the slices has to change for that.
+
 4. **Review page: the rolling target, and the rule change.** `tools/channel/rolling.mjs` (the `rolling`
    command, reading the store); in visual-review: `serve.mjs`'s "master rolling" target with
    render-bound decisions and no hash carry, `accept.mjs`'s rolling branch rule (accept parented on the

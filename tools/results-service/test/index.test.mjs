@@ -1517,6 +1517,60 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         );
     });
 
+    it("keeps when each slice unit was last captured whole, newest by run, for the slice planner's rotation", async () => {
+        const { call } = service();
+        const unit = (u, project = "graphty") => ({ project, unit: u });
+        await call("POST", "/v1/story-captures", {
+            token: slices(),
+            body: slice({ units: [unit("graphty/src/A.stories.tsx"), unit("graphty/src/B.stories.tsx#1/2")] }),
+        });
+        // a later run captures A again; a late re-run of the first run must not make A look older
+        await call("POST", "/v1/story-captures", {
+            token: slices({ run_id: "4020" }),
+            body: slice({ sha: "b".repeat(40), captures: [], units: [unit("graphty/src/A.stories.tsx")] }),
+            now: NOW + 60_000,
+        });
+        await call("POST", "/v1/story-captures", {
+            token: slices({ run_attempt: "2" }),
+            body: slice({ units: [unit("graphty/src/A.stories.tsx")] }),
+            now: NOW + 120_000,
+        });
+        const { body } = await call("GET", "/v1/story-captures", { token: LOCAL_TOKEN });
+        assert.deepEqual(body.units, [
+            { project: "graphty", unit: "graphty/src/A.stories.tsx", sha: "b".repeat(40), at: NOW + 60_000 },
+            { project: "graphty", unit: "graphty/src/B.stories.tsx#1/2", sha: X, at: NOW },
+        ]);
+        const bad = await call("POST", "/v1/story-captures", {
+            token: slices({ run_id: "4030" }),
+            body: slice({ units: [{ project: "graphty", unit: "" }] }),
+        });
+        assert.equal(bad.status, 400);
+    });
+
+    it("answers the story units the listed master commits reach", async () => {
+        const { call } = service();
+        const Y = "e".repeat(40);
+        await call("POST", "/v1/story-reach", { token: masterPush(), body: { sha: X, units: ["graphty:*"] } });
+        await call("POST", "/v1/story-reach", {
+            token: masterPush(Y),
+            body: { sha: Y, units: ["layout:layout/stories/A.stories.ts", "graphty:*"] },
+        });
+        const { status, body } = await call("GET", `/v1/story-reach?shas=${X},${"f".repeat(40)}`, {
+            token: LOCAL_TOKEN,
+        });
+        assert.equal(status, 200);
+        assert.deepEqual(body, { reach: [{ sha: X, unit: "graphty:*" }] });
+        const both = await call("GET", `/v1/story-reach?shas=${Y},${X}`, { token: LOCAL_TOKEN });
+        assert.deepEqual(both.body.reach.map((r) => r.unit).sort(), [
+            "graphty:*",
+            "graphty:*",
+            "layout:layout/stories/A.stories.ts",
+        ]);
+        assert.equal((await call("GET", "/v1/story-reach?shas=abc", { token: LOCAL_TOKEN })).status, 400);
+        const many = Array.from({ length: 101 }, () => X).join(",");
+        assert.equal((await call("GET", `/v1/story-reach?shas=${many}`, { token: LOCAL_TOKEN })).status, 400);
+    });
+
     it("is read by no file under tools/ but the store and the consumers the design names", async () => {
         const { execFileSync } = await import("node:child_process");
         const root = new URL("../../../", import.meta.url).pathname;

@@ -2284,6 +2284,17 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         ]);
     });
 
+    it("never stretches a bin past 3 minutes with jobBudget Infinity (the rolling slices, early-capture.md 4a)", () => {
+        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
+        const stories = [entry("graph-io-fidelity", "all", [], ids), entry("layout", "all")];
+        const bins = storyBins(stories, projects, list, {}, () => 1, { jobBudget: Infinity });
+        assert.ok(bins.length > STORY_JOB_BUDGET, `${bins.length} bins`);
+        for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
+        assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids].sort());
+        // the default budget still stretches the same stories into 9 jobs
+        assert.ok(storyBins(stories, projects, list).length <= STORY_JOB_BUDGET);
+    });
+
     it("spreads many changed baselines over bins within the limit, each id once (#4401)", () => {
         const ids = Array.from({ length: 300 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins([entry("graph-io-fidelity", "all", [], ids)], projects, list);

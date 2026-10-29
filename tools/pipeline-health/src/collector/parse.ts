@@ -856,7 +856,13 @@ export function stressQuiet(runs: Pick<StressCursorRun, "at" | "foundFailures">[
 
 export interface Rates {
     t4: { bootMin: number; usdPerMin: Record<string, number> };
-    llm: { step: string; usdPerPaidStep: number; paidConclusions: string[] };
+    llm: {
+        step: string;
+        bisectStep: string;
+        legacyBisectRuns: number[];
+        usdPerPaidStep: number;
+        paidConclusions: string[];
+    };
     fixedMonthly: Record<string, { usd: number } | null>;
 }
 
@@ -882,10 +888,26 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
     };
 }
 
-/** Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost. */
-export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
+/** Whether a bisect.yml run bisects the llm lane: its run name says so, or it is listed from before the name did. */
+const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates) =>
+    !!run && (/\bllm lane\b/.test(run.display_title ?? "") || rates.llm.legacyBisectRuns.includes(run.id));
+
+/**
+ * Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost: release.yml's LLM regression step,
+ * and the test step of each point of a bisect of the llm lane.
+ */
+export function llmCost(
+    j: GhJob,
+    repo: string,
+    rates: Rates,
+    workflow?: string,
+    run?: Pick<GhRun, "id" | "display_title">,
+): CostItem | undefined {
+    const bisect = workflow === "bisect.yml";
+    if (bisect && !llmBisect(run, rates)) return undefined;
+    const step = bisect ? rates.llm.bisectStep : rates.llm.step;
     const paid = (j.steps ?? []).filter(
-        (s) => s.name === rates.llm.step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
+        (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
     if (!paid.length) return undefined;
     const end = Date.parse(paid[paid.length - 1].completed_at ?? j.completed_at ?? j.created_at);

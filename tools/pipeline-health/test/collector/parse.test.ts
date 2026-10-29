@@ -472,6 +472,27 @@ describe("costs", () => {
         ).toMatchObject({ line: "llm", usd: 0.94 });
     });
 
+    it("prices each point of a bisect of the llm lane, and no point of another lane", () => {
+        // bisect.yml run 40492117633 (2026-10-27) bisected the llm lane before the run name carried the lane: one
+        // point, its paid step "Run the failing files" (375 Gemini calls).
+        const run = fixture<GhRun>("run-bisect-llm-40492117633.json");
+        const point = fixture<{ jobs: GhJob[] }>("jobs-bisect-llm-40492117633.json").jobs.find((j) =>
+            j.name.startsWith("Point "),
+        )!;
+        expect(llmCost(point, REPO, R, "bisect.yml", run)).toMatchObject({
+            id: `llm#${REPO}/122148555385`,
+            line: "llm",
+            workflow: "bisect.yml",
+            usd: 0.94,
+        });
+        const named = { id: 1, display_title: "Bisect (llm lane)" };
+        expect(llmCost(point, REPO, R, "bisect.yml", named)).toMatchObject({ usd: 0.94 });
+        expect(llmCost(point, REPO, R, "bisect.yml", { id: 1, display_title: "Bisect (ci lane)" })).toBeUndefined();
+        expect(llmCost(point, REPO, R, "bisect.yml", { id: 1, display_title: "Bisect" })).toBeUndefined();
+        // the bisect's step name means nothing in release.yml
+        expect(llmCost(point, REPO, R, "release.yml", run)).toBeUndefined();
+    });
+
     it("spreads fixed monthly lines over the month", () => {
         const start = Date.UTC(2026, 9, 1);
         const month = Array.from({ length: 31 }, (_, i) => fixedCosts(R, start + i * DAY)).flat();

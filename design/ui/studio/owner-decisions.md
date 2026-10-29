@@ -4,6 +4,25 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-29 -- Decided by the team: a range over dates, and a weight given after the load (graphty-element)
+
+From the tier 4 dry run (`tier4/dry-run-r1-1.md`).
+
+- **A range leaf can compare dates.** graphty-element, non-breaking: the `range` rule leaf takes an
+  optional `as: "time"`. With it, `min` and `max` are instants in milliseconds and each value is read
+  by the session's time parser (the one the timeline uses); without it, a range reads numbers exactly
+  as today. Why: a filter or style condition on a date column ("put in before 2005") had no rule to
+  write, so T65 B could not be done. An option on the existing leaf, not a new leaf kind, because the
+  test is the same "between min and max" and every consumer that already walks `range` leaves keeps
+  working.
+- **A weight role given after the load is the weight runs read.** graphty-element: `data.setRole(column,
+"weight")` documents the role as "the edge weight", but runs and `data.loadedWeight()` read only the
+  weight a load mapped, so a weight given in Data > Fields never reached an analysis (T64). Treated as
+  a defect fix, not a change of behavior: no consumer sets the weight role to have runs ignore it, and
+  a run with an explicit `weight` option reads that option as before. If the owner reads it as a
+  change to what `loadedWeight()` returns, the fallback is a new `data.weight()` that the run plan
+  reads, leaving `loadedWeight()` as it is.
+
 ## 2026-10-29 -- For the owner: tier 4 data management questions (graphty app, graphty-element, compact-mantine)
 
 Raised by the tier 4 expert walkthroughs (`tier4/review/*.md`; screenshots under the main
@@ -51,6 +70,15 @@ behavior meanwhile.
    inside it, so a button needs a new FileSource option (for example `openLabel="Open"`), a change
    to a locked component's look. Options: (a) add the option to FileSource, opt-in, under a
    `Figma-Approved` trailer; (b) keep Enter as the only way to open an address.
+
+9. **A Select card selects nodes that are out of the picture** (graphty-element, the select effect).
+   Built as the filter-cards design says: Select ignores visibility, so the order of the cards never
+   matters. The T65 pilots read it as wrong: with "trained, 10 hours or more" hiding ten people and
+   "role staff" on Select, the screen says "5 nodes selected" while 4 rings are drawn, because one
+   staff member is out of the picture (T65 A s1-path/17.png; T65 B p3-path/14.png). Options: (a) keep
+   it, and the card's chip says how many of its matches are out of the picture; (b) Select selects only
+   what the other cards leave in the picture, which brings order back in only when a later Hide card
+   changes. The answer key grades the cards meanwhile.
 
 ## 2026-10-29 -- Decided by the team: the roles a column can take are an element fact (graphty-element, compact-mantine)
 

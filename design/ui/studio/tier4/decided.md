@@ -283,3 +283,75 @@ screen. Items the red team showed to be owner calls are under "for the owner" in
   first, A to Z); the first header click sorts A to Z; "Make blank" lines up with its siblings.
   Why: T62's answer had to be read from cut ISO text (content, visual). Re-test: T62, "which site
   has been open the longest?"
+
+## Dry run pass 1 (director, 2026-10-29)
+
+Settled by the triage of the pilot walks on build 0ffeae2ef5 (`dry-run-r1-1.md`, which names each
+defect by its row). Screenshots are under the main checkout's `tmp/design-studio/tier4/r1/pilot/`.
+No earlier entry is reversed.
+
+- **A pick glides the camera to what was picked**: a find result, a table row, a right-click on a
+  node, a source's Select nodes. The reader asked by picking, so this is not "the drawing moves
+  without being asked". Carried from `../tier3/decided.md` (2026-10-20, narrowed 2026-10-21: a held
+  selection asks for nothing after the pick), which this file's carried list left out; seven pilot
+  rows asked for the drawing to stay put on a pick. How far the glide zooms (part of the graph
+  leaving the canvas, T64 A) is a backlog defect, not part of this rule.
+
+- **A Select card selects every match in the graph**, visible or not, so the order of the cards
+  never changes what is selected (`design/data/filter-cards.md`, "Selection", the owner's option B).
+  Four pilot rows (T65 A pointer, keyboard and the other order; T65 B) read "5 nodes selected" with 4
+  rings as a defect, because the T65 prompt says "among those still in the picture". The answer key
+  grades the cards while it stands; changing it changes the element's select effect, so it is the
+  owner's question (`../owner-decisions.md` 2026-10-29, item 9).
+
+- **A source row's counts are drawn whole.** No chip on a Sources row covers another; the issue chip
+  takes its own slot after the counts, and the file name is what gives way (it keeps its tooltip).
+  Why: the issue chip the review fixes added (R9) was drawn over the counts R11 placed, so the yeast
+  row read "3611" for 361 edges (T60 B success-3/07.png) and the deliveries row hid its 18 (T61 A
+  w3-success/11.png), the number T61's follow-up asks for.
+
+- **An issue names only what happened to the file.** A load raises an issue for a row only when the
+  graph does not hold it. Why: the yeast network from its address reported "6 rows refused" while all
+  361 edges were loaded (T60 B success-3/09.png).
+
+- **Every door that adds a data file to an open graph opens the join screen**: Sources + > File...,
+  the main menu's Open project or file..., a drop on the open graph, and Quick actions > Add data....
+  Why: Add data... opened an older page whose default silently dropped G12 and its stretch and then
+  showed no issue (T61 B p2-menu/58-61.png).
+
+- **A column's kind is drawn one way everywhere.** The table's cells, the sort caption and every kind
+  glyph (the table header, Fields' column lists, the Label and Time lists) follow the column's kind
+  alone. A date-kind column reads as dates whatever its role (R15); a text-kind column reads as text
+  whatever its role, with the role's chip (Time) on its header. Why: setting the Time on a text
+  column drew dates, sorted by date and showed a calendar glyph in Fields while the header said Aa,
+  so neither participant nor grader could tell what the program reads (T62 A w2-inspector/02.png, T62
+  B w2-detours/05.png, T63 A success/05.png).
+
+- **A condition on a date column compares dates**: Before, After and Between, with boxes that take a
+  date or a year, in every condition picker (Filters and a Style layer's Which nodes, one card).
+  Why: T65 B's "before 2005" had no condition on this build, so that half could not be done
+  (p3-path/02.png).
+
+- **A Data source filter card keeps the edges whose two ends it keeps.** Ticking a load keeps the
+  nodes it supplied and every edge between them, whichever load supplied the edge (graphty-element's
+  source leaf `side: "nodes"`). The Style panel's Data source card is approved and keeps its reading.
+  Why: keeping pantries.csv left out all 18 routes to leave out one site (T66 A s1-path/14.png; B
+  success-2/07.png), and the T68 starts inherited it.
+
+- **Export opens on the whole graph each time, and its scope names what it writes.** Control+E, the
+  main menu and Table options open Export on the whole graph; a source row's Export... sets its
+  source for that opening only. The Scope list and its chip count the rows of the chosen table
+  (edges on the edge table; nodes and edges for a network format). Why: after a source row's
+  Export..., Control+E silently wrote an 11-node, 0-edge GraphML (T68 B detours-3/31.png), and the edge
+  table's scope counted nodes, so an empty edge file went out with no sign (T68 A w2-detours/13.png).
+
+- **A weight given in Data is the weight the analyses read**, with its Higher means reading, whether
+  it was set in Fields, in the table header's Role menu, or mapped at load. Why: after T64's own path
+  Shortest path opened with Weight None and counted steps (T64 B keyboard-c/107.png), and listed trips
+  as "farther" while Data said closer (T64 A w3-detours/32.png).
+
+- **A PASS INCOMPLETE that left no route unwalked is not a block.** A pilot report that walked all
+  three routes but could not write its report file, or could not take a route no session can take
+  either (typing an address into the system file chooser, a clipboard paste, dropping a link), is
+  complete for the triage. Why: eleven reports said PASS INCOMPLETE on this pass, and in every one the
+  missing part was the harness refusing report files from subagents or a limit of the study tool.

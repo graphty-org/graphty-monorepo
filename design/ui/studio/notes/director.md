@@ -5,51 +5,39 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-29 (tier 4 criteria reviewed and frozen on build 7de2dc4e23).
+Last updated: 2026-10-29 (tier 4 dry run pass 1 triaged on build 0ffeae2ef5).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21 and 2026-10-29; the full
 earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-10-29) TIER 4 (data management, returning users) FROZEN on 7de2dc4e23, served from the
-  studio worktree's `tmp/study-builds/tier4-r1-7de2dc4e23` (read-only copy; the main checkout's
-  `.study-builds` is off limits to studio agents). One round, 28 sessions (26 pointer + Sam's 2),
-  seven bars. Next: the dry run.
-- (2026-10-29) The round cannot start until the dry run delivers: every "pilot to confirm" read off
-  the frozen build (`real.mjs --gate` now refuses it); three new setups (`gauges-tidy`,
-  `pantries-narrowed`, `gauges-narrowed`); `--end` writing `data.json` plus the end-state check;
-  a scripted tier 4 walk with wording and axe; path step counts; the words-at-rest budget.
-  Engineer items are refusals in the gate where possible -- prose asks have failed three times.
-- (2026-10-29) Bars: 1 success (pointer sessions only, 2 of 2 / 3 of 4); 2 false done 0; 3 wrong
-  turns median <= 2; 4 severity 3-4 open 0 (end-state check counts); 5 keyboard (Sam S/SD + axe 0
-  serious/critical on tier 4 screens); 6 owner's data rules 0; 7 core-task median steps <= key
-  path + 3.
-- (2026-10-29) Confirmation rule: the screenshot audit confirms only what a screenshot shows;
-  hotkey and table-only violations need a scripted repro; expert finding + repro counts.
-- (2026-10-29) Wording: search the app's own strings for every prompt word, not a hand list. Found
-  "web address" (T60 box label), "stronger"/"farther apart" (T64's option), "picked" (Style card),
-  "at least" (filter summary). The tier 4 walk must automate this.
-- (2026-10-29) Every start must match the persona's history: a joined, tidied or narrowed project
-  is "set up by a colleague or friend", so the person has still never done the act themselves.
-- (2026-10-29) A task half the program does for you cannot fail (T63's place, set at load): ask
-  the participant to report it, or change the data. T68 starts narrowed so a silent row drop shows.
-- (2026-10-23) Location in Fields: one "+" pick per kind (Latitude, Longitude, Coordinates,
-  Country, Region, City), each an ordinary entry; element `ColumnRole` gains them (additive).
-  Menu sections: every catalog pick list (Layout, Analyze) uses headings, never indentation.
-- (2026-10-22) Timeline and location map prototypes ruled in `timeline/decisions.md` and
-  `location-map/decisions.md`; severity 1 items first (Rerun `E_DUPLICATE_ID`, no-times column
-  accepted, Map that cannot run shows "Applied").
-- (2026-10-22) Lesson: grep the existing coded-fact paths (`CostEstimate.refusal`,
-  `layout.needs-grouping`) before naming a new element mechanism.
-- (2026-10-21) Shaders redesign lesson: start a redesign from the user's questions, not the old
-  structure (`design/rendering/shader-studio/decisions-v2.md`).
-- (2026-10-21) Tier 3 closed after 1 round, 55 of 56 successes: signal is in cost, routes and
-  problems, not success. Same-model participants: a failure is strong evidence, a pass is weak.
-- (2026-10-21) Owed from tier 3: `colorWord` CSS keywords fix in compact-mantine; the four
-  severity 2 Style problems; six repro'd defects (`tier3/rounds/round-1/insights.md`).
+- (2026-10-29) TIER 4 DRY RUN PASS 1 on 0ffeae2ef5 (`tier4/dry-run-r1-1.md`): 318 pilot defects; 23
+  fix-now in 8 units (1 block: no date condition for T65 B; 22 spoils: covered source-row counts,
+  a false "6 rows refused", Quick actions' old Add data page, a column's kind drawn two ways, the
+  Data source card dropping every edge, Export's node-only scope that sticks, a Data weight the
+  analyses ignore); 6 regressions from the review fixes (R9 chip over R11 counts; R14's sticky
+  scope); 27 decided, 9 design questions, 245 to the backlog. One fix pass, then a targeted re-walk.
+- (2026-10-29) Rule I used: "graded around by the answer key" is not harmless. If the final screen
+  or a saved file still shows a wrong result, fix it; if the key's rule is settled design, it is (n).
+- (2026-10-29) A PASS INCOMPLETE that left no route unwalked is not a block (decided.md): the
+  harness refuses report files from subagents; the tool cannot take a chooser address or a paste.
+- (2026-10-29) Owner list now 9 open tier 4 items (`owner-decisions.md`), item 9 new: a Select card
+  selects nodes out of the picture. Team API calls: range `as: "time"`; weight role read by runs.
+- (2026-10-29) After pass 1's fixes: re-walk only the units' routes; update `answers.md` (T65 B
+  path and count, T66/T68 edge counts 17 of 18 / 13 of 14, T64 weight) from the screen.
+- (2026-10-29) Bars: 1 success (pointer only, 2 of 2 / 3 of 4); 2 false done 0; 3 wrong turns
+  median <= 2; 4 severity 3-4 open 0 (end-state check counts); 5 keyboard (Sam S/SD + axe); 6 owner's
+  data rules 0; 7 core median steps <= key path + 3.
+- (2026-10-29) Still owed before the round (criteria "before the first session"): `data.json` from
+  `--end` and the end-state check; the scripted tier 4 walk with wording and axe; words-at-rest budget.
+- (2026-10-29) Every start must match the persona's history; a task half the program does for you
+  cannot fail (ask for a report, or change the data).
+- (2026-10-23) Location in Fields: one "+" pick per kind, each an ordinary entry; menu sections use
+  headings, never indentation.
+- (2026-10-22) Lesson: grep the existing coded-fact paths before naming a new element mechanism.
+- (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak.
 - (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk
   those. A docs-only commit never refreezes.
-- Owner items open: eleven, all breaking, defaults or a saved-file format (`owner-decisions.md`).
 
 ## Priorities and values
 
@@ -90,6 +78,20 @@ earlier text is in this file's git history.
 
 ## Decisions and reasons
 
+- **2026-10-29, tier 4 dry run pass 1 on 0ffeae2ef5 (`tier4/dry-run-r1-1.md`).** 318 rows, made from
+  one rows file plus a generator with per-task count asserts (`tmp/director-dryrun/gen.mjs` in the
+  studio worktree). Fix now (8 units): source-row chips never cover a count (graphty app, shared
+  SourceRow); a false refused-row issue on an address load (graphty-element, find the mechanism);
+  Quick actions > Add data... opens the join screen; a column's kind drawn one way everywhere (cells,
+  caption, glyphs follow the kind, not the Time role); a date condition card (element range
+  `as: "time"`, additive, plus the shared card); the Filters' Data source card writes `side: "nodes"`;
+  Export scope counts the chosen table and starts on the whole graph; a weight role given after the
+  load is what runs read (element). Not (a), with reasons: the inspector's time row (dimmed offer;
+  the table header shows the Time mark after, so the result is on screen); Replace with a different
+  file (key grades it from Sources; a design question and a severity 4 candidate for bar 4); the
+  18/19 edges by join order (key accepts both); Select across the whole graph (settled design, owner
+  item 9); the camera's glide to a pick (owner's tier 3 rule, now written into tier 4). Settled in
+  `decided.md` 2026-10-29 (eleven entries). No reversal.
 - **2026-10-29, tier 4 criteria reviewed and frozen** (three reviews: researcher, user advocate,
   red team; they agreed on most points). Taken: grade from step log and end-state records
   (`data.json`), not the last screenshot alone; end-state check in bar 4; audit confirms only what a
@@ -141,63 +143,26 @@ earlier text is in this file's git history.
   does; Replace with the same file keeps hand-picked layers; a layer from a selection takes its
   conditions before a look (`addRow` admitted what `update` refused); Undo across Replace redraws
   from the layers. Each settled in `decided.md` 2026-10-20.
-- **2026-10-20, fifth review of the tier 3 criteria, frozen** (summarized 2026-10-20; full text in
-  git history). The round 1 build must hold golden (checkable by `--is-ancestor f9d8b44b9`); round 1
-  verdict rule; design problems confirmed across two halves; colors by `colorWord`; core halves need
-  2 S/SD without Alex and Maren; backlog severities; preflight 4 defines grading-spoiling and Sam's
-  keyboard blocks; missing screens and `spoken.json` are gate refusals. Not taken: dropping T37 from
-  the judged set; SD for T50 B. Which build counts is a rule, not an owner question.
-- **2026-10-19, dry-run triage on e3c5bca8e6 (`tier3/dry-run-r1-5.md`)** (summarized
-  2026-10-21; full text in git history). Settled in `tier3/decided.md`: the drawing moves only when
-  the reader asks; Which nodes with no condition opens on its list; Escape keeps typed text and
-  clears a selection only on its inspector; Tab and remove never pull focus back; F6 cycles five
-  regions; a node is called by its label; Control+A selects all. No API change.
-- **2026-10-19, fourth review of the tier 3 criteria, frozen on 1fa51e2b0b** (summarized
-  2026-10-20; full text in git history). Bar 2 states T49's exception; bar 5 unscored when a walk
-  skipped a success-path screen; bar 6 checks typing after "Starts with"; bar 7 confirmed by a
-  `--keys` repro or two Sam sessions; `spoken.json`; docs-only commits never refreeze; the dry run
-  walks only planned halves; gate keyed by half; T51 to 4, T44 to round 2.
-- **2026-10-17..18, earlier tier 3 criteria reviews and dry-run triages r1-1 to r1-4**
-  (summarized 2026-10-20; full text in git history, the dry-run files, the criteria change log and
-  `tier3/decided.md`). The exit test and `decided.md` came from the third review; bar 4 fixed at
-  10; bar 5 confirmed by repro or measurement only; five walk screens added; any community method
-  on T46-T48; T47/T48 hold only on the folder or several route; bar 4 pointer sessions only; bar 6
-  both themes; key-and-drawing on every last screenshot. Triage rulings (Tab takes a highlighted
-  option, cards open with the list closed, "+" never changes the drawing, condition card for the
-  filter step, color words by CSS keyword) are in `decided.md`.
-- **2026-10-17, first review of the first-use styling drafts.** T48 core at 6; unjudged tasks
-  never pass; the dry run has no pass cap (owner's "until clean"). Size stays 56.
-- **2026-10-16, combined Style panel and bulk iteration 7.** See Top of mind. Frozen build
-  `tier3-bulk7-457aa9f0f2` (servherd design-studio-tier3). BoundValue for single and bulk
-  (SpreadValues deleted); the Layer token in guillemets, purple `--cm-text-component`, weight 600,
-  via VariablePill `tone`; color sets: strip of up to 4 hard stops or a gradient, a line of chits up
-  to 6, else 5 and "+N", gray Other last; count in the spoken name. Spec `tier3/bulk-edit-plan.md`.
-  Element adds (team): `present` leaf, `data.valueCounts`. `realignRule` maps through `all`, so an
-  added card survives a re-run.
-- **2026-10-14, round 6 (owner review of build 5).** Decided in `tier3/decisions-round-6.md`; every
-  element change additive, no new rule text syntax. Check `git log` against owner feedback first:
-  eight notes were already fixed.
-- **2026-10-12..13, tier 3 build iterations 1-3** (full text in `tier3/design.md` and
-  `tier3/iterations/{1,2,3}/review.md`). Two row kinds only, layer and folder; per-group colors are
-  value-table entries, "New layer for <value>" makes an ordinary layer. Unset (minus, Clear) and
-  cover (an entry set to nothing) are two acts. Both-kinds layers are element style-tree rows; the
-  app reads only `styles.tree()`. One settings button per kind section (Figma's Type settings), not
-  per property. A layer lists only its own entries. Kind change keeps both parts. The app sets
-  `startingRows: true` and `runPlacement: "top"` (consumer choice; element defaults neutral).
-  Label size in screen pixels is an additive element option. Before naming an element addition,
-  read the API report (`styles.agreement`, `session.transaction` already existed).
-- **2026-10-11, tier 2 close.** Round 5 re-run valid (55 of 55 on 8c015b806); the tasks hit their
-  ceiling; owner list cut to three (bare numbers in rules, edge width unit, camera in the project
-  file). The report text goes back to the orchestrator: the Write tool refuses a subagent writing
-  `tier2/report.md`.
-- **2026-09-26..10-11, earlier (summarized; git history and `tier2/rounds/*/decisions.md`).** Owner:
-  Figma is the paved path for chrome; tiers, tier 1 first; build the real app and study it; element
-  neutral about presentation. Tier 2: gate inside `real.mjs --start`; briefings name file and kind
-  only; one matcher for find and rules; Shift-click in the element; labels overlap is additive
-  declutter, the team's call.
+- **2026-09-26..10-20, earlier tier 2 and tier 3 decisions** (summarized 2026-10-29; full text in
+  git history, `tier3/decided.md`, `tier3/design.md`, `tier3/bulk-edit-plan.md`,
+  `tier3/decisions-round-6.md`, the tier 3 criteria change log and `tier2/rounds/*/decisions.md`).
+  Kept from them: the round 1 build must hold golden; design problems confirmed across two halves;
+  docs-only commits never refreeze; bar 4 pointer sessions only; key-and-drawing on every last
+  screenshot; Style rows are layers and folders only, per-group colors are value-table entries;
+  unset and cover are two acts; the app sets `startingRows` and `runPlacement` (consumer choices);
+  before naming an element addition, read the API report; the owner judges by interaction
+  consistency; Figma is the paved path for chrome; tiers, tier 1 first; the element is neutral
+  about presentation.
 
 ## Tried: worked / did not work
 
+- 2026-10-29 (dry run pass 1) -- Worked: reading the element before classing (`selectedBy` says
+  "over the whole graph" and filter-cards.md says why, so T65's count is (n); the source leaf already
+  has `side: "nodes"`, so T66's fix is the app's; `loadedWeight()` reads only the load's mapping, so
+  T64's fix is the element's). Worked: checking a claim against the data file (yeast has 361 edges, no
+  repeats, so "6 refused" is false). Worked: looking at the screenshot before writing a unit (T63's
+  inspector row is a dimmed offer and the header gains a Time chip, so it dropped from (a) to the
+  backlog). Did not work: numbering units before the last demotion (renumbered U6-U9 by sed).
 - 2026-10-29 (tier 4 freeze) -- Worked: searching `graphty/src` strings for each prompt word; it
   found four echoes the hand-written avoid list missed. Worked: starting the changed
   `volunteers.txt` setup on the frozen build before committing it (a PageRank layer coloring 24
@@ -239,23 +204,22 @@ earlier text is in this file's git history.
   decided rule's code before calling a defect a regression; reading `gateCheck` before taking a
   red-team claim; recounting the roster by script. Did not work: a new build for a docs-only
   commit (it reset the dry run's count).
-- 2026-10-18 (summarized 2026-10-20) -- Worked: checking reviewer claims against the tool before
-  writing a rule; counting input lines per task against the triage rows; reading `session.json`
-  (`commit`, `uncommittedChanges`) before classing; grepping the on-screen string to find the
-  owning file. Did not work: carrying a known wrong bar "between rounds" across four builds;
-  launching more pilots than browser slots; judging a find-box Escape fix alone.
-- 2026-10-17 (summarized 2026-10-20; full text in git history) -- Worked: reading
-  `owner-decisions.md` before classing (six "defects" were decided behavior); triaging by mechanism
-  (490 lines into 21 groups); grepping on-screen strings to find the owning file; lists, not tables,
-  for long triages; walking reviewers' proposed screens by hand before adding them. Did not work:
-  judging a focus fix alone; a recovery that pressed Escape and dropped a card; counting "one by
-  one" toward T47's route bar.
-- 2026-10-11..13 -- Worked: the gate inside `real.mjs --start`; reading the red team against source;
-  measuring before classing. Did not work: counting steps differently for key and participants.
-- 2026-09-27..10-10 -- Worked: root-causing in source; one change per path. Did not work: a fix
-  nobody grepped for siblings.
+- 2026-09-27..10-18 (summarized 2026-10-29; full text in git history) -- Worked: root-causing in
+  source; grepping on-screen strings to find the owning file; reading `owner-decisions.md` before
+  classing; triaging by mechanism; lists, not tables, for long triages; checking reviewer claims
+  against the tool. Did not work: judging a focus fix alone; a fix nobody grepped for siblings;
+  counting steps differently for key and participants; launching more pilots than browser slots.
 
 ## Thinking
+
+- **2026-10-29, dry run pass 1:** the answer key had quietly become a list of workarounds: each
+  build defect the pilots found got a grading rule instead of a fix. A key that grades around a
+  wrong screen keeps the round honest but measures the build's defects as the participants' cost.
+  Next tier, the key-reading pass and the triage should be the same pass, so a defect is either
+  fixed or deliberately graded around, never both by accident.
+- **2026-10-29:** six of 23 fix-now rows came from two review fixes meeting on one row (R9's chip,
+  R11's counts) or opening a new door (R14's source-row Export). A review fix that adds a control to a
+  shared row or a new door to a shared dialog needs its neighbors walked before the freeze.
 
 - **2026-10-21, after round 1:** the cheapest next round is one where the instrument moves first.
   Every pre-round claim I carried as a measurement (contrast on every screen, the private-window
@@ -303,6 +267,9 @@ earlier text is in this file's git history.
 
 ## Sources
 
+- Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog}.md`; dry run `tier4/dry-run-r1-1.md`
+  (build 0ffeae2ef5, pilots in the main checkout's `tmp/design-studio/tier4/r1/pilot/`; generator
+  `tmp/director-dryrun/gen.mjs` and `units.json` in the studio worktree).
 - Tier 3 study: `tier3/{criteria,tasks,answers,roster,decided}.md`; dry runs `tier3/dry-run-r1-3.md` (build 758b8e8081, 2026-10-21, pilots in `tier3/rounds/r1d2/pilot/`; the 2026-10-18 pass on 5bd16cda6e is at b296635060), `tier3/dry-run-r1-1.md` (build 7d87760756, 2026-10-20; the 2026-10-17 pass on 58556989e8 is at 7c241de4b), `tier3/dry-run-r1-2.md` (build 6de5f95d12, 2026-10-20, pilots in `tier3/rounds/r1d1/pilot/`; the 2026-10-17 pass on ed4351b258 is at 98b7f9a4df), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`); tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
 - Tier 3 reviews: `notes/{researcher,user,redteam}.md` (2026-10-17: 05f4ee91a, 863ebb9a8,

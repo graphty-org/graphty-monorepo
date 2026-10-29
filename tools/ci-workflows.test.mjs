@@ -8545,13 +8545,20 @@ describe("a full run never tests a candidate with another commit's workflow file
     const pick = parseYaml(workflow("release.yml")).jobs.pick;
     const step = pick.steps.find((s) => s.id === "handoff");
     const dir = mkdtempSync(join(tmpdir(), "handoff-skew-"));
+    // An empty global config (as the other scratch repositories here): no signing is configured, so none is
+    // switched off.
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
     const git = (...a) =>
-        execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], { cwd: dir, encoding: "utf8" }).trim();
+        execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], {
+            cwd: dir,
+            encoding: "utf8",
+            env,
+        }).trim();
     const commit = (path, text) => {
         mkdirSync(join(dir, path, ".."), { recursive: true });
         writeFileSync(join(dir, path), text);
         git("add", "-A");
-        git("commit", "-q", "--no-gpg-sign", "-m", path);
+        git("commit", "-q", "-m", path);
         return git("rev-parse", "HEAD");
     };
     git("init", "-q", "-b", "master");

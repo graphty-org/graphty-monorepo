@@ -2809,8 +2809,8 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
                 "#!/bin/bash",
                 'echo "gh $*" >> "$LOG"',
                 'case "$*" in',
-                '    *rate_limit*) echo "0 $(( $(date +%s) + RESET_IN ))" ;;',
-                '    *"check-runs?filter"*)',
+                '    *rate_limit*) echo "1 $(( $(date +%s) + RESET_IN ))" ;;',
+                '    *"api graphql"*)',
                 '        n=$(cat "$STATE" 2>/dev/null || echo 0); echo $((n + 1)) > "$STATE"',
                 '        if (( n < FAIL_LIST )); then echo "gh: API rate limit exceeded for installation." >&2; exit 1; fi',
                 "        echo 1 ;;",
@@ -2854,31 +2854,57 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
         assert.equal(status, 1);
         assert.match(stdout, /::error::could not clear the early verdicts of All Checks Pass/);
         assert.doesNotMatch(log, /PATCH/);
-        assert.equal(log.match(/^gh api repos\/o\/r\/commits\/abc\/check-runs/gm).length, 4);
+        assert.equal(log.match(/^gh api graphql /gm).length, 4);
         assert.equal(log.match(/^sleep /gm).length, 3);
     });
 
-    it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
-        const program = /--jq '([^']+)'\) \|\| return 1/.exec(job(ci, "all-checks"))[1];
-        const page = {
-            check_runs: [
-                { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
-                {
-                    id: 2,
-                    name: "All Checks Pass",
-                    conclusion: "failure",
-                    details_url: "https://x/actions/runs/7/job/9",
-                },
-                { id: 3, name: "All Checks Pass", conclusion: "success", details_url: "https://x/actions/runs/8" },
-                { id: 4, name: "Lint PR Title", conclusion: "failure", details_url: "https://x/actions/runs/7" },
-            ],
+    // The listing is GraphQL, whose limit is separate from REST's: an exhausted REST limit held a run
+    // 18 minutes on 2026-10-29 for nothing to clear. The query filters by name and conclusion; the jq
+    // keeps only the verdicts a run posted, never a job's own check run, and refuses a truncated page.
+    const listing = () => {
+        const text = job(ci, "all-checks");
+        return {
+            query: /-f query='([^']+)'/.exec(text)[1],
+            program: /--jq '([^']+)'\) \|\| return 1/.exec(text)[1],
         };
-        const ids = spawnSync("jq", [program], {
-            input: JSON.stringify(page),
-            encoding: "utf8",
-            env: { ...process.env, CHECK: "All Checks Pass" },
-        }).stdout.trim();
-        assert.equal(ids, "1");
+    };
+
+    it("asks GraphQL for the failing check runs of its own name, every kind, never REST", () => {
+        const { query } = listing();
+        assert.match(query, /filterBy: \{checkName: \$check, checkType: ALL, conclusions: \[FAILURE\]\}/);
+        assert.doesNotMatch(job(ci, "all-checks"), /commits\/\$SHA\/check-runs/);
+    });
+
+    it("rewrites only the early verdicts, never a job's check run, and refuses a truncated page", () => {
+        const { program } = listing();
+        const page = (more) => ({
+            data: {
+                repository: {
+                    object: {
+                        checkSuites: {
+                            pageInfo: { hasNextPage: false },
+                            nodes: [
+                                { checkRuns: { pageInfo: { hasNextPage: false }, nodes: [] } },
+                                {
+                                    checkRuns: {
+                                        pageInfo: { hasNextPage: more },
+                                        nodes: [
+                                            { databaseId: 1, detailsUrl: "https://x/actions/runs/7" },
+                                            { databaseId: 2, detailsUrl: "https://x/actions/runs/7/job/9" },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        });
+        const run = (more) => spawnSync("jq", [program], { input: JSON.stringify(page(more)), encoding: "utf8" });
+        assert.equal(run(false).stdout.trim(), "1");
+        const truncated = run(true);
+        assert.notEqual(truncated.status, 0);
+        assert.equal(truncated.stdout.trim(), "");
     });
 });
 

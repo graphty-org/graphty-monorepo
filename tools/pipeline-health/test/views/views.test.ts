@@ -125,7 +125,7 @@ describe("views", () => {
 
     it("every payload has the keys, section ids and member ids of its fixture", async () => {
         const vs = await views(await world([job(1), obs("pr.open", 4, T0 - MIN)]));
-        expect(vs).toHaveLength(1 + 3 * 9 + 2 * 4);
+        expect(vs).toHaveLength(2 + 3 * 9 + 2 * 4);
         for (const v of vs) {
             const name = fixtureName(v);
             const fx = fixture(name);
@@ -201,7 +201,7 @@ describe("views", () => {
         }
         const store = await world(items);
         const out = await writeViews(store, T0);
-        expect(out.views).toBe(1 + 3 * 9 + 2 * 4);
+        expect(out.views).toBe(2 + 3 * 9 + 2 * 4);
         expect(out.largest.bytes).toBeLessThan(MAX_VIEW_BYTES);
         expect(viewKey({ kind: "page", page: "ci", range: "6h" })).toEqual({ pk: "PAGE#ci#6h", sk: "-" });
         const item = await store.get(

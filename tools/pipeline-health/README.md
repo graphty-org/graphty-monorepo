@@ -73,17 +73,18 @@ Base URL: the `ApiUrl` output of the `graphty-health` stack, today
 https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, cached for 60
 seconds and throttled (20 requests/s, burst 40). CORS allows https://health.graphty.app.
 
-| Route                                                 | Returns                                                |
-| ----------------------------------------------------- | ------------------------------------------------------ |
-| `/v1/health`                                          | Whether the API is up                                  |
-| `/v1/status`                                          | Each category's state and the last 24 h of episodes    |
-| `/v1/page/overview?range=1h\|6h\|24h`                 | The status, with each headline's value and sparkline   |
-| `/v1/page/<page>?range=1h\|6h\|24h`                   | One page: its members (value, SLA, state) and sections |
-| `/v1/page/costs?range=7d\|28d`                        | The Costs page                                         |
-| `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins` | Shard times, for full runs or pull request runs        |
-| `/v1/page/flaky/hotspots?range=7d\|28d`               | Flake hotspots                                         |
-| `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`  | One test file's (or test's) flaky and failed results   |
-| `/v1/run/<run id>`                                    | One workflow run with its jobs                         |
+| Route                                                 | Returns                                                                      |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `/v1/health`                                          | Whether the API is up                                                        |
+| `/v1/status`                                          | Each category's state and the last 24 h of episodes                          |
+| `/v1/page/overview?range=1h\|6h\|24h`                 | The status, with each headline's value and sparkline                         |
+| `/v1/page/<page>?range=1h\|6h\|24h`                   | One page: its members (value, SLA, state) and sections                       |
+| `/v1/page/costs?range=7d\|28d`                        | The Costs page                                                               |
+| `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins` | Shard times, for full runs or pull request runs                              |
+| `/v1/page/flaky/hotspots?range=7d\|28d`               | Flake hotspots                                                               |
+| `/v1/page/runners/jobs?range=7d`                      | Runner history: 15-minute running, queued, longest queued and saturated time |
+| `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`  | One test file's (or test's) flaky and failed results                         |
+| `/v1/run/<run id>`                                    | One workflow run with its jobs                                               |
 
 `<page>` is `master`, `pull-requests`, `ci`, `runners`, `flaky`, `releases`, `data-sources` or
 `local-runs`. The range defaults to `1h` (`7d` for Costs and the slow sections). A view with nothing

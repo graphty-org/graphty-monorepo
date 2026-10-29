@@ -561,8 +561,9 @@ async function postHold(body, who, db, nowMs) {
 
 // The rolling screenshot slices (design/visual-testing/early-capture.md, 4c). Only master's story-slices.yml writes
 // captures, each row under its own run; only ci.yml's push build of a master commit writes that commit's reach.
-// Every read answers only a story's newest capture; rows older than 7 days that are not a story's newest are pruned
-// on each write (no cron here).
+// Every read answers only a story's newest capture, newest by run id then attempt, never by write time: a late re-run
+// of an older slice must not hide a newer slice's render. Rows older than 7 days that are not a story's newest are
+// pruned on each write (no cron here).
 const CAPTURE_STATUSES = new Set(["unchanged", "changed", "new", "unseeded", "unstable", "failed"]);
 // what the owner's rolling queue can hold, before the tree and reach checks its consumers apply (4d)
 const QUEUE_STATUSES = new Set(["changed", "new", "unseeded"]);
@@ -624,7 +625,8 @@ async function postStoryCaptures(body, who, db, nowMs) {
         db
             .prepare(
                 `DELETE FROM story_capture WHERE at < ? AND EXISTS (SELECT 1 FROM story_capture n WHERE n.project = story_capture.project
-                 AND n.story = story_capture.story AND n.mode = story_capture.mode AND n.at > story_capture.at)`,
+                 AND n.story = story_capture.story AND n.mode = story_capture.mode
+                 AND (n.run_id > story_capture.run_id OR (n.run_id = story_capture.run_id AND n.attempt > story_capture.attempt)))`,
             )
             .bind(nowMs - STORY_KEEP_MS),
         db.prepare("DELETE FROM story_reach WHERE at < ?").bind(nowMs - STORY_KEEP_MS),
@@ -650,11 +652,11 @@ async function getStoryCaptures(_query, _who, db) {
         db
             .prepare(
                 `SELECT project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, hash, baseline_hash, at
-                 FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, story, mode ORDER BY at DESC, run_id DESC, attempt DESC) AS rn
+                 FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, story, mode ORDER BY run_id DESC, attempt DESC) AS rn
                  FROM story_capture) WHERE rn = 1 ORDER BY project, story, mode`,
             )
             .all(),
-        db.prepare("SELECT sha, at FROM story_capture ORDER BY at DESC, run_id DESC LIMIT 1").first(),
+        db.prepare("SELECT sha, at FROM story_capture ORDER BY run_id DESC, attempt DESC, at DESC LIMIT 1").first(),
         db.prepare("SELECT kind, at FROM story_notify").all(),
     ]);
     const statuses = {};

@@ -1,7 +1,7 @@
 -- The rolling screenshot slices (design/visual-testing/early-capture.md, 4c). story_capture: one row per story a
 -- story-slices.yml bin rendered, from commit `sha` and compared with that commit's visual-baselines tree; only a
--- story's newest row counts. story_reach: the story units a master merge can reach (ci.yml's select-graphs job),
--- which orders the next slice. story_notify: when the owner was last told about the rolling queue, by kind.
+-- story's newest row (highest run id, then attempt; never write time) counts. story_reach: the story units a master
+-- merge can reach (ci.yml's select-graphs job), which orders the next slice. story_notify: when the owner was last told about the rolling queue, by kind.
 -- Rows are pruned to each story's newest plus 7 days, the slice artifacts' retention.
 CREATE TABLE story_capture (
     project TEXT NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE story_capture (
     at INTEGER NOT NULL,
     PRIMARY KEY (run_id, attempt, project, story, mode)
 );
-CREATE INDEX story_capture_newest ON story_capture (project, story, mode, at);
+CREATE INDEX story_capture_newest ON story_capture (project, story, mode, run_id, attempt);
 CREATE INDEX story_capture_at ON story_capture (at);
 
 CREATE TABLE story_reach (

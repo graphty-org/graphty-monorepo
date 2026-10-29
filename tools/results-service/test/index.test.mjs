@@ -1372,6 +1372,29 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         assert.deepEqual(body.notified, { queue: null, slot: null });
     });
 
+    it("orders captures by run, so a late re-run of an older slice never hides a newer one", async () => {
+        const { call } = service();
+        const one = (status) => ({ project: "graphty", story: "a", status, hash: status });
+        await call("POST", "/v1/story-captures", { token: slices(), body: slice({ captures: [one("changed")] }) });
+        await call("POST", "/v1/story-captures", {
+            token: slices({ run_id: "4020" }),
+            body: slice({ sha: "b".repeat(40), captures: [one("new")] }),
+            now: NOW + 60_000,
+        });
+        // run 4010's bin re-run (attempt 2) posts after run 4020: it renders the older commit again
+        await call("POST", "/v1/story-captures", {
+            token: slices({ run_attempt: "2" }),
+            body: slice({ captures: [one("unchanged")] }),
+            now: NOW + 120_000,
+        });
+        const { body } = await call("GET", "/v1/story-captures", { token: LOCAL_TOKEN });
+        assert.deepEqual(
+            body.captures.map((c) => [c.runId, c.attempt, c.status]),
+            [[4020, 1, "new"]],
+        );
+        assert.equal(body.summary.lastSliced.sha, "b".repeat(40));
+    });
+
     it("keeps the last-notified times a slice job reports", async () => {
         const { call } = service();
         await call("POST", "/v1/story-captures", { token: slices(), body: slice({ notified: ["queue"] }) });

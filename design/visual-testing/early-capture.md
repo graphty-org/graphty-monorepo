@@ -287,14 +287,15 @@ None of this touches graphty-agent's 5,000 an hour.
 - **Index.** The results store (`tools/results-service`) gets tables `story_capture` (project, story id
   and mode, commit, the commit's `visual-baselines` tree, run id, attempt, artifact name, status:
   unchanged, changed, new, unseeded, unstable, failed; the hash of the picture and of the baseline it was
-  compared with; the time) and `story_reach` (commit, story unit). Index on (project, story, mode, time).
+  compared with; the time) and `story_reach` (commit, story unit). Index on (project, story, mode, run id, attempt).
   Pruning keeps the newest row per story plus 7 days, matching the artifact retention (about 25,000 rows a
   day at the cap, about 5 MB, within Workers Paid D1 limits). `POST /v1/story-captures` is written only by
   `story-slices.yml` on master and `POST /v1/story-reach` only by ci.yml on master (OIDC
   `job_workflow_ref`). `GET /v1/story-captures` answers the newest capture of each story and a summary:
   the last sliced commit, the oldest newest-capture, and the rolling queue size.
 - **Freshness rules.** A picture is always shown with the commit and run it was rendered from. For a
-  story, only its newest capture counts; an older one is never shown once a newer one exists. A rolling
+  story, only its newest capture counts (highest run id, then attempt; never the time it was written, so a late
+  re-run of an older slice cannot hide a newer render); an older one is never shown once a newer one exists. A rolling
   capture is never used to gate, approve or promote anything. The only consumers of these rows are the
   review page's rolling target, the notifications (4d), the dashboard and the full run's commit ordering
   (step 7, ordering only, never a verdict). A test fails if any other file under `tools/` reads

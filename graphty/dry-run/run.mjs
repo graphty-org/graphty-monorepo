@@ -3,7 +3,7 @@
  * The dry run: every route in routes.mjs walked in the built graphty app, in headless Chromium
  * drawn on this machine's NVIDIA card, with no model in the loop. A route is the clicks, keys and
  * uploads a user makes from the start page; its outcome checks read what the user would see through
- * graphty-element's public API or the accessibility tree. Nothing is captured or compared as pixels.
+ * graphty-element's public API or the accessibility tree. No pixels are compared here.
  *
  *   node graphty/dry-run/run.mjs                    every route, on up to 4 browsers
  *   node graphty/dry-run/run.mjs --only t39a,t46    routes whose id starts with one of these
@@ -12,7 +12,9 @@
  *   node graphty/dry-run/run.mjs --dist <dir>       another build (default graphty/dist)
  *
  * Writes tmp/dry-run/report.json (each route's result, time and reason) and, for a failed route,
- * tmp/dry-run/<route>.aria.txt: what the page offered a user when it failed. Exit 0 when every route
+ * tmp/dry-run/<route>.aria.txt: what the page offered a user when it failed, and tmp/dry-run/<route>.png
+ * and <route>.ui.png: the screen each route ended on, as is and with what moves from run to run covered (the
+ * drawing, the status bar), kept for the design studio and never compared here. Exit 0 when every route
  * passed, 1 when one failed, 2 on a usage error. See README.md beside this file.
  *
  * The run holds the machine's one GPU slot (tools/test-slots.mjs --gpu) and each browser one of the
@@ -428,6 +430,18 @@ async function walk(chromium, route, origin) {
             out.aria = f;
         }
     } finally {
+        // the screen the route ended on, passed or failed, for the design studio's comparison
+        // (design/ui/studio/tool/dry-run-pass.mjs); never compared here. The pointer leaves the last
+        // control first, so no hover tooltip is caught half open. The .ui.png copy covers what changes
+        // from run to run on one build: the drawing, which may still be settling when the checks pass
+        // (what it shows is checked above), and the status bar, whose autosave chip says "saving..." or
+        // "saved" (a different width, which moves the chips beside it) depending on when its write lands.
+        await b?.page.mouse.move(0, 0).catch(() => {});
+        const shot = (name, mask) =>
+            b?.page.screenshot({ path: join(OUT, name), animations: "disabled", mask, maskColor: "#000" });
+        await shot(`${route.id}.png`, []).catch(() => {});
+        const moving = b ? [b.page.locator("canvas"), b.page.getByRole("contentinfo", { name: "Status" })] : [];
+        await shot(`${route.id}.ui.png`, moving).catch(() => {});
         await b?.close().catch(() => {});
         out.ms = Date.now() - started;
     }

@@ -5,7 +5,7 @@ Each **route** starts on the start page and makes real clicks, keystrokes and fi
 headless Chromium drawn on this machine's NVIDIA card. When the walk is done, the route's
 **outcome checks** read the result through graphty-element's public API (the colors, sizes,
 shapes and labels the drawing has; the graph's size) or through the page's accessibility tree. No
-model is involved, and nothing is captured or compared as pixels.
+model is involved, and no pixels decide a route's result.
 
 The routes began as the success paths of the design studio's tier 3 study
 (`design/ui/studio/tier3/answers.md`). Each route names the study task it walks in `from`.
@@ -28,7 +28,10 @@ whole run's time and how much of it went to waiting for a browser. It exits 0 wh
 passed and 1 when one failed. `tmp/dry-run/report.json` holds the same results. For each failed
 route the reason names the step or check that failed, and `tmp/dry-run/<route>.aria.txt` holds
 what the page offered a user at that moment (its accessibility tree), which is usually enough to
-see why a step found nothing to click.
+see why a step found nothing to click. `tmp/dry-run/<route>.png` is the screen each route ended on,
+passed or failed, and `<route>.ui.png` the same with what moves from run to run covered (the drawing,
+the status bar); the design studio compares it with the previous pass's (`design/ui/studio/tool/README.md`,
+"The scripted dry run").
 
 It runs only on this machine's GPU. Each browser checks that it draws with the NVIDIA card and the
 route fails loudly if not: a software renderer is never used. The flags come from the design

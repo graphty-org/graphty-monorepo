@@ -792,12 +792,13 @@ export class Graph implements GraphContext {
     /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
-     * while drawing on demand is on. See `RenderManager.mayRest`.
+     * while drawing on demand is on. A turning camera keeps it unfinished only while the canvas is
+     * in view: nobody sees a frame drawn out of it (#4426). See `RenderManager.mayRest`.
      * @returns True when a frame that changes nothing may be skipped.
      */
     private readonly pictureIsFinal = (): boolean =>
         this.updateManager.frameIsStable &&
-        !this.updateManager.autoTurning &&
+        !(this.updateManager.autoTurning && this.renderManager.canvasInView) &&
         (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;

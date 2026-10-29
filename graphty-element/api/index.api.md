@@ -6174,6 +6174,8 @@ export class RenderManager implements Manager {
     bindShaderScene(sources: ShaderSceneSources): void;
     // (undocumented)
     camera: CameraManager;
+    // @internal
+    get canvasInView(): boolean;
     dispose(): void;
     // @internal
     drawHeld: (() => boolean) | null;

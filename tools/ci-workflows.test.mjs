@@ -4505,7 +4505,9 @@ describe("release.yml", () => {
     it("runs the paid LLM tests in every release test of a candidate, with no once-a-day gate (owner, 2026-10-29)", () => {
         // no step decides whether the lane is due: every step runs whenever the job runs
         assert.doesNotMatch(llm, /steps\.due|llm-due/);
-        assert.doesNotMatch(llm.slice(llm.indexOf("\n        steps:")), /\n\s+if: /, "no step-level gate");
+        // (the cost step after the tests, which runs after a failed test step too, is not a gate)
+        const steps = llm.slice(llm.indexOf("\n        steps:"), llm.indexOf('- name: "LLM regression cost:'));
+        assert.doesNotMatch(steps, /\n\s+if: /, "no step-level gate");
         // the job runs only when the pick chose a candidate to test, never in promote-nightly (which tests nothing)
         assert.match(
             llm,
@@ -4519,6 +4521,16 @@ describe("release.yml", () => {
         assert.match(script, /export const STEP = "LLM regression tests";/);
         assert.match(script, /const MONTHLY_CEILING = 60;/);
         assert.match(llm, /- name: LLM regression tests\n/, "the step llm-spend.mjs counts");
+        // the run's logged cost reaches llm-spend.mjs and the health dashboard as the next step's name
+        assert.match(
+            llm,
+            /echo "usd=\$\(node \.\.\/tools\/llm-spend\.mjs cost "\$RUNNER_TEMP\/llm-regression\.log"\)" >> "\$GITHUB_OUTPUT"/,
+        );
+        assert.match(
+            llm,
+            /- name: "LLM regression cost: \$\{\{ steps\.llm\.outputs\.usd \}\} USD"\n\s+if: \$\{\{ always\(\) && steps\.llm\.outputs\.usd != '' \}\}\n/,
+        );
+        assert.match(script, /export const COST_STEP = /);
         // the paid project runs nowhere else: not on a pull request, a master push or any other workflow
         for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
             if (name === "release.yml" || !/\.ya?ml$/.test(name)) continue;

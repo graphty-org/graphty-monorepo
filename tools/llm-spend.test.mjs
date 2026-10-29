@@ -4,7 +4,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { BISECT_STEP, countPaid, httpStatus, paidSteps, RETRY, runJobs, spendWarning, STEP } from "./llm-spend.mjs";
+import {
+    BISECT_STEP,
+    countPaid,
+    httpStatus,
+    logCost,
+    loggedCost,
+    paidSteps,
+    RETRY,
+    runJobs,
+    spendWarning,
+    STEP,
+} from "./llm-spend.mjs";
 
 RETRY.waitMs = 0;
 
@@ -27,6 +38,8 @@ describe("paidSteps", () => {
 describe("spendWarning", () => {
     it("stays quiet under $60 in a month and warns at it", () => {
         assert.equal(spendWarning(63, "2026-10"), null);
+        // with logged costs: the month's real spend decides, not the run count
+        assert.equal(spendWarning(120, "2026-10", 27.6), null);
         assert.match(spendWarning(64, "2026-10"), /^spend:llm: 64 LLM regression runs in 2026-10 is about \$60\.16/);
     });
 });
@@ -121,7 +134,42 @@ describe("countPaid", () => {
         const plan = { id: 1, run_id: 40492117633, run_attempt: 1, name: "Plan the round", steps: [] };
         const get = async () => ({ total_count: 2, jobs: [plan, point] });
         const r = await countPaid(get, "o/r", [{ id: 40492117633, updated_at: "2026-10-27T11:40:00Z" }], BISECT_STEP);
-        assert.deepEqual(r, { paid: ["2026-10-27T11:31:00Z"], unread: [] });
+        assert.deepEqual(r, { paid: ["2026-10-27T11:31:00Z"], unread: [], logged: [] });
+    });
+
+    it("keeps the cost a release run logged in its cost step", async () => {
+        const llm = job([
+            { name: STEP, conclusion: "failure", completed_at: "2026-10-30T01:00:00Z" },
+            { name: "LLM regression cost: 0.2871 USD", conclusion: "success", completed_at: "2026-10-30T01:00:05Z" },
+        ]);
+        const get = async () => ({ total_count: 1, jobs: [llm] });
+        const r = await countPaid(get, "o/r", [{ id: 7, updated_at: "2026-10-30T01:01:00Z" }], STEP);
+        assert.deepEqual(r.logged, [{ at: "2026-10-30T01:00:00Z", usd: 0.2871, steps: 1 }]);
+    });
+});
+
+describe("loggedCost", () => {
+    it("reads the cost step's name, and nothing from a cost step that did not run", () => {
+        assert.equal(loggedCost([job([{ name: "LLM regression cost: 0.2871 USD" }])]), 0.2871);
+        assert.equal(loggedCost([job([{ name: "LLM regression cost:  USD", conclusion: "skipped" }])]), undefined);
+        assert.equal(loggedCost([job([{ name: STEP }])]), undefined);
+    });
+});
+
+describe("logCost", () => {
+    it("sums the costs of a run's per-file lines", () => {
+        const log = [
+            "stdout | test/ai/llm-regression/camera-commands.test.ts",
+            "[llm-regression] API calls: 27, prompt tokens 151200 (cached 120000), output tokens 810, thinking tokens 3240, flex 27/27, caches 1 (5000 tokens), cost $0.0310",
+            " ok |llm-regression| test/ai/llm-regression/camera-commands.test.ts (12 tests) 61234ms",
+            "[llm-regression] API calls: 3, prompt tokens 16800 (cached 0), output tokens 90, thinking tokens 360, flex 3/3, caches 0 (0 tokens), cost $0.0071",
+        ].join("\n");
+        assert.equal(logCost(log).toFixed(4), "0.0381");
+    });
+
+    it("is null when no line carries a cost: an older harness, or a provider it has no price for", () => {
+        assert.equal(logCost("[llm-regression] API calls: 27\n[llm-regression] API calls: 3, cost unknown"), null);
+        assert.equal(logCost(""), null);
     });
 });
 

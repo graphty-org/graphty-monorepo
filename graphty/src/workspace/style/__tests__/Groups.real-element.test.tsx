@@ -17,13 +17,63 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { openSampleFromStart } from "../../../test/open";
+import { START_SAMPLES } from "../../../data/sampleManifest";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up and loading a sample, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
+
+/** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
+const PRE_STEPS = 1000;
+
+/**
+ * Opens one of the app's samples as a project, its force layout at rest before the first frame.
+ *
+ * Not from the start screen, and not left to settle on screen: these tests are about per-group
+ * settings, and both draw a frame after frame (the start screen's turning graph, then the layout,
+ * a frame per step). On a software GPU each frame holds the page's main thread until it is read
+ * back, hundreds of milliseconds on a busy machine, so the clicks made meanwhile wait behind
+ * those frames (issue #4239).
+ * @param sample - the sample's name, as the start screen lists it.
+ * @param nodes - how many nodes it has.
+ * @returns the session and the store.
+ */
+async function openSample(sample: string, nodes: number): Promise<{ session: GraphSession; store: WorkspaceStore }> {
+    const url = START_SAMPLES.find((each) => each.name === sample)?.url;
+    if (url === undefined) {
+        throw new Error(`no sample ${sample}`);
+    }
+    const { session, store } = await openProject(sample);
+    await session.data.import({ config: { url }, name: sample });
+    assert.equal(session.data.statistics().nodeCount, nodes);
+    await session.styles.settled();
+    return { session, store };
+}
+
+/**
+ * An empty project in the workspace, its force layout set to come to rest before the first frame.
+ * @param name - the project's name.
+ * @returns the session and the store.
+ */
+async function openProject(name: string): Promise<{ session: GraphSession; store: WorkspaceStore }> {
+    const store = createWorkspaceStore({ project: { name, id: 1 }, inspected: null });
+    render(<Workspace store={store} />);
+    const session = await waitFor(
+        () => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    if (session === undefined) {
+        throw new Error("the element never came up");
+    }
+    await session.config.set({ layoutBehavior: { preSteps: PRE_STEPS } });
+    return { session, store };
+}
 
 /**
  * Runs a community algorithm and returns the layer that colors its groups, and the path it reads.
@@ -123,8 +173,7 @@ function drawn(session: GraphSession, id: string, channel: "node.color" | "node.
 describe("per-group settings", () => {
     it("Les Miserables: a group's detail sets a shape for that group alone; the row keeps one shape", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("Les Miserables");
-        await session.styles.settled();
+        const { session, store } = await openSample("Les Miserables", 77);
         const { layer, path } = await runGroups(session, "louvain");
         const popover = await openBinding(store, layer);
         const [first, second] = session.styles.groups(layer.id, path);
@@ -209,8 +258,7 @@ describe("per-group settings", () => {
 
     it("Les Miserables: a property already varying by another value says why instead of replacing it", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("Les Miserables");
-        await session.styles.settled();
+        const { session, store } = await openSample("Les Miserables", 77);
         const { layer: run, path } = await runGroups(session, "louvain");
         const { runId } = await session.runs.start("degree");
         await session.styles.settled();
@@ -239,8 +287,7 @@ describe("per-group settings", () => {
 
     it("Les Miserables: a group's number box just added takes focus with its value selected, so typing replaces it", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("Les Miserables");
-        await session.styles.settled();
+        const { session, store } = await openSample("Les Miserables", 77);
         const { layer, path } = await runGroups(session, "louvain");
         const popover = await openBinding(store, layer);
         const [row] = gridRows(popover);
@@ -267,8 +314,7 @@ describe("per-group settings", () => {
 
     it("Les Miserables: the group grid is one Tab stop, and Escape on a row's actions closes the popover", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("Les Miserables");
-        await session.styles.settled();
+        const { session, store } = await openSample("Les Miserables", 77);
         const { layer } = await runGroups(session, "louvain");
         const popover = await openBinding(store, layer);
         const grid = within(popover).getByRole("grid", { name: /groups$/ });
@@ -307,8 +353,7 @@ describe("per-group settings", () => {
 
     it("Les Miserables: back from a group, Shift+arrow picks two, Enter opens both, Mixed, one undo step", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("Les Miserables");
-        await session.styles.settled();
+        const { session, store } = await openSample("Les Miserables", 77);
         const { layer, path } = await runGroups(session, "louvain");
         const popover = await openBinding(store, layer);
         const grid = within(popover).getByRole("grid", { name: /groups$/ });
@@ -355,8 +400,7 @@ describe("per-group settings", () => {
 
     it("Les Miserables: New layer for a group carries what it is painted by and sits directly above its source", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("Les Miserables");
-        await session.styles.settled();
+        const { session, store } = await openSample("Les Miserables", 77);
         const { layer, path } = await runGroups(session, "louvain");
         const [group] = session.styles.groups(layer.id, path);
         const key = String(group.value);
@@ -395,8 +439,7 @@ describe("per-group settings", () => {
 
     it("Les Miserables: New layer for two groups keeps each group's own color", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("Les Miserables");
-        await session.styles.settled();
+        const { session, store } = await openSample("Les Miserables", 77);
         const { layer, path } = await runGroups(session, "louvain");
         const [one, two] = session.styles.groups(layer.id, path);
         const a = nodeOf(session, path, String(one.value));
@@ -436,8 +479,7 @@ describe("per-group settings", () => {
         popover: HTMLElement;
     }> {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("College football");
-        await session.styles.settled();
+        const { session, store } = await openSample("College football", 115);
         const { layer, path } = await runGroups(session, "leiden");
         const groups = session.styles.groups(layer.id, path);
         assert.isAbove(groups.length, 8, "Leiden finds more than 8 groups");
@@ -549,8 +591,7 @@ describe("per-group settings", () => {
 
     it("College football: repeated colors are drawn in other shapes, never color alone", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("College football");
-        await session.styles.settled();
+        const { session, store } = await openSample("College football", 115);
         const { layer, path } = await runGroups(session, "leiden");
         const popover = await openBinding(store, layer);
         await userEvent.click(within(popover).getByRole("combobox", { name: /^More values than colors/ }));
@@ -573,19 +614,7 @@ describe("per-group settings", () => {
 
     it("300 values: the full list is virtualized, scrolls to the last, and search finds it", async () => {
         await page.viewport(1440, 900);
-        const store = createWorkspaceStore({ project: { name: "Many", id: 1 }, inspected: null });
-        render(<Workspace store={store} />);
-        const session = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element")?.session;
-                assert.isDefined(found);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        if (session === undefined) {
-            throw new Error("the element never came up");
-        }
+        const { session, store } = await openProject("Many");
         await session.data.addNodes(
             Array.from({ length: 300 }, (_, i) => ({ id: `n${String(i)}`, kind: `k${String(i)}` })),
         );
@@ -622,8 +651,7 @@ describe("per-group settings", () => {
 
     it("a shape binding's No value offers shapes, not a number", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSampleFromStart("Les Miserables");
-        await session.styles.settled();
+        const { session, store } = await openSample("Les Miserables", 77);
         const { layer: run, path } = await runGroups(session, "louvain");
         const layer = await session.styles.add({
             name: "Shapes",

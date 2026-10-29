@@ -7657,7 +7657,7 @@ describe("promote.yml", () => {
         const order = [
             "promote.mjs gather",
             "promote.mjs check",
-            "promote.mjs token",
+            "promote.mjs trust",
             "promote.mjs move",
             "promote-push.sh",
             "promote.mjs releases",
@@ -7704,12 +7704,24 @@ describe("promote.yml", () => {
         assert.doesNotMatch(main, /NIGHTLY_SITE_DEPLOY_KEY/);
     });
 
-    it("keeps each key in its own environment: the dist-tag token and graphty-site's key in production, the release key in release", () => {
+    it("moves the dist-tags with npm trusted publishing (OIDC): no stored npm token, npm 11.21+, checked before moving", () => {
+        assert.doesNotMatch(promote, /NPM_DIST_TAG_TOKEN|NODE_AUTH_TOKEN|NPM_TOKEN|_authToken|registry-url/);
+        assert.match(main, /\n {12}id-token: write\b/);
+        assert.match(main, /\n {8}environment: production\n/);
+        assert.match(main, /npm install -g npm@11\.(2[1-9]|[3-9]\d)\.\d+\n/);
+        const order = steps(main).map((s) => /promote\.mjs (\w+)/.exec(s)?.[1] ?? /npm install -g/.exec(s)?.[0]);
+        assert.ok(order.indexOf("npm install -g") < order.indexOf("trust"));
+        assert.ok(order.indexOf("trust") < order.indexOf("move"));
+        const trust = steps(main).find((s) => /promote\.mjs trust/.test(s));
+        assert.match(trust, /if: \$\{\{ inputs.config_only != true \}\}/, "a dry run checks the trust too");
+    });
+
+    it("keeps each key in its own environment: graphty-site's key in production, the release key in release", () => {
         assert.equal(promote.match(/secrets.RELEASE_DEPLOY_KEY/g).length, 1);
         assert.match(channelRef, /\n {8}environment: release # the deploy key\n/);
         assert.match(channelRef, /secrets.RELEASE_DEPLOY_KEY/);
         assert.doesNotMatch(channelRef.replace(/^\s*#.*$/gm, ""), /npm |setup-node|pnpm/);
-        for (const secret of ["NPM_DIST_TAG_TOKEN", "PRODUCTION_SITE_DEPLOY_KEY"]) {
+        for (const secret of ["PRODUCTION_SITE_DEPLOY_KEY"]) {
             assert.ok(promote.includes(secret));
             assert.doesNotMatch(nightlySite + channelRef, new RegExp(secret));
         }

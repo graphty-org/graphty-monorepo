@@ -2883,7 +2883,8 @@ jobs:
         needs: all-checks
         if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref }}
         # A failure here is not the merge's: it must not turn the master build red, which would skip the
-        # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
+        # deploy and have master-guard revert the merge. A missed dispatch fails this job (an error, and a comment on
+        # its issue) and waits for the next slot, which catches up.
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 5

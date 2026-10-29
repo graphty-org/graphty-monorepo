@@ -192,6 +192,45 @@ export function lastGreenBuild(head, greenShas, isAncestor) {
 }
 
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
+// a failed command's cause: gh's own error line ("HTTP 403: API rate limit exceeded ..."), not "Command failed: <argv>"
+const cause = (error) =>
+    String(error?.stderr || error?.message)
+        .trim()
+        .split("\n")[0];
+
+/**
+ * A release.yml dispatch. One that fails (the job's token is the repository's Actions token, whose hourly budget every
+ * workflow shares and which ran out on 2026-10-29, #4318) is an error that fails the job and is told on `issue`, so
+ * it is never missed; ci.yml keeps the master build green. It does not wait for the rate limit's reset: this job runs
+ * inside the master build, which holds master's build queue until it ends. The next 6-hour full run catches up on a
+ * missed promotion (tools/channel/resume.mjs), fix forward or restart.
+ * @param args the `gh` arguments
+ * @param issue the hold or red issue to tell, or null
+ * @returns whether it was dispatched
+ */
+function dispatchRelease(args, issue) {
+    try {
+        run("gh", args);
+        return true;
+    } catch (error) {
+        const why = String(error.stderr || error.message).trim();
+        console.log(`::error::gh ${args.join(" ")} failed: ${why.replaceAll("\n", " ")}`);
+        process.exitCode = 1;
+        if (issue) tellFailed(issue, args, why);
+        return false;
+    }
+}
+
+function tellFailed(issue, args, why) {
+    const { GITHUB_SERVER_URL: server, GITHUB_REPOSITORY: repo, GITHUB_RUN_ID: id } = process.env;
+    const where = id ? ` (${server}/${repo}/actions/runs/${id})` : "";
+    const body = `release-due could not dispatch release.yml${where}: \`${why.split("\n")[0]}\`. The next 6-hour full run catches up; to start it now: \`gh ${args.join(" ")}\``;
+    try {
+        run("gh", ["issue", "comment", String(issue), "--body", body]);
+    } catch (error) {
+        console.log(`::warning::telling #${issue} failed: ${cause(error)}`);
+    }
+}
 
 // the run's attempt through the REST API (`gh run list --json attempt` needs gh 2.48 or later); 1 when unreadable
 function runAttempt(id) {
@@ -244,15 +283,13 @@ function cancelRedRun(issue, dryRun) {
             ]);
             if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, runAttempt(id))]);
         } catch (error) {
-            console.log(
-                `::warning::the note on the Release status issue failed: ${String(error.message).split("\n")[0]}`,
-            );
+            console.log(`::warning::the note on the Release status issue failed: ${cause(error)}`);
         }
         try {
             run("gh", ["run", "cancel", String(id)]);
         } catch (error) {
             // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
-            console.log(`::warning::cancelling run ${id} failed: ${String(error.message).split("\n")[0]}`);
+            console.log(`::warning::cancelling run ${id} failed: ${cause(error)}`);
         }
     }
 }
@@ -283,19 +320,9 @@ async function promoteApproved(shas, dryRun) {
         console.log(`release-due: the approval ${p.accept} of ${p.candidate}: ${p.why}`);
         if (dryRun) continue;
         if (p.run) {
-            run("gh", [
-                "workflow",
-                "run",
-                "release.yml",
-                "--ref",
-                "master",
-                "-f",
-                "mode=promote-nightly",
-                "-f",
-                `candidate=${p.candidate}`,
-                "-f",
-                `accept=${p.accept}`,
-            ]);
+            const args = ["workflow", "run", "release.yml", "--ref", "master", "-f", "mode=promote-nightly"];
+            args.push("-f", `candidate=${p.candidate}`, "-f", `accept=${p.accept}`);
+            dispatchRelease(args, r.ok ? (r.data?.hold?.issue ?? null) : null);
         } else if (p.comment) {
             run("gh", [
                 "issue",
@@ -367,7 +394,7 @@ async function dispatchFixForward(merges, dryRun) {
         return;
     }
     console.log(`release-due: these merges fix the held candidate forward (#${due.issue}): release.yml mode=candidate`);
-    if (!dryRun) run("gh", fixForwardDispatch(due.prs));
+    if (!dryRun) dispatchRelease(fixForwardDispatch(due.prs), due.issue);
 }
 
 // the last green master build HEAD descends from, or null
@@ -400,7 +427,7 @@ function lastGreenBase(head) {
             }
         });
     } catch (error) {
-        console.log(`::warning::finding the last green master build failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::warning::finding the last green master build failed: ${cause(error)}`);
     }
     return null;
 }
@@ -415,7 +442,7 @@ function readMerges(commits) {
             const path = `repos/{owner}/{repo}/commits/${sha}/pulls`;
             body = run("gh", ["api", path, "--jq", ".[].body // empty"]);
         } catch (error) {
-            console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
+            console.log(`::warning::reading the merged pull request failed: ${cause(error)}`);
         }
         bodies += body + "\n";
         const own =
@@ -458,14 +485,16 @@ async function main() {
     try {
         await promoteApproved(commits, dryRun);
     } catch (error) {
-        console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::error::the approval check failed: ${cause(error)}`);
+        process.exitCode = 1;
     }
     const messages = `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`;
     // its failure never stops the restart below
     try {
         await dispatchFixForward(merges, dryRun);
     } catch (error) {
-        console.log(`::warning::the fix-forward check failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::error::the fix-forward check failed: ${cause(error)}`);
+        process.exitCode = 1;
     }
     if (base) console.log(`release-due: reading every merge since the last green master build ${base.slice(0, 7)}`);
     const plan = due(issues, messages, now, closedSince);
@@ -484,11 +513,9 @@ async function main() {
     try {
         if (plan.cancel) cancelRedRun(plan.issue, dryRun);
     } catch (error) {
-        console.log(`::warning::cancelling the red run failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::warning::cancelling the red run failed: ${cause(error)}`);
     }
-    if (!dryRun) {
-        run("gh", restartDispatch(plan.mode, head));
-    }
+    if (!dryRun) dispatchRelease(restartDispatch(plan.mode, head), plan.issue);
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

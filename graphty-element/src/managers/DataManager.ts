@@ -1365,6 +1365,7 @@ export class DataManager implements Manager {
      * The scene units one unit of a node's stored position is drawn as: `positionScale` times the
      * file scale a load recorded with its styles (`filePositions.ts`).
      * @returns the scale
+     * @internal
      */
     positionScale(): number {
         return positionScaleOf(this.styles.config.data.knownFields.positionScale, this.graph.slice.values);

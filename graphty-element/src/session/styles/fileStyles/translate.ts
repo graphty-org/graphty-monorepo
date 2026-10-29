@@ -81,6 +81,12 @@ export interface FileStyleOptions {
      */
     readonly lengths?: "median" | "file";
     /**
+     * Whether label sizes take the factor the other lengths do: `"proportional"` (the default) keeps
+     * each label's size against its node as the file draws it; `"file"` keeps the file's label sizes
+     * as they are, whatever the other lengths are scaled by.
+     */
+    readonly labelSizes?: "proportional" | "file";
+    /**
      * The element shape each 2D node shape of the file is drawn as; `FILE_STYLE_SHAPES` by default.
      * A shape the table leaves out is not drawn from the file, and the load notes it.
      */
@@ -1443,11 +1449,12 @@ function lengthFactors(input: TranslateInput): LengthFactors {
 
     // Labels in canvas px over fitted positions are that many px per unit of the positions.
     const perLabelUnit = scene / (input.labelPxPerUnit ?? 1);
+    const keptLabels = input.options.labelSizes === "file";
     return {
         node: scene / SCENE_PER_UNIT.node,
         edge: scene / SCENE_PER_UNIT.edge,
-        label: (size) => labelSizePx(perLabelUnit * size),
-        letter: perLabelUnit,
+        label: keptLabels ? null : (size) => labelSizePx(perLabelUnit * size),
+        letter: keptLabels ? null : perLabelUnit,
         scene,
     };
 }

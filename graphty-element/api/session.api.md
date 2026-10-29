@@ -1117,6 +1117,7 @@ export interface FileStyleLoadValues {
     readonly columns: readonly FileStyleColumnValues[];
     readonly format: string;
     readonly importId: string;
+    readonly lengthScale?: number;
     readonly namespace: string;
 }
 
@@ -1147,6 +1148,7 @@ export function fileStyleOf(layer: {
 export interface FileStyleOptions {
     // @deprecated
     readonly labelLayers?: number;
+    readonly labelSizes?: "proportional" | "file";
     readonly lengths?: "median" | "file";
     readonly shapes?: FileStyleShapeTable;
     readonly toolDefaults?: boolean;
@@ -3006,6 +3008,7 @@ export interface LoadReport extends ImportReport {
 // @public
 export interface LoadStyleReport {
     readonly layers: readonly LayerId[];
+    readonly lengthScale?: number;
     readonly notes: readonly FileStyleNote[];
 }
 

@@ -2512,8 +2512,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
     };
 
-    /** The last bindings each layer was painted with, kept for {@link steadyEncodingOf}. */
-    const lastPainted = new Map<LayerId, readonly PreparedBinding[]>();
+    /**
+     * The first version of each edited layer, by every later version of it. An edit compiles a new
+     * layer object under the same id, and so does a removal followed by an add of the same name,
+     * which recycles the id: only an edit continues the layer, so only an edit is linked here.
+     */
+    const firstVersion = new WeakMap<CompiledLayer, CompiledLayer>();
+    const versionsOf = (entry: CompiledLayer): CompiledLayer => firstVersion.get(entry) ?? entry;
+
+    /** The last bindings each layer was painted with, by its first version, for {@link steadyEncodingOf}. */
+    const lastPainted = new WeakMap<CompiledLayer, readonly PreparedBinding[]>();
 
     /**
      * What a layer was last painted with, for the group reads: between an edit of a layer and the
@@ -2521,21 +2529,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * would answer "none" for that moment -- a group editor reading them on the edit's change
      * event would close and reopen. They read the layer's last paint instead; `categoriesOf`
      * matches each binding by its path, so a binding that now reads another value is not answered
-     * from the old one.
+     * from the old one. A layer added under a departed layer's id is not that layer and has no
+     * last paint, so it is never answered from the departed layer's.
      * @param layerId - The layer.
      * @returns Its prepared bindings, or the last ones while a repaint is pending.
      */
     const steadyEncodingOf: EncodingLookup = (layerId) => {
         const prepared = encodingOf(layerId);
+        const entry = byId().get(layerId);
+        if (entry === undefined) {
+            return prepared;
+        }
         if (prepared.length > 0) {
-            lastPainted.set(layerId, prepared);
+            lastPainted.set(versionsOf(entry), prepared);
             return prepared;
         }
-        if (!byId().has(layerId)) {
-            lastPainted.delete(layerId);
-            return prepared;
-        }
-        return lastPainted.get(layerId) ?? prepared;
+        return lastPainted.get(versionsOf(entry)) ?? prepared;
     };
 
     /** What an explanation, an unbound report and a resolved rule are read from. */
@@ -4258,6 +4267,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // the stack then takes the tree's order.
             const rows = reconcile(planned.rows ?? rowsOf(stack), planned.stack, planned.moved);
             const next = arrange(planned.stack, rows);
+            // A layer this command compiled anew under an id the stack already holds is that
+            // layer edited, and keeps its first version; one added under a freed id has its own.
+            const held = byId();
+            for (const entry of next) {
+                const was = held.get(entry.layer.id);
+                if (was !== undefined && was !== entry) {
+                    firstVersion.set(entry, versionsOf(was));
+                }
+            }
             if (
                 rows === rowsOf(stack) &&
                 next.length === stack.length &&

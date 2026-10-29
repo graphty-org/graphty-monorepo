@@ -86,6 +86,12 @@ describe("collector with the GitHub App", () => {
             "release-watch.yml",
         ]);
         expect(Array.isArray(await readSnapshot(store, "owner-wait"))).toBe(true);
+        // The release channels (#4460): what channel/nightly holds; no deploy or promotion runs recorded.
+        expect(await readSnapshot(store, "channels")).toEqual({
+            canary: [],
+            promotions: {},
+            refs: { nightly: "a".repeat(40) },
+        });
         expect(observed(store, "npm.tagged_missing")).toBeGreaterThan(0);
         expect(observed(store, "ci.jobs_running")).toBe(0);
         expect(observed(store, "ci.jobs_queued")).toBe(0);

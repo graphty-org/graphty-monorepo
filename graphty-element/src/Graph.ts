@@ -1435,6 +1435,14 @@ export class Graph implements GraphContext {
         this.selectionManager = new SelectionManager(this.eventManager);
         this.selectionManager.setDataManager(this.dataManager);
         this.selectionManager.bindSelection(this.session.selection);
+        // A selection change made by a cause `camera.pivotOnSelectionCauses` leaves out (a filter's
+        // Select, an undo) keeps the camera where it is, as a pan of the reader's does.
+        this.session.on("selection:changed", ({ cause }) => {
+            const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
+            if (causes !== undefined && !causes.includes(cause)) {
+                this.updateManager.holdSelectionFollow();
+            }
+        });
         // The pointer left the graph: no node is under it, whatever node it last crossed.
         this.element.addEventListener(
             "pointerleave",

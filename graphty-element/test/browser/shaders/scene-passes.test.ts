@@ -388,8 +388,12 @@ describe("group outlines", () => {
         const pass = renderManager.shaderPasses().outline;
         const layer = idOf(element, "Outer");
         const node = element.graph.getDataManager().nodes.get("a");
-        // Not awaited: the layout's run is what the loop below watches.
-        const running = element.graph.setLayout("ngraph", { dim: 2 });
+        // Not awaited: the layout's run is what the loop below watches. The layout keeps to the
+        // clock, so a slow frame takes up to 12 rounds of steps (MAX_CATCH_UP_ROUNDS in
+        // UpdateManager): with the default drag these five nodes settle in about 16 steps, which
+        // a loaded machine drew in two frames (#4317). With less drag the run is 60 steps, at
+        // least five drawn frames however slowly they come, and node a moves in every one.
+        const running = element.graph.setLayout("ngraph", { dim: 2, seed: 1, dragCoefficient: 0.1 });
 
         // While the layout moves the nodes, each frame's group outline is laid out from that frame's places.
         let moved = 0;

@@ -45,6 +45,7 @@ import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
+import { trackOnScene } from "./PendingWork";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -544,11 +545,12 @@ class ShaderScene {
             return;
         }
 
-        const [shader, runtime, module] = await Promise.all([
-            controller.drawable(wanted.id),
-            host.runtime(),
-            import("../meshes/BackgroundPass"),
-        ]);
+        const [shader, runtime, module] = await trackOnScene(
+            this.scene,
+            "shader",
+            "a background shader is still loading",
+            Promise.all([controller.drawable(wanted.id), host.runtime(), import("../meshes/BackgroundPass")]),
+        );
         if (ticket !== this.backgroundTicket || this.disposed) {
             return;
         }
@@ -620,7 +622,12 @@ class ShaderScene {
 
         this.outlineLoading = true;
         try {
-            const [runtime, module] = await Promise.all([host.runtime(), import("../meshes/GroupOutlinePass")]);
+            const [runtime, module] = await trackOnScene(
+                this.scene,
+                "shader",
+                "the group outline pass is still loading",
+                Promise.all([host.runtime(), import("../meshes/GroupOutlinePass")]),
+            );
             if (this.disposed || this.outline !== null) {
                 return;
             }
@@ -650,7 +657,12 @@ class ShaderScene {
             return;
         }
 
-        const module = await import("../meshes/BloomPass");
+        const module = await trackOnScene(
+            this.scene,
+            "shader",
+            "the bloom pass is still loading",
+            import("../meshes/BloomPass"),
+        );
         if (this.disposed || this.bloom !== null) {
             return;
         }

@@ -2049,6 +2049,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        name: "PendingWork",
+        file: "src/managers/PendingWork.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "StatsManager",
         file: "src/managers/StatsManager.ts",
         half: "renderer",
@@ -2208,6 +2214,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSelectionManager: READ,
             getEventManager: READ,
             getAcceleration: READ,
+            getUpdateManager: READ,
             onNodeLabelCounts: READ,
         },
     },
@@ -3259,6 +3266,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ghosts: READ,
             rule: READ,
             previewSteps: READ,
+            commitWindow: calls(
+                [{ attribute: "data.t", from: 0, to: 1 }],
+                [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 }, ownStep: true }],
+            ),
             slideWindow: exempt(
                 "Moves the masks for session.time's cursor only; the window the project records is unchanged until it is committed.",
             ),
@@ -3449,6 +3460,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             sync: RENDER,
             status: READ,
+            loading: READ,
             attributionOffset: CAMERA,
             dispose: LIFECYCLE,
         },

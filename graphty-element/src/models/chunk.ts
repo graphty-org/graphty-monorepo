@@ -75,6 +75,7 @@ import { GLTFLoaderAnimationStartMode } from "@babylonjs/loaders/glTF/glTFFileLo
 import { GLTFValidation } from "@babylonjs/loaders/glTF/glTFValidation";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 
+import { pinShadersLoaded } from "../meshes/pinShadersLoaded";
 import { NEUTRAL_ENVIRONMENT_URL } from "./environment";
 
 /** The file extensions this chunk loads, each naming the loader plugin that reads it. */
@@ -127,31 +128,13 @@ function refuseBabylonHosts(previous: (url: string) => string): (url: string) =>
 Tools.ScriptPreprocessUrl = refuseBabylonHosts(Tools.ScriptPreprocessUrl);
 Tools.PreprocessUrl = refuseBabylonHosts(Tools.PreprocessUrl);
 
-/** Scenes whose PBR materials skip Babylon's lazy shader import. */
-const pinnedScenes = new WeakSet<Scene>();
-
 /**
  * Make every PBRMaterial created in `scene` use the PBR shaders bundled above, as
- * src/meshes/bundledStandardShaders.ts does for StandardMaterial: the flag is pinned with an
- * accessor because the scene announces a material before PBRMaterial's constructor writes
- * `_shadersLoaded = false` (a private Babylon field).
+ * src/meshes/bundledStandardShaders.ts does for StandardMaterial.
  * @param scene - The scene whose materials are pinned.
  */
 function useBundledPbrShaders(scene: Scene): void {
-    if (pinnedScenes.has(scene)) {
-        return;
-    }
-
-    pinnedScenes.add(scene);
-    scene.onNewMaterialAddedObservable.add((material) => {
-        if (material instanceof PBRMaterial) {
-            Object.defineProperty(material, "_shadersLoaded", {
-                configurable: true,
-                get: () => true,
-                set: () => undefined,
-            });
-        }
-    });
+    pinShadersLoaded(PBRMaterial, scene);
 }
 
 /** The bundled neutral environment, one per scene. */

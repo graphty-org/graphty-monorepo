@@ -19,6 +19,7 @@ import type { Scene } from "@babylonjs/core";
 
 import { drawingOf, motionOf, type ShaderParamDescriptor, type ShaderParams, timingOf } from "../catalog/shaders";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import { trackOnScene } from "../managers/PendingWork";
 import { type HostShader, shadersControllerOf } from "../session/shaders";
 import type { GraphSession } from "../session/types";
 import type { LazyShaderHost } from "../shaders/chunk";
@@ -444,7 +445,12 @@ export class EdgeShaderDrawing {
         }
 
         this.resolving.add(id);
-        void Promise.all([controller.drawable(id), this.load(host)]).then(
+        void trackOnScene(
+            this.scene,
+            "shader",
+            "a edge shader is still loading",
+            Promise.all([controller.drawable(id), this.load(host)]),
+        ).then(
             ([shader]) => {
                 this.resolving.delete(id);
                 if (this.disposed) {

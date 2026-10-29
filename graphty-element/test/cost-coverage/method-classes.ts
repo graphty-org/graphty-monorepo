@@ -680,6 +680,7 @@ export const READ_ONLY: readonly string[] = [
     "GraphContext.getStatsManager",
     "GraphContext.getStylePainter",
     "GraphContext.getStyles",
+    "GraphContext.getUpdateManager",
     "GraphContext.getXRConfig",
     "GraphContext.getXRSessionManager",
     "GraphContext.is2D",

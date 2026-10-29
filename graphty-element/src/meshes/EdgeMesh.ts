@@ -1034,12 +1034,37 @@ void main() {
     }
 
     /**
+     * How far back from its tip a vee's line stops, as a fraction of the vee's length: at its notch (half) while the
+     * line's square end stays inside the vee's body, further back for a line wider than half the vee, and at the
+     * vee's back for a line as wide as the vee or wider, so a thick line never covers the vee's barbs.
+     * @param cap - The line's width and the vee's size and breadth; absent, the element's defaults
+     * @param cap.lineWidth - The line's width (`line.width`)
+     * @param cap.size - The vee's size multiple
+     * @param cap.breadth - The vee's width multiple
+     * @returns The fraction, from 1/2 to 1
+     */
+    static veeLineStop(cap?: { lineWidth?: number; size?: number; breadth?: number }): number {
+        // a solid line's thickness in scene units is its width over 40 (see createPatternedLine)
+        const line = (cap?.lineWidth ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) / 40;
+        const vee =
+            EDGE_CONSTANTS.NORMAL_ARROW_ASPECT * this.calculateArrowLength() * (cap?.size ?? 1) * (cap?.breadth ?? 1);
+        return vee > 0 ? Math.min(1, Math.max(1 / 2, line / vee)) : 1;
+    }
+
+    /**
      * Get geometry metadata for an arrow type
      * This is the single source of truth for arrow positioning and line length calculations
      * @param arrowType - The arrow type to get geometry metadata for
+     * @param cap - The line's width and the cap's size and breadth, which decide how far a vee's line runs on
+     * @param cap.lineWidth - The line's width (`line.width`)
+     * @param cap.size - The cap's size multiple
+     * @param cap.breadth - The cap's width multiple
      * @returns Arrow geometry configuration including positioning mode and offsets
      */
-    static getArrowGeometry(arrowType: string): ArrowGeometry {
+    static getArrowGeometry(
+        arrowType: string,
+        cap?: { lineWidth?: number; size?: number; breadth?: number },
+    ): ArrowGeometry {
         switch (arrowType) {
             // Center-based arrows (all use same positioning, no scaling)
             case "dot":
@@ -1076,7 +1101,7 @@ void main() {
                     positioningMode: "tip",
                     needsRotation: false,
                     positionOffset: 0,
-                    lineStop: 1 / 2,
+                    lineStop: EdgeMesh.veeLineStop(cap),
                 };
 
             // Filled arrows using FilledArrowRenderer (billboard shaders, no rotation)

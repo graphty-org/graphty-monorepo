@@ -23,7 +23,9 @@
  * And the discard-and-return check: a tab whose web content process iOS killed in the background is
  * loaded again when the reader returns to Safari. It must keep its session storage, so
  * `listAutosaves` still finds the entry this tab was writing and marks it `own` -- the premise of
- * reopening a discarded tab straight into its work.
+ * reopening a discarded tab straight into its work. When Safari itself exits in the background
+ * before the reader returns (the Simulator's GPU process can hang it until RunningBoard ends it), no
+ * tab was discarded: the check then asserts only that the entry survived, and says so in the run.
  *
  * The Simulator has no memory-pressure killer and no 7-day storage rule; those are the iPad
  * protocol's (design/work-protection/ipad-protocol.md).
@@ -277,12 +279,11 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
      * openurl's own time limit is not the test: when it gives up (code 60, "Operation timed out"),
      * wait for this Safari process to log that it received the URL. Any other failure is thrown.
      * @param url - The page.
+     * @returns The pid of the Safari process the page opened in.
      */
-    async function openInSafari(url: string): Promise<void> {
+    async function openInSafari(url: string): Promise<string> {
         const from = safariLog.lines.length;
-        // `simctl launch` prints "com.apple.mobilesafari: <pid>".
-        const pid = simctl("launch", udid, SAFARI).trim().split(": ").at(-1) ?? "";
-        assert.match(pid, /^\d+$/, "simctl launch printed Safari's pid");
+        const pid = launchSafari();
         const change = new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> \\d+;`);
         const active = new RegExp(`MobileSafari\\[${pid}:.*deactivation reasons: \\d+ -> 0;`);
         const last = safariLog.lines.filter((line) => change.test(line)).at(-1);
@@ -304,6 +305,19 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
                 sent,
             );
         }
+
+        return pid;
+    }
+
+    /**
+     * Bring Safari to the front, as a reader returning to it does.
+     * @returns The pid of the Safari process now running: a new one when Safari had exited.
+     */
+    function launchSafari(): string {
+        // `simctl launch` prints "com.apple.mobilesafari: <pid>".
+        const pid = simctl("launch", udid, SAFARI).trim().split(": ").at(-1) ?? "";
+        assert.match(pid, /^\d+$/, "simctl launch printed Safari's pid");
+        return pid;
     }
 
     /**
@@ -427,7 +441,7 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
             diagnose(udid, tab);
         });
         const from = safariLog.lines.length;
-        await openInSafari(fx.url({ key: tab, tab, auto: 2, list: 1, webgl: "off" }));
+        const safari = await openInSafari(fx.url({ key: tab, tab, auto: 2, list: 1, webgl: "off" }));
         const saved = await fx.waitFor((e) => e.tab === tab && e.type === "auto-saved");
         assert.strictEqual(saved.state, "saved", "the page saved its edits");
         const entry = fx.events(tab, "saved").at(-1)?.entry as string | undefined;
@@ -441,16 +455,35 @@ describe.skipIf(!MACOS)("Safari in the iOS Simulator", () => {
         );
         kill(pages);
         const mark = fx.log.length;
-        simctl("launch", udid, SAFARI);
+        const returned = launchSafari();
         const listed = await fx.waitFor((e) => e.seq >= mark && e.tab === tab && e.type === "listed");
         const entries = listed.entries as { id: string; own?: boolean }[];
-        assert.strictEqual(listed.item, entry, "session storage survived the discard");
-        assert.deepEqual(
-            entries.filter((e) => e.own === true).map((e) => e.id),
-            [entry],
-            "the returned tab owns its entry",
-        );
-        const line = `iOS Simulator, discard and return (${pages.length} web content processes killed): session storage kept, own entry found`;
+        let line: string;
+        if (returned === safari) {
+            assert.strictEqual(listed.item, entry, "session storage survived the discard");
+            assert.deepEqual(
+                entries.filter((e) => e.own === true).map((e) => e.id),
+                [entry],
+                "the returned tab owns its entry",
+            );
+            line = `iOS Simulator, discard and return (${pages.length} web content processes killed): session storage kept, own entry found`;
+        } else {
+            // Safari itself exited in the background before the reader returned (issue #4304: its GPU
+            // process stopped answering, its main thread blocked for 24 s, and RunningBoard ended it once
+            // it was suspended), so `simctl launch` started a new Safari that reopened the tab from its
+            // saved tabs. That is Safari terminated, not a discarded tab: session storage lives in the
+            // Safari process and is gone with it, so the tab is not this tab any more. What must hold
+            // then is the restore's premise: the entry is still there for the reopened page to find.
+            assert.include(
+                entries.map((e) => e.id),
+                entry,
+                "the entry survived Safari's exit",
+            );
+            line = `iOS Simulator, discard and return (${pages.length} web content processes killed): Safari ${safari} exited in the background and Safari ${returned} reopened the tab, so session storage was not tested; entry kept`;
+            // Loud in the run, so a lane where Safari always exits is seen: the discard check did not run.
+            console.log(`::warning::${line}`);
+        }
+
         console.log(`[ios] ${line}`);
         if (process.env.GITHUB_STEP_SUMMARY) {
             appendFileSync(process.env.GITHUB_STEP_SUMMARY, `- ${line}\n`);

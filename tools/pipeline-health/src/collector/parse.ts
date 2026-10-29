@@ -724,18 +724,24 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
 // ---------------------------------------------------------------------------------------------------------------
 // The release channels (#4460): canary's deploys and production's promotions. Nightly's are release attempts.
 
+/** A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed. */
+const runOutcome = (conclusion: string | null): ChannelAttempt["outcome"] => {
+    if (conclusion === "success") return "ok";
+    return conclusion === "cancelled" ? "cancelled" : "bad";
+};
+
 /** Canary's attempts, newest first: finished deploy-pages.yml runs; a skipped run (master's build was red) is none. */
 export function canaryAttempts(runs: GhRun[]): ChannelAttempt[] {
     return runs
         .filter((r) => r.status === "completed" && r.conclusion !== "skipped")
         .map((r) => ({
             at: Date.parse(r.updated_at),
-            outcome: r.conclusion === "success" ? "ok" : r.conclusion === "cancelled" ? "cancelled" : "bad",
+            outcome: runOutcome(r.conclusion),
             // run-name is "Deploy <the built commit>"; the run's own head is master's newest commit.
             sha: /\b[0-9a-f]{40}\b/.exec(r.display_title ?? "")?.[0] ?? r.head_sha,
             run: r.id,
         }))
-        .sort((a, b) => b.at - a.at) as ChannelAttempt[];
+        .sort((a, b) => b.at - a.at);
 }
 
 /**
@@ -748,7 +754,7 @@ export function promotion(run: GhRun, jobs: GhJob[]): ChannelAttempt | null {
     if (move?.name !== "Move channel/production") return null;
     const moved = laneOf(jobs, move.name);
     if (moved !== "passed" && moved !== "failed" && laneOf(jobs, "Promote (owner approval)") !== "failed") return null;
-    const outcome = moved === "passed" ? "ok" : run.conclusion === "cancelled" ? "cancelled" : "bad";
+    const outcome = moved === "passed" ? "ok" : runOutcome(run.conclusion === "success" ? "failure" : run.conclusion);
     return { at: Date.parse(run.updated_at), outcome, run: run.id };
 }
 

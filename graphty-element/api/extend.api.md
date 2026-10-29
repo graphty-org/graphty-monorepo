@@ -750,6 +750,7 @@ export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
     arrowCap: ArrowCap | null;
+    get arrowHeadStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
     // @deprecated
@@ -759,6 +760,7 @@ export class Edge {
     arrowTailCap: ArrowCap | null;
     // @deprecated
     arrowTailMesh: AbstractMesh | null;
+    get arrowTailStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;

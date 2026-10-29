@@ -6,7 +6,7 @@
         "usdPerMin": { "on_demand": 0.018, "spot": 0.0045 }
     },
     "llm": {
-        "$comment": "One paid step per release.yml run that sent paid calls (tools/llm-due.mjs: COST_PER_RUN 0.94, PAID conclusions). Checked 2026-10-12.",
+        "$comment": "One paid step per release.yml run that sent paid calls (tools/llm-spend.mjs: COST_PER_RUN 0.94, PAID conclusions). Checked 2026-10-12.",
         "step": "LLM regression tests",
         "usdPerPaidStep": 0.94,
         "paidConclusions": ["success", "failure", "cancelled"]

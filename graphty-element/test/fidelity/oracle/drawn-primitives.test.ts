@@ -681,4 +681,59 @@ describe("graphty's drawing in the oracle comparison's model", () => {
             ["A", "Label"],
         );
     });
+
+    it("carries the picture an image node with no body draws as itself, so the comparison sees it drawn", () => {
+        const scene = {
+            nodes: [
+                {
+                    id: "img",
+                    x: 50,
+                    y: 50,
+                    w: 20,
+                    h: 20,
+                    shape: "other",
+                    fill: null,
+                    fillOpacity: 1,
+                    border: { color: null, width: 0, style: "solid" },
+                    label: null,
+                    visible: true,
+                    drawn: { subPixel: false, fillCovered: false, fillDrawn: null },
+                },
+            ],
+            edges: [],
+            groups: [],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const picture = { x0: 40, y0: 40, x1: 60, y1: 60, near: 0, far: 0 };
+        const drawnOf = (over: Partial<DrawnNode>): DrawnGraph => ({
+            nodes: new Map([
+                [
+                    "img",
+                    {
+                        insetPx: 0,
+                        label: null,
+                        gradient: false,
+                        ramp: null,
+                        faceless: false,
+                        glyph: null,
+                        ...over,
+                    } as unknown as DrawnNode,
+                ],
+            ]),
+            edges: new Map(),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        });
+        assert.deepEqual(
+            drawnPrimitives(scene, drawnOf({ picture })).nodes.map((n) => n.pictures),
+            [[picture]],
+        );
+        assert.deepEqual(
+            drawnPrimitives(scene, drawnOf({})).nodes.map((n) => n.pictures),
+            [undefined],
+        );
+    });
 });

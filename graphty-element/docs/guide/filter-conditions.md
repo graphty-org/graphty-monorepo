@@ -47,10 +47,18 @@ A condition that is off keeps its rule and does nothing.
 ## Select conditions
 
 A **select** condition hides nothing. Whenever the select conditions change (one is added,
-edited, switched on or off, removed, or a condition's effect becomes or stops being `select`), the
-selection becomes what every select condition that is on matches, over the whole graph, hidden
-elements included. That replaces a selection the reader made; with none on, nothing is selected.
-Edits to keep and exclude conditions, data loads and time-window moves never touch the selection.
+edited, switched on or off, removed, or a condition's effect becomes or stops being `select`), or a
+keep or exclude condition changes while a select condition is on, the selection becomes what every
+select condition that is on matches among the visible elements. A hidden element is never selected
+by a condition, so what is drawn as selected and what is reported as selected never differ. The
+result depends only on which conditions there are, never on their order. That replaces a selection
+the reader made; with none on, nothing is selected. Data loads and time-window moves never touch
+the selection.
+
+When the reader changes the selection by hand (a click on the canvas), every select condition that
+is on is switched off in one undoable step, and the reader's selection stays. Undo switches them
+back on and selects their matches again. A selection set through `session.selection.apply` leaves
+the conditions as they are.
 
 The change fires `selection:changed` and no `visibility:changed`. Undo puts back the selection the
 change replaced. Opening a project never applies select conditions: the selection saved with it

@@ -20,7 +20,7 @@ import { flushHealth, postFlaky } from "./client.mjs";
  * @returns `{ file, name, message }` per story
  */
 export function unstableStories(results, index, files) {
-    const roots = files.map((f) => f.replace(/#.*$/, ""));
+    const roots = files.map((f) => f.split("#")[0]);
     const out = new Map();
     for (const item of results.items ?? []) {
         if (item.status !== "unstable" || out.has(item.id)) continue;

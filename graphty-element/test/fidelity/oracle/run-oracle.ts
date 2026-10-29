@@ -31,6 +31,7 @@ import {
     type Judgement,
     type KeyGate,
     type KnownRecords,
+    oracleFileSha256,
 } from "./floors";
 import {
     compareWithOracle,
@@ -342,7 +343,7 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     return {
         ...own,
         sha256,
-        oracleSha256: typeof meta.sha256 === "string" ? meta.sha256 : null,
+        oracleSha256: oracleFileSha256(meta),
         standIn: isStandIn(meta),
         matched,
         parts,

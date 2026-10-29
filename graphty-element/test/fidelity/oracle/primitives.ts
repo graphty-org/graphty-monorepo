@@ -204,8 +204,9 @@ export interface PNode {
      */
     ring?: (PStroke & { reach: number }) | null;
     /**
-     * The oracle's side only: the boxes of the pictures drawn as part of the node (an image over or inside its shape,
-     * vis-network's circularImage and image nodes), which graphty draws as pieces over the node's face. Absent for none.
+     * The boxes of the pictures drawn as part of the node: on the oracle's side an image over or inside its shape
+     * (vis-network's circularImage and image nodes), which graphty draws as pieces over the node's face; on graphty's,
+     * only the image a node with no body draws as itself. Absent for none.
      */
     pictures?: PBox[];
     label: PText | null;

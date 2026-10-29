@@ -4,6 +4,7 @@ import { ActionIcon, Menu, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import type { SourceRowCommand } from "../commands/registry";
+import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -25,6 +26,21 @@ const HOVER_ICONS: Readonly<Record<NonNullable<SourceRowCommand["icon"]>, React.
 /** The row's own Rename, listed among the registered commands. */
 const RENAME_ORDER = 80;
 
+/** The glyph each row menu item draws before its label, as the Style "+" items do. */
+const ITEM_GLYPHS: Readonly<Record<string, React.ReactNode>> = {
+    "source.edit-join": <GLYPHS.join size={14} aria-hidden />,
+    "source.replace": <GLYPHS.upload size={14} aria-hidden />,
+    "source.load-more": <GLYPHS.loadMore size={14} aria-hidden />,
+    "source.refresh": <GLYPHS.refresh size={14} aria-hidden />,
+    "source.select-nodes": <GLYPHS.selection size={14} aria-hidden />,
+    "source.rename": <GLYPHS.rename size={14} aria-hidden />,
+    "source.export": <GLYPHS.saveLocal size={14} aria-hidden />,
+    "source.remove": <GLYPHS.delete size={14} aria-hidden />,
+};
+
+/** The key shown at an item's right: the window key that does the same, or the row's own F2. */
+const ITEM_KEYS: Readonly<Record<string, string>> = { "source.export": "Mod+E", "source.rename": "F2" };
+
 /**
  * The name being edited in place: Enter or leaving it commits, Escape cancels.
  * @param props - Component props
@@ -38,6 +54,8 @@ function RenameInput({
 }: Readonly<{ name: string; onDone: (name: string | null) => void }>): React.JSX.Element {
     const [text, setText] = useState(name);
     const input = useRef<HTMLInputElement>(null);
+    // Tab leaves the field for the row's next control, which commits: no keyboard trap.
+    const tabbing = useRef(false);
     // Focused once the menu that opened it has closed and handed focus back to its button, so
     // that hand-back is not taken as leaving the field.
     useEffect(() => {
@@ -63,7 +81,11 @@ function RenameInput({
                 // The menu that opened it hands focus back to its button in the same row, and the
                 // window losing focus blurs the field too: neither is the reader leaving it.
                 const to = event.relatedTarget;
-                if (to instanceof Node && event.currentTarget.closest(".dp-source")?.contains(to) === true) {
+                if (
+                    !tabbing.current &&
+                    to instanceof Node &&
+                    event.currentTarget.closest(".dp-source")?.contains(to) === true
+                ) {
                     event.currentTarget.focus();
                     return;
                 }
@@ -72,6 +94,7 @@ function RenameInput({
                 }
             }}
             onKeyDown={(event) => {
+                tabbing.current = event.key === "Tab";
                 if (event.key === "Enter") {
                     onDone(text);
                 } else if (event.key === "Escape") {
@@ -134,9 +157,14 @@ export function SourceRow({
     };
     const match = joinMatch(source);
     const menuItems = items.map((item) => (
-        <Menu.Item key={item.id} onClick={item.run}>
-            {item.label}
-        </Menu.Item>
+        <CommandMenuItem
+            key={item.id}
+            icon={ITEM_GLYPHS[item.id]}
+            label={item.label}
+            shortcut={ITEM_KEYS[item.id]}
+            reason={null}
+            onRun={item.run}
+        />
     ));
 
     return (
@@ -153,7 +181,22 @@ export function SourceRow({
                     {renaming ? (
                         <RenameInput name={name} onDone={rename} />
                     ) : (
-                        <button type="button" className="dp-source-main" aria-pressed={selected} onClick={onSelect}>
+                        <button
+                            type="button"
+                            className="dp-source-main"
+                            aria-pressed={selected}
+                            onClick={onSelect}
+                            // A double-click or F2 renames the row, as in the layer tree; its menu shows the key.
+                            onDoubleClick={() => {
+                                setRenaming(true);
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "F2") {
+                                    event.preventDefault();
+                                    setRenaming(true);
+                                }
+                            }}
+                        >
                             <span className="dp-source-icon">{KIND_ICONS[source.kind]}</span>
                             <span className="dp-source-name">{name}</span>
                             {match === null ? null : (

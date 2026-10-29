@@ -35,7 +35,7 @@ import {
     withExample,
 } from "./commands";
 import { CodeChip, PreviewRows } from "./PreviewRows";
-import { failureOf } from "./words";
+import { failureOf, kindName } from "./words";
 
 /** Dropdowns render inside the pop-over, so picking an option is not a click outside it. */
 const IN_PLACE = { withinPortal: false } as const;
@@ -306,10 +306,12 @@ function ApiKeyRow({
  * @returns the form.
  */
 function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
-    const { session, element } = useWorkspace();
+    const { session, element, store } = useWorkspace();
     const kinds = serverKinds();
+    // Opened on the source Open network data's card names, else on Neo4j.
     const [form, setForm] = useState<ServerFormState>(() => {
-        const first = kinds.find((each) => each.id === "neo4j") ?? kinds[0];
+        const asked = store.get().serverKind;
+        const first = kinds.find((each) => each.id === (asked ?? "neo4j")) ?? kinds[0];
         return freshForm(first);
     });
     const [preview, setPreview] = useState<SourcePreview | null>(null);
@@ -400,7 +402,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                     aria-label="Kind"
                     allowDeselect={false}
                     comboboxProps={IN_PLACE}
-                    data={kinds.map((each) => ({ value: each.id, label: each.descriptor.plainName }))}
+                    data={kinds.map((each) => ({ value: each.id, label: kindName(each) }))}
                     value={form.kind}
                     onChange={(id) => {
                         const next = kinds.find((each) => each.id === id);
@@ -614,7 +616,7 @@ function WaitingLoads(): React.JSX.Element | null {
     if (session === null || waiting.length === 0) {
         return null;
     }
-    const names = new Map(serverKinds().map((each) => [each.id, each.descriptor.plainName]));
+    const names = new Map(serverKinds().map((each) => [each.id, kindName(each)]));
     return (
         <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
             role="list"

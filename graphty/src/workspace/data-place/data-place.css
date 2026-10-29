@@ -39,7 +39,7 @@
     align-items: center;
     gap: 4px;
     min-height: 28px;
-    padding-inline: 8px 4px;
+    padding-inline: 4px;
     border-radius: 4px;
 }
 
@@ -54,8 +54,10 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
-    padding: 0;
+    /* Room inside the button, so its inset focus ring clears the text. */
+    padding: 2px 4px;
     border: 0;
+    border-radius: 4px;
     background: none;
     color: inherit;
     font: inherit;
@@ -78,9 +80,10 @@
     white-space: nowrap;
 }
 
-/* The counts give way before the name does. */
+/* The join ratio gives way well before the name does (its words stay in its tooltip and name); the
+   chips keep their size. */
 .dp-source-main .dp-quiet {
-    flex: 0 1 auto;
+    flex: 0 1000 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -93,27 +96,31 @@
 }
 
 /*
- * Load more, Refresh and "..." take the chips' place on hover, on keyboard focus, while the row's
- * menu is open and while one of them runs, so they are never drawn over the chips. Folded to no
- * width rather than removed, so a keyboard and a screen reader still reach them.
+ * After the chips: Load more and Refresh, shown on hover, on keyboard focus, while the row's menu
+ * is open and while one of them runs, then "..." in a trailing slot that keeps its width at rest so
+ * the chips never move. Folded and hidden rather than removed, so a keyboard and a screen reader
+ * still reach them.
  */
 .dp-source-actions {
     display: inline-flex;
     flex: none;
     gap: 2px;
+}
+
+.dp-source-actions > :not(.dp-source-more) {
     max-width: 0;
     overflow: hidden;
     opacity: 0;
 }
 
-.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-actions {
+.dp-source-more {
+    opacity: 0;
+}
+
+.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-actions > * {
     max-width: none;
     overflow: visible;
     opacity: 1;
-}
-
-.dp-source:is(:hover, [data-busy], :has(:focus-visible), :has([data-expanded])) .dp-source-chips {
-    display: none;
 }
 
 .dp-rename {
@@ -121,8 +128,9 @@
 }
 
 /* Fields: the load's name, then each side's rows under its node or edge chip. */
-.dp-fields-source {
-    padding: 4px 0;
+/* The per-load groups span the panel as the Fields section does, so their headers line up with it. */
+.dp-field-groups {
+    margin-inline: -16px -8px;
 }
 
 /* A side's header: its chip, and the "+" that adds a field, at the right end. */

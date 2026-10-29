@@ -18,6 +18,7 @@ import {
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { newProjectId, type WorkspaceStore } from "../state/store";
+import { kindName } from "./words";
 
 /** The `dialog` value that opens the server form beside the Sources section. */
 export const SERVER_DIALOG = "server";
@@ -273,7 +274,7 @@ export function serverRequest(
         ...(types.length === 0 ? {} : { relationshipTypes: types }),
     };
     const host = URL.canParse(endpoint) ? new URL(endpoint).host : null;
-    const name = form.example ?? (host === null ? entry.descriptor.plainName : `${entry.descriptor.plainName} ${host}`);
+    const name = form.example ?? (host === null ? kindName(entry) : `${kindName(entry)} ${host}`);
     return {
         input: { source: entry.id, config, name },
         options: {
@@ -288,13 +289,15 @@ export function serverRequest(
  * Opens the server form on the Data place, opening an empty project first when none is open
  * (the start screen's Open network data).
  * @param store - the workspace store.
+ * @param kind - the source the form opens on (Open network data's card), or none for its first.
  */
-export function openServerForm(store: WorkspaceStore): void {
+export function openServerForm(store: WorkspaceStore, kind: string | null = null): void {
     store.set((state) => ({
         ...(state.project === null ? { project: { name: "Untitled", id: newProjectId(state) }, inspected: null } : {}),
         page: "panels",
         place: "data",
         dialog: SERVER_DIALOG,
+        serverKind: kind,
     }));
 }
 

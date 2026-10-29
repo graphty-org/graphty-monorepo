@@ -14,7 +14,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { GLYPHS } from "../glyphs";
-import { isPanelEscape } from "../keys/keys";
+import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -470,9 +470,9 @@ function MaximizeButton({
             return undefined;
         }
         // In the capture phase, so it runs before the workspace's key map (whose Esc clears the
-        // selection).
+        // selection). A field's Escape is the field's (a Sources row's name cancels its rename).
         const onKeyDown = (event: KeyboardEvent): void => {
-            if (event.key === "Escape" && !event.defaultPrevented && !overlayOpen()) {
+            if (event.key === "Escape" && !event.defaultPrevented && !overlayOpen() && !isTypingTarget(event.target)) {
                 event.preventDefault();
                 event.stopPropagation();
                 store.set({ dockMaximized: false });

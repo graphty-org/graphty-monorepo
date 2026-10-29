@@ -96,6 +96,12 @@ export interface WorkspaceState {
      */
     readonly filterDraft: string | null;
     /**
+     * A Fields entry to bring into view and focus once Data > Fields shows it
+     * (`<nodes|edges>:<entry>`, the Overview's Set in Data); cleared by Fields. Null when none is
+     * asked for.
+     */
+    readonly fieldsEntry: string | null;
+    /**
      * Whether the open table dock fills the canvas area, with the configuration beside it (data
      * prototype spec section 3.5). A file with problems opens it so.
      */
@@ -118,6 +124,8 @@ export interface WorkspaceState {
      * Role): the load is read again as edges once both are picked.
      */
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
+    /** The Sources row the reader picked, kept while they visit another place; null: the newest load. */
+    readonly pickedSource: SourceKey | null;
     /**
      * Whether the timeline dock is shown under the canvas while a time field is set;
      * `timeline.toggle` (T) flips it, and designating a field shows it.
@@ -170,6 +178,8 @@ export interface WorkspaceState {
     readonly exportOn: "image" | "nodes" | "edges";
     /** The source a Sources row's Export... opened Data on (its key), else null. */
     readonly exportSource: string | null;
+    /** The source the server form opens on (a catalog id, Open network data's card), else null. */
+    readonly serverKind: string | null;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -243,10 +253,12 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     filterDraft: null,
+    fieldsEntry: null,
     dockMaximized: false,
     joining: null,
     editingJoin: null,
     ends: null,
+    pickedSource: null,
     timelineOpen: true,
     legendShown: true,
     keyHasEntries: false,
@@ -259,6 +271,7 @@ const INITIAL: WorkspaceState = {
     outlineWidth: null,
     exportOn: "image",
     exportSource: null,
+    serverKind: null,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,

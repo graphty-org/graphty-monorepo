@@ -16,6 +16,7 @@ import { notReadSentence, openingFile } from "./project/actions";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { NetworkDataDialog } from "./start/NetworkDataDialog";
 import { useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
@@ -246,6 +247,7 @@ export function Workspace({
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
             <SamplesDialog />
+            <NetworkDataDialog />
         </WorkspaceContext.Provider>
     );
 }

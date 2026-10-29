@@ -120,6 +120,28 @@ describe("camera.pivotOnSelectionCauses", () => {
         }
     });
 
+    it("a Hide card turned on, off and on, twice, with a node picked, never moves a node it leaves drawn", async () => {
+        const element = await mounted(["user", "api"]);
+        const shown = ALL.slice(3);
+        await element.session.selection.apply({ nodes: ["n6"], edges: [] });
+        await drawn(element);
+        assert.deepStrictEqual(element.session.selection.nodes, ["n6"]);
+        const start = screen(element, shown);
+        await element.session.visibility.addCondition({ id: "f", effect: "keep", rule: RULE });
+        await drawn(element);
+        assert.isBelow(moved(screen(element, shown), start), 1, "first hide");
+
+        for (const round of [1, 2]) {
+            await element.session.visibility.updateCondition("f", { on: false });
+            await drawn(element);
+            assert.isBelow(moved(screen(element, shown), start), 1, `round ${String(round)}: off`);
+
+            await element.session.visibility.updateCondition("f", { on: true });
+            await drawn(element);
+            assert.isBelow(moved(screen(element, shown), start), 1, `round ${String(round)}: on`);
+        }
+    });
+
     it("a click on a node still glides the camera to it", async () => {
         const element = await mounted(["user", "api"]);
         const [edge] = screen(element, ["n0"]);

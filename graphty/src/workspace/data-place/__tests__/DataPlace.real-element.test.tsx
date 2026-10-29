@@ -354,8 +354,8 @@ describe("the Data place's sidebar on the real element", () => {
         });
     });
 
-    it("draws no chip for a count of 0, keeps the name readable, and swaps the chips for the actions on hover", async () => {
-        await openDataPlace();
+    it("draws no chip for a count of 0, keeps the name readable, and keeps the chips beside the actions on hover", async () => {
+        const session = await openDataPlace();
         const name = "a-node-table-with-a-rather-long-file-name-for-a-narrow-sidebar.csv";
         drop(new File([HOSTS_CSV], name));
         const row: HTMLElement = await place().findByRole("listitem", { name }, { timeout: TIMEOUT_MS });
@@ -367,14 +367,55 @@ describe("the Data place's sidebar on the real element", () => {
         assert.isNull(row.querySelector('[data-kind="edge"]'), "no edge chip for 0 edges");
         const label = row.querySelector<HTMLElement>(".dp-source-name");
         assert.isAtLeast(label?.getBoundingClientRect().width ?? 0, 40);
+        // The chips are named with their units, once.
+        const { nodes } = session.data.sources()[0].counts;
+        const main = within(row).getByRole("button", { pressed: true });
+        assert.include(main.textContent, `${String(nodes)} nodes`);
+        // The chip says "Node 2" to no one: the row's name carries the counts once, with their unit.
+        assert.strictEqual(within(row).getByRole("button", { name: `${name} ${String(nodes)} nodes` }), main);
 
         await userEvent.hover(row);
         const chips = row.querySelector<HTMLElement>(".dp-source-chips");
         const menu = within(row).getByRole("button", { name: `${name} menu` });
         await waitFor(() => {
-            assert.equal(chips === null ? "" : getComputedStyle(chips).display, "none");
+            assert.notEqual(chips === null ? "none" : getComputedStyle(chips).display, "none");
             assert.isAbove(menu.getBoundingClientRect().width, 0);
+            assert.isAtLeast(menu.getBoundingClientRect().left, chips?.getBoundingClientRect().right ?? Infinity);
         });
+        // The cut name is one hover away in full.
+        await userEvent.hover(label ?? row);
+        await screen.findByRole("tooltip", { name });
+    });
+
+    it("draws a group in Fields for each source, the selected one open and first, kept across places", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
+        await place().findByRole("listitem", { name: "hosts.csv" }, { timeout: TIMEOUT_MS });
+        const group = (name: string): HTMLElement => within(fieldsGroup()).getByRole("group", { name });
+        await waitFor(() => {
+            group("hosts.csv");
+            group("auth-log.csv");
+            assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("hosts.csv"));
+        });
+        assert.isNotNull(within(group("hosts.csv")).queryByRole("button", { name: "Add to node fields" }));
+        assert.isNull(within(group("auth-log.csv")).queryByRole("combobox", { name: "Source" }), "closed");
+
+        const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });
+        await userEvent.click(within(log).getByRole("button", { pressed: false }));
+        await waitFor(() => {
+            assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("auth-log.csv"));
+            assert.equal(
+                within(group("auth-log.csv")).getByRole<HTMLInputElement>("combobox", { name: "Source" }).value,
+                "user",
+            );
+        });
+
+        await userEvent.click(page.getByRole("button", { name: "Graph", exact: true }));
+        await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
+        const again: HTMLElement = await place().findByRole("listitem", { name: "auth-log.csv" });
+        assert.strictEqual(within(again).getByRole("button", { pressed: true }).closest(".dp-source"), again);
+        assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("auth-log.csv"));
     });
 
     it("selects a source's nodes from its row menu, and only picks the row on a press", async () => {

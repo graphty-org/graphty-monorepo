@@ -456,12 +456,40 @@ export function serverCount(loaded: number, total: number | undefined): string {
 }
 
 /**
- * A joined table's match: "52/70", matched rows of all its rows.
+ * A joined table's match: "52/70", matched rows of all its rows, drawn only when some rows did not
+ * join.
  * @param source - the joined load.
- * @returns the words, or null when the load is not a join.
+ * @returns the words, or null when the load is not a join or every row joined.
  */
 export function joinMatch(source: LoadedSource): string | null {
-    return source.join === undefined ? null : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
+    return source.join === undefined || source.join.matched >= source.join.rows
+        ? null
+        : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
+}
+
+/**
+ * The join match's name and tooltip, with its unit.
+ * @param source - the joined load.
+ * @returns such as "17 of 19 rows joined", or null when {@link joinMatch} draws nothing.
+ */
+export function joinWords(source: LoadedSource): string | null {
+    return joinMatch(source) === null || source.join === undefined
+        ? null
+        : `${formatNumber(source.join.matched)} of ${formatNumber(source.join.rows)} rows joined`;
+}
+
+/**
+ * A Sources row's count chips in words, their name and tooltip; a count of 0 has no chip, so no words.
+ * @param source - the load.
+ * @returns such as "13 nodes, 18 edges", or "4 of 12 nodes" for a server load that says its total.
+ */
+export function countWords(source: LoadedSource): string {
+    const { nodes, edges } = source.counts;
+    const nodeWords =
+        source.total === undefined
+            ? count(nodes, "node")
+            : `${serverCount(nodes, source.total)} node${source.total === 1 ? "" : "s"}`;
+    return [...(nodes > 0 ? [nodeWords] : []), ...(edges > 0 ? [count(edges, "edge")] : [])].join(", ");
 }
 
 /** Which table of a load a Fields row reads its column from. */

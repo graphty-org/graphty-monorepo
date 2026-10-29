@@ -6,7 +6,10 @@ import {
     attributeRows,
     columnOf,
     count,
+    countWords,
     fillOf,
+    joinMatch,
+    joinWords,
     leftOutRow,
     leftOutSentence,
     loadIndexOf,
@@ -322,5 +325,30 @@ describe("a column's kind", () => {
             () => "text",
         );
         assert.equal(row.description, "Text, 70% have a value");
+    });
+});
+
+describe("a Sources row's count and join words", () => {
+    const load = (counts: { nodes: number; edges: number }, extra: Partial<LoadedSource> = {}): LoadedSource =>
+        ({ counts, ...extra }) as LoadedSource;
+
+    it("names the counts with their units, leaving out a count of 0", () => {
+        assert.equal(countWords(load({ nodes: 13, edges: 18 })), "13 nodes, 18 edges");
+        assert.equal(countWords(load({ nodes: 1, edges: 0 })), "1 node");
+        assert.equal(countWords(load({ nodes: 4, edges: 0 }, { total: 12 })), "4 of 12 nodes");
+    });
+
+    it("says how many rows joined only when some did not", () => {
+        assert.equal(
+            joinWords(load({ nodes: 0, edges: 0 }, { join: { matched: 17, rows: 19 } } as Partial<LoadedSource>)),
+            "17 of 19 rows joined",
+        );
+        assert.isNull(
+            joinWords(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
+        );
+        assert.isNull(joinWords(load({ nodes: 0, edges: 0 })));
+        assert.isNull(
+            joinMatch(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
+        );
     });
 });

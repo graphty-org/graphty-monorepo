@@ -30,6 +30,7 @@ import {
     roleHolder,
     ROWS_ARE,
     sidesOf,
+    sourceName,
     tableRoles,
     unusedWords,
 } from "./words";
@@ -607,7 +608,7 @@ function GraphRows({
 }
 
 /**
- * The Fields section (spec section 3.3), for the selected load: its name, then Rows are (for a
+ * One load's Fields (spec section 3.3): Rows are (for a
  * load of one table), then each side under its node or edge chip -- its fixed structure rows (the
  * node Id; an edge's Source and Target, the shared-ids choice when an id appears under two kinds,
  * and the graph's direction), which always hold a value, then its list of special fields with a
@@ -618,16 +619,16 @@ function GraphRows({
  * reads the load again (`data.reloadSource`). Rows are: edges on a table of nodes asks for Source
  * and Target first and reads the load again once both are picked. Each change is one undo step.
  * @param props - Component props
- * @param props.source - the selected load, or undefined when the graph was not loaded from one
- * @returns the section, or nothing before the element has come up
+ * @param props.session - the element's session
+ * @param props.source - the load, or undefined when the graph was not loaded from one
+ * @returns the rows
  */
-export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }>): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
+function SourceFields({
+    session,
+    source,
+}: Readonly<{ session: GraphSession; source: LoadedSource | undefined }>): React.JSX.Element {
+    const { store } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
-    useTimeFieldVersion(session);
-    if (session === null) {
-        return null;
-    }
     const attributes = session.data.attributes();
     const fail = (): void => {
         store.set({ notice: { message: "Field not changed" } });
@@ -667,75 +668,140 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
     const single = tables.length === 1 ? tables[0].rowsAre : undefined;
     const rowsAre = ends === null ? single : "edges";
     return (
-        <ControlSection label="Fields" empty={sides.length === 0 && ends === null}>
-            <div className="dp-fields">
-                {source === undefined ? null : (
-                    <Text size="xs" fw={600} truncate className="dp-fields-source">
-                        {source.name}
-                    </Text>
-                )}
-                {source?.reloadable === true && rowsAre !== undefined ? (
-                    <PickRow
-                        label="Rows are"
-                        value={rowsAre}
-                        choices={ROWS_ARE}
-                        onPick={(picked) => {
-                            if (picked === "edges") {
-                                store.set({ ends: { load: source.key, source: null, target: null } });
-                            } else if (ends === null) {
-                                reload({ mapping: remap(source, "edges", { rowsAre: "nodes" }) });
-                            } else {
-                                store.set({ ends: null });
-                            }
-                        }}
-                    />
-                ) : null}
-                {ends === null || source === undefined ? null : (
-                    <>
-                        <div className="dp-fields-group">
-                            <EntityChip kind="edge">{formatNumber(source.counts.nodes)}</EntityChip>
-                        </div>
-                        {(["source", "target"] as const).map((end) => (
-                            <PickRow
-                                key={end}
-                                label={end === "source" ? "Source" : "Target"}
-                                withNone
-                                value={ends[end]}
-                                choices={columnChoices(attributes, source, "nodes", ends[end])}
-                                onPick={(picked) => {
-                                    pickEnd(store, session, source, end, picked).catch(fail);
-                                }}
-                            />
-                        ))}
-                    </>
-                )}
-                {sides.includes("nodes") ? (
-                    <SideGroup
-                        side="nodes"
-                        count={source?.counts.nodes ?? totalNodes}
-                        source={source}
-                        attributes={attributes}
-                        fixed={fixedRows("nodes")}
-                        onReload={reload}
-                        onFail={fail}
-                    />
-                ) : null}
-                {sides.includes("edges") ? (
-                    <SideGroup
-                        side="edges"
-                        count={source?.counts.edges ?? totalEdges}
-                        source={source}
-                        attributes={attributes}
-                        fixed={
-                            <>
-                                {fixedRows("edges")}
-                                <GraphRows session={session} source={source} onReload={reload} onFail={fail} />
-                            </>
+        <div className="dp-fields">
+            {source?.reloadable === true && rowsAre !== undefined ? (
+                <PickRow
+                    label="Rows are"
+                    value={rowsAre}
+                    choices={ROWS_ARE}
+                    onPick={(picked) => {
+                        if (picked === "edges") {
+                            store.set({ ends: { load: source.key, source: null, target: null } });
+                        } else if (ends === null) {
+                            reload({ mapping: remap(source, "edges", { rowsAre: "nodes" }) });
+                        } else {
+                            store.set({ ends: null });
                         }
-                        onReload={reload}
-                        onFail={fail}
-                    />
-                ) : null}
+                    }}
+                />
+            ) : null}
+            {ends === null || source === undefined ? null : (
+                <>
+                    <div className="dp-fields-group">
+                        <EntityChip kind="edge">{formatNumber(source.counts.nodes)}</EntityChip>
+                    </div>
+                    {(["source", "target"] as const).map((end) => (
+                        <PickRow
+                            key={end}
+                            label={end === "source" ? "Source" : "Target"}
+                            withNone
+                            value={ends[end]}
+                            choices={columnChoices(attributes, source, "nodes", ends[end])}
+                            onPick={(picked) => {
+                                pickEnd(store, session, source, end, picked).catch(fail);
+                            }}
+                        />
+                    ))}
+                </>
+            )}
+            {sides.includes("nodes") ? (
+                <SideGroup
+                    side="nodes"
+                    count={source?.counts.nodes ?? totalNodes}
+                    source={source}
+                    attributes={attributes}
+                    fixed={fixedRows("nodes")}
+                    onReload={reload}
+                    onFail={fail}
+                />
+            ) : null}
+            {sides.includes("edges") ? (
+                <SideGroup
+                    side="edges"
+                    count={source?.counts.edges ?? totalEdges}
+                    source={source}
+                    attributes={attributes}
+                    fixed={
+                        <>
+                            {fixedRows("edges")}
+                            <GraphRows session={session} source={source} onReload={reload} onFail={fail} />
+                        </>
+                    }
+                    onReload={reload}
+                    onFail={fail}
+                />
+            ) : null}
+        </div>
+    );
+}
+
+/**
+ * The Fields section: one collapsible group per load, named after it (the Style panel's kind
+ * groups), the selected load's open and first. Picking another load opens its group and scrolls to
+ * it; the reader opens and closes the rest. A graph not loaded from a file shows its fields
+ * ungrouped.
+ * @param props - Component props
+ * @param props.sources - `data.sources()`
+ * @param props.selected - the selected load
+ * @returns the section, or nothing before the element has come up
+ */
+export function Fields({
+    sources,
+    selected,
+}: Readonly<{ sources: readonly LoadedSource[]; selected: LoadedSource | undefined }>): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    const held = useWorkspaceState((state) => state.ends);
+    useTimeFieldVersion(session);
+    // The groups the reader opened or closed; a group they never touched is open only while its load
+    // is selected. A new pick forgets the reader's choice for that group, so it opens.
+    const [opened, setOpened] = useState<Readonly<Record<string, boolean>>>({});
+    const [openedFor, setOpenedFor] = useState(selected?.key);
+    if (openedFor !== selected?.key) {
+        setOpenedFor(selected?.key);
+        if (selected !== undefined) {
+            setOpened(({ [selected.key]: _picked, ...rest }) => rest);
+        }
+    }
+    const groups = useRef<HTMLDivElement>(null);
+    const drawn = useRef(false);
+    useEffect(() => {
+        // Not on the first drawing: only a new pick scrolls the panel.
+        if (drawn.current) {
+            groups.current?.firstElementChild?.scrollIntoView({ block: "nearest" });
+        }
+        drawn.current = true;
+    }, [selected?.key]);
+    if (session === null) {
+        return null;
+    }
+    const attributes = session.data.attributes();
+    const empty = (source: LoadedSource | undefined): boolean =>
+        sidesShown(attributes, source).length === 0 && !(source !== undefined && held?.load === source.key);
+    if (sources.length === 0) {
+        return (
+            <ControlSection label="Fields" empty={empty(undefined)}>
+                <SourceFields session={session} source={undefined} />
+            </ControlSection>
+        );
+    }
+    const ordered = selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
+    return (
+        <ControlSection label="Fields">
+            <div ref={groups} className="dp-field-groups">
+                {ordered.map((source) => (
+                    <ControlSection
+                        key={source.key}
+                        label={sourceName(source)}
+                        headingLevel={3}
+                        empty={empty(source)}
+                        opened={opened[source.key] ?? source === selected}
+                        onOpenChange={(open) => {
+                            setOpened((was) => ({ ...was, [source.key]: open }));
+                        }}
+                    >
+                        <SourceFields session={session} source={source} />
+                    </ControlSection>
+                ))}
             </div>
         </ControlSection>
     );

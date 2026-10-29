@@ -44,6 +44,13 @@ behavior meanwhile.
 7. **"Alt+Down" in the column "..." tooltip** (compact-mantine DataTable). The header menu opens on
    Alt+ArrowDown and Shift+F10 but no control shows the key; showing it changes a locked
    component's words. The ARIA-only part (`aria-haspopup`, `aria-keyshortcuts`) is in the backlog.
+8. **An Open button beside the web address box** (compact-mantine FileSource). Refinement R8 asks
+   for a visible label and an Open button by Open network data's address box (Enter still opens).
+   The label is built: the dialog draws "Web address" above the box. The button is not: the row
+   form of FileSource draws only the box and its file-chooser icon, and the typed address lives
+   inside it, so a button needs a new FileSource option (for example `openLabel="Open"`), a change
+   to a locked component's look. Options: (a) add the option to FileSource, opt-in, under a
+   `Figma-Approved` trailer; (b) keep Enter as the only way to open an address.
 
 ## 2026-10-23 -- Owner approval: compact-mantine is locked to its Figma spec (compact-mantine)
 

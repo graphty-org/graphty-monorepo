@@ -23,7 +23,6 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { openServerForm } from "../server/commands";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
@@ -32,8 +31,8 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openFiles, openGenerated, openModel, openSample, openUrl, pictureOf } from "./open";
+import { NETWORK_DIALOG } from "./NetworkDataDialog";
+import { openDataset, openFiles, openGenerated, openModel, openSample, pictureOf } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -701,7 +700,6 @@ export function StartScreen(): React.JSX.Element {
     const recent = useRecentProjects();
     const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
-    const [network, setNetwork] = useState(false);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
         setSession(next);
@@ -883,7 +881,7 @@ export function StartScreen(): React.JSX.Element {
                                         leftSection={<GLYPHS.data size={16} aria-hidden />}
                                         aria-haspopup="dialog"
                                         onClick={() => {
-                                            setNetwork(true);
+                                            workspace.store.set({ dialog: NETWORK_DIALOG });
                                         }}
                                     >
                                         Open network data
@@ -919,26 +917,6 @@ export function StartScreen(): React.JSX.Element {
             </div>
 
             <PageFoot />
-
-            <NetworkDataDialog
-                opened={network}
-                scheme={scheme}
-                onClose={() => {
-                    setNetwork(false);
-                }}
-                onOpenLink={(url) => {
-                    setNetwork(false);
-                    openUrl(workspace.store, url);
-                }}
-                onOpenFiles={(files) => {
-                    setNetwork(false);
-                    openFiles(workspace, files);
-                }}
-                onOpenServer={() => {
-                    setNetwork(false);
-                    openServerForm(workspace.store);
-                }}
-            />
 
             {dragging ? (
                 <div className="ws-start-drop" aria-hidden>

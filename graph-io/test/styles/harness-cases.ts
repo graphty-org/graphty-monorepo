@@ -8,8 +8,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
-
 import { extractStyles } from "../../src/styles/internal.js";
 import { RANDOM_10000, RANDOM_10000_CUT } from "./formats/dot.js";
 import {
@@ -21,6 +19,7 @@ import {
     type StyleFormat,
     styleFormats,
     type StyleInput,
+    type StyleWriter,
 } from "./harness.js";
 
 /** How many files the round trip and hostile-block checks are spread over: harness-writes-1 to -3.test.ts. */
@@ -115,37 +114,55 @@ export function sharedInputs(format: StyleFormat): StyleInput[] {
     });
 }
 
+/** One writing format's inputs in a slice, as `[name, input]` rows for `it.each`. */
+export interface WriteSlice {
+    /** The inputs whose round trip should hold. */
+    readonly pass: (readonly [string, StyleInput])[];
+    /** The inputs whose round trip is a known failure (KNOWN_FAILURES). */
+    readonly fail: (readonly [string, StyleInput])[];
+    /** The inputs the hostile-block check runs on: every one but a scale point's large member. */
+    readonly hostile: (readonly [string, StyleInput])[];
+}
+
 /**
- * The round trip and hostile-block checks of every format with a style writer, on one slice of each format's inputs.
+ * One slice of each format with a style writer: the round trip and hostile-block checks' inputs.
  * @param slice - which slice, from 0
+ * @returns `[format name, writer, the slice's inputs]` rows for `describe.each`
  */
-export function describeWrites(slice: number): void {
-    const writing = FORMATS.flatMap((f) => (f.writer === undefined ? [] : [[f.name, f, f.writer] as const]));
-    describe.each(writing)("%s", (_name, format, writer) => {
-        const inputs = sharedInputs(format).filter((_input, i) => i % WRITE_SLICES === slice);
-        const writes = split(inputs, "writes");
-        const write = async (input: (typeof inputs)[number]): Promise<void> => {
-            const loaded = await input.load();
-            const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
-            const full = !SCALE_POINTS.has(input.name);
-            expect(ex === null ? [] : await roundTrip(writer, loaded, ex, full)).toEqual([]);
-        };
-        it.each(writes.pass)("%s writes styles that read back as the same rules and values", (_name, input) =>
-            write(input),
-        );
-        it.each(inputs.filter((input) => !SCALE_POINTS.has(input.name)).map((input) => [input.name, input] as const))(
-            "%s ignores a hostile graphty.styles block in the written file",
-            async (_input, input) => {
-                const loaded = await input.load();
-                const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
-                expect(ex === null ? [] : await checkHostileBlocks(writer, loaded, ex)).toEqual([]);
-            },
-        );
-        if (writes.fail.length > 0) {
-            it.fails.each(writes.fail)(
-                "%s writes styles that read back as the same rules and values (known failure)",
-                (_n, i) => write(i),
-            );
+export function writeSlice(slice: number): (readonly [string, StyleWriter, WriteSlice])[] {
+    return FORMATS.flatMap((format) => {
+        if (format.writer === undefined) {
+            return [];
         }
+        const inputs = sharedInputs(format).filter((_input, i) => i % WRITE_SLICES === slice);
+        const hostile = inputs
+            .filter((input) => !SCALE_POINTS.has(input.name))
+            .map((input) => [input.name, input] as const);
+        return [[format.name, format.writer, { ...split(inputs, "writes"), hostile }] as const];
     });
+}
+
+/**
+ * The round trip's problems for one input: none when its styles read back as the same rules and values.
+ * @param writer - the format's style writer
+ * @param input - the input
+ * @returns the problems
+ */
+export async function writeProblems(writer: StyleWriter, input: StyleInput): Promise<string[]> {
+    const loaded = await input.load();
+    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    return ex === null ? [] : roundTrip(writer, loaded, ex, !SCALE_POINTS.has(input.name));
+}
+
+/**
+ * The hostile-block check's problems for one input: none when a hostile graphty.styles block in the written file
+ * is ignored.
+ * @param writer - the format's style writer
+ * @param input - the input
+ * @returns the problems
+ */
+export async function hostileProblems(writer: StyleWriter, input: StyleInput): Promise<string[]> {
+    const loaded = await input.load();
+    const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+    return ex === null ? [] : checkHostileBlocks(writer, loaded, ex);
 }

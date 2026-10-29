@@ -170,3 +170,8 @@
 .dp-filter[data-off] .dp-filter-body {
     opacity: 0.6;
 }
+
+/* The row's issues chip stays drawn on hover and focus: it is a door, not a count the actions replace. */
+.dp-source-issues {
+    flex: none;
+}

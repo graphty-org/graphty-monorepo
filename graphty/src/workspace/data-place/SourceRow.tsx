@@ -1,6 +1,6 @@
-import { ContextMenu, EntityChip } from "@graphty/compact-mantine";
+import { ContextMenu, EntityChip, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { LoadedSource } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Menu, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import type { SourceRowCommand } from "../commands/registry";
@@ -8,6 +8,7 @@ import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { IssuesList } from "../table/IssuesList";
 import { joinMatch, serverCount, sourceName } from "./words";
 
 const KIND_ICONS: Readonly<Record<LoadedSource["kind"], React.ReactNode>> = {
@@ -106,10 +107,58 @@ function RenameInput({
 }
 
 /**
+ * The row's warning chip: the load's open issues, counted; it opens the one issue list
+ * (`IssuesList`, the table's) for that load in a popover on the row. It stays while the popover is
+ * open, so settling the last issue leaves the list and the focus where they are.
+ * @param props - Component props
+ * @param props.source - the load
+ * @param props.name - its name
+ * @returns the chip, or null when the load has no open issue
+ */
+function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: string }>): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    const [opened, setOpened] = useState(false);
+    const count = session?.data.issues().filter((issue) => issue.source === source.key).length ?? 0;
+    if (count === 0 && !opened) {
+        return null;
+    }
+    return (
+        <PopoutManager>
+            <Popout opened={opened} onOpenChange={setOpened}>
+                <Popout.Trigger>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        className="dp-source-issues"
+                        leftSection={<GLYPHS.warning size={14} className="ws-issue-icon" aria-hidden />}
+                        aria-label={`${String(count)} ${count === 1 ? "issue" : "issues"} in ${name}`}
+                        aria-haspopup="dialog"
+                        aria-expanded={opened}
+                    >
+                        {formatNumber(count)}
+                    </Button>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={360}
+                    placement="right"
+                    alignment="start"
+                    header={{ variant: "title", title: `Issues in ${name}` }}
+                >
+                    <Popout.Content>
+                        <IssuesList source={source.key} />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </PopoutManager>
+    );
+}
+
+/**
  * One Sources row (spec section 3.2): the kind's icon, the name, the node and edge chips (none for
  * a count of 0); a joined table's link and matched rows; a server load's node chip "500 of 40,000". On hover
  * or focus, Load more, Refresh and "..." take the chips' place, and a running one stays drawn busy. Its menu (right-click, Shift+F10 or "...") lists every registered Sources row command
- * that applies, and Rename.
+ * that applies, and Rename. A load with open issues shows a warning chip with their count, which
+ * opens its issue list.
  * @param props - Component props
  * @param props.source - the load
  * @param props.selected - whether it is the selected row
@@ -217,6 +266,7 @@ export function SourceRow({
                             </span>
                         </button>
                     )}
+                    {renaming ? null : <IssuesChip source={source} name={name} />}
                     <span className="dp-source-actions">
                         {commands.flatMap((command) =>
                             command.icon === undefined

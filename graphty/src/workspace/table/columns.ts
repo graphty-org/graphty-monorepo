@@ -326,7 +326,7 @@ const ISSUE_WORDS: Readonly<Record<string, readonly [one: string, many: string]>
     "unknown-end": ["unknown end", "unknown ends"],
     "repeated-edge": ["repeated edge", "repeated edges"],
     "repeated-id": ["repeated id", "repeated ids"],
-    "padded-space": ["padded spaces", "padded spaces"],
+    "padded-space": ["value with padded spaces", "values with padded spaces"],
     "case-variant": ["case variant", "case variants"],
     "blank-id": ["blank id", "blank ids"],
     "refused-row": ["row refused", "rows refused"],
@@ -370,6 +370,30 @@ const FIX_WORDS: Readonly<Record<string, string>> = {
  */
 export function fixLabel(fix: FixCode): string {
     return FIX_WORDS[fix] ?? fix;
+}
+
+/** What each fix did, in the past tense, for the status line: "1 value made blank". */
+const FIX_DONE: Readonly<Record<string, string>> = {
+    "make-blank": "made blank",
+    "read-decimal-comma": "read as decimals",
+    "add-nodes": "added as nodes",
+    "leave-out": "left out",
+    merge: "merged",
+    keep: "kept",
+    "keep-first": "kept first",
+    "merge-rows": "merged",
+    trim: "trimmed",
+    "merge-case": "merged by case",
+    "read-yes-no": "read as yes/no",
+};
+
+/**
+ * What a fix did, in the past tense.
+ * @param fix - the element's fix code.
+ * @returns such as "trimmed".
+ */
+export function fixDone(fix: FixCode): string {
+    return FIX_DONE[fix] ?? "fixed";
 }
 
 /** Where an issue shows: the table and the column whose header carries its warning. */

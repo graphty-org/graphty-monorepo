@@ -1,24 +1,41 @@
 import { ControlSection, EntityChip } from "@graphty/compact-mantine";
-import type { DataIssue, FixCode, GraphSession } from "@graphty/graphty-element/session";
+import type { DataIssue, FixCode, GraphSession, SourceKey } from "@graphty/graphty-element/session";
 import { Button, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { fixLabel, ignoreAll, issueLabel, issuePlace } from "./columns";
+import { countOf, fixDone, fixLabel, ignoreAll, issueLabel, issuePlace } from "./columns";
 
 /**
- * Applies a fix, one undo step; a refusal says so on the notice.
+ * What a settled issue is said as, once, politely: "families: 1 value made blank".
+ * @param session - the element's session, for where the issue is.
+ * @param issue - the issue.
+ * @param done - what was done, in the past tense.
+ * @returns the words.
+ */
+function settledWords(session: GraphSession, issue: DataIssue, done: string): string {
+    return `${issuePlace(issue, session).name}: ${countOf(issue.count, "value")} ${done}`;
+}
+
+/**
+ * Applies a fix, one undo step, and says so; a refusal says so on the notice.
  * @param session - the element's session.
  * @param store - the workspace store, for the notice.
  * @param issue - the issue.
  * @param fix - the fix.
  */
 function applyFix(session: GraphSession, store: WorkspaceStore, issue: DataIssue, fix: FixCode): void {
-    session.data.fix(issue, fix).catch(() => {
-        store.set({ notice: { message: "Not fixed" } });
-    });
+    const said = settledWords(session, issue, fixDone(fix));
+    session.data.fix(issue, fix).then(
+        () => {
+            store.set({ announcement: said });
+        },
+        () => {
+            store.set({ notice: { message: "Not fixed" } });
+        },
+    );
 }
 
 /**
@@ -29,9 +46,15 @@ function applyFix(session: GraphSession, store: WorkspaceStore, issue: DataIssue
  * @param ignored - true to ignore it.
  */
 function setIgnored(session: GraphSession, store: WorkspaceStore, issue: DataIssue, ignored: boolean): void {
-    session.data.ignoreIssue(issue, ignored).catch(() => {
-        store.set({ notice: { message: "Not changed" } });
-    });
+    const said = settledWords(session, issue, ignored ? "ignored" : "restored");
+    session.data.ignoreIssue(issue, ignored).then(
+        () => {
+            store.set({ announcement: said });
+        },
+        () => {
+            store.set({ notice: { message: "Not changed" } });
+        },
+    );
 }
 
 /**
@@ -147,7 +170,7 @@ export function IssueRow({
         >
             <GLYPHS.warning size={14} className="ws-issue-icon" aria-hidden />
             {where === undefined ? null : <EntityChip kind={where.kind}>{where.name}</EntityChip>}
-            <Text size="xs" className="ws-issue-label">
+            <Text size="sm" className="ws-issue-label">
                 {issueLabel(issue)}
             </Text>
             <span className="ws-issue-actions">
@@ -198,18 +221,23 @@ function GroupToggle({
  * The maximized table's Issues list (spec section 3.5.3): every issue graphty-element counts,
  * flat, one row each with its table and column as a chip, the fix the data shows pressed, the
  * other fixes and Ignore; at the end "Ignored 2", which lists the ignored ones again with Restore,
- * and "Resolved 3", which lists the fixed ones with the fix that settled each; "Ignore all"
- * ignores every open one as one undo step. Nothing when there is nothing to show.
+ * and "Resolved 3", which lists the fixed ones with the fix that settled each; "Ignore in all columns"
+ * ignores every open one as one undo step. Nothing when there is nothing to show. With `source`,
+ * only that load's issues: the Sources row's popover draws it so.
+ * @param props - Component props
+ * @param props.source - lists only this load's issues
  * @returns the section
  */
-export function IssuesList(): React.JSX.Element | null {
+export function IssuesList({ source }: Readonly<{ source?: SourceKey }> = {}): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const [showIgnored, setShowIgnored] = useState(false);
     const [showResolved, setShowResolved] = useState(false);
     if (session === null) {
         return null;
     }
-    const all = session.data.issues({ includeIgnored: true, includeFixed: true });
+    const all = session.data
+        .issues({ includeIgnored: true, includeFixed: true })
+        .filter((issue) => source === undefined || issue.source === source);
     const resolved = all.filter((issue) => issue.status === "fixed");
     const open = all.filter((issue) => issue.status !== "fixed" && !issue.ignored);
     const ignored = all.filter((issue) => issue.status !== "fixed" && issue.ignored);
@@ -230,7 +258,7 @@ export function IssuesList(): React.JSX.Element | null {
                             ignoreAll(session, store, open);
                         }}
                     >
-                        Ignore all
+                        Ignore in all columns
                     </Button>
                 )
             }

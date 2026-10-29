@@ -546,6 +546,32 @@ describe("ingest: what it stores", () => {
 });
 
 describe("recompute and read", () => {
+    it("serves a test slot's hold as a local run and local shard time, by what ran", async () => {
+        const h = await ingest();
+        const held = {
+            id: "local.held.test-slot-held.2026-10-29T16:05:38.542Z.1233520",
+            at: NOW - 60_000,
+            startedAt: NOW - 3 * 60_000,
+            exit: 1,
+            what: "graphty-element",
+        };
+        expect((await h(event("/v1/local/push-runs", { rows: [held] }, { auth: TOKEN }))).statusCode).toBe(200);
+        const bad = { ...held, id: "local.held.x", what: "a b/../c" };
+        expect((await h(event("/v1/local/push-runs", { rows: [bad] }, { auth: TOKEN }))).statusCode).toBe(400);
+
+        const { recomputeAll } = await import("../src/recompute.ts");
+        await setCursor(mem, "fold-version", FOLD_VERSION, NOW);
+        await recomputeAll(mem, NOW, { getSecret: vi.fn(async () => undefined), fetch: vi.fn() });
+        const { handler: read } = await import("../src/handlers/read.ts");
+        const page = JSON.parse((await read(event("/v1/page/local", "", {}) as never)).body!);
+        const runs = page.sections.find((s: { id: string }) => s.id === "runs");
+        expect(runs.groups[0].items[0]).toMatchObject({ label: { t: "name", v: "graphty-element" }, n: 1 });
+        const time = page.sections.find((s: { id: string }) => s.id === "shard-time");
+        expect(time.groups[0].items[0]).toMatchObject({ label: { t: "name", v: "graphty-element" } });
+        expect(page.members.find((m: { id: string }) => m.id === "local-runs.shard_time").n).toBe(1);
+        expect(page.members.find((m: { id: string }) => m.id === "local-runs.local_vs_ci").n).toBe(1);
+    });
+
     it("serves a local post on /v1/page/local after the next recompute", async () => {
         const h = await ingest();
         const rows = [

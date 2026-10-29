@@ -349,6 +349,10 @@ export const METRICS: MetricDef[] = [
         id: "local.shard_time",
         from: [
             src("shard_run", "endedAt", (s) => (s.source === "local" ? { value: s.secs * 1000, dim: s.family } : null)),
+            // Every local test run since the pre-push gate retired: a test slot's hold, by package or shard family.
+            src("local_run", "endedAt", (l) =>
+                l.what === "gate" ? null : { value: l.endedAt - l.startedAt, dim: l.what },
+            ),
         ],
     },
 ];

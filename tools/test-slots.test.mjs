@@ -12,11 +12,30 @@ import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { acquire, HELD, laneOf, liveTickets, shardCacheDir, slotCount, workerShare } from "./test-slots.mjs";
+import {
+    acquire,
+    commandWhat,
+    HELD,
+    laneOf,
+    liveTickets,
+    packageName,
+    shardCacheDir,
+    slotCount,
+    workerShare,
+} from "./test-slots.mjs";
 
 // The temporary directories this file makes go inside this one, removed when the file finishes.
 const TMP = mkdtempSync(join(tmpdir(), "test-slots-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
+// The wrapped commands below log their waits and holds here, never to the machine's wait log.
+const WAIT_LOG = join(TMP, "waits.jsonl");
+process.env.PIPELINE_WAIT_LOG = WAIT_LOG;
+const holds = () =>
+    readFileSync(WAIT_LOG, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => JSON.parse(l))
+        .filter((w) => w.kind.endsWith("-slot-held"));
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = join(ROOT, "tools/test-slots.mjs");
@@ -223,6 +242,50 @@ describe("test-slots", () => {
         assert.equal(r.status, 3);
         assert.match(r.stdout, /^\d+\n$/);
         assert.deepEqual(readdirSync(dir), [], "the slot was given back");
+        const held = holds().at(-1);
+        assert.equal(held.kind, "test-slot-held");
+        assert.equal(held.exit, 3, "the hold carries the command's exit code");
+        assert.equal(held.what, "node");
+    });
+
+    it("logs each hold once when it ends, with what held it and its exit code; free() gives it back unlogged", async () => {
+        const dir = fresh();
+        const lines = [];
+        const waitLog = (w) => lines.push(w);
+        const release = await acquire({
+            ...quiet,
+            waitLog,
+            dir,
+            slots: 1,
+            pid: sleeper().pid,
+            label: "x",
+            what: "layout",
+        });
+        release.free();
+        assert.deepEqual(readdirSync(dir), [], "free gives the slot back");
+        assert.equal(lines.length, 0, "a teardown before the exit logs nothing");
+        release(1);
+        release(0);
+        assert.equal(lines.length, 1, "one line per hold");
+        assert.equal(lines[0].kind, "test-slot-held");
+        assert.deepEqual(lines[0].extra, { what: "layout", exit: 1 });
+        const unknown = await acquire({ ...quiet, waitLog, dir, slots: 1, pid: sleeper().pid, label: "y" });
+        unknown();
+        assert.equal(lines[1].extra.exit, null, "no exit code: null, never a pass");
+    });
+
+    it("names what a run is: a shard family for run-tests.sh, a package for a vitest run", () => {
+        assert.equal(
+            commandWhat(["bash", "tools/run-tests.sh", "graphty-element-browser-3"]),
+            "graphty-element-browser",
+        );
+        assert.equal(
+            commandWhat(["bash", "tools/run-tests.sh", "--command", "graphty-2", "vitest run a.test.ts"]),
+            "graphty",
+        );
+        assert.equal(commandWhat(["/usr/bin/pnpm", "exec", "vitest"]), "pnpm");
+        assert.equal(packageName(join(ROOT, "layout")), "layout");
+        assert.equal(packageName(TMP), TMP.split("/").at(-1));
     });
 
     it("--gpu holds the one GPU slot instead of a test slot, so a run under it takes no test slot", async () => {

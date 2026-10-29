@@ -490,16 +490,22 @@ function localId(r: Record<string, unknown>): string {
     return r.id as string;
 }
 
+/** A local run's `what`: a package or shard family name. */
+const WHAT = /^[\w.-]{1,80}$/;
+
 function pushRun(r: Record<string, unknown>): LocalRunItem {
     const id = localId(r);
     need(r, { at: "number", exit: "number" });
+    if (r.what !== undefined && (typeof r.what !== "string" || !WHAT.test(r.what)))
+        refuse(400, "bad_field", { field: "what", type: "name" });
     const at = r.at as number;
     const start = [r.startedAt, r.queuedAt].find((v) => typeof v === "number") as number | undefined;
     return {
         kind: "local_run",
         id,
         attempt: 1,
-        what: "gate",
+        // A slot hold names what ran (a package or shard family); a push log line is a gate run.
+        what: r.what === undefined ? "gate" : (r.what as string),
         outcome: r.exit === 0 ? "passed" : "failed",
         startedAt: start ?? at,
         endedAt: at,

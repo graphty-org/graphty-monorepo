@@ -48,12 +48,15 @@ beforeEach(() => {
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 test("maps every source and posts no host path, gate log, cwd or session id", async () => {
+    // Two holds as tools/test-slots.mjs logs them: a finished vitest run, and one whose exit code is unknown.
+    appendFileSync(join(root, "tmp/waits.jsonl"), readFileSync(join(fixtures, "holds.jsonl")));
     const { calls, post } = recorder();
     const counts = await collect({ root, post });
     assert.deepEqual(Object.fromEntries(Object.entries(counts).map(([k, c]) => [k, c.posted])), {
         invocations: 2,
         "push-runs": 2,
         waits: 2,
+        held: 1,
     });
     const text = JSON.stringify(calls);
     for (const banned of ["/home/", "/tmp/", "cwd", "sessionId", "gateLog", "heldBy", "waiter", '"log"']) {
@@ -79,6 +82,17 @@ test("maps every source and posts no host path, gate log, cwd or session id", as
         queuedAt: Date.parse("2026-10-25T15:15:36Z"),
         startedAt: Date.parse("2026-10-25T15:15:37Z"),
     });
+    // Every local test run is a test slot's hold; one whose exit code is unknown is left out.
+    const held = calls.filter((c) => c.kind === "push-runs").at(-1).body.rows;
+    assert.deepEqual(held, [
+        {
+            id: "local.held.test-slot-held.2026-10-29T16:05:38.542Z.1233520",
+            at: Date.parse("2026-10-29T16:06:41.120Z"),
+            startedAt: Date.parse("2026-10-29T16:05:38.542Z"),
+            exit: 1,
+            what: "graphty-element",
+        },
+    ]);
     const waits = calls.find((c) => c.kind === "waits").body.rows;
     assert.deepEqual(
         waits.map((w) => w.kind),

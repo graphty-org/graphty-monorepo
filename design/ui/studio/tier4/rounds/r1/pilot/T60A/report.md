@@ -3,8 +3,12 @@
 Build: 0ffeae2ef5 (frozen, `.study-builds/tier4-r1-0ffeae2ef5`). Start: empty. Screenshots are under
 `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1/pilot/T60A/` (not in git).
 
-Result: reached on all three routes. The network opened from the address with 24 nodes and 59
-edges, matching the answer key, and the data stayed sources.graphml the whole way.
+Result: reached on all three routes. Every route below was walked twice on the frozen build: the
+first walk by hand, the second a replay of it into a `-b` folder (`success-b/`, `detour-open-file-b/`,
+`detour-menu-paste-b/`, `keyboard-b/`), and each replay matched its route to the last step. The
+Server form detour from inside a project was then taken to its end by hand (`detour-server/`).
+
+The network opened from the address with 24 nodes and 59 edges, matching the answer key, and the data stayed sources.graphml the whole way.
 
 ## 1. Success path by pointer (`success/`)
 
@@ -51,6 +55,26 @@ edges, matching the answer key, and the data stayed sources.graphml the whole wa
   headless browser denies clipboard reads, so whether a pasted address would load was not tried.
   But the notice shows the browser's raw error text, which a person who blocks clipboard access
   would see too.
+
+### c. Server... from inside a project, taken to its end (`detour-server/`)
+
+- 02-03 New project, Data, Sources "+": File... Ctrl+O, Samples..., Server..., Network data...,
+  Paste Ctrl+V.
+- 04 Server... opens the form on Kind "Neo4j"; the Kind list holds NDEx, Cypher database, Neo4j,
+  Web API, OpenAlex, SPARQL endpoint.
+- 05 Kind "Web API", the address typed into Endpoint. The form now shows Sign in (token), an
+  empty Mapping box with no hint of what goes in it, Limit 500. Test and Load stay dimmed.
+- 06 Enter in Endpoint does nothing. 07 Tab moves on to Sign in. 08 hovering Load and Test: no
+  tooltip, so no reason why they are dimmed. 09 clicking Load does nothing (it is disabled).
+- 10 the Example list offers "STRING: TP53's functional partners" and "deps.dev: webpack 5.90.0",
+  neither a file. 11 Escape closes the list; 12 Escape closes the form and puts focus back on
+  Sources "+" (as decided for dialogs). Nothing was loaded and the address is gone.
+- 13 Sources "+" > Paste: the same notice as on the canvas, "Paste failed: Failed to execute
+  'readText' on 'Clipboard': Read permission denied."
+- 14 Right-click on the empty canvas: Fit, Frame selection, New layer from selection, Select all,
+  Clear selection (each dimmed with its reason), Motion off. Nothing brings data in.
+- 15 the empty canvas card's File... opens the system file chooser; answering it with the web
+  address is refused by the tool (it takes only a local file), 16 Escape closes it.
 
 ## 3. Keyboard only (`keyboard/`, started with --keys --sr)
 
@@ -107,9 +131,19 @@ edges, matching the answer key, and the data stayed sources.graphml the whole wa
 15. The dialog opens with focus on "Close", not on the address box, so it takes 4 Tabs to get
     there (keyboard 19-23).
 16. An address typed into the find box only says "No match" (detour-menu-paste 05).
+17. Server form with Kind "Web API" and a file's address in Endpoint: Test and Load stay dimmed
+    with no tooltip giving the reason, Enter does nothing, and the empty Mapping box gives no hint
+    of what it needs. A person who chose this door is stuck with no word on why
+    (detour-server 05-09).
+18. Sources "+" > Paste shows the same raw browser error as Control+V on the canvas
+    (detour-server 13).
 
 ## Not walked
 
-- Pasting the address into the system file chooser: the tool can answer the chooser only with a
-  local file.
-- Whether Control+V with an address loads it: the headless browser denies clipboard reads.
+- Typing or pasting the address into the system file chooser: the chooser was opened from the
+  start screen (detour-open-file 02) and from the empty canvas card (detour-server 15), but the
+  tool answers it only with a local file and refuses an address, so what a desktop chooser does
+  with an address could not be seen.
+- Whether a paste (Control+V on the canvas, or Sources "+" > Paste) loads an address: both were
+  tried, and the headless browser denies the clipboard read before the app sees any text
+  (detour-menu-paste 07, detour-server 13).

@@ -20,6 +20,9 @@ import { Workspace } from "../../Workspace";
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
 
+/** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
+const PRE_STEPS = 1000;
+
 /** Six nodes in a ring, each with a number. */
 const RING_GML = `graph [
   directed 0
@@ -46,6 +49,12 @@ async function openScene(): Promise<GraphSession> {
     if (session === undefined) {
         throw new Error("the element never came up");
     }
+    // The force layout settles before the first frame: these tests are about the Style panel, not
+    // the layout, and a layout left to settle on screen draws a frame per step. On a software GPU
+    // each frame holds the page's main thread until it is read back (hundreds of milliseconds on
+    // a busy machine), the layout keeps to the clock so it draws on through the whole test, and
+    // every click waits behind those frames (issue #4239).
+    await session.config.set({ layoutBehavior: { preSteps: PRE_STEPS } });
     await session.data.import({ type: "gml", name: "ring.gml", config: { data: RING_GML } });
     await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
     await session.styles.settled();

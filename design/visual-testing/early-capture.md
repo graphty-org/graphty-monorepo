@@ -238,14 +238,16 @@ key move as its first part.
 - **Quiet** means: no job queued and `ci.saturated_ms` 0 in each of the last 6 cycles (30 minutes), and
   runner wait over the last hour 5 minutes or less.
 - **Idle slice** when quiet, 10 or fewer jobs running now, and the freshness target is not met: some
-  story's newest capture is older than `SLICE_FRESH_HOURS` (3).
+  unit's newest capture is older than `freshHours` (3).
 - **Base slice** when quiet, 30 or fewer running, and master's newest green build is newer than the last
   sliced commit. With 30 running, a base slice's 3 jobs still leave 27 free.
 - Otherwise nothing. A skipped base slice is not lost: the next quiet cycle slices master's newest green
   commit, and its reach rows cover every merge since the last sliced commit.
 
-**Budgets, each its own share, all repository-tunable** (`SLICE_BASE_DAILY_MIN`, `SLICE_IDLE_DAILY_MIN`,
-`SLICE_IDLE_HOURLY_MIN`, `SLICE_FRESH_HOURS`, `SLICE_IDLE_RUNNING`, `SLICE_BASE_RUNNING`):
+**Budgets, each its own share, all repository-tunable** in `tools/pipeline-health/config/slices.json`
+(`baseDailyMin`, `idleDailyMin`, `idleHourlyMin`, `freshHours`, `idleRunning`, `baseRunning`, `quietMinutes`,
+`maxWaitMinutes`, the per-slice estimates, and `dispatch`, the kill switch; a pull request to that file
+changes them, and the stack redeploys itself from master):
 
 | Share                   | Cap per UTC day | Other limit      | What it buys                                           |
 | ----------------------- | --------------- | ---------------- | ------------------------------------------------------ |
@@ -259,6 +261,42 @@ slices after a busy idle night. The hourly idle limit spreads idle capture. With
 stopped by the freshness target and the caps, not by catching up. Used minutes are summed from GitHub's
 job durations of every `story-slices.yml` run (plan, bins, failed and cancelled ones), which the collector
 reads once per finished slice run (1 to 3 job-list calls).
+
+**As built (plan step 5).** `tools/pipeline-health/src/collector/slices.ts` holds `decideSlice()` and its unit-tested
+table (`test/collector/slices.test.ts`); collect.ts's `slices` part runs it after the runners part every cycle.
+Details the section above leaves open:
+
+- **State.** One cursor, `slices`, keeps the last hour of runner samples (running, queued, saturated, longest
+  wait, one per cycle), two days of finished slice runs with their runner-minutes, and the last dispatch.
+  "Quiet" needs samples covering the whole 30 minutes with no missed cycle (a gap over 7.5 minutes), so a
+  collector that failed a cycle, or just started, is never quiet.
+- **Which share a run is charged to.** `story-slices.yml` names its runs `Story slices: <mode> <sha>`; the
+  collector reads the mode from the run name. A hand dispatch is charged too.
+- **In flight.** A queued or running `story-slices.yml` run, or a dispatch whose run has not shown up yet
+  (for at most 15 minutes).
+- **Base after a failed slice.** A base slice is not dispatched twice for the same commit: a slice that
+  failed posts no rows, so "newer than the last sliced commit" alone would retry the same commit every cycle.
+- **The store is read last**, only when nothing else stops a slice (one `GET /v1/story-captures` per such
+  cycle), with a local token. Freshness is the oldest unit's newest whole capture (`units`), falling back to
+  the oldest story capture. A unit never captured is not in the store, so until the first full rotation the
+  freshness is that of the units captured so far; base slices take never-captured units first anyway.
+- **Credentials, all in SSM (SecureString), all owner items:** the store's URL and token
+  (`/graphty-health/results/url`, `/graphty-health/results/token`), and the release-scheduler App
+  (`/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key`, the names #3608 uses too).
+  Without the store parameters it never dispatches; without the App, or with `dispatch` false, it decides and
+  logs (a dry run: the cycle's log line carries `slice: { action, reason | mode, sha, dispatched }`).
+
+**Replay of real runner data (2026-10-26 to 10-29, before dispatching anything).** The health API's runner
+series (15-minute buckets, each taken as three 5-minute samples at the bucket's maxima) through `decideSlice`,
+with a model store (33 bins, base renders the 2 oldest, idle the 6 oldest, a slice takes 10 minutes, a new
+green build every 19 minutes): 53 slices in 3.9 days, 0 on 10-27 (no quiet half hour all day), at most 614
+runner-minutes on a day (10-29), well under the caps; the oldest capture reached 25 to 46 hours, far from the
+6-hour target. 9 of the 53 started in a bucket followed by queued jobs (the yield cost the trial measures).
+The main reason for so few quiet windows: in 66 of 375 buckets 1 or 2 jobs sat queued while the pool was not
+saturated, 53 of them for over 20 minutes -- jobs that are not waiting for a runner (an environment approval,
+a macOS queue, a ghost the collector does not yet recognise). Both "no job queued" and "wait 5 minutes or
+less" count them. Not changed here: the 7-day series of plan step 1 decides whether "queued" should leave out
+jobs queued while the pool has free runners (recorded as an open question in section 7).
 
 **Yield.** A running job cannot be paused, so the unit of yielding is one slice run: at most 7 jobs of
 about 5 minutes. A pull request push can fan out 71 jobs, more than the whole pool, so a burst can arrive
@@ -306,7 +344,7 @@ None of this touches graphty-agent's 5,000 an hour.
   story, only its newest capture counts (highest run id, then attempt; never the time it was written, so a late
   re-run of an older slice cannot hide a newer render); an older one is never shown once a newer one exists. A rolling
   capture is never used to gate, approve or promote anything. The only consumers of these rows are the
-  review page's rolling target, the notifications (4d), the dashboard and the full run's commit ordering
+  review page's rolling target, the notifications (4d), the dispatcher's freshness check (4b), the dashboard and the full run's commit ordering
   (step 7, ordering only, never a verdict). A test fails if any other file under `tools/` reads
   `/v1/story-captures`.
 - **Pull request Story references** (ci.yml's Story references job, #4318, which shows master's newest
@@ -577,11 +615,19 @@ answered above:
    render, but they are close to option (b). Switch them off for candidates too?
 2. **Freshness target.** 3 hours for idle capture, 6 hours as the dashboard SLA: tighter means more idle
    minutes within the same caps.
+3. **Stuck queued jobs and "quiet".** The replay in 4b found 1 or 2 jobs queued for over 20 minutes while
+   the pool had free runners in 14% of all 15-minute buckets, and each blocks every slice. Leaving out of
+   "queued" a job that waits while fewer than the limit run would roughly double the quiet time; it is a
+   change to what "quiet" means, decided on step 1's 7-day series.
 
 **Owner items (actions only the owner can take, none of them a file agents may not edit):**
 
 - Put the release-scheduler App's private key into AWS for the collector's dispatch (the same move #3608
-  needs). Step 5 cannot dispatch without it.
+  needs), as `/graphty-health/release-scheduler/app-id`, `installation-id` and `private-key`. Step 5 cannot
+  dispatch without it (it runs as a dry run until then).
+- Put the results store's URL and a local token into AWS as `/graphty-health/results/url` and
+  `/graphty-health/results/token` (the token's SHA-256 in the Worker's `LOCAL_TOKEN_HASHES`, beside the
+  existing one). Step 5 decides nothing past "store-unavailable" without them.
 - Step 4 changes files under `visual-review/` and `visual-review.config.json`, which `pr-open.sh` holds
   from auto-merge; by standing practice a session merges it once green. It does not touch `gate.mjs`,
   `approval.mjs` or `passkeys.json`.

@@ -248,6 +248,13 @@ export async function workflowsTable(reads: Reads): Promise<Section> {
 /** The release modes that can promote a candidate to nightly. */
 const NIGHTLY_MODES = new Set(["full", "restart", "candidate", "promote-nightly"]);
 
+/** A nightly attempt's outcome: cancelled, failed, promoted (its nightly site job passed), or held back. */
+function nightlyOutcome(a: ReleaseSeen): ChannelAttempt["outcome"] {
+    if (a.conclusion === "cancelled") return "cancelled";
+    if (a.ok === false) return "bad";
+    return a.nightly === "passed" ? "ok" : "held";
+}
+
 /**
  * Nightly's attempts, newest first: release attempts in a promoting mode that tested a candidate, ran the nightly
  * site job or failed. Promoted when the nightly site job passed; held when the run passed without promoting (a
@@ -267,14 +274,7 @@ export function nightlyAttempts(seen: Record<string, ReleaseSeen>): ChannelAttem
         )
         .map((a) => ({
             at: a.at,
-            outcome:
-                a.conclusion === "cancelled"
-                    ? "cancelled"
-                    : a.ok === false
-                      ? "bad"
-                      : a.nightly === "passed"
-                        ? "ok"
-                        : "held",
+            outcome: nightlyOutcome(a),
             sha: a.sha,
             run: a.run as number,
         }));

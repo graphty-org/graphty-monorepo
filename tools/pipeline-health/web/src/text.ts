@@ -218,12 +218,17 @@ export const channelSince = (id: ChannelId, at: Iso | null): string =>
     at ? `${CHANNEL[id].ok} ${fmtAgo(at)}` : CHANNEL[id].none;
 
 /** One attempt's dot title: "19:20: failed, 3f2a91c". */
-export const attemptText = (id: ChannelId, a: { at: Iso; outcome: ChannelOutcome; sha?: string }): string =>
-    `${fmtTime(a.at)}: ${a.outcome === "ok" ? CHANNEL[id].ok : OUTCOME[a.outcome]}${a.sha ? `, ${esc(a.sha.slice(0, 7))}` : ""}`;
+export function attemptText(id: ChannelId, a: { at: Iso; outcome: ChannelOutcome; sha?: string }): string {
+    const word = a.outcome === "ok" ? CHANNEL[id].ok : OUTCOME[a.outcome];
+    const sha = a.sha ? ", " + esc(a.sha.slice(0, 7)) : "";
+    return `${fmtTime(a.at)}: ${word}${sha}`;
+}
 
 /** The dot row's label for a screen reader. */
-export const attemptsLabel = (n: number): string =>
-    n ? `last ${n} release ${n === 1 ? "attempt" : "attempts"}, oldest first` : "no release attempts recorded";
+export function attemptsLabel(n: number): string {
+    if (!n) return "no release attempts recorded";
+    return `last ${n} release ${n === 1 ? "attempt" : "attempts"}, oldest first`;
+}
 
 // ---------------------------------------------------------------- catalog
 

@@ -2890,7 +2890,9 @@ jobs:
         # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
         continue-on-error: true
         runs-on: ubuntu-24.04
-        timeout-minutes: 5
+        # A dispatch GitHub refuses for the Actions token's hourly rate limit waits for its reset (at most
+        # 55 minutes, RATE_WAIT_MAX_MS) and is made once more; nothing else takes more than a minute.
+        timeout-minutes: 65
         # actions: write to dispatch release.yml and cancel the red run; issues: write for the red issues and the
         # note on the Release status issue that keeps release-watch quiet about that cancel; pull-requests: read for
         # the merged pull request's description, where tools/pr-open.sh writes Fixes #N; id-token: write to read the held

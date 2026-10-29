@@ -192,6 +192,79 @@ export function lastGreenBuild(head, greenShas, isAncestor) {
 }
 
 const run = (cmd, args) => execFileSync(cmd, args, { encoding: "utf8" }).trim();
+// a failed command's cause: gh's own error line ("HTTP 403: API rate limit exceeded ..."), not "Command failed: <argv>"
+const cause = (error) =>
+    String(error?.stderr || error?.message)
+        .trim()
+        .split("\n")[0];
+
+// The longest a dispatch waits for the token's rate limit to reset (ci.yml's job timeout leaves room for it).
+export const RATE_WAIT_MAX_MS = 55 * 60 * 1000;
+
+/**
+ * How long to wait before a refused dispatch is made once more: only when GitHub refused it for the rate limit (the
+ * job's token is the repository's Actions token, whose hourly budget every workflow shares, #4318).
+ * @param stderr gh's error output
+ * @param reset the budget's reset (`gh api rate_limit`), epoch seconds; NaN when unreadable
+ * @param [now] milliseconds
+ * @returns milliseconds, or null: not a rate limit, the reset is unknown, or it is further off than RATE_WAIT_MAX_MS
+ */
+export function rateLimitWait(stderr, reset, now = Date.now()) {
+    if (!/rate limit exceeded/i.test(stderr ?? "") || !Number.isFinite(reset)) return null;
+    const ms = Math.max(reset * 1000 + 5000 - now, 1000);
+    return ms <= RATE_WAIT_MAX_MS ? ms : null;
+}
+
+// the core budget's reset, epoch seconds; GitHub does not count this call against the budget
+function rateReset() {
+    try {
+        return Number(run("gh", ["api", "rate_limit", "--jq", ".resources.core.reset"]));
+    } catch {
+        return Number.NaN;
+    }
+}
+
+/**
+ * A release.yml dispatch: a rate-limited one waits for the reset and is made once more; one that still fails is an
+ * error that fails the job (ci.yml keeps the master build green) and is told on `issue`, so it is never missed. The
+ * next 6-hour full run catches up on a missed promotion, fix forward or restart.
+ * @param args the `gh` arguments
+ * @param issue the hold or red issue to tell, or null
+ * @returns whether it was dispatched
+ */
+async function dispatchRelease(args, issue) {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            run("gh", args);
+            return true;
+        } catch (error) {
+            const why = String(error.stderr || error.message).trim();
+            const wait = attempt === 1 ? rateLimitWait(why, rateReset()) : null;
+            if (wait !== null) {
+                console.log(
+                    `release-due: rate-limited; dispatching again after the reset, in ${Math.ceil(wait / 1000)} s`,
+                );
+                await new Promise((resolve) => setTimeout(resolve, wait));
+                continue;
+            }
+            console.log(`::error::gh ${args.join(" ")} failed: ${why.replaceAll("\n", " ")}`);
+            process.exitCode = 1;
+            if (issue) tellFailed(issue, args, why);
+            return false;
+        }
+    }
+}
+
+function tellFailed(issue, args, why) {
+    const { GITHUB_SERVER_URL: server, GITHUB_REPOSITORY: repo, GITHUB_RUN_ID: id } = process.env;
+    const where = id ? ` (${server}/${repo}/actions/runs/${id})` : "";
+    const body = `release-due could not dispatch release.yml${where}: \`${why.split("\n")[0]}\`. The next 6-hour full run catches up; to start it now: \`gh ${args.join(" ")}\``;
+    try {
+        run("gh", ["issue", "comment", String(issue), "--body", body]);
+    } catch (error) {
+        console.log(`::warning::telling #${issue} failed: ${cause(error)}`);
+    }
+}
 
 // the run's attempt through the REST API (`gh run list --json attempt` needs gh 2.48 or later); 1 when unreadable
 function runAttempt(id) {
@@ -244,15 +317,13 @@ function cancelRedRun(issue, dryRun) {
             ]);
             if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, runAttempt(id))]);
         } catch (error) {
-            console.log(
-                `::warning::the note on the Release status issue failed: ${String(error.message).split("\n")[0]}`,
-            );
+            console.log(`::warning::the note on the Release status issue failed: ${cause(error)}`);
         }
         try {
             run("gh", ["run", "cancel", String(id)]);
         } catch (error) {
             // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
-            console.log(`::warning::cancelling run ${id} failed: ${String(error.message).split("\n")[0]}`);
+            console.log(`::warning::cancelling run ${id} failed: ${cause(error)}`);
         }
     }
 }
@@ -283,19 +354,9 @@ async function promoteApproved(shas, dryRun) {
         console.log(`release-due: the approval ${p.accept} of ${p.candidate}: ${p.why}`);
         if (dryRun) continue;
         if (p.run) {
-            run("gh", [
-                "workflow",
-                "run",
-                "release.yml",
-                "--ref",
-                "master",
-                "-f",
-                "mode=promote-nightly",
-                "-f",
-                `candidate=${p.candidate}`,
-                "-f",
-                `accept=${p.accept}`,
-            ]);
+            const args = ["workflow", "run", "release.yml", "--ref", "master", "-f", "mode=promote-nightly"];
+            args.push("-f", `candidate=${p.candidate}`, "-f", `accept=${p.accept}`);
+            await dispatchRelease(args, r.ok ? (r.data?.hold?.issue ?? null) : null);
         } else if (p.comment) {
             run("gh", [
                 "issue",
@@ -367,7 +428,7 @@ async function dispatchFixForward(merges, dryRun) {
         return;
     }
     console.log(`release-due: these merges fix the held candidate forward (#${due.issue}): release.yml mode=candidate`);
-    if (!dryRun) run("gh", fixForwardDispatch(due.prs));
+    if (!dryRun) await dispatchRelease(fixForwardDispatch(due.prs), due.issue);
 }
 
 // the last green master build HEAD descends from, or null
@@ -400,7 +461,7 @@ function lastGreenBase(head) {
             }
         });
     } catch (error) {
-        console.log(`::warning::finding the last green master build failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::warning::finding the last green master build failed: ${cause(error)}`);
     }
     return null;
 }
@@ -415,7 +476,7 @@ function readMerges(commits) {
             const path = `repos/{owner}/{repo}/commits/${sha}/pulls`;
             body = run("gh", ["api", path, "--jq", ".[].body // empty"]);
         } catch (error) {
-            console.log(`::warning::reading the merged pull request failed: ${String(error.message).split("\n")[0]}`);
+            console.log(`::warning::reading the merged pull request failed: ${cause(error)}`);
         }
         bodies += body + "\n";
         const own =
@@ -458,14 +519,16 @@ async function main() {
     try {
         await promoteApproved(commits, dryRun);
     } catch (error) {
-        console.log(`::warning::the approval check failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::error::the approval check failed: ${cause(error)}`);
+        process.exitCode = 1;
     }
     const messages = `${run("git", ["log", "--format=%B", ...range])}\n${bodies}`;
     // its failure never stops the restart below
     try {
         await dispatchFixForward(merges, dryRun);
     } catch (error) {
-        console.log(`::warning::the fix-forward check failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::error::the fix-forward check failed: ${cause(error)}`);
+        process.exitCode = 1;
     }
     if (base) console.log(`release-due: reading every merge since the last green master build ${base.slice(0, 7)}`);
     const plan = due(issues, messages, now, closedSince);
@@ -484,11 +547,9 @@ async function main() {
     try {
         if (plan.cancel) cancelRedRun(plan.issue, dryRun);
     } catch (error) {
-        console.log(`::warning::cancelling the red run failed: ${String(error.message).split("\n")[0]}`);
+        console.log(`::warning::cancelling the red run failed: ${cause(error)}`);
     }
-    if (!dryRun) {
-        run("gh", restartDispatch(plan.mode, head));
-    }
+    if (!dryRun) await dispatchRelease(restartDispatch(plan.mode, head), plan.issue);
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

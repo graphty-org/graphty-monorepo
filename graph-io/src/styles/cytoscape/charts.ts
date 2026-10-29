@@ -913,7 +913,12 @@ function rangeTicks(
     // never more than MAX_TICKS: a label at least a 99th of the plot tall
     const unit = tickUnit(hi - lo, ph, Math.max(line + 2 * TICK_LABEL_INSETS, ph / (MAX_TICKS - 1)));
     const out: [number, number, string, number][] = [];
-    for (let k = Math.ceil(lo / unit - 1e-9); Number.isFinite(unit) && k * unit <= hi + 1e-9 * unit; k++) {
+    const first = Math.ceil(lo / unit - 1e-9);
+    // a range so far from zero that its ticks cannot be counted one by one (past 2^53) draws none
+    if (!Number.isSafeInteger(first) || !Number.isSafeInteger(Math.floor(hi / unit))) {
+        return out;
+    }
+    for (let k = first; k * unit <= hi + 1e-9 * unit && out.length < MAX_TICKS; k++) {
         // never "-0"
         const tick = k * unit || 0;
         const text = tickText(tick, unit);

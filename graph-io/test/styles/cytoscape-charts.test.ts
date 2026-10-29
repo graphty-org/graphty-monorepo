@@ -322,6 +322,12 @@ describe("Cytoscape charts", () => {
                 true,
             );
             expect((JSON.parse(String(out.shapeTexts?.[0])) as unknown[]).length).toBeLessThanOrEqual(100);
+            // a range far from zero, where counting ticks one by one would never pass its top: no ticks, no hang
+            const far = axes(
+                ',"cy_showRangeAxis":true,"cy_showDomainAxis":true',
+                BAR.replace("[0.0,10.0]", "[1e19,1.0000000000000004096e19]"),
+            );
+            expect(texts(far).filter(([, , w]) => /\d/.test(w))).toEqual([]);
             // a unit of 2.5 writes one decimal, as JFreeChart's "0.0" does: 0.0 2.5 5.0 ...
             const tall: Partial<Record<string, StyleColumn>> = { width: [60], height: [60] };
             readCytoscapeCharts(

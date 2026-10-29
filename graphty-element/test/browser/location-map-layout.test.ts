@@ -7,6 +7,7 @@
 
 import "../../src/graphty-element";
 
+import type { AbstractMesh } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { openflights } from "@graphty/graph-samples/datasets/openflights";
 import { createMapFrame, longitudeIn } from "babylonjs-map/projection";
@@ -330,6 +331,78 @@ describe("the location map layout", () => {
             0.01,
             "a node keeps its size on screen",
         );
+    });
+
+    it("keeps a city's whole 2D map in front of the far clip plane in 3D, however far the camera is", async () => {
+        // A few stops across Venice: the flat map goes on past them for a whole world, thousands of
+        // times wider than the data, and a view tilted over it must not cut it off along a line.
+        await graph.addNodes([
+            { id: "a", latitude: 45.44, longitude: 12.31 },
+            { id: "b", latitude: 45.43, longitude: 12.34 },
+            { id: "c", latitude: 45.41, longitude: 12.37 },
+        ]);
+        await graph.setLayout("location-map", { mapDimension: "2d", mapScale: 6 });
+        await settled();
+        const frame = (
+            graph.getLayoutManager().layoutEngine as unknown as {
+                geoFrame: { mapFrame: ReturnType<typeof createMapFrame> };
+            }
+        ).geoFrame.mapFrame;
+        const [[west], [east]] = frame.bounds;
+        const center = (west + east) / 2;
+        const max = frame.projection.maxLatitude;
+        const camera = graph.getScene().activeCamera;
+        assert.isNotNull(camera);
+        const eye = camera.globalPosition;
+        let farthest = 0;
+        for (const lon of [center - 180, center + 180]) {
+            for (const lat of [-max, max]) {
+                const { x, y } = frame.toScene({ lat, lon });
+                farthest = Math.max(farthest, Math.hypot(x - eye.x, y - eye.y, eye.z));
+            }
+        }
+        assert.isAtLeast(camera.maxZ, farthest, "the far plane reaches the map's farthest corner");
+    });
+
+    it("leaves the depth range room for the globe map's stacking past its edge, seen from afar", async () => {
+        // A city on a globe six times larger: the default view stands hundreds of thousands of
+        // units off. A tile pushed back past the far end of the depth range is clamped there, ties
+        // with the globe's far side, and the far side shows through in bands.
+        await graph.setViewMode("3d");
+        await graph.addNodes([
+            { id: "a", latitude: 45.44, longitude: 12.31 },
+            { id: "b", latitude: 45.43, longitude: 12.34 },
+            { id: "c", latitude: 45.41, longitude: 12.37 },
+        ]);
+        // A tile service drawn over the bundled world, from this page: every tile one green picture.
+        const tile = document.createElement("canvas");
+        tile.width = 4;
+        tile.height = 4;
+        const context = tile.getContext("2d");
+        assert.isNotNull(context);
+        context.fillStyle = "#00ff00";
+        context.fillRect(0, 0, 4, 4);
+        const map = { tiles: tile.toDataURL("image/png"), attribution: "green" };
+        await graph.setLayout("location-map", { mapDimension: "3d", mapScale: 6, map });
+        await settled();
+        const tiles = (): AbstractMesh[] =>
+            graph.getScene().meshes.filter((m) => m.name.includes("-tile-") && m.isEnabled());
+        while (!tiles().some((m) => m.name.includes("green"))) {
+            await drawnFrames(graph.getScene(), 1);
+        }
+        const radius = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } }).geoFrame
+            .radius;
+        const camera = graph.getScene().activeCamera;
+        assert.isNotNull(camera);
+        const pushes = tiles().map((m) => m.material?.zOffsetUnits ?? 0);
+        assert.isAbove(Math.max(...pushes), 0, "the bundled world is pushed under the tile service");
+        // Where the globe's edge is: the farthest point of the near side, from the eye.
+        const edge = Math.sqrt(camera.globalPosition.lengthSquared() - radius * radius);
+        const [n, f] = [camera.minZ, camera.maxZ];
+        const depth = (f / (f - n)) * (1 - n / edge);
+        // A 24-bit depth buffer: one unit of a depth offset is 2^-24 of the range.
+        const room = (1 - depth) * 2 ** 24;
+        assert.isAbove(room, Math.max(...pushes), "the largest push still lands inside the depth range");
     });
 
     it("puts nodes with no usable location in a tray and reports them", async () => {

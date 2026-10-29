@@ -8,6 +8,7 @@ import {
     decideSlice,
     isQuiet,
     jobMinutes,
+    newestGreen,
     nextState,
     type RunnerSample,
     type SliceConfig,
@@ -22,7 +23,7 @@ import { HOUR, MIN } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { SLAS } from "../../src/sla/config.js";
-import { fakeGitHub, NOW } from "./fake-github.js";
+import { fakeGitHub, masterRuns, NOW } from "./fake-github.js";
 
 const cfg = sliceConfig as SliceConfig;
 const T = Date.parse("2026-10-29T08:00:00Z");
@@ -329,5 +330,59 @@ describe("the collector cycle", () => {
         const state = JSON.parse((await getCursor(store, "slices")) ?? "{}");
         expect(state.samples).toHaveLength(1);
         expect(state.samples[0].at).toBe(NOW);
+    });
+
+    it("counts a story-slices run still going as in flight, so no second run waits in its concurrency group", async () => {
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        const slice = {
+            ...masterRuns()[1],
+            id: 41000000001,
+            path: ".github/workflows/story-slices.yml",
+            name: "Story slices",
+            display_title: "Story slices: idle abc",
+            event: "workflow_dispatch",
+            status: "in_progress",
+            conclusion: null,
+        } as GhRun;
+        fake.fetch = async (url, init) => {
+            const u = new URL(url);
+            if (
+                /\/repos\/graphty-org\/graphty-monorepo\/actions\/runs$/.test(u.pathname) &&
+                u.searchParams.get("status") === "queued"
+            )
+                return new Response(JSON.stringify({ total_count: 1, workflow_runs: [slice] }), { status: 200 });
+            return base(url, init);
+        };
+        const report = await collect({
+            store: new MemoryStore(),
+            now: NOW,
+            gh: new GitHub(async () => "ghs_test", fake.fetch),
+            fetch: fake.fetch,
+            awsCosts: async () => [],
+            rates: rates as unknown as Rates,
+            limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
+            org: "graphty-org",
+            repo: "graphty-org/graphty-monorepo",
+            slices: { cfg, readStore: async () => ({ lastSlicedSha: null, oldestAt: null }) },
+        });
+        expect(report.slice).toEqual({ action: "none", reason: "in-flight", dispatched: false });
+    });
+});
+
+describe("master's newest green build", () => {
+    const run = (head_sha: string, status: string, conclusion: string | null) =>
+        ({ ...masterRuns()[1], head_sha, status, conclusion }) as GhRun;
+    it("skips a newer red, cancelled or running build", () => {
+        expect(
+            newestGreen([
+                run("a", "in_progress", null),
+                run("b", "completed", "failure"),
+                run("c", "completed", "cancelled"),
+                run("d", "completed", "success"),
+                run("e", "completed", "success"),
+            ]),
+        ).toEqual({ sha: "d" });
+        expect(newestGreen([run("b", "completed", "failure")])).toBeUndefined();
     });
 });

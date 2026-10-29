@@ -77,6 +77,7 @@ import {
 import { markPrCaused } from "./pr-caused.js";
 import {
     decideSlice,
+    newestGreen,
     nextState,
     type RunnerSample,
     type SliceConfig,
@@ -1122,8 +1123,8 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         collected = xs;
         c.openRuns = xs.filter((x) => x.run.status !== "completed").map((x) => x.run);
         await master(c, masterList, cancels, elapsed);
-        const green = masterList.find((x) => x.run.status === "completed" && x.run.conclusion === "success");
-        if (green) c.newestGreen = { sha: green.run.head_sha };
+        const green = newestGreen(masterList.map((x) => x.run));
+        if (green) c.newestGreen = green;
     });
     const missing = async (name: string) => (await c.cursor(name)) === undefined;
     if (hourly || (await missing("quarantine")) || (await missing("non-gating")) || (await missing("ci-jobs")))

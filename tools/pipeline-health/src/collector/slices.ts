@@ -158,6 +158,12 @@ export function sliceMode(run: GhRun): SliceMode | undefined {
     return /^Story slices: (base|idle)\b/.exec(run.display_title ?? "")?.[1] as SliceMode | undefined;
 }
 
+/** Master's newest green build in a newest-first list of ci.yml push runs, skipping red, cancelled and running ones. */
+export function newestGreen(runs: GhRun[]): { sha: string } | undefined {
+    const green = runs.find((r) => r.status === "completed" && r.conclusion === "success");
+    return green ? { sha: green.head_sha } : undefined;
+}
+
 /** Runner-minutes of a finished attempt: every job's started-to-completed time (failed and cancelled ones too). */
 export function jobMinutes(jobs: GhJob[]): number {
     let ms = 0;

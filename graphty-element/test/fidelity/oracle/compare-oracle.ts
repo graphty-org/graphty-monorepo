@@ -2793,12 +2793,6 @@ export function compareOracle(
             .filter((s) => s.lettering !== true)
             .map((s) => ({ tag: s.tag, box: s.box, fill: s.fill, stroke: s.stroke, text: s.text })),
         ...lettered,
-        // a picture the program draws as part of a node (vis-network's image nodes) is one graphty draws over the
-        // node's face as an annotation: it must be drawn. Only the other way round was judged (an annotation of
-        // graphty's over a program's picture is no extra), so a picture graphty left out passed (json-vis-synth)
-        ...oracle.nodes.flatMap((n) =>
-            (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
-        ),
         ...[...oracle.texts, ...annotatedTexts].filter(legibleText).map((t) => ({
             tag: "text",
             box: t.box,
@@ -2806,6 +2800,13 @@ export function compareOracle(
             stroke: null,
             text: t.content,
         })),
+        // a picture the program draws as part of a node (vis-network's image nodes) is one graphty draws over the
+        // node's face as an annotation: it must be drawn. Only the other way round was judged (an annotation of
+        // graphty's over a program's picture is no extra), so a picture graphty left out passed (json-vis-synth).
+        // Last, so every other stray keeps its id
+        ...oracle.nodes.flatMap((n) =>
+            (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
+        ),
     ]
         .filter((s) => onCanvas(s.box))
         .map((s, i) => {

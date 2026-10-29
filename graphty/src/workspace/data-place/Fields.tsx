@@ -11,7 +11,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddButton } from "../style/Section";
 import { designate, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
-import { useTimeVersion } from "../time/useTimeVersion";
+import { useTimeFieldVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
 import {
     columnChoices,
@@ -624,7 +624,7 @@ function GraphRows({
 export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
-    useTimeVersion(session);
+    useTimeFieldVersion(session);
     if (session === null) {
         return null;
     }

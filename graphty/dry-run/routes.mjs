@@ -24,6 +24,15 @@ import assert from "node:assert/strict";
 // ---------------------------------------------------------------- steps many routes share
 
 /**
+ * Wait until the open graph is in: the Everything layer counts its nodes. The layer appears with
+ * "0 nodes" before the data arrives, so a walk that went on at that point acted on an empty graph.
+ * @param u the user's hands (README.md)
+ */
+async function opened(u) {
+    await u.page.getByRole("treeitem", { name: /^Everything, .*\b[1-9][\d,]* nodes?\b/ }).waitFor();
+}
+
+/**
  * Samples, then the sample's card: the graph opens on the Graph's Values tab.
  * @param u the user's hands (README.md)
  * @param sample the sample as its card names it ("Les Miserables")
@@ -31,7 +40,7 @@ import assert from "node:assert/strict";
 async function openSample(u, sample) {
     await u.click("Samples");
     await u.click(`Open the ${sample} sample`);
-    await u.page.getByRole("treeitem", { name: /^Everything,/ }).waitFor();
+    await opened(u);
 }
 
 /**
@@ -41,7 +50,7 @@ async function openSample(u, sample) {
  */
 async function openFile(u, file) {
     await u.upload(u.page.getByRole("button", { name: /^Open a file/ }), file);
-    await u.page.getByRole("treeitem", { name: /^Everything,/ }).waitFor();
+    await opened(u);
 }
 
 /**
@@ -578,6 +587,7 @@ export const routes = [
         from: "T50 A",
         async walk(u) {
             await u.upload(u.page.getByRole("button", { name: /^Open a file/ }), "lesmis-poster.graphty.json");
+            await opened(u);
             await u.page.getByRole("treeitem", { name: /^Poster,/ }).click();
         },
         checks: {
@@ -594,6 +604,7 @@ export const routes = [
         from: "T50 B",
         async walk(u) {
             await u.upload(u.page.getByRole("button", { name: /^Open a file/ }), "volunteers-thanks.graphty.json");
+            await opened(u);
             await u.page.getByRole("treeitem", { name: /^Thank-you cards,/ }).click();
         },
         checks: {

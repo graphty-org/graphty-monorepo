@@ -346,6 +346,31 @@ describe("Filter cards on the real element", () => {
         });
     });
 
+    it("editing a card read from an old edge step keeps every node, as the step did", async () => {
+        const { session } = await openWithGraph();
+        // A project saved before cards: a Keep step on the edge field `value`, which hid edges only.
+        await session.visibility.setSteps([
+            { id: "step-1", on: true, rule: { kind: "range", attribute: "data.value", min: 9 } },
+        ]);
+        await waitFor(() => {
+            assert.deepEqual(
+                [session.visibility.summary.visibleNodes, session.visibility.summary.visibleEdges],
+                [8, 4],
+            );
+        });
+        const old = await card("value");
+        const from = old.getByRole("textbox", { name: "value from, number" });
+        await userEvent.clear(from);
+        await userEvent.type(from, "10{Enter}");
+        await waitFor(() => {
+            const [edited] = session.visibility.conditions;
+            assert.equal(edited.rule.kind === "range" ? edited.rule.min : undefined, 10);
+        });
+        // Still every node: the edit kept the step's reading, not the ends of the matched edges.
+        assert.equal(session.visibility.summary.visibleNodes, 8);
+        assert.isBelow(session.visibility.summary.visibleEdges, 4);
+    });
+
     it("the toolbar's Filters opens +, and Tab reaches each control of a card by its name", async () => {
         const { session, store } = await openWithGraph();
         await addValueCard(session);

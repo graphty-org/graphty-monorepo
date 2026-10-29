@@ -6,6 +6,7 @@
  */
 
 import type {
+    AttributeLeafNodes,
     CodedFact,
     FilterCondition,
     GraphSession,
@@ -175,6 +176,42 @@ export function ruleOfCards(cards: readonly Card[]): RuleTree | null {
         return null;
     }
     return leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
+}
+
+/**
+ * The path a value leaf reads, or undefined for a leaf with no reading of its nodes.
+ * @param leaf - the leaf.
+ * @returns its path.
+ */
+function readPath(leaf: RuleTree): string | undefined {
+    if (leaf.kind === "range" || leaf.kind === "categories") {
+        return leaf.attribute;
+    }
+    return leaf.kind === "text" ? leaf.reads : undefined;
+}
+
+/**
+ * A card's rebuilt rule with the node reading (`nodes`) each field's leaf had in the rule it
+ * replaces. The cards draw no reading, so without this an edit drops it: a condition read from an
+ * old filter step keeps every node (`"all"`) on an edge field, and losing that would make the edit
+ * keep only the nodes at the matched edges' ends.
+ * @param rule - the rule the cards make.
+ * @param was - the condition's rule before the edit.
+ * @returns the rule, with each field's reading kept.
+ */
+export function keepReadings(rule: RuleTree, was: RuleTree): RuleTree {
+    const before = new Map<string, AttributeLeafNodes>();
+    for (const leaf of was.kind === "all" ? was.of : [was]) {
+        const path = readPath(leaf);
+        if (path !== undefined && "nodes" in leaf && leaf.nodes !== undefined) {
+            before.set(path, leaf.nodes);
+        }
+    }
+    const keep = (leaf: RuleTree): RuleTree => {
+        const nodes = before.get(readPath(leaf) ?? "");
+        return nodes === undefined || "nodes" in leaf ? leaf : ({ ...leaf, nodes } as RuleTree);
+    };
+    return rule.kind === "all" ? { kind: "all", of: rule.of.map(keep) } : keep(rule);
 }
 
 /**

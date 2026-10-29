@@ -34,6 +34,7 @@ import { reportTimeError, unitOf } from "../time/timeActions";
 import { windowWords } from "../time/timeWords";
 import {
     conditionWords,
+    keepReadings,
     newConditionId,
     openTimeCard,
     PLUS,
@@ -408,10 +409,11 @@ function FilterCard({
     }, [draft]);
 
     const save = (next: readonly Card[]): void => {
-        const rule = ruleOfCards(next);
-        if (rule === null) {
+        const made = ruleOfCards(next);
+        if (made === null) {
             return;
         }
+        const rule = condition === undefined ? made : keepReadings(made, condition.rule);
         if (condition === undefined) {
             written.current = JSON.stringify(rule);
             void writeCondition(store, () => session.visibility.addCondition({ id, effect: "keep", rule }));

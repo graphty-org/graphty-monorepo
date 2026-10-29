@@ -105,13 +105,21 @@ describe("chronically failing jobs", () => {
             },
         ]);
         expect(obs).toEqual({ "ci.chronic_jobs": 1, "ci.chronic_no_issue": 1 });
-        expect(asked).toEqual([`repo:${REPO} is:issue is:open "Performance Benchmarks"`]);
+        expect(asked).toEqual([
+            `repo:${REPO} is:issue is:open label:bug -label:ci-budget "Performance Benchmarks" in:title`,
+        ]);
     });
 
     it("names the open issue that names the job, and then it no longer counts as unfiled", async () => {
         const store = await stored(perfJobs());
         const { gh } = searchGitHub([
             { number: 3000, title: "Benchmarks: a faster PageRank", body: "" },
+            // A mention in a body is not ownership (#3447 named "All Checks Pass" only in its body).
+            {
+                number: 3447,
+                title: "Check step 5 over the first 20 merged pull requests",
+                body: "Performance Benchmarks",
+            },
             {
                 number: 3413,
                 title: "ci: the Performance Benchmarks job has failed on every release train since 2026-10-21",
@@ -141,6 +149,24 @@ describe("chronically failing jobs", () => {
             jobItem(run, "CI / Test (graphty-1)", end, i % 3 ? "success" : "failure"),
         );
         const store = await stored([...pr, ...cancelled, ...sometimes]);
+        const { list } = await jobMembers(store, searchGitHub([]).gh, REPO, NOW);
+        expect(list).toEqual([]);
+    });
+
+    it("leaves out runs on other branches, whose failures may be the branch's own", async () => {
+        // Test (graphty-element-lifecycle) on 2026-10-28: four ci.yml dispatches on the probe branches
+        // ci/4237-probe-1 and ci/4237-probe-2 failed it, while every master run passed; the table called it chronic.
+        const probes = PERF.slice(0, 6).map(([run, end]) =>
+            jobItem(run, "Test (graphty-element-lifecycle)", end, "failure", {
+                workflow: "ci.yml",
+                load: "other",
+                offMaster: true,
+            }),
+        );
+        const master = PERF.slice(6).map(([run, end]) =>
+            jobItem(run, "Test (graphty-element-lifecycle)", end, "success", { workflow: "ci.yml", load: "other" }),
+        );
+        const store = await stored([...probes, ...master]);
         const { list } = await jobMembers(store, searchGitHub([]).gh, REPO, NOW);
         expect(list).toEqual([]);
     });

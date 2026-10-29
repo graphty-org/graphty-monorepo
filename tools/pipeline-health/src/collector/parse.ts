@@ -145,7 +145,24 @@ export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): Lo
     return "other";
 }
 
-export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false, load?: LoadKind): JobItem {
+/**
+ * Whether a run is on a branch other than its repository's default one (a dispatch on a work branch, a probe, a
+ * bisect point, a pull request's CodeQL scan), whose failures may be the branch's own.
+ * ponytail: takes master or main as the default branch; read the repository's default_branch if one ever differs.
+ */
+export function offMaster(run: Pick<GhRun, "head_branch">): boolean {
+    const branch = run.head_branch?.replace(/^refs\/heads\//, "");
+    return branch !== "master" && branch !== "main";
+}
+
+export function toJobItem(
+    j: GhJob,
+    repo: string,
+    workflow: string,
+    hang = false,
+    load?: LoadKind,
+    offMasterRun = false,
+): JobItem {
     const skipped = isSkipped(j);
     const fam = family(j.name);
     return {
@@ -163,6 +180,7 @@ export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false
         status: j.status,
         ...opt("conclusion", j.conclusion),
         ...(hang ? { hang: true } : {}),
+        ...(offMasterRun ? { offMaster: true as const } : {}),
         createdAt: Date.parse(j.created_at),
         ...(skipped ? {} : opt("startedAt", ms(j.started_at))),
         ...(skipped ? {} : opt("completedAt", ms(j.completed_at))),

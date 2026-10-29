@@ -319,7 +319,11 @@ function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: Works
                         // The file holds every column and every record of the table that is
                         // showing: the element's export cannot be limited to the visible
                         // columns (#875) or to a group's members (#820) yet.
-                        store.set({ dialog: "export", exportOn: kind === "edge" ? "edges" : "nodes" });
+                        store.set({
+                            dialog: "export",
+                            exportOn: kind === "edge" ? "edges" : "nodes",
+                            exportSource: null,
+                        });
                     }}
                 >
                     Export...

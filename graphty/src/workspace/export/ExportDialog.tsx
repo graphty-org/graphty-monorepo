@@ -39,14 +39,15 @@ const RECENT_MAX = 5;
  * (`session.recipe`) and Project (`downloadProject`), with the files exported in this visit under
  * Recent, each opening its output again with the choices it was made with. Open while the
  * workspace dialog is "export"; it opens on Image, or on Data with CSV and the table the store's
- * `exportOn` names (the table dock's Export...), and keeps each output's choices while the
- * workspace is mounted.
+ * `exportOn` names (whenever a table is showing), scoped to the source `exportSource` names (a
+ * Sources row's Export...), and keeps each output's choices while the workspace is mounted.
  * @returns The dialog
  */
 export function ExportDialog(): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, session } = useWorkspace();
     const opened = useWorkspaceState((state) => state.dialog === "export");
     const exportOn = useWorkspaceState((state) => state.exportOn);
+    const exportSource = useWorkspaceState((state) => state.exportSource);
     const [output, setOutput] = useState<OutputId>("image");
     const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
     const [video, setVideo] = useState<VideoChoices>(DEFAULT_VIDEO);
@@ -61,15 +62,18 @@ export function ExportDialog(): React.JSX.Element {
             setOutput("image");
         } else {
             setOutput("data");
-            // The table dock asked for its table: the plain CSV of it.
+            // A table is showing, or a source row asked: the plain CSV of the table, and of only
+            // that source's records when there is more than one source to tell apart.
+            const several = (session?.data.sources().length ?? 0) > 1;
             setData((choices) => ({
                 ...choices,
                 format: "csv",
                 variant: "csv",
                 values: { ...choices.values, table: exportOn },
+                ...(exportSource === null ? {} : { scope: several ? `source:${exportSource}` : "all" }),
             }));
         }
-    }, [opened, exportOn]);
+    }, [opened, exportOn, exportSource, session]);
 
     const close = (): void => {
         store.set({ dialog: null });

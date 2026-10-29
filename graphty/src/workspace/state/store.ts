@@ -164,9 +164,12 @@ export interface WorkspaceState {
     readonly outlineWidth: number | null;
     /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
-     * edges table. The table dock's Export... sets the table that is showing.
+     * edges table. Export... (Ctrl+E) and the table dock's Export... set the table that is
+     * showing whenever the dock is open (tier 4, R14).
      */
     readonly exportOn: "image" | "nodes" | "edges";
+    /** The source a Sources row's Export... opened Data on (its key), else null. */
+    readonly exportSource: string | null;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -255,6 +258,7 @@ const INITIAL: WorkspaceState = {
     lighting: "studio",
     outlineWidth: null,
     exportOn: "image",
+    exportSource: null,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,

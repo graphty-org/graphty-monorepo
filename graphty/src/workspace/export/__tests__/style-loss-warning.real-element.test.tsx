@@ -151,7 +151,8 @@ describe("Export warns before the graph's styles are lost", () => {
         await chooseCsvNodes(dialog);
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         const warning = await within(dialog).findByRole("alertdialog", {}, { timeout: TIMEOUT_MS });
-        assert.match(warning.textContent, /Node fill color not written/);
+        // CSV holds no styles, so its export leaves the layers out and says so in one line.
+        assert.match(warning.textContent, /style layers not written/);
         assert.match(warning.textContent, /Reopened: no styles/);
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 
@@ -165,7 +166,7 @@ describe("Export warns before the graph's styles are lost", () => {
         // GraphML keeps the layers: the menu says so, and Export saves without a warning.
         const again = await openData();
         await userEvent.click(within(again).getByLabelText("Format"));
-        await userEvent.click(await screen.findByRole("option", { name: /^GraphML.*\(keeps style layers\)$/ }));
+        await userEvent.click(await screen.findByRole("option", { name: "GraphML" }));
         await waitFor(() => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<graphml");
         });
@@ -185,11 +186,16 @@ describe("Export warns before the graph's styles are lost", () => {
         back.dispose();
 
         // Every export the dialog made, previews and saves, asked for the styles, but the project
-        // file's (Data opens on Graphty JSON), which holds them already and takes no options.
+        // file's, which holds them already and takes no options, and CSV's, which holds no styles
+        // and writes the same file either way (R14).
         const written = exports.mock.calls.filter(([format]) => format !== "graphty");
         assert.isAbove(written.length, 3);
-        for (const [, options] of written) {
-            assert.strictEqual(options?.styles, true);
+        for (const [format, options] of written) {
+            if (format === "csv") {
+                assert.notProperty(options ?? {}, "styles");
+            } else {
+                assert.strictEqual(options?.styles, true);
+            }
         }
     });
 
@@ -225,7 +231,7 @@ describe("Export warns before the graph's styles are lost", () => {
         });
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         const warning = await within(dialog).findByRole("alertdialog", {}, { timeout: TIMEOUT_MS });
-        assert.match(warning.textContent, /Node label color not written/);
+        assert.match(warning.textContent, /node label color not written/);
         assert.match(warning.textContent, /Reopened: layers as layers/);
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 

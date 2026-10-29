@@ -184,8 +184,8 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await session.data.addEdges(EDGES);
 
         for (const [label, file, sniff] of [
-            ["GML (keeps style layers)", "untitled_graph.gml", /^\s*(Creator|graph)/],
-            ["Cytoscape Session (keeps style layers)", "untitled_graph.cys", /^PK/],
+            ["GML", "untitled_graph.gml", /^\s*(Creator|graph)/],
+            ["Cytoscape Session", "untitled_graph.cys", /^PK/],
         ] as const) {
             await userEvent.keyboard("{Control>}e{/Control}");
             const dialog = await screen.findByRole("dialog", { name: "Export" });

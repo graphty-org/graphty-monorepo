@@ -5,6 +5,7 @@ import { type GraphSession, projectFileName } from "@graphty/graphty-element/ses
 import { Alert, Badge, Button, Group, Input, Menu, Select, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { sourceName } from "../data-place/words";
 import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
 import { OptionsForm } from "../options/OptionsForm";
@@ -17,8 +18,9 @@ import {
     fileName,
     formatRows,
     previewOf,
+    writesNoStyles,
 } from "./choices";
-import { isStyleLoss, layersBackWords, listedStyleLosses, type LossRow, lossRows } from "./lossWords";
+import { isStyleLoss, layersBackWords, listedStyleLosses, type LossRow, lossRows, lossSummary } from "./lossWords";
 
 /** Why a file was not written: the export's refusals (its E_ losses) as rows, else a label from its error code. */
 type Failure = readonly LossRow[] | string;
@@ -87,6 +89,56 @@ function LossList({ rows }: Readonly<{ rows: readonly LossRow[] }>): React.JSX.E
     );
 }
 
+/**
+ * What a file loses, as one counted line with a Details disclosure that shows the rows (tier 4,
+ * R14).
+ * @param props - Component props
+ * @param props.lead - the words before the line, such as "Lost in GEXF"; none when a title says it.
+ * @param props.rows - the loss rows.
+ * @returns the line and, when open, the rows.
+ */
+function LossSummary({ lead, rows }: Readonly<{ lead?: string; rows: readonly LossRow[] }>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    const line = lossSummary(rows);
+    return (
+        <>
+            <Group gap={4} wrap="nowrap" align="baseline">
+                <Text size="xs" span>
+                    {lead === undefined ? line : `${lead}: ${line}`}
+                </Text>
+                <Button
+                    size="xs"
+                    variant="subtle"
+                    aria-expanded={open}
+                    onClick={() => {
+                        setOpen(!open);
+                    }}
+                >
+                    Details
+                </Button>
+            </Group>
+            {open ? <LossList rows={rows} /> : null}
+        </>
+    );
+}
+
+/**
+ * A catalog option name in sentence case, as every label in the app is ("Include Styles" reads
+ * "Include styles"): each word after the first lower case, but a word with two capitals (an
+ * acronym, "IDs").
+ * @param name - the catalog's plain name.
+ * @returns the label.
+ */
+function sentenceCase(name: string): string {
+    return name
+        .split(" ")
+        .map((word, index) => (index === 0 || /[A-Z].*[A-Z]/.test(word) ? word : word.toLowerCase()))
+        .join(" ");
+}
+
+/** The Format list's groups: the formats a spreadsheet opens, then every network file. */
+const TABLE_FORMATS: ReadonlySet<string> = new Set(["csv"]);
+
 /** Props for DataOutput. */
 interface DataOutputProps {
     choices: DataChoices;
@@ -133,16 +185,25 @@ interface ScopeOption {
 }
 
 /**
- * The scopes on offer and their node counts: All, Shown, Selection (when something is selected)
- * and each kept set that holds a node.
+ * The scopes on offer and their node counts: All, Shown, Selection (when something is selected),
+ * each kept set that holds a node and, with two or more sources loaded, each source.
  * @param session - the element's session.
  * @returns the options.
  */
 async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
     const total = session.data.statistics().nodeCount;
-    const [shown, selected, ...sets] = await Promise.all([
+    const loads = session.data.sources();
+    const [shown, selected, bySource, ...sets] = await Promise.all([
         session.scope.count("visible"),
         session.scope.count("selection"),
+        Promise.all(
+            (loads.length > 1 ? loads : []).map(async (load) => ({
+                load,
+                count: await session.scope.count({
+                    define: { kind: "rule", where: { kind: "source", sources: [load.key] }, reading: "clipped" },
+                }),
+            })),
+        ),
         ...session.sets.list().map(async (set) => ({ set, count: await session.scope.count({ set: set.id }) })),
     ]);
     return [
@@ -168,6 +229,11 @@ async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
                 label: `${set.name} ${formatNumber(count.nodes)}`,
                 nodes: count.nodes,
             })),
+        ...bySource.map(({ load, count }) => ({
+            value: `source:${load.key}` as const,
+            label: `${sourceName(load)} ${formatNumber(count.nodes)}`,
+            nodes: count.nodes,
+        })),
     ];
 }
 
@@ -187,7 +253,7 @@ function partName(part: unknown): string {
  */
 function optionWords(option: OptionDescriptor): { label: string; choice: (value: string) => string } {
     return {
-        label: option.plainName,
+        label: sentenceCase(option.plainName),
         choice: (value) => option.values?.find((entry) => entry.value === value)?.label ?? value,
     };
 }
@@ -230,6 +296,12 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             : fileName(project, table ?? partName(keyed.part), extension);
     const binary = format?.binary === true;
     const formatName = row?.plainName ?? format?.plainName ?? choices.format;
+    // The one hint where styles are lost; the project file (Graphty JSON) holds the whole project.
+    const noStyles = choices.format !== "graphty" && writesNoStyles(format);
+    const formatItems = (table: boolean): { value: string; label: string }[] =>
+        rows
+            .filter((entry) => TABLE_FORMATS.has(entry.format) === table)
+            .map((entry) => ({ value: entry.id, label: entry.plainName }));
 
     let kinds: ("node" | "edge")[] = ["node", "edge"];
     if (table !== undefined) {
@@ -320,13 +392,11 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     <Select
                         ref={formatField}
                         label="Format"
-                        data={rows.map((entry) => ({
-                            value: entry.id,
-                            label:
-                                formats.find((each) => each.id === entry.format)?.styles?.write === "rules"
-                                    ? `${entry.plainName} (keeps style layers)`
-                                    : entry.plainName,
-                        }))}
+                        description={noStyles ? "No styles" : undefined}
+                        data={[
+                            { group: "Tables", items: formatItems(true) },
+                            { group: "Network files", items: formatItems(false) },
+                        ]}
                         value={rowId}
                         allowDeselect={false}
                         onChange={(id) => {
@@ -408,7 +478,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 ) : null}
                 {failure === null && styleLosses !== null ? (
                     <Alert color="orange" role="alertdialog" title={`Styles lost in ${formatName}`}>
-                        <LossList rows={lossRows(listedStyleLosses(format, styleLosses))} />
+                        <LossSummary rows={lossRows(listedStyleLosses(format, styleLosses))} />
                         <Text size="xs" c="dimmed">
                             {layersBackWords(format, styleLosses)}
                         </Text>
@@ -430,8 +500,8 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     </Alert>
                 ) : null}
                 {failure === null && styleLosses === null && preview !== null && preview.notes.length > 0 ? (
-                    <Alert color="yellow" role="note" title={`Lost in ${formatName}`}>
-                        <LossList rows={preview.notes} />
+                    <Alert color="yellow" role="note">
+                        <LossSummary lead={`Lost in ${formatName}`} rows={preview.notes} />
                     </Alert>
                 ) : null}
                 <pre

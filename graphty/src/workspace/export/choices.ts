@@ -37,8 +37,11 @@ export interface ImageChoices {
     readonly view: string;
 }
 
-/** Which records a data export writes: everything, or one of the element's export scopes. */
-export type DataScope = "all" | "shown" | "selection" | `set:${string}`;
+/**
+ * Which records a data export writes: everything, or one of the element's export scopes (a kept
+ * set by id, a loaded source by key).
+ */
+export type DataScope = "all" | "shown" | "selection" | `set:${string}` | `source:${string}`;
 
 /** The Data output's choices. */
 export interface DataChoices {
@@ -65,6 +68,9 @@ export function exportScope(scope: DataScope): ExportScope | undefined {
     if (scope === "all") {
         return undefined;
     }
+    if (scope.startsWith("source:")) {
+        return { kind: "source", sources: [scope.slice(7)] };
+    }
     return scope.startsWith("set:") ? { set: scope.slice(4) } : (scope as "shown" | "selection");
 }
 
@@ -83,8 +89,20 @@ interface FormatRow {
 }
 
 /**
+ * Whether a format's files hold no styles at all (`styles.write` "none", as CSV's): there the
+ * `styles` option writes nothing -- a CSV is the same file with it on or off -- so its row leaves
+ * the option out (tier 4, R14) and the export reports the layers as not written.
+ * @param format - the format.
+ * @returns true when its writer keeps no styles.
+ */
+export function writesNoStyles(format: FormatDescriptor | undefined): boolean {
+    return (format?.styles?.write ?? "none") === "none";
+}
+
+/**
  * The Format list: one row per file type the element writes -- each format's export variants
- * when it has them, else the format -- Graphty JSON first, then catalog order.
+ * when it has them, else the format -- Graphty JSON first, then catalog order. A format that
+ * writes no styles offers no Include styles.
  * @param formats - `session.catalog.formats()`.
  * @returns the rows.
  */
@@ -92,8 +110,10 @@ export function formatRows(formats: readonly FormatDescriptor[]): FormatRow[] {
     return formats
         .filter((format) => format.canExport)
         .sort((a, b) => Number(b.id === "graphty") - Number(a.id === "graphty"))
-        .flatMap((format) =>
-            format.exportVariants === undefined
+        .flatMap((format) => {
+            const own = (options: readonly OptionDescriptor[]): readonly OptionDescriptor[] =>
+                writesNoStyles(format) ? options.filter((option) => option.name !== "styles") : options;
+            return format.exportVariants === undefined
                 ? [
                       {
                           id: format.id,
@@ -101,7 +121,7 @@ export function formatRows(formats: readonly FormatDescriptor[]): FormatRow[] {
                           plainName: format.plainName,
                           extensions: format.extensions,
                           preset: {},
-                          options: format.writerOptions ?? [],
+                          options: own(format.writerOptions ?? []),
                       },
                   ]
                 : format.exportVariants.map((variant) => ({
@@ -111,9 +131,9 @@ export function formatRows(formats: readonly FormatDescriptor[]): FormatRow[] {
                       plainName: variant.plainName,
                       extensions: variant.extensions,
                       preset: variant.preset,
-                      options: variant.options,
-                  })),
-        );
+                      options: own(variant.options),
+                  }));
+        });
 }
 
 /**

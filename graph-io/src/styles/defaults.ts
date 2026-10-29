@@ -117,9 +117,11 @@ export interface ToolArrowhead {
      * The arrowhead's length along its line.
      * @param arrowSize - the edge's neutral `arrowSize` (1 is the program's normal size)
      * @param width - the edge's line width
+     * @param sourceArrow - the arrow at the edge's source end, for a program that sizes both of an edge's arrows by
+     * it (Cytoscape desktop); unset where the caller does not know it
      * @returns the length
      */
-    readonly length: (arrowSize: number, width: number) => number;
+    readonly length: (arrowSize: number, width: number, sourceArrow?: StyleArrowShape) => number;
     /** Its width across the line as a fraction of its length, which its diamond shares. */
     readonly aspect: number;
     /**
@@ -185,7 +187,10 @@ const PAJEK_SVG = `${MEASURED}pajek-`;
  * cx2-signor-aml and cx2-syn-bypass (widths 1 and 7).
  */
 const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
-    length: (size, width) => 2 * (6 * size + width),
+    // both ends of an edge whose source arrow is HALF_TOP or HALF_BOTTOM are EDGE_*_ARROW_SIZE times the width
+    // instead (DEdgeDetails.adjustArrowSize; getTargetArrowSize reads the source's shape too)
+    length: (size, width, sourceArrow) =>
+        2 * (sourceArrow === "half" || sourceArrow === "other:half-bottom" ? 6 * size * width : 6 * size + width),
     aspect: 0.5,
     shapes: {
         square: { length: 0.5, aspect: 1 },
@@ -200,7 +205,7 @@ const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
         "other:half-circle": { length: 0.25, aspect: 2 },
         "other:open-half-circle": { length: 0.25, aspect: 2 },
     },
-    source: `${MEASURED}cx-ndex-90f78bcd, cx2-u2os-hierarchy, cx2-signor-aml, cx2-syn-bypass, cx-syn-mappings: each arrow's unit glyph), Cytoscape 3.10.5`,
+    source: `${MEASURED}cx-ndex-90f78bcd, cx2-u2os-hierarchy, cx2-signor-aml, cx2-syn-bypass, cx-syn-mappings: each arrow's unit glyph; cx2-specimen-arrows: a source half arrow of size 10 on a 1.5 line drawn at 15), Cytoscape 3.10.5 (ding-presentation-impl DEdgeDetails.adjustArrowSize)`,
 };
 
 /**
@@ -461,6 +466,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     shapes: {
                         tee: { length: 0.2, aspect: 5 },
                         square: { length: 0.8, aspect: 1 },
+                        // obox, the same box outlined
+                        "other:open-square": { length: 0.8, aspect: 1 },
                         diamond: { length: 1.2, aspect: 2 / 3 },
                         "diamond-open": { length: 1.2, aspect: 2 / 3 },
                         circle: { length: 0.8, aspect: 1 },
@@ -661,6 +668,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     shapes: {
                         tee: { length: 0.15, aspect: 1 / 0.15 },
                         square: { length: 0.6, aspect: 1 },
+                        // Crow: its prongs at -1 and +-0.3, as wide as the arrow
+                        crow: { length: 1, aspect: 0.6 },
                         circle: { length: 0.8, aspect: 1 },
                         "other:curve": { length: 0.4, aspect: 2 },
                         "other:inv-curve": { length: 0.4, aspect: 2 },

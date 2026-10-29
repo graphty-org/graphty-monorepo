@@ -10,6 +10,8 @@ import React from "react";
 import { FLOATING_UI_Z_INDEX } from "../../constants/popout";
 import { defaultLabels } from "../../i18n/labels";
 import { UiGlyph } from "../../icons";
+import { TypeAheadRun } from "../../utils/type-ahead-run";
+import { capped, VIEWPORT_CAP_MARGIN, visualBand } from "../overlays/viewportCap";
 
 /** The list's inset: its top padding, and how far it starts before the trigger. */
 const LISTBOX_EDGE = 8;
@@ -53,11 +55,12 @@ function anchorBoxes(state: ListState): { anchor: DOMRect; reference: DOMRect } 
  * Measured from the rendered list, so it follows groups, separators and scrolling without being
  * told the selected index.
  *
- * A list taller than the viewport (less 6px each side) that would cross its edge when aligned is
- * cut there instead of being pushed back inside, as macOS does: its height is capped to the part
- * that fits and its content scrolled, so the selected option still lands on the field. A list
- * that fits whole is pushed back inside instead (floating-ui's shift), moving the selected option
- * off the field by the overflow, so every option shows.
+ * A list taller than the visual viewport less 16px (the cap every dropdown shares, viewportCap.ts)
+ * that would cross its edge when aligned is cut there instead of being pushed back inside, as
+ * macOS does: its height is capped to the part that fits 8px inside the visual viewport and its
+ * content scrolled, so the selected option still lands on the field. A list that fits whole is
+ * pushed back inside instead (floating-ui's shift), moving the selected option off the field by
+ * the overflow, so every option shows. The visual viewport, so an on-screen keyboard shrinks it.
  *
  * ponytail: a long list on a field near the edge is still cut to whatever fits beside the field,
  * which can be a few rows; open it toward the room when that shows.
@@ -83,18 +86,22 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     // Where the list's content would start, unscrolled, for the selected option to sit on the field.
     const contentTop =
         anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + floating.scrollTop);
-    // The list is the part of that content inside the viewport less the margin. A field outside
-    // that band cannot have its option both on it and inside it, and a list that fits the band
-    // whole is never cut (cut, a short list on a field at the window's edge shows a strip with no
-    // option): either way the list opens unscrolled and shift pulls it in.
-    const viewportBottom = floating.ownerDocument.documentElement.clientHeight - VIEWPORT_MARGIN;
+    // The list is the part of that content inside the visual viewport less half the cap's margin
+    // each side. A field outside that band cannot have its option both on it and inside it, and a
+    // list that fits the band whole is never cut (cut, a short list on a field at the window's
+    // edge shows a strip with no option): either way the list opens unscrolled, at most the cap
+    // tall, and shift pulls it in.
+    const edge = VIEWPORT_CAP_MARGIN / 2;
+    const view = visualBand();
+    const viewportTop = view.top + edge;
+    const viewportBottom = Math.min(floating.ownerDocument.documentElement.clientHeight, view.bottom) - edge;
     const inside =
-        anchor.top >= VIEWPORT_MARGIN &&
+        anchor.top >= viewportTop &&
         anchor.bottom <= viewportBottom &&
-        floating.scrollHeight > viewportBottom - VIEWPORT_MARGIN;
-    const top = inside ? Math.max(contentTop, VIEWPORT_MARGIN) : contentTop;
+        floating.scrollHeight > viewportBottom - viewportTop;
+    const top = inside ? Math.max(contentTop, viewportTop) : contentTop;
     const bottom = Math.min(contentTop + floating.scrollHeight, viewportBottom);
-    floating.style.maxHeight = inside ? `${String(bottom - top)}px` : "";
+    floating.style.maxHeight = inside ? capped(`${String(bottom - top)}px`) : "";
     floating.scrollTop = top - contentTop;
     return { mainAxis: top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
 }
@@ -473,7 +480,7 @@ export function ensureListboxKeyboard(): void {
     }
     keyboardTracked = true;
     let typed = "";
-    let lastAt = 0;
+    const run = new TypeAheadRun(TYPEAHEAD_RESET_MS);
     let closedTrigger: EventTarget | null = null;
     // The trigger whose last run matched no option: its Enter is used up, writing nothing.
     let missOn: EventTarget | null = null;
@@ -561,19 +568,14 @@ export function ensureListboxKeyboard(): void {
     document.addEventListener("keydown", announceOpened);
     document.addEventListener("click", announceOpened);
 
-    let runOn: EventTarget | null = null;
     /**
-     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field. The
-     * pause runs from when the page took the last letter, not from when it was typed: letters
-     * typed while the page was busy (opening the list, redrawing the panel around it) are one run
-     * however late each is handled.
+     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field
+     * (`TypeAheadRun`: letters typed while the page was busy are one run however late each is
+     * handled).
      * @param event - the key
      */
     const extendRun = (event: KeyboardEvent): void => {
-        const now = event.timeStamp;
-        typed = now - lastAt > TYPEAHEAD_RESET_MS || event.target !== runOn ? event.key : typed + event.key;
-        lastAt = Math.max(now, performance.now());
-        runOn = event.target;
+        typed = run.add(event, event.target);
     };
     /**
      * Highlights the next enabled option whose label starts with the run typed so far.
@@ -594,7 +596,7 @@ export function ensureListboxKeyboard(): void {
                 missOn = null;
                 speak(list, "");
                 walkHighlight(input, list, option);
-                lastAt = performance.now();
+                run.taken();
                 return;
             }
         }
@@ -605,7 +607,7 @@ export function ensureListboxKeyboard(): void {
         speak(list, listNoMatch(typed));
         list.querySelector("[data-combobox-selected]")?.removeAttribute("data-combobox-selected");
         input.removeAttribute("aria-activedescendant");
-        lastAt = performance.now();
+        run.taken();
     };
     const enabledOptions = (list: HTMLElement): HTMLElement[] =>
         [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(

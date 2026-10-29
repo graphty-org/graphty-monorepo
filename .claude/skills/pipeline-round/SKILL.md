@@ -137,7 +137,6 @@ several:
   or red-master issue, or a rollout step's pull request, gets its own line the moment it is green. Never merge master
   into one waiting on the owner unless it conflicts: the push dismisses his approval.
 - **A major or first publish** the verdict names as an owner item (no `release-approvals.json` entry).
-- **The npm token:** 14 days before `NPM_DIST_TAG_TOKEN_EXPIRES`, one line to renew it.
 - **The branch ceiling,** in the daily list: every branch with no pull request whose first commit is over 3 days
   old, and every pull request over 1,500 changed lines (tests and baselines not counted). Each is split into flagged
   pieces or its owner says why not, recorded with `tools/branch-note.mjs`. A warning, not a check.
@@ -200,7 +199,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
 
 - **To take a change back out of master**, revert its merge on a branch (`git revert -m 1 <merge sha>`) and open that
   branch's pull request with `tools/pr-open.sh`.
-- **The retired Mergify checks** (`Queue Checks Pass`) on a pull request are not required; ignore them.
+- **The retired Mergify check** `Queue Checks Pass`, which CI no longer reports, can still sit on an older pull
+  request head; it is not required, so ignore it.
 - **npm `previously staged version` (409).** The publish succeeded and is propagating (minutes). Not a failure.
 - **The baseline seed pull request** from `visual-seed.yml` merges into master directly; it is not a stray.
 - **The results store is down:** every job fails open (longer and stricter, never looser). Read red issues and runs

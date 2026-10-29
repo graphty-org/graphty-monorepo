@@ -4304,3 +4304,251 @@ Still open:
   still listed as untestable). The aggregate totals above are identical to the run the floors were recorded from, so
   these are records that do not match that run, not new regressions; they need a recording pass with a reason for
   each lowered floor.
+
+## Round 5: comparator audit, arrowheads, routes, labels, outlines and charts (2026-10-28)
+
+Round 5 started from an audit of the comparator (does it hide real defects, does it invent false ones), then fixed
+the most damaging drawing problems it measured. Every number below comes from a full run of the oracle comparison
+(`graphty-element/test/fidelity/oracle-report.test.ts`, 563 samples, NVIDIA path) and counts only drawings made by the
+file's own program. Stand-in drawings (79 samples, mostly draw.io for yEd files) and raster oracles are left out: they
+are not the judge, and their 5,560 failing elements did not change in this round.
+
+Three trees were measured:
+
+- **before**: origin/master 780b7edbe6, before round 5, with the old comparator.
+- **comparator only**: the round-5 comparator (#4246) on that same drawing. Every change from "before" here is the
+  comparator reading the drawings differently, never graphty drawing differently.
+- **after**: origin/master fea3503e96 (which holds the comparator #4246 and the arrowheads #4254) merged with the four
+  round-5 pull requests still open: #4259 (dashed routes), #4265 (label pairing), #4251 (DOT table outlines) and #4250
+  (Cytoscape chart marks). The Graphviz label-size branch is not in it (no pull request; see "Decisions pending").
+
+The after tree equals the comparator-only run plus each pull request's own measured change, element by element, on
+every sample: the branches do not interact.
+
+### Totals
+
+| measure (real-program oracles)                    | before                  | comparator only        | after                  |
+| ------------------------------------------------- | ----------------------- | ---------------------- | ---------------------- |
+| real files: failing elements                      | 3,597 of 32,574 (11.0%) | 2,879 of 32,546 (8.8%) | 2,491 of 32,512 (7.7%) |
+| real files: clean samples                         | 23 of 80                | 20 of 80               | 20 of 80               |
+| specimen pages: failing elements                  | 1,308 of 20,094 (6.5%)  | 1,049 (5.2%)           | 800 (4.0%)             |
+| specimen pages: clean                             | 261 of 377              | 261                    | 271                    |
+| Cytoscape desktop pages clean in all four formats | 31 of 41                | 31                     | 33                     |
+| old combined total (every oracle, stand-ins too)  | 10,469 (14.8%)          | 9,492 (13.4%)          | 8,855 (12.5%)          |
+
+The oracle side's element count moves a little (32,574 to 32,512) because the comparator now keeps apart shapes it
+used to merge (two Tokyo stations drawn 0.9 px apart) and merges shapes it used to split.
+
+Clean real files went down by three in the comparator step and stayed there: `cx-repro-unplaced-boxes`,
+`json-vis-world` and `json-vis-transparency` were passing only because the old comparator did not judge what is wrong
+with them (below). The ten newly clean specimen pages are all arrowhead pages: cx, cx2, cys and xgmml
+`specimen-arrows`, cx, cys and xgmml `specimen-mappings-bypass-p11`, `gml-specimen-arrows-p7` and `-p8`,
+`vis-network-specimen-arrows`.
+
+### Per property (real-program oracles, failing elements)
+
+| property                  | before   | comparator only | after   | what moved it                                                                          |
+| ------------------------- | -------- | --------------- | ------- | -------------------------------------------------------------------------------------- |
+| stray.present             | 999      | 709             | 495     | comparator (annotation heads, vis arrowheads); Cytoscape chart colors and pies (#4250) |
+| label.anchor              | 952      | 162             | 90      | comparator (tiny-label boxes, Calibri); twin pairing (#4265)                           |
+| edge.width                | 622      | 622             | 621     | not worked on (#4268; the DOT part goes with #4203)                                    |
+| node.position             | 468      | 468             | 466     | not worked on (DOT: #4203, blocked)                                                    |
+| edge.route                | 371      | 373             | 332     | twin pairing (#4265), dashed routes (#4259)                                            |
+| node.sizeToSpacing        | 47       | 259             | 246     | comparator newly judges own layouts (+212 cx, #3103); DOT tables (#4251)               |
+| edge.arrowPlace           | 209      | 58              | 58      | comparator (Pajek mid-line heads)                                                      |
+| node.width                | 206      | 205             | 145     | DOT tables (#4251), twin pairing (#4265)                                               |
+| stray.extra               | 168      | 177             | 177     | comparator (graphty's own annotation heads now seen)                                   |
+| node.height               | 136      | 135             | 77      | DOT tables (#4251), twin pairing (#4265)                                               |
+| edge.arrowLength          | 122      | 123             | 14      | arrowheads (#4254)                                                                     |
+| edge.arrowWidth           | 120      | 121             | 14      | arrowheads (#4254)                                                                     |
+| edge.extra / edge.present | 127 / 92 | 127 / 92        | 77 / 42 | twin pairing (#4265: json-cyjs-perf, json-cyjs-tokyo)                                  |
+| label.offset              | 108      | 109             | 45      | twin pairing (#4265)                                                                   |
+| node.stroke               | 79       | 74              | 12      | comparator (vis database outline); DOT tables (#4251)                                  |
+| edge.arrowToSpacing       | 71       | 71              | 11      | arrowheads (#4254)                                                                     |
+| edge.label                | 50       | 50              | 21      | twin pairing (#4265)                                                                   |
+| edge.curve                | 36       | 41              | 39      | comparator newly judges own layouts (+5 vis); dashed routes (#4259)                    |
+| edge.dash                 | 39       | 39              | 36      | dashed routes (#4259)                                                                  |
+| edge.color                | 21       | 21              | 7       | twin pairing (#4265)                                                                   |
+| node.fill                 | 14       | 14              | 7       | DOT tables (#4251)                                                                     |
+| edge.arrowParts           | 14       | 18              | 18      | not worked on: stacked heads (#4267)                                                   |
+
+Unchanged: label.present 100, label.lines 65, node.strokeWidth 63, label.size 45, edge.arrowShape 41, node.shape 39 to
+41, edge.dashPeriod 30, group.box 28.
+
+### Per format (failing elements: real files / specimen pages)
+
+| format      | before      | comparator only | after       |
+| ----------- | ----------- | --------------- | ----------- |
+| cx          | 215 / 239   | 354 / 176       | 332 / 118   |
+| cx2         | 199 / 237   | 198 / 174       | 173 / 118   |
+| cys         | 68 / 239    | 68 / 176        | 48 / 118    |
+| xgmml       | 69 / 239    | 68 / 176        | 49 / 118    |
+| dot         | 1,129 / 206 | 1,074 / 206     | 1,072 / 199 |
+| json        | 1,518 / -   | 864 / -         | 564 / -     |
+| pajek       | 309 / 36    | 163 / 32        | 163 / 32    |
+| gml         | - / 17      | - / 17          | - / 11      |
+| vis         | - / 27      | - / 24          | - / 18      |
+| gexf        | 90 / 2      | 90 / 2          | 90 / 2      |
+| cytoscapejs | - / 66      | - / 66          | - / 66      |
+| cyjs        | 0 / -       | 0 / -           | 0 / -       |
+
+cx real files went UP in the comparator step (215 to 354): `cx-radiation-bibliography` and `cx-repro-unplaced-boxes`
+now fail node.sizeToSpacing on 212 nodes that graphty draws as dots where Cytoscape draws labeled boxes. That is a real
+defect the old comparator hid, not a regression. The Graphviz label-size branch, measured on its own, takes DOT real
+files from 1,074 to 646 (all of dot-real-siblings' and dot-real-crazy's edge.width, most of their node.position); it is
+not in the "after" column.
+
+### What the comparator changes did (#4246, merged)
+
+Blind spots closed, so numbers went up:
+
+- Where each program lays the file out itself, a uniformly wrong size passed, because the scale fitted between the
+  two layouts absorbed it. node.sizeToSpacing is judged there again (band 1/3 to 3), and a render pixel there is at
+  most the canvases' ratio, not the fitted scale (it was 14 px on `cx-radiation-bibliography`).
+- Edge shape was never judged on own layouts. edge.curve is judged there as one element for the drawing: the share
+  of bent lines (vis-network bends 22 to 52 percent of its lines, graphty 0 to 13 on `json-vis-world`, `-siblings`,
+  `-unix`, `-transparency`; `json-vis-lesmiserables` the other way round).
+- A zigzag under 5 percent of a long edge passed. New property edge.wiggle counts how often a route turns back.
+
+False failures removed, so numbers went down:
+
+- Labels drawn under 6 px got line boxes up to twice their font size (Chromium rounds ascent and descent at screen
+  size): they are laid out 100 times larger and measured there. json-cyjs-tokyo label.anchor 695 to 70,
+  dot-real-depcruise 96 to 2.
+- Cytoscape desktop's Calibri labels are measured in the face Java actually drew (DejaVu Sans):
+  cx-radiation-bibliography label.anchor 70 to 0.
+- Pajek's mid-line arrowheads are judged by where along the line their middle sits, not from the line's end:
+  pajek-graphstream-b 193 to 44.
+- Cytoscape annotation arrowheads read one by one (charts-p6 stray.present 86 to 21 per format); vis-network's open
+  database outline joined to its fill; vis arrowheads over a flat neighbour box no longer refused.
+
+Each change has a test that fails on the old comparator, and the planted-defect run (`mutants.test.ts`) now includes
+two own-layout samples and four new defects (zigzag at 3 percent, nodes and labels at a fifth of their size, one node
+twice its size, one label at 0.7). Two gaps found in review are filed as #4252 (half-arrow line run-on, open half
+arrows, vis-network's crow) and #4264 (a missing or outlined node in a coincident pair, stacked WikiPathways boxes).
+
+### What the drawing and reader changes did
+
+- **Arrowheads (#4254, merged; #4202).** Cytoscape desktop's heads beside a half-arrow source sized as Cytoscape sizes
+  them (`DEdgeDetails.adjustArrowSize`), Graphviz's obox at its box size, vis-network's crow and Graphviz's crow and inv
+  at their program's width, graphty's vee notched at half its length with the line run on to the notch.
+  arrowLength 123 to 14, arrowWidth 121 to 14, arrowToSpacing 71 to 11. One edge newly fails edge.route in each
+  Cytoscape format (`syn-mappings` n43 -> n44, a sinewave line beside a half arrow: the line now starts 4.6 px off the
+  node, Cytoscape starts it at the outline). The vee change touches every vee graphty-element draws.
+- **Label and node pairing (#4265, open; #4247), comparator only.** Two Tokyo stations drawn 0.9 px apart were read
+  as one node, and station names were swapped between same-name stations 1 to 4 px apart. json-cyjs-tokyo 282 to 35
+  failing elements, json-cyjs-perf 108 to 55. A shape that is another node's own best body is never this node's twin,
+  and same-name nodes within two node sizes take the words drawn where graphty puts their own label. On
+  `cx2-wp1449-tlr` 4 edge.route and 2 node.extra newly fail (stacked TIRAP and MYD88 boxes, #4264).
+- **DOT HTML table labels (#4251, open; #4248).** Graphviz draws a table's border (BORDER, COLOR, STYLE) even on a
+  plain, plaintext or none node, and sizes the node to border, cell spacing, cell border and cell padding round the
+  text (lib/common/htmltable.c); `shape=plain` forces margin 0. On DOT: node.stroke 62 to 2, node.width 148 to 105,
+  node.height 82 to 39. Left: inner cell borders, `TABLE STYLE=rounded`, a plaintext or none table at default margin.
+- **Cytoscape chart marks (#4250, open; #4249).** graph-io reads `cy_colorScheme` (bar colors, BarLayer.java's
+  up/zero/down rule) and `cy_values` pies. stray.present 59 to 5 per Cytoscape desktop format on images-charts-p5,
+  -p6 and mappings-bypass-p18. Left: chart axes, tick and item labels and the plot inset (images-charts-p7, 70 marks
+  per format).
+- **Patterned lines along their route (#4259, open; #3102).** A dash-dot, slashes, zigzag or sinewave edge, and a
+  dashed or dotted edge on a Graphviz-laid route, are laid along their curve, bends, route or self-loop, and a click
+  picks them there. edge.dash 39 to 36 (cx, cx2, cys `syn-bypass`), edge.curve and edge.route on dot-synth-edges-clusters.
+  The piece count is not capped yet (#4257).
+- **Node sizes: no change.** GEXF and vis-network radii (#3100) were already fixed on master (0 node-size failures on
+  all 90 GEXF samples). The remaining step of the owner's decision on #2322 removes the fixed layout's public `scale`
+  option, a breaking change, so it was not done. The largest real node-size failure, `cx-radiation-bibliography` drawn
+  as dots, is #3103.
+
+Every pull request had a review that re-derived its numbers from the run files element by element. The chart marks,
+dashed routes, label pairing and Graphviz label-size changes also had an engineering review, which checked that each
+new test fails without its change and probed malformed input; the DOT tables (#4251) and arrowheads (#4254) changes
+opened without one. Those two reviews, and a review of the commits that fixed the first reviews' findings on #4251
+and the Graphviz branch, came afterwards and found two defects: graphty's own DOT writer lost a table label's frame,
+so the table's padding did not survive a round trip (fixed on #4251, which also reads table attributes as Graphviz's
+lexer does), and #4254's line run on to the vee's notch covered the vee on lines wider than half of it (fixed by
+#4309). Blocking findings that were fixed before the pull requests opened: a record label `<f0>|<f1>` handed to
+Graphviz as HTML (a syntax error, Graphviz branch); a table size overriding a larger node size and an outline drawn
+on a plaintext node's whole box (DOT tables); Cytoscape heat-strip colors for two- and five-color schemes (chart
+marks); click picking still straight for routed patterned edges (dashed routes); graphty's own wrong label offset
+able to pick a twin's label four node sizes away (label pairing). No input in any probe threw.
+
+### What did not improve, and why
+
+| failing elements (after)                               | what                                                                                                                                    | issue                                       |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| 447 node.position, 333 edge.width (dot)                | graphty's Graphviz run lays out nodes without their label text, so Graphviz spaces and routes a different graph                         | #4203 (branch ready, blocked on a decision) |
+| 284 edge.width (json-vis-siblings)                     | one uniform line-width ratio against vis-network                                                                                        | #4268                                       |
+| 280 stray.present + 84 stray.extra (Cytoscape desktop) | chart axes, tick and item labels and the plot inset on images-charts-p7                                                                 | #4249                                       |
+| 212 node.sizeToSpacing (cx)                            | a computed layout ignores the file's node sizes: labeled boxes drawn as dots                                                            | #3103 (owner)                               |
+| 58 edge.arrowPlace (pajek)                             | on 20 to 28 px edges graphty puts a mid-line head's tip at the middle, Pajek its middle                                                 | #706                                        |
+| 44 label.present (gexf-hsk-chars)                      | graphty draws 44 single-character Chinese labels where Gephi's drawing has none; not traced (Gephi's font or the comparator's reading)  | #706                                        |
+| 18 edge.arrowParts                                     | stacked heads drawn as one                                                                                                              | #4267                                       |
+| 39 edge.curve                                          | Graphviz routes (dot 25), vis-network's bent lines on own layouts (json 6), the wrong edge of a parallel pair curved (cx2-signor-aml 6) | #4203, #706, #4258                          |
+| 104 edge.arrow (json 54)                               | json-vis-siblings: arrowheads at crowded nodes the comparator cannot yet give to the right edge (it does not use the head's direction)  | #706                                        |
+
+### The full-run gate
+
+The full run's gate (`oracle-known-failures.json`) is red: 38 samples (70 keys counting the matched view) against 27
+samples (53 keys) before round 5. No key that was red before turned green, and every key that turned red is a defect
+the round-5 comparator now sees: `cx-radiation-bibliography` (node sizes), the four `specimen-images-charts-p6`
+copies (graphty's annotation heads), `json-vis-siblings`, `-world`, `-unix`, `-lesmiserables` (bent lines),
+`pajek-synth-lines` (part-way heads), `dot-real-depcruise@matched` (wiggle). Recording them needs
+`fidelity:ratchet --add` with a reason, which round 5 leaves to the owner. One round-5 change did add known failures:
+the comparator pull request (#4246, commit 4cc3484c97) recorded 31 elements on three CI scorecard samples that the new
+comparator judges and graphty's drawing did not change -- `cx-repro-unplaced-boxes` (24 nodes, `node.sizeToSpacing`),
+`json-vis-transparency` (`edge.curve` on element `edges`) and `json-vis-synth` (3 strays renumbered, in both views).
+CI runs only the 28-sample scorecard
+(`test/browser/oracle-scorecard.test.ts`), which each open pull request passes except the Graphviz branch.
+
+### Floors
+
+This section's pull request changes no floor. The DOT tables (#4251) and chart marks (#4250) pull requests ratchet
+their own floors and known failures; the comparator, arrowheads, label pairing and dashed-route changes recorded none.
+Raising floors on master now from the merged run would record rates master reaches only with the open pull requests,
+and would conflict with the two that edit the same file. The floors follow in a later pull request under #4266, from a
+full run of master once the open round-5 pull requests have merged.
+
+### Decisions pending (owner)
+
+- **Accepted by the owner on 2026-10-29**: both the Graphviz label-size trade (#4203, its 4 `dot-real-crazy` elements
+  recorded as known failures) and the 31 known failures #4246 added; the two items below stay only as the record.
+- **Graphviz label sizes (#4203).** Handing Graphviz the label-sized nodes takes DOT real files from 1,074 to 646
+  failing elements, but on `dot-real-crazy` 3 nodes and 1 edge newly fail the CI scorecard. Graphviz's own
+  WebAssembly build places only 19 of that file's 41 nodes near the command-line Graphviz's drawing (font metrics), so
+  the 3 nodes are inside what any WebAssembly run can reach. Accept the trade and record it, or keep the old result.
+- **#3103**: a computed layout ignores the file's node sizes (the 212 cx nodes drawn as dots).
+- **#2322**: the last step removes the fixed layout's `scale` option, a breaking change.
+- **The 8-distinct-label-positions limit**: unchanged in round 5.
+- **yEd hand exports**: every yEd and yEd Live oracle is still a stand-in (see "yEd sheets to export by hand"), so
+  the 43 yed and 12 graphml samples judge nothing about yEd.
+- **The red full-run gate**: whether the newly seen defects above are recorded as known failures, and with what reason.
+- **The 31 known failures #4246 added** (commit 4cc3484c97, listed under "The full-run gate"): they keep the CI
+  scorecard green on defects the new comparator sees and graphty's drawing did not cause. Keep the record, or fix
+  the drawings (`cx-repro-unplaced-boxes`'s boxes are #3103) and take it back.
+
+### What to look at
+
+Only a person can judge whether the drawings got better. These stories of the graph-io fidelity Storybook (open
+`?path=/story/<id>`) show the program's drawing beside graphty's, with the comparator's table under them:
+
+1. `style-fidelity-cx2-specimens--arrows` (and the xgmml, cx and session copies): the heads beside a half-arrow source
+   now match Cytoscape's size; the half arrow itself is still a filled wedge (#4253).
+2. `style-fidelity-graphviz-dot-specimens--arrows`: obox and box at Graphviz's size, the vee notched at half its
+   length with the line run on to the notch; stacked heads still drawn as one (#4267).
+3. `style-fidelity-vis-network-specimens--arrows`: crow and inv_triangle at vis-network's width, the broad vee.
+4. `style-fidelity-graphviz-dot-specimens--labels-p-2` and `--labels-p-3`: HTML table labels now framed with the
+   table's border weight, color and dashes; inner cell borders still missing.
+5. `style-fidelity-cx-specimens--images-charts-p-5`, `--images-charts-p-6` and `--mappings-bypass-p-18`: bar charts
+   in Cytoscape's color schemes and `cy_values` pies; the axes and labels of `--images-charts-p-7` are still missing.
+6. `style-fidelity-cx-samples--syn-bypass`: the curved slashes edge (2106 -> 2112) drawn as a patterned curve, not a
+   solid line.
+7. `style-fidelity-graphviz-dot-samples--synth-edges-clusters`: dotted edges along Graphviz's routes (c2_3 -> c9_4,
+   c3_3 -> c1_3); dense, judge at full size.
+8. `style-fidelity-cx2-samples--syn-mappings`: 19 arrowheads now right; the sinewave edge n43 -> n44 starts 4.6 px off
+   its node, the one new failure of the arrowhead change.
+9. `style-fidelity-cytoscape-js-samples--cyjs-tokyo`: the drawing did not change, the comparator's reading did; check
+   that the twin stations' labels it now pairs are the ones you would pair.
+10. `style-fidelity-cx-samples--radiation-bibliography`: the largest defect the new comparator found, labeled boxes
+    drawn as dots on graphty's computed layout (#3103).
+11. `style-fidelity-vis-network-samples--vis-world`: vis-network bends its lines, graphty draws them straight (newly
+    judged).
+12. `style-fidelity-graphviz-dot-samples--real-crazy`: the sample the Graphviz label-size decision is about; that
+    branch is not in the Storybook, so compare it with the side-by-side image the branch's proof names.

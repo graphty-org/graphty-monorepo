@@ -7,30 +7,11 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
-
-/**
- * Opens Les Miserables from the start screen, as a reader does, with the starting rows on.
- * @returns the session.
- */
-async function openSample(): Promise<GraphSession> {
-    render(<Workspace store={createWorkspaceStore()} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
-    return waitFor<GraphSession>(() => {
-        const found = document.querySelector("graphty-element")?.session;
-        if (found === undefined) {
-            throw new Error("the element is not up yet");
-        }
-        assert.equal(found.data.statistics().nodeCount, 77);
-        return found;
-    });
-}
+import { openSampleFromStart } from "../../../test/open";
+import { screen, waitFor, within } from "../../../test/test-utils";
 
 /**
  * Whether the Hovered row's name, which carries its count, says it counts one node.
@@ -48,7 +29,7 @@ describe("the Hovered row", () => {
     });
 
     it("counts the node under the pointer, and none once the pointer leaves the drawing", async () => {
-        const session = await openSample();
+        const { session } = await openSampleFromStart("Les Miserables");
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
         if (element === null) {

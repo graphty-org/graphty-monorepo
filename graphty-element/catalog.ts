@@ -93,11 +93,46 @@ export type { ModelDescriptor } from "./src/catalog/models";
 export { MODEL_DESCRIPTORS } from "./src/catalog/models";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+// Shaders as catalog data: targets and places, the descriptor `session.catalog.shaders()` lists,
+// the uses a layer lists, the channels a shader covers, the shader text format read and written
+// with no DOM, and a working template for each place.
 export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export { SCREENSHOT_PRESET_DESCRIPTORS } from "./src/catalog/screenshotPresets";
+export type {
+    ShaderClock,
+    ShaderClockBinding,
+    ShaderCost,
+    ShaderDescriptor,
+    ShaderGlyph,
+    ShaderInput,
+    ShaderMotion,
+    ShaderMotionInput,
+    ShaderOrigin,
+    ShaderParamChoice,
+    ShaderParamDescriptor,
+    ShaderParams,
+    ShaderParamValue,
+    ShaderPlace,
+    ShaderPreview,
+    ShaderProblem,
+    ShaderProblemCode,
+    ShaderRegistration,
+    ShaderRequirement,
+    ShaderSource,
+    ShaderTarget,
+    ShaderText,
+    ShaderTextResult,
+    ShaderUse,
+    ShaderWebGpu,
+} from "./src/catalog/shaders";
+export { shaderAnimates, shaderCovers } from "./src/catalog/shaders";
+export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
+export { formatShaderText, parseShaderText, type ShaderTextOptions } from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";
+export type { ShaderParamAddress } from "./src/catalog/types";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
 export type { SourceCatalogEntry, SourceFeatures } from "./src/session/sources/types";
+export type { TransitionDescriptor, TransitionDrawable } from "./src/transitions/registry";
 export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
 
@@ -127,6 +162,9 @@ export type {
     ChannelValueKind,
 } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+// What a shader parameter declared `varies` is bound as, by its encode address: the descriptor an
+// editor's vary picker and `styles.proposeEncoding` read for it.
+export { shaderParamChannel } from "./src/session/styles/encoding";
 // The one color reader a channel uses: a hex string, any CSS color the element understands, or
 // Rgba components in, a clamped and rounded color with its `#rrggbb[aa]` hex out (null when the
 // value is not a color). A color control reads a layer's value through this rather than

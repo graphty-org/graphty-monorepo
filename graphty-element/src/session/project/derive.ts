@@ -35,6 +35,8 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "config",
     "attributes",
     "valueLabels",
+    // Before styles, whose layers name a pasted shader by id.
+    "shaders",
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
@@ -64,7 +66,7 @@ interface Pass {
 }
 
 /** The keyed slices: the maps and the set a pass copies key by key. */
-type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
+type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders";
 
 /** A copy of every keyed slice, owned by the lane and written by nothing else. */
 type Copies = { [S in KeyedSlice]: Map<unknown, unknown> | Set<unknown> };
@@ -84,6 +86,7 @@ function copyAll(state: ProjectState): Copies {
         notes: new Map(state.notes),
         attributes: new Map(state.attributes),
         valueLabels: new Map(state.valueLabels),
+        shaders: new Map(state.shaders),
     };
 }
 
@@ -201,9 +204,19 @@ export class DerivationLane {
     /**
      * Told at the end of every pass, after its hooks have brought the picture up to date: the one
      * place every change to project state passes on its way to the screen, so a renderer that
-     * skips frames while nothing changes is told here that something did.
+     * skips frames while nothing changes is told here that something did, and which keys of which
+     * slices the pass derived.
      */
-    passEnded: (() => void) | null = null;
+    passEnded: ((dirty: ReadonlyMap<DerivedSlice, ReadonlySet<string>>) => void) | null = null;
+    /**
+     * Told when the lane goes idle -- its last pass has ended and none waits -- with every slice
+     * the passes since it last went idle derived, whatever scheduled them: a commit, or a touch
+     * with no commit behind it (a deferred repaint, an import's end). Called synchronously once the
+     * last pass's promise has resolved, before the reactions to it run.
+     */
+    drained: ((slices: ReadonlySet<DerivedSlice>) => void) | null = null;
+    /** The slices derived since the lane last went idle. */
+    private sinceIdle = new Set<DerivedSlice>();
     /** What the running pass, or the last one, catches up with. */
     private passCauseValue: HistoryCause = "command";
 
@@ -416,11 +429,29 @@ export class DerivationLane {
 
             this.current = null;
             try {
-                this.passEnded?.();
+                this.passEnded?.(dirty);
             } catch (error) {
                 this.onError(error);
             }
             pass.resolve();
+            dirty.forEach((_, slice) => this.sinceIdle.add(slice));
+        }
+
+        this.idle();
+    }
+
+    /** Tell `drained` the slices derived since the lane last went idle. */
+    private idle(): void {
+        const slices = this.sinceIdle;
+        this.sinceIdle = new Set();
+        if (this.closed || slices.size === 0) {
+            return;
+        }
+
+        try {
+            this.drained?.(slices);
+        } catch (error) {
+            this.onError(error);
         }
     }
 

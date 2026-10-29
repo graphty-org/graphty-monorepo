@@ -540,6 +540,12 @@ export function clearRegisteredLogSinksForTesting(): void;
 export function clearRegisteredPalettesForTesting(): void;
 
 // @public
+export function clearRegisteredShadersForTesting(): void;
+
+// @public
+export function clearRegisteredTransitionsForTesting(): void;
+
+// @public
 export interface CollapseResult {
     readonly kept: readonly CodedFact<"W_COLLAPSE_KEPT">[];
     readonly removedEdges: number;
@@ -710,6 +716,9 @@ export function defineOptionsSchema<S extends OptionsSchema>(schema: S): S;
 // @public
 export function definePalette(definition: PaletteDefinition, options?: RegisterOptions): void;
 
+// @public
+export function defineShader(definition: ShaderDefinition, options?: RegisterOptions): void;
+
 export { defineSource }
 
 // @public
@@ -762,6 +771,10 @@ export class Edge {
     }[];
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
+    get drawnEffects(): {
+        id: string;
+        points: Vector3[];
+    }[];
     // @internal
     get drawnGradient(): readonly string[];
     get drawnLine(): {
@@ -794,8 +807,12 @@ export class Edge {
     parentGraph: Graph | GraphContext;
     // (undocumented)
     ray: Ray;
+    // @internal
+    refreshShaderPaint(): void;
     setRenderVisible(visible: boolean): boolean;
     setSelected(selected: boolean): boolean;
+    // @internal
+    shaderDataChanged(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
     // (undocumented)
@@ -1163,6 +1180,25 @@ export type GraphtyErrorCode =
 * The caller picks a palette from the catalogue or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
+/**
+* A layer names a shader the catalog does not list, in a use on `node.shaders` or
+* `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER"
+/**
+* A layer names a shader where it cannot draw: an edge shader on `node.shaders`
+* (`shader.target-mismatch`), or a use at a place the shader does not allow
+* (`shader.place-unsupported`); the refused problem's `fact` carries the code.
+* @since 3.36.0
+*/
+| "E_SHADER_KIND"
+/**
+* A layer sets or binds a parameter the shader does not declare, or binds one per element
+* that it does not declare `varies`. `details.candidates` lists the declared parameters.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER_PARAM"
 /**
 * A camera view name is not one the element knows. `details.available` lists the registered
 * view ids. The caller picks one of those or registers its own view first.
@@ -2058,6 +2094,8 @@ class Node_2 implements ModelUser {
         y: number;
         z: number;
     }>;
+    // @internal
+    get paintedColor(): Rgba | null;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -2066,11 +2104,17 @@ class Node_2 implements ModelUser {
     // @internal
     refreshScreenBorder(): void;
     refreshSelectionOverlay(): void;
+    // @internal
+    refreshShaderPaint(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
+    // @internal
+    shaderStateBits(): number;
+    // @internal
+    shaderStateChanged(state: NodeShaderState, on: boolean): void;
     shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
@@ -2135,7 +2179,7 @@ export interface NodeView {
 }
 
 // @public
-export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "unknown"];
+export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "unknown"];
 
 // @public
 export interface OptionBound {
@@ -2157,7 +2201,7 @@ export interface OptionContext {
     // (undocumented)
     readonly id: string;
     // (undocumented)
-    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink";
+    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
 }
 
 // @public
@@ -2429,9 +2473,15 @@ export interface RegisterOptions {
 export function registerPalette(descriptor: PaletteRegistration, options?: RegisterOptions): void;
 
 // @public
+export function registerShader(registration: ShaderRegistration, options?: RegisterOptions): void;
+
+// @public
 export function registerSnapshotLayout(registration: SnapshotLayoutRegistration): void;
 
 export { registerSource }
+
+// @public
+export function registerTransition(registration: TransitionRegistration, options?: RegisterOptions): void;
 
 export { ReplayFetch }
 
@@ -2499,6 +2549,114 @@ export function setDefaultFeatures(ids: readonly string[]): void;
 
 // @public
 export function setFieldSpecs(kind: "node" | "edge", headline: Omit<ResultFieldSpec, "kind">): readonly ResultFieldSpec[];
+
+// @public
+export type ShaderClock = "since.selected" | "since.deselected" | "since.hovered" | "since.unhovered" | "since.pinned" | "since.unpinned" | "since.added" | "since.changed" | "since.matched" | "since.unmatched";
+
+// @public
+export interface ShaderClockBinding {
+    readonly by: ShaderClock;
+    readonly domain: readonly [number, number];
+    readonly range?: readonly [number, number] | readonly [string, string];
+}
+
+// @public
+export interface ShaderDefinition {
+    readonly blend?: "over" | "add";
+    readonly bloom?: boolean;
+    readonly categories?: readonly string[];
+    readonly cost?: ShaderCost;
+    readonly form?: "field" | "sphere";
+    readonly glsl: ShaderSource;
+    readonly id: string;
+    readonly lowDetail?: ShaderSource;
+    readonly minSize?: number;
+    readonly motion?: ShaderMotionInput;
+    readonly name?: string;
+    readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
+    readonly place?: ShaderPlace;
+    readonly places?: readonly ShaderPlace[];
+    readonly preview?: ShaderPreview;
+    readonly reach?: number;
+    readonly reachParam?: string;
+    readonly reads?: readonly ShaderInput[];
+    readonly requires?: readonly ShaderRequirement[];
+    readonly target?: ShaderTarget;
+    readonly thumbnail?: string;
+    readonly webgpu?: "translate" | "none";
+}
+
+// @public
+export interface ShaderDescriptor {
+    readonly blend?: "over" | "add";
+    readonly bloom?: boolean;
+    readonly categories?: readonly string[];
+    readonly cost: ShaderCost;
+    readonly form?: "field" | "sphere";
+    readonly hash?: string;
+    readonly id: string;
+    readonly minSize?: number;
+    readonly motion: ShaderMotion;
+    readonly origin: ShaderOrigin;
+    readonly params: readonly ShaderParamDescriptor[];
+    readonly place?: ShaderPlace;
+    readonly places?: readonly ShaderPlace[];
+    readonly plainName: string;
+    readonly preview?: ShaderPreview;
+    readonly reach?: number;
+    readonly reachParam?: string;
+    readonly reads: readonly ShaderInput[];
+    readonly requires?: readonly ShaderRequirement[];
+    readonly target: ShaderTarget;
+    readonly thumbnail?: string;
+    readonly webgpu: ShaderWebGpu;
+}
+
+// @public
+export type ShaderParamShorthand = number | boolean | string | ShaderClockBinding | ((Exclude<OptionShorthand, number | string | boolean> | (Readonly<Partial<Omit<OptionDescriptor, "name" | "type" | "on" | "default">>> & {
+    readonly default: number | boolean | string | ShaderClockBinding;
+})) & {
+    readonly varies?: boolean;
+    readonly primary?: boolean;
+});
+
+// @public
+export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along" | "group";
+
+// @public
+export interface ShaderPreview {
+    readonly params?: ShaderParams;
+    readonly time?: number;
+}
+
+// @public
+export interface ShaderRegistration {
+    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash" | "target"> & {
+        readonly target?: ShaderTarget;
+        readonly cost?: ShaderCost;
+        readonly reads?: readonly ShaderInput[];
+        readonly webgpu?: ShaderWebGpu;
+        readonly motion?: ShaderMotionInput;
+    };
+    readonly glsl: ShaderSource;
+    readonly lowDetail?: ShaderSource;
+    readonly wgsl?: string;
+}
+
+// @public
+export type ShaderSource = string | (() => Promise<string>);
+
+// @public
+export type ShaderTarget = "node" | "edge" | "group" | "background";
+
+// @public
+export function shaderTemplate(place: ShaderTemplatePlace): ShaderText;
+
+// @public
+export interface ShaderTemplatePlace {
+    readonly place?: ShaderPlace;
+    readonly target: ShaderTarget;
+}
 
 // @public
 export type ShorthandValue<S> = S extends number ? number : S extends boolean ? boolean : S extends string ? string : S extends {
@@ -2803,6 +2961,34 @@ export interface SuggestedName {
     readonly id: string;
     // (undocumented)
     readonly label: string;
+}
+
+// @public
+export interface TransitionDescriptor {
+    readonly drawable?: TransitionDrawable;
+    readonly id: string;
+    readonly params: readonly OptionDescriptor[];
+    readonly plainName: string;
+}
+
+// @public
+export type TransitionDrawable = "particles";
+
+// @public
+export interface TransitionNode {
+    readonly distanceFromCenter: number;
+    readonly hopFromSelection: number | undefined;
+    readonly index: number;
+    readonly seed: number;
+}
+
+// @public
+export interface TransitionRegistration {
+    readonly descriptor: Omit<TransitionDescriptor, "params" | "drawable"> & {
+        readonly params?: readonly OptionDescriptor[];
+    };
+    readonly drawable?: TransitionDrawable;
+    readonly move: (t: number, from: Vec3, to: Vec3, node: TransitionNode, params: Readonly<Record<string, unknown>>) => Vec3;
 }
 
 // @public

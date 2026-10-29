@@ -11,6 +11,7 @@
  * Colors are tokens only. The AA option needs nothing here: `cm-field` reads
  * `--cm-field-shadow` / `--cm-field-border`, which the AA token block switches.
  */
+import { VIEWPORT_CAP } from "../../components/overlays/viewportCap";
 import { cmFont } from "../tokens";
 import { ROW_UNLIT } from "./00-foundation.css";
 
@@ -212,10 +213,10 @@ const css = `
     box-sizing: border-box;
     min-width: 0;
     max-width: calc(100vw - 12px);
-    /* The list scrolls itself (no ScrollArea), clamped to the viewport less 6px each side; the
-       menus' chevron rows (cm-menu) cover 24px at a scrollable end, so keyboard scrolling keeps
-       the highlight clear of them. */
-    max-height: calc(100vh - 12px);
+    /* The list scrolls itself (no ScrollArea), clamped to the viewport less 6px each side and to
+       the visual viewport's cap (viewportCap.ts); the menus' chevron rows (cm-menu) cover 24px at
+       a scrollable end, so keyboard scrolling keeps the highlight clear of them. */
+    max-height: min(calc(100vh - 12px), ${VIEWPORT_CAP});
     overflow-y: auto;
     scrollbar-width: none;
     scroll-padding-block: 24px;

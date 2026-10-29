@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import rates from "../../config/rates.json" with { type: "json" };
 import { collect, type Deps } from "../../src/collector/collect.js";
 import { GitHub } from "../../src/collector/github.js";
-import type { GhRun, Rates } from "../../src/collector/parse.js";
+import type { GhJob, GhRun, Rates } from "../../src/collector/parse.js";
 import { MIN, sourceKey, type ObservationItem } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
 import { readSnapshot } from "../../src/model/snapshots.js";
@@ -117,7 +117,15 @@ describe("collector with the GitHub App", () => {
         expect(report.skipped).toEqual([
             "jobs of graphty-org/graphty-monorepo run 40249709094: GitHub repos/graphty-org/graphty-monorepo/actions/runs/40249709094/jobs: HTTP 502",
         ]);
-        expect(hits).toHaveLength(3); // tried, then retried twice
+        // Pages of 100 tried, then retried twice; then the same in pages of 50.
+        expect(hits.map((u) => new URL(u).searchParams.get("per_page"))).toEqual([
+            "100",
+            "100",
+            "100",
+            "50",
+            "50",
+            "50",
+        ]);
         expect(observed(store, "master.red_builds")).toBe(1);
         expect(observed(store, "release.lanes_red")).toBe(3);
         const src = await store.get(sourceKey("collector"));
@@ -129,8 +137,60 @@ describe("collector with the GitHub App", () => {
         down = false;
         const next = await collect(deps(store, fake, NOW + 5 * MIN));
         expect(next.skipped).toEqual([]);
-        expect(hits).toHaveLength(4);
+        expect(hits).toHaveLength(7);
         expect(homes(store, "run").some((r) => String(r.pk).includes("40249709094"))).toBe(true);
+    });
+
+    it("reads a re-run release attempt GitHub answers 502 for, and the attempt it replaced", async () => {
+        // 2026-10-28: the 12:00 full run 40684344927 failed attempt 1 (LLM regression) and passed attempt 2. Its jobs
+        // at per_page=100 answered 502 every time, and the runs list shows only attempt 2, so neither attempt was read.
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        const ID = 40119894804;
+        const red = fixture<{ total_count: number; jobs: GhJob[] }>("jobs-release-tested-40119894804.json");
+        const green = red.jobs.map((j) => (j.conclusion === "skipped" ? j : { ...j, conclusion: "success" }));
+        const first: GhRun = {
+            ...fixture<{ workflow_runs: GhRun[] }>("release-runs.json").workflow_runs.find((r) => r.id === ID)!,
+            display_title: "Release (full)",
+            run_attempt: 1,
+        };
+        const second: GhRun = {
+            ...first,
+            run_attempt: 2,
+            conclusion: "success",
+            run_started_at: "2026-10-24T20:00:00Z",
+            updated_at: "2026-10-24T21:00:00Z",
+        };
+        const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
+        fake.fetch = async (url, init) => {
+            const u = new URL(url);
+            const size = Number(u.searchParams.get("per_page"));
+            const page = Number(u.searchParams.get("page"));
+            if (u.pathname.endsWith("/actions/workflows/release.yml/runs"))
+                return json({ total_count: 1, workflow_runs: [second] });
+            if (u.pathname.endsWith(`/runs/${ID}/attempts/1`)) return json(first);
+            if (u.pathname.endsWith(`/runs/${ID}/attempts/1/jobs`)) return json(red);
+            if (u.pathname.endsWith(`/runs/${ID}/jobs`))
+                return size === 100
+                    ? new Response("{}", { status: 502 })
+                    : json({ total_count: green.length, jobs: green.slice((page - 1) * size, page * size) });
+            return base(url, init);
+        };
+        const report = await collect(deps(store, fake));
+        expect(report.skipped.filter((s) => s.includes("release"))).toEqual([]);
+        const seen = (await readSnapshot(store, "release")) ?? {};
+        expect(seen[`${ID}.1`]).toMatchObject({ mode: "full", tested: true, ok: false, red: ["ci", "t4", "audit"] });
+        expect(seen[`${ID}.2`]).toMatchObject({ mode: "full", tested: true, ok: true, red: [] });
+        // The first attempt is the run item release.train_first_attempt counts.
+        expect(homes(store, "run").filter((r) => String(r.pk).includes(String(ID)))).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ attempt: 1, conclusion: "failure", tested: true }),
+                expect.objectContaining({ attempt: 2, conclusion: "success", tested: true }),
+            ]),
+        );
+        // The newest tested attempt is the candidate: attempt 2, all green.
+        expect(observed(store, "release.lanes_red")).toBe(0);
     });
 
     it("rewrites the same items on a second cycle without duplicating them, and skips finished runs", async () => {

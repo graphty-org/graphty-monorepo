@@ -14,7 +14,8 @@
 //   node tools/full-run.mjs lane-red  files or updates the red issue the moment one lane ends red, so a fix that
 //                                     references it restarts the run without waiting for the other lanes
 //       env LANE (a LANES key), RESULT, SHA, RUN_URL, OWNER_ITEM (the lane's owner item: the verdict decides those),
-//           GH_TOKEN, GITHUB_REPOSITORY, RUN_ATTEMPT, MODE (attempt 1 of a re-runnable mode files nothing)
+//           GH_TOKEN, GITHUB_REPOSITORY, RUN_ATTEMPT, MODE, GITHUB_ACTOR (attempt 1 of a re-runnable mode
+//           files nothing, unless the run was dispatched with a workflow's GITHUB_TOKEN)
 //   node tools/full-run.mjs file-deferred <file>
 //                                     files the red issue and dispatches the bisect an attempt-1 verdict deferred
 //                                     (its verdict-1 record), when release-rerun.yml does not re-run the run after all;
@@ -23,7 +24,9 @@
 // Same-commit re-run, once (design/ci/channels-pipeline.md section 3): attempt 1 of a full or restart run that ends
 // red on a lane that failed (or was cancelled) records its verdict but files no red issue, dispatches no bisect and
 // announces nothing: release-rerun.yml re-runs its failed jobs once, and that attempt decides. The verdict writes
-// verdict-<attempt>.json (env RECORD) for the next attempt and for release-rerun.yml. A lane red on attempt 1 and
+// verdict-<attempt>.json (env RECORD) for the next attempt and for release-rerun.yml. A run dispatched with a
+// workflow's GITHUB_TOKEN (GITHUB_ACTOR github-actions[bot]: release-due's restart and candidate runs) is never seen by
+// release-rerun.yml, so its attempt 1 decides at once like any later attempt. A lane red on attempt 1 and
 // green on attempt 2, and a story the re-capture found flaky (flaky.json in the final captures), each get one
 // "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing.
 //
@@ -40,7 +43,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { PUBLISH_HOLD } from "./channel/nightly.mjs";
@@ -54,6 +57,12 @@ export const RERUN_MODES = new Set(["full", "restart", "candidate"]);
 const GREEN = new Set(["green-clean", "green-images", "approved"]);
 /** The state an attempt-1 verdict that waits for its same-commit re-run records: not a verdict, so pick ignores it. */
 export const DEFERRED = "deferred";
+/**
+ * The actor of a run dispatched with a workflow's GITHUB_TOKEN (ci.yml's release-due: every restart and candidate
+ * run). GitHub starts no workflow for an event such a run raises, so release-rerun.yml never sees it end: its
+ * attempt 1 must decide at once, or a red one files nothing (#4359).
+ */
+export const WORKFLOW_TOKEN_ACTOR = "github-actions[bot]";
 const PASSING_IMAGES = new Set(["unchanged", "excluded"]);
 
 /** The lanes in the order a red names them, each with its reader-facing name and its bisect.yml lane. */
@@ -252,10 +261,12 @@ const JOB_RESULTS = new Set(["failure", "cancelled"]);
  * @param o.state the verdict
  * @param o.red the red lanes
  * @param o.lanes every lane's result
+ * @param [o.actor] the run's actor (GITHUB_ACTOR): WORKFLOW_TOKEN_ACTOR's runs are never re-run, so never defer
  * @returns boolean
  */
-export function deferred({ attempt, mode, state, red, lanes }) {
+export function deferred({ attempt, mode, state, red, lanes, actor }) {
     if (Number(attempt) !== 1 || !RERUN_MODES.has(mode) || state !== "red") return false;
+    if (actor === WORKFLOW_TOKEN_ACTOR) return false;
     return red.every((l) =>
         l === "captures" ? JOB_RESULTS.has(lanes.recapture) : l !== "pick" && JOB_RESULTS.has(lanes[l]),
     );
@@ -700,19 +711,37 @@ function closeRedOnGreen(state, env) {
 }
 
 /**
- * The flaky stories the re-capture listed (flaky.json in each final capture).
+ * The flaky stories the re-capture listed (flaky.json in each final capture), each with the story test its
+ * results.json item names (`test: { file, name }`), when it has one.
  * @param dir the downloaded captures
- * @returns `<project>/<file>: <why>` lines
+ * @returns `{ name: <project>/<file>, why, test }` per story
  */
 export function flakyStories(dir) {
     const out = [];
     for (const f of dir && existsSync(dir) ? readdirSync(dir, { recursive: true }).map(String) : []) {
         const m = /^visual-(.+)-\d+[/\\]flaky\.json$/.exec(f);
         if (!m) continue;
-        for (const s of JSON.parse(readFileSync(join(dir, f), "utf8")))
-            out.push({ name: `${m[1]}/${s.file}`, why: s.why });
+        const results = join(dir, dirname(f), "results.json");
+        const items = existsSync(results) ? (JSON.parse(readFileSync(results, "utf8")).items ?? []) : [];
+        for (const s of JSON.parse(readFileSync(join(dir, f), "utf8"))) {
+            const test = items.find((i) => i.file === s.file)?.test;
+            out.push({ name: `${m[1]}/${s.file}`, why: s.why, test });
+        }
     }
     return out;
+}
+
+/**
+ * A flaky story issue's body. Its "Flaky test: <file> > <story>" line is how the health dashboard's flaky page
+ * (tools/pipeline-health/src/collector/flaky.ts, namesTest) matches the issue to the story test it saw fail.
+ * @param s a flaky story, as flakyStories returns it
+ * @param at where and when it was found
+ * @param tail the closing paragraph
+ * @returns the body
+ */
+export function flakyStoryBody(s, at, tail) {
+    const named = s.test ? `Flaky test: ${s.test.file} > ${s.test.name}\n\n` : "";
+    return `${named}The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
 }
 
 // One open "Flaky in full run: <name>" issue per name: a comment when it recurs
@@ -744,7 +773,7 @@ function fileFlakies(env, lanes, stories) {
         );
     }
     for (const s of stories) {
-        const body = `The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
+        const body = flakyStoryBody(s, at, tail);
         bestEffort(
             () => fileFlaky(s.name, body),
             `filing the flaky story ${s.name}`,
@@ -813,7 +842,7 @@ async function verdictMain(env) {
     const { state, red } = verdictOf(lanes, changed.length, env.LLM_OWNER_ITEM, env.VERSION_HELD);
     // unset (a run by hand): no attempt to wait for, so it decides at once
     const attempt = Number(env.RUN_ATTEMPT || 0);
-    const wait = deferred({ attempt, mode: env.MODE, state, red, lanes });
+    const wait = deferred({ attempt, mode: env.MODE, state, red, lanes, actor: env.GITHUB_ACTOR });
     let issue = null;
     let bisect = "";
     const what = whatOf({ state, red, lanes, changed, env });
@@ -899,7 +928,8 @@ export function fixedRecently(closed, sha, now = Date.now()) {
 }
 
 function laneRedMain(env) {
-    if ((env.RUN_ATTEMPT || env.GITHUB_RUN_ATTEMPT) === "1" && RERUN_MODES.has(env.MODE)) {
+    const rerun = RERUN_MODES.has(env.MODE) && env.GITHUB_ACTOR !== WORKFLOW_TOKEN_ACTOR;
+    if ((env.RUN_ATTEMPT || env.GITHUB_RUN_ATTEMPT) === "1" && rerun) {
         console.log(`::notice::attempt 1: the verdict decides after the one same-commit re-run`);
         return;
     }

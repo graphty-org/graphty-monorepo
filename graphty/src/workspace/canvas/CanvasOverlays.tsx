@@ -12,7 +12,7 @@ import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
-import { dataBlocks, keyBlocks } from "./legendWords";
+import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -22,9 +22,11 @@ const ENDED: Partial<Record<RunStatus, string>> = { succeeded: "finished", faile
 /**
  * The element's events after which the legend or the node count may read differently: a filter
  * step changes what the key counts. `style:batch-changed` closes a repaint once, however many
- * edits it carried (a grouping run adds a layer per group).
+ * edits it carried (a grouping run adds a layer per group). `project:derived`, not
+ * `project:changed`: a data edit's categories and domains are prepared by the pass after the
+ * commit, and a legend read at the commit keeps the old ones.
  */
-const REDRAW_EVENTS = ["style:batch-changed", "run:changed", "project:changed", "visibility:changed"] as const;
+const REDRAW_EVENTS = ["style:batch-changed", "run:changed", "project:derived", "visibility:changed"] as const;
 
 /** What the canvas draws from, read from the session. */
 interface CanvasReading {
@@ -61,7 +63,9 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             const { nodeCount, edgeCount } = session.data.statistics();
             const blocks = keyBlocks(dataBlocks(session));
             setReading({ blocks, nodeCount, edgeCount, load });
-            const keyHasEntries = blocks.length > 0;
+            // An effect is listed in a key that shows, and never opens it: a style write of an
+            // effect is no reason for the key to appear.
+            const keyHasEntries = blocks.some((block) => !isEffectBlock(block));
             if (store.get().keyHasEntries !== keyHasEntries) {
                 store.set({ keyHasEntries });
             }
@@ -321,6 +325,8 @@ export function CanvasOverlays(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
+    // Effects alone do not show the key: the reader asks for it (Legend), or another row keys.
+    const keyed = blocks.some((block) => !isEffectBlock(block));
 
     let card: React.ReactNode = null;
     if (load !== null) {
@@ -364,9 +370,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     return (
         <>
             {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {legendShown && (blocks.length > 0 || legendAsked) ? (
-                <LegendCard blocks={blocks} session={session} />
-            ) : null}
+            {legendShown && (keyed || legendAsked) ? <LegendCard blocks={blocks} session={session} /> : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>
     );

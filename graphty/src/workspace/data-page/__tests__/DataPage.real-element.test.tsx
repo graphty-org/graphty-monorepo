@@ -366,8 +366,9 @@ describe("the Data page on the real element", () => {
         await waitFor(() => {
             assert.strictEqual(store.get().page, "panels");
             assert.match(store.get().notice?.message ?? "", /^Opened /);
-            assert.strictEqual(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 77);
         });
+        // The notice is written once the project has opened, so its graph is all in.
+        assert.strictEqual(document.querySelector("graphty-element")?.session.data.statistics().nodeCount, 77);
         assert.isNull(screen.queryByText(/holds no nodes or edges/));
     });
 

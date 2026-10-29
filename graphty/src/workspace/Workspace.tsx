@@ -3,7 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { findRecovered } from "./autosave/autosave";
+import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
 import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
@@ -19,7 +19,13 @@ import { SettingsDialog } from "./settings/SettingsDialog";
 import { useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
-import { createWorkspaceStore, useStoreValue, type WorkspaceState, type WorkspaceStore } from "./state/store";
+import {
+    createWorkspaceStore,
+    keepPlace,
+    useStoreValue,
+    type WorkspaceState,
+    type WorkspaceStore,
+} from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
 
 /** The look a new project gives a pinned node: a thin gray ring. */
@@ -114,10 +120,16 @@ export function Workspace({
             // Each load starts the project's history itself (open.ts passes the element's
             // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
-                focusLater(store.get().page === "panels");
+                const focus = store.get().page === "panels";
+                focusLater(focus && opening.focus === undefined);
+                if (focus) {
+                    opening.focus?.();
+                }
+                opening.settle();
             })
             .catch((error: unknown) => {
                 focusLater(false);
+                opening.settle({ error });
                 const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
                 store.set((state) =>
                     state.project?.id === project?.id
@@ -126,24 +138,38 @@ export function Workspace({
                 );
             });
     }, [element, store, startProjectId]);
-    // Work graphty-element kept from an earlier visit is offered on the start screen, once per load.
+    // This tab's own work (a reload, or a tab the browser discarded and loaded again) reopens
+    // straight into the workspace; other work graphty-element kept is offered on the start screen.
+    // Asked once per load; the start screen waits for the answer, so it never flashes before a reopen.
+    const [checking, setChecking] = useState(() => store.get().autosave && store.get().project === null);
     useEffect(() => {
-        const { autosave, project } = store.get();
-        if (!autosave || project !== null) {
+        if (!checking) {
             return undefined;
         }
         let live = true;
-        findRecovered()
-            .then((recovered) => {
-                if (live && store.get().project === null) {
+        findKept()
+            .then(({ own, recovered }) => {
+                if (!live || store.get().project !== null) {
+                    return;
+                }
+                if (own === null) {
                     store.set({ recovered });
+                } else {
+                    reopenOwn(store, own);
                 }
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => {
+                if (live) {
+                    setChecking(false);
+                }
+            });
         return () => {
             live = false;
         };
-    }, [store]);
+    }, [store, checking]);
+    // The reader's place is kept for a reload of this tab while autosave keeps the work.
+    useEffect(() => (store.get().autosave ? keepPlace(store) : undefined), [store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
     // The frame's code, loaded on demand (frameLoader.ts); a project that opens before it has
     // loaded shows once it has.
@@ -204,9 +230,9 @@ export function Workspace({
     return (
         <WorkspaceContext.Provider value={value}>
             {projectOpen && Frame !== null ? <Frame onElementReady={onElementReady} /> : null}
-            {projectOpen ? null : <StartScreen />}
+            {projectOpen || checking ? null : <StartScreen />}
             {/* A failed open lands on the start screen with its reason: the one notice slot, there too. */}
-            {projectOpen ? null : <NoticeSlot returnFocus={firstDoor} />}
+            {projectOpen || checking ? null : <NoticeSlot returnFocus={firstDoor} />}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />

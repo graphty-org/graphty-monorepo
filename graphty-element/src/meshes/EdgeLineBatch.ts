@@ -4,14 +4,19 @@ import "@babylonjs/core/Meshes/thinInstanceMesh";
 
 import { Buffer, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 
-import { JOIN_FLOATS_PER_PIECE } from "./edgeJoinShader";
+import {
+    EDGE_STATIC_ATTRIBUTES,
+    EDGE_STATIC_FLOATS,
+    JOIN_FLOATS_PER_PIECE,
+    WIDENED_FLOATS_PER_PIECE,
+} from "./edgeJoinShader";
 import { batchUploadFrames } from "./FrameRoster";
 import { discreteMeshCount } from "./PatternedLineMesh";
 
 /** Floats in one 4x4 world matrix, which is what a thin-instance slot holds. */
 const FLOATS_PER_MATRIX = 16;
 
-/** Floats in one slot: the piece and its neighbours (see `edgeJoinShader`). */
+/** Floats in one slot of a plain batch: the piece and its neighbours (see `edgeJoinShader`). */
 const FLOATS_PER_SLOT = JOIN_FLOATS_PER_PIECE;
 
 /** Slots a new batch starts with, before the first doubling. */
@@ -40,6 +45,11 @@ export interface EdgeLineMeta {
     joinedLine?: boolean;
     /** A dashed or dotted line: which, its element's length along the line, and `line.patternCount`. */
     pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
+    /**
+     * A joined line drawn with a shader or a taper (`edgeJoinShader`'s `EDGE_WIDENED`): each slot
+     * also carries the whole edge's length, and the static values in a buffer of their own.
+     */
+    widened?: boolean;
 }
 
 /**
@@ -99,8 +109,26 @@ export class EdgeLineBatch {
     /** The one mesh that draws every edge in this batch. */
     readonly mesh: Mesh;
 
-    /** Every slot, live or free, packed end to end: see {@link FLOATS_PER_SLOT}. */
+    /** Every slot, live or free, packed end to end, {@link EdgeLineBatch.stride} floats each. */
     private slots: Float32Array;
+
+    /**
+     * Floats per slot: the plain piece's fourteen, or sixteen in a widened batch, whose slots also
+     * carry the whole edge's length. A plain batch uploads exactly what it always uploaded.
+     */
+    private readonly stride: number;
+
+    /**
+     * A widened batch's static values, {@link EDGE_STATIC_FLOATS} per slot, uploaded only when one
+     * is written (a repaint), never because an edge moved; null for a plain batch.
+     */
+    private statics: Float32Array | null;
+
+    /** The GPU buffer the static values are read from. */
+    private staticBuffer: Buffer | null = null;
+
+    /** Whether a static value has been written since the last upload. */
+    private staticDirty = false;
 
     /** The thin-instance matrices of a batch that is not a joined line; null for a joined one. */
     private matrices: Float32Array | null;
@@ -154,7 +182,10 @@ export class EdgeLineBatch {
         this.retire = retire;
         const meta = (mesh.metadata ?? {}) as EdgeLineMeta;
         this.pattern = meta.pattern;
-        this.slots = new Float32Array(INITIAL_SLOTS * FLOATS_PER_SLOT);
+        const widened = meta.joinedLine === true && meta.widened === true;
+        this.stride = widened ? WIDENED_FLOATS_PER_PIECE : FLOATS_PER_SLOT;
+        this.statics = widened ? new Float32Array(INITIAL_SLOTS * EDGE_STATIC_FLOATS) : null;
+        this.slots = new Float32Array(INITIAL_SLOTS * this.stride);
         this.matrices = meta.joinedLine === true ? null : new Float32Array(INITIAL_SLOTS * FLOATS_PER_MATRIX);
 
         // An edge line was never a pick candidate and a batch of them is not one either.
@@ -210,6 +241,49 @@ export class EdgeLineBatch {
     }
 
     /**
+     * Whether this batch is widened: drawn with a shader or a taper, its slots carrying static
+     * values ({@link EdgeLineBatch.writeStatic}).
+     * @returns True for a widened batch.
+     */
+    get widened(): boolean {
+        return this.statics !== null;
+    }
+
+    /**
+     * How many slots draw an edge now.
+     * @returns The count.
+     */
+    get liveCount(): number {
+        return this.live;
+    }
+
+    /**
+     * Write one slot's static values in a widened batch: uploaded with the next frame, and not
+     * again until one is written. A plain batch ignores it.
+     * @param index - The slot.
+     * @param values - {@link EDGE_STATIC_FLOATS} floats, in `EDGE_STATIC_ATTRIBUTES` order.
+     */
+    writeStatic(index: number, values: ArrayLike<number>): void {
+        if (this.statics === null || this.gone) {
+            return;
+        }
+
+        this.statics.set(values, index * EDGE_STATIC_FLOATS);
+        this.staticDirty = true;
+    }
+
+    /**
+     * The static values one slot of a widened batch holds.
+     * @param index - The slot.
+     * @returns A copy, or null for a plain batch.
+     */
+    staticOf(index: number): Float32Array | null {
+        return this.statics === null
+            ? null
+            : this.statics.slice(index * EDGE_STATIC_FLOATS, (index + 1) * EDGE_STATIC_FLOATS);
+    }
+
+    /**
      * Take a slot to draw one edge in.
      * @returns The slot's index, which the caller keeps until it releases it.
      */
@@ -222,7 +296,7 @@ export class EdgeLineBatch {
             return recycled;
         }
 
-        if (this.highWater === this.slots.length / FLOATS_PER_SLOT) {
+        if (this.highWater === this.slots.length / this.stride) {
             this.grow();
         }
 
@@ -249,6 +323,7 @@ export class EdgeLineBatch {
         this.hide(index);
         this.free.push(index);
         this.live--;
+        this.slotReleased(index);
 
         // The last edge takes the batch with it, so an appearance nothing is drawn with any more
         // leaves no mesh and no material behind. This is what `ArrowCapBatch.release` does too.
@@ -269,8 +344,12 @@ export class EdgeLineBatch {
             return;
         }
 
-        const spacing = this.spacingFor(Vector3.Distance(srcPoint, dstPoint));
-        this.write(index, srcPoint, srcPoint, dstPoint, dstPoint, 0, spacing);
+        const length = Vector3.Distance(srcPoint, dstPoint);
+        this.write(index, srcPoint, srcPoint, dstPoint, dstPoint, {
+            distance: 0,
+            spacing: this.spacingFor(length),
+            total: length,
+        });
     }
 
     /**
@@ -293,7 +372,7 @@ export class EdgeLineBatch {
         const spacing = this.spacingFor(total);
         let distance = 0;
         for (let i = 0; i < pieces; i++) {
-            this.writeFlat(slots[i], flat, i, pieces, distance, spacing);
+            this.writeFlat(slots[i], flat, i, pieces, { distance, spacing, total });
             distance += pieceLength(flat, i);
         }
 
@@ -323,7 +402,7 @@ export class EdgeLineBatch {
      * @returns The length.
      */
     lengthOf(index: number): number {
-        const at = index * FLOATS_PER_SLOT;
+        const at = index * this.stride;
         const x = this.slots[at + 6] - this.slots[at + 3];
         const y = this.slots[at + 7] - this.slots[at + 4];
         const z = this.slots[at + 8] - this.slots[at + 5];
@@ -353,9 +432,21 @@ export class EdgeLineBatch {
      * @returns The two ends, as fresh vectors the caller may keep.
      */
     endsOf(index: number): [Vector3, Vector3] {
-        const at = index * FLOATS_PER_SLOT;
+        const at = index * this.stride;
 
         return [Vector3.FromArray(this.slots, at + 3), Vector3.FromArray(this.slots, at + 6)];
+    }
+
+    /**
+     * Where one end of the piece in a slot is, written into a vector the caller keeps, so a walk
+     * over every slot allocates nothing.
+     * @param index - The slot.
+     * @param end - 0 for the piece's start, 1 for its end.
+     * @param out - Where to write it.
+     * @returns `out`.
+     */
+    protected pieceEndToRef(index: number, end: 0 | 1, out: Vector3): Vector3 {
+        return out.fromArray(this.slots, index * this.stride + (end === 0 ? 3 : 6));
     }
 
     /** Upload everything written since the last upload, in one call. */
@@ -364,18 +455,45 @@ export class EdgeLineBatch {
         // of data uploaded in part), so the first frame after one uploads every slot again.
         if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
             this.dirty = true;
+            this.staticDirty = this.statics !== null;
         }
 
-        if (!this.dirty || this.gone) {
+        if (this.gone) {
             return;
         }
 
-        this.dirty = false;
-        if (this.buffer) {
-            this.buffer.update(this.slots);
-        } else {
-            this.mesh.thinInstanceBufferUpdated("matrix");
+        if (this.staticDirty && this.statics !== null) {
+            this.staticDirty = false;
+            this.staticBuffer?.update(this.statics);
         }
+
+        const placed = this.dirty;
+        if (this.dirty) {
+            this.dirty = false;
+            if (this.buffer) {
+                this.buffer.update(this.slots);
+            } else {
+                this.mesh.thinInstanceBufferUpdated("matrix");
+            }
+        }
+
+        this.afterFlush(placed);
+    }
+
+    /**
+     * Run after each frame's upload; a shader batch takes or releases its frame claim here.
+     * @param _placed - Whether a slot was placed, hidden or released since the last upload.
+     */
+    protected afterFlush(_placed: boolean): void {
+        // A plain line has no motion of its own.
+    }
+
+    /**
+     * A slot was handed back.
+     * @param _index - The slot.
+     */
+    protected slotReleased(_index: number): void {
+        // A plain line keeps nothing per slot beside the slot itself.
     }
 
     /**
@@ -393,6 +511,8 @@ export class EdgeLineBatch {
         this.mesh.dispose(false, true);
         this.buffer?.dispose();
         this.buffer = null;
+        this.staticBuffer?.dispose();
+        this.staticBuffer = null;
     }
 
     /**
@@ -424,8 +544,10 @@ export class EdgeLineBatch {
      * @param a - Where the piece starts.
      * @param b - Where it ends.
      * @param next - The corner after it, or its end for none.
-     * @param distance - How far along the edge the piece starts.
-     * @param spacing - The pattern's spacing, 0 for a solid line.
+     * @param along - Where the piece is along the edge.
+     * @param along.distance - How far along the edge the piece starts.
+     * @param along.spacing - The pattern's spacing, 0 for a solid line.
+     * @param along.total - The whole edge's length along its pieces, which a widened slot carries.
      */
     private write(
         index: number,
@@ -433,10 +555,10 @@ export class EdgeLineBatch {
         a: Vector3,
         b: Vector3,
         next: Vector3,
-        distance: number,
-        spacing: number,
+        along: { readonly distance: number; readonly spacing: number; readonly total: number },
     ): void {
-        const at = index * FLOATS_PER_SLOT;
+        const { distance, spacing, total } = along;
+        const at = index * this.stride;
         const s = this.slots;
         prev.toArray(s, at);
         a.toArray(s, at + 3);
@@ -444,6 +566,10 @@ export class EdgeLineBatch {
         next.toArray(s, at + 9);
         s[at + 12] = distance;
         s[at + 13] = spacing;
+        if (this.statics !== null) {
+            s[at + 14] = total;
+        }
+
         this.writeMatrix(index);
         this.dirty = true;
     }
@@ -456,20 +582,22 @@ export class EdgeLineBatch {
      * @param flat - The run's points.
      * @param piece - Which piece: from point `piece` to point `piece + 1`.
      * @param pieces - How many pieces the run has.
-     * @param distance - How far along the edge the piece starts.
-     * @param spacing - The pattern's spacing.
+     * @param along - Where the piece is along the edge.
+     * @param along.distance - How far along the edge the piece starts.
+     * @param along.spacing - The pattern's spacing.
+     * @param along.total - The whole edge's length along its pieces.
      */
     private writeFlat(
         index: number,
         flat: readonly number[],
         piece: number,
         pieces: number,
-        distance: number,
-        spacing: number,
+        along: { readonly distance: number; readonly spacing: number; readonly total: number },
     ): void {
+        const { distance, spacing, total } = along;
         const prev = piece === 0 ? piece : piece - 1;
         const next = piece === pieces - 1 ? piece + 1 : piece + 2;
-        const at = index * FLOATS_PER_SLOT;
+        const at = index * this.stride;
         const s = this.slots;
         for (let k = 0; k < 3; k++) {
             s[at + k] = flat[prev * 3 + k];
@@ -480,6 +608,10 @@ export class EdgeLineBatch {
 
         s[at + 12] = distance;
         s[at + 13] = spacing;
+        if (this.statics !== null) {
+            s[at + 14] = total;
+        }
+
         this.writeMatrix(index);
         this.dirty = true;
     }
@@ -493,7 +625,7 @@ export class EdgeLineBatch {
             return;
         }
 
-        const at = index * FLOATS_PER_SLOT;
+        const at = index * this.stride;
         scratchA.fromArray(this.slots, at + 3);
         scratchB.fromArray(this.slots, at + 6);
         segmentMatrixToRef(scratchA, scratchB, scratchMatrix);
@@ -509,7 +641,7 @@ export class EdgeLineBatch {
             return;
         }
 
-        this.slots.fill(0, index * FLOATS_PER_SLOT, (index + 1) * FLOATS_PER_SLOT);
+        this.slots.fill(0, index * this.stride, (index + 1) * this.stride);
         this.matrices?.fill(0, index * FLOATS_PER_MATRIX, (index + 1) * FLOATS_PER_MATRIX);
         this.dirty = true;
     }
@@ -532,13 +664,23 @@ export class EdgeLineBatch {
             this.mesh.thinInstanceSetBuffer("matrix", this.matrices, FLOATS_PER_MATRIX, false);
         } else {
             this.buffer?.dispose();
-            const buffer = new Buffer(this.mesh.getEngine(), this.slots, true, FLOATS_PER_SLOT, false, true);
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev", 0, 3, FLOATS_PER_SLOT, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pA", 3, 3, FLOATS_PER_SLOT, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pB", 6, 3, FLOATS_PER_SLOT, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext", 9, 3, FLOATS_PER_SLOT, true));
-            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("run", 12, 2, FLOATS_PER_SLOT, true));
+            const { stride } = this;
+            const buffer = new Buffer(this.mesh.getEngine(), this.slots, true, stride, false, true);
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pPrev", 0, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pA", 3, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pB", 6, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("pNext", 9, 3, stride, true));
+            this.mesh.setVerticesBuffer(buffer.createVertexBuffer("run", 12, 2, stride, true));
             this.buffer = buffer;
+            if (this.statics !== null) {
+                this.mesh.setVerticesBuffer(buffer.createVertexBuffer("runTotal", 14, 2, stride, true));
+                this.staticBuffer?.dispose();
+                const statics = new Buffer(this.mesh.getEngine(), this.statics, true, EDGE_STATIC_FLOATS, false, true);
+                EDGE_STATIC_ATTRIBUTES.forEach((name, i) => {
+                    this.mesh.setVerticesBuffer(statics.createVertexBuffer(name, i * 4, 4, EDGE_STATIC_FLOATS, true));
+                });
+                this.staticBuffer = statics;
+            }
         }
 
         // Rebuilding the buffer resets the instance count, so the high-water mark is written back.
@@ -550,6 +692,12 @@ export class EdgeLineBatch {
         const grown = new Float32Array(this.slots.length * 2);
         grown.set(this.slots);
         this.slots = grown;
+
+        if (this.statics !== null) {
+            const statics = new Float32Array(this.statics.length * 2);
+            statics.set(this.statics);
+            this.statics = statics;
+        }
 
         if (this.matrices) {
             const matrices = new Float32Array(this.matrices.length * 2);

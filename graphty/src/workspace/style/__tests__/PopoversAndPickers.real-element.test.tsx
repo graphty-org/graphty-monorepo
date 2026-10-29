@@ -14,31 +14,9 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
-
-/**
- * Opens a sample from the start screen and waits for its nodes.
- * @param sample - the sample's name on its button.
- * @param nodes - how many nodes it has.
- * @returns the session and the store.
- */
-async function openSample(sample: string, nodes: number): Promise<{ session: GraphSession; store: WorkspaceStore }> {
-    const store = createWorkspaceStore();
-    render(<Workspace store={store} />);
-    await userEvent.click(await screen.findByRole("button", { name: `Open the ${sample} sample` }));
-    const session = await waitFor(() => {
-        const found = document.querySelector("graphty-element")?.session;
-        assert.equal(found?.data.statistics().nodeCount, nodes);
-        return found;
-    });
-    if (session === undefined) {
-        throw new Error("the element never came up");
-    }
-    await session.styles.settled();
-    return { session, store };
-}
+import { openSampleFromStart } from "../../../test/open";
+import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
+import { type WorkspaceStore } from "../../state/store";
 
 /**
  * Opens a layer's Style tab and its color binding popover by clicking the color's value pill.
@@ -99,7 +77,8 @@ function optionNames(list: HTMLElement): string[] {
 describe("the binding popover's rows and readings", () => {
     it("College football: conference offers one color per value and paints 12; the popover is 240 wide and fits at 900 x 700", async () => {
         await page.viewport(900, 700);
-        const { session, store } = await openSample("College football", 115);
+        const { session, store } = await openSampleFromStart("College football");
+        await session.styles.settled();
         const layer = await session.styles.add({
             name: "Conference",
             target: "node",
@@ -133,7 +112,8 @@ describe("the binding popover's rows and readings", () => {
 
     it("Les Miserables: Louvain's group rows line up, a recolored row included; a set select's Clear is a minus", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         await session.runs.start("louvain");
         await session.styles.settled();
         const layer = runColorLayer(session);
@@ -203,7 +183,8 @@ describe("the binding popover's rows and readings", () => {
 
     it("the vary picker and the Which picker name Degree's and Louvain's values the same", async () => {
         await page.viewport(1440, 900);
-        const { session, store } = await openSample("Les Miserables", 77);
+        const { session, store } = await openSampleFromStart("Les Miserables");
+        await session.styles.settled();
         await session.runs.start("degree");
         await session.runs.start("louvain");
         await session.styles.settled();

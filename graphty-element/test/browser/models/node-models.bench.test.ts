@@ -3,9 +3,12 @@
  * under a real pointer, and the main thread's frame time beside the same graph of icospheres.
  * Timing checks, so they run in the "browser-bench" project (Chromium) and not under coverage.
  *
- * The frame time is the main thread's cost of `scene.render()`, with one pixel read after the
- * frames so the GPU has finished them too. It is the cost instancing exists to keep flat, and
- * the one a software rasterizer on a CI runner measures the same way a real GPU would.
+ * The frame time is the main thread's cost of `scene.render()`: the cost instancing exists to keep
+ * flat. Each frame is timed alone, with the GPU drained by a pixel read before it starts. Timed
+ * back to back, the frames queue up behind a GPU that is still drawing the ones before, and on a
+ * CI runner that GPU is a software rasterizer on the same few cores as the main thread: a model's
+ * extra triangles then cost the main thread CPU time it never spent itself, from 0.5 to over
+ * 2 ms a frame on the same graph from one run to the next (issue #4368).
  */
 
 import { assert, describe, it } from "vitest";
@@ -18,8 +21,11 @@ import { drawnAsModel, mount, nextModelEvent } from "./helpers";
 /** Nodes in each graph. */
 const NODES = 1000;
 
-/** Frames timed per graph. */
-const FRAMES = 30;
+/**
+ * Frames timed per graph. Each one first waits for the GPU to finish the one before, which on a
+ * CI runner's software rasterizer takes about a second for the model graph.
+ */
+const FRAMES = 3;
 
 /**
  * A thousand nodes on a grid in front of the camera.
@@ -61,19 +67,25 @@ async function thousand(model: Uint8Array | null): Promise<Awaited<ReturnType<ty
 }
 
 /**
- * The main thread's milliseconds per frame, over {@link FRAMES} frames.
+ * The main thread's milliseconds per frame: the median of {@link FRAMES} frames, each started on
+ * an idle GPU so it is not charged for drawing the frames before it.
  * @param element - The element.
  * @returns Milliseconds per frame.
  */
-function frameTime(element: Awaited<ReturnType<typeof mount>>): number {
+async function frameTime(element: Awaited<ReturnType<typeof mount>>): Promise<number> {
     const { scene } = element.graph;
-    scene.render();
-    const start = performance.now();
+    const engine = scene.getEngine();
+    const times: number[] = [];
     for (let frame = 0; frame < FRAMES; frame++) {
+        // A pixel read waits for every frame drawn so far, the render loop's included.
+        await engine.readPixels(0, 0, 1, 1);
+        const start = performance.now();
         scene.render();
+        times.push(performance.now() - start);
     }
 
-    return (performance.now() - start) / FRAMES;
+    times.sort((a, b) => a - b);
+    return times[Math.floor(FRAMES / 2)];
 }
 
 /**
@@ -123,13 +135,13 @@ describe("a thousand model nodes", () => {
 
     it("draws 1,000 nodes of a 2,000-triangle model at the icosphere frame rate", async () => {
         const spheres = await thousand(null);
-        const icosphere = frameTime(spheres);
+        const icosphere = await frameTime(spheres);
         spheres.remove();
 
         // 2 x 50 x 20 = 2,000 triangles.
         const models = await thousand(sphereGlb(50, 20));
         assert.isTrue(drawnAsModel(models.graph, "n999"));
-        const model = frameTime(models);
+        const model = await frameTime(models);
         console.log(`[model-bench] frame: icosphere ${icosphere.toFixed(2)} ms, model ${model.toFixed(2)} ms`);
         // The same frame rate within a quarter, and a millisecond for the timer's own noise.
         assert.isBelow(model, icosphere * 1.25 + 1, `model ${model.toFixed(2)} ms against ${icosphere.toFixed(2)} ms`);

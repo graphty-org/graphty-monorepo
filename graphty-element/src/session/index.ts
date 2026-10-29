@@ -111,6 +111,7 @@ export type {
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
+    GroupOutlineClick,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,

@@ -101,6 +101,11 @@ describe("TOOL_DEFAULTS arrowhead", () => {
         // Cytoscape desktop: a DELTA twice (EDGE_*_ARROW_SIZE 6 + width) long, half as wide
         expect(length("cytoscape", 1, 1)).toBe(14);
         expect(length("cytoscape", 1, 2)).toBe(16);
+        // an edge whose source arrow is a half arrow: EDGE_*_ARROW_SIZE times the width, at both ends
+        const half = TOOL_DEFAULTS.get("cytoscape")?.arrowhead?.length;
+        expect(half?.(10 / 6, 1.5, "half")).toBeCloseTo(30, 9);
+        expect(half?.(1, 2, "other:half-bottom")).toBe(24);
+        expect(half?.(1, 2, "triangle")).toBe(16);
         expect(TOOL_DEFAULTS.get("cytoscape")?.arrowhead?.aspect).toBe(0.5);
         // its T bar as wide as the DELTA is long, a tenth of that deep
         expect(TOOL_DEFAULTS.get("cytoscape")?.arrowhead?.shapes?.tee).toEqual({ length: 0.1, aspect: 10 });

@@ -6,29 +6,34 @@ import {
     bindLabel,
     cellOfLocation,
     channelWord,
+    clockWords,
     colorName,
     enumWords,
     failureWords,
+    hiddenByWords,
     labelStatement,
     locationOfCell,
     madeWords,
     matchesWordStart,
     paletteWord,
+    placeWords,
     positionWord,
     refusalWords,
     SECTIONS,
+    shaderMatches,
     takesBinding,
+    usesWords,
 } from "../words";
 
 describe("the Style tab's words and arrangement", () => {
     it("draws Nodes and Edges in their fixed sections", () => {
         assert.deepEqual(
             SECTIONS.node.map((section) => section.title),
-            ["Shape", "Visibility", "Text", "Fill", "Effects", "Rendering"],
+            ["Shape", "Visibility", "Text", "Fill", "Shaders"],
         );
         assert.deepEqual(
             SECTIONS.edge.map((section) => section.title),
-            ["Visibility", "Text", "Line", "Arrowheads", "Effects"],
+            ["Visibility", "Text", "Line", "Arrowheads", "Shaders"],
         );
     });
 
@@ -158,5 +163,33 @@ describe("the notice after styling a selection", () => {
 
     it("names a layer that has a name of its own", () => {
         assert.equal(madeWords("v09", 1, 0), "Made layer v09 for 1 node");
+    });
+});
+
+describe("shader words", () => {
+    it("finds a shader by a word of its name or an alias", () => {
+        assert.isTrue(shaderMatches({ id: "glass-marble", plainName: "Glass marble" }, "mar"));
+        assert.isTrue(shaderMatches({ id: "liquid-metal", plainName: "Liquid metal" }, "shiny"));
+        assert.isFalse(shaderMatches({ id: "pearl", plainName: "Pearl" }, "metal"));
+    });
+
+    it("says what a shader uses, as values", () => {
+        assert.equal(usesWords(["color", "size"]), "Color, size");
+        assert.equal(usesWords([]), "Nothing");
+    });
+
+    it("shows paint and over both as On the node, and an edge's paint as On the line", () => {
+        assert.equal(placeWords("paint"), "On the node");
+        assert.equal(placeWords("over"), "On the node");
+        assert.equal(placeWords("paint", "edge"), "On the line");
+        assert.equal(placeWords("replace"), "Instead of the node");
+    });
+
+    it("writes a clock binding and the hidden caption as words", () => {
+        assert.equal(
+            clockWords({ by: "since.matched", domain: [0, 0.3] }),
+            "Starts: When this layer starts applying, over 0.3 s",
+        );
+        assert.equal(hiddenByWords("Sticker"), "Hidden: Sticker draws instead of the node");
     });
 });

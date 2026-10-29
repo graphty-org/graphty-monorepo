@@ -36,6 +36,7 @@ tools/lint-base-drift.test.mjs
 tools/live.test.mjs
 tools/llm-due.test.mjs
 tools/nightly-scenarios.test.mjs
+tools/nx-cache-proxy.test.mjs
 tools/nx-cache-worker/test/index.test.mjs
 tools/own-tools-overlay.test.mjs
 tools/pipeline-round-skill.test.mjs

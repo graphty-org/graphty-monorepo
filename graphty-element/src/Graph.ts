@@ -124,7 +124,16 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, EdgeId, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type {
+    AlgorithmKey,
+    DrawnShaders,
+    EdgeId,
+    ElementAtResult,
+    FormatId,
+    GroupOutlineAtResult,
+    Scope,
+    ScopeInput,
+} from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -205,6 +214,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { MeshCache } from "./meshes/MeshCache";
 import { NodeEffects } from "./meshes/NodeEffects";
+import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
 import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
@@ -248,15 +258,18 @@ import type { GraphSlice, LayoutChoice } from "./session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "./session/project/strict";
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import { shadersControllerOf } from "./session/shaders";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
 import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
+import { createLazyShaderHost } from "./shaders/chunk";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import { downloadBlob } from "./utils/download";
@@ -359,6 +372,46 @@ function disposeEdgeMeshes(edge: Edge): void {
     if (edge.arrowTailCap && !edge.arrowTailCap.isDisposed()) {
         edge.arrowTailCap.dispose();
     }
+}
+
+/**
+ * The project-state keys a pass can write without changing the picture by itself, by slice; null
+ * for every key of the slice.
+ *
+ * - `visibility`: the filter, its steps, the time window, the context and the playback settings
+ *   reach the canvas only as the view masks (ghosts included), which the update loop watches by
+ *   version (`UpdateManager.viewMasksPending`), so the frame a moved mask needs is drawn unasked.
+ * - The time field and its unit: they say which column holds time, and nothing is drawn from
+ *   them; what a window then hides is a mask.
+ */
+const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string> | null>>> = {
+    visibility: null,
+    config: new Set([
+        "data.knownFields.nodeTimePath",
+        "data.knownFields.nodeTimeUnit",
+        "data.knownFields.edgeTimePath",
+        "data.knownFields.edgeTimeUnit",
+    ]),
+};
+
+/**
+ * Whether a derivation pass wrote only keys that draw nothing (see {@link KEYS_THAT_DRAW_NOTHING}).
+ * @param dirty - The keys the pass derived, by slice.
+ * @returns True when the pass needs no frame of its own.
+ */
+function drawsNothing(dirty: ReadonlyMap<string, ReadonlySet<string>>): boolean {
+    if (dirty.size === 0) {
+        return false;
+    }
+
+    for (const [slice, keys] of dirty) {
+        const quiet = KEYS_THAT_DRAW_NOTHING[slice];
+        if (quiet === undefined || (quiet !== null && [...keys].some((key) => !quiet.has(key)))) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
@@ -859,6 +912,8 @@ export class Graph implements GraphContext {
                 // The map made or showed meshes, usually just before the scene draws: a frozen list
                 // of what is drawn would leave them out of this frame and the frames after it.
                 this.updateManager.thawActiveMeshes();
+                // The map changed the picture, so the frame drawn before it is not the final one.
+                this.updateManager.pending.changed();
                 this.renderManager.requestFrame();
             },
             (status) => {
@@ -969,6 +1024,33 @@ export class Graph implements GraphContext {
         // brought up to date either way, since a layer can select on any value that moved.
         const { lane } = dispatcherOf(this.session);
         handGraphPaintToRenderer(this.session);
+        // Shaders compile in this scene's engine; the runtime loads on the first one.
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
+        // The background shader, group outlines and bloom read the stack and the nodes' places.
+        this.renderManager.bindShaderScene({
+            session: this.session,
+            member: (id) => {
+                const node = this.dataManager.nodes.get(id);
+                const color = node?.paintedColor;
+                if (
+                    node === undefined ||
+                    color === null ||
+                    color === undefined ||
+                    node.getRenderState() !== "visible"
+                ) {
+                    return undefined;
+                }
+
+                const { x, y, z } = node.getPosition();
+                return {
+                    x,
+                    y,
+                    z,
+                    radius: node.drawnRadius,
+                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
+                };
+            },
+        });
         // No frame is drawn while an element built from the defaults waits for its style.
         this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
         lane.register("graph", async (_rendered, target, dirty) => {
@@ -1194,9 +1276,13 @@ export class Graph implements GraphContext {
         this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesQueued;
 
         // Every change to project state reaches the picture through a pass, so a graph drawn on
-        // demand draws the frame after each one: a style, the data, a setting, an undo.
-        lane.passEnded = () => {
-            this.renderManager.requestFrame();
+        // demand draws the frame after each one: a style, the data, a setting, an undo. Not after
+        // a pass that wrote only keys that draw nothing (see KEYS_THAT_DRAW_NOTHING): on a software
+        // GPU every frame costs the page 200 to 800 ms of its main thread under load (#4196).
+        lane.passEnded = (dirty) => {
+            if (!drawsNothing(dirty)) {
+                this.renderManager.requestFrame();
+            }
         };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
@@ -1293,6 +1379,10 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        // A picture the frame on screen does not show yet: an image annotation still loading, or a
+        // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
+        this.updateManager.picturesLoading = () =>
+            this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };
@@ -1301,9 +1391,35 @@ export class Graph implements GraphContext {
         // settling layout ends with, and the finished picture, wait for it (issue #3378).
         this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
         // A queued operation, or a queued command waiting beside the queue for a key, is going to
-        // change the picture, so the frame is not final until it has run (issue #3528).
-        this.updateManager.operationsPending = () =>
-            this.operationQueue.hasWork || dispatcherOf(this.session).hasWaiters;
+        // change the picture, so a wait for the final picture waits for it too (issue #3528).
+        this.updateManager.pending.watch(
+            "operation",
+            "a queued operation has not finished",
+            () => this.operationsPending(),
+            "wait",
+        );
+        // A load that holds a place in the session's load line and has not dispatched its step yet:
+        // its module import, download, unzip or format detection is still running.
+        this.updateManager.pending.watch(
+            "load",
+            "a data load has not reached the graph yet",
+            () => loadLineOf(dispatcherOf(this.session)).size > 0,
+            "wait",
+        );
+        // Work the graph starts outside the update pass that will still change the picture, entered
+        // in the one record of it (issue #3546): a file's picture annotation, painted onto its
+        // texture when the image arrives (issue #3383), and the map under a geographic layout --
+        // its module import, its tiles and their shaders.
+        this.updateManager.pending.watch(
+            "picture",
+            "an annotation's picture is still loading",
+            () => this.#annotations?.isLoading === true,
+        );
+        this.updateManager.pending.watch(
+            "basemap",
+            "the map under the graph is still loading",
+            () => this.basemapManager.loading,
+        );
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -1312,6 +1428,20 @@ export class Graph implements GraphContext {
         dispatcherOf(this.session).services.legacy = {
             run: (command, ctx) => this.algorithmManager.runLegacy(command, ctx),
         };
+
+        // The layout transition: where nodes are drawn on their way to a new layout.
+        attachTransitions(
+            this.layoutManager,
+            new LayoutTransitionRunner({
+                scene: () => this.scene,
+                config: () => this.styles.config.graph.layoutTransition,
+                quality: () => this.renderManager.shaderGuard.quality,
+                nodes: () => this.layoutManager.nodes,
+                edges: () => this.layoutManager.edges,
+                selected: () => this.selectionManager.getSelectedNodes(),
+                layoutRunning: () => this.layoutManager.running,
+            }),
+        );
 
         // Initialize SelectionManager
         this.selectionManager = new SelectionManager(this.eventManager);
@@ -1855,6 +1985,8 @@ export class Graph implements GraphContext {
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
+        // A new engine: its shaders compile again there.
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
         this.camera = this.renderManager.camera;
         this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);
@@ -2147,7 +2279,8 @@ export class Graph implements GraphContext {
      * its texture has arrived; the scene never holds more than one dome. A later read of
      * `styles.config.graph.background` sees the value, parsed.
      * @param background - A colour (`{backgroundType: "color", color}`) or a skybox
-     *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG.
+     *     (`{backgroundType: "skybox", data}`), where `data` is an image URL or a base64 PNG;
+     *     either may carry a `shader` (`{ id, params }`) drawn over it.
      * @throws A Zod error when the value is not a background; nothing is changed then.
      */
     setBackground(background: GraphBackgroundConfig): void {
@@ -2440,6 +2573,7 @@ export class Graph implements GraphContext {
                 background: project.background,
                 selection: project.selectionStyle,
                 ...(project.startingRows ? { startingRows: true } : {}),
+                ...(project.layoutTransition === undefined ? {} : { layoutTransition: project.layoutTransition }),
             },
             data: project.data,
             behavior: GraphBehaviorOpts.parse({
@@ -4236,13 +4370,7 @@ export class Graph implements GraphContext {
      */
     private handleBackgroundClick(event: { button?: number; shiftKey?: boolean }): void {
         const { pointerX: x, pointerY: y } = this.scene;
-        const picked = pickAsDrawn(this.scene, x, y);
-        if (picked && isCloseLabel(picked)) {
-            const close = closeRectOnScreen(picked);
-            if (close !== undefined && inRect(close, x, y)) {
-                this.selectionManager.deselect();
-            }
-
+        if (this.handledOnCloseLabel(x, y)) {
             return;
         }
 
@@ -4253,7 +4381,13 @@ export class Graph implements GraphContext {
         const edgeId = this.pickEdgeId(x, y);
         const secondary = event.button === 2;
         if (edgeId === undefined) {
-            this.clickEmptyCanvas(x, y, secondary);
+            const outline = this.renderManager.pickGroupOutline(x, y);
+            if (outline === null) {
+                this.clickEmptyCanvas(x, y, secondary);
+            } else {
+                this.clearSelectionOnPrimary(secondary);
+                this.session.groupOutlineClick(outline);
+            }
             return;
         }
 
@@ -4271,13 +4405,46 @@ export class Graph implements GraphContext {
      * @param secondary - Whether it was the secondary button.
      */
     private clickEmptyCanvas(x: number, y: number, secondary: boolean): void {
-        if (!secondary) {
-            this.selectionManager.deselect();
-            if (this.session.selection.edges.length > 0) {
-                this.session.selection.clear();
-            }
-        }
+        this.clearSelectionOnPrimary(secondary);
         this.session.emptyClick({ x, y, secondary });
+    }
+
+    /**
+     * A click on a label that draws a close button: on the x it clears the selection, and anywhere
+     * else on that label it does nothing at all.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @returns True when the click landed on such a label, so nothing else answers it.
+     */
+    private handledOnCloseLabel(x: number, y: number): boolean {
+        const picked = pickAsDrawn(this.scene, x, y);
+        if (!picked || !isCloseLabel(picked)) {
+            return false;
+        }
+
+        const close = closeRectOnScreen(picked);
+        if (close !== undefined && inRect(close, x, y)) {
+            this.selectionManager.deselect();
+        }
+
+        return true;
+    }
+
+    /**
+     * A click away from any node or edge clears the selection: the node selection, and the
+     * session's edges when it holds any. A secondary (right) click clears nothing, since it asks
+     * for a menu about the selection.
+     * @param secondary - Whether the click was a secondary one.
+     */
+    private clearSelectionOnPrimary(secondary: boolean): void {
+        if (secondary) {
+            return;
+        }
+
+        this.selectionManager.deselect();
+        if (this.session.selection.edges.length > 0) {
+            this.session.selection.clear();
+        }
     }
 
     /**
@@ -5316,6 +5483,36 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The group outline under a point, where no node and no edge is; see
+     * `Graphty.groupOutlineAt`.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "group-outline", layer, shader, group }`, or `null` when no outline is there.
+     */
+    groupOutlineAt(point: { x: number; y: number }): GroupOutlineAtResult | null {
+        if (this.elementAt(point) !== null) {
+            return null;
+        }
+
+        const hit = this.renderManager.pickGroupOutline(point.x, point.y);
+        return hit === null ? null : { kind: "group-outline", layer: hit.layer, shader: hit.shader, group: hit.group };
+    }
+
+    /**
+     * What the shaders draw now; see `Graphty.drawnShaders`.
+     * @returns Per node shader its counts, and the group outlines drawn last frame.
+     */
+    drawnShaders(): DrawnShaders {
+        const nodes = NodeShaderDrawing.peek(this.scene)?.drawnById() ?? new Map();
+        const outlines = this.renderManager.shaderPasses().outline?.drawn() ?? [];
+        return {
+            nodes,
+            groupOutlines: outlines.map(({ layer, shader, groups }) => ({ layer, shader, groups: [...groups] })),
+        };
+    }
+
+    /**
      * The drawn edge nearest a point, within {@link EDGE_PICK_TOLERANCE_PX} of its line.
      *
      * MEASURED ON SCREEN, not ray cast: every line is a thin instance of a shared, unpickable
@@ -5433,10 +5630,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
-        await loadsAhead.get(this)?.();
-        // Suggested styles first: their reordering moves reach the queue only once they are due.
-        await this.#suggestionsStacked;
-        await this.untilQueueDrained();
+        await this.untilNothingIsAhead();
         // Style edits are not queued: they are written at once and repainted on the session's
         // derivation lane, which this waits for, along with anything a finished run painted.
         await this.session.styles.settled();
@@ -5573,12 +5767,7 @@ export class Graph implements GraphContext {
         do {
             // The queue first: a layout change or a data load that has not run yet is going to move
             // the picture, so a frame that is final right now is final about the wrong graph.
-            // Suggested styles before the queue, because they queue their reordering only once
-            // they are due. Loads not queued yet (the element's, held behind the autosave restore)
-            // before both.
-            await loadsAhead.get(this)?.();
-            await this.#suggestionsStacked;
-            await this.untilQueueDrained();
+            await this.untilNothingIsAhead();
             await this.untilNothingIsOwed(wait);
 
             // The picture is final, but the label counts it drew are announced a few frames later
@@ -5588,6 +5777,18 @@ export class Graph implements GraphContext {
                 await declutter.whenPublished();
             }
         } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
+    }
+
+    /**
+     * Wait for what both settle waits wait for first, written once so the two cannot drift
+     * (issue #3376 had to add the loads twice): loads not queued yet (the element's, held behind
+     * the autosave restore), then suggested styles, which queue their reordering only once they
+     * are due, then the queue.
+     */
+    private async untilNothingIsAhead(): Promise<void> {
+        await loadsAhead.get(this)?.();
+        await this.#suggestionsStacked;
+        await this.untilQueueDrained();
     }
 
     /**
@@ -5618,11 +5819,19 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether an operation is queued or running, or a queued command waits beside the queue for a key.
+     * @returns True while the graph is about to change.
+     */
+    private operationsPending(): boolean {
+        return this.operationQueue.hasWork || dispatcherOf(this.session).hasWaiters;
+    }
+
+    /**
      * What is still moving, for the message a timed-out wait carries.
      * @returns One phrase naming what has not finished.
      */
     private whyTheFrameIsNotStable(): string {
-        if (this.updateManager.operationsPending?.() === true) {
+        if (this.operationsPending()) {
             const queue = this.operationQueue.getStats();
             const count = queue.pending + queue.size;
             return count > 0
@@ -8028,9 +8237,9 @@ export class Graph implements GraphContext {
         if (this.#annotations?.scene !== this.scene) {
             // a picture that arrives after the frame was called final has to be drawn, on demand too
             this.#annotations = new AnnotationMeshes(this.scene, () => {
+                this.updateManager.pending.changed();
                 this.renderManager.requestFrame();
             });
-            this.updateManager.picturesLoading = () => this.#annotations?.isLoading === true;
         }
 
         this.#annotations.update(value);
@@ -8040,6 +8249,8 @@ export class Graph implements GraphContext {
      * Dispose all graph resources including voice, AI, XR, and Babylon.js components.
      */
     dispose(): void {
+        transitionsOf(this.layoutManager)?.dispose();
+
         // Clean up voice adapter if created
         this.voiceAdapter?.dispose();
         this.voiceAdapter = null;

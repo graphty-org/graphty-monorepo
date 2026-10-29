@@ -151,10 +151,9 @@ describe("the Style tab's property rows", () => {
     it("draws the vary glyph at rest on Shape, Color, Size, Width and Glow, and '=' in Size opens it", async () => {
         const { runs } = await openScene();
         let tab = await openStyle("Key people");
-        await add(tab, "Add to node effects", "Glow");
+        await add(tab, "Add to node shape", "Glow");
         await add(tab, "Add to node shape", "Shape");
-        // Size is the one property Shape has left, so its "+" adds it with no menu.
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await add(tab, "Add to node shape", "Size");
         await waitFor(() => {
             field(tab, "node.glow");
             field(tab, "node.shape");

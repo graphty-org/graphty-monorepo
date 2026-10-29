@@ -205,6 +205,9 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   verdict, never `version`, `land`, `publish` or `promote-nightly`. The attempt rejoins the
   `release-train` group like any run (every run catches up first, so a pending run it replaces
   loses nothing). Attempt 1 files no red issue and dispatches no bisect; the deciding attempt does.
+  A run dispatched with a workflow's `GITHUB_TOKEN` (actor `github-actions[bot]`: release-due's
+  `restart` and `candidate` runs) is the exception: GitHub starts no `release-rerun.yml` when such a
+  run ends, so its attempt 1 is the deciding one and files at once (#4359).
   `release-rerun.yml` is the one decider (`tools/release-rerun.mjs`, which `release-watch.yml` asks
   too, so the two never race): when it does not re-run an attempt that deferred, it files that
   attempt's red issue and bisect itself, and holds its commit when nothing is held (a failed job it
@@ -284,8 +287,8 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
 - **Production promotion** (`promote.yml`, environment `production`: the owner as required reviewer,
   "prevent self-review" off, master only) refuses a nightly that was not clean or approved, whose
   asset hash differs from the store's, has a publish hold, misses a version on npm, or would roll
-  back across an autosave or project format change; checks the token and every package's dist-tags
-  before moving any; moves `latest`; merges production's datasets (index merged, thumbnails replaced,
+  back across an autosave or project format change; checks that npm's trusted publishing accepts the
+  job for every package and reads every package's dist-tags before moving any; moves `latest`; merges production's datasets (index merged, thumbnails replaced,
   datasets add-only by gunzipped bytes; channels section 2); deploys graphty-site with
   `graphty/sites/production.json` from master's tip; then a `needs:` job in environment `release`
   fast-forwards `channel/production` with the deploy key. Idempotent; `config_only` redeploys with a
@@ -434,7 +437,7 @@ request, gets its own `ACTION NEEDED` line when green; the rest go in one daily 
 ### 6.3 Rulesets and secrets
 
 - Ruleset 23973898: bypass = deploy keys (a ruleset cannot single out one key, so every write deploy
-  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 164375816,
+  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 167635448,
   and files a `priority:critical` issue otherwise); code-owner review required with 0 approvals;
   stale reviews dismissed; last-push approval off. A pull request waiting for the owner is never
   merged with master unless it conflicts.
@@ -444,7 +447,7 @@ request, gets its own `ACTION NEEDED` line when green; the rest go in one daily 
 - **Outside-world secrets live in master-only environments**, job by job: release.yml `land`
   (`release`: `RELEASE_DEPLOY_KEY`), `publish` (`release`: npm OIDC, Pushover), `site` (`nightly`:
   `NIGHTLY_SITE_DEPLOY_KEY`; `GITHUB_TOKEN` for the release), `llm` (`full-run`: `GOOGLE_API_KEY`);
-  promote.yml `promote` (`production`: `NPM_DIST_TAG_TOKEN`, `PRODUCTION_SITE_DEPLOY_KEY`) then
+  promote.yml `promote` (`production`: npm OIDC for the dist-tags, `PRODUCTION_SITE_DEPLOY_KEY`) then
   `channel-ref` (`release`: `RELEASE_DEPLOY_KEY`); ci.yml `sentry-upload` (`master-build`:
   `SENTRY_AUTH_TOKEN`), cache writes (`nx-cache-write`); `dependabot-automerge.yml`
   (`dependabot-automerge`: `AGENT_AUTOMERGE_TOKEN`). Jobs that also run on pull requests declare
@@ -770,12 +773,13 @@ In rollout order. Each item says when it is needed, the exact steps, and how to 
    nightly.graphty.app on graphty-nightly and enforce HTTPS. _Check:_ the first nightly deploy serves.
 8. **npm.** _When:_ step 7, only after the session says the publish job declares
    `environment: release`, on a day a nightly is due. On npmjs.com, for each @graphty package's trusted publisher
-   (workflow `release.yml`), set environment `release`. Create a granular token with write on
-   `@graphty` and "bypass 2FA"; store it as `NPM_DIST_TAG_TOKEN` in environment `production` and its
-   expiry date as repository variable `NPM_DIST_TAG_TOKEN_EXPIRES` (the round reminds you 14 days
-   before it expires). For a new package, still only after its first publish fails: create its
-   trusted publisher with environment `release`, never without one. _Check:_ the first `next` publish
-   and a no-op `npm dist-tag add` succeed.
+   (workflow `release.yml`), set environment `release`. For the dist-tags, add a second trusted
+   publisher to every package: workflow `promote.yml`, environment `production`, "Allow npm dist-tag"
+   on, direct `npm publish` off (no stored npm token; the clicks are step 4 of "A new package's first npm
+   publish" in CLAUDE.md). For a new package, still only after its first publish fails: create
+   its `release.yml` trusted publisher with environment `release`, never without one, and its
+   `promote.yml` one with it. _Check:_ the first `next` publish succeeds, and a promote.yml dry run
+   passes "Check npm trusts this workflow for every package".
 9. **Interim urgent release.** _When:_ steps 3 to 8, only if something must ship. Dispatch
    `release.yml -f mode=legacy` and approve its publish and graphty.app deploy in `production`.
    _Check:_ none unless used.

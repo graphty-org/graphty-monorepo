@@ -46,6 +46,7 @@ import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { Styles } from "../Styles";
+import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
@@ -431,8 +432,21 @@ interface BuildOptions {
      * cannot be laid out is inactive instead.
      */
     readonly explicitScope?: boolean;
+    /** Whether this build changes the layout, so the graph's `layoutTransition` moves the nodes. */
+    readonly transition?: boolean;
     /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
     readonly fromSeed?: boolean;
+}
+
+/**
+ * Whether two values of the `layout` slice draw the same arrangement: the same layout, options and
+ * scope, whatever the dimension.
+ * @param a - One value.
+ * @param b - The other.
+ * @returns True when only the dimension can differ.
+ */
+function sameArrangement(a: LayoutChoice, b: LayoutChoice): boolean {
+    return a.engine === b.engine && a.options === b.options && a.scope === b.scope;
 }
 
 /**
@@ -640,6 +654,13 @@ export class LayoutManager implements Manager {
     private preStepsOwed = false;
 
     /**
+     * How many pre-step chunks are on their way through a simulation; see `preStepsInFlight`. A
+     * count, not a flag: a stale owed payment and a new build's pre-steps can overlap, and the
+     * first to land must not clear the other.
+     */
+    #chunksInFlight = 0;
+
+    /**
      * Set while the running layout's arrangement is the layout's own work: it was built, forward,
      * and nothing but its own steps has placed a node since -- no `positions.set`, no restore.
      * While it holds, a seeded layout starts over when data arrives. See
@@ -770,6 +791,16 @@ export class LayoutManager implements Manager {
      */
     get building(): boolean {
         return this.#building > 0;
+    }
+
+    /**
+     * Whether a chunk of pre-steps is being computed now. The frame loop neither steps the layout
+     * nor judges it settled while one is: see {@link LayoutManager.step}.
+     * @returns True while one is.
+     * @internal
+     */
+    get preStepsInFlight(): boolean {
+        return this.#chunksInFlight > 0;
     }
 
     /**
@@ -1263,6 +1294,9 @@ export class LayoutManager implements Manager {
         const previousMembers = this.members;
         const previousDriver = this.runningDriver;
         const previousDriverOptions = this.driverOptions;
+        // Where the nodes are drawn now, taken before the new engine can place any of them.
+        const transitions = how.transition === true ? transitionsOf(this) : undefined;
+        transitions?.begin(transitions.snapshot());
 
         // THE CONSUMER'S OPTIONS, not the merged ones: a driver rebuild builds the layout
         // again from these, and the element re-derives the dimension options itself.
@@ -1317,6 +1351,7 @@ export class LayoutManager implements Manager {
             // with the call; a plugin that opened a worker, a socket or a GPU buffer in its
             // constructor would otherwise leak one per failed attempt.
             engine.dispose();
+            transitions?.end();
 
             // Restore previous layout engine if initialization failed
             this.engine = previousEngine;
@@ -1664,6 +1699,7 @@ export class LayoutManager implements Manager {
                 restoring: false,
                 live: () => true,
                 explicitScope: scope !== undefined && this.carriedScope !== undefined,
+                transition: this.engine !== undefined,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -1781,6 +1817,9 @@ export class LayoutManager implements Manager {
                 restoring,
                 live,
                 explicitScope: options.explicitScope === true,
+                // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
+                transition:
+                    !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2059,7 +2098,13 @@ export class LayoutManager implements Manager {
         if (engine instanceof SimulationLayoutEngine) {
             for (let remaining = preSteps; remaining > 0 && !engine.isSettled;) {
                 const chunk = Math.min(remaining, MAX_ITERATIONS_PER_STEP_CHUNK);
-                await engine.stepAsync(chunk);
+                this.#chunksInFlight++;
+                try {
+                    await engine.stepAsync(chunk);
+                } finally {
+                    this.#chunksInFlight--;
+                }
+
                 if (!live()) {
                     return false;
                 }
@@ -2504,11 +2549,22 @@ export class LayoutManager implements Manager {
         // it has run would move the arrangement being restored. The frames after it step again.
         //
         // Nor while a new layout waits its turn: see `replacing`.
-        if (this.#building > 0 || this.restoring() || this.replacing()) {
+        //
+        // Nor while a chunk of pre-steps is on the device. Owed pre-steps are paid outside a build,
+        // over several frames, and a simulation takes more than one batch in flight: a frame's
+        // batch submitted beside a chunk ran iterations the pre-steps did not count and moved where
+        // the next chunk read `settled`, so a slow device -- on which frames fall inside a chunk --
+        // ended the same seed somewhere else than a fast one (issue #3533). The frames step again
+        // once the pre-steps are paid, as they do after a build's.
+        if (this.#building > 0 || this.preStepsInFlight || this.restoring() || this.replacing()) {
             return;
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
+        if (this.preStepsInFlight) {
+            // The payment just started has its first chunk on the device.
+            return;
+        }
         this.syncFollowers();
 
         const engine = this.layoutEngine;

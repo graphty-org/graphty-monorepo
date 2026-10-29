@@ -72,7 +72,19 @@ describe("an accelerated run and the render loop", () => {
             enableAi: false,
         });
         graphs.push(graph);
+        // Drawn every frame, not on demand: the test setup turns on-demand drawing on, and a still
+        // three-node graph then rests, so "the frames come back" would wait on a picture that is
+        // already final. The hold is what this test counts, not the rest.
+        await graph.setRenderSettings({ onDemand: false }, { skipQueue: true });
         const scene = graph.getScene();
+        // Drawn every tick, not on demand (the test setup switches drawing on demand on). On
+        // demand, a finished picture rightly draws nothing, before the run and after it, so "the
+        // frames come back" would hold only while the layout happened to be still settling when
+        // the run started: on a slow runner it had settled and one frame came back, not two
+        // (issue #4356). Every tick drawing makes the hold the only thing that can stop a frame.
+        await graph.setRenderSettings({ onDemand: false }, { skipQueue: true });
+        // A finished picture, so nothing but the hold's release can bring the frames back.
+        await graph.waitForStableFrame();
 
         // The loop is running before the run starts: the hold is what stops it, not the test.
         await rendersOf(graph, 2);

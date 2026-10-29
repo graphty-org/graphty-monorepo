@@ -80,6 +80,7 @@ const DECLARED = [
     "node.haloScale",
     "node.haloOpacity",
     "node.wireframe",
+    "node.meshDetail",
     "node.flat",
     "node.unlit",
     "node.marker",
@@ -334,6 +335,10 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
+    "node.shaders",
+    "edge.shaders",
+    "edge.taper",
+    "edge.lift",
 ];
 
 describe("the channel set", () => {
@@ -360,9 +365,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and sixty-six node channels and one hundred and forty edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 166);
-        assert.strictEqual(channelsFor("edge").length, 140);
+    it("splits into one hundred and sixty-eight node channels and one hundred and forty-three edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 168);
+        assert.strictEqual(channelsFor("edge").length, 143);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -721,6 +726,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        // Unset, no shader parameter is set and no effect is drawn.
+        "node.shaders",
+        "edge.shaders",
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",

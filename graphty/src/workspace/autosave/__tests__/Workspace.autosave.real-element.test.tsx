@@ -1,7 +1,12 @@
 /**
- * The workspace keeps the reader's work through graphty-element's autosave: a renamed sample is
- * saved in the browser, and when the workspace is mounted again (a reload) the start screen offers
- * it. Restore opens it again; Discard deletes it. Real element, real IndexedDB, real input.
+ * The workspace keeps the reader's work through graphty-element's autosave. A reload of the same
+ * tab (or a tab the browser discarded and loaded again) reopens straight into the workspace at the
+ * place the reader left; a duplicated tab never writes the entry its original writes; work from
+ * another tab that was closed is offered on the start screen, where Restore opens it again and
+ * Discard deletes it. Real element, real IndexedDB, real Web Locks, real input.
+ *
+ * A reload is the workspace unmounted and mounted again in the same page: the element's last write
+ * and lock go with it, and session storage stays, as across a reload.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -9,21 +14,27 @@ import "@graphty/graphty-element";
 
 import { type GraphSession, listAutosaves } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { WORKSPACE_AUTOSAVE_KEY } from "../autosave";
 
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
-/** The sample, and its node count. */
-const SAMPLE = { name: "Florentine families", nodes: 15 };
+/** The samples, and their node counts. */
+const FLORENTINE = { name: "Florentine families", nodes: 15 };
+const LES_MIS = { name: "Les Miserables", nodes: 77 };
 
 /** The name the reader gives the project. */
 const RENAMED = "Medici study";
+
+/** autosave's database (graphty-element's AUTOSAVE_DATABASE). */
+const DATABASE = "graphty-autosave";
 
 /**
  * The relative luminance of a CSS rgb() or rgba() color (WCAG 2), alpha ignored.
@@ -59,14 +70,14 @@ function textContrast(element: HTMLElement): number {
 }
 
 /**
- * Deletes autosave's database and this tab's own-entry record, so each test starts with nothing
+ * Deletes autosave's database and this tab's session storage, so each test starts with nothing
  * kept.
  * @returns settles once the database is gone.
  */
 function forgetAutosave(): Promise<void> {
     sessionStorage.clear();
     return new Promise((resolve, reject) => {
-        const request = indexedDB.deleteDatabase("graphty-autosave");
+        const request = indexedDB.deleteDatabase(DATABASE);
         request.onsuccess = () => {
             resolve();
         };
@@ -86,76 +97,25 @@ function mountWorkspace(): { readonly store: WorkspaceStore; readonly view: Retu
 }
 
 /**
- * Waits for the open project's element and its session.
+ * The opened project's element and its session, not the start page's own graph.
  * @returns the element and its session.
  */
-async function openElement(): Promise<{ element: ElementUnderTest; session: GraphSession }> {
-    let found: { element: ElementUnderTest; session: GraphSession } | undefined;
-    await waitFor(() => {
-        const element = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
-        const session: GraphSession | undefined = element?.session;
-        assert.isDefined(session);
-        if (element !== null && session !== undefined) {
-            found = { element, session };
-        }
-    });
-    if (found === undefined) {
-        throw new Error("the element never came up");
+function openedElement(): { element: ElementUnderTest; session: GraphSession } {
+    const element = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
+    if (element === null) {
+        throw new Error("no opened element");
     }
-    return found;
+    return { element, session: element.session };
 }
 
 /**
- * Opens the sample, renames it with the keyboard (or, told not to, changes its layout), waits
- * until autosave has written it, and unmounts the workspace: the visit a reload ends.
- * @param rename - whether the reader renames the project.
+ * Waits until autosave has written the work, then unmounts the workspace, as a reload ends the
+ * page, and waits until the element's last write is in and its lock is released.
+ * @param element - the project's element.
+ * @param view - the workspace's render result.
  * @returns the entry id autosave wrote.
  */
-async function workThenLeave(rename = true): Promise<string> {
-    const first = mountWorkspace();
-    await pickSample(SAMPLE.name);
-    const { element, session } = await openElement();
-    await waitFor(() => {
-        assert.equal(session.data.statistics().nodeCount, SAMPLE.nodes);
-    });
-
-    // The data's arrival is announced once, politely, as a short fact.
-    await waitFor(() => {
-        assert.include(screen.getByTestId("workspace-status").textContent, `${String(SAMPLE.nodes)} nodes, `);
-    });
-    assert.strictEqual(screen.getByTestId("workspace-status").getAttribute("aria-live"), "polite");
-    // The region lives in the status bar along the bottom, with the autosave chip.
-    const bar = screen.getByRole("contentinfo", { name: "Status" });
-    assert.isNotNull(within(bar).getByTestId("workspace-status"));
-
-    if (rename) {
-        await userEvent.keyboard("{F2}");
-        const field = await screen.findByRole("textbox", { name: "Project name" });
-        await userEvent.clear(field);
-        await userEvent.type(field, `${RENAMED}{Enter}`);
-        await waitFor(() => {
-            assert.equal(session.project.name, RENAMED);
-        });
-    } else {
-        // An untouched sample is not unsaved work, so the reader makes one real change that is not
-        // a rename: a circle layout, through the toolbar's Layout popover. In the project's default
-        // narrow frame the side panels cover the toolbar, so the frame is the reader's desktop.
-        await page.viewport(1440, 900);
-        const tool = screen.getByRole("button", { name: "Layout" });
-        await waitFor(() => {
-            assert.isFalse(tool.hasAttribute("aria-disabled"));
-        });
-        await userEvent.click(tool);
-        const popover = await screen.findByRole("dialog", { name: "Layout" });
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
-        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-        await waitFor(() => {
-            assert.strictEqual(session.layout.id, "circular");
-        });
-        await userEvent.keyboard("{Escape}");
-    }
-
-    // Work is saved: the element says so, and the status bar's chip shows it.
+async function leave(element: ElementUnderTest, view: ReturnType<typeof render>): Promise<string> {
     await waitFor(() => {
         assert.strictEqual(element.autosaver.status.state, "saved");
         assert.isNotNull(element.autosaver.status.savedAt);
@@ -168,15 +128,83 @@ async function workThenLeave(rename = true): Promise<string> {
     if (entry === null) {
         throw new Error("autosave wrote no entry");
     }
-
-    first.view.unmount();
-    // The element's last write and its lock are released once it has gone, as when a page closes.
+    view.unmount();
     await waitFor(async () => {
-        const entries = await listAutosaves(WORKSPACE_AUTOSAVE_KEY);
-        const kept = entries.find((each) => each.id === entry);
-        assert.isTrue(kept !== undefined && !kept.live && kept.dirty, "the work is not kept yet");
+        const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+        assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
     });
     return entry;
+}
+
+/**
+ * Opens the Florentine sample, renames it with the keyboard and leaves: work with changes never
+ * saved to a file.
+ * @returns the entry id autosave wrote.
+ */
+async function renameThenLeave(): Promise<string> {
+    const first = mountWorkspace();
+    await openBy(first.store, () => pickSample(FLORENTINE.name));
+    const { element, session } = openedElement();
+    await userEvent.keyboard("{F2}");
+    const field = await screen.findByRole("textbox", { name: "Project name" });
+    await userEvent.clear(field);
+    await userEvent.type(field, `${RENAMED}{Enter}`);
+    await waitFor(() => {
+        assert.equal(session.project.name, RENAMED);
+    });
+    await waitFor(() => {
+        assert.strictEqual(screen.getByTestId("autosave-chip").textContent, "Autosave: saved");
+    });
+    return leave(element, first.view);
+}
+
+/**
+ * Makes a kept entry another tab's: gives it a new id, as a tab that wrote it and was closed
+ * leaves it. This page's own record still names the old id, which no longer exists.
+ * @param id - the entry.
+ * @returns the entry's new id.
+ */
+async function fromAnotherTab(id: string): Promise<string> {
+    const other = crypto.randomUUID();
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(DATABASE);
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+        request.onerror = () => {
+            reject(request.error ?? new Error("the autosave database did not open"));
+        };
+    });
+    const tx = db.transaction(["entries", "parts"], "readwrite");
+    const entries = tx.objectStore("entries");
+    const parts = tx.objectStore("parts");
+    entries.get(id).onsuccess = (event) => {
+        const meta = (event.target as IDBRequest<Record<string, unknown>>).result;
+        entries.delete(id);
+        entries.put({ ...meta, id: other });
+    };
+    parts.openCursor().onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+        if (cursor === null) {
+            return;
+        }
+        const part = cursor.value as Record<string, unknown>;
+        if (part.entryId === id) {
+            cursor.delete();
+            parts.put({ ...part, entryId: other });
+        }
+        cursor.continue();
+    };
+    await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => {
+            resolve();
+        };
+        tx.onerror = () => {
+            reject(tx.error ?? new Error("the entry was not moved"));
+        };
+    });
+    db.close();
+    return other;
 }
 
 /**
@@ -194,10 +222,9 @@ describe("Workspace autosave with the real graphty-element", () => {
     // First in the file: the element reports the at-risk fact once per page load.
     it("says nothing about a private window when a fresh session opens the start screen and a sample", async () => {
         const { store, view } = mountWorkspace();
-        await userEvent.click(screen.getByRole("button", { name: `Open the ${SAMPLE.name} sample` }));
-        const { element, session } = await openElement();
+        await openBy(store, () => pickSample(FLORENTINE.name));
+        const { element } = openedElement();
         await waitFor(() => {
-            assert.equal(session.data.statistics().nodeCount, SAMPLE.nodes);
             assert.strictEqual(element.autosaver.status.state, "saved");
         });
         assert.notMatch(store.get().notice?.message ?? "", /private window|may clear/);
@@ -205,50 +232,137 @@ describe("Workspace autosave with the real graphty-element", () => {
         view.unmount();
     });
 
-    it("offers the work after a reload, and Restore opens it again", async () => {
-        const entry = await workThenLeave();
+    it("reopens this tab's work after a reload, at the place and layer the reader left", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(LES_MIS.name));
+        const { element, session } = openedElement();
+        // The project's name is the element's.
+        assert.equal(session.project.name, LES_MIS.name);
+
+        // The reader picks a layer in the Style layers list.
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        const hovered = await within(tree).findByRole("treeitem", { name: /^Hovered, / });
+        await userEvent.click(hovered);
+        await waitFor(() => {
+            assert.strictEqual(first.store.get().inspected?.kind, "layer-row");
+        });
+        const layer = first.store.get().inspected?.id;
+        assert.isDefined(layer);
+        const entry = await leave(element, first.view);
+        const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+        assert.strictEqual(kept?.name, LES_MIS.name, "the entry carries the project's name");
+
+        // The reload: the start screen never shows, not even while the work is looked up.
+        let startShown = false;
+        const watch = new MutationObserver(() => {
+            startShown ||= document.querySelector("[data-start-door]") !== null;
+        });
+        watch.observe(document.body, { childList: true, subtree: true });
+        const second = mountWorkspace();
+        // This tab's own work reopens by itself, with no click.
+        await openBy(second.store, () => Promise.resolve());
+        const reopened = openedElement();
+        assert.equal(reopened.session.data.statistics().nodeCount, LES_MIS.nodes);
+        await waitFor(() => {
+            assert.strictEqual(reopened.element.autosaver.status.entry, entry, "this tab writes its own entry");
+        });
+        // Same place, same layer, focus on the main heading, and the status line says what reopened.
+        await waitFor(() => {
+            assert.strictEqual(second.store.get().place, "graph");
+            assert.deepEqual(second.store.get().inspected, { kind: "layer-row", id: layer });
+            assert.strictEqual(document.activeElement?.id, INSPECTOR_TITLE_ID);
+            assert.include(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Reopened ${LES_MIS.name}`,
+            );
+        });
+        assert.strictEqual(document.activeElement?.textContent, "Hovered");
+        const row = within(screen.getByRole("tree", { name: "Style layers" })).getByRole("treeitem", {
+            name: /^Hovered, /,
+        });
+        assert.strictEqual(row.getAttribute("aria-selected"), "true");
+        assert.isNotNull(screen.queryByRole("button", { name: `Project: ${LES_MIS.name}` }));
+        watch.disconnect();
+        assert.isFalse(startShown, "the start screen showed");
+        assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
+        assert.notMatch(document.body.textContent ?? "", /Recovered work|Restored your work/);
+        second.view.unmount();
+    });
+
+    it("never reopens the work another tab is writing: a duplicated tab starts on the start screen", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(LES_MIS.name));
+        const { element } = openedElement();
+        await waitFor(() => {
+            assert.isNotNull(element.autosaver.status.savedAt);
+        });
+        const { entry } = element.autosaver.status;
+        if (entry === null) {
+            throw new Error("autosave wrote no entry");
+        }
+        first.view.unmount();
+
+        // The original tab still writes the entry: it holds the entry's lock, taken here as soon as
+        // the element's last write lets it go. A duplicated tab has a copy of the original's
+        // session storage, which names the same entry.
+        let release = (): void => undefined;
+        await new Promise<void>((resolve) => {
+            void navigator.locks.request(
+                `graphty-autosave:${WORKSPACE_AUTOSAVE_KEY}:${entry}`,
+                () =>
+                    new Promise<void>((done) => {
+                        release = done;
+                        resolve();
+                    }),
+            );
+        });
+        try {
+            const second = mountWorkspace();
+            await screen.findByRole("button", { name: `Open the ${LES_MIS.name} sample` });
+            assert.isNull(second.store.get().project);
+            assert.isNull(document.querySelector("graphty-element:not([data-start-page])"));
+            const listed = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+            assert.isTrue(listed?.live);
+            assert.notStrictEqual(listed?.own, true);
+            second.view.unmount();
+        } finally {
+            release();
+        }
+    });
+
+    it("offers another tab's work with the project's name, and Restore opens it again", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        const { element, session } = openedElement();
+        // A change never saved to a file, made without renaming: the name is the sample's.
+        await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        const entry = await fromAnotherTab(await leave(element, first.view));
 
         const second = mountWorkspace();
         const region = await offer();
-        assert.include(region.textContent, RENAMED);
-        assert.include(region.textContent, `${String(SAMPLE.nodes)} nodes`);
+        assert.include(region.textContent, FLORENTINE.name);
+        assert.include(region.textContent, `${String(FLORENTINE.nodes)} nodes`);
 
-        await userEvent.click(screen.getByRole("button", { name: "Restore" }));
-        const { element, session } = await openElement();
-        await waitFor(() => {
-            assert.equal(session.data.statistics().nodeCount, SAMPLE.nodes);
-            assert.equal(session.project.name, RENAMED);
-        });
-        assert.equal(second.store.get().project?.name, RENAMED);
+        await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        const reopened = openedElement();
+        assert.equal(reopened.session.data.statistics().nodeCount, FLORENTINE.nodes);
+        assert.equal(reopened.session.project.name, FLORENTINE.name);
+        assert.equal(second.store.get().project?.name, FLORENTINE.name);
         // The toast; the status line speaks the same words (state/store.ts).
         await screen.findByText(/^Restored: /, { selector: ".cm-toast-message" });
         // This tab writes the restored work from here on.
         await waitFor(() => {
-            assert.strictEqual(element.autosaver.status.entry, entry);
+            assert.strictEqual(reopened.element.autosaver.status.entry, entry);
         });
         second.view.unmount();
     });
 
-    it("keeps the project's name on Restore when the reader never renamed it", async () => {
-        await workThenLeave(false);
+    it("offers another tab's renamed work, and Discard deletes it", async () => {
+        const entry = await fromAnotherTab(await renameThenLeave());
 
         const second = mountWorkspace();
-        await offer();
-        await userEvent.click(screen.getByRole("button", { name: "Restore" }));
-        const { session } = await openElement();
-        await waitFor(() => {
-            assert.equal(session.data.statistics().nodeCount, SAMPLE.nodes);
-            assert.equal(second.store.get().project?.name, SAMPLE.name);
-        });
-        assert.isNull(screen.queryByText("Recovered work"));
-        second.view.unmount();
-    });
-
-    it("offers the work after a reload, and Discard deletes it", async () => {
-        const entry = await workThenLeave();
-
-        const second = mountWorkspace();
-        await offer();
+        const region = await offer();
+        assert.include(region.textContent, RENAMED);
         await userEvent.click(screen.getByRole("button", { name: "Discard" }));
 
         await waitFor(async () => {

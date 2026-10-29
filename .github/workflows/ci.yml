@@ -80,7 +80,7 @@ concurrency:
 #   build, lint, checks and test shards, and the screenshots, which are reported and never block.
 # - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
 #   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
-#   held to master's rule that every job succeeds. "Queue Checks Pass" is its verdict.
+#   held to master's rule that every job succeeds.
 # - a push to master: NO tests. The merge queue already ran the full suite on exactly this tree. The build
 #   job builds every package, Storybook and docs site (deploy-pages.yml publishes them) and skips every
 #   test job; "All Checks Pass" counts the skipped ones as passing. Owner decision, 2026-10-06.
@@ -149,7 +149,7 @@ jobs:
     # the only thing the test jobs download. It does nothing else, so the test jobs start as soon as the
     # packages are built: the checks that need a build but no test (lint, docs, the Storybooks, knip,
     # formatting, the API report and the other checks) run beside the tests in jobs of their own, which
-    # "All Checks Pass" and "Queue Checks Pass" require just as they required these steps when they were
+    # "All Checks Pass" requires just as they required these steps when they were
     # part of one Build job (it took 23 minutes, and only its first 4 produced what the tests need).
     packages:
         name: Build
@@ -444,9 +444,18 @@ jobs:
                   if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
                       echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
                   elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
-                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
-                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
-                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                      # nx's cache client has no timeout, so one stalled request hung a whole build (#4193): nx talks to
+                      # tools/nx-cache-proxy.mjs, which turns a stalled request into a miss. It runs until the job ends.
+                      exec 3< <(node tools/nx-cache-proxy.mjs "$NX_CACHE_URL" < /dev/null 2>> "${RUNNER_TEMP:-/tmp}/nx-cache-proxy.log")
+                      read -r -t 10 proxy <&3 || true
+                      if [[ -n "$proxy" ]]; then
+                          { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$proxy"
+                            echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                          echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                      else
+                          echo "::warning::nx cache proxy did not start; building without the remote cache"
+                          echo "nx remote cache: off (the proxy did not start)" >> "$GITHUB_STEP_SUMMARY"
+                      fi
                   else
                       echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
                       echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
@@ -724,8 +733,8 @@ jobs:
                   path: compact-mantine/dist/
                   retention-days: 1
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -735,12 +744,14 @@ jobs:
                   advisory: ${{ steps.advisory.outputs.checks }}
 
     # The six Storybooks (deploy-pages.yml publishes them, the Links job checks them, the Stories job
-    # screenshots their stories). This job keeps the id "build": jobs that need the Storybooks read its outputs,
-    # so the job that uploads the Storybooks is the one called build, and it hands on the packages job's
-    # plan unchanged.
+    # screenshots their stories). It starts beside the packages job, not after it (#3448): nx builds the
+    # packages the Storybooks import itself (from the remote cache, or by building them), so its checkout,
+    # install and Storybook builds no longer wait for the packages job's builds and test plan, which were
+    # about 2 to 3 minutes of every pull request's path to its first Stories job. Jobs that need its plan read
+    # the packages job's outputs.
     build:
         name: Storybooks
-        needs: packages
+        needs: run-cap
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         # build-storybook is an nx-cached target (nx.json), so a Storybook whose inputs the pull request leaves
@@ -752,15 +763,6 @@ jobs:
             contents: read
             actions: read
             checks: write
-        outputs:
-            full: ${{ needs.packages.outputs.full }}
-            light: ${{ needs.packages.outputs.light }}
-            affected: ${{ needs.packages.outputs.affected }}
-            test-matrix: ${{ needs.packages.outputs.test-matrix }}
-            test-count: ${{ needs.packages.outputs.test-count }}
-            advisory-checks: ${{ needs.packages.outputs.advisory-checks }}
-            visual-skip: ${{ needs.packages.outputs.visual-skip }}
-            visual-on: ${{ needs.packages.outputs.visual-on }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -778,35 +780,39 @@ jobs:
                   rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
+            # The same check as the packages job's step of this name: the run reuse_build_run names built this
+            # commit and its Storybooks are all still there. Anything unknown is a build.
+            - name: Reuse the builds of the run named by reuse_build_run
+              id: reuse-build
+              if: inputs.reuse_build_run != ''
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ inputs.reuse_build_run }}
+              run: node tools/ci-reuse-plan.mjs --build-run "$RUN" | tee -a "$GITHUB_OUTPUT"
+
             - uses: pnpm/action-setup@v6
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
 
             - name: Setup Node.js
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
-            - name: Download all package builds
-              if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/download-artifact@v8
-              with:
-                  name: build-packages
-                  path: .
-
             # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
@@ -814,7 +820,7 @@ jobs:
                   restore-keys: lfs-fidelity-references-
 
             - name: Probe the nx remote cache
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               env:
                   NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
                   NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
@@ -823,9 +829,18 @@ jobs:
                   if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
                       echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
                   elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
-                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
-                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
-                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                      # nx's cache client has no timeout, so one stalled request hung a whole build (#4193): nx talks to
+                      # tools/nx-cache-proxy.mjs, which turns a stalled request into a miss. It runs until the job ends.
+                      exec 3< <(node tools/nx-cache-proxy.mjs "$NX_CACHE_URL" < /dev/null 2>> "${RUNNER_TEMP:-/tmp}/nx-cache-proxy.log")
+                      read -r -t 10 proxy <&3 || true
+                      if [[ -n "$proxy" ]]; then
+                          { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$proxy"
+                            echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                          echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                      else
+                          echo "::warning::nx cache proxy did not start; building without the remote cache"
+                          echo "nx remote cache: off (the proxy did not start)" >> "$GITHUB_STEP_SUMMARY"
+                      fi
                   else
                       echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
                       echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
@@ -837,25 +852,25 @@ jobs:
             # the package builds downloaded above, so none waits on another. A Storybook whose nx inputs
             # (nx.json targetDefaults) match a master build is restored from the remote cache instead.
             - name: Build the Storybooks
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               run: >-
-                  pnpm exec nx run-many -t build-storybook --exclude-task-dependencies --parallel=3
+                  pnpm exec nx run-many -t build-storybook --parallel=3
                   --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the Stories job
             # downloads them from this run as always.
             - name: Download the Storybooks of the run whose results are reused
-              if: needs.packages.outputs.artifacts-run != ''
+              if: steps.reuse-build.outputs.artifacts-run != ''
               uses: actions/download-artifact@v8
               with:
                   pattern: build-storybook-*
                   path: ${{ runner.temp }}/storybooks
-                  run-id: ${{ needs.packages.outputs.artifacts-run }}
+                  run-id: ${{ steps.reuse-build.outputs.artifacts-run }}
                   github-token: ${{ github.token }}
 
             - name: Put the reused Storybooks where this job's uploads read them
-              if: needs.packages.outputs.artifacts-run != ''
+              if: steps.reuse-build.outputs.artifacts-run != ''
               run: |
                   while read -r name dir; do
                       mkdir -p "$(dirname "$dir")"
@@ -911,15 +926,14 @@ jobs:
                   path: graph-io/fidelity-stories/storybook-static/
                   retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
               uses: ./.github/actions/early-verdict
               with:
                   job: build
-                  advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # Lint every package (every affected one on a pull request), beside the tests.
     lint:
@@ -979,9 +993,18 @@ jobs:
                   if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
                       echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
                   elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
-                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
-                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
-                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                      # nx's cache client has no timeout, so one stalled request hung a whole build (#4193): nx talks to
+                      # tools/nx-cache-proxy.mjs, which turns a stalled request into a miss. It runs until the job ends.
+                      exec 3< <(node tools/nx-cache-proxy.mjs "$NX_CACHE_URL" < /dev/null 2>> "${RUNNER_TEMP:-/tmp}/nx-cache-proxy.log")
+                      read -r -t 10 proxy <&3 || true
+                      if [[ -n "$proxy" ]]; then
+                          { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$proxy"
+                            echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                          echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                      else
+                          echo "::warning::nx cache proxy did not start; building without the remote cache"
+                          echo "nx remote cache: off (the proxy did not start)" >> "$GITHUB_STEP_SUMMARY"
+                      fi
                   else
                       echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
                       echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
@@ -1013,8 +1036,8 @@ jobs:
                       echo "::warning title=Lint over its time budget::lint took ${took}s, over its ${BUDGET_SECONDS}s budget. Time it with TIMING=1 (eslint) to find the rule or check that grew."
                   fi
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             # The graphty app's build check on a light pull request: the Build job leaves the app out (nothing it
             # feeds reads graphty/dist), so it is built here, off the test jobs' critical path, from the downloaded
             # package builds, and only when the pull request affects it.
@@ -1222,8 +1245,8 @@ jobs:
             - name: compact-mantine Figma lock
               run: pnpm run check:figma-lock
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1312,8 +1335,8 @@ jobs:
                   path: layout/gh-pages/
                   retention-days: 1
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1698,8 +1721,8 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1716,7 +1739,7 @@ jobs:
     links:
         name: Links
         needs: [packages, build, docs]
-        if: needs.packages.outputs.full == 'true' && needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
+        if: needs.packages.outputs.full == 'true' && needs.packages.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -1814,8 +1837,8 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -2002,8 +2025,8 @@ jobs:
                       echo '```'
                   } >> "$GITHUB_STEP_SUMMARY"
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -2035,6 +2058,8 @@ jobs:
             actions: read
             # The early verdict (the last step) posts a failed "All Checks Pass" check run.
             checks: write
+            # The health API's credential (tools/results/post-unstable-stories.mjs posts the unstable stories)
+            id-token: write
         timeout-minutes: 20
         strategy:
             fail-fast: false
@@ -2181,6 +2206,21 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
+            # An unstable story drew two pictures on the same inputs: a flaky detection on the health dashboard,
+            # as a story test's flake is (#4373). Fire and forget: never fails the job.
+            - name: Record the unstable stories as flaky
+              if: always() && steps.pick.outputs.stories != ''
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  FILES: ${{ toJSON(matrix.files) }}
+                  PROJECT: ${{ matrix.project }}
+                  BIN: ${{ matrix.name }}
+                  STORYBOOK: ${{ matrix.storybook }}
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  [[ -f "$f" ]] || exit 0
+                  node tools/results/post-unstable-stories.mjs "$PROJECT" "$BIN" "$f" "$STORYBOOK/index.json" "$FILES"
+
             # What blocks: a story that failed (did not render, its play function threw, its wait never settled)
             # or was unstable (two shots on the same inputs disagreed), judged by visual-review's storyVerdict
             # with VISUAL_REVIEW_BLOCKING=1. Every other status, a changed, new or removed picture included, passes.
@@ -2209,8 +2249,8 @@ jobs:
                       process.exitCode = v.code;
                   '
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
-            # slowest job of the run ends (.github/actions/early-verdict).
+            # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
+            # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -2706,7 +2746,7 @@ jobs:
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
-            # The run's token shares one API limit with every run of the repository, and a busy hour used it
+            # The run's token shares its API limits with every run of the repository, and a busy hour used one
             # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
             # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
             # a clear that still fails fails this job, which "re-run failed jobs" then retries.
@@ -2719,11 +2759,19 @@ jobs:
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
                   # An early verdict is a failure posted through the Checks API: its details link is a run or
-                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
+                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten. The
+                  # listing is one GraphQL query, whose limit is separate from REST's: on 2026-10-29 a run waited
+                  # 18 minutes for the REST limit to reset only to find nothing to clear, which is the usual
+                  # case, so REST is used only for a rewrite.
                   clear() {
                       local ids id
-                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
+                      ids=$(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F sha="$SHA" -F check="$CHECK" -f query='
+                          query($owner: String!, $name: String!, $sha: GitObjectID!, $check: String!) {
+                            repository(owner: $owner, name: $name) { object(oid: $sha) { ... on Commit {
+                              checkSuites(first: 100) { pageInfo { hasNextPage } nodes {
+                                checkRuns(first: 100, filterBy: {checkName: $check, checkType: ALL, conclusions: [FAILURE]}) {
+                                  pageInfo { hasNextPage } nodes { databaseId detailsUrl } } } } } } } }' \
+                          --jq '.data.repository.object.checkSuites | if .pageInfo.hasNextPage or any(.nodes[]; .checkRuns.pageInfo.hasNextPage) then error("over 100 check suites or runs") else .nodes[].checkRuns.nodes[] | select(.detailsUrl | contains("/job/") | not) | .databaseId end') || return 1
                       for id in $ids; do
                           gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
                               -f "output[title]=Superseded by a passing run" \
@@ -2731,84 +2779,17 @@ jobs:
                           echo "cleared early verdict $id"
                       done
                   }
-                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
-                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  # four tries; between them an exhausted limit (GraphQL's or REST's) waits for its reset (the
+                  # event that settles it; rate_limit itself is free), any other failure a minute. The job's
+                  # time limit covers one reset.
                   for try in 1 2 3 4; do
                       if clear; then exit 0; fi
                       if (( try == 4 )); then break; fi
-                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
+                      read -r exhausted reset < <(gh api rate_limit --jq '[.resources.core, .resources.graphql] | map(select(.remaining == 0)) | "\(length) \(map(.reset) | max // 0)"' || echo "0 0")
                       wait=60
-                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( exhausted > 0 )); then wait=$(( reset - $(date +%s) + 5 )); fi
                       if (( wait < 1 )); then wait=1; fi
-                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
-                      sleep "$wait"
-                  done
-                  echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
-                  exit 1
-
-    # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
-    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
-    # and, on a merge-queue run (MERGE_QUEUE above), only when the run was the full suite: a
-    # pass on a pull request's own affected run can never stand in for the queue's run.
-    queue-checks:
-        name: Queue Checks Pass
-        needs: [packages, all-checks]
-        if: always()
-        runs-on: ubuntu-24.04
-        timeout-minutes: 70
-        steps:
-            - name: Check the run passed, and was the full suite in the queue
-              env:
-                  ALL_CHECKS: ${{ needs.all-checks.result }}
-                  FULL: ${{ needs.packages.outputs.full }}
-              run: |
-                  echo "All Checks Pass: $ALL_CHECKS, full suite: $FULL, merge queue: $MERGE_QUEUE"
-                  if [[ "$ALL_CHECKS" != "success" ]]; then
-                      echo "::error::All Checks Pass did not succeed"
-                      exit 1
-                  fi
-                  if [[ "$MERGE_QUEUE" == "true" && "$FULL" != "true" ]]; then
-                      echo "::error::a merge-queue run must run the full suite"
-                      exit 1
-                  fi
-
-            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
-            # The run's token shares one API limit with every run of the repository, and a busy hour used it
-            # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
-            # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
-            # a clear that still fails fails this job, which "re-run failed jobs" then retries.
-            - name: Clear this check's early verdicts
-              if: success() && github.event_name == 'pull_request'
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  CHECK: Queue Checks Pass
-                  SHA: ${{ github.event.pull_request.head.sha }}
-                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run or
-                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
-                  clear() {
-                      local ids id
-                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
-                      for id in $ids; do
-                          gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                              -f "output[title]=Superseded by a passing run" \
-                              -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL" || return 1
-                          echo "cleared early verdict $id"
-                      done
-                  }
-                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
-                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
-                  for try in 1 2 3 4; do
-                      if clear; then exit 0; fi
-                      if (( try == 4 )); then break; fi
-                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
-                      wait=60
-                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
-                      if (( wait < 1 )); then wait=1; fi
-                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
+                      echo "the API call failed (exhausted limits: $exhausted); trying again in ${wait}s"
                       sleep "$wait"
                   done
                   echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
@@ -2911,7 +2892,8 @@ jobs:
         needs: all-checks
         if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref }}
         # A failure here is not the merge's: it must not turn the master build red, which would skip the
-        # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
+        # deploy and have master-guard revert the merge. A missed dispatch fails this job (an error, and a comment on
+        # its issue) and waits for the next slot, which catches up.
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 5
@@ -3102,8 +3084,8 @@ jobs:
     # flaky-screenshot job never read it and pull request captures and their baselines are unchanged.
     features-on-visual:
         name: visual (graphty-element, features on)
-        needs: build
-        if: contains(fromJSON(needs.build.outputs.visual-on || '[]'), 'graphty-element')
+        needs: [packages, build]
+        if: contains(fromJSON(needs.packages.outputs.visual-on || '[]'), 'graphty-element')
         runs-on: ubuntu-24.04
         permissions:
             contents: read
@@ -3206,7 +3188,6 @@ jobs:
                 cost-accuracy,
                 story-tests-merge,
                 all-checks,
-                queue-checks,
                 visual-flaky,
             ]
         if: ${{ always() && contains(github.workflow_ref, '/ci.yml@') }}

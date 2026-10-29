@@ -15,7 +15,9 @@ import { userEvent } from "vitest/browser";
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { openBy } from "../../../test/open";
+import { pickSample } from "../../../test/samples-dialog";
+import { render, screen } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -27,22 +29,6 @@ const SAMPLES = [
     { name: "College football", nodes: 115, edges: 613 },
     { name: "Florentine families", nodes: 15, edges: 20 },
 ];
-
-/**
- * Waits for the open project's element and its session.
- * @returns the session.
- */
-async function elementSession(): Promise<GraphSession> {
-    let session: GraphSession | undefined;
-    await waitFor(() => {
-        session = document.querySelector("graphty-element")?.session;
-        assert.isDefined(session);
-    });
-    if (session === undefined) {
-        throw new Error("the element never came up");
-    }
-    return session;
-}
 
 /**
  * The style layers beyond the element's own locked base layers (node and edge defaults), which
@@ -83,11 +69,8 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         assert.equal(initSentry.mock.calls.length, 1);
 
         // T2: a sample opens as a project on the Graph place.
-        await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
-        const session = await elementSession();
-        await waitFor(() => {
-            assert.equal(session.data.statistics().nodeCount, 77);
-        });
+        const session = await openBy(store, () => pickSample("Les Miserables"));
+        assert.equal(session.data.statistics().nodeCount, 77);
         assert.equal(session.data.statistics().edgeCount, 254);
         assert.equal(session.data.source()?.name, "Les Miserables");
         assert.deepEqual(session.runs.list(), []);
@@ -107,11 +90,8 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
             const store = createWorkspaceStore();
             const { unmount } = render(<Workspace store={store} />);
 
-            await userEvent.click(screen.getByRole("button", { name: `Open the ${sample.name} sample` }));
-            const session = await elementSession();
-            await waitFor(() => {
-                assert.equal(session.data.statistics().nodeCount, sample.nodes);
-            });
+            const session = await openBy(store, () => pickSample(sample.name));
+            assert.equal(session.data.statistics().nodeCount, sample.nodes);
             assert.equal(session.data.statistics().edgeCount, sample.edges);
             assert.equal(store.get().project?.name, sample.name);
             assert.deepEqual(session.runs.list(), []);

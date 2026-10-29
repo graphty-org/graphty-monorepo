@@ -1278,9 +1278,7 @@ describe("ci.yml", () => {
 
     it("fails, never skips, the summary checks when Build did not run", () => {
         // A skipped required check counts as passing.
-        for (const name of ["all-checks", "queue-checks"]) {
-            assert.match(job(ci, name), /\n {8}if: always\(\)\n/, `${name} always runs`);
-        }
+        assert.match(job(ci, "all-checks"), /\n {8}if: always\(\)\n/, "all-checks always runs");
         assert.match(
             job(ci, "all-checks"),
             /if \[\[ "\$BUILD" == "skipped" \]\]; then\n.*Build did not run.*\n\s+exit 1/,
@@ -1305,10 +1303,15 @@ describe("ci.yml", () => {
             job(ci, "all-checks"),
             /\[\[ "\$FULL" == "false" \|\| "\$LIGHT" == "true" \]\] && ok='\["success","skipped"\]'/,
         );
-        const queue = job(ci, "queue-checks");
-        assert.match(queue, /name: Queue Checks Pass/);
-        assert.match(queue, /"\$ALL_CHECKS" != "success"/);
-        assert.match(queue, /"\$MERGE_QUEUE" == "true" && "\$FULL" != "true"/);
+    });
+
+    it("has no retired Queue Checks Pass anywhere a check is defined or read (#3477)", () => {
+        assert.equal(parseJobs(ci)["queue-checks"], undefined, "no queue-checks job");
+        assert.ok(!/Queue Checks Pass/.test(ci), "ci.yml never names Queue Checks Pass");
+        const action = readFileSync(new URL("../.github/actions/early-verdict/action.yml", import.meta.url), "utf8");
+        assert.ok(!/Queue Checks Pass/.test(action), "early-verdict never reads Queue Checks Pass");
+        const advisory = readFileSync(new URL("./ci-advisory-checks.json", import.meta.url), "utf8");
+        assert.ok(!/Queue Checks Pass/.test(advisory), "no advisory entry for Queue Checks Pass");
     });
 
     it("gates every pull request that affects graphty-element on the cost estimates", () => {
@@ -1325,7 +1328,7 @@ describe("ci.yml", () => {
         assert.equal(jobs["visual-flaky"].coe, "true");
         assert.match(job(ci, "visual-flaky"), /pattern: visual-\*\n/);
         assert.match(job(ci, "visual-flaky"), /node tools\/visual-flaky-report\.mjs "\$RUNNER_TEMP\/visual"/);
-        for (const name of ["all-checks", "queue-checks"]) assert.ok(!jobs[name].needs.includes("visual-flaky"), name);
+        assert.ok(!jobs["all-checks"].needs.includes("visual-flaky"));
     });
 
     it("runs no security audit on pull requests or merge-queue runs", () => {
@@ -1668,7 +1671,7 @@ describe("ci.yml", () => {
         for (const name of ["links"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?(?: && github.event_name != 'pull_request')?\n/,
+                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.packages.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?(?: && github.event_name != 'pull_request')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -1683,7 +1686,8 @@ describe("ci.yml", () => {
         );
         assert.match(job(ci, "docs"), /name: build-docs\n/);
         assert.match(job(ci, "build"), /name: build-storybook-element\n/);
-        for (const name of ["build", "lint", "checks", "docs"]) {
+        assert.match(job(ci, "build"), /\n {8}needs: run-cap\n {8}runs-on:/, "build runs on master too");
+        for (const name of ["lint", "checks", "docs"]) {
             assert.match(
                 job(ci, name),
                 /\n {8}needs: packages\n(?: {8}if: needs.packages.outputs.reuse-run == ''(?: && needs.packages.outputs.docs == 'true')?\n)? {8}runs-on:/,
@@ -1694,7 +1698,6 @@ describe("ci.yml", () => {
         // jobs must succeed
         assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.packages.outputs.light \}\}/);
         assert.match(job(ci, "all-checks"), /strict='\["packages","build","lint","checks","docs"\]'\n/);
-        assert.match(job(ci, "queue-checks"), /"\$ALL_CHECKS" != "success"/);
     });
 
     it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
@@ -1897,7 +1900,9 @@ describe("verification runs of ci.yml", () => {
     it("keeps the screenshot report out of All Checks Pass, so a pull request never waits on captures (#3443)", () => {
         const jobs = parseJobs(ci);
         assert.ok(!jobs["all-checks"].needs.includes("visual"), "All Checks Pass must not need the visual job");
-        assert.ok(!/visual/.test(job(ci, "all-checks")), "All Checks Pass reads nothing of the screenshots");
+        // comments dropped: the next job's leading comment ends the all-checks slice
+        const allChecks = job(ci, "all-checks").replace(/^ *#.*$/gm, "");
+        assert.ok(!/visual/.test(allChecks), "All Checks Pass reads nothing of the screenshots");
         const report = job(ci, "visual-report");
         assert.deepEqual(jobs["visual-report"].needs, ["packages", "story-tests", "story-tests-merge"]);
         assert.match(report, /\n {8}name: Visual report\n/);
@@ -2102,8 +2107,8 @@ const parseJobs = (text) => {
     return jobs;
 };
 
-// The (job, step) pairs that can fail "All Checks Pass" or "Queue Checks Pass": every step of every job
-// in their `needs` closure, less a job or step marked `continue-on-error: true`, as { job: [step names] }.
+// The (job, step) pairs that can fail "All Checks Pass": every step of every job
+// in its `needs` closure, less a job or step marked `continue-on-error: true`, as { job: [step names] }.
 const requiredChecks = (jobs) => {
     const closure = new Set();
     const visit = (name) => {
@@ -2112,7 +2117,6 @@ const requiredChecks = (jobs) => {
         for (const need of jobs[name].needs) visit(need);
     };
     visit("all-checks");
-    visit("queue-checks");
     return Object.fromEntries(
         [...closure]
             .filter((name) => jobs[name].coe !== "true")
@@ -2646,10 +2650,13 @@ jobs:
         }).listen(0, "127.0.0.1");
         await new Promise((resolve) => server.once("listening", resolve));
         const dir = mkdtempSync(join(tmpdir(), "nx-probe-"));
+        const groups = [];
         const probe = (url, token) =>
             new Promise((resolve) => {
                 writeFileSync(join(dir, "env"), "");
                 const child = spawn("bash", ["-e", "-c", run], {
+                    cwd: new URL("../", import.meta.url),
+                    detached: true,
                     env: {
                         ...process.env,
                         NX_CACHE_URL: url,
@@ -2657,19 +2664,25 @@ jobs:
                         WRITES: "false",
                         GITHUB_ENV: join(dir, "env"),
                         GITHUB_STEP_SUMMARY: join(dir, "summary"),
+                        RUNNER_TEMP: dir,
                     },
                     stdio: "ignore",
                 });
+                groups.push(child.pid);
                 child.on("close", (code) => resolve({ code, env: readFileSync(join(dir, "env"), "utf8") }));
             });
         try {
             const url = `http://127.0.0.1:${server.address().port}`;
             const on = await probe(url, "good");
             assert.equal(on.code, 0);
-            assert.match(
-                on.env,
-                /^NX_SELF_HOSTED_REMOTE_CACHE_SERVER=.+\nNX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=good\n$/,
-            );
+            // nx is pointed at the timeout proxy (tools/nx-cache-proxy.mjs, #4193), which reaches the Worker.
+            const proxy = /^NX_SELF_HOSTED_REMOTE_CACHE_SERVER=(http:\/\/127\.0\.0\.1:\d+)\n/.exec(on.env)?.[1];
+            assert.ok(proxy, on.env);
+            assert.match(on.env, /\nNX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=good\n$/);
+            const miss = await fetch(`${proxy}/v1/cache/abc`, { headers: { authorization: "Bearer good" } });
+            assert.equal(miss.status, 404);
+            const refused = await fetch(`${proxy}/v1/cache/abc`, { headers: { authorization: "Bearer wrong" } });
+            assert.equal(refused.status, 401);
             for (const [u, token] of [
                 [url, "wrong"],
                 [url, ""],
@@ -2681,6 +2694,13 @@ jobs:
                 assert.equal(off.env, "", `${u} ${token}: the cache stays off`);
             }
         } finally {
+            for (const pid of groups) {
+                try {
+                    process.kill(-pid);
+                } catch {
+                    // the group already ended
+                }
+            }
             server.close();
             rmSync(dir, { recursive: true, force: true });
         }
@@ -2743,7 +2763,7 @@ describe("the summary checks fail as soon as a required job fails", () => {
 
     it("only ever reports a failure, and never for a job in its warning period", () => {
         const action = readFileSync(new URL("../.github/actions/early-verdict/action.yml", import.meta.url), "utf8");
-        assert.match(action, /for check in "All Checks Pass" "Queue Checks Pass"; do/);
+        assert.match(action, /for check in "All Checks Pass"; do/);
         assert.equal(action.match(/conclusion=/g).length, 1);
         assert.match(action, /-f status=completed -f conclusion=failure/);
         const program = /if jq -e --arg job "\$JOB" '([^']+)'/.exec(action)[1];
@@ -2761,11 +2781,8 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
     const ci = workflow("ci.yml");
     const jobs = parseJobs(ci);
 
-    it("ends both summary jobs with the clearing step, on a passing pull request run only", () => {
-        for (const [name, check] of [
-            ["all-checks", "All Checks Pass"],
-            ["queue-checks", "Queue Checks Pass"],
-        ]) {
+    it("ends the summary job with the clearing step, on a passing pull request run only", () => {
+        for (const [name, check] of [["all-checks", "All Checks Pass"]]) {
             const last = jobs[name].steps.at(-1);
             assert.equal(last.name, "Clear this check's early verdicts", name);
             assert.equal(last.if, "success() && github.event_name == 'pull_request'", name);
@@ -2786,8 +2803,8 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
                 "#!/bin/bash",
                 'echo "gh $*" >> "$LOG"',
                 'case "$*" in',
-                '    *rate_limit*) echo "0 $(( $(date +%s) + RESET_IN ))" ;;',
-                '    *"check-runs?filter"*)',
+                '    *rate_limit*) echo "1 $(( $(date +%s) + RESET_IN ))" ;;',
+                '    *"api graphql"*)',
                 '        n=$(cat "$STATE" 2>/dev/null || echo 0); echo $((n + 1)) > "$STATE"',
                 '        if (( n < FAIL_LIST )); then echo "gh: API rate limit exceeded for installation." >&2; exit 1; fi',
                 "        echo 1 ;;",
@@ -2817,7 +2834,7 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
     };
 
     it("waits for an exhausted API limit to reset and then clears, on any attempt (#3857)", () => {
-        for (const name of ["all-checks", "queue-checks"]) {
+        for (const name of ["all-checks"]) {
             const { status, stdout, log } = runClear(name, { failList: 1, resetIn: 30 });
             assert.equal(status, 0, name);
             assert.match(stdout, /cleared early verdict 1/, name);
@@ -2831,31 +2848,57 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
         assert.equal(status, 1);
         assert.match(stdout, /::error::could not clear the early verdicts of All Checks Pass/);
         assert.doesNotMatch(log, /PATCH/);
-        assert.equal(log.match(/^gh api repos\/o\/r\/commits\/abc\/check-runs/gm).length, 4);
+        assert.equal(log.match(/^gh api graphql /gm).length, 4);
         assert.equal(log.match(/^sleep /gm).length, 3);
     });
 
-    it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
-        const program = /--jq '([^']+)'\) \|\| return 1/.exec(job(ci, "queue-checks"))[1];
-        const page = {
-            check_runs: [
-                { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
-                {
-                    id: 2,
-                    name: "All Checks Pass",
-                    conclusion: "failure",
-                    details_url: "https://x/actions/runs/7/job/9",
-                },
-                { id: 3, name: "All Checks Pass", conclusion: "success", details_url: "https://x/actions/runs/8" },
-                { id: 4, name: "Queue Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
-            ],
+    // The listing is GraphQL, whose limit is separate from REST's: an exhausted REST limit held a run
+    // 18 minutes on 2026-10-29 for nothing to clear. The query filters by name and conclusion; the jq
+    // keeps only the verdicts a run posted, never a job's own check run, and refuses a truncated page.
+    const listing = () => {
+        const text = job(ci, "all-checks");
+        return {
+            query: /-f query='([^']+)'/.exec(text)[1],
+            program: /--jq '([^']+)'\) \|\| return 1/.exec(text)[1],
         };
-        const ids = spawnSync("jq", [program], {
-            input: JSON.stringify(page),
-            encoding: "utf8",
-            env: { ...process.env, CHECK: "All Checks Pass" },
-        }).stdout.trim();
-        assert.equal(ids, "1");
+    };
+
+    it("asks GraphQL for the failing check runs of its own name, every kind, never REST", () => {
+        const { query } = listing();
+        assert.match(query, /filterBy: \{checkName: \$check, checkType: ALL, conclusions: \[FAILURE\]\}/);
+        assert.doesNotMatch(job(ci, "all-checks"), /commits\/\$SHA\/check-runs/);
+    });
+
+    it("rewrites only the early verdicts, never a job's check run, and refuses a truncated page", () => {
+        const { program } = listing();
+        const page = (more) => ({
+            data: {
+                repository: {
+                    object: {
+                        checkSuites: {
+                            pageInfo: { hasNextPage: false },
+                            nodes: [
+                                { checkRuns: { pageInfo: { hasNextPage: false }, nodes: [] } },
+                                {
+                                    checkRuns: {
+                                        pageInfo: { hasNextPage: more },
+                                        nodes: [
+                                            { databaseId: 1, detailsUrl: "https://x/actions/runs/7" },
+                                            { databaseId: 2, detailsUrl: "https://x/actions/runs/7/job/9" },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        });
+        const run = (more) => spawnSync("jq", [program], { input: JSON.stringify(page(more)), encoding: "utf8" });
+        assert.equal(run(false).stdout.trim(), "1");
+        const truncated = run(true);
+        assert.notEqual(truncated.status, 0);
+        assert.equal(truncated.stdout.trim(), "");
     });
 });
 
@@ -2955,8 +2998,10 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         assert.match(build, /LABELS: \$\{\{ toJSON\(github\.event\.pull_request\.labels\.\*\.name\) \}\}/);
         assert.match(build, /node tools\/visual-capture-plan\.mjs "\$all" "\$affected" \| tee -a "\$GITHUB_OUTPUT"/);
         assert.match(build, /visual-skip: \$\{\{ steps\.plan\.outputs\.visual-skip \}\}/);
-        // the visual job needs build (the Storybooks), which hands the plan on
-        assert.match(job(ci, "build"), /visual-skip: \$\{\{ needs\.packages\.outputs\.visual-skip \}\}/);
+        // the Storybooks job starts beside the packages job (#3448), so it hands on no plan: a job that needs
+        // both reads the plan from the packages job
+        assert.match(job(ci, "build"), /\n {8}needs: run-cap\n/);
+        assert.doesNotMatch(ci, /needs\.build\.outputs\./);
     });
 
     it("uploads the not-affected marker as the capture of a project the story tests skip", () => {
@@ -7018,8 +7063,14 @@ describe("a run reuses an earlier run's results when only screenshot records cha
             "no step builds the Storybooks",
         );
         for (const step of building) {
-            assert.match(step, /\n {14}if: needs.packages.outputs.artifacts-run == ''\n/, step);
+            assert.match(step, /\n {14}if: steps.reuse-build.outputs.artifacts-run == ''\n/, step);
         }
+        // it decides that itself, with the packages job's check, since it does not wait for that job
+        assert.match(build, /id: reuse-build\n {14}if: inputs.reuse_build_run != ''\n {14}continue-on-error: true\n/);
+        assert.match(build, /node tools\/ci-reuse-plan.mjs --build-run "\$RUN"/);
+        // nx builds the packages the Storybooks import, so nothing waits for the packages job's artifact
+        assert.match(build, /nx run-many -t build-storybook --parallel=3/);
+        assert.doesNotMatch(build, /--exclude-task-dependencies|name: build-packages\n/);
     });
 
     it("passes All Checks Pass with skipped check jobs only when the run reused a passing run", () => {
@@ -7634,7 +7685,7 @@ describe("promote.yml", () => {
         const order = [
             "promote.mjs gather",
             "promote.mjs check",
-            "promote.mjs token",
+            "promote.mjs trust",
             "promote.mjs move",
             "promote-push.sh",
             "promote.mjs releases",
@@ -7681,12 +7732,24 @@ describe("promote.yml", () => {
         assert.doesNotMatch(main, /NIGHTLY_SITE_DEPLOY_KEY/);
     });
 
-    it("keeps each key in its own environment: the dist-tag token and graphty-site's key in production, the release key in release", () => {
+    it("moves the dist-tags with npm trusted publishing (OIDC): no stored npm token, npm 11.21+, checked before moving", () => {
+        assert.doesNotMatch(promote, /NPM_DIST_TAG_TOKEN|NODE_AUTH_TOKEN|NPM_TOKEN|_authToken|registry-url/);
+        assert.match(main, /\n {12}id-token: write\b/);
+        assert.match(main, /\n {8}environment: production\n/);
+        assert.match(main, /npm install -g npm@11\.(2[1-9]|[3-9]\d)\.\d+\n/);
+        const order = steps(main).map((s) => /promote\.mjs (\w+)/.exec(s)?.[1] ?? /npm install -g/.exec(s)?.[0]);
+        assert.ok(order.indexOf("npm install -g") < order.indexOf("trust"));
+        assert.ok(order.indexOf("trust") < order.indexOf("move"));
+        const trust = steps(main).find((s) => /promote\.mjs trust/.test(s));
+        assert.match(trust, /if: \$\{\{ inputs.config_only != true \}\}/, "a dry run checks the trust too");
+    });
+
+    it("keeps each key in its own environment: graphty-site's key in production, the release key in release", () => {
         assert.equal(promote.match(/secrets.RELEASE_DEPLOY_KEY/g).length, 1);
         assert.match(channelRef, /\n {8}environment: release # the deploy key\n/);
         assert.match(channelRef, /secrets.RELEASE_DEPLOY_KEY/);
         assert.doesNotMatch(channelRef.replace(/^\s*#.*$/gm, ""), /npm |setup-node|pnpm/);
-        for (const secret of ["NPM_DIST_TAG_TOKEN", "PRODUCTION_SITE_DEPLOY_KEY"]) {
+        for (const secret of ["PRODUCTION_SITE_DEPLOY_KEY"]) {
             assert.ok(promote.includes(secret));
             assert.doesNotMatch(nightlySite + channelRef, new RegExp(secret));
         }

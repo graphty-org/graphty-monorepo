@@ -41,6 +41,16 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
 };
 
 /**
+ * Lets the page read and write the clipboard, as a reader who allowed it, so a test can press
+ * Control+V and Copy against the real clipboard.
+ * @param ctx - the browser command context.
+ * @returns when the permissions are granted.
+ */
+const grantClipboard: BrowserCommand<[]> = async (ctx) => {
+    await ctx.context.grantPermissions(["clipboard-read", "clipboard-write"]);
+};
+
+/**
  * Makes every request whose URL holds `fragment` fail with 404, as a code file does on a page
  * whose build was replaced under it; `false` lets them through again.
  * @param ctx - the browser command context.
@@ -120,7 +130,7 @@ const chromium = () => ({
     // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
     provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile, failRequests, ...mapTileCommands },
+    commands: { chooseNextFile, failRequests, grantClipboard, ...mapTileCommands },
 });
 
 const config = defineConfig({

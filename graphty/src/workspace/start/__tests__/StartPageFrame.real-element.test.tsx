@@ -15,6 +15,7 @@ import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, onTestFailed } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
@@ -256,14 +257,11 @@ describe("the start page in the app's frame", () => {
             assert.include(offered, `Open the ${title} sample`);
         }
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" }));
-        await waitFor(() => {
-            const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            );
-            assert.equal(element?.session.data.statistics().nodeCount, 62);
-            assert.equal(element?.session.data.statistics().edgeCount, 159);
-        });
+        const opened = await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" })),
+        );
+        assert.equal(opened.data.statistics().nodeCount, 62);
+        assert.equal(opened.data.statistics().edgeCount, 159);
         assert.equal(store.get().project?.name, "Doubtful Sound dolphins");
         assert.isNull(store.get().notice);
     });
@@ -271,14 +269,11 @@ describe("the start page in the app's frame", () => {
     it("opens the timed campus contacts sample, every hour two students were close an edge", async () => {
         const store = await startPage();
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Campus contacts sample" }));
-        await waitFor(() => {
-            const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            );
-            assert.equal(element?.session.data.statistics().nodeCount, 615);
-            assert.equal(element?.session.data.statistics().edgeCount, 8142);
-        });
+        const opened = await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: "Open the Campus contacts sample" })),
+        );
+        assert.equal(opened.data.statistics().nodeCount, 615);
+        assert.equal(opened.data.statistics().edgeCount, 8142);
         assert.equal(store.get().project?.name, "Campus contacts");
         assert.isNull(store.get().notice);
         // Every edge's `time` reads as time, so the timeline can take it.
@@ -346,16 +341,12 @@ describe("the start page in the app's frame", () => {
         assert.equal((nodes as HTMLInputElement).value, "60");
         await userEvent.tripleClick(nodes);
         await userEvent.keyboard("24");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Generate" }));
-
-        await waitFor(() => {
-            const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            );
-            assert.equal(element?.session.data.statistics().nodeCount, 24);
-            // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
-            assert.equal(element?.session.data.statistics().edgeCount, 48);
-        });
+        const opened = await openBy(store, () =>
+            userEvent.click(within(dialog).getByRole("button", { name: "Generate" })),
+        );
+        assert.equal(opened.data.statistics().nodeCount, 24);
+        // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
+        assert.equal(opened.data.statistics().edgeCount, 48);
         assert.equal(store.get().project?.name, "Watts-Strogatz");
         assert.isNull(store.get().notice);
     });

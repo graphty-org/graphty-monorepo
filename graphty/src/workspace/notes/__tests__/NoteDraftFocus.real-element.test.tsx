@@ -7,47 +7,13 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeEach, describe, it } from "vitest";
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { openSampleFromStart } from "../../../test/open";
+import { screen, waitFor } from "../../../test/test-utils";
 import { clearRecent } from "../../project/recent";
-import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
-
-/**
- * Waits for an element whose session is not `previous`.
- * @param previous - a session that no longer counts.
- * @returns the session.
- */
-async function elementSession(previous?: GraphSession): Promise<GraphSession> {
-    let session: GraphSession | undefined;
-    await waitFor(() => {
-        session = document.querySelector("graphty-element")?.session;
-        assert.isDefined(session);
-        assert.notStrictEqual(session, previous);
-    });
-    if (session === undefined) {
-        throw new Error("the element never came up");
-    }
-    return session;
-}
-
-/**
- * Opens the Florentine families sample from the empty app.
- * @param store - the workspace store.
- * @returns the session.
- */
-async function openSample(store: WorkspaceStore): Promise<GraphSession> {
-    render(<Workspace store={store} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-    const session = await elementSession();
-    await waitFor(() => {
-        assert.equal(session.data.statistics().nodeCount, 15);
-    });
-    return session;
-}
+import { createWorkspaceStore } from "../../state/store";
 
 beforeEach(async () => {
     await clearRecent();
@@ -56,7 +22,7 @@ beforeEach(async () => {
 describe("Add note with a note already being written", () => {
     it("puts the cursor back in the note, its text kept", async () => {
         const store = createWorkspaceStore();
-        await openSample(store);
+        await openSampleFromStart("Florentine families", store);
         await userEvent.click(screen.getByRole("button", { name: "Notes" }));
         await userEvent.click(screen.getByRole("button", { name: "Add note" }));
         const field = await screen.findByRole("textbox", { name: "Note" });
@@ -72,7 +38,7 @@ describe("Add note with a note already being written", () => {
 
     it("saves with Control+Enter from the editor's buttons too", async () => {
         const store = createWorkspaceStore();
-        const session = await openSample(store);
+        const { session } = await openSampleFromStart("Florentine families", store);
         await userEvent.click(screen.getByRole("button", { name: "Notes" }));
         await userEvent.click(screen.getByRole("button", { name: "Add note" }));
         const field = await screen.findByRole("textbox", { name: "Note" });
@@ -91,7 +57,7 @@ describe("Add note with a note already being written", () => {
 
     it("puts focus on Add note after Cancel, not on the page", async () => {
         const store = createWorkspaceStore();
-        await openSample(store);
+        await openSampleFromStart("Florentine families", store);
         await userEvent.click(screen.getByRole("button", { name: "Notes" }));
         await userEvent.click(screen.getByRole("button", { name: "Add note" }));
         await userEvent.type(await screen.findByRole("textbox", { name: "Note" }), "Not this one");

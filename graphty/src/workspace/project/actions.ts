@@ -13,7 +13,8 @@ import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { focusOpenedGraphLater } from "../frame/focus";
-import { newProjectId, type WorkspaceStore } from "../state/store";
+import { runHeld, withHeldShaders } from "../settings/heldShaders";
+import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 
@@ -58,6 +59,8 @@ export interface FileSource {
 interface PendingFile extends FileSource {
     file: File;
     fresh?: boolean;
+    /** Settles the store's `opened` for a file that opens a new project. */
+    settle?: SettleOpen;
 }
 
 /** The codes `project.open` refuses a data file with, as `session.data.prepare` does. */
@@ -367,6 +370,7 @@ type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
  * A data file the element opened: it goes through the Data page, or, read into the graph, starts
  * a new graph's history or says it was added.
  * @param workspace - the workspace store.
+ * @param session - the session.
  * @param report - what the element said of the file.
  * @param file - the file.
  * @param fresh - whether it opens as a new graph, from the start screen.
@@ -374,6 +378,7 @@ type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
  */
 function openedData(
     workspace: CommandContext["workspace"],
+    session: GraphSession,
     report: OpenReport,
     file: File,
     fresh: boolean,
@@ -394,7 +399,7 @@ function openedData(
     // Opened as a new graph, it started its history (`history: "start"`).
     focusLater(fresh);
     if (!fresh) {
-        workspace.set({ notice: { message: `Added ${file.name} to this project` } });
+        workspace.set({ notice: heldNotice(workspace, session, { message: `Added ${file.name} to this project` }) });
     }
 }
 
@@ -418,8 +423,13 @@ async function openedProject(
     // The inspector shows the project that opened, and focus goes to its heading: whatever
     // row or control held focus belonged to the graph it replaced.
     workspace.set((state) => ({ project: state.project && { ...state.project, name }, inspected: null }));
-    requestAnimationFrame(() => {
-        focusLater();
+    // On the next frame, once the inspector shows the project; awaited below, so an open settles
+    // only after this hand-off (the store's `opened`).
+    const focused = new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+            focusLater();
+            resolve();
+        });
     });
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;
@@ -428,10 +438,11 @@ async function openedProject(
     const lost = report.problems.length;
     const parts = lost === 1 ? "part" : "parts";
     workspace.set({
-        notice: {
+        notice: heldNotice(workspace, session, {
             message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
-        },
+        }),
     });
+    await focused;
 }
 
 /**
@@ -459,6 +470,25 @@ function openFailed(ctx: CommandContext, session: GraphSession, pending: Pending
             : problemSentence(file.name, error);
     workspace.set({ notice: { message, error: true } });
     return false;
+}
+
+/**
+ * A load's notice, naming the shaders the element held from the file, with Run, which runs each
+ * through its checks and says how many did not pass.
+ * @param workspace - the workspace store.
+ * @param session - the session.
+ * @param notice - the load's notice.
+ * @returns the notice.
+ */
+function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: Notice): Notice {
+    return withHeldShaders(session, notice, () => {
+        void runHeld(session).then((failed) => {
+            if (failed > 0) {
+                const shaders = failed === 1 ? "1 shader" : `${String(failed)} shaders`;
+                workspace.set({ notice: { message: `${shaders} did not pass the checks`, error: true } });
+            }
+        });
+    });
 }
 
 /**
@@ -496,7 +526,7 @@ async function openInSession(
             return true;
         }
         if (report.opened !== "project") {
-            openedData(ctx.workspace, report, file, fresh, focusLater);
+            openedData(ctx.workspace, session, report, file, fresh, focusLater);
             return true;
         }
         await openedProject(ctx.workspace, session, report, pending, focusLater);
@@ -529,8 +559,10 @@ export async function openProjectFile(ctx: CommandContext, file: File, source: F
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
-    fileState(ctx.workspace).pending = { ...pending, fresh: true };
+    const { opened, settle } = openRun();
+    fileState(ctx.workspace).pending = { ...pending, fresh: true, settle };
     ctx.workspace.set((state) => ({
+        opened,
         project: { name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
@@ -561,15 +593,23 @@ export async function openPending(ctx: CommandContext): Promise<void> {
     }
     state.pending = null;
     state.reading = true;
-    const opened = await openInSession(ctx, ctx.session, pending, true).finally(() => {
-        state.reading = false;
-    });
+    const opened = await openInSession(ctx, ctx.session, pending, true)
+        .catch((error: unknown) => {
+            pending.settle?.({ error });
+            throw error;
+        })
+        .finally(() => {
+            state.reading = false;
+        });
     if (!opened) {
         // Refused: the project was never opened, so back to the start screen, keeping the reason.
         const { notice } = ctx.workspace.get();
         closeNow(ctx.workspace);
         ctx.workspace.set({ notice });
     }
+    // A data file the element refused also goes back to the start screen (openFirst), with its reason.
+    const { project, notice } = ctx.workspace.get();
+    pending.settle?.(project === null && notice?.error === true ? { error: new Error(notice.message) } : undefined);
 }
 
 /** What happened when the reader clicked a Recent projects entry. */

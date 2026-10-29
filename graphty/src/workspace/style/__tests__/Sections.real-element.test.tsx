@@ -192,17 +192,20 @@ describe("the Style tab's sections", () => {
         }
 
         await openStyle("Selected");
-        const effects = section("node", "effects");
-        assert.isNotNull(effects.querySelector('.ws-row[data-line="node.haloColor"]'), "a Halo row");
-        assert.isNotNull(effects.querySelector('.ws-row[data-line="node.glow"]'), "a Glow row");
-        assert.isTrue(isEmpty(section("node", "shape")), "Selected writes no shape");
+        const shape = section("node", "shape");
+        assert.isNotNull(shape.querySelector('.ws-row[data-line="node.haloColor"]'), "a Halo row");
+        assert.isNotNull(shape.querySelector('.ws-row[data-line="node.glow"]'), "a Glow row");
+        assert.isNull(shape.querySelector('.ws-row[data-line="node.shape"]'), "Selected writes no shape");
     });
 
     it.each(
         (["node", "edge"] as const).flatMap((kind) =>
+            // Shaders' "+" opens the gallery: its add and remove are ShaderRows.real-element.test.tsx's.
             SECTIONS[kind]
                 // Les Miserables is undirected, so Arrowheads add nothing there (tested on its own).
-                .filter((spec) => spec.id !== "text" && !(kind === "edge" && spec.id === "ends"))
+                .filter(
+                    (spec) => spec.id !== "text" && spec.shaders !== true && !(kind === "edge" && spec.id === "ends"),
+                )
                 .map((spec) => [kind, spec.id, spec.title] as const),
         ),
     )("adds and removes a property in %s %s, with focus and an announcement each way", async (kind, id, title) => {

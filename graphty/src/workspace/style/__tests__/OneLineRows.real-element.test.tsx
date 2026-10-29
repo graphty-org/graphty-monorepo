@@ -207,7 +207,7 @@ describe("one line per property", () => {
         assert.match(said, /^Node color no longer varies by data, now [a-z ]+$/, said);
     });
 
-    it("shows Edges, Text and Effects for several rows when one of them paints edges", async () => {
+    it("shows Edges, Text and Shaders for several rows when one of them paints edges", async () => {
         const { rows } = await openScene();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         const user = userEvent.setup();
@@ -216,7 +216,7 @@ describe("one line per property", () => {
         await user.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${escape(rows.route)}, `) }));
         await user.keyboard("{/Control}");
         const tab = await screen.findByTestId("style-tab");
-        await within(tab).findByRole("button", { name: "Add to node effects" });
+        await within(tab).findByRole("button", { name: "Add to node shaders" });
         await showKind("edge");
         await waitFor(() => {
             assert.isNotNull(tab.querySelector('[data-group="edge"]'), "an Edges section");

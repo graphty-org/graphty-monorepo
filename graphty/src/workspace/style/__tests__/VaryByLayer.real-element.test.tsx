@@ -22,6 +22,9 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { fieldName, valueWords } from "../words";
 
+/** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
+const PRE_STEPS = 1000;
+
 /**
  * Les Miserables in the workspace.
  * @returns The session.
@@ -38,6 +41,11 @@ async function openSample(): Promise<GraphSession> {
     if (session === undefined) {
         throw new Error("the element never came up");
     }
+    // The force layout settles before the first frame: these tests are about the Style panel, not
+    // the layout. Left to settle on screen, the layout draws a frame per step, and on a software
+    // GPU each frame holds the page's main thread until it is read back (hundreds of milliseconds
+    // on a busy machine), so the clicks made while it settles wait behind those frames (#4239).
+    await session.config.set({ layoutBehavior: { preSteps: PRE_STEPS } });
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
     await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
     return session;
@@ -438,8 +446,8 @@ describe("vary by layer", () => {
         await clickRow("Many");
 
         const tab = await screen.findByTestId("style-tab");
-        // The layers set a size, so Shape is the one property its "+" has left: it adds it, no menu.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const panel = await varyByLayer(await line("node.shape"));
         await close(panel);
 
@@ -460,8 +468,8 @@ describe("vary by layer", () => {
         await clickRow("Story");
 
         const tab = await screen.findByTestId("style-tab");
-        // The layers set a size, so Shape is the one property its "+" has left: it adds it, no menu.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const panel = await varyByLayer(await line("node.shape"));
         const before = written(session, layers, "node.shape");
         // One row's own value, picked in its row as a group's is.

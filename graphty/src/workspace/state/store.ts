@@ -183,10 +183,19 @@ export interface WorkspaceState {
      * What to load once the element of a project that was just opened has come up (a sample or
      * a file from the start screen), with the name it is known by; run once, then cleared.
      */
-    readonly opening: {
-        readonly name: string;
-        readonly load: (session: GraphSession, element: GraphtyElement) => Promise<void>;
-    } | null;
+    readonly opening: Opening | null;
+    /**
+     * The latest open's whole run -- a new project's (a sample, a dataset, a file, kept work), to
+     * its load read and focus handed on, or a first graph's into an empty project, to its load
+     * read: resolves then, or rejects with the load's error. Kept work reopened in this tab asks
+     * for focus on the graph's heading, which moves once the heading is drawn, so focus there may
+     * move after this settles. A data file opened from the start screen settles once the Data page
+     * shows. An open replaced by a newer one, or whose project closes before its element comes up,
+     * never settles. The node count arrives before the
+     * rest of an open, so whatever waits for an open to finish (a test after a click) awaits this
+     * instead. Null before the first open.
+     */
+    readonly opened: Promise<void> | null;
     /**
      * Whether graphty-element keeps the reader's work in the browser (its autosave). The
      * application turns it on; stories and tests leave it off, so one never reopens another's work.
@@ -245,9 +254,53 @@ const INITIAL: WorkspaceState = {
     announcement: "",
     announced: 0,
     opening: null,
+    opened: null,
     autosave: false,
     recovered: null,
 };
+
+/** Settles an open's `opened`: with nothing once it is done, else with the failure. */
+export type SettleOpen = (failure?: { readonly error: unknown }) => void;
+
+/** What to load once the element of a just-opened project has come up; see `WorkspaceState.opening`. */
+export interface Opening {
+    readonly name: string;
+    readonly load: (session: GraphSession, element: GraphtyElement) => Promise<void>;
+    /** Where focus goes once it is loaded, when not to the opened graph's heading. */
+    readonly focus?: () => void;
+    /** Called by the workspace once the load is read and focus handed on, or it failed. */
+    readonly settle: SettleOpen;
+}
+
+/**
+ * A new `opened` promise and what settles it, for an open that is about to start.
+ * @returns the promise and its settle.
+ */
+export function openRun(): { readonly opened: Promise<void>; readonly settle: SettleOpen } {
+    let settle: SettleOpen = () => undefined;
+    const opened = new Promise<void>((resolve, reject) => {
+        settle = (failure) => {
+            if (failure === undefined) {
+                resolve();
+            } else {
+                reject(failure.error);
+            }
+        };
+    });
+    // A failed open is the reader's notice; one nothing awaits is not an unhandled rejection.
+    opened.catch(() => undefined);
+    return { opened, settle };
+}
+
+/**
+ * The fields that start an open the workspace runs: its `opening`, and the `opened` it settles.
+ * @param entry - what to load, its name and where focus goes.
+ * @returns the fields to set.
+ */
+export function startOpening(entry: Omit<Opening, "settle">): Pick<WorkspaceState, "opening" | "opened"> {
+    const { opened, settle } = openRun();
+    return { opening: { ...entry, settle }, opened };
+}
 
 /** The store. */
 export interface WorkspaceStore {
@@ -345,4 +398,52 @@ export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceSta
         return null;
     }
     return kind.alwaysOpenOn ?? remembered[kind.kind] ?? kind.defaultTab ?? kind.tabs[0];
+}
+
+/** The session storage item the reader's place is kept under, for a reload of this tab. */
+const PLACE_ITEM = "app.graphty.workspace.place";
+
+/** The part of the chrome a reload of this tab puts back: the page, the place, the tab and the row. */
+type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide">;
+
+/**
+ * Keeps the reader's place in this tab's session storage while a project is open, so a reload
+ * (or a tab the browser discarded and loaded again) can put it back; forgets it once no project
+ * is open. Presentation state only: the graph is graphty-element's to keep.
+ * @param store - the workspace store.
+ * @returns a function that stops keeping it.
+ */
+export function keepPlace(store: WorkspaceStore): () => void {
+    let last = "";
+    const write = (): void => {
+        const { project, page, place, inspected, tabs, styleSide } = store.get();
+        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide });
+        if (text === last) {
+            return;
+        }
+        last = text;
+        try {
+            if (text === "") {
+                sessionStorage.removeItem(PLACE_ITEM);
+            } else {
+                sessionStorage.setItem(PLACE_ITEM, text);
+            }
+        } catch {
+            // No session storage here: a reload starts on the Graph place.
+        }
+    };
+    return store.subscribe(write);
+}
+
+/**
+ * The place this tab kept before it was reloaded.
+ * @returns the place, or an empty change when none was kept.
+ */
+export function keptPlace(): Partial<KeptPlace> {
+    try {
+        const text = sessionStorage.getItem(PLACE_ITEM);
+        return text === null ? {} : (JSON.parse(text) as Partial<KeptPlace>);
+    } catch {
+        return {};
+    }
 }

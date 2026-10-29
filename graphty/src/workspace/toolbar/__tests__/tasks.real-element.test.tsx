@@ -44,8 +44,8 @@ async function openKarate(place?: "data"): Promise<GraphSession> {
     }
     await session.data.import({ config: { url: "/samples/karate.gml" } }, { layout: "recommended" });
     const loaded = session;
+    assert.equal(loaded.data.statistics().nodeCount, 34);
     await waitFor(() => {
-        assert.equal(loaded.data.statistics().nodeCount, 34);
         assert.isFalse(analyzeTool().hasAttribute("aria-disabled"));
     });
     return loaded;

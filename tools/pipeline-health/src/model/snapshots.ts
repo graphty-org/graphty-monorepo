@@ -29,6 +29,9 @@ export interface LaneJob {
     redAt?: number;
 }
 
+/** Release modes that test nothing new by design (a promotion, a hold's end, a held candidate's re-test). */
+export const NOT_A_TRAIN = new Set(["promote-nightly", "abandon", "candidate"]);
+
 /** One release.yml run attempt, keyed `<run id>.<attempt>` in the `release` cursor. */
 export interface ReleaseSeen {
     sha: string;
@@ -38,6 +41,8 @@ export interface ReleaseSeen {
     red: string[];
     ciFailed: boolean;
     run?: number;
+    /** Its mode ("full", "restart", "candidate", "promote-nightly", ...), from the run title. */
+    mode?: string;
     /** Its start (the train's slot), epoch ms. */
     created?: number;
     ok?: boolean;

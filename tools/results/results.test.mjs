@@ -30,6 +30,7 @@ import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.m
 import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
 import { benchmarkRows } from "./post-benchmarks.mjs";
+import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
@@ -152,15 +153,28 @@ describe("client", () => {
         assert.equal(s.seen.length, 3, "sent once and retried twice");
         assert.deepEqual(JSON.parse(readFileSync(r.spooled, "utf8")), { id: "r1.1" });
     });
-    it("sends a request again when no answer came, and never one that got an answer", async () => {
+    it("sends a request again when no answer or a 5xx came, and never one that got a 4xx", async () => {
         let calls = 0;
         const slowOnce = await serve(() => (++calls === 1 ? undefined : { order: ["b"] }));
         const cfg = { ...config({ RESULTS_URL: slowOnce.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
         assert.deepEqual(await call(cfg, "GET", "/v1/plan", undefined, 300), { ok: true, data: { order: ["b"] } });
         assert.equal(calls, 2);
-        mock.method(globalThis, "fetch", () => Promise.resolve(new Response("", { status: 503 })));
+        const answers = (...statuses) =>
+            mock.method(globalThis, "fetch", () => {
+                const status = statuses.shift();
+                return Promise.resolve(new Response(status === 200 ? "{}" : "", { status }));
+            });
         try {
-            assert.deepEqual(await call(cfg, "GET", "/v1/plan"), { ok: false, why: "HTTP 503" });
+            answers(500, 200);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: true, data: {} });
+            assert.equal(globalThis.fetch.mock.callCount(), 2);
+            mock.restoreAll();
+            answers(500, 500, 500);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 500" });
+            assert.equal(globalThis.fetch.mock.callCount(), 3, "sent once and retried twice");
+            mock.restoreAll();
+            answers(404, 200);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 404" });
             assert.equal(globalThis.fetch.mock.callCount(), 1);
         } finally {
             mock.restoreAll();
@@ -1270,6 +1284,47 @@ describe("health API fan-out", () => {
             ],
         });
         assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
+    });
+    it("names a Stories bin's unstable stories as story tests do, once per story (#4373)", () => {
+        const index = {
+            entries: {
+                "styles-edge--three-d-all-lines": {
+                    id: "styles-edge--three-d-all-lines",
+                    importPath: "./stories/styles/Edge.stories.ts",
+                    name: "Three D All Lines",
+                },
+            },
+        };
+        const results = {
+            items: [
+                {
+                    id: "styles-edge--three-d-all-lines",
+                    file: "styles-edge--three-d-all-lines.png",
+                    status: "unstable",
+                },
+                {
+                    id: "styles-edge--three-d-all-lines",
+                    file: "styles-edge--three-d-all-lines-dark.png",
+                    status: "unstable",
+                },
+                { id: "styles-edge--plain", file: "styles-edge--plain.png", status: "changed" },
+                { id: "gone--story", file: "gone--story.png", status: "unstable" },
+            ],
+        };
+        assert.deepEqual(unstableStories(results, index, ["graphty-element/stories/styles/Edge.stories.ts#1/2"]), [
+            {
+                file: "graphty-element/stories/styles/Edge.stories.ts",
+                name: "Three D All Lines",
+                message:
+                    "visual-review: styles-edge--three-d-all-lines.png is unstable (two renders drew different pictures)",
+            },
+            {
+                file: "gone--story.png",
+                name: "gone--story",
+                message: "visual-review: gone--story.png is unstable (two renders drew different pictures)",
+            },
+        ]);
+        assert.deepEqual(unstableStories({ items: [] }, index, []), []);
     });
     it("sends a benchmark job's results to the health API as one post", async () => {
         const h = await serveHealth();

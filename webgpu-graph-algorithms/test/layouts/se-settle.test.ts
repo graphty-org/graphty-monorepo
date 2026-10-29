@@ -214,15 +214,15 @@ describe("issue #97: settled means the spring layout has stopped growing", () =>
         const ctx = await acquire({ label: "se-settle-growth" });
         const s = snapshotOf(treePlusRandom(N), { nodeCount: N });
         try {
-            const settledRun = async (options: { readonly settleThreshold?: number }, iterations: number) => {
-                const sim = createSpringElectrical(ctx, { seed: 42, maxInFlight: 1, ...options });
-                try {
-                    const positions = new Float32Array(3 * N).fill(Number.NaN);
-                    sim.load(s, positions);
-                    // run() in chunks of PROGRESS_ITERATIONS, with a line before each: this file runs alone
-                    // (node-gpu-alone), where one run lasts minutes on a software adapter and the node shard
-                    // wrapper fails a run that writes nothing for 90 s (scripts/run-node-shard.js). maxIter is a
-                    // total and the chunk is a multiple of the batch, so every batch is the one run() would submit.
+            const sim = createSpringElectrical(ctx, { seed: 42, maxInFlight: 1 });
+            try {
+                const positions = new Float32Array(3 * N).fill(Number.NaN);
+                sim.load(s, positions);
+                // run() in chunks of PROGRESS_ITERATIONS, with a line before each: this file runs alone
+                // (node-gpu-alone), where one run lasts minutes on a software adapter and the node shard
+                // wrapper fails a run that writes nothing for 90 s (scripts/run-node-shard.js). maxIter is a
+                // total and the chunk is a multiple of the batch, so every batch is the one run() would submit.
+                const runUntil = async (iterations: number): Promise<void> => {
                     while (!sim.settled && sim.iterationsDone < iterations) {
                         console.warn(`[se-settle] n=${N}: ${sim.iterationsDone} of at most ${iterations} iterations`);
                         await sim.run({
@@ -230,20 +230,27 @@ describe("issue #97: settled means the spring layout has stopped growing", () =>
                             batch: 8,
                         });
                     }
-                    return { positions, iterationsDone: sim.iterationsDone, settled: sim.settled };
-                } finally {
-                    sim.dispose();
-                }
-            };
-            const stop = await settledRun({}, BUDGET);
-            expect(stop.settled && stop.iterationsDone < BUDGET, "settled before the budget").toBe(true);
-            // the same seeded run past the stop (settleThreshold 0 never settles): what a viewer would have seen
-            const later = await settledRun({ settleThreshold: 0 }, stop.iterationsDone + AFTER);
-            const growth = rmsRadius(later.positions) / rmsRadius(stop.positions) - 1;
-            console.log(
-                `[se-settle] n=${N}: settled at ${stop.iterationsDone}; rms radius growth over the next ${AFTER} iterations ${(growth * 100).toFixed(3)} %`,
-            );
-            expect(Math.abs(growth)).toBeLessThan(MAX_GROWTH);
+                };
+                await runUntil(BUDGET);
+                const settledAt = sim.iterationsDone;
+                expect(sim.settled && settledAt < BUDGET, "settled before the budget").toBe(true);
+                const atStop = positions.slice();
+                // What a viewer would have seen next: the same run continued past the stop. settleThreshold
+                // feeds only the settle counter (fa2-stats-finalize), never a force, and setParams' reheat
+                // resets only iterationsDone and that counter (the spring-electrical model's onReheat is
+                // empty), so with it at 0 (never settles) these are the iterations a run that never settled
+                // takes after the stop -- without replaying the first settledAt of them from a fresh load.
+                sim.setParams({ settleThreshold: 0 });
+                await runUntil(AFTER);
+                expect(sim.iterationsDone, "the iterations run past the stop").toBe(AFTER);
+                const growth = rmsRadius(positions) / rmsRadius(atStop) - 1;
+                console.log(
+                    `[se-settle] n=${N}: settled at ${settledAt}; rms radius growth over the next ${AFTER} iterations ${(growth * 100).toFixed(3)} %`,
+                );
+                expect(Math.abs(growth)).toBeLessThan(MAX_GROWTH);
+            } finally {
+                sim.dispose();
+            }
         } finally {
             ctx.release(s);
             ctx.dispose();

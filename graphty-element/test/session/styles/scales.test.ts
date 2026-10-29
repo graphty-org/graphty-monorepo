@@ -58,6 +58,7 @@ describe("the registry", () => {
             "quantile",
             "ordinal",
             "passthrough",
+            "index",
         ];
 
         assert.deepEqual([...names].sort(), Object.keys(BUILT_IN_SCALES).sort());

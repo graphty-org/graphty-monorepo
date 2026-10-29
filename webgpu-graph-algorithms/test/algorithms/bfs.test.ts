@@ -146,6 +146,24 @@ const FORCED_TUNINGS: readonly (readonly [string, BfsTuning])[] = [
     ["top-down only", { direction: "top-down" }],
 ];
 
+/**
+ * Whether a forced tuning chooses the default's path at every level, read from the default run's last counters
+ * block: forcing fused (fusedMax U32_MAX) changes nothing when no level was two-phase, forcing two-phase (fusedMax 0)
+ * nothing when no level was fused, and pinning top-down nothing when no level was bottom-up.
+ */
+function forcedReplaysDefault(tuning: BfsTuning, block: UniformValues): boolean {
+    if (tuning.direction === "top-down") {
+        return Number(block.bottomUpLevels) === 0;
+    }
+    if (tuning.fusedMax === U32_MAX) {
+        return Number(block.twoPhaseLevels) === 0;
+    }
+    if (tuning.fusedMax === 0) {
+        return Number(block.fusedLevels) === 0;
+    }
+    return false;
+}
+
 /** The level sizes the oracle predicts (level 0 is the source alone), in level order. */
 function levelSizesOf(s: GraphSnapshot, source: number): number[] {
     return levelsOf(s, source).map((level) => level.length);
@@ -231,8 +249,14 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         expect(blocks.length, `${label}: submits`).toBeGreaterThan(0);
         expect(again, `${label}: the counters block after every submit, run twice`).toEqual(blocks);
         // P8-T7 Step 4: the two forced candidate rules agree with the default bitwise (PD-14); P8-T8 Step 5: so does
-        // the top-down-only mode, which never switches
+        // the top-down-only mode, which never switches. A forced rule that would choose the default's path at every
+        // level is not run: every level records the same nine dispatches whatever the rule, and the boundary's
+        // choice is all that differs, so such a run replays the default's exactly and its comparison cannot fail
+        // (on path500 every level is fused and top-down, which made two of its three forced runs replays).
         for (const [name, tuning] of FORCED_TUNINGS) {
+            if (forcedReplaysDefault(tuning, lastOf(blocks, `${label}: submits`))) {
+                continue;
+            }
             const forced = await bfsWithTuning(ctx, s, source, options, tuning);
             expectBitwiseEqual(forced.depth, first.depth, `${label}: depth, ${name} vs the default`);
             expectBitwiseEqual(forced.parent, first.parent, `${label}: parent, ${name} vs the default`);
@@ -371,6 +395,28 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
             ctx.release(grid);
         });
     }
+
+    it("a forced rule the default's counters show would choose the same path at every level replays the default (the runs the fixture loop skips): on path500 the always-fused and top-down-only runs give the default's counters block after every submit; never-fused does not", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(pathEdges(500), { label: "path500-replay" });
+        const blocksOf = async (tuning: BfsTuning): Promise<UniformValues[]> => {
+            const blocks: UniformValues[] = [];
+            await bfsWithTuning(ctx, s, 250, undefined, {
+                ...tuning,
+                onLevel: (_level, block) => {
+                    blocks.push(block);
+                },
+            });
+            return blocks;
+        };
+        const base = await blocksOf({});
+        const skipped = FORCED_TUNINGS.filter(([, tuning]) => forcedReplaysDefault(tuning, lastOf(base, "submits")));
+        expect(skipped.map(([name]) => name)).toEqual(["always fused (fusedMax U32_MAX)", "top-down only"]);
+        for (const [name, tuning] of skipped) {
+            expect(await blocksOf(tuning), `${name}: the counters block after every submit`).toEqual(base);
+        }
+        ctx.release(s);
+    });
 
     it("the inspect seam: levelsPerSubmit 1 hands back every level's frontier (the next level's input queue) as the oracle's set, with frontierCount and level from the block", async (t) => {
         const ctx = await context(t);

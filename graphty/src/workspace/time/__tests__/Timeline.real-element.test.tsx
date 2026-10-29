@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession, TimeStepEvent } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
-import { assert, beforeAll, describe, it } from "vitest";
+import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page } from "vitest/browser";
 
 import { dragAcross } from "../../../test/real-pointer";
@@ -685,5 +685,37 @@ describe("the Overview and the import of time", () => {
         await waitFor(() => {
             assert.equal(Number(session.visibility.window?.from), frames.at(-1)?.from, "paused where it slid to");
         });
+    });
+
+    // Re-rendered on every frame of a play, Fields and the time card read every column's values
+    // again for each one: on a loaded software-GPU page, part of what timed the play out (#4196).
+    it("plays without the Data place reading the columns again for each frame", async () => {
+        const { session } = await open();
+        const dock = await designateSent(session);
+        await pickIn("Step", "Week");
+        const attributes = vi.spyOn(session.data, "attributes");
+        // The reads made between the 4th and the 12th frame: none of the play's own start or stop.
+        const readsAt = new Map<number, number>();
+        let frames = 0;
+        const off = session.on("time:step", (step) => {
+            if (step.cause === "play") {
+                frames++;
+                readsAt.set(frames, attributes.mock.calls.length);
+            }
+        });
+
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+        await waitFor(
+            () => {
+                assert.isAtLeast(frames, 12, "frames played");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
+        off();
+        attributes.mockRestore();
+
+        const reads = (readsAt.get(12) ?? 0) - (readsAt.get(4) ?? 0);
+        assert.isBelow(reads, 8, `the columns were read ${String(reads)} times in 8 frames`);
     });
 });

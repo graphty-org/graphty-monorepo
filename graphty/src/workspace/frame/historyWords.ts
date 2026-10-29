@@ -16,7 +16,7 @@ import { stepChange } from "../data-place/filterSteps";
 import { findTreeRow } from "../graph-place/rows";
 import { count } from "../inspector/words";
 import { runName } from "../runWords";
-import { channelPhrase } from "../style/words";
+import { channelPhrase, SHADER_STEP_WORDS } from "../style/words";
 
 /** A fact's params, read as the element documents them. */
 type Params = CodedFact<HistoryCode>["params"];
@@ -91,6 +91,29 @@ function channels(value: Params[string]): string {
     return [...new Set(list.map((each) => channelPhrase(each as Channel)))].join(" and ");
 }
 
+/**
+ * A shader by its id, as the catalog names it ("the shader Nebula"), never by its id.
+ * @param session - the session, for the catalog.
+ * @param id - the shader's id.
+ * @returns its words, or "a shader" once the catalog no longer holds it.
+ */
+function shaderName(session: GraphSession, id: Params[string]): string {
+    const name = session.catalog.shaders().find((shader) => shader.id === id)?.plainName;
+    return name === undefined ? SHADER_STEP_WORDS.unknown : `the shader ${name}`;
+}
+
+/**
+ * A settings change: "changing the background" when it changes only the background, else "changing settings".
+ * @param params - the params, whose `keys` are the settings' paths.
+ * @returns the words.
+ */
+function settingsWords(params: Params): string {
+    const keys = Array.isArray(params.keys) ? params.keys : [];
+    const background =
+        keys.length > 0 && keys.every((key) => key === "background" || String(key).startsWith("background."));
+    return background ? "changing the background" : "changing settings";
+}
+
 /** Each code's words, read from its params. Every code the element documents has one. */
 const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession) => string>> = {
     "algo.run": (p, s) => `running ${algorithmName(s, p.algorithm)}`,
@@ -155,6 +178,9 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "style.hide-row": (p) => `${p.hidden === true ? "hiding" : "showing"} ${text(p, "row", "a layer")}`,
     "style.delete-row": (p) => `deleting ${text(p, "row", "a layer")}`,
     "style.restore-starting-rows": () => "restoring the starting rows",
+    "shader.add": (p, s) => `adding ${shaderName(s, p.id)}`,
+    "shader.replace": (p, s) => `changing ${shaderName(s, p.id)}`,
+    "shader.remove": (p, s) => `removing ${shaderName(s, p.id)}`,
     "visibility.filter": () => "filtering",
     "visibility.clear-filter": () => "clearing the filter",
     "visibility.window": () => "setting the time window",
@@ -184,7 +210,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "view.remove": () => "deleting a view",
     "view.dimension": (p) => `switching to ${p.dimension === "2d" ? "2D" : "3D"}`,
     "view.immersive": (p) => `entering ${p.mode === "ar" ? "AR" : "VR"}`,
-    "config.set": () => "changing settings",
+    "config.set": (p) => settingsWords(p),
     "positions.set": (p) => `moving ${counted(p, "node")}`,
     "positions.pin": (p) => `pinning ${counted(p, "node")}`,
     "positions.release": (p) => `releasing ${counted(p, "node")}`,
@@ -214,6 +240,9 @@ const PARAM_WORDS: ReadonlySet<string> = new Set([
     "style.hide-row",
     "view.dimension",
     "view.immersive",
+    "shader.add",
+    "shader.replace",
+    "shader.remove",
 ]);
 
 /**

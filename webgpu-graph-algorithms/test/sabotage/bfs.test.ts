@@ -167,6 +167,22 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
         expect(report.samples).toBeLessThan(fullCheckSamples / 4);
     });
 
+    // issue #4372: the path from its middle runs before the 500-level traversals from the path's last index, so a
+    // bottom-up mutant (caught there) does not pay for them: 5,954 of the full check's 43,529 samples, 8,958 with
+    // the two path traversals still ahead of it
+    it("a bottom-up mutant is caught on the path from its middle before the traversals from the path's last index", async (t) => {
+        requireGpu(t);
+        expect(fullCheckSamples, "the real-kernel check above ran").toBeGreaterThan(0);
+        const mutation = (SABOTAGE["bfs-bottom-up"] ?? []).find((m) => m.name === "bottom-up-claim-is-the-level");
+        if (mutation === undefined) {
+            throw new Error("bfs-bottom-up/bottom-up-claim-is-the-level is not in SABOTAGE");
+        }
+        const report = await withSabotage("bfs-bottom-up", mutation, (ctx) => bfsReport(ctx));
+        expect(report.worst).toBe(Infinity);
+        expect(report.worstLabel.startsWith("path500-mid/bottom-up.")).toBe(true);
+        expect(report.samples).toBeLessThan(fullCheckSamples / 6);
+    });
+
     it("the normative bodies are restored after every mutation", () => {
         for (const { id } of MEASURED) {
             expect(kernelSpec(id).body).toBe(KERNELS[id].body);

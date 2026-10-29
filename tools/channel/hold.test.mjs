@@ -168,7 +168,8 @@ describe("end", () => {
         assert.notEqual(r.code, 0);
         assert.deepEqual(
             r.posts.map((p) => p.url),
-            ["/v1/verdicts"],
+            ["/v1/verdicts", "/v1/verdicts", "/v1/verdicts"],
+            "sent once and retried twice after a 5xx",
         );
         assert.equal(r.calls, "");
     });

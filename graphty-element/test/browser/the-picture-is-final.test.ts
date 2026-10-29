@@ -94,15 +94,21 @@ async function framesDrawn(graph: Graph, count: number): Promise<void> {
     });
 }
 
-/** Shader sources held back by {@link holdShadersBack}, and the way to let them through. */
+/** Shaders held back by {@link holdShadersBack}, and the way to let them through. */
 interface HeldShaders {
-    /** How many shader fetches are being held. */
+    /** How many shaders are being held. */
     readonly held: number;
     /** Let every held fetch, and every later one, through. */
     release: () => void;
     /** Settles once every fetch held so far has finished. */
     arrived: () => Promise<unknown>;
 }
+
+/**
+ * Where `engine.createEffect`'s positional form takes `extraInitializationsAsync`, counted in the
+ * arguments after the base name and the attribute names.
+ */
+const EXTRA_INITIALISATION_AT = 8;
 
 /** Where the camera is and where every node is, as one comparable value. */
 interface Picture {
@@ -154,13 +160,18 @@ describe("knowing the picture is final", () => {
     }
 
     /**
-     * Hold back every shader source this graph's engine fetches from now on, until released.
+     * Hold back every shader this graph's engine compiles from now on, until released.
      *
-     * Babylon fetches a shader's source with a dynamic `import()` the first time an effect needs
-     * a variant, through the `extraInitializationsAsync` step of `createEffect`. Holding that
-     * step stands in for a slow module server -- the pre-push gate, where the dev server shares a
-     * process with thousands of unit tests. Effects already compiled are cached and unaffected.
-     * @returns The held fetches, and the way to release them.
+     * Every effect Babylon creates runs an `extraInitializationsAsync` step, when it has one, before
+     * it compiles -- where a material fetches its shader source with a dynamic `import()`. This
+     * gives EVERY new effect such a step and holds it: a slow module server (the pre-push gate,
+     * where the dev server shares a process with thousands of unit tests), or a shader Babylon
+     * has not compiled yet, in one. It holds every effect, not only the ones that would import
+     * something, so the hold does not depend on what is already loaded: the element bundles the
+     * node shaders and tells Babylon so, and whether a material still imported used to depend on
+     * when the frame ran (issue #4241). Effects this engine already compiled are cached and
+     * unaffected.
+     * @returns The held effects, and the way to release them.
      */
     function holdShadersBack(): HeldShaders {
         const engine = graph.engine as unknown as {
@@ -173,27 +184,28 @@ describe("knowing the picture is final", () => {
         });
         const fetches: Promise<void>[] = [];
 
+        const hold = (initialise: (() => Promise<void>) | undefined) => (): Promise<void> => {
+            const fetch = gate.then(initialise);
+            fetches.push(fetch);
+
+            return fetch;
+        };
+
         engine.createEffect = (base, options, ...rest) => {
+            if (Array.isArray(options)) {
+                // The positional form: the step is the eleventh argument, after the attributes.
+                const positional = [...rest];
+                positional[EXTRA_INITIALISATION_AT] = hold(
+                    positional[EXTRA_INITIALISATION_AT] as (() => Promise<void>) | undefined,
+                );
+
+                return createEffect(base, options, ...positional);
+            }
+
             const initialise = (options as { extraInitializationsAsync?: () => Promise<void> } | null)
                 ?.extraInitializationsAsync;
 
-            if (initialise === undefined) {
-                return createEffect(base, options, ...rest);
-            }
-
-            return createEffect(
-                base,
-                {
-                    ...(options as object),
-                    extraInitializationsAsync: () => {
-                        const fetch = gate.then(initialise);
-                        fetches.push(fetch);
-
-                        return fetch;
-                    },
-                },
-                ...rest,
-            );
+            return createEffect(base, { ...(options as object), extraInitializationsAsync: hold(initialise) }, ...rest);
         };
 
         return {

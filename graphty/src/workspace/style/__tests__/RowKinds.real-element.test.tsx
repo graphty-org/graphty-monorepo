@@ -180,11 +180,11 @@ describe("folders, several rows and the draft on the real element", () => {
         await waitFor(() => {
             assert.isNotNull(text.querySelector("input"), "the label the one setting row writes, to edit");
         });
-        const effects = within(tab).getByRole("group", { name: "Effects" });
-        const glow = effects.querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
+        const shape = within(tab).getByRole("group", { name: "Shape" });
+        const glow = shape.querySelector<HTMLElement>('.ws-row[data-line="node.glow"]');
         assert.equal(glow?.querySelector("[data-breakdown]")?.textContent, "1 layer sets glow; not set: Degree");
 
-        await userEvent.click(within(effects).getByRole("button", { name: "Remove node glow from every layer" }));
+        await userEvent.click(within(shape).getByRole("button", { name: "Remove node glow from every layer" }));
         await waitFor(() => {
             assert.isUndefined(written(session, key, "node.glow"));
         });

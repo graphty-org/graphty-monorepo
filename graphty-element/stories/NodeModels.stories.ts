@@ -5,7 +5,9 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { ModelChange, ModelState } from "../src/session/types";
 import { assertGraphLoaded, drawn, holds, renderedElement } from "./assertions";
-import columnStlPath from "./fixtures/models/column-y-up.stl?url";
+// no-inline: under 4 KB, the build would inline it as a data: URL, which the element never
+// fetches a model from, so the built story drew placeholder shapes (#4365).
+import columnStlPath from "./fixtures/models/column-y-up.stl?url&no-inline";
 import damagedGlbPath from "./fixtures/models/damaged.glb?url";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 

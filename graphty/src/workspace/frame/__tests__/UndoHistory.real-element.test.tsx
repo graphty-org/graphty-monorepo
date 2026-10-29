@@ -8,39 +8,21 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
+import { openBy, openSampleFromStart } from "../../../test/open";
+import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { answerUsageData, forgetUsageAnswer } from "../../privacy/usageData";
-import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
 /** Les Miserables' node count, from its source. */
 const NODES = 77;
-
-/**
- * Opens the Les Miserables sample from the start screen, as a reader does, and waits for it.
- * @returns the session and the chrome store.
- */
-async function openSample(): Promise<{ session: GraphSession; store: WorkspaceStore }> {
-    const store = createWorkspaceStore();
-    render(<Workspace store={store} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
-    let session: GraphSession | undefined;
-    await waitFor(() => {
-        session = document.querySelector("graphty-element")?.session;
-        assert.equal(session?.data.statistics().nodeCount, NODES);
-    });
-    if (session === undefined) {
-        throw new Error("the element never came up");
-    }
-    return { session, store };
-}
 
 describe("Undo from the reader's keys", () => {
     beforeAll(async () => {
@@ -53,7 +35,7 @@ describe("Undo from the reader's keys", () => {
 
     it("starts a sample's history: Undo is disabled and Control+Z leaves the graph", async () => {
         answerUsageData("declined");
-        const { session, store } = await openSample();
+        const { session, store } = await openSampleFromStart("Les Miserables");
         // The sample is drawn before its load settles; settling clears the history, and Undo's
         // name drops the load's step.
         await waitFor(() => {
@@ -92,23 +74,15 @@ describe("Undo from the reader's keys", () => {
         try {
             const store = createWorkspaceStore();
             render(<Workspace store={store} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+            const opening = openBy(store, () => pickSample("Les Miserables"));
             await fetched;
             (document.activeElement as HTMLElement | null)?.blur();
             await userEvent.keyboard("{Control>}z{/Control}");
             release();
-
-            let session: GraphSession | undefined;
-            await waitFor(() => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isTrue(
-                    store.get().notice !== null || session?.data.statistics().nodeCount === NODES,
-                    "the open settled",
-                );
-            });
+            const session = await opening;
             assert.isNull(store.get().notice, "the open was not cancelled");
-            assert.equal(session?.data.statistics().nodeCount, NODES);
-            assert.isFalse(session?.canUndo, "opening is not a change to undo");
+            assert.equal(session.data.statistics().nodeCount, NODES);
+            assert.isFalse(session.canUndo, "opening is not a change to undo");
         } finally {
             spy.mockRestore();
         }
@@ -116,7 +90,7 @@ describe("Undo from the reader's keys", () => {
 
     it("names the act it undid, and keeps the find box's typing its own to undo", async () => {
         answerUsageData("declined");
-        const { session, store } = await openSample();
+        const { session, store } = await openSampleFromStart("Les Miserables");
         await session.styles.add({
             name: "Cosette",
             target: "node",
@@ -146,7 +120,7 @@ describe("Undo from the reader's keys", () => {
 
     it("names the act when Control+Z is pressed on the drawing", async () => {
         answerUsageData("declined");
-        const { session, store } = await openSample();
+        const { session, store } = await openSampleFromStart("Les Miserables");
         await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Layer/ }));
         await waitFor(() => {
@@ -169,7 +143,7 @@ describe("Undo from the reader's keys", () => {
 
     it("disables the canvas menu's Clear selection with nothing selected", async () => {
         answerUsageData("declined");
-        const { session } = await openSample();
+        const { session } = await openSampleFromStart("Les Miserables");
         const surface = document.querySelector<HTMLElement>(".ws-canvas-surface");
         assert.isNotNull(surface);
         const rightClickCorner = async (): Promise<HTMLElement> => {

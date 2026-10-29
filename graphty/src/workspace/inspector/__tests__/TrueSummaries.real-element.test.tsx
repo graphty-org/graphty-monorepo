@@ -65,9 +65,7 @@ async function open(load: (session: GraphSession) => Promise<unknown>): Promise<
  */
 async function openKarate(): Promise<GraphSession> {
     const session = await open((s) => s.data.import({ config: { url: "/samples/karate.gml" } }));
-    await waitFor(() => {
-        assert.equal(session.data.statistics().nodeCount, 34);
-    });
+    assert.equal(session.data.statistics().nodeCount, 34);
     return session;
 }
 
@@ -96,9 +94,7 @@ describe("summaries and cards that say true, complete things", () => {
         const session = await open((s) =>
             s.data.import({ type: "graphml", name: "volunteers.graphml", config: { data: VOLUNTEERS } }),
         );
-        await waitFor(() => {
-            assert.equal(session.data.statistics().nodeCount, 6);
-        });
+        assert.equal(session.data.statistics().nodeCount, 6);
         await session.selection.apply({ nodes: allIds(session) });
         await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         await waitFor(() => {
@@ -121,9 +117,7 @@ describe("summaries and cards that say true, complete things", () => {
         const session = await open((s) =>
             s.data.import({ type: "graphml", name: "volunteers.graphml", config: { data: VOLUNTEERS } }),
         );
-        await waitFor(() => {
-            assert.equal(session.data.statistics().nodeCount, 6);
-        });
+        assert.equal(session.data.statistics().nodeCount, 6);
         await session.selection.apply({ nodes: allIds(session).slice(0, 1) });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
         await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));
@@ -170,9 +164,7 @@ describe("summaries and cards that say true, complete things", () => {
         const session = await open((s) =>
             s.data.import({ type: "graphml", name: "volunteers.graphml", config: { data: VOLUNTEERS } }),
         );
-        await waitFor(() => {
-            assert.equal(session.data.statistics().nodeCount, 6);
-        });
+        assert.equal(session.data.statistics().nodeCount, 6);
         await session.selection.apply({ nodes: allIds(session).slice(0, 1) });
         await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         await userEvent.hover(await screen.findByRole("button", { name: /^Degree/ }));

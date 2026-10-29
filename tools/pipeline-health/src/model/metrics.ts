@@ -217,7 +217,7 @@ export const METRICS: MetricDef[] = [
             ),
             // ponytail: counts flaky tests, not distinct flaky files per run; a file with two flaky tests counts twice.
             src("test", "seenAt", (t) =>
-                t.source === "ci" && t.outcome === "flaky" ? { n: 0, sum: 1, dim: t.family } : null,
+                t.source === "ci" && t.outcome === "flaky" && !t.bump ? { n: 0, sum: 1, dim: t.family } : null,
             ),
         ],
     },
@@ -226,7 +226,7 @@ export const METRICS: MetricDef[] = [
         id: "flaky.tests",
         from: [
             src("test", "seenAt", (t) =>
-                t.source === "ci" && t.outcome === "flaky"
+                t.source === "ci" && t.outcome === "flaky" && !t.bump
                     ? { sum: 1, dim: JSON.stringify([t.family, t.file, t.name]) }
                     : null,
             ),

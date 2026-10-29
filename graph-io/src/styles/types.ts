@@ -508,6 +508,14 @@ export interface NodeStyleValues {
     readonly chartHorizontal: boolean;
     /** The size of the chart's plot box, as a fraction of the node's; unset, 1. */
     readonly chartSize: number;
+    /** The width of the chart's plot box, as a fraction of the node's width; unset, `chartSize`. */
+    readonly chartWidth: number;
+    /** The height of the chart's plot box, as a fraction of the node's height; unset, `chartSize`. */
+    readonly chartHeight: number;
+    /** How far right of the node's middle the plot box's middle is (a length); unset, 0. */
+    readonly chartOffsetX: number;
+    /** How far down from the node's middle the plot box's middle is (a length); unset, 0. */
+    readonly chartOffsetY: number;
     /** How much of the category side is left empty at each end, as a fraction of it; unset, 0. */
     readonly chartMargin: number;
     /** How much of the category side is left between the categories in all, as a fraction of it; unset, 0. */

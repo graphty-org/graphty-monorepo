@@ -3705,10 +3705,14 @@ async function prove() {
         x = step(H, "--key", "Escape", "--key", "Escape");
         x = step(H, "--click", "Nothing is called this");
         check("a participant's miss exits 0", x.code === 0 && /nothing on screen is called/.test(x.out), x.out);
+        // the canvas takes any dropped file (a model goes on the nodes, any other file opens), so a
+        // drop there reaches the page through the browser's own input path
         x = step(H, "--drop", "friends-v2.csv");
         check(
-            "a drop where nothing takes it says it was not delivered",
-            /the drop was not delivered: nothing in the middle of the window \(empty canvas\)/.test(x.out),
+            "a file dropped on the canvas is taken by the page",
+            /dropped the file friends-v2\.csv on the middle of the window \(empty canvas\); the page took it/.test(
+                x.out,
+            ),
             x.out,
         );
     }

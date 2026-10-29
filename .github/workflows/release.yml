@@ -506,10 +506,22 @@ jobs:
               run: |
                   set -euo pipefail
                   [ "$SHA" = "$GITHUB_SHA" ] && exit 0
-                  if ! git show "${SHA}:.github/workflows/release.yml" | grep -q "refs/heads/channel/full-run"; then
+                  # grep -c reads the whole file: grep -q would stop early and pipefail would read git's SIGPIPE as a miss
+                  if ! git show "${SHA}:.github/workflows/release.yml" | grep -c "refs/heads/channel/full-run" > /dev/null; then
                       echo "::warning::${SHA} predates the hand-off to channel/full-run: tested with ${GITHUB_SHA}'s workflow files"
                       exit 0
                   fi
+                  # the run there enters environments release and full-run, whose deployment branches must name
+                  # channel/full-run (an owner setting, with a ruleset that lets only the deploy key move the branch);
+                  # until they do, the candidate is tested here
+                  for env in release full-run; do
+                      allowed=$(gh api "repos/${GITHUB_REPOSITORY}/environments/${env}/deployment-branch-policies" \
+                          --jq '[.branch_policies[].name] | index("channel/full-run") != null' 2> /dev/null || echo false)
+                      if [ "$allowed" != true ]; then
+                          echo "::warning::environment ${env} does not allow channel/full-run: ${SHA} tested with ${GITHUB_SHA}'s workflow files"
+                          exit 0
+                      fi
+                  done
                   echo "::notice::${SHA} is tested by a run on channel/full-run, with its own workflow files"
                   { echo "handoff=true"; echo "release=false"; } >> "$GITHUB_OUTPUT"
 

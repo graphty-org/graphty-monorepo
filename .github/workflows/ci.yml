@@ -2035,6 +2035,85 @@ jobs:
                   job: cost-accuracy
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # Master's newest capture of each project the Stories jobs capture: the reference a capture compares a story
+    # without a baseline against. Found once per run and handed to every Stories job as an artifact of this run:
+    # each Stories job finding it itself walked master's commits through the API, about 20 calls a job and 34 jobs
+    # a pull request, and that spent the repository's Actions token (1,000 calls an hour, shared by every workflow)
+    # within minutes of a busy hour (#4318). A reference is only a comparison aid, so a failure here never fails
+    # the run: a Stories job without one captures as before.
+    story-references:
+        name: Story references
+        needs: packages
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        continue-on-error: true
+        permissions:
+            contents: read
+            # master's runs and their capture artifacts
+            actions: read
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 2
+                  # cone mode also checks out the root files, visual-review.config.json among them
+                  sparse-checkout: |
+                      tools
+                      visual-review
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            # the Stories jobs' rule: a pull request runs the base branch's capture code, never its own
+            - name: Use the base branch's capture code
+              run: |
+                  if [ "$GITHUB_EVENT_NAME" = pull_request ]; then src=HEAD^1
+                  elif [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then src=$GITHUB_SHA
+                  else exit 0; fi
+                  rm -rf visual-review/capture visual-review/trusted
+                  git archive "$src" visual-review/capture visual-review/trusted | tar -x
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            # `reference` needs no installed dependencies: node and gh only
+            - name: Find master's newest capture of each project
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  MATRIX: ${{ needs.packages.outputs.stories-matrix }}
+                  # the projects' walks over master read the same runs: each read is made once
+                  VISUAL_REVIEW_API_CACHE: ${{ runner.temp }}/github-api
+              run: |
+                  mkdir -p "$RUNNER_TEMP/story-references"
+                  for project in $(jq -r '[.include[].project] | unique[]' <<<"$MATRIX"); do
+                      dir=$(node visual-review/trusted/cli.mjs reference --project "$project" --out "$RUNNER_TEMP/reference") || dir=
+                      if [ -n "$dir" ]; then
+                          cp -r "$dir" "$RUNNER_TEMP/story-references/$project"
+                          echo "$project: $dir"
+                      else
+                          echo "$project: no reference"
+                      fi
+                  done
+
+            - name: Upload the references
+              uses: actions/upload-artifact@v7
+              with:
+                  name: story-references-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/story-references/
+                  retention-days: 1
+                  if-no-files-found: ignore
+
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
     # packed into bins of about 3 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
@@ -2048,14 +2127,13 @@ jobs:
     # report reads these partial captures. No story selected: no job, and "All Checks Pass" counts that a pass.
     stories:
         name: Stories (${{ matrix.name }})
-        needs: [packages, build]
+        # story-references is continue-on-error, so its failure never skips this job
+        needs: [packages, build, story-references]
         # Its story bins are planned only for a pull request's light check, so it runs only there.
         if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
         runs-on: ubuntu-24.04
         permissions:
             contents: read
-            # To download master's newest capture (the reference step below).
-            actions: read
             # The early verdict (the last step) posts a failed "All Checks Pass" check run.
             checks: write
             # The health API's credential (tools/results/post-unstable-stories.mjs posts the unstable stories)
@@ -2161,13 +2239,21 @@ jobs:
                   echo "stories=$ids" >> "$GITHUB_OUTPUT"
                   echo "selected stories: ${ids:-none}"
 
+            # master's newest capture, found once for the run by the Story references job (#4318)
             - name: Download master's newest capture
-              id: reference
               if: github.event_name == 'pull_request' && steps.pick.outputs.stories != ''
               continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  name: story-references-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/story-references
+
+            - name: Use master's newest capture
+              id: reference
+              if: github.event_name == 'pull_request' && steps.pick.outputs.stories != ''
               env:
-                  GH_TOKEN: ${{ github.token }}
-              run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
+                  DIR: ${{ runner.temp }}/story-references/${{ matrix.project }}
+              run: if [ -f "$DIR/results.json" ]; then echo "dir=$DIR" >> "$GITHUB_OUTPUT"; else echo "no reference for this project"; fi
 
             # A changed picture is never a failure (capture exits 0 on changes and on broken stories, which the
             # verdict step below judges); a crash of the tool fails the job.

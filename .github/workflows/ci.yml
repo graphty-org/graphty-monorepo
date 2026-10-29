@@ -2746,7 +2746,7 @@ jobs:
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
-            # The run's token shares one API limit with every run of the repository, and a busy hour used it
+            # The run's token shares its API limits with every run of the repository, and a busy hour used one
             # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
             # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
             # a clear that still fails fails this job, which "re-run failed jobs" then retries.
@@ -2759,11 +2759,19 @@ jobs:
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
                   # An early verdict is a failure posted through the Checks API: its details link is a run or
-                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
+                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten. The
+                  # listing is one GraphQL query, whose limit is separate from REST's: on 2026-10-29 a run waited
+                  # 18 minutes for the REST limit to reset only to find nothing to clear, which is the usual
+                  # case, so REST is used only for a rewrite.
                   clear() {
                       local ids id
-                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
+                      ids=$(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F sha="$SHA" -F check="$CHECK" -f query='
+                          query($owner: String!, $name: String!, $sha: GitObjectID!, $check: String!) {
+                            repository(owner: $owner, name: $name) { object(oid: $sha) { ... on Commit {
+                              checkSuites(first: 100) { pageInfo { hasNextPage } nodes {
+                                checkRuns(first: 100, filterBy: {checkName: $check, checkType: ALL, conclusions: [FAILURE]}) {
+                                  pageInfo { hasNextPage } nodes { databaseId detailsUrl } } } } } } } }' \
+                          --jq '.data.repository.object.checkSuites | if .pageInfo.hasNextPage or any(.nodes[]; .checkRuns.pageInfo.hasNextPage) then error("over 100 check suites or runs") else .nodes[].checkRuns.nodes[] | select(.detailsUrl | contains("/job/") | not) | .databaseId end') || return 1
                       for id in $ids; do
                           gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
                               -f "output[title]=Superseded by a passing run" \
@@ -2771,16 +2779,17 @@ jobs:
                           echo "cleared early verdict $id"
                       done
                   }
-                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
-                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  # four tries; between them an exhausted limit (GraphQL's or REST's) waits for its reset (the
+                  # event that settles it; rate_limit itself is free), any other failure a minute. The job's
+                  # time limit covers one reset.
                   for try in 1 2 3 4; do
                       if clear; then exit 0; fi
                       if (( try == 4 )); then break; fi
-                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
+                      read -r exhausted reset < <(gh api rate_limit --jq '[.resources.core, .resources.graphql] | map(select(.remaining == 0)) | "\(length) \(map(.reset) | max // 0)"' || echo "0 0")
                       wait=60
-                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( exhausted > 0 )); then wait=$(( reset - $(date +%s) + 5 )); fi
                       if (( wait < 1 )); then wait=1; fi
-                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
+                      echo "the API call failed (exhausted limits: $exhausted); trying again in ${wait}s"
                       sleep "$wait"
                   done
                   echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"

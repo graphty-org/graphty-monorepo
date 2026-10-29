@@ -179,11 +179,11 @@ export default tseslint.config(
         rules: { "@typescript-eslint/no-restricted-imports": "off" },
     },
 
-    // The dry run (dry-run/) is a Node script that drives the built app in Playwright: its own code
+    // The dry run (acceptance/) is a Node script that drives the built app in Playwright: its own code
     // runs in Node, and the functions it hands to page.evaluate run in the page, so it declares both.
     // As in visual-review, a JSDoc type is the only type annotation a plain .mjs file has.
     {
-        files: ["dry-run/**/*.mjs"],
+        files: ["acceptance/**/*.mjs"],
         languageOptions: { globals: { ...globals.node, ...globals.browser } },
         settings: { jsdoc: { mode: "typescript" } },
         rules: { "jsdoc/no-types": "off" },

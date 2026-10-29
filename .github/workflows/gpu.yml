@@ -46,6 +46,15 @@ on:
                 default: ""
     workflow_dispatch:
         inputs:
+            # bisect.yml dispatches a point here, on a branch at the point, so the point runs with its own workflow files
+            files:
+                description: "a bisect point's failing test files; empty runs the whole lane"
+                type: string
+                default: ""
+            bisect_point:
+                description: "set by bisect.yml: <red sha>-<point sha>, this run's own concurrency group"
+                type: string
+                default: ""
             # which machine serves the T4 job. The default is a machine.dev on-demand T4 (spot from 2026-10-04 to 2026-10-08) (the Machine Provisioner app
             # is installed on the org; the "Driver up" step below measured Ubuntu 22.04.5, glibc 2.35, libegl1 1.4.0-1
             # present and no /usr/share/vulkan/icd.d, on run 35922927676, 2026-09-23 -- and that 22.04 is what blocks

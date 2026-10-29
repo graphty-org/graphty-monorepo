@@ -306,7 +306,112 @@ async function freezeBuild(tag, phaseName, withMaster) {
 // browser slot was free, and a skipped route reads as a clean one.
 // touched: after a fix pass, the routes the fixes touched. The re-pilot then walks only the success
 // path plus those routes: tier 3's full re-walks kept finding friction the session-ready bar does not need.
+// Every pass starts with the scripted dry run (scriptedPass): no agent walks a success path the script
+// walked and passed, and no agent looks at an end screen that did not change since the earlier pass.
 const id0 = () => "<task id>";
+// The scripted dry run (design/ci/ai-checked-acceptance-tests.md section 10.3): the app's routes
+// (graphty/acceptance/, the success path of every task, with outcome checks read through graphty-element's
+// API) run on the frozen build with no model, and each route's end screen is compared with the
+// earlier pass's (tool/dry-run-pass.mjs). Measured once each on tier 3's T42 (both datasets): the
+// script walks all 30 task halves in 30 to 45 s on a build newer than the routes (on the older frozen
+// tier 3 build 16 of 30 fail, and those tasks get a full pilot). A first pass took 12 minutes and 230
+// agent tool calls; master's all-agent pass took 38 and 407, but most of that gap (3 of its 5 agents,
+// 188 calls) was pilots re-run for a "skipped" prompt defect fixed here, and that pass was not
+// re-measured with the fix. A next pass on the SAME build took 17 minutes and 80 calls, a best case:
+// after a fix build more replays diverge and more pilots run.
+const SCRIPTED = {
+    type: "object",
+    properties: {
+        ran: { type: "boolean" },
+        routes: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    id: { type: "string" },
+                    task: { type: "string" },
+                    feature: { type: "string" },
+                    result: { type: "string" },
+                    reason: { type: ["string", "null"] },
+                    shot: { type: ["string", "null"] },
+                    prevShot: { type: ["string", "null"] },
+                    aria: { type: ["string", "null"] },
+                    change: { type: "string" },
+                    diffImage: { type: ["string", "null"] },
+                },
+                required: ["id", "task", "result", "change"],
+            },
+        },
+    },
+    required: ["ran"],
+};
+async function scriptedPass(tag, phaseName) {
+    const out = `${WALKS}/${tag}/script`;
+    const r = await slot(() =>
+        agent(
+            `Run exactly this one command and change nothing: cd ${ST} && node ${SD}/tool/dry-run-pass.mjs --dist <the frozen build dir from the first line of ${T}/criteria.md> --out ${out} (called directly, never through with-browser.sh: it takes its own GPU and browser slots; exit 1 only means a route failed). Then read ${out}/summary.json if it exists and return ran (true if it exists) and every one of its routes with id, task, feature, result, reason, shot, prevShot, aria, change and diffImage, copied exactly.`,
+            { label: `${tag}: scripted dry run`, phase: phaseName, effort: "low", schema: SCRIPTED },
+        ),
+    );
+    const routes = r?.routes || [];
+    const n = (c) => routes.filter((x) => x.change === c).length;
+    log(
+        r?.ran
+            ? `${tag}: scripted dry run: ${routes.filter((x) => x.result === "pass").length} of ${routes.length} routes passed; end screens ${n("same")} unchanged, ${n("changed")} changed, ${n("new")} new, ${n("unstable")} unstable`
+            : `${tag}: the scripted dry run did not run; every task gets a pilot`,
+    );
+    return r?.ran ? r : null;
+}
+// One fresh-context reviewer judges the routes whose end screen changed since the earlier pass (or has
+// none) and those whose walk broke, each as bug, intended, usability or cannot-tell with its evidence;
+// the prompt and the check of its answer are tool/dry-run-review.mjs's, which agents on long branches use too.
+async function reviewScreens(tag, phaseName, n) {
+    const tool = `${SD}/tool/dry-run-review.mjs`;
+    const out = `${WALKS}/${tag}/script`;
+    return agent(
+        `${RULES}\nRun: cd ${ST} && node ${tool} request ${out} --study ${T}. If it exits 0 or 1 it wrote no request: return { "verdicts": [] }. If it exits 3, read ${out}/review-request.md and do exactly what it says (it asks you to look at ${n} routes' screenshots, judge each, write ${out}/verdicts.json and check it with the same tool), then return that verdicts object. Any other exit (2: the tool failed; 4: the machine could not run the pass) is a failure, never "nothing to review": return { "verdicts": [], "error": "<the exit code and the tool's last lines>" }.`,
+        {
+            label: `${tag}: review changed screens (${n})`,
+            phase: phaseName,
+            schema: {
+                type: "object",
+                properties: {
+                    verdicts: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                route: { type: "string" },
+                                verdict: { type: "string", enum: ["bug", "intended", "usability", "cannot-tell"] },
+                                reason: { type: "string" },
+                                cites: { type: "array", items: { type: "string" } },
+                                evidence: { type: "array", items: { type: "string" } },
+                            },
+                            required: ["route", "verdict", "reason", "cites", "evidence"],
+                        },
+                    },
+                    error: { type: "string" },
+                },
+                required: ["verdicts"],
+            },
+        },
+    );
+}
+// Only the screens that changed since the earlier pass (or have no earlier screen) and the walks that
+// broke before their outcome checks are judged; nothing is reviewed when nothing changed. The same
+// selection as toJudge in tool/dry-run-review.mjs (its test compares them); a route the machine could
+// not run still starts the reviewer, whose tool then reports the pass as could-not-run.
+const reviewed = (r) =>
+    r.change !== "unstable" &&
+    !(r.result !== "pass" && /^checking "/.test(r.reason || "")) &&
+    (r.result !== "pass" || r.change === "changed" || r.change === "new");
+// A failed review is never a clean one: each route it should have judged stays cannot-tell.
+function reviewVerdicts(review, lookAt, tag) {
+    if (!review?.error) return review?.verdicts || [];
+    log(`${tag}: SCREEN REVIEW FAILED, the changed screens were not judged: ${review.error}`);
+    const reason = `screen review failed: ${review.error}`;
+    return lookAt.map((r) => ({ route: r.id, verdict: "cannot-tell", reason, evidence: [] }));
+}
 async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) {
     const pastTurns = prevRound
         ? "the wrong turns participants took on this task in " +
@@ -331,9 +436,18 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
         sameAs
             ? `walk exactly the detours ${T}/rounds/${sameAs}/pilot/${id}/report.md walked (the detour set is held fixed across passes so their counts compare; walk a new one only where that report has none)`
             : `${pastTurns}what a person would try first if they did not know the success path (another panel, the search box, a right-click, a menu, the toolbar, styling from where they are, opening a file from the start screen)`;
-    const walks = touched
-        ? ` THIS IS A TARGETED RE-PILOT after a fix pass. Instead of the three walks below, walk ONLY (1) the success path by pointer and (2) each of these routes the fixes touched that belongs to this task, each its own session: ${JSON.stringify(touched)}. Report only what crashes, blocks the task, or gives a wrong result that would spoil its grading.`
-        : "";
+    // scripted: the scripted dry run walked this task's success path and it passed, so no pilot walks it.
+    const walks = (scripted) => {
+        if (!touched) return "";
+        const success = scripted ? "" : "(1) the success path by pointer and (2) ";
+        return ` THIS IS A TARGETED RE-PILOT after a fix pass. Instead of the walks below, walk ONLY ${success}each of these routes the fixes touched that belongs to this task, each its own session: ${JSON.stringify(touched)}. Report only what crashes, blocks the task, or gives a wrong result that would spoil its grading.`;
+    };
+    // Walk folders are named, so a replay can tell which expected walk it never found.
+    const NAMES = ` Name each walk folder by what it walks: keyboard, detour-1, detour-2 (and so on), success (the pointer success path), touched-<n> (the n-th touched route in the list above, from 1).`;
+    const ways = (id, scripted) =>
+        scripted
+            ? `Walk it TWO ways, each its own session: (1) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${detours(id)}; (2) the success path by KEYBOARD only`
+            : `Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${detours(id)}; (3) the success path again by KEYBOARD only`;
     // Every walk saves its route (route.jsonl). A walk an earlier pass already made is replayed, not
     // re-walked by hand: the replay runs every step that still matches with no model, and stops,
     // session open, where the build now differs (tool/README.md, "Replaying a route").
@@ -342,22 +456,26 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
     const rewalkNote = (id, rewalked) =>
         rewalked
             ? " The earlier pass's walks of this task were already replayed on this build (" +
-              `${WALKS}/${tag}/pilot/${id}/rewalk.json): these matched every check point to the end, so the earlier pass's findings for them stand and you need not walk them again: ${JSON.stringify(rewalked.matched)}; these DIVERGED, each kept as <walk>-diverged: ${JSON.stringify(rewalked.diverged)}. Walk each diverged one again with --replay of its earlier folder into <walk> (it stops, open, where the build differs) and carry on by hand; then the success path's and touched routes' verdicts come from those walks plus the matched ones.`
+              `${WALKS}/${tag}/pilot/${id}/rewalk.json, from ${rewalked.from || "the folder it names"}): these matched every check point to the end, so you need not walk them again, but the earlier pass's findings for them stand: copy every defect and mismatch the earlier pass's report (report.md under ${T}/rounds/<that pass's tag>/pilot/${id}/) records on them into your report and your result: ${JSON.stringify(rewalked.matched)}; any walk asked for here in neither list was never made: walk it; these DIVERGED, each kept as <walk>-diverged: ${JSON.stringify(rewalked.diverged)}. Walk each diverged one again with --replay of its earlier folder into <walk> (it stops, open, where the build differs) and carry on by hand; then the success path's and touched routes' verdicts come from those walks plus the matched ones.`
             : "";
-    const pilot = (id, k, rewalked) =>
+    const pilot = (id, k, rewalked, note = "", scripted = false) =>
         slot(() =>
             agent(
-                `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md, its success path in ${T}/answers.md and the binding decisions in ${DECIDED}; walk it with real.mjs (REAL_DIST set; sessions under ${WALKS}/${tag}/pilot/${id}/, never in the studio's files: real.mjs refuses a walk folder there), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way.${walks}${replayNote.replace(id0(), id)}${rewalkNote(id, rewalked)} Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${detours(id)}; (3) the success path again by KEYBOARD only (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects (where ${DECIDED} settles a behavior, check against it and do not report the decided behavior as a defect). A dry run that passes on the answer key's route is necessary but not sufficient. Walk EVERY route: no free browser slot is a reason to wait for with-browser.sh, never to skip; list anything you did not walk in "skipped". Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths as plain text under ${WALKS}, not image links: the screenshots stay out of git). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), skipped, every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.${k ? " (An earlier attempt left routes unwalked: walk all of them now.)" : ""}`,
+                `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md, its success path in ${T}/answers.md and the binding decisions in ${DECIDED}; walk it with real.mjs (REAL_DIST set; sessions under ${WALKS}/${tag}/pilot/${id}/, never in the studio's files: real.mjs refuses a walk folder there), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way.${note}${walks(scripted)}${NAMES}${replayNote.replace(id0(), id)}${rewalkNote(id, rewalked)} ${ways(id, scripted)} (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects (where ${DECIDED} settles a behavior, check against it and do not report the decided behavior as a defect). A dry run that passes on the answer key's route is necessary but not sufficient. Walk EVERY route: no free browser slot is a reason to wait for with-browser.sh, never to skip; list in "skipped" only a route asked for here that you did not walk (never another task or dataset, nor a state the build does not show: those go in the report), because a pilot with anything in "skipped" is run again. Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths as plain text under ${WALKS}, not image links: the screenshots stay out of git). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), skipped, every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.${k ? " (An earlier attempt left routes unwalked: walk all of them now.)" : ""}`,
                 { label: `${tag} pilot: ${id}${k ? " again" : ""}`, phase: phaseName, schema: PILOT },
             ),
         );
-    // A targeted re-pilot first replays the earlier pass's walks of each task with no model
-    // (real.mjs --rewalk). A task whose every route matched keeps the earlier pass's result; only a
-    // task with a diverged route gets a pilot agent, which carries on from where the build differs.
+    // Before a pilot agent, the earlier pass's walks of the task are replayed with no model
+    // (real.mjs --rewalk). A task whose every route matched keeps the earlier result; only a task with
+    // a diverged route gets a pilot agent, which carries on from where the build differs.
+    const rewalkFrom = (id) =>
+        sameAs
+            ? `${WALKS}/${sameAs}/pilot/${id}`
+            : `<the newest folder ${WALKS}/*/pilot/${id} other than ${WALKS}/${tag}/pilot/${id} that holds a route.jsonl somewhere under it (ls -td); if there is none, run nothing and return ran false>`;
     const rewalkTask = (id) =>
         slot(() =>
             agent(
-                `Run exactly this one command and change nothing: cd ${T} && REAL_DIST=<the frozen build dir from the first line of ${T}/criteria.md> REAL_REWALK_PARALLEL=2 node ${SD}/tool/real.mjs --rewalk ${WALKS}/${sameAs}/pilot/${id} ${WALKS}/${tag}/pilot/${id} (called directly, never through with-browser.sh: its sessions take their own slots). Then read ${WALKS}/${tag}/pilot/${id}/rewalk.json if it exists. Return ran (true if rewalk.json exists), matched (the walks with no "diverged") and diverged (the walks with one, each as "<walk>: step <n>: <why, 200 chars>").`,
+                `Run exactly this one command and change nothing: cd ${T} && REAL_DIST=<the frozen build dir from the first line of ${T}/criteria.md> REAL_REWALK_PARALLEL=2 node ${SD}/tool/real.mjs --rewalk ${rewalkFrom(id)} ${WALKS}/${tag}/pilot/${id} (called directly, never through with-browser.sh: its sessions take their own slots). Then read ${WALKS}/${tag}/pilot/${id}/rewalk.json if it exists. Return ran (true if rewalk.json exists), from (its "from"), matched (the walks with no "diverged") and diverged (the walks with one, each as "<walk>: step <n>: <why, 200 chars>").`,
                 {
                     label: `${tag} rewalk: ${id}`,
                     phase: phaseName,
@@ -366,6 +484,7 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
                         type: "object",
                         properties: {
                             ran: { type: "boolean" },
+                            from: { type: "string" },
                             matched: { type: "array", items: { type: "string" } },
                             diverged: { type: "array", items: { type: "string" } },
                         },
@@ -375,26 +494,74 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
             ),
         );
     const earlier = (id) => (prevPilots || []).find((p) => p && p.task === id);
-    const res = await parallel(
-        idList.map((id) => async () => {
-            if (!touched || !sameAs) return pilot(id, 0);
-            const rw = await rewalkTask(id);
-            if (!rw?.ran || !(rw.matched || []).length) return pilot(id, 0);
-            if (!(rw.diverged || []).length && earlier(id)) {
-                log(`${tag}: ${id}: every earlier route replayed unchanged; the earlier pass's result stands`);
-                return { ...earlier(id), skipped: [] };
-            }
-            return pilot(id, 0, rw);
-        }),
-    );
+    // A touched route this task may own (one naming it, or one naming no task) is walked by a pilot.
+    const touchesTask = (id) =>
+        (touched || []).some((t) => !/\bT\d+/.test(t) || String(t).includes((/^T\d+/.exec(id) || [id])[0]));
+    // The scripted dry run walks every task's success path first, with no model (scriptedPass).
+    const script = await scriptedPass(tag, phaseName);
+    const routesOf = (id) => (script?.routes || []).filter((r) => r.task === id);
+    const scriptedOk = (id) => routesOf(id).length > 0 && routesOf(id).every((r) => r.result === "pass");
+    const scriptNote = (id) => {
+        const rs = routesOf(id);
+        if (!rs.length) return "";
+        if (scriptedOk(id))
+            return ` The scripted dry run already walked this task's success path by pointer and its outcome checks passed (${rs.map((r) => r.id + ", end screen " + r.shot).join("; ")}): do NOT walk it by pointer again; take reached and the success path's verdict from the script.`;
+        const failed = rs
+            .filter((r) => r.result !== "pass")
+            .map((r) => `${r.id}: ${r.reason} (last screen ${r.shot}, the page's accessibility tree then ${r.aria})`)
+            .join("; ");
+        return ` The scripted dry run's walk of this task's success path FAILED: ${failed}. Look at those first and walk the success path by hand from its start to find where and why the build goes another way; report it as a defect with its screenshot, or as an answer-key mismatch if the screen is right and the route is out of date.`;
+    };
+    // A task whose script passed needs a pilot only for the routes no script walks: its earlier
+    // pass's detour and keyboard walks are replayed with no model first (real.mjs --rewalk), and a
+    // pilot agent walks only those that diverged or were never made. No pilot runs only when this
+    // run already holds the earlier pass's result (its defects carry over), the replay found its
+    // keyboard walk and a detour, nothing diverged and no touched route may be this task's.
+    const pilotTask = async (id) => {
+        if (!scriptedOk(id)) return pilot(id, 0, null, scriptNote(id));
+        const rw = await rewalkTask(id);
+        if (!rw?.ran || !(rw.matched || []).length) return pilot(id, 0, null, scriptNote(id), true);
+        const base = (rw.matched || []).map((w) => String(w).split("/").pop());
+        const whole = base.includes("keyboard") && base.some((w) => w.startsWith("detour-"));
+        if (!(rw.diverged || []).length && earlier(id) && whole && !touchesTask(id)) {
+            log(`${tag}: ${id}: script passed and every earlier route replayed unchanged; the earlier result stands`);
+            return { ...earlier(id), reached: true, skipped: [] };
+        }
+        return pilot(id, 0, rw, scriptNote(id), true);
+    };
+    const lookAt = (script?.routes || []).filter(reviewed);
+    const unstable = (script?.routes || []).filter((r) => r.change === "unstable").map((r) => r.id);
+    if (unstable.length)
+        log(`${tag}: scripted screens that differ between two runs of one build, not reviewed: ${unstable.join(", ")}`);
+    const [review, ...res] = await parallel([
+        () => (lookAt.length ? reviewScreens(tag, phaseName, lookAt.length) : null),
+        ...idList.map((id) => () => pilotTask(id)),
+    ]);
     const incomplete = (i) => !res[i] || (res[i].skipped || []).length > 0;
     for (let k = 1; k <= 2; k++) {
         const redo = idList.map((id, i) => i).filter(incomplete);
         if (!redo.length) break;
-        const again = await parallel(redo.map((i) => () => pilot(idList[i], k)));
+        const again = await parallel(
+            redo.map((i) => () => pilot(idList[i], k, null, scriptNote(idList[i]), scriptedOk(idList[i]))),
+        );
         redo.forEach((i, j) => {
             if (again[j]) res[i] = again[j];
         });
+    }
+    // The reviewer's bug, usability and cannot-tell verdicts join the task they belong to, for the triage.
+    const taskOfRoute = (id) => (script?.routes || []).find((r) => r.id === id)?.task;
+    const verdicts = reviewVerdicts(review, lookAt, tag);
+    for (const v of verdicts) {
+        const d = `${taskOfRoute(v.route)}: route ${v.route}: ${v.verdict}: ${v.reason} -- ${(v.evidence || []).join(" ")}`;
+        if (v.verdict === "intended") {
+            log(`${tag}: screen change judged intended (${(v.cites || []).join(", ")}): ${d}`);
+            continue;
+        }
+        const i = idList.indexOf(taskOfRoute(v.route));
+        if (i >= 0 && res[i]) res[i] = { ...res[i], defects: [...(res[i].defects || []), d] };
+        // after the retries, so a reviewer's note never stops a failed pilot being run again
+        else if (i >= 0) res[i] = { task: idList[i], reached: false, skipped: ["every route"], defects: [d] };
+        else log(`${tag}: screen review finding with no task: ${d}`);
     }
     // An unwalked route is a defect of the pass, so the pass can never read as clean.
     idList.forEach((id, i) => {

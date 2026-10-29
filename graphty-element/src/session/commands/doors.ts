@@ -1878,6 +1878,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             drawnPattern: READ,
             drawnCentre: READ,
             drawnCaps: READ,
+            arrowHeadStackCaps: READ,
+            arrowTailStackCaps: READ,
             drawnGradient: READ,
             invalidatePositionCache: RENDER,
             update: RENDER,

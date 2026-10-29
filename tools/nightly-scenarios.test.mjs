@@ -922,6 +922,18 @@ describe("the nightly path's scenario matrix", () => {
         assert.equal(autoAbandon({ hold: old, chain, sites: [N], recent: [images] }).abandon, false);
     });
 
+    it("(17) a candidate tested in place whose workflow files differ (#4522): the run's own commit is tested, its site assembled", () => {
+        // the hand-off to channel/full-run unavailable (an older candidate, or environments that do not allow it),
+        // the handoff step tests M in place of H, whose workflows lack M's new Checks step's script; M's master build
+        // has kept no site yet
+        const r = fullRun({ judged: { held: "" }, pick: { sha: M, build_run: "", site: "build" } });
+        assert.deepEqual([r.jobs.ci.inputs.ref, r.jobs.ci.inputs.reuse_build_run], [M, ""]);
+        ran(r, "pick", ...LANE_JOBS, "verdict", "candidate_site", "version", "land", "publish", "site");
+        assert.equal(r.conclusion, "success");
+        // a candidate that shares the run's workflows reuses its own master build and site
+        skipped(fullRun({ judged: { held: "" } }), "candidate_site");
+    });
+
     describe("(15) a GitHub 5xx", () => {
         // a gh that answers 502 to its first `fail` calls, then as the row says
         const fakeGh = (name, fail, body) => {

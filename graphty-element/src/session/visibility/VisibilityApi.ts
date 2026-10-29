@@ -1624,9 +1624,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 const key =
                     signature === null ? null : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
                 let count = key === null ? undefined : bucket.byRule.get(key);
-                if (count === undefined) {
-                    count = Object.freeze({ id: condition.id, ...countRule(active, condition.rule) });
-                }
+                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule) });
 
                 if (key !== null) {
                     kept.set(key, count);

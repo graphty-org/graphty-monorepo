@@ -14,6 +14,7 @@ import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { runHeld, withHeldShaders } from "../settings/heldShaders";
+import { addSource, incomingFiles } from "../start/open";
 import { newProjectId, type Notice, openRun, type SettleOpen, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
@@ -367,8 +368,9 @@ function withoutExtension(fileName: string): string {
 type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
 
 /**
- * A data file the element opened: it goes through the Data page, or, read into the graph, starts
- * a new graph's history or says it was added.
+ * A data file the element opened: from the start screen it goes through the Data page, into an
+ * open project it is added as File... adds it; read into the graph, it starts a new graph's
+ * history or says it was added.
  * @param workspace - the workspace store.
  * @param session - the session.
  * @param report - what the element said of the file.
@@ -385,15 +387,17 @@ function openedData(
     focusLater: (focus?: boolean) => void,
 ): void {
     if (report.opened === "graph") {
-        // A data file goes through the Data page, where its roles and weight are chosen like
-        // any other load; the page reads the file itself. From the start screen it opens as a
-        // new graph, as New from data... does, so Cancel goes back to the start screen.
+        // From the start screen a data file goes through the Data page as a new graph, as New
+        // from data... does, so Cancel goes back to the start screen. Into an open project it is
+        // added as File... adds it: onto a graph that holds data, through the join screen.
         report.draft?.dispose();
+        focusLater(false);
         if (fresh) {
             workspace.set({ project: null });
+            openDataPage(workspace, { intent: "new", files: [file] });
+        } else {
+            addSource({ workspace, session, element: null }, incomingFiles([file]));
         }
-        openDataPage(workspace, { intent: fresh ? "new" : "add", files: [file] });
-        focusLater(false);
         return;
     }
     // Opened as a new graph, it started its history (`history: "start"`).
@@ -495,8 +499,8 @@ function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: No
  * Opens a file in the session through graphty-element's one intake verb, `project.open`. A
  * project file replaces the project (refused over unsaved changes until the reader says Discard);
  * the header takes the project's name, and Save writes the browser-kept project it came from
- * again. A data file opens the Data page: as a new graph from the start screen, or to be added to
- * an open project.
+ * again. A data file opens the Data page as a new graph from the start screen, and is added as
+ * File... adds it to an open project.
  * @param ctx - the command context, with the project's session.
  * @param session - the session.
  * @param pending - the file and where it came from.
@@ -545,7 +549,7 @@ async function openInSession(
 /**
  * Opens a project or data file (Open project or file..., a dropped file, Recent projects): inside
  * an open project a project file opens in its place (asking first over unsaved changes) and a
- * data file opens the Data page to be added; from the start screen it opens a project whose element
+ * data file is added as File... adds it; from the start screen it opens a project whose element
  * reads the file once it is up, and a data file then opens the Data page as a new graph.
  * @param ctx - the command context.
  * @param file - the file.

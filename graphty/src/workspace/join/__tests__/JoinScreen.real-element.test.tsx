@@ -10,13 +10,39 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { assert, beforeAll, describe, it, vi } from "vitest";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+/** Eleven gauges, read as nodes. */
+const GAUGES = [
+    "id,station",
+    ...Array.from({ length: 11 }, (_, i) => `G${String(i + 1).padStart(2, "0")},S${String(i + 1)}`),
+].join("\n");
+
+/** Fifteen flows between gauges: one repeats an earlier row, one ends at G12, a gauge not in the graph. */
+const FLOWS = [
+    "from,to,km",
+    "G06,G01,3.2",
+    "G10,G06,2.8",
+    "G01,G02,1.9",
+    "G02,G03,2.4",
+    "G11,G02,1.6",
+    "G03,G04,2.1",
+    "G04,G05,1.7",
+    "G05,G07,2.5",
+    "G07,G08,1.9",
+    "G08,G09,2.2",
+    "G03,G04,2.1",
+    "G09,G12,4.0",
+    "G11,G03,2.0",
+    "G04,G08,3.6",
+    "G05,G08,3.1",
+].join("\n");
 
 /** A hang guard for the element coming up and loading, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -50,11 +76,14 @@ function drop(file: File): void {
 
 /**
  * An empty project on the Data place with a first file loaded.
- * @param first - the first file's name.
+ * @param first - the first file, or a fixture's name.
  * @param nodes - the nodes it draws.
  * @returns the store and the session.
  */
-async function projectWith(first: string, nodes: number): Promise<{ store: WorkspaceStore; session: GraphSession }> {
+async function projectWith(
+    first: string | File,
+    nodes: number,
+): Promise<{ store: WorkspaceStore; session: GraphSession }> {
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
@@ -71,7 +100,7 @@ async function projectWith(first: string, nodes: number): Promise<{ store: Works
         throw new Error("the element never came up");
     }
     const live = session;
-    drop(await fixture(first));
+    drop(typeof first === "string" ? await fixture(first) : first);
     await waitFor(
         () => {
             assert.strictEqual(live.data.nodes().length, nodes);
@@ -317,5 +346,30 @@ describe("the join screen on the real element", () => {
         );
         assert.strictEqual(session.data.nodes().length, 40);
         assert.strictEqual(session.data.sources()[1]?.kind, "join");
+    });
+
+    it("opens from Quick actions > Add data..., the same as the Sources + File...", async () => {
+        const { session } = await projectWith(new File([GAUGES], "gauges.csv"), 11);
+
+        // The file input, as where a browser has no File System Access picker.
+        vi.stubGlobal("showOpenFilePicker", undefined);
+        try {
+            await commands.chooseNextFile("flows.csv", "text/csv", FLOWS);
+            await userEvent.keyboard("{Control>}k{/Control}");
+            await userEvent.click(await screen.findByRole("option", { name: /Add data\.\.\./ }));
+            const join = await screen.findByRole("region", { name: "Join flows.csv" }, { timeout: TIMEOUT_MS });
+            assert.deepEqual(chips(join), ["14 edges added", "1 new node", "1 not in graph", "1 repeated key"]);
+            await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+            await waitFor(
+                () => {
+                    assert.strictEqual(session.data.edges().length, 14);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.strictEqual(session.data.nodes().length, 12, "G12, the unknown end, is added");
+            assert.isAbove(session.data.issues().length, 0, "the unknown end is reported");
+        } finally {
+            vi.unstubAllGlobals();
+        }
     });
 });

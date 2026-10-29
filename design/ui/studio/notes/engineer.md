@@ -17,11 +17,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0.  (2026-10-29) A re-walk after a rebuild must run with `REAL_WARM_POOL=0`: a warm browser of the
+0.  (2026-10-29) Every door that adds a data file to an open project goes through
+    `addSource` in `start/open.ts` (join screen onto a graph with data): Sources + File..., Open
+    project or file..., a window or canvas drop, Quick actions > Add data... (now
+    `chooseAndOpenFile`), and a Recent entry that is a data file (`openedData` in
+    `project/actions.ts`). The older "Add to <project>" Data page is reachable from no door; only
+    New from data... (a new graph) and Replace still open the Data page. Test:
+    `join/__tests__/JoinScreen.real-element.test.tsx` "opens from Quick actions > Add data...".
+1.  (2026-10-29) A re-walk after a rebuild must run with `REAL_WARM_POOL=0`: a warm browser of the
     same build stamp (the stamp is HEAD, not the dist's content) keeps the app it loaded BEFORE the
     rebuild, so the replay shows the old code pixel for pixel. `session.log` says "took over warm
     browser"; pixel-diff an old and new screenshot to catch it.
-1.  (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
+2.  (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
     match (Before -> After, Between -> Before) clears the box but the filter keeps the old bounds,
     so the card reads "After [empty]" while its count and the marks still show Before 2005
     (re-walk T65B-path/17.png, 24.png). Fix: a date card with no bound must write no condition (or
@@ -238,3 +245,20 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
   back to the loaded column, so a global `edgeWeightPath` set before load cannot make runs throw
   ("nothing carries the weight").
 - Note: "dijkstra" is not a run key; the catalog's Dijkstra is `shortest-path`.
+
+## 2026-10-29 -- Add data... opens the join screen
+
+- Decision: Quick actions > Add data... runs `chooseAndOpenFile`, the same as Sources + File....
+  Why: it opened the older "Add to <project>" Data page, whose default dropped an edge to an unknown
+  node and reported nothing (decided.md, "Every door that adds a data file to an open graph opens
+  the join screen").
+- Same root, two more doors found by grepping `openDataPage(... "add")` and `openProjectFile`
+  callers: the canvas drop (`canvas/useCanvasDrop.ts`) called `openProjectFile` with no `onData`,
+  so a data file dropped on the canvas also reached the old page; it now calls `openFiles`, as the
+  window drop does. A Recent entry that is a data file, opened inside a project, now goes through
+  `addSource` instead of the page.
+- Tried: removed the DataPage test of the old Add data... door (the page itself keeps its tests
+  through `openDataPage`). New test fails on HEAD's commands.ts (times out waiting for the join
+  screen), passes with the change. Walk on a fresh build: gauges.csv, then Add data... flows.csv
+  shows "14 edges added, 1 new node, 1 not in graph, 1 repeated key"; Join gives 12 nodes, 14
+  edges, and an issue chip on the flows row (design/ui/studio/tmp/r1-dry1-U3/walk/04-06.png).

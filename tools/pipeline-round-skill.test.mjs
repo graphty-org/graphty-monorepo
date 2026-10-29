@@ -193,6 +193,8 @@ describe("the dry run before a long-lived branch's pull request", () => {
             assert.match(text, /pnpm run check:quick --with-dry-run/);
             assert.match(text, /long-lived/);
             assert.match(text, /graphty app/);
+            assert.match(text, /node graphty\/dry-run\/run\.mjs/);
+            assert.match(text, /shared component/);
         });
     }
 

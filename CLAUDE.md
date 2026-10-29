@@ -949,10 +949,12 @@ Design: `design/ci/channels-pipeline.md`.
    (`pnpm run check:quick`, or `pnpm run test:changed --base origin/master`, through `tools/low-priority.sh`),
    and `node tools/sonar-gate.mjs`. Long runs go in the background. A long-lived branch -- open more than about
    two days, holding more than a day of work, or after a merge of master that brought app or graphty-element
-   changes or needed conflicts resolved -- whose change reaches the graphty app also runs the app's dry run
+   changes or needed conflicts resolved, or after a large change on any branch (a refactor of a shared component,
+   a dependency or lockfile upgrade, a change to graphty-element's styling, layout or rendering) -- whose change
+   reaches the graphty app also runs the app's dry run
    (`graphty/dry-run/`: every route walked in a real browser on this machine's NVIDIA card, about a minute after
    the build): `pnpm run check:quick --with-dry-run`, or `node graphty/dry-run/run.mjs` after
-   `pnpm exec nx run graphty:build`. Fix every failed route before opening the pull request. Nothing runs it
+   `pnpm exec nx run graphty:build` (faster when the quick check would run whole test shards). Fix every failed route before opening the pull request. Nothing runs it
    automatically, in CI or in a hook: the branch's owner decides (design/ci/ai-checked-acceptance-tests.md, 10.4).
 3. When the work is finished -- never earlier, because auto-merge merges the first green commit -- write
    a Proof file (the commands you ran and what they showed) under `tmp/<task>/` and run

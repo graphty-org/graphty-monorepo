@@ -619,11 +619,11 @@ describe("the location map's history and map", () => {
             unused: [],
         });
 
+        // The layout and the map under it are settled once the frame is final: wait for that,
+        // not inside vi.waitFor, whose one-second deadline the wait itself can outlast (#4391).
         await layout.set("location-map");
-        await vi.waitFor(async () => {
-            await applied(element);
-            assert.strictEqual(element.mapFrame?.location.kind, "columns");
-        });
+        await applied(element);
+        assert.strictEqual(element.mapFrame?.location.kind, "columns");
         const detected = scenePositions(element);
 
         await element.session.config.set({
@@ -644,11 +644,8 @@ describe("the location map's history and map", () => {
 
         // The same layout again reads the designated pair.
         await layout.set("location-map");
-        await vi.waitFor(async () => {
-            await applied(element);
-            const location = element.mapFrame?.location;
-            assert.deepInclude(location, { kind: "columns", latitude: "north", longitude: "east" });
-        });
+        await applied(element);
+        assert.deepInclude(element.mapFrame?.location, { kind: "columns", latitude: "north", longitude: "east" });
         assert.notDeepEqual(scenePositions(element), detected, "the nodes moved to the designated places");
 
         // A designated column no node carries is refused, as a named option is.

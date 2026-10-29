@@ -956,6 +956,15 @@ describe("a label drawn as runs side by side", () => {
             ])?.content,
             "a\nb\nc",
         );
+        // turned upright (UP_90), each name's anchor sits as far down as it is long: still read left to right
+        assert.strictEqual(
+            mergeTexts([
+                text("a", 104, 100, { rotation: -90 }, 6, 10),
+                text("b", 116, 98, { rotation: -90 }, 6, 10),
+                text("c", 128, 104, { rotation: -90 }, 6, 10),
+            ])?.content,
+            "a\nb\nc",
+        );
         // a run whose text keeps its blank before its word (" x" drawn as "x" from where the blank starts)
         const x = run("x", 107, 6);
         x.text = { ...(x.text as PText), blank: { before: true, after: false } };

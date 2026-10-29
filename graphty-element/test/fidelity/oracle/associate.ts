@@ -97,7 +97,10 @@ const median = (xs: readonly number[]): number => {
     const v = [...xs].sort((a, b) => a - b);
     return v.length === 0 ? 1 : v[Math.floor(v.length / 2)];
 };
-const byText = (a: PText, b: PText): number => a.y - b.y || a.x - b.x;
+// turned words (a chart's upright category names) stand side by side, each anchored as far down as it is long: read
+// left to right
+const byText = (a: PText, b: PText): number =>
+    (a.rotation !== 0 && b.rotation !== 0 ? a.x - b.x : 0) || a.y - b.y || a.x - b.x;
 
 /**
  * The shape class a primitive draws.

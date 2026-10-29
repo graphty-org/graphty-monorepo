@@ -657,7 +657,7 @@ const UNAPPROVED_SINCE_CLEAR = `WITH n AS (SELECT project, story, mode, baseline
      AND n.baselines_tree = c.baselines_tree),
  m AS (SELECT project, story, mode, MAX(CASE WHEN status = 'unchanged' THEN k ELSE 0 END) AS clear FROM t GROUP BY project, story, mode)
  SELECT t.project, t.story, t.mode, t.sha FROM t JOIN m ON m.project = t.project AND m.story = t.story AND m.mode = t.mode
- WHERE t.k > m.clear AND t.status IN (${[...QUEUE_STATUSES].map((q) => `'${q}'`).join(", ")}) ORDER BY t.k DESC`;
+ WHERE t.k > m.clear AND t.status IN ('changed', 'new', 'unseeded') ORDER BY t.k DESC`; // QUEUE_STATUSES
 
 async function getStoryCaptures(_query, _who, db) {
     const [{ results: newest }, last, { results: notified }, { results: since }] = await Promise.all([

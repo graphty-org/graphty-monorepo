@@ -429,10 +429,13 @@ How it is built (`rollingPick` in `tools/full-run.mjs`):
 - **"Holds the newest approval merge"** is "has head's `visual-baselines` tree".
 - **"Unapproved"** is a story's newest rolling capture with status changed, new or unseeded, rendered under
   head's baselines tree. A capture rendered under an older tree is left out (an approval merged since may
-  cover it; the next slice renders it again). The "first commit" is the oldest such render on master's first
-  parents. The store keeps each story's newest capture only, so this is the oldest render showing an
-  unapproved picture, not the merge that changed it; a picture changed earlier than that render is held by
-  the full run, as today.
+  cover it; the next slice renders it again). The "first commit" is the oldest render on master's first
+  parents of such a story since it last rendered unchanged under that tree (the store answers it as
+  `firstUnapprovedSha`), so a story re-rendered since it changed still bounds the rule at its first changed
+  render. That render is not the merge that changed the picture: a picture changed between the story's last
+  unchanged render and its first changed one is held by the full run, as today.
+- **Never idles a slot.** A preferred commit that would only inherit an older verdict (nothing but versions
+  or approval records since a judged commit) would test nothing, so the slot keeps today's rule.
 - **No preference** (today's rule chooses) when no capture is unapproved, when no kept-site commit older than
   the first one holds head's tree, or when that commit is already judged or older than nightly. So the rule
   never makes a slot idle: a commit the rule would pick a second time is judged, and the slot tests master's

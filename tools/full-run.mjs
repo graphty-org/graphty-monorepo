@@ -191,12 +191,15 @@ const UNAPPROVED = new Set(["changed", "new", "unseeded"]);
  */
 export function rollingPick({ head, sites, judged, firstParents, sameBaselines, hasNightly, tree, captures }) {
     if (!captures) return { sha: "", why: "the store did not answer for the rolling captures" };
+    // a story re-rendered since it changed counts from its first unapproved render (firstUnapprovedSha), not its newest
     const unapproved = new Set(
-        captures.filter((c) => UNAPPROVED.has(c.status) && c.baselinesTree === tree).map((c) => c.sha),
+        captures
+            .filter((c) => UNAPPROVED.has(c.status) && c.baselinesTree === tree)
+            .flatMap((c) => [c.sha, c.firstUnapprovedSha ?? c.sha]),
     );
     const chain = firstParents(head);
-    // ponytail: the first unapproved commit is the oldest render showing one, not the merge that changed the picture
-    // (the store keeps each story's newest capture only); a picture changed earlier is held by the full run as today
+    // ponytail: the first unapproved commit is the oldest render showing one, not the merge that changed the picture;
+    // a picture changed between a story's last unchanged render and that one is held by the full run, as today
     const first = chain.findLastIndex((s) => unapproved.has(s));
     if (first < 0) return { sha: "", why: "no rolling capture shows an unapproved picture" };
     const x = short(chain[first]);
@@ -220,15 +223,10 @@ function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNig
         mode === "full" && rolling
             ? rollingPick({ head, sites, judged, firstParents, sameBaselines, hasNightly, ...rolling })
             : undefined;
-    const p = slotOn(rule?.sha && rolling.on ? rule.sha : today, {
-        judged,
-        firstParents,
-        stray,
-        sameBaselines,
-        onNightly,
-        hasNightly,
-        hold,
-    });
+    const on = { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold };
+    const preferred = rule?.sha && rolling.on ? slotOn(rule.sha, on) : undefined;
+    // a preferred commit that would only inherit a verdict tests nothing: the slot keeps today's rule
+    const p = preferred?.run ? preferred : slotOn(today, on);
     const why = p.sha === today ? p.why : `ordering: ${rule.why}: ${p.why}`;
     return { ...p, why, today, rolling: rule };
 }

@@ -930,6 +930,20 @@ describe("the ordering-only pick rule (early-capture.md 4e)", () => {
         assert.equal(run([shot("c2")], { extra: { hasNightly } }).sha, "c3");
     });
 
+    it("never idles a slot on a preferred commit that would only inherit a verdict", () => {
+        // c1 inherits c0's verdict (nothing but versions between them), so preferring it would test nothing
+        const stray = (_from, to) => (to === "c1" ? [] : code());
+        const store = { ...sites, recent: [{ sha: "c0", state: "red" }] };
+        const p = run([shot("c2")], { store, extra: { stray, sameBaselines: () => true } });
+        assert.deepEqual([p.run, p.sha, p.rolling.sha], [true, "c3", "c1"]);
+    });
+
+    it("bounds the preference by a story's first unapproved render, not its newest", () => {
+        // the story changed at c2 and a later slice rendered it again at c3: the rule still keeps to c1
+        const p = run([{ ...shot("c3"), firstUnapprovedSha: "c2" }]);
+        assert.deepEqual([p.sha, p.rolling.sha], ["c1", "c1"]);
+    });
+
     it("never changes a restart, a candidate run or a pick without the store", () => {
         const rolling = { on: true, tree: "T", captures: [shot("c2")] };
         const base = { head: "c3", firstParents, stray: code, sameBaselines, rolling };

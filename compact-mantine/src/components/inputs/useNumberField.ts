@@ -132,8 +132,8 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
     const shown = draft ?? display;
     useLayoutEffect(() => {
         const input = field.current;
-        if (keepSelected.current && input && input.ownerDocument.activeElement === input) {
-            input.select();
+        if (keepSelected.current && input?.ownerDocument.activeElement === input) {
+            input?.select();
         }
     }, [shown]);
 

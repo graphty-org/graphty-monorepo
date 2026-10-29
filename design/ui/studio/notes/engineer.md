@@ -17,6 +17,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-10-29) Re-walk of the five fixes (source row chips, Add data doors, column kind, Data
+  source filter card, export scope) on dist stamp 9eb2d0d4d89d (built after every source edit):
+  nothing worse, each acceptance holds. Walks: `design/ui/studio/tmp/r1-dry1-recheck-U1/`
+  (crops in `crops/`). Pilot walks to `--replay` live in the main checkout's
+  `tmp/design-studio/tier4/r1/pilot/<task>/<walk>`, not in `rounds/r1/pilot/` (reports only).
+  Seen, not caused by these fixes: (a) at the narrowest left panel a joined row's name shrinks to
+  one letter ("d..", "f..") -- chips whole, tooltip kept, but two loads starting with the same
+  letter would look alike; (b) unticking EVERY load in a Filters Data source card leaves the last
+  rule in force (11 of 12 still hidden, `ruleOfCards` returns null for an unfinished card and the
+  old rule stays) -- T66B-success-2/16.png; (c) gauges' auto-detected Time on text `installed`
+  shows no Time pill in the table header (pill comes from `column.role`, which the auto time
+  field does not set), so nothing in the table marks it -- T60A-empty-doors/04.png.
+
 0.  (2026-10-29) Export opens on the whole graph every time (`ExportDialog`'s open effect sets
     `scope` on EVERY opening, Image openings too: "all", or `source:<key>` only for a source row's own
     Export... with two or more loads). Before, a source row's scope stuck in the Data choices and

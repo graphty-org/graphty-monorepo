@@ -1438,6 +1438,7 @@ jobs:
               continue-on-error: true
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: |
                   node tools/test-select.mjs --base HEAD^1 --head HEAD --plan > "$RUNNER_TEMP/reach-plan.json"
                   node tools/channel/story-slices.mjs reach --plan "$RUNNER_TEMP/reach-plan.json" --sha "$GITHUB_SHA"

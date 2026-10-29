@@ -105,6 +105,7 @@ jobs:
               id: plan
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   SHA: ${{ steps.build.outputs.sha }}
                   BINS: ${{ inputs.bins || (inputs.mode == 'idle' && '6' || '2') }}
               run: node tools/channel/story-slices.mjs plan --sha "$SHA" --bins "$BINS" | tee -a "$GITHUB_OUTPUT"
@@ -240,6 +241,7 @@ jobs:
               if: always() && inputs.post && steps.capture.outcome != 'skipped'
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
                   PROJECT: ${{ matrix.project }}
                   FILES: ${{ toJSON(matrix.files) }}
                   SHA: ${{ needs.plan.outputs.sha }}

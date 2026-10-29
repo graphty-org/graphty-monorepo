@@ -1604,7 +1604,7 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
 /**
  * Packages and everything they depend on in nx's graph, transitively.
  * @param names the packages
- * @param deps nx's dependencies by project name (projectGraph().deps); none counts the names alone
+ * @param deps nx's dependencies by package directory (selectChange().deps); none counts the names alone
  * @returns the closure
  */
 function withDeps(names, deps) {
@@ -1659,7 +1659,7 @@ function unprovenStories(project, shards, drawnBy, deps, drawable, packages) {
  * @param input.selection selectShards() for them
  * @param input.rules loadRules(root).stories
  * @param input.lockMoved lockMoves() for the change (false when the lockfile did not change)
- * @param input.deps nx's dependencies by project name (projectGraph().deps), which an unproven project's drawnBy
+ * @param input.deps nx's dependencies by package directory (selectChange().deps), which an unproven project's drawnBy
  *   packages bring in
  * @returns `[{ project, mode: "all"|"files"|"none", files, baselines, reasons }]`; baselines are the story ids
  *   whose baseline image changed, which run whatever the mode
@@ -2841,7 +2841,7 @@ function graphChild(root, dir, config, on = false) {
  * @param deferDownstream selectPackages' option of that name
  * @param lockRefs `{ base, head }` (head null for the working tree) to read a changed lockfile between; without
  *   it a changed lockfile runs everything
- * @returns `{ everything, packages, shards, deps }` (deps: nx's dependencies by project name)
+ * @returns `{ everything, packages, shards, deps }` (deps: nx's dependencies by package directory)
  */
 export async function selectChange(root, changed, shards, graphs, deferDownstream = false, lockRefs = null) {
     const graph = projectGraph(root);
@@ -2868,7 +2868,13 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     return {
         ...sel,
         shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
-        deps: graph.deps,
+        // by directory: nx names remote-logger, which has no project.json, @graphty/remote-logger
+        deps: new Map(
+            [...graph.deps].map(([name, ds]) => [
+                graph.roots.get(name) ?? name,
+                new Set([...ds].map((d) => graph.roots.get(d) ?? d)),
+            ]),
+        ),
     };
 }
 

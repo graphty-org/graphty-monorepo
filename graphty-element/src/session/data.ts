@@ -22,6 +22,7 @@ import {
 } from "@graphty/graph-samples";
 import { generateGraph, type GeneratorParams } from "@graphty/graph-samples/generators";
 
+import { designatedWeight } from "../algorithms/input/weight";
 import { detectFormat, undetectedFormat } from "../catalog/detect";
 import { sourceDescriptors } from "../catalog/sources";
 import type {
@@ -3562,15 +3563,17 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The weight the graph was loaded with, and the meaning chosen for it at load.
-     * @returns the weight, or null when the last load read none
+     * The weight runs read, and its meaning: the edge column given the weight role (in the load's
+     * mapping or later with {@link setRole}), else the one the last load read weights from.
+     * @returns the weight, or null when no column has the weight role
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
     loadedWeight(): LoadedWeight | null {
-        const attribute = this.lastImport()?.weights.attribute ?? null;
-        return attribute === null
-            ? null
-            : Object.freeze({ attribute, meaning: this.readConfig().knownFields.edgeWeightMeaning });
+        const { edgeWeightPath, edgeWeightMeaning } = this.readConfig().knownFields;
+        const attribute = designatedWeight(edgeWeightPath, this.lastImport()?.weights.attribute ?? null, (name) =>
+            this.attributes().some((c) => c.kind === "edge" && c.name === name),
+        );
+        return attribute === null ? null : Object.freeze({ attribute, meaning: edgeWeightMeaning });
     }
 
     /**

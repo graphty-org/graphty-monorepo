@@ -57,9 +57,10 @@ afterEach(() => {
 /**
  * An element holding messages.csv, its weight `emails`.
  * @param weightMeaning - The meaning chosen at load, or undefined for none.
+ * @param weighted - Whether the load maps `emails` as the weight.
  * @returns the element
  */
-async function loaded(weightMeaning?: WeightMeaning["meaning"]): Promise<Graphty> {
+async function loaded(weightMeaning?: WeightMeaning["meaning"], weighted = true): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "400px";
@@ -73,7 +74,7 @@ async function loaded(weightMeaning?: WeightMeaning["meaning"]): Promise<Graphty
         mapping: {
             source: "from",
             target: "to",
-            weight: "emails",
+            ...(weighted ? { weight: "emails" } : {}),
             ...(weightMeaning === undefined ? {} : { weightMeaning }),
         },
     });
@@ -157,6 +158,29 @@ describe("every run reads the loaded weight", () => {
                 meaning: "distance",
                 reads: "strength",
             });
+        },
+        TEST_TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "reads the column given the weight role after the load, with its meaning",
+        async () => {
+            const element = await loaded(undefined, false);
+            await element.session.data.setRole({ kind: "edge", name: "emails" }, "weight");
+            await element.session.config.set({ data: { knownFields: { edgeWeightMeaning: "distance" } } });
+
+            // Shortest path is Dijkstra over the weight. By emails the direct edge (9) beats
+            // p01-p12-p03 (6 + 4); a hop count would say 1.
+            const path = await run(element, "shortest-path", { source: "p01", target: "p03" });
+            assert.deepStrictEqual(path.caveats.weight, EMAILS_AS_DISTANCE);
+            assert.strictEqual(path.result?.graph.cost, 9);
+
+            // Taken away again, the run counts hops.
+            await element.session.data.setRole({ kind: "edge", name: "emails" }, null);
+            const hops = await run(element, "shortest-path", { source: "p01", target: "p03" });
+            assert.isNull(hops.caveats.weight ?? null);
+            assert.strictEqual(hops.result?.graph.cost, 1);
         },
         TEST_TIMEOUT_MS,
     );

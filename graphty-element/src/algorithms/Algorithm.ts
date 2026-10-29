@@ -397,6 +397,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             (this.constructor as typeof Algorithm).weightMeaning,
             this.#weightAsked,
             loadedWeightOf(this.graph),
+            this.graph.getDataManager().lastImport?.weights.attribute ?? null,
         );
         return this.#weightReading;
     }
@@ -845,12 +846,18 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
 }
 
 /**
- * The weight a graph was loaded with: the column the last load read weights from, and the meaning
- * chosen for it at load. A graph with no load report (a bare test graph) has none.
+ * The weight runs read: the session's `data.loadedWeight()` -- the column given the weight role,
+ * else the one the last load read -- and its meaning. A bare test graph with no session reads the
+ * last load's report. A graph with no load report has none.
  * @param graph - The graph.
  * @returns The weight, or null.
  */
 function loadedWeightOf(graph: Graph): LoadedWeightFact | null {
+    const session = (graph as Partial<Pick<Graph, "getSession">>).getSession?.();
+    if (session !== undefined) {
+        return session.data.loadedWeight();
+    }
+
     const attribute = graph.getDataManager().lastImport?.weights.attribute ?? null;
     return attribute === null
         ? null

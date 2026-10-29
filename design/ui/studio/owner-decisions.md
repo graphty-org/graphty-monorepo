@@ -37,7 +37,11 @@ From the tier 4 dry run (`tier4/dry-run-r1-1.md`).
   a defect fix, not a change of behavior: no consumer sets the weight role to have runs ignore it, and
   a run with an explicit `weight` option reads that option as before. If the owner reads it as a
   change to what `loadedWeight()` returns, the fallback is a new `data.weight()` that the run plan
-  reads, leaving `loadedWeight()` as it is.
+  reads, leaving `loadedWeight()` as it is. Built as: `loadedWeight()` reports the edge column the
+  weight role names (`data.knownFields.edgeWeightPath`) when it is an edge column the load did not read
+  weights from, none when the role was taken away, and otherwise the loaded column as before; runs and
+  `plan()` read the same answer, so the role, its undo and the runs move together. A configured weight
+  path naming no column of the data keeps today's behavior (the loaded column).
 
 ## 2026-10-29 -- For the owner: tier 4 data management questions (graphty app, graphty-element, compact-mantine)
 

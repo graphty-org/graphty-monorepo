@@ -20,41 +20,48 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 Summarized 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
 audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
 
-0. (2026-10-29) A date column is a `date` card field when the element's descriptor says
+0. (2026-10-29) The weight runs read is `data.loadedWeight()`, which now follows the weight ROLE
+   (`knownFields.edgeWeightPath`) when it names an edge column the load did not read weights from;
+   null when the role is taken away; else the loaded column. `Algorithm.weightReading` asks the
+   session for it and passes the load's own column as `stored` to `resolveRunWeight`, because the
+   store's weights are filled only at load: a designated column that is not the stored one must be
+   read as a column (`input: weight`), and a role taken away must read unweighted (`input: null`).
+   Tests: `test/session/loaded-weight.test.ts`, `test/browser/runs-loaded-weight.test.ts`.
+1. (2026-10-29) A date column is a `date` card field when the element's descriptor says
    `measurement: "time"` (typed date or the designated time field); its card writes the element's
    `range` leaf with `as: "time"` (ms bounds, both ends kept). Card bounds: Before X = start(X) - 1,
    After X = end(X), Between = start(A) .. end(B) - 1, where a 4-digit year spans the year and a
    day spans the day (`spanOf` in `style/cards.ts`). A bare number under 4 digits is NOT a date: the
    session parser reads "2" as 2 ms, which wrote a card on the first keystroke.
-1. (2026-10-29) An issue the element raises must name what happened to the file. A graph-io error
+2. (2026-10-29) An issue the element raises must name what happened to the file. A graph-io error
    with a line is NOT a refused row: GraphML `<data>` and GEXF `<attvalue>` readers drop only the
    value and keep the node or edge. Those now carry `params: { skipped: "value" }` (graph-io
    `SKIPPED_VALUE`), and the element's `refused-row` issue skips them (`loadFactsOf` in
    `session/issues.ts`). Yeast from its address: 331 / 361, no chip. Before trusting any issue
    count, compare it to `report.counts.skippedNodes/skippedEdges`.
-2. When a load has no issue the app does not open the table dock (`drawFirst` in `start/open.ts`):
+3. When a load has no issue the app does not open the table dock (`drawFirst` in `start/open.ts`):
    an old route that opened with the table diverges at that step after an issue fix. Expected.
-3. graphty-element tests resolve graph-io through its `dist`; `npm run build` in graph-io writes
+4. graphty-element tests resolve graph-io through its `dist`; `npm run build` in graph-io writes
    only `dist/src` (tsc) and breaks resolution: build it with `pnpm exec nx run graph-io:build`.
-4. graph-io's `test/styles/no-styles-baseline.json` hashes each conformance fixture's import
+5. graph-io's `test/styles/no-styles-baseline.json` hashes each conformance fixture's import
    report; any new issue field changes those hashes. Update only the lines the change explains.
-5. STILL OPEN (2026-10-20): Escape on a focused sortable table header clears the selection instead
+6. STILL OPEN (2026-10-20): Escape on a focused sortable table header clears the selection instead
    of moving focus to the Table button (floating-ui dismiss stops Escape before `leaveGrid`).
    Fix idea: `onKeyDownCapture` for `leaveGrid`.
-6. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls pink E68FAC "red".
-7. Open owner questions live in `owner-decisions.md` ("For the owner").
-8. Shared worktree: stage only my files; never `git stash`; commit headers <= 100 characters,
+7. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls pink E68FAC "red".
+8. Open owner questions live in `owner-decisions.md` ("For the owner").
+9. Shared worktree: stage only my files; never `git stash`; commit headers <= 100 characters,
    scope from commitlint's list (`workspace` for studio notes).
-9. Prove a test fails without the change: either run it on HEAD's file copy, or show the probe's
-   output on the unfixed build (as for the yeast issue: 6 `E_COLUMN_TYPE` rows before, none after).
-10. Rebuild before a walk: `pnpm exec nx run-many -t build -p graph-io graphty-element graphty`
+10. Prove a test fails without the change: either run it on HEAD's file copy, or show the probe's
+    output on the unfixed build (as for the yeast issue: 6 `E_COLUMN_TYPE` rows before, none after).
+11. Rebuild before a walk: `pnpm exec nx run-many -t build -p graph-io graphty-element graphty`
     (low-priority), then `real.mjs --replay <old walk> <new folder> --keep`, `--step`, `--end`.
-11. API changes: additive ones go in `owner-decisions.md` under "decided by the team"; a changed
+12. API changes: additive ones go in `owner-decisions.md` under "decided by the team"; a changed
     default or a renamed or removed member goes "for the owner". A new element member needs
     `doors.ts`, `test/cost-coverage/method-classes.ts` and `npm run api:report`.
-12. Element facts worth citing: layers paint one kind; `styles.addRow` takes an empty row;
+13. Element facts worth citing: layers paint one kind; `styles.addRow` takes an empty row;
     `data.histogram` takes data columns only; a bound label size wins over a label style's size.
-13. Study tool: `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name
+14. Study tool: `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name
     will not match; step N lands in screenshot N+1; always `--end`.
 
 ## Decisions and reasons
@@ -277,3 +284,16 @@ build --outDir <private dist>` in the copy's `graphty/`: 30 s, no tsc, nothing s
   a gained condition (T48B) keeps it as well as a lost one. Check a pilot folder's
   `session.json` `commit` before treating its screenshots as current.
 - (2026-10-18) Re-asked for the key (column title, 250,000, no stale fold, no repeated "Agencies", no cut entry, Tab and arrows) after a restart: already landed in ed4351b25, the frozen build itself; on the branch tip element `legend-copies`/`legend-reach` (5), app `legendWords` (21) and `LegendCard.real-element` (7) pass; walks `design/ui/studio/tmp/r1-dry1-key/w2`, `w3` show "Size: donations 0 - 250,000" and Group 1-10 whole in a focusable scrolling key.
+
+## 2026-10-29 -- A weight given in Data is the weight the analyses read
+
+- Decided: fix in graphty-element only (`session/data.ts` loadedWeight, `algorithms/input/weight.ts`
+  `designatedWeight` + `stored` parameter, `algorithms/Algorithm.ts` loadedWeightOf). The app's
+  OptionsForm and GraphValues already read `loadedWeight()`, so they needed no change. Why: Fields >
+  Weight and the header's Role > Weight write `edgeWeightPath`, but the runs read only the last
+  import's `weights.attribute`.
+- Tried: proved both new tests fail on HEAD's three source files (null loadedWeight; Shortest path
+  read no weight) and pass with the change. A configured path that names no column of the data falls
+  back to the loaded column, so a global `edgeWeightPath` set before load cannot make runs throw
+  ("nothing carries the weight").
+- Note: "dijkstra" is not a run key; the catalog's Dijkstra is `shortest-path`.

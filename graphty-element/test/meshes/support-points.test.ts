@@ -9,6 +9,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Xyz } from "../../src/meshes/edgeRoute";
 import {
+    balancedUnit,
     stepSupportPoints,
     SUPPORT_DEFAULTS,
     type SupportEdge,
@@ -78,6 +79,59 @@ describe("support points", () => {
         const [[, y]] = settle(nodes, [{ src: nodes[0], dst: nodes[1], forces: BARNES_HUT }]);
         const [[, y3]] = settle(scaled, [{ src: scaled[0], dst: scaled[1], forces: { ...BARNES_HUT, unit: 3 } }]);
         assert.closeTo(y3, 3 * y, 0.1);
+    });
+
+    it("keep their shape at any scale of the drawing when their unit is the drawing's own (supportScale drawing)", () => {
+        // a hub with four spokes and a node beside one: the bows come from the crowding, not from the drawing's size
+        const nodes = [at(0, 0), at(120, 0), at(0, 120), at(-120, 0), at(0, -120), at(60, 30)];
+        const spokes = (ns: Xyz[], forces: SupportForces): SupportEdge[] =>
+            [1, 2, 3, 4].map((k) => ({ src: ns[0], dst: ns[k], forces }));
+        const drawing: SupportForces = { ...BARNES_HUT, scale: "drawing" };
+        const small = settle(nodes, spokes(nodes, drawing));
+        const big = nodes.map((p) => at(p.x * 4, p.y * 4));
+        const large = settle(big, spokes(big, drawing));
+        small.forEach(([x, y], j) => {
+            assert.closeTo(large[j][0], 4 * x, 0.5);
+            assert.closeTo(large[j][1], 4 * y, 0.5);
+        });
+        // in the scene's own unit the larger drawing bows less: the setting is what keeps the shape
+        const fixed = settle(big, spokes(big, BARNES_HUT));
+        assert.isAbove(Math.abs(4 * small[0][1] - fixed[0][1]), 2);
+    });
+
+    it("take the drawing's unit as the size vis-network's forces hold the drawing at, near 1 on vis-network's own drawings", () => {
+        // vis-network's own node places for four files that keep its default physics: the forces balance them in
+        // file px, so the unit found from the drawing alone is close to 1 there
+        // lesmiserables runs its forceAtlas2Based solver with constants of its own
+        const lesmis: SupportForces = {
+            model: "forceAtlas2",
+            springLength: 230,
+            springConstant: 0.18,
+            repulsion: 26,
+            centralGravity: 0.005,
+            unit: 1,
+        };
+        for (const sample of ["world", "unix", "siblings", "transparency", "lesmiserables"]) {
+            const forces = sample === "lesmiserables" ? lesmis : BARNES_HUT;
+            const url = new URL(
+                `../../../graph-io/test/fidelity/scenes/json-vis-${sample}/vis-network.ref.json`,
+                import.meta.url,
+            );
+            const ref = JSON.parse(readFileSync(url, "utf8")) as {
+                nodes: { id: string; x: number; y: number }[];
+                edges: { source: string; target: string }[];
+            };
+            const byId = new Map(ref.nodes.map((n) => [n.id, at(n.x, n.y)]));
+            const nodes = [...byId.values()];
+            const edges = ref.edges.flatMap((e): SupportEdge[] => {
+                const [src, dst] = [byId.get(e.source), byId.get(e.target)];
+                return src === undefined || dst === undefined || src === dst ? [] : [{ src, dst, forces }];
+            });
+            const unit = balancedUnit(nodes, edges);
+            assert.isNotNull(unit);
+            assert.isAbove(unit ?? 0, 0.9, sample);
+            assert.isBelow(unit ?? 0, 1.1, sample);
+        }
     });
 
     it("rest where their forces put them, whatever forces they had before", () => {

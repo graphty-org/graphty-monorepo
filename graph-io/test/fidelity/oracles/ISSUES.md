@@ -4140,6 +4140,38 @@ Still open:
 - A hierarchical layout turns dynamic curves into its direction's static curve (`horizontal` or `vertical`); graph-io
   draws them straight.
 
+### Round 6 (2026-10-29, #4271): dynamic curves bowed in the drawing's own units
+
+On the files that store no positions, graphty lays the nodes out itself, and its layout spreads them 1.3 to 1.7 times
+farther apart (for their size) than vis-network's physics does. The support forces were in the file's px, so the
+springs were stretched taut and the push of the neighbors fell off with the square of the distance: graphty bowed its
+curves about a third as deep as vis-network (median bend over the chord 0.013 against 0.038 on json-vis-world), and
+drew 0.00 to 0.13 of the lines bent where vis-network bends 0.22 to 0.52.
+
+graph-io now marks such a file's dynamic edges `supportScale: "drawing"` (a file that places every node keeps its px),
+and graphty-element's new `line.supportScale: "drawing"` (channel `edge.supportScale`) takes the forces' unit from the
+drawing: the size at which the forces hold the drawn nodes, and a support point at each edge's middle, in balance (the
+virial of every force is zero there, as wherever a simulation of them rests; under forceAtlas2 a node's push and pull
+are weighted by its degree plus one, as vis-network weights them). On vis-network's own drawings of the five files that
+keep its physics that unit is 0.94 to 1.00 of the file's px.
+
+| sample (own layouts)   | edge.curve, share bent (vis-network / graphty) before | after       | median bend (vis-network / graphty) after |
+| ---------------------- | ----------------------------------------------------- | ----------- | ----------------------------------------- |
+| json-vis-world         | 0.36 / 0.04 fail                                      | pass        | 0.038 / 0.037                             |
+| json-vis-unix          | 0.22 / 0 fail                                         | pass        | 0.027 / 0.028                             |
+| json-vis-siblings      | 0.24 / 0.05 fail                                      | pass        | 0.020 / 0.020                             |
+| json-vis-transparency  | 0.52 / 0.13 fail                                      | pass        | 0.048 / 0.035                             |
+| json-vis-lesmiserables | 0.38 / 0.64 fail                                      | pass (0.35) | 0.023 / 0.022                             |
+
+json-vis-world and json-vis-transparency are now clean. The 16 vis-network specimen sheets (`physics: false`) and every
+other format are unchanged.
+
+Still open: drawn at vis-network's own positions (`@matched`), json-vis-lesmiserables now misses more curves (edge.curve
+223 -> 192 of 235, edge.route 208 -> 182): vis-network stopped that drawing after its 150 stabilization iterations,
+before rest, so the balance found from it is 7% off the file's px, and forceAtlas2's bows are sensitive to the unit.
+json-vis-siblings and json-vis-transparency `@matched` pass as many curves and routes as before or more, but not the
+same ones (5 elements swap). These are not recorded in `oracle-known-failures.json`.
+
 ## Graphviz's own routes drawn for a DOT file without positions (round 4, 2026-10-21)
 
 A DOT file that stores no positions is laid out by graphty-element with Graphviz's own engine (dot, unless the file

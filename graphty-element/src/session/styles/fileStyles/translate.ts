@@ -842,6 +842,7 @@ function channelPlans(
         ["supportSpringConstant", [id("edge.supportSpringConstant")]],
         ["supportRepulsion", [id("edge.supportRepulsion")]],
         ["supportCentralGravity", [id("edge.supportCentralGravity")]],
+        ["supportScale", [table("edge.supportScale", SUPPORT_SCALES)]],
         ["nodeGap", [length("edge.nodeGap", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceNodeGap", [length("edge.sourceNodeGap", factors.node * SCENE_PER_UNIT.node)]],
         ["targetNodeGap", [length("edge.targetNodeGap", factors.node * SCENE_PER_UNIT.node)]],
@@ -947,6 +948,9 @@ const SUPPORT_MODELS: ReadonlyMap<string, string> = new Map([
     ["barnesHut", "barnesHut"],
     ["forceAtlas2", "forceAtlas2"],
 ]);
+
+/** The element's support scale for each neutral one: a file's own units, or the drawing's. */
+const SUPPORT_SCALES: ReadonlyMap<string, string> = new Map([["drawing", "drawing"]]);
 
 /** The element's node gradient kind for each neutral one. */
 const NODE_GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([

@@ -577,6 +577,24 @@ describe("JSON styles: reading", () => {
         }
     });
 
+    it("reads a vis.js dynamic edge's forces in the drawing's units when the file leaves vis-network to place its nodes", async () => {
+        // vis-network lays such a file out under the same forces it bows the edges by, so the forces' unit is the
+        // layout's, whatever layout draws the file; a file that places every node keeps its own px
+        const edges = [{ from: "a", to: "b" }];
+        const unplaced = await load({ nodes: [{ id: "a" }, { id: "b", x: 10, y: 0 }], edges });
+        expect(values(unplaced, "edge", "supportModel")).toEqual(["barnesHut"]);
+        expect(values(unplaced, "edge", "supportScale")).toEqual(["drawing"]);
+        const placed = await load({
+            nodes: [
+                { id: "a", x: 0, y: 0 },
+                { id: "b", x: 10, y: 0 },
+            ],
+            edges,
+        });
+        expect(values(placed, "edge", "supportModel")).toEqual(["barnesHut"]);
+        expect(values(placed, "edge", "supportScale")).toEqual([null]);
+    });
+
     it("reads vis.js's image arrows: each end's picture and the size it is drawn at", async () => {
         const src = "data:image/svg+xml;utf8,%3Csvg%3E%3C%2Fsvg%3E";
         const r = await load({

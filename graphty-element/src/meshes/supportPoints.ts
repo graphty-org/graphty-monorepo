@@ -30,6 +30,13 @@ export interface SupportForces {
     readonly centralGravity: number;
     /** How many scene units one unit of these lengths and forces is. */
     readonly unit: number;
+    /**
+     * `"drawing"`: the unit is not {@link SupportForces.unit} but the drawing's own, the size at which these forces
+     * hold the drawn nodes (and the support points, at their edges' middles) in balance ({@link balancedUnit}), so a
+     * curve bows among nodes a layout of another scale placed as among the nodes the forces placed themselves.
+     * Absent or `"unit"`: {@link SupportForces.unit}.
+     */
+    readonly scale?: "unit" | "drawing";
 }
 
 /** One edge whose curve runs through a support point: where its two nodes are, and its forces. */
@@ -266,7 +273,8 @@ export function stepSupportPoints(
     if (m === 0) {
         return false;
     }
-    const unit = edges[0].forces.unit > 0 ? edges[0].forces.unit : 1;
+    const given = edges[0].forces.unit > 0 ? edges[0].forces.unit : 1;
+    const unit = edges[0].forces.scale === "drawing" ? (balancedUnit(nodes, edges) ?? given) : given;
     const n = nodes.length;
     const xs = new Float64Array(n + m);
     const ys = new Float64Array(n + m);
@@ -308,6 +316,91 @@ export function stepSupportPoints(
         }
     }
     return moving;
+}
+
+/**
+ * The scene units per force unit at which the first edge's forces hold the drawing in balance on the whole: where the
+ * virial of every force (the sum over the bodies of position times force) is zero, as it is wherever a simulation of
+ * those forces comes to rest. The bodies are the nodes and a support point at each edge's middle, as vis-network's
+ * physics holds them (every body pushes every other, each edge's two half springs pull, central gravity pulls every
+ * body toward the middle of the nodes; under forceAtlas2 a node's push and pull are weighted by its degree plus one, as
+ * vis-network weights them). The push is summed once over the Barnes-Hut tree at the drawing's own size;
+ * every term then scales by a power of the size, so the balance is one root found by bisection.
+ * @param nodes - Every node's center.
+ * @param edges - The edges with support points.
+ * @returns The unit, or null when the drawing has no size or no balance (no edge of any length).
+ */
+export function balancedUnit(nodes: readonly Xyz[], edges: readonly SupportEdge[]): number | null {
+    const n = nodes.length;
+    const m = edges.length;
+    if (m === 0 || n === 0) {
+        return null;
+    }
+    const xs = new Float64Array(n + m);
+    const ys = new Float64Array(n + m);
+    let [cx, cy] = [0, 0];
+    nodes.forEach((p, i) => {
+        [xs[i], ys[i]] = [p.x, p.y];
+        cx += p.x / n;
+        cy += p.y / n;
+    });
+    edges.forEach(({ src, dst }, j) => {
+        xs[n + j] = (src.x + dst.x) / 2;
+        ys[n + j] = (src.y + dst.y) / 2;
+    });
+    const { forces } = edges[0];
+    const bh = forces.model === "barnesHut";
+    // vis-network's forceAtlas2Based pushes a node, and pulls it to the middle, in proportion to its degree plus one
+    // (a support point's is one); barnesHut takes no degree
+    const weight = new Float64Array(n + m).fill(1);
+    if (!bh) {
+        const index = new Map(nodes.map((p, i) => [p, i]));
+        for (const { src, dst } of edges) {
+            for (const end of [src, dst]) {
+                const i = index.get(end);
+                if (i !== undefined) {
+                    weight[i]++;
+                }
+            }
+        }
+    }
+    const root = treeOf(xs, ys);
+    // at a size s force units per scene unit: barnesHut's push (1 / d^2) gives a virial of push / s, forceAtlas2's
+    // (1 / d) one of push whatever the size; a half spring of drawn length h gives -k (s h - L / 2) s h; central
+    // gravity -cg s r (barnesHut, a constant pull) or -cg s^2 r^2 (forceAtlas2, in proportion to the distance)
+    let push = 0;
+    let reach = 0;
+    let reach2 = 0;
+    for (let i = 0; i < n + m; i++) {
+        const [fx, fy] = repulsionOn(root, i, xs[i], ys[i], forces);
+        push += weight[i] * ((xs[i] - cx) * fx + (ys[i] - cy) * fy);
+        const r = Math.hypot(xs[i] - cx, ys[i] - cy);
+        reach += r;
+        reach2 += weight[i] * r * r;
+    }
+    let springs2 = 0;
+    let springs1 = 0;
+    for (const { src, dst, forces: f } of edges) {
+        const h = Math.hypot(dst.x - src.x, dst.y - src.y) / 2;
+        springs2 += 2 * f.springConstant * h * h;
+        springs1 += f.springConstant * h * f.springLength;
+    }
+    const cg = forces.centralGravity;
+    const virial = (s: number): number =>
+        (bh ? push / s : push) - s * s * springs2 + s * springs1 - (bh ? cg * s * reach : cg * s * s * reach2);
+    let [lo, hi] = [1e-9, 1e9];
+    if (!(springs2 > 0) || !(virial(lo) > 0) || !(virial(hi) < 0)) {
+        return null;
+    }
+    for (let k = 0; k < 100; k++) {
+        const mid = Math.sqrt(lo * hi);
+        if (virial(mid) > 0) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    return 1 / Math.sqrt(lo * hi);
 }
 
 /**
@@ -470,7 +563,7 @@ export class SupportPoints<E> {
      * @returns True when one moved or changed (or the edges changed).
      */
     private endsChanged(ends: readonly SupportEdge[]): boolean {
-        const now = new Float64Array(10 * ends.length);
+        const now = new Float64Array(11 * ends.length);
         ends.forEach(({ src, dst, forces: f }, j) => {
             const model = f.model === "barnesHut" ? 0 : 1;
             now.set(
@@ -485,8 +578,9 @@ export class SupportPoints<E> {
                     f.repulsion,
                     f.centralGravity,
                     f.unit,
+                    f.scale === "drawing" ? 1 : 0,
                 ],
-                10 * j,
+                11 * j,
             );
         });
         const was = this.lastEnds;
@@ -505,10 +599,10 @@ export class SupportPoints<E> {
      * @param now - The same, now.
      */
     private reseedChangedForces(was: Float64Array, now: Float64Array): void {
-        for (let j = 0; j < now.length / 10; j++) {
+        for (let j = 0; j < now.length / 11; j++) {
             const changed = now
-                .subarray(10 * j + 4, 10 * j + 10)
-                .some((v, k) => Math.abs(v - was[10 * j + 4 + k]) > 1e-6);
+                .subarray(11 * j + 4, 11 * j + 11)
+                .some((v, k) => Math.abs(v - was[11 * j + 4 + k]) > 1e-6);
             if (changed) {
                 this.rel.set([0.5, 0], 2 * j);
                 this.velocities.set([0, 0], 2 * j);

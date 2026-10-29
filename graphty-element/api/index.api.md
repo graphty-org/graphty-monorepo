@@ -1834,6 +1834,10 @@ export const EdgeStyle: z.ZodObject<{
         supportRepulsion: z.ZodOptional<z.ZodNumber>;
         supportCentralGravity: z.ZodOptional<z.ZodNumber>;
         supportUnit: z.ZodOptional<z.ZodNumber>;
+        supportScale: z.ZodOptional<z.ZodEnum<{
+            unit: "unit";
+            drawing: "drawing";
+        }>>;
         route: z.ZodOptional<z.ZodEnum<{
             arc: "arc";
             straight: "straight";

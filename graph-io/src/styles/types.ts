@@ -751,6 +751,13 @@ export interface EdgeStyleValues {
     /** How hard a support point is pulled toward the middle of the nodes: a constant pull under barnesHut, in proportion to the distance under forceAtlas2. */
     readonly supportCentralGravity: number;
     /**
+     * What unit a support point's numbers are in: absent, the file's own; `"drawing"`, the drawing's, the size at which
+     * the forces hold the drawn nodes in balance, for a file the program lays out itself under the same forces
+     * (vis-network's physics, on a file that does not place every node), so a curve bows among the nodes another
+     * layout places as among the program's.
+     */
+    readonly supportScale: string;
+    /**
      * How far from each of its nodes' outlines the edge's line (and its arrowhead) stops, leaving that much empty
      * (a length; Gephi's `edge.radius`).
      */

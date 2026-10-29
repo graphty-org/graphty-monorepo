@@ -121,7 +121,7 @@ true` rather than resuming the old one (see the lessons below).
 2. **Prepare** -- waits for a clean branch; the researcher, user advocate and red team review the
    criteria once; the director applies the reviews and **freezes** them; origin/master is merged
    into the studio branch and a build is frozen and served; the **scripted dry run** walks every
-   task's success path with no model (`tool/dry-run-pass.mjs`: the app's routes in `graphty/dry-run/`,
+   task's success path with no model (`tool/dry-run-pass.mjs`: the app's routes in `graphty/acceptance/`,
    their outcome checks, and each route's end screen compared with the earlier pass's), one reviewer
    looks only at the end screens that changed, and a pilot agent walks only what no script covered:
    a task whose scripted route failed or has none (all three ways), and the detours and keyboard walk
@@ -260,15 +260,15 @@ Each rule below exists because breaking it cost a run.
   stretch a walker is sure of goes in one `--step` with one screenshot. Participants are never
   replayed: they drive every step.
 - **Script the success paths; agents only look at what changed.** Dry runs and studies took days
-  because agents navigated page by page. Every task's success path is a route in `graphty/dry-run/`
+  because agents navigated page by page. Every task's success path is a route in `graphty/acceptance/`
   (Playwright code driving real clicks and keys on the GPU, checked through graphty-element's API),
   and the dry run starts with it: all 30 tier 3 task halves run in about a minute with no model. A
   route that fails, or a task with no route, gets a pilot; a route that passes gets none. Its end
   screen is compared with the earlier pass's with the drawing and the status bar covered (both
   change from run to run on one build; the outcome checks read what the drawing shows), and only changed screens go to one reviewer
-  agent. A defect a pilot finds on a success path becomes a route (`graphty/dry-run/README.md`,
+  agent. A defect a pilot finds on a success path becomes a route (`graphty/acceptance/README.md`,
   "Adding a route"). Nothing runs it automatically on a branch: an agent with a long-running
-  branch that touches the app runs `node graphty/dry-run/run.mjs` itself before landing.
+  branch that touches the app runs `node graphty/acceptance/run.mjs` itself before landing.
 - **Always `--end` a session, including after a failed attempt.** A stopped agent that never ended
   its session kept its browser slot until the idle timeout.
 - **Step notes are one or two sentences, in character.** Full think-aloud in long, screenshot-heavy

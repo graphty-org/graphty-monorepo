@@ -16,11 +16,11 @@ Build the app first, then run every route, or only some:
 
 ```bash
 pnpm exec nx run graphty:build                         # graphty/dist
-node graphty/dry-run/run.mjs                           # every route, on up to 4 browsers
-node graphty/dry-run/run.mjs --only t39a,t46           # routes whose id starts with one of these
-node graphty/dry-run/run.mjs --workers 1               # one browser
-node graphty/dry-run/run.mjs --list                    # the routes and their checks; runs nothing
-node graphty/dry-run/run.mjs --dist <dir>              # another build of the app
+node graphty/acceptance/run.mjs                           # every route, on up to 4 browsers
+node graphty/acceptance/run.mjs --only t39a,t46           # routes whose id starts with one of these
+node graphty/acceptance/run.mjs --workers 1               # one browser
+node graphty/acceptance/run.mjs --list                    # the routes and their checks; runs nothing
+node graphty/acceptance/run.mjs --dist <dir>              # another build of the app
 ```
 
 It prints one line per route as it finishes, then a table of every route's result and time, the
@@ -132,7 +132,7 @@ helpers and readers that keep to themselves is free. A walk or a step that goes 
 hands (above) is always refused.
 
 When a check is wrong, change it on a branch of its own, from a different session than the change
-it failed on, holding only that change: every file its commits change is under `graphty/dry-run/`,
+it failed on, holding only that change: every file its commits change is under `graphty/acceptance/`,
 and every commit says why in a trailer. Merge commits, such as a merge of `origin/master`, need no trailer, and commits already on `origin/master` are not counted.
 
 ```

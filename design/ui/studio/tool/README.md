@@ -511,7 +511,7 @@ keyboard walks and the re-walks after a fix replay.
 
 ## The scripted dry run
 
-A dry-run pass starts with the app's scripted routes (`graphty/dry-run/`, one per task half: the
+A dry-run pass starts with the app's scripted routes (`graphty/acceptance/`, one per task half: the
 success path as real clicks and keys on the GPU, with outcome checks read through graphty-element's
 API), not with an agent:
 

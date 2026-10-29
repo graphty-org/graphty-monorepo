@@ -166,8 +166,8 @@ test("a route the machine could not run is never judged", () => {
 
 test("the workflow selects the same routes as toJudge", () => {
     const wf = readFileSync(join(here, "../../../../.claude/workflows/design-studio.js"), "utf8");
-    const body = /const lookAt = \(script\?\.routes \|\| \[\]\)\.filter\(([\s\S]*?)\);\n/.exec(wf)[1];
-    const lookAt = new Function(`return ${body.trim().replace(/,$/, "")}`)();
+    const body = /const reviewed = (\(r\) =>[\s\S]*?);\n/.exec(wf)[1];
+    const lookAt = new Function(`return ${body}`)();
     const routes = [
         route("same"),
         route("moved", { change: "changed" }),

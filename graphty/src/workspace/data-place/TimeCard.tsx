@@ -24,7 +24,7 @@ import {
     UNIT_CHOICES,
     UNTIMED_CHOICES,
 } from "../time/timeWords";
-import { useTimeVersion } from "../time/useTimeVersion";
+import { useTimeFieldVersion } from "../time/useTimeVersion";
 
 /** The Field menu's value for "no time field". */
 const NONE = "none";
@@ -67,7 +67,7 @@ function sourceOf(picked: string, unit?: TimeUnit): TimeField | null {
  */
 export function TimeCard(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    useTimeVersion(session);
+    useTimeFieldVersion(session);
     if (session === null) {
         return null;
     }

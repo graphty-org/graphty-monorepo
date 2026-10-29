@@ -177,6 +177,10 @@ async function layOutOnMap(element: Element, mapType?: "2D map"): Promise<void> 
         },
         { timeout: TIMEOUT_MS },
     );
+    // The map, its camera framing and the nodes' screen size land over several frames after the
+    // layout is chosen: read where nodes are drawn, or open the form again, only once they have.
+    await element.waitForSettled();
+    await element.waitForStableFrame();
 }
 
 describe("the location map", () => {
@@ -287,6 +291,7 @@ describe("the location map", () => {
         await waitFor(() => {
             assert.deepStrictEqual(element.session.layout.options.map, { source: "none" });
         });
+        await element.waitForStableFrame();
         assert.strictEqual(where(), before, "no node moved");
 
         // A map of the reader's own: tiles from an address, with the credit it requires, which
@@ -312,6 +317,7 @@ describe("the location map", () => {
         await waitFor(() => {
             assert.deepStrictEqual(element.session.layout.options.map, { source: "natural-earth" });
         });
+        await element.waitForStableFrame();
         assert.strictEqual(where(), before, "still no node moved");
     });
 

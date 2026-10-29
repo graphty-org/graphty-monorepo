@@ -150,6 +150,7 @@ async function measurePackage(compare) {
                 into.add(c);
                 c.imports.forEach((f) => closure(byName.get(f), into, skip));
             }
+            return into;
         };
         chunks.filter((c) => c.isEntry).forEach((c) => closure(c, initial, new Set()));
         parts["main entry (loaded up front)"] = sizeOf([...initial].map((c) => c.code));
@@ -167,6 +168,18 @@ async function measurePackage(compare) {
                 // chunks (the network sources) adds each of them to its group
                 const loaded = new Set(initial);
                 closure(c, loaded, initial);
+                // a shared chunk that only lazy chunks import (Rolldown's graph-io input chunk, which imports the
+                // signing code on demand) runs only once one of them is loaded, so what every one of them loads
+                // is already there too
+                if (!initial.has(c) && !c.isDynamicEntry) {
+                    const reaching = chunks
+                        .filter((d) => d.isDynamicEntry)
+                        .map((d) => closure(d, new Set(), initial))
+                        .filter((s) => s.has(c));
+                    for (const x of reaching[0] ?? []) {
+                        if (reaching.every((s) => s.has(x))) loaded.add(x);
+                    }
+                }
                 const group = lazy.get(name) ?? new Set();
                 closure(target, group, loaded);
                 lazy.set(name, group);

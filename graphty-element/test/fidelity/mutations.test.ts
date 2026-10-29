@@ -79,6 +79,44 @@ describe("planted defects", () => {
         );
     });
 
+    it("excuses an edge defect by the drawing's bent-line share only where nothing judges it edge by edge", () => {
+        const edge = (id: string, s: number, t: number): PScene["edges"][number] => ({
+            id,
+            source: `n${String(s)}`,
+            target: `n${String(t)}`,
+            points: [
+                [50 + 100 * s, 50 + 60 * (s % 2)],
+                [50 + 100 * t, 50 + 60 * (t % 2)],
+            ],
+            stroke: null,
+            arrows: [],
+            label: null,
+        });
+        const withEdges = (s: PScene): PScene => ({ ...s, edges: [edge("e0", 0, 1), edge("e1", 1, 2)] });
+        const [o, g] = [withEdges(oracle), withEdges(graphty)];
+        // as on an own-layout sample whose program bends its lines: bends judged only as the drawing's share, which
+        // already fails; no single edge fails anything
+        const r = compareOracle("t", o, g);
+        r.elements = [...r.elements, { kind: "graph", id: "edges", failed: ["edge.curve"] }];
+        const onlyShare = {
+            ...r,
+            judged: { ...r.judged, "edge.curve": ["edges"], "edge.route": [], "edge.wiggle": [] },
+        };
+        const bowed = structuredClone(g);
+        bowed.edges[0].points = [bowed.edges[0].points[0], [100, 120], bowed.edges[0].points[1]];
+        assert.isTrue(absorbedByKnownFailures(g, bowed, onlyShare, MUTATIONS["straight edges bowed"].targets));
+        // a target judged on each edge can still catch it there: never excused by the drawing's share
+        const wiggleByEdge = { ...onlyShare, judged: { ...onlyShare.judged, "edge.wiggle": ["e0", "e1"] } };
+        assert.isFalse(
+            absorbedByKnownFailures(g, bowed, wiggleByEdge, MUTATIONS["edges zigzag at 3% of their chord"].targets),
+        );
+        const routeByEdge = { ...onlyShare, judged: { ...onlyShare.judged, "edge.route": ["e0", "e1"] } };
+        assert.isFalse(absorbedByKnownFailures(g, bowed, routeByEdge, MUTATIONS["straight edges bowed"].targets));
+        // nor where bends are judged edge by edge too
+        const curveByEdge = { ...onlyShare, judged: { ...onlyShare.judged, "edge.curve": ["edges", "e0", "e1"] } };
+        assert.isFalse(absorbedByKnownFailures(g, bowed, curveByEdge, MUTATIONS["straight edges bowed"].targets));
+    });
+
     it("names the properties each defect is for", () => {
         for (const [name, m] of Object.entries(MUTATIONS)) {
             assert.isTrue(name === "none" || m.targets.length > 0, name);

@@ -15933,7 +15933,8 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.88,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "stray.present": 0
         },
         "dot-specimen-images-charts@matched": {
             "node.present": 1,
@@ -15969,7 +15970,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.present": 0
         },
         "dot-specimen-labels": {
             "node.present": 1,
@@ -17868,7 +17870,7 @@
             "stray.present": 0,
             "frame.zoom": 1,
             "background": 1,
-            "node.sizeToSpacing": 1,
+            "node.sizeToSpacing": 0,
             "edge.curve": 1,
             "edge.wiggle": 1
         },
@@ -27510,9 +27512,9 @@
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.996,
-            "edge.arrowLength": 0.996,
-            "edge.arrowWidth": 0.996,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0,
             "frame.zoom": 1,
             "background": 1,
@@ -27550,9 +27552,9 @@
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.996,
-            "edge.arrowLength": 0.996,
-            "edge.arrowWidth": 0.996,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "stray.present": 0,
             "frame.mirror": 1,

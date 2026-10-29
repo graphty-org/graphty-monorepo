@@ -128,6 +128,18 @@ export const RASTER_REPORT_DROP = 0.02;
 const EPSILON = 1e-9;
 
 /**
+ * The sha256 an oracle's metadata records for the sample file the program drew, which the gate checks against the
+ * file graphty loads: `sha256` from the desktop programs' tools, `fileSha256` from the web oracles (Cytoscape.js,
+ * sigma.js and vis-network), whose record the gate read as none (74 oracles checked against nothing).
+ * @param meta - the oracle's metadata
+ * @returns the recorded sha256, or null when it records none
+ */
+export function oracleFileSha256(meta: Record<string, unknown>): string | null {
+    const sha = meta.sha256 ?? meta.fileSha256;
+    return typeof sha === "string" ? sha : null;
+}
+
+/**
  * The scores a run on a GPU path may record: all of them on SwiftShader, and none of the raster regions elsewhere, since
  * the raster floors are SwiftShader's (another GPU path antialiases thin lines and glyph edges differently: a region up
  * to 0.046 apart over every oracle on one code state).

@@ -128,6 +128,10 @@ A file is a path, or a name from `files/`:
 | `lesmis-poster.graphty.json`     | A saved graphty project                                                                                                                                                                                                       |
 | `volunteers-thanks.graphty.json` | A saved graphty project                                                                                                                                                                                                       |
 | `yeast-galactose.graphml`        | A GraphML network of 331 yeast genes and 361 interactions, with three expression columns; Cytoscape's galFiltered demo (Ideker et al. 2001, CC0), direction dropped, written from graph-samples' `yeast-perturbation` dataset |
+| `pantries.csv`                   | A node spreadsheet of a food bank's sites                                                                                                                                                                                     |
+| `deliveries.csv`                 | An edge spreadsheet that goes with `pantries.csv`                                                                                                                                                                             |
+| `gauges.csv`                     | A node spreadsheet of a river's gauges                                                                                                                                                                                        |
+| `flows.csv`                      | An edge spreadsheet that goes with `gauges.csv`                                                                                                                                                                               |
 
 ## Names, dialogs and lists
 

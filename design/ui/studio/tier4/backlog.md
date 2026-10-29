@@ -1,0 +1,12 @@
+# Tier 4 backlog
+
+Defects below the session-ready bar (friction, wording, cosmetic, keyboard or screen-reader only),
+fixed between passes by the decide-and-fix loop. Each row: date, task and route, what happens,
+severity, the package that owns it, and the screenshot path under the main checkout's
+`tmp/design-studio/tier4/`.
+
+| Date       | Task / route                                                       | What happens                                                                                                                                                                                                                                                                                 | Sev | Owner package | Evidence                                       |
+| ---------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ------------- | ---------------------------------------------- |
+| 2026-10-29 | T60 A, hand pilot: sources.graphml from its web address, then Data | Fields lists the file and "24" with no column under it, while the table shows six columns (name, kind, donations, on_record, email); a CSV's Fields shows Rows are, Id and Label rows. Not yet triaged: may be by design for a graph file whose roles the file sets                          | 2?  | graphty app   | tmp/design-studio/tier4/prep/p1/06.png, 07.png |
+| 2026-10-29 | T62, code read: the table's column header menu                     | The header menu offers a column's kind and role (`table/HeaderMenu.tsx`, `VALUE_TYPES`, `ROLE_WORDS`) and the issue fixes; the owner's rule makes the table view-only with configuration in the Data place. For the Figma and interaction walkthroughs to judge, not a session-ready blocker | 2?  | graphty app   | `graphty/src/workspace/table/HeaderMenu.tsx`   |
+| 2026-10-29 | T61, hand pilot: Join on the join screen                           | Two controls are named "Join" (the button and the screen's section), so a name-based click is ambiguous; a screen reader hears the same name for both                                                                                                                                        | 1   | graphty app   | tmp/design-studio/tier4/prep/p2/05.png         |

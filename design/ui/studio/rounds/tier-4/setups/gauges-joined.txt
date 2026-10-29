@@ -1,0 +1,8 @@
+# gauges.csv with flows.csv joined onto it (two sources)
+--click Open a file
+--upload gauges.csv
+--click Data
+--click Add source
+--click File...
+--upload flows.csv
+--click role=button:Join

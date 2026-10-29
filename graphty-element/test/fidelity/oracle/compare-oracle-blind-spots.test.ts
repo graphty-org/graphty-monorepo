@@ -1,17 +1,21 @@
 /**
  * Defects the comparator passed (#4222), each planted on a small drawing judged right alike:
  * - where each program lays the file out itself (`ownLayouts`), a drawing whose every node is a fifth of the size the
- *   program draws beside the spacing (cx-radiation-bibliography: Cytoscape desktop's labeled boxes drawn as dots), and
+ *   program draws beside the spacing (cx-radiation-bibliography: Cytoscape desktop's labeled boxes drawn as dots), or
+ *   2.5 times or 0.4 times it (#4272: the band was fitted to the corpus), and
  *   arrowheads twice their size, which a render pixel scaled up by the size-fitted scale let through;
  * - where each program lays the file out itself, every edge straightened, or bowed, against the program's drawing;
- * - a zigzag a few percent of a long edge's length high, under the route's allowance and its bend's;
+ * - a zigzag a few percent of a long edge's length high, under the route's allowance and its bend's, and one 30% of it
+ *   high or more, whose teeth turn so sharply they were taken for a line drawn back over itself (#4272);
  * - and the other way round, Pajek's arrowhead drawn at the middle of its line on both sides, which was failed for
- *   standing off the line's end (pajek-graphstream-b, 193 of 193 edges).
+ *   standing off the line's end (pajek-graphstream-b, 193 of 193 edges);
+ * - a part-way arrowhead mirrored about the middle, read from the line's nearer end, and graphty's part-way head against
+ *   a program's head with no place, which passed (#4272).
  */
 import { assert, describe, it } from "vitest";
 
 import { compareOracle, type OracleProperty, type OracleReport } from "./compare-oracle";
-import type { PArrow, PEdge, PNode, PScene, Pt } from "./primitives";
+import type { PArrow, PEdge, PGroup, PNode, PScene, Pt } from "./primitives";
 
 const node = (id: string, cx: number, cy: number, size: number): PNode => ({
     id,
@@ -139,6 +143,15 @@ describe("where each program lays the file out itself", () => {
         );
     });
 
+    it("fails nodes drawn 2.5 times or 0.4 times the program's size beside the spacing, which a band fitted to the corpus passed", () => {
+        const o = drawing("oracle", GRID, 60);
+        for (const size of [150, 24]) {
+            const r = compareOracle("t", o, drawing("graphty", SHUFFLED, size), null, OWN);
+            assert.strictEqual(rate(r, "node.width"), 1, `${String(size)}: the size-fitted scale hides a uniform size`);
+            assert.strictEqual(rate(r, "node.sizeToSpacing"), 0, String(size));
+        }
+    });
+
     it("fails arrowheads twice the program's size on nodes drawn small, whatever the size-fitted scale", () => {
         const o = drawing("oracle", GRID, 60, undefined, 6);
         // graphty's nodes a fifth the size: the size-fitted scale is 5, and one render pixel was 7.5 oracle pixels
@@ -193,6 +206,15 @@ describe("a route's shape on a long edge", () => {
         assert.strictEqual(rate(r, "edge.wiggle"), 0);
     });
 
+    it("fails a zigzag 30% of the chord high or more, whose sharp teeth were taken for a line drawn back over itself", () => {
+        for (const amp of [0.3, 0.45, 0.6]) {
+            assert.strictEqual(rate(judge([a, b], zigzag(a, b, amp, 4)), "edge.wiggle"), 0, String(amp));
+        }
+        // a line drawn back over itself at its start (Cytoscape desktop) is still one line
+        const retrace: Pt[] = [a, [160, 450], [130, 450], [170, 450], b];
+        assert.strictEqual(rate(judge([a, b], retrace), "edge.wiggle"), 1);
+    });
+
     it("passes a bend, a smooth S and a zigzag drawn by both", () => {
         assert.strictEqual(rate(judge([a, b], bowed(a, b, 0.1)), "edge.wiggle"), 1);
         const s = (k: number): Pt[] =>
@@ -221,11 +243,11 @@ describe("an arrowhead the program draws part-way along its line", () => {
         at: where,
         ...(misplaced === undefined ? {} : { misplaced }),
     });
-    const judge = (g: PArrow): number | null =>
+    const judge = (g: PArrow, o: PArrow = head([300, 100])): number | null =>
         rate(
             compareOracle(
                 "t",
-                scene("oracle", nodes, [edge("a", "b", [a, b], [head([300, 100])])]),
+                scene("oracle", nodes, [edge("a", "b", [a, b], [o])]),
                 scene("graphty", nodes, [edge("a", "b", [a, b], [g])]),
             ),
             "edge.arrowPlace",
@@ -237,6 +259,17 @@ describe("an arrowhead the program draws part-way along its line", () => {
 
     it("fails graphty's head drawn at the line's end", () => {
         assert.strictEqual(judge(head([485, 100])), 0);
+    });
+
+    it("fails a head mirrored about the middle, a third along from the source where the program's is a third from the target", () => {
+        // the line shows from 110 to 490: the program's head 110 px from the target's outline, graphty's from the source's
+        assert.strictEqual(judge(head([380, 100]), head([380, 100])), 1);
+        assert.strictEqual(judge({ ...head([220, 100]), partWay: true }, head([380, 100])), 0);
+    });
+
+    it("judges nothing of graphty's part-way head against a program's head with no place, which passed", () => {
+        const { at: _, ...placeless } = head([300, 100]);
+        assert.isNull(judge({ ...head([300, 100]), partWay: true }, placeless));
     });
 });
 
@@ -266,5 +299,51 @@ describe("a label's place on its node", () => {
             rate(compareOracle("t", labeled("oracle", 0), labeled("graphty", dy)), "label.anchor");
         assert.strictEqual(judge(0), 1);
         assert.strictEqual(judge(12), 0);
+    });
+});
+
+describe("planted defects the comparator passed before round 5 (#4272)", () => {
+    const grid = (): PNode[] => IDS.map((id) => node(id, at(GRID, id)[0], at(GRID, id)[1], 60));
+
+    it("fails a faint group fill drawn at half its opacity, which went under the 0.05 both sides had to be over", () => {
+        const group = (opacity: number): PGroup => ({
+            id: "g",
+            box: { x0: 100, y0: 100, x1: 500, y1: 500 },
+            fill: { color: "#b4b464", opacity, gradient: null },
+            stroke: null,
+            label: null,
+            members: ["n0", "n1"],
+        });
+        const judge = (g: number): number | null =>
+            rate(
+                compareOracle(
+                    "t",
+                    { ...scene("oracle", grid(), []), groups: [group(0.098)] },
+                    { ...scene("graphty", grid(), []), groups: [group(g)] },
+                ),
+                "group.fillOpacity",
+            );
+        assert.strictEqual(judge(0.098), 1);
+        assert.strictEqual(judge(0.049), 0);
+    });
+
+    it("fails a node's picture graphty leaves out, which only excused graphty's pictures and was never asked for", () => {
+        const pictured = grid();
+        pictured[5] = { ...pictured[5], pictures: [{ x0: 430, y0: 430, x1: 470, y1: 470 }] };
+        const shown = {
+            index: 0,
+            tag: "annotation-image",
+            kind: "shape" as const,
+            box: { x0: 430, y0: 430, x1: 470, y1: 470 },
+            fill: null,
+            stroke: null,
+            text: null,
+        };
+        const judge = (g: PScene): number | null =>
+            rate(compareOracle("t", scene("oracle", pictured, []), g), "stray.present");
+        assert.strictEqual(judge({ ...scene("graphty", grid(), []), strays: [shown] }), 1);
+        // graphty's image node draws its picture as the node itself, not over its face
+        assert.strictEqual(judge(scene("graphty", pictured, [])), 1);
+        assert.strictEqual(judge(scene("graphty", grid(), [])), 0);
     });
 });

@@ -126,15 +126,11 @@ export const ORACLE_TOLERANCES = {
     sizeRatio: [0.85, 1.18],
     /**
      * A size against the drawing's own node spacing or extent, graphty's over the program's: where the two layouts are
-     * unrelated the spacing a force layout settles at differs between programs, but not by half or double.
+     * unrelated the spacing a force layout settles at differs between programs, but not by half or double. One band,
+     * where each program lays the file out itself too (`ownLayouts`): a wider one there ([1/3, 3], fitted to the corpus's
+     * 0.66 to 2.3) let every node drawn 2.5 times, or 0.4 times, the program's size beside the spacing pass.
      */
     layoutSizeRatio: [0.5, 2],
-    /**
-     * The same where each program lays the file out itself (`ownLayouts`): two programs' own layouts settle at spacings
-     * further apart, but a node a third of the program's size beside its spacing is drawn as a dot where the program
-     * draws a labeled box (cx-radiation-bibliography, 0.14), whatever the size-fitted scale absorbs.
-     */
-    ownLayoutSizeRatio: [1 / 3, 3],
     colorDeltaE: 3,
     /**
      * A whole canvas is told apart at a smaller difference than one small mark: white against
@@ -143,7 +139,7 @@ export const ORACLE_TOLERANCES = {
     backgroundDeltaE: 1,
     opacity: 0.1,
     /**
-     * And at most this far apart as a ratio, where both are over 0.05: a fill at 0.2 drawn at 0.1 is half as strong,
+     * And at most this far apart as a ratio, where either is over 0.05: a fill at 0.2 drawn at 0.1 is half as strong,
      * though only 0.1 apart.
      */
     opacityRatio: [0.75, 1.33],
@@ -655,9 +651,10 @@ export function reversalsOf(pts: readonly Pt[], step: number): number {
         const a = Math.atan2(q[i][1] - q[i - 1][1], q[i][0] - q[i - 1][0]);
         const b = Math.atan2(q[i + 1][1] - q[i][1], q[i + 1][0] - q[i][0]);
         const turn = Math.atan2(Math.sin(b - a), Math.cos(b - a));
-        // a turn of near half a circle is a path drawn back over itself (Cytoscape desktop's line retraced at its
-        // start, cx-syn-bypass 2106 -> 2112), which shows as one line, not a tooth
-        if (Math.abs(turn) >= limit && Math.abs(turn) <= RETRACE) {
+        // a path drawn back over itself (Cytoscape desktop's line retraced at its start, cx-syn-bypass 2106 -> 2112)
+        // shows as one line, not a tooth: its next sample lies on the run it came along. Every turn over 150 degrees
+        // was taken for one, and a zigzag 30% of its chord high or more counted no reversal at all (#4272)
+        if (Math.abs(turn) >= limit && !retraced(q[i - 1], q[i], q[i + 1], step / 8)) {
             const sign = Math.sign(turn);
             count += last !== 0 && sign !== last ? 1 : 0;
             last = sign;
@@ -666,13 +663,31 @@ export function reversalsOf(pts: readonly Pt[], step: number): number {
     return count;
 }
 
-/** A turn over this many radians is a path drawn back over itself, not a turn a reader sees. */
-const RETRACE = (150 * Math.PI) / 180;
+/**
+ * Whether a path turns back over the run it came along at a point: the next point lies on that run's line, within a
+ * distance, behind the turning point.
+ * @param a - the point before
+ * @param b - the turning point
+ * @param c - the point after
+ * @param tol - how far off the line the next point may lie
+ * @returns true for a path drawn back over itself
+ */
+function retraced(a: Pt, b: Pt, c: Pt, tol: number): boolean {
+    const [ux, uy] = [b[0] - a[0], b[1] - a[1]];
+    const len = Math.hypot(ux, uy);
+    const [vx, vy] = [c[0] - b[0], c[1] - b[1]];
+    return len > 0 && ux * vx + uy * vy < 0 && Math.abs(ux * vy - uy * vx) / len <= tol;
+}
 
-/** How far along its line an arrowhead's middle sits from the line's nearer end: in pixels, and as a share of it. */
-const fromEnd = (line: readonly Pt[], q: Pt): { px: number; share: number } => {
+/**
+ * How far along its line an arrowhead's middle sits from the end it caps: in pixels, and as a share of the line. From
+ * the line's nearer end instead, a head mirrored about the middle (0.3 from the target against 0.3 from the source)
+ * passed, and so did graphty's Pajek heads on short lines, drawn a head's length nearer the source than Pajek's
+ * (pajek-graphstream-b: Pajek draws `ap 0.5` with the head's back at the middle, graphty with its tip there).
+ */
+const fromOwnEnd = (line: readonly Pt[], q: Pt, end: "source" | "target"): { px: number; share: number } => {
     const { s, length } = placeOnLine(line, q);
-    const px = Math.min(s, length - s);
+    const px = end === "source" ? s : length - s;
     return { px, share: length > 0 ? px / length : 0 };
 };
 
@@ -680,29 +695,36 @@ const fromEnd = (line: readonly Pt[], q: Pt): { px: number; share: number } => {
  * Whether graphty's end arrowhead sits where the program's does. Most programs draw it at the line's end, and graphty's
  * is judged there (`capPlaceMiss`, its `misplaced`); one the program draws part-way along the line (Pajek's
  * `arrowPosition`, at the middle of every line on pajek-graphstream-b) is judged by how far along each line its middle
- * sits instead, each on its own line, as a share of the line's length; so is one graphty's style draws part-way
- * (`partWay`), wherever the program draws its own. Part-way is a quarter of the line or more from
- * its nearer end and over two of its own lengths: a head at the end of a short line between its nodes' outlines sits a
- * third along it (the specimen sheets' short lines).
+ * sits from the end it caps instead, each on its own line, as a share of the line's length; so is one graphty's style
+ * draws part-way (`partWay`), wherever the program draws its own, and one graphty draws part-way against a program's
+ * head with no place of its own is not judged at all (it passed). Part-way is a quarter of the line or more from its
+ * own end and over two of its own lengths: a head at the end of a short line between its nodes' outlines sits a third
+ * along it (the specimen sheets' short lines).
  * @param oLine - the oracle's line, between its nodes' outlines
  * @param oa - the oracle's arrowhead
  * @param gLine - graphty's line, between its nodes' outlines
  * @param ga - graphty's arrowhead, in the same frame
- * @returns the miss and what each side measured
+ * @returns the miss and what each side measured, or null where nothing can be judged
  */
 function arrowPlaceMiss(
     oLine: readonly Pt[],
     oa: PArrow,
     gLine: readonly Pt[],
     ga: PArrow,
-): { miss: number; oracle: number | null; graphty: number } {
-    const o = oa.at === undefined ? null : fromEnd(oLine, oa.at);
+): { miss: number; oracle: number | null; graphty: number } | null {
+    if (oa.end === "middle") {
+        return { miss: ga.misplaced ?? 0, oracle: null, graphty: ga.misplaced ?? 0 };
+    }
+    const o = oa.at === undefined ? null : fromOwnEnd(oLine, oa.at, oa.end);
+    if (o === null && ga.partWay === true) {
+        return null;
+    }
     const oPartWay = o !== null && o.share >= ARROW_PART_WAY && o.px > 2 * oa.length;
-    if (o === null || ga.at === undefined || oa.end === "middle" || (!oPartWay && ga.partWay !== true)) {
+    if (o === null || ga.at === undefined || (!oPartWay && ga.partWay !== true)) {
         return { miss: ga.misplaced ?? 0, oracle: null, graphty: ga.misplaced ?? 0 };
     }
     const along = o.share;
-    const mine = fromEnd(gLine, ga.at).share;
+    const mine = fromOwnEnd(gLine, ga.at, oa.end).share;
     return {
         miss: Math.max(0, Math.abs(mine - along) - ARROW_ALONG_SHARE) / ARROW_ALONG_SHARE,
         oracle: R(along),
@@ -818,14 +840,15 @@ function dashMiss(
 }
 
 /**
- * How far one opacity is from another: past the opacity tolerance apart, or past its ratio where both show.
+ * How far one opacity is from another: past the opacity tolerance apart, or past its ratio where either shows (where
+ * both had to, a faint tint halved to under 0.05 passed: xgmml-wp4271-cy3-export's group fills, 0.098 drawn at 0.049).
  * @param o - the oracle's
  * @param g - graphty's
  * @returns the miss, 0 when alike
  */
 function opacityMiss(o: number, g: number): number {
     const T = ORACLE_TOLERANCES;
-    const ratio = o > 0.05 && g > 0.05 ? ratioMiss(g / o, T.opacityRatio) : 0;
+    const ratio = Math.max(o, g) > 0.05 ? ratioMiss(Math.max(g, 1e-9) / Math.max(o, 1e-9), T.opacityRatio) : 0;
     return Math.max(0, Math.abs(o - g) - T.opacity) + ratio;
 }
 
@@ -1252,11 +1275,11 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.position": `center within ${String(ORACLE_TOLERANCES.positionOfSize)} of the node's smaller side (at least ${String(ORACLE_TOLERANCES.pixel)} render px) after the fit`,
     "node.width": `ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
     "node.height": `ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
-    "node.sizeToSpacing": `size over the drawing's median nearest-node spacing, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}] (where each program lays the file out itself, [${ORACLE_TOLERANCES.ownLayoutSizeRatio.map((v) => String(Math.round(v * 100) / 100)).join(", ")}])`,
+    "node.sizeToSpacing": `size over the drawing's median nearest-node spacing, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
     "node.sizeToExtent": `size over the diagonal of the drawing's extent, ratio in [${ORACLE_TOLERANCES.layoutSizeRatio.join(", ")}]`,
     "node.shape": "same shape class, where the oracle's can be told",
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
-    "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
+    "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
     "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
     "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
@@ -1271,7 +1294,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "label.rotation": `within ${String(ORACLE_TOLERANCES.rotationDeg)} degrees (an edge label's against its own line where the layouts are unrelated)`,
     "label.offset": `label center relative to its node (its group's box) within ${String(ORACLE_TOLERANCES.labelOffsetOfSize)} of its font size (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
-    "label.opacity": `the words' opacity (their color's alpha times every opacity above them) within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
+    "label.opacity": `the words' opacity (their color's alpha times every opacity above them) within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
     "label.family":
         "the same face where the program names a pinned face (DejaVu, Liberation, Free, Lato), else the same font class (sans-serif, serif, monospace, cursive, fantasy), once each side's family is resolved as the pinned fonts resolve it; graphty's in a browser, where a name no pinned font answers to falls through to the next and at last to serif",
     "label.lines": "the same number of lines (a label wrapped at its width, or broken at a newline)",
@@ -1279,18 +1302,18 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.anchor": `the same place against its node (its group's box) on each axis: before it, inside at its start, centered, inside at its end, after it (within ${String(ORACLE_TOLERANCES.labelAnchorOfSize)} of the font size)`,
     "label.alongLine": `an edge label's middle at the same place along its line, within ${String(ORACLE_TOLERANCES.labelAlongOfLength)} of the edge's length or one font size`,
     "label.offLine": `an edge label's middle as far off its line, on the same side, within ${String(ORACLE_TOLERANCES.labelOffLineOfSize)} of its font size (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
-    "label.outline": `an outline round the letters on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity within ${String(ORACLE_TOLERANCES.opacity)} (and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05) and its width outside the letters in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
-    "label.background": `a box behind the words on both sides or neither; alike, its fill within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and opacity within ${String(ORACLE_TOLERANCES.opacity)} (and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05)`,
+    "label.outline": `an outline round the letters on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity within ${String(ORACLE_TOLERANCES.opacity)} (and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05) and its width outside the letters in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
+    "label.background": `a box behind the words on both sides or neither; alike, its fill within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and opacity within ${String(ORACLE_TOLERANCES.opacity)} (and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05)`,
     "label.backgroundBox": `the box behind the words the same shape (rectangle, rounded, ellipse), its width and height ratio in [${ORACLE_TOLERANCES.sizeRatio.join(", ")}]`,
     "label.backgroundBorder": `a border round the box behind the words on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's and its width in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
     "edge.present": "every oracle edge is drawn by graphty",
     "edge.extra": "every edge graphty draws is one the oracle draws (no extra, hidden or duplicate edge)",
     "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): its ends where they sit on their own nodes: Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop), but no more than its end nodes' smaller side (or ten render px), and at least ${String(ORACLE_TOLERANCES.pixel)} render px`,
     "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's, or a pixel deep over the shorter chord; where each program lays the file out itself, the share of edges bent over ${String(ORACLE_TOLERANCES.curvature)}, within ${String(ORACLE_TOLERANCES.curvedShare)} of the oracle's`,
-    "edge.wiggle": `how often the route turns back the other way (turns over ${String(ORACLE_TOLERANCES.wiggleTurnDeg)} degrees and under 150, every two render pixels along it), within ${String(ORACLE_TOLERANCES.wiggleReversals)} or ${String(ORACLE_TOLERANCES.wiggleShare)} of the oracle's`,
+    "edge.wiggle": `how often the route turns back the other way (turns over ${String(ORACLE_TOLERANCES.wiggleTurnDeg)} degrees that do not run back over the line, every two render pixels along it), within ${String(ORACLE_TOLERANCES.wiggleReversals)} or ${String(ORACLE_TOLERANCES.wiggleShare)} of the oracle's`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
-    "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
+    "edge.opacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
     "edge.dash":
         "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows, a taper to a point from a pattern's geometry); a pattern no class names matches nothing",
     "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
@@ -1312,7 +1335,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "group.extra": "every group box graphty draws is one the oracle draws",
     "group.box": `intersection over union at least ${String(ORACLE_TOLERANCES.groupIoU)}, and every side within ${String(ORACLE_TOLERANCES.groupSideOfSize)} of the box's smaller side (at least ${String(ORACLE_TOLERANCES.pixel)} render px)`,
     "group.fill": `both unfilled, or deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
-    "group.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
+    "group.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where either is over 0.05`,
     "group.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "group.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
     "group.strokeDash": "same line class",
@@ -1812,7 +1835,7 @@ export function compareOracle(
     /** A size judged against each side's own spacing and extent, which the fitted scale cannot hide. */
     const layoutRelative = (p: "node.sizeToSpacing" | "node.sizeToExtent" | "edge.arrowToSpacing"): number | null => {
         // each program's own layout settles at its own spacing, so the extent and an arrowhead beside the spacing are
-        // its layout's; a node's size beside the spacing is still judged, in a wider band (`ownLayoutSizeRatio`): the
+        // its layout's; a node's size beside the spacing is still judged, in the same band (`layoutSizeRatio`): the
         // size-fitted scale absorbs any size the whole drawing is drawn at
         if (!layoutJudged && p !== "node.sizeToSpacing") {
             return null;
@@ -1857,8 +1880,7 @@ export function compareOracle(
             ] as const) {
                 if (scale !== null) {
                     const gSize = Math.max(gw0, gh0) * scale;
-                    const band = layoutJudged ? T.layoutSizeRatio : T.ownLayoutSizeRatio;
-                    j.add(p, "node", id, ratioMiss(gSize / oSize, band), R(oSize), R(gSize));
+                    j.add(p, "node", id, ratioMiss(gSize / oSize, T.layoutSizeRatio), R(oSize), R(gSize));
                 }
             }
         }
@@ -2434,7 +2456,9 @@ export function compareOracle(
                 gg.shape,
             );
             const place = arrowPlaceMiss(vo, oa, vg, gg.at === undefined ? gg : { ...gg, at: edgeFrame(gg.at) });
-            j.add("edge.arrowPlace", "edge", at, place.miss, place.oracle, place.graphty);
+            if (place !== null) {
+                j.add("edge.arrowPlace", "edge", at, place.miss, place.oracle, place.graphty);
+            }
             j.add("edge.arrowFill", "edge", at, oa.filled === gg.filled ? 0 : 1, oa.filled, gg.filled);
             if (oa.color !== null && gg.color !== null) {
                 j.add(
@@ -2733,6 +2757,8 @@ export function compareOracle(
 
     // ---- strays and free text: a finding unless graphty drew an annotation over it
     const gAnn = graphty.strays.map((s) => toO(s.box));
+    // the image a node with no body draws as itself is a picture drawn there too (vis-network's image nodes)
+    const gPictures = graphty.nodes.flatMap((n) => (n.pictures ?? []).map((b) => toO(b)));
     // every text graphty draws, in the oracle's frame: a node's or an edge's label the association did not pair
     // with its element (an edge it did not find, a node drawn with no body) is still drawn
     const gTexts = [
@@ -2767,6 +2793,12 @@ export function compareOracle(
             .filter((s) => s.lettering !== true)
             .map((s) => ({ tag: s.tag, box: s.box, fill: s.fill, stroke: s.stroke, text: s.text })),
         ...lettered,
+        // a picture the program draws as part of a node (vis-network's image nodes) is one graphty draws over the
+        // node's face as an annotation: it must be drawn. Only the other way round was judged (an annotation of
+        // graphty's over a program's picture is no extra), so a picture graphty left out passed (json-vis-synth)
+        ...oracle.nodes.flatMap((n) =>
+            (n.pictures ?? []).map((box) => ({ tag: "picture", box, fill: null, stroke: null, text: null })),
+        ),
         ...[...oracle.texts, ...annotatedTexts].filter(legibleText).map((t) => ({
             tag: "text",
             box: t.box,
@@ -2779,6 +2811,7 @@ export function compareOracle(
         .map((s, i) => {
             const matched =
                 gAnn.some((b) => strayIou(b, s.box) >= T.strayIoU) ||
+                (s.tag === "picture" && gPictures.some((b) => strayIou(b, s.box) >= T.strayIoU)) ||
                 (s.text !== null && textDrawn(s.text, s.box, gTexts)) ||
                 (s.tag === "lettering" && gTexts.some((t) => overlaps(t.box, s.box)));
             j.add(

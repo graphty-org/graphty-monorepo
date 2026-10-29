@@ -605,6 +605,7 @@ export function drawnPrimitives(
             ...sized,
             inset: inset > 0,
             ...(faceless === undefined ? {} : { faceless }),
+            ...(d?.picture === undefined ? {} : { pictures: [d.picture] }),
         });
     }
     const ends = shownEnds(scene, new Set(nodes.map((n) => n.id)));

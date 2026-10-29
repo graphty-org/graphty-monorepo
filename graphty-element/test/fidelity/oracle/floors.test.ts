@@ -14,6 +14,7 @@ import {
     judgeKey,
     type Judgement,
     type KnownRecords,
+    oracleFileSha256,
     raiseFloors,
     ratchetKnown,
     recordableScores,
@@ -158,5 +159,15 @@ describe("style fidelity gate", () => {
             judgeKey("s~specification", run({}), undefined, undefined, { section: "specificationFloors" }).section,
             "specificationFloors",
         );
+    });
+});
+
+describe("the sample file an oracle was drawn from", () => {
+    it("reads the web oracles' fileSha256 as well as the desktop tools' sha256, and nothing else as one", () => {
+        // the 74 web oracles (cyjs, sigma, vis) record only fileSha256, which the gate read as no record at all
+        assert.strictEqual(oracleFileSha256({ fileSha256: "ab12", svgSha256: "ff" }), "ab12");
+        assert.strictEqual(oracleFileSha256({ sha256: "cd34" }), "cd34");
+        assert.isNull(oracleFileSha256({ svgSha256: "ff" }));
+        assert.isNull(oracleFileSha256({ sha256: 7 }));
     });
 });

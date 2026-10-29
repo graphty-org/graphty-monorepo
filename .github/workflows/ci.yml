@@ -1517,6 +1517,20 @@ jobs:
               if: startsWith(matrix.shard, 'graphty-element-browser')
               run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
+            # The full style fidelity gate (the graphty-element-fidelity-<n> shards, full run only) compares every
+            # oracle: all their pictures (about 48 MB), cached apart from the scorecard's.
+            - name: Restore every style fidelity oracle picture
+              if: startsWith(matrix.shard, 'graphty-element-fidelity')
+              uses: actions/cache@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-oracle-all-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-oracle-all-
+
+            - name: Fetch every style fidelity oracle picture from Git LFS
+              if: startsWith(matrix.shard, 'graphty-element-fidelity')
+              run: git lfs pull --include "graph-io/test/fidelity/oracles/*.png"
+
             - name: Cache Playwright browsers
               if: matrix.needs-browser
               uses: actions/cache@v6

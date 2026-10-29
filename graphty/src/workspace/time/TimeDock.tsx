@@ -187,6 +187,19 @@ function ReadoutEntry({
 }
 
 /**
+ * How many of the timed elements a bin holds.
+ * @param bin - The bin, or undefined for none.
+ * @param onEdges - Whether time is on the edges, so a bin counts edges rather than nodes.
+ * @returns The count; 0 for no bin.
+ */
+function countIn(bin: TimeBin | undefined, onEdges: boolean): number {
+    if (bin === undefined) {
+        return 0;
+    }
+    return onEdges ? bin.edges : bin.nodes;
+}
+
+/**
  * What the brush's gesture does: a whole window dragged slides the element's cursor, the graph
  * following, and its release commits it; an end dragged is drawn here and set on release. One
  * gesture, one undoable step.
@@ -286,12 +299,7 @@ export function TimeDock(): React.JSX.Element | null {
         clamp(window === null ? min : Number(window.from)),
         clamp(window === null ? max : Number(window.to)),
     ];
-    const countOf = (bin: TimeBin | undefined): number => {
-        if (bin === undefined) {
-            return 0;
-        }
-        return onEdges ? bin.edges : bin.nodes;
-    };
+    const countOf = (bin: TimeBin | undefined): number => countIn(bin, onEdges);
     const { nodes, edges } = session.selection;
     const profile =
         nodes.length + edges.length === 0 ? null : time.bins({ maxCount, of: { nodes, edges, incident: true } });

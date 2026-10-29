@@ -515,6 +515,11 @@ function channelPlans(
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
+    const stack = (channel: Channel): ChannelPlan => ({
+        channel,
+        convert: (value) => arrowStackOf(value),
+        identity: false,
+    });
     // an edge's end captions are drawn in its label's face, color, weight and opacity, as every program draws its
     // source and target labels (Cytoscape.js, Graphviz's headlabel and taillabel); graphty writes its own captions
     const captions = (field: "Color" | "Font" | "Weight" | "Opacity"): ChannelPlan[] =>
@@ -822,6 +827,9 @@ function channelPlans(
         ["sourceArrowGap", [id("edge.arrowTailGap")]],
         ["targetArrowSide", [id("edge.arrowHeadSide")]],
         ["sourceArrowSide", [id("edge.arrowTailSide")]],
+        // each part drawn at its own size in the writing program's proportions by the arrow size pass, where it knows them
+        ["targetArrowParts", [stack("edge.arrowHeadStack")]],
+        ["sourceArrowParts", [stack("edge.arrowTailStack")]],
         ["curved", [id("edge.curvature")]],
         ["bends", [id("edge.bends")]],
         // Drawn in the scene's units, in proportion to the nodes it spaces the edges by.
@@ -1124,6 +1132,40 @@ function arrowBreadthOf(geometry: ToolArrowhead, end: ArrowEnd, i: number): numb
     const aspect = own === undefined || theirs === undefined ? 1 : theirs / own;
     const breadth = round((aspect * factor(end.breadth, i)) / factor(end.length, i));
     return breadth === 1 ? null : breadth;
+}
+
+/**
+ * An end cap's `stack` from a neutral `targetArrowParts` value: each arrow shape the element draws as its cap type,
+ * its side kept, and its size and width where the arrow size pass knows them.
+ * @param value - The parts, shapes separated by spaces, each optionally followed by `:left` or `:right`.
+ * @param sized - A part's size and width as the element's, or null for the end cap's own.
+ * @returns The `stack` value, or null for no part the element draws.
+ */
+function arrowStackOf(
+    value: StyleValue | null,
+    sized?: (shape: string) => { size: number | null; width: number | null },
+): string | null {
+    if (typeof value !== "string") {
+        return null;
+    }
+
+    const words = value
+        .trim()
+        .split(/\s+/)
+        .flatMap((word) => {
+            const [shape, side] = word.split(":");
+            const type = ARROW_SHAPES.get(shape);
+            if (type === undefined || type === "none") {
+                return [];
+            }
+
+            const sizes = sized?.(shape);
+            const kept = side === "left" || side === "right" ? `:${side}` : "";
+            const size = typeof sizes?.size === "number" ? `*${String(sizes.size)}` : "";
+            const width = typeof sizes?.width === "number" ? `x${String(sizes.width)}` : "";
+            return [`${type}${kept}${size}${width}`];
+        });
+    return words.length === 0 ? null : words.join(" ");
 }
 
 /** The properties the element draws nothing for, per kind. */
@@ -2812,6 +2854,8 @@ class KindTranslation {
             "sourceArrowImageHeight",
             "midTargetArrowImageWidth",
             "midTargetArrowImageHeight",
+            "targetArrowParts",
+            "sourceArrowParts",
         ] as const;
         const writers = this.#rules
             .map((rule, bucket) => ({ rule, bucket }))
@@ -2840,7 +2884,10 @@ class KindTranslation {
             tailImageHeight,
             midImageWidth,
             midImageHeight,
+            headParts,
+            tailParts,
         ] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
+        const parts: Record<"Head" | "Tail", readonly (StyleValue | null)[]> = { Head: headParts, Tail: tailParts };
         const none: readonly (StyleValue | null)[] = [];
         // a middle arrow is sized as the target's is, in its own shape's proportions
         const ends: Record<"Head" | "Tail" | "MiddleHead" | "MiddleTail", ArrowEnd> = {
@@ -2894,7 +2941,7 @@ class KindTranslation {
             ArrowEnd,
         ][]) {
             // Each edge's own value, read back per element: exact whatever the widths are.
-            const encode = (channel: Channel, values: readonly (number | null)[]): void => {
+            const encode = (channel: Channel, values: readonly (number | string | null)[]): void => {
                 if (values.some((value) => value !== null)) {
                     const path = this.#keepNew(`${channel.slice(5)}.sized`, values);
                     layer.spec.encode[channel] = { by: path, scale: "passthrough" };
@@ -2909,6 +2956,24 @@ class KindTranslation {
                 `edge.arrow${end}Width`,
                 sides.shapes.map((_shape, i) => arrowBreadthOf(geometry, sides, i)),
             );
+            // each part of a row behind the end cap at its own size and width, measured as the end cap is
+            if (end === "Head" || end === "Tail") {
+                encode(
+                    `edge.arrow${end}Stack`,
+                    parts[end].map((value, i) =>
+                        arrowStackOf(value, (shape) => {
+                            const part: ArrowEnd = {
+                                ...sides,
+                                shapes: sides.shapes.map((_s, j) => (j === i ? shape : null)),
+                            };
+                            return {
+                                size: arrowLengthOf(geometry, scene, part, factor(width, i, 0), i),
+                                width: arrowBreadthOf(geometry, part, i),
+                            };
+                        }),
+                    ),
+                );
+            }
         }
     }
 

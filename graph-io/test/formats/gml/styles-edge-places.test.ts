@@ -60,6 +60,20 @@ describe("GML styles: gv2gml's arrows and outlines as Graphviz draws them", () =
         expect(edge$("targetArrowSide")[1]).toBe("left");
     });
 
+    it("keeps a gv2gml stacked arrowhead's shapes behind its first", async () => {
+        const { edge: edge$ } = await load(
+            [
+                "graph [ version 2 directed 1",
+                gvNode(0, 10, 10),
+                gvNode(1, 90, 10),
+                `edge [ id 1 source 0 target 1 graphics [ targetArrow "boxdotnormal" arrow "first" ] ]`,
+                "]",
+            ].join("\n"),
+        );
+        expect(edge$("targetArrow")).toEqual(["square"]);
+        expect(edge$("targetArrowParts")).toEqual(["circle triangle"]);
+    });
+
     it("reads curve and icurve as an arc bulging toward the tip and away from it, half an arrow deep", async () => {
         const edge = (id: number, arrow: string): string =>
             `edge [ id ${String(id)} source 0 target 1 graphics [ targetArrow "${arrow}" arrow "first" ] ]`;

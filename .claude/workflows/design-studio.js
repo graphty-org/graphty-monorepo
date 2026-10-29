@@ -360,10 +360,11 @@ async function scriptedPass(tag, phaseName) {
 }
 // One reviewer looks at the end screens that changed since the earlier pass, and nothing else.
 async function reviewScreens(tag, phaseName, routes) {
+    const earlierOf = (r) => (r.prevShot ? ", earlier " + r.prevShot + ", diff " + r.diffImage : ", no earlier screen");
     const list = routes
         .map(
             (r) =>
-                `- ${r.task}: route ${r.id} (${r.feature}; outcome checks ${r.result}): new ${r.shot}${r.prevShot ? `, earlier ${r.prevShot}, diff ${r.diffImage}` : ", no earlier screen"}`,
+                `- ${r.task}: route ${r.id} (${r.feature}; outcome checks ${r.result}): new ${r.shot}${earlierOf(r)}`,
         )
         .join("\n");
     return agent(
@@ -462,13 +463,12 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
         const rs = routesOf(id);
         if (!rs.length) return "";
         if (scriptedOk(id))
-            return ` OVERRIDE: the scripted dry run already walked this task's success path by pointer and its outcome checks passed (${rs.map((r) => `${r.id}, end screen ${r.shot}`).join("; ")}), so do NOT walk the success path by pointer again: walk only the other routes asked for above (the detours and the keyboard walk, or the touched routes), and take reached and the success path's verdict from the script.`;
-        return ` The scripted dry run's walk of this task's success path FAILED: ${rs
+            return ` OVERRIDE: the scripted dry run already walked this task's success path by pointer and its outcome checks passed (${rs.map((r) => r.id + ", end screen " + r.shot).join("; ")}), so do NOT walk the success path by pointer again: walk only the other routes asked for above (the detours and the keyboard walk, or the touched routes), and take reached and the success path's verdict from the script.`;
+        const failed = rs
             .filter((r) => r.result !== "pass")
             .map((r) => `${r.id}: ${r.reason} (last screen ${r.shot}, the page's accessibility tree then ${r.aria})`)
-            .join(
-                "; ",
-            )}. Look at those first and walk the success path by hand from its start to find where and why the build goes another way; report it as a defect with its screenshot, or as an answer-key mismatch if the screen is right and the route is out of date.`;
+            .join("; ");
+        return ` The scripted dry run's walk of this task's success path FAILED: ${failed}. Look at those first and walk the success path by hand from its start to find where and why the build goes another way; report it as a defect with its screenshot, or as an answer-key mismatch if the screen is right and the route is out of date.`;
     };
     // A task whose script passed needs a pilot only for the routes no script walks: its earlier
     // pass's detour and keyboard walks are replayed with no model first (real.mjs --rewalk), and a

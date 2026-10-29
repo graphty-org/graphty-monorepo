@@ -1441,9 +1441,13 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
-            # A full run with the features-on shards is over 40 jobs; they come last in the matrix
+            # A full run (release.yml, a dispatch, a bisect) runs at most 14 shards at once and its story tests at
+            # most 6, 20 runners in all, so the full run never starves pull requests of runners (#3448); the
+            # Run cap lets pull requests go once the full run holds that share (RELEASE_SHARE in
+            # tools/ci-run-cap.mjs). Its ~25 shards are ~260 runner-minutes, the longest ~19: about 25 minutes
+            # at 14. A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
-            max-parallel: 40
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
 
         steps:
@@ -2371,6 +2375,9 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
+            # 6 at once outside a pull request (the full run's share of runners, with the test job's 14):
+            # ~116 runner-minutes, the longest leg ~17, so about 20 to 25 minutes (#3448)
+            max-parallel: ${{ github.event_name == 'pull_request' && 256 || 6 }}
             matrix:
                 include:
                     # Two legs (vitest --shard=N/2), merged by story-tests-merge: one job was 31 minutes, the longest

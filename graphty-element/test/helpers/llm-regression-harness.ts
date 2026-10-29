@@ -19,10 +19,12 @@ import { SchemaManager } from "../../src/ai/schema";
 import type { Graph } from "../../src/Graph";
 import {
     getLlmRegressionApiKey,
+    getLlmRegressionGeminiTier,
     getLlmRegressionKeyVariable,
     getLlmRegressionModel,
     getLlmRegressionProvider,
 } from "./llm-regression-env";
+import { ACCOUNT_REFUSAL_TEXT, FLEX_CAPACITY_CODE, GeminiTransport } from "./llm-regression-gemini";
 import { createMockGraphContext } from "./mock-graph-context";
 
 /**
@@ -131,15 +133,23 @@ export function accountRefusalOf(error: unknown): string | null {
     // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota, or 402 when its
     // prepayment credits are depleted.
     const text = failure.text.toLowerCase();
-    if (
-        /credit balance|insufficient_quota|no credits|credits are depleted|billing|exceeded your current quota/.test(
-            text,
-        )
-    ) {
+    if (ACCOUNT_REFUSAL_TEXT.test(text)) {
         return `HTTP ${status ?? "?"}, out of credit or quota`;
     }
 
     return null;
+}
+
+/**
+ * The test file's one Gemini transport, so every harness in it shares the cached prefixes; setup.ts closes it
+ * and prints its usage.
+ * @param apiKey - The Google key
+ * @returns The transport
+ */
+function geminiTransport(apiKey: string): GeminiTransport {
+    const shared = globalThis as { __LLM_REGRESSION_GEMINI__?: GeminiTransport };
+    shared.__LLM_REGRESSION_GEMINI__ ??= new GeminiTransport({ apiKey, tier: getLlmRegressionGeminiTier() });
+    return shared.__LLM_REGRESSION_GEMINI__;
 }
 
 /**
@@ -260,11 +270,14 @@ export class LlmRegressionTestHarness {
         }
 
         // The provider VITE_LLM_REGRESSION_PROVIDER names (google by default)
-        const provider = new ToolCallCapturingProvider(getLlmRegressionProvider());
+        const providerType = getLlmRegressionProvider();
+        const provider = new ToolCallCapturingProvider(providerType);
         provider.configure({
             apiKey,
             model: options.model ?? getLlmRegressionModel(),
             temperature: options.temperature ?? 0,
+            // Google's requests go through the run's one transport: the cached prefix, the Flex tier, the cost.
+            fetch: providerType === "google" ? geminiTransport(apiKey).fetch : undefined,
         });
 
         // Create graph from fixture or default
@@ -414,6 +427,11 @@ export class LlmRegressionTestHarness {
      */
     private defaultRetryCondition(error: Error): boolean {
         const message = error.message.toLowerCase();
+        // The transport already retried Flex's capacity errors as Google documents: asking again only waits longer.
+        if (error.message.includes(FLEX_CAPACITY_CODE)) {
+            return false;
+        }
+
         return (
             message.includes("rate") ||
             message.includes("429") ||

@@ -943,9 +943,13 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
 const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates) =>
     !!run && (/\bllm lane\b/.test(run.display_title ?? "") || rates.llm.legacyBisectRuns.includes(run.id));
 
+/** The step after the LLM tests whose name carries the run's logged cost (release.yml, tools/llm-spend.mjs). */
+const LLM_COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
+
 /**
  * Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost: release.yml's LLM regression step,
- * and the test step of each point of a bisect of the llm lane.
+ * and the test step of each point of a bisect of the llm lane. A job whose cost step logged its real cost is priced at
+ * that instead.
  */
 export function llmCost(
     j: GhJob,
@@ -961,6 +965,7 @@ export function llmCost(
         (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
     if (!paid.length) return undefined;
+    const logged = (j.steps ?? []).map((s) => LLM_COST_STEP.exec(s.name)?.[1]).find((v) => v !== undefined);
     const end = Date.parse(paid[paid.length - 1].completed_at ?? j.completed_at ?? j.created_at);
     return {
         kind: "cost",
@@ -969,7 +974,7 @@ export function llmCost(
         line: "llm",
         ...opt("workflow", workflow),
         day: dayOf(end),
-        usd: paid.length * rates.llm.usdPerPaidStep,
+        usd: logged === undefined ? paid.length * rates.llm.usdPerPaidStep : Number(logged),
     };
 }
 

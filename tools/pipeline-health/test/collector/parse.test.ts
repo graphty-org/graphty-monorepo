@@ -527,6 +527,16 @@ describe("costs", () => {
         ).toMatchObject({ line: "llm", usd: 0.94 });
     });
 
+    it("prices an LLM run at the cost its cost step logged, when it has one", () => {
+        const llm = tested.find((x) => x.name === "LLM regression")!;
+        const step = (name: string) => ({ ...llm.steps![0], name });
+        const logged = { ...llm, steps: [...llm.steps!, step("LLM regression cost: 0.2871 USD")] };
+        expect(llmCost(logged, REPO, R)).toMatchObject({ line: "llm", usd: 0.2871 });
+        // a cost step that did not run names no number: the flat rate stands
+        const skipped = { ...llm, steps: [...llm.steps!, step("LLM regression cost:  USD")] };
+        expect(llmCost(skipped, REPO, R)).toMatchObject({ usd: 0.94 });
+    });
+
     it("prices each point of a bisect of the llm lane, and no point of another lane", () => {
         // bisect.yml run 40492117633 (2026-10-27) bisected the llm lane before the run name carried the lane: one
         // point, its paid step "Run the failing files" (375 Gemini calls).

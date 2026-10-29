@@ -822,6 +822,9 @@ function readGv2gmlEdge(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         if (arrow?.side !== null && arrow?.side !== undefined) {
             put(`${end}ArrowSide`, arrow.side);
         }
+        if (arrow?.parts !== null && arrow?.parts !== undefined) {
+            put(`${end}ArrowParts`, arrow.parts);
+        }
     }
 }
 

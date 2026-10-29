@@ -651,6 +651,15 @@ export interface EdgeStyleValues {
     /** The side of its line the target arrowhead is drawn on alone, as `sourceArrowSide` says. */
     readonly targetArrowSide: StyleArrowSide;
     /**
+     * More arrowheads drawn in a row behind the source arrowhead, nearest first, each from where the one before it
+     * ends, the line stopping at the last (Graphviz's `boxdotnormal`, `lteeoldiamond`): arrow shapes separated by
+     * spaces, each optionally followed by `:left` or `:right` for the side it keeps alone (`circle triangle`,
+     * `diamond-open:left`). Unset, the arrowhead alone.
+     */
+    readonly sourceArrowParts: string;
+    /** More arrowheads drawn in a row behind the target arrowhead, as `sourceArrowParts` says. */
+    readonly targetArrowParts: string;
+    /**
      * Where along the line each arrowhead is drawn, as a fraction of the line measured from the arrow's own end: 0 (the
      * default) at the end, 0.5 at the middle, at most 1.
      */

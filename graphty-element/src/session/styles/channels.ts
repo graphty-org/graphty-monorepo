@@ -546,6 +546,7 @@ export interface ChannelValues {
     "edge.arrowHeadSide": "left" | "right";
     "edge.arrowHeadPosition": number;
     "edge.arrowHeadGap": number;
+    "edge.arrowHeadStack": string;
     "edge.arrowHeadColor": ColorValue;
     "edge.arrowHeadOpacity": number;
     "edge.arrowHeadImage": string;
@@ -567,6 +568,7 @@ export interface ChannelValues {
     "edge.arrowTailSide": "left" | "right";
     "edge.arrowTailPosition": number;
     "edge.arrowTailGap": number;
+    "edge.arrowTailStack": string;
     "edge.arrowTailColor": ColorValue;
     "edge.arrowTailOpacity": number;
     "edge.arrowTailImage": string;
@@ -1091,7 +1093,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -1179,6 +1181,20 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             caveat:
                 "How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the " +
                 "line stops there too. 0 puts the cap against the node.",
+        },
+        {
+            ...id("Stack"),
+            plainName: `Arrow ${end} Stack`,
+            shortName: `${end} stack`,
+            group: "arrows",
+            accepts: "text",
+            stylePath: `arrow${end}.stack`,
+            renderable: true,
+            caveat:
+                "More caps drawn in a row behind this one, nearest first, each from where the one before it ends; " +
+                "the line stops at the last. Cap types separated by spaces, each optionally followed by :left or " +
+                ":right, then * and its size, then x and its width: `dot normal`, `open-diamond:left*1.2`. " +
+                "Unset, the cap alone.",
         },
         {
             ...id("Color"),
@@ -1364,10 +1380,10 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
     const from = end === "MiddleHead" ? "Head" : "Tail";
     const plain = end === "MiddleHead" ? "Middle Head" : "Middle Tail";
     const rows = Object.values(arrowEndChannels(from))
-        // a middle cap has no caption, and no gap from a node it does not touch
+        // a middle cap has no caption, no gap from a node it does not touch, and no row of caps behind it
         .filter((row) => {
             const suffix = row.channel.slice(`edge.arrow${from}`.length);
-            return !suffix.startsWith("Text") && suffix !== "Gap";
+            return !suffix.startsWith("Text") && suffix !== "Gap" && suffix !== "Stack";
         })
         .map((row): ChannelDescriptor => {
             const suffix = row.channel.slice(`edge.arrow${from}`.length);

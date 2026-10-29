@@ -1274,13 +1274,17 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     if (world.length >= 2 && head !== null) {
         world = [...world.slice(0, -1), head];
     }
-    const caps = edge.drawnCaps.map((c) => {
-        const cap = {
-            arrowHead: edge.arrowCap,
-            arrowTail: edge.arrowTailCap,
-            arrowMiddleHead: edge.arrowMiddleHeadCap,
-            arrowMiddleTail: edge.arrowMiddleTailCap,
-        }[c.end];
+    // the caps in the order drawnCaps lists them: each end cap followed by the row drawn behind it (`stack`)
+    const capObjects = [
+        edge.arrowCap,
+        ...edge.arrowHeadStackCaps,
+        edge.arrowTailCap,
+        ...edge.arrowTailStackCaps,
+        edge.arrowMiddleHeadCap,
+        edge.arrowMiddleTailCap,
+    ].filter((cap) => cap !== null && !cap.isDisposed());
+    const caps = edge.drawnCaps.map((c, k) => {
+        const cap = capObjects[k];
         const at = cap?.position ?? Vector3.Zero();
         // a billboard's color is its slot's; a flat cap's, its batch's material
         const look = cap?.drawnAppearance?.colour ?? null;

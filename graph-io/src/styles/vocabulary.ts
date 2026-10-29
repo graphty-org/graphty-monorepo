@@ -212,6 +212,8 @@ export const STYLE_PROPERTIES: {
         ["targetArrowGap", "number"],
         ["sourceArrowSide", "arrowSide"],
         ["targetArrowSide", "arrowSide"],
+        ["sourceArrowParts", "text"],
+        ["targetArrowParts", "text"],
         ["arrowPosition", "number"],
         ["lineStyle", "lineStyle"],
         ["waveAmplitude", "number"],

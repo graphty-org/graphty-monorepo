@@ -59,7 +59,9 @@ import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import {
     mutant,
+    storyMutantText,
     runPaths,
+    selectsEveryStory,
     seededPick,
     storiesMissed,
     storyCandidates,
@@ -816,6 +818,22 @@ describe("mutation testing of the selection", () => {
         );
         assert.equal(mutant("p/data/x.json", '{"a":1}'), "{}\n");
         assert.equal(mutant("p/data/x.csv", "a,b"), "");
+    });
+
+    it("breaks a story-side code file only on a story's page, so the capture can still list every story", () => {
+        const broken = storyMutantText("p/src/a.ts", "export const a = 1;");
+        assert.ok(broken.startsWith("export const a = 1;\n"));
+        const run = (search) => new Function("globalThis", broken.replace("export ", ""))({ location: { search } });
+        assert.doesNotThrow(() => run(""));
+        assert.throws(() => run("?id=x--y&viewMode=story"), /select-mutant/u);
+        assert.equal(storyMutantText("p/data/x.json", '{"a":1}'), "{}\n");
+    });
+
+    it("counts a selection of every story file as all-selected, so it is not built or captured", () => {
+        const all = new Set(["p/a.stories.ts", "p/b.stories.ts"]);
+        assert.equal(selectsEveryStory({ mode: "all" }, all), true);
+        assert.equal(selectsEveryStory({ mode: "files", files: ["p/b.stories.ts", "p/a.stories.ts"] }, all), true);
+        assert.equal(selectsEveryStory({ mode: "files", files: ["p/a.stories.ts"] }, all), false);
     });
 
     it("checks each failing test against the broken files that did not select it, grouped", () => {

@@ -109,6 +109,21 @@ export function mutant(path, text) {
 }
 
 /**
+ * A broken copy of a file for --stories: a code file throws on import only on a story's page (its URL has an
+ * `id`), so the capture's preview.extract() (iframe.html, no id), which loads every story file, still lists the
+ * stories and only the stories whose page loads the file fail to render; a data file breaks as in mutant().
+ * @param path repo-relative path
+ * @param text its contents
+ * @returns the broken contents
+ */
+export function storyMutantText(path, text) {
+    if (CODE.test(path)) {
+        return `${text}\nif (new URLSearchParams(globalThis.location?.search ?? "").has("id")) {\n    throw new Error("select-mutant");\n}\n`;
+    }
+    return mutant(path, text);
+}
+
+/**
  * The failing test files a batch of broken files must be checked for, grouped by the broken files that did
  * NOT select them (a file selected by every broken file, or by one that runs the whole shard, is explained).
  * @param failing repo-relative test files that failed with the batch broken
@@ -386,6 +401,16 @@ export function storiesMissed(changed, sel, fileOf) {
 }
 
 /**
+ * Whether a selection runs every story of the project, so no story can be missed.
+ * @param sel the project's selectStories() entry
+ * @param storyFileSet every repo-relative story file of the project
+ * @returns true for mode "all", or a file list that holds every story file
+ */
+export function selectsEveryStory(sel, storyFileSet) {
+    return sel.mode === "all" || [...storyFileSet].every((f) => sel.files.includes(f));
+}
+
+/**
  * Story id -> repo-relative story file, from a built Storybook's index.json.
  * @param index the parsed index.json
  * @param root the directory Storybook was built from, repo-relative (its package: graph-io-fidelity's
@@ -495,7 +520,7 @@ export function storySideImports(wt, stories, known) {
  * @param c storiesMain()'s context: wt, project, cfg, SHARDS, graphs, rules, build, capture, changedIds, ref, fileOf
  * @param n the mutant's number
  * @param f the repo-relative file
- * @returns `{ misses, inconclusive, checked }`, checked 0 when the file was skipped
+ * @returns `{ misses, inconclusive, checked, allSelected }`, checked 0 when the file was skipped
  */
 async function storyMutant(c, n, f) {
     const change = await selectChange(c.wt, [f], c.SHARDS, c.graphs);
@@ -510,13 +535,13 @@ async function storyMutant(c, n, f) {
     }).find((p) => p.project === c.project);
     const what = sel.mode === "files" ? sel.files.length + " story file(s)" : sel.mode;
     log(`Mutant ${n}: ${f}: ${what}`);
-    if (sel.mode === "all") {
+    if (selectsEveryStory(sel, new Set(c.fileOf.values()))) {
         // every story runs, so nothing can be missed: not a test of the selector, and not worth a build
-        log("  SKIPPED: the selection runs every story");
-        return { misses: 0, inconclusive: 0, checked: 0 };
+        log("  ALL-SELECTED (no miss possible)");
+        return { misses: 0, inconclusive: 0, checked: 0, allSelected: 1 };
     }
     const original = readFileSync(join(c.wt, f));
-    writeFileSync(join(c.wt, f), mutant(f, original.toString("utf8")));
+    writeFileSync(join(c.wt, f), storyMutantText(f, original.toString("utf8")));
     let broken;
     try {
         // a second try, so a browser that failed to start is not taken for an unloadable Storybook
@@ -666,11 +691,13 @@ async function storiesMain(project, opt) {
     let misses = 0;
     let inconclusive = 0;
     let checked = 0;
+    let allSelected = 0;
     for (const [n, f] of picked.entries()) {
         const r = await storyMutant(ctx, n + 1, f);
         misses += r.misses;
         inconclusive += r.inconclusive;
         checked += r.checked;
+        allSelected += r.allSelected ?? 0;
     }
     if (build().status !== 0) {
         log(`the scratch worktree's ${project} Storybook did not rebuild unbroken`);
@@ -678,8 +705,10 @@ async function storiesMain(project, opt) {
     const clean = misses === 0 && inconclusive === 0 && checked > 0;
     log(
         clean
-            ? `No misses in ${checked} checked mutant(s) of ${project} (${picked.length - checked} skipped).`
-            : `${misses} miss(es), ${inconclusive} inconclusive, ${checked} of ${picked.length} mutant(s) checked.`,
+            ? `No misses in ${checked} checked mutant(s) of ${project} (${allSelected} all-selected, ` +
+                  `${picked.length - checked - allSelected} skipped).`
+            : `${misses} miss(es), ${inconclusive} inconclusive, ${checked} of ${picked.length} mutant(s) checked ` +
+                  `(${allSelected} all-selected).`,
     );
     return clean ? 0 : 1;
 }

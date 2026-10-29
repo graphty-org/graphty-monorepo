@@ -2043,8 +2043,11 @@ jobs:
     # the run: a Stories job without one captures as before.
     story-references:
         name: Story references
-        needs: packages
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
+        # no needs: it starts with the Build job instead of after it, so the Stories jobs start when the Build and
+        # Storybooks jobs end (about 1.5 to 3.5 minutes sooner, #3448); it finds every Storybook project's
+        # reference, because which projects have selected stories is known only once Build ends (one walk of
+        # master's runs either way, VISUAL_REVIEW_API_CACHE)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         continue-on-error: true
@@ -2091,12 +2094,11 @@ jobs:
             - name: Find master's newest capture of each project
               env:
                   GH_TOKEN: ${{ github.token }}
-                  MATRIX: ${{ needs.packages.outputs.stories-matrix }}
                   # the projects' walks over master read the same runs: each read is made once
                   VISUAL_REVIEW_API_CACHE: ${{ runner.temp }}/github-api
               run: |
                   mkdir -p "$RUNNER_TEMP/story-references"
-                  for project in $(jq -r '[.include[].project] | unique[]' <<<"$MATRIX"); do
+                  for project in $(jq -r '.projects | keys[]' visual-review.config.json); do
                       dir=$(node visual-review/trusted/cli.mjs reference --project "$project" --out "$RUNNER_TEMP/reference") || dir=
                       if [ -n "$dir" ]; then
                           cp -r "$dir" "$RUNNER_TEMP/story-references/$project"

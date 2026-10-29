@@ -194,12 +194,17 @@ node tools/pipeline-health/local/collector.mjs --once      # post what is new, t
 node tools/pipeline-health/local/collector.mjs --watch     # post what is new every 60 s
 ```
 
-Run it under servherd from the main checkout, so it keeps running when worktrees are removed:
+It runs under servherd from its live copy, the worktree `.worktrees/pipeline-health-local-live`, reading the
+main checkout's `tmp/` (`--root`). `tools/live.sh pipeline-health-local <branch-or-commit>` merges a change into
+that copy, runs `local/collector.test.mjs` and restarts the server (`tools/live-tools.json`):
 
 ```jsonc
-servherd_start({ name: "pipeline-health-local", cwd: "<repo>",
-  command: "node tools/pipeline-health/local/collector.mjs --watch" })
+servherd_start({ name: "pipeline-health-local", cwd: "<repo>/.worktrees/pipeline-health-local-live",
+  command: "node tools/pipeline-health/local/collector.mjs --watch --root <repo>",
+  env: { HEALTH_API_URL: "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com" } })
 ```
+
+The token is `HEALTH_LOCAL_TOKEN`, from the server's environment or else the main checkout's `.env` (never printed).
 
 Its cursor is `tmp/pipeline-health-local/cursor.json` in the main checkout. A failed post logs one line
 and keeps the cursor, so the next pass sends the same rows; delete the cursor to post everything again.

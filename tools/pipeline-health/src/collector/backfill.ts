@@ -243,16 +243,39 @@ async function hourRuns(c: Ctx, repo: string, day: number, hour: number, fromPag
     }
 }
 
-/** Each day's runs of each workflow in `o.repo` (a workflow lists far fewer than LISTED_RUNS a day), with their items. */
+/** The repair's cursor: which repair (its days and workflows), the next day-workflow pair and page, or done. */
+export const REPAIR_CURSOR = "backfill#repair";
+
+/**
+ * Each day's runs of each workflow in `o.repo` (a workflow lists far fewer than LISTED_RUNS a day), with their items.
+ * The cursor moves after each page, so an invocation stopped by its deadline or the write budget continues there
+ * instead of re-reading (and re-writing) the same first pages every time; a finished repair reads nothing again.
+ */
 async function repairRuns(c: Ctx, days: string[], workflows: string[]): Promise<void> {
-    for (const day of days)
-        for (const wf of workflows)
-            for (let page = 1; page <= LISTED_RUNS / c.perPage; page++) {
-                const res = await c.get<{ workflow_runs: GhRun[] }>(
-                    `repos/${c.o.repo}/actions/workflows/${wf}/runs?created=${day}&per_page=${c.perPage}&page=${page}`,
-                );
-                if (await runsPage(c, c.o.repo, res?.workflow_runs ?? [], `${wf} ${day} page ${page}`)) break;
-            }
+    const key = JSON.stringify({ days, workflows });
+    const saved = await getCursor(c.o.store, REPAIR_CURSOR);
+    let at = { i: 0, page: 1, done: false };
+    try {
+        const v = saved ? (JSON.parse(saved) as { key?: string; i?: number; page?: number; done?: boolean }) : {};
+        if (v.key === key) at = { i: v.i ?? 0, page: v.page ?? 1, done: v.done === true };
+    } catch {
+        // unreadable: start over (writes are idempotent)
+    }
+    const save = (v: object) => setCursor(c.o.store, REPAIR_CURSOR, JSON.stringify({ key, ...v }), c.o.now);
+    if (at.done) return;
+    const pairs = days.flatMap((day) => workflows.map((wf) => [day, wf] as const));
+    for (let i = at.i; i < pairs.length; i++) {
+        const [day, wf] = pairs[i];
+        for (let page = i === at.i ? at.page : 1; page <= LISTED_RUNS / c.perPage; page++) {
+            const res = await c.get<{ workflow_runs: GhRun[] }>(
+                `repos/${c.o.repo}/actions/workflows/${wf}/runs?created=${day}&per_page=${c.perPage}&page=${page}`,
+            );
+            const last = await runsPage(c, c.o.repo, res?.workflow_runs ?? [], `${wf} ${day} page ${page}`);
+            await save(last ? { i: i + 1, page: 1 } : { i, page: page + 1 });
+            if (last) break;
+        }
+    }
+    await save({ done: true });
 }
 
 /** Writes one listed page of runs with their items; true when it was the query's last page. */

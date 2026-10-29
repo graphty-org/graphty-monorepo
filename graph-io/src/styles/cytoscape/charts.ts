@@ -11,6 +11,7 @@
  * drawn clockwise is its slices in reverse order from where the last one ends.
  */
 
+import { DIALOG_LINE_HEIGHT, dialogWidth } from "../../formats/gexf/dialog-metrics.js";
 import { num6 } from "../canon/number.js";
 import type { StyleColumn, StyleValue } from "../types.js";
 import { colorSchemeColors } from "./color-schemes.js";
@@ -44,6 +45,11 @@ interface ChartOptions {
     readonly cy_itemLabels?: unknown;
     readonly cy_itemLabelsColumn?: unknown;
     readonly cy_itemLabelFontSize?: unknown;
+    readonly cy_showRangeAxis?: unknown;
+    readonly cy_showDomainAxis?: unknown;
+    readonly cy_axisLabelFontSize?: unknown;
+    readonly cy_domainLabelPosition?: unknown;
+    readonly cy_domainLabelsColumn?: unknown;
 }
 
 /** The charts Cytoscape draws, by the name of their class. */
@@ -241,9 +247,40 @@ function chartOnNode(
     const side = shorterSide(node);
     const fitted = sizeSync || Number.isNaN(ownSize) || ownSize <= 0;
     const box = side === null ? null : { disc: CHART_ACROSS * (fitted ? side : ownSize), side };
-    for (const [property, v] of Object.entries(plotChart(chart.kind, options, values, colors, box))) {
+    const plotted = plotChart(chart.kind, options, values, colors, box);
+    const names = domainNames(options, columns, own !== null, node.value);
+    const axes = box === null ? null : chartAxes(options, plotted, box.disc, node, (k) => names[k]);
+    for (const [property, v] of Object.entries({ ...plotted, ...axes?.plot })) {
         node.put(property, v);
     }
+    if (axes !== null && axes.texts.length > 0 && (node.get("shapeTexts") ?? null) === null) {
+        node.put("shapeTexts", JSON.stringify(axes.texts));
+    }
+}
+
+/**
+ * The names a chart's categories carry on its domain axis, one per value: the node's list in
+ * `cy_domainLabelsColumn`, else the data columns' names when there is one column per value; none for a list column's
+ * values or the chart's own, whose names Cytoscape makes up itself.
+ * @param options - the chart's options
+ * @param columns - its data columns
+ * @param own - whether it draws its own values
+ * @param value - reads the node's value of a column
+ * @returns the names by value, an empty string where there is none
+ */
+function domainNames(
+    options: ChartOptions,
+    columns: readonly string[],
+    own: boolean,
+    value: (column: string) => unknown,
+): string[] {
+    const listed = typeof options.cy_domainLabelsColumn === "string" ? value(options.cy_domainLabelsColumn) : null;
+    if (Array.isArray(listed)) {
+        return listed.map((v) => (v === null || v === undefined ? "" : String(v)));
+    }
+    // ponytail: a list column's categories are named by Cytoscape (the line chart's fourth and fifth show as "..."),
+    // left unnamed until a sample shows what it calls them
+    return own || (columns.length === 1 && Array.isArray(value(columns[0]))) ? [] : [...columns];
 }
 
 /**
@@ -695,4 +732,177 @@ function plotChart(
             break;
     }
     return out;
+}
+
+/**
+ * JFreeChart's room round a chart's axis labels, in the file's lengths (its chart units are half of one): 4 beyond a
+ * label's own size for the tick, the axis' offset from the plot and the label's insets, the label's near edge 3.5 from
+ * the plot (measured from Cytoscape 3.10.5's SVG export of xgmml-specimen-images-charts-p7 at label sizes 1, 10 and
+ * 20), and 2 above and below a tick label when JFreeChart picks how far apart the ticks are.
+ */
+const AXIS_ROOM = 4;
+const AXIS_LABEL_GAP = 3.5;
+const TICK_LABEL_INSETS = 2;
+
+/** The size of a chart's axis labels when its options name none (Cytoscape's `cy_axisLabelFontSize` default). */
+const AXIS_LABEL_FONT_SIZE = 1;
+
+/**
+ * How JFreeChart turns a category's name for each `cy_domainLabelPosition`: the turn (degrees clockwise on screen)
+ * and the point of the name's box it pins to the category's middle under the plot, from the box's middle as
+ * fractions of its width and height (`CategoryLabelPositions`: STANDARD the top's middle, UP_45 the top right corner,
+ * UP_90 the right end's middle, DOWN_45 the top left, DOWN_90 the left end's middle).
+ */
+const DOMAIN_LABEL_POSITIONS: Readonly<Record<string, { turn: number; pin: readonly [number, number] }>> = {
+    STANDARD: { turn: 0, pin: [0, -0.5] },
+    UP_45: { turn: -45, pin: [0.5, -0.5] },
+    UP_90: { turn: -90, pin: [0.5, 0] },
+    DOWN_45: { turn: 45, pin: [-0.5, -0.5] },
+    DOWN_90: { turn: 90, pin: [-0.5, 0] },
+};
+
+/** The steps JFreeChart's standard tick units take in each power of ten (`NumberAxis.createStandardTickUnits`). */
+const TICK_STEPS = [1, 2.5, 5];
+
+/**
+ * The tick unit JFreeChart picks for a vertical number axis (`NumberAxis.selectVerticalAutoTickUnit`): from a unit of
+ * 1, the smallest standard unit at least as far apart as a tick label is tall, the next one up when that is still too
+ * close.
+ * @param span - the axis' range
+ * @param length - the plot's height
+ * @param label - a tick label's height with its insets
+ * @returns the unit, or NaN when the axis has no length
+ */
+function tickUnit(span: number, length: number, label: number): number {
+    const per = length / span;
+    if (!(per > 0) || !Number.isFinite(per)) {
+        return Number.NaN;
+    }
+    const units = (from: number): number[] => {
+        const decade = 10 ** Math.floor(Math.log10(from));
+        return [decade / 10, decade, decade * 10].flatMap((d) => TICK_STEPS.map((k) => k * d));
+    };
+    const guess = label / per;
+    const all = units(guess);
+    const at = all.findIndex((u) => u >= guess * (1 - 1e-9));
+    return label > all[at] * per ? all[at + 1] : all[at];
+}
+
+/**
+ * A number as a tick unit's format writes it: as many decimals as the unit has, thousands grouped (`#,##0.0`).
+ * @param v - the number
+ * @param unit - the tick unit
+ * @returns the text
+ */
+function tickText(v: number, unit: number): string {
+    // ponytail: the decimals of a unit like 2.5 follow its own digits; only units 5 and 25 are measured
+    const decimals = Math.max(0, Math.min(6, -Math.floor(Math.log10(unit - Math.trunc(unit) || 1) + 1e-9) + 1));
+    const digits = Number.isInteger(unit) ? 0 : decimals;
+    return v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+/** A chart's further text: `[x, y, text, look]` in the node's frame (shares of its half sides, y up). */
+type ChartText = [number, number, string, { size: number; color: string; rotation?: number }];
+
+/**
+ * The axes Cytoscape draws on a bar or line chart standing up (`cy_showRangeAxis`, `cy_showDomainAxis`), as JFreeChart
+ * lays them out: the plot shrunk by the room the range axis' widest end value and the domain axis' tallest name take,
+ * the range axis' tick numbers right-aligned left of the plot, each one's middle on its tick, and each category's name
+ * under it, turned as `cy_domainLabelPosition` says, all `cy_axisLabelFontSize` tall in the measures of Java's Dialog
+ * (DejaVu Sans). The axis lines and tick marks are a quarter of a chart unit wide, under a pixel, and not drawn.
+ * @param options - the chart's options
+ * @param plotted - its properties so far
+ * @param disc - how far across a pie would be drawn on the node
+ * @param node - the node
+ * @param nameOf - a category's name by its value's place
+ * @returns the plot's box and the texts, or null for a chart without axes
+ */
+function chartAxes(
+    options: ChartOptions,
+    plotted: Record<string, StyleValue>,
+    disc: number,
+    node: ChartNode,
+    nameOf: (k: number) => string | undefined,
+): { plot: Record<string, StyleValue>; texts: ChartText[] } | null {
+    const [range, domain] = [options.cy_showRangeAxis === true, options.cy_showDomainAxis === true];
+    const { w, h } = node;
+    const upright = (plotted.chartKind === "bar" || plotted.chartKind === "line") && plotted.chartHorizontal !== true;
+    if (!(range || domain) || !upright || w === null || h === null || !(w > 0 && h > 0)) {
+        return null;
+    }
+    const [lo, hi] = [Number(plotted.chartMin), Number(plotted.chartMax)];
+    const values = String(plotted.chartValues).split(" ");
+    const size = Number(options.cy_axisLabelFontSize ?? AXIS_LABEL_FONT_SIZE);
+    const f = Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
+    const line = f * DIALOG_LINE_HEIGHT;
+    const half = Math.max(0, disc - CHART_INSET - PLOT_INSET) / 2;
+    const plot = { x0: -half, y0: -half, x1: half, y1: half };
+    const look = { size: num6(f / h), color: CHART_LABEL_COLOR };
+    const put = (x: number, y: number, text: string, turn = 0): ChartText => [
+        num6(x / (w / 2)),
+        num6(-y / (h / 2)),
+        text,
+        turn === 0 ? look : { ...look, rotation: turn },
+    ];
+    const width = (text: string): number => f * dialogWidth(text);
+    // the domain axis first: the range axis' ticks depend on the plot's height
+    const position = DOMAIN_LABEL_POSITIONS[String(options.cy_domainLabelPosition)] ?? DOMAIN_LABEL_POSITIONS.STANDARD;
+    const names = values.map((_, k) => nameOf(k) ?? "");
+    if (domain) {
+        const r = (position.turn * Math.PI) / 180;
+        const tall = (text: string): number =>
+            text === "" ? 0 : Math.abs(Math.sin(r)) * width(text) + Math.abs(Math.cos(r)) * line;
+        plot.y1 -= Math.max(0, ...names.map(tall)) + AXIS_ROOM;
+    }
+    // ponytail: the range's ends as JFreeChart's default number format writes them (up to 3 decimals, grouped)
+    const endText = (v: number): string => v.toLocaleString("en-US", { maximumFractionDigits: 3 });
+    if (range) {
+        plot.x0 += Math.max(width(endText(lo)), width(endText(hi))) + AXIS_ROOM;
+    }
+    const [pw, ph] = [plot.x1 - plot.x0, plot.y1 - plot.y0];
+    const texts: ChartText[] = [];
+    if (range && pw > 0 && ph > 0 && hi > lo) {
+        const unit = tickUnit(hi - lo, ph, line + 2 * TICK_LABEL_INSETS);
+        for (let k = Math.ceil(lo / unit - 1e-9); Number.isFinite(unit) && k * unit <= hi + 1e-9 * unit; k++) {
+            // never "-0"
+            const tick = k * unit || 0;
+            const text = tickText(tick, unit);
+            const y = plot.y1 - ((tick - lo) / (hi - lo)) * ph;
+            texts.push(put(plot.x0 - AXIS_LABEL_GAP - width(text) / 2, y, text));
+        }
+    }
+    if (domain && pw > 0) {
+        const margin = Number(plotted.chartMargin ?? 0);
+        const gap = Number(plotted.chartGap ?? 0);
+        const n = values.length;
+        const band = Math.max(0, 1 - 2 * margin - gap) / n;
+        const step = band + (n > 1 ? gap / (n - 1) : 0);
+        const r = (position.turn * Math.PI) / 180;
+        names.forEach((text, k) => {
+            if (text === "") {
+                return;
+            }
+            // from the pinned point to the box's middle, turned with the box
+            const [dx, dy] = [-position.pin[0] * width(text), -position.pin[1] * line];
+            const x = plot.x0 + (margin + k * step + band / 2) * pw;
+            const y = plot.y1 + AXIS_LABEL_GAP;
+            texts.push(
+                put(
+                    x + Math.cos(r) * dx - Math.sin(r) * dy,
+                    y + Math.sin(r) * dx + Math.cos(r) * dy,
+                    text,
+                    position.turn,
+                ),
+            );
+        });
+    }
+    return {
+        plot: {
+            chartWidth: num6(Math.max(0, pw) / w),
+            chartHeight: num6(Math.max(0, ph) / h),
+            chartOffsetX: num6((plot.x0 + plot.x1) / 2),
+            chartOffsetY: num6((plot.y0 + plot.y1) / 2),
+        },
+        texts,
+    };
 }

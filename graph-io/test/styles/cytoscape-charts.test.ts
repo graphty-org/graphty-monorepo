@@ -185,6 +185,104 @@ describe("Cytoscape charts", () => {
         });
     });
 
+    describe("a bar or line chart's axes, as Cytoscape 3.10.5 draws them with JFreeChart", () => {
+        const BAR =
+            'org.cytoscape.BarChart:{"cy_range":[0.0,10.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"],"cy_type":"GROUPED"';
+        const axes = (options: string, chart = BAR): Record<string, unknown> =>
+            read({ NODE_CUSTOMGRAPHICS_1: `${chart}${options}}` });
+        /** Each further text as [x, y, text, size, rotation] in the node's lengths, y down, from its 60 x 60 frame. */
+        const texts = (v: Record<string, unknown>): [number, number, string, number, number][] =>
+            (JSON.parse(String(v.shapeTexts)) as [number, number, string, { size: number; rotation?: number }][]).map(
+                ([x, y, t, look]) => [x * 30, -y * 30, t, look.size * 60, look.rotation ?? 0],
+            );
+
+        it("shrinks the plot by its axes' labels and draws their words where Cytoscape does", () => {
+            // xgmml-specimen-images-charts-p7 bar-axis-label-font-size-10: the plot from 9.33 left of the node's
+            // middle to 26.05 right and from 26.05 up to 10.41 down (the oracle's clip, at half its chart scale)
+            const v = axes(',"cy_showRangeAxis":true,"cy_showDomainAxis":true,"cy_axisLabelFontSize":10');
+            expect(v.chartWidth as number).toBeCloseTo(35.38 / 60, 3);
+            expect(v.chartHeight as number).toBeCloseTo(36.46 / 60, 3);
+            expect(v.chartOffsetX as number).toBeCloseTo(8.36, 2);
+            expect(v.chartOffsetY as number).toBeCloseTo(-7.82, 2);
+            const t = texts(v);
+            // the range axis ticked every 5, each number's right end 3.5 left of the plot, its middle on its tick
+            const range = t.filter(([, , w]) => /^\d+$/.test(w));
+            expect(range.map(([, , w]) => w)).toEqual(["0", "5", "10"]);
+            const [zero, , ten] = range;
+            expect(zero[0] + (10 * 0.636) / 2).toBeCloseTo(-9.33 - 3.5, 1);
+            expect(ten[0] + (10 * 1.272) / 2).toBeCloseTo(-9.33 - 3.5, 1);
+            // the oracle's baselines: 0 at 13.87 below the middle, 10 at 22.59 above, 3.46 under each line's middle
+            expect(zero[1] + 3.46).toBeCloseTo(13.87, 1);
+            expect(ten[1] + 3.46).toBeCloseTo(-22.59, 1);
+            // the categories' names under the plot, each centered on its bar, 10 tall
+            const names = t.filter(([, , w]) => /^[a-c]$/.test(w));
+            expect(names.map(([x]) => x)).toEqual([
+                expect.closeTo(-2.84, 1),
+                expect.closeTo(8.36, 1),
+                expect.closeTo(19.57, 1),
+            ]);
+            // the oracle's baseline 23.2 below the middle
+            expect(names[0][1] + 3.46).toBeCloseTo(23.2, 0);
+            expect(names[0][3]).toBeCloseTo(10, 3);
+        });
+
+        it("turns the categories' names as cy_domainLabelPosition says, about the corner JFreeChart anchors", () => {
+            const turned = (position: string): [number, number, string, number, number][] =>
+                texts(
+                    axes(`,"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelPosition":"${position}"`),
+                ).filter(([, , w]) => w === "a");
+            // the oracle's text origins (baseline, left end) for "a", 12.26 wide at 20 chart units, put back to the
+            // middle of its box: UP_45 at (-14.27, 23.72), DOWN_45 at (-23.06, 19.39), UP_90 (-13.04, 25.33),
+            // DOWN_90 (-19.96, 19.21)
+            const middle = (ox: number, oy: number, deg: number): number[] => {
+                const r = (deg * Math.PI) / 180;
+                const [dx, dy] = [6.13 / 2, -6.92 / 2];
+                return [ox + Math.cos(r) * dx - Math.sin(r) * dy, oy + Math.sin(r) * dx + Math.cos(r) * dy];
+            };
+            const expectAt = (t: [number, number, string, number, number], at: number[], deg: number): void => {
+                expect(t[4]).toBe(deg);
+                expect(t[0]).toBeCloseTo(at[0], 0);
+                expect(t[1]).toBeCloseTo(at[1], 0);
+            };
+            expectAt(turned("UP_45")[0], middle(-14.27, 23.72, -45), -45);
+            expectAt(turned("DOWN_45")[0], middle(-23.06, 19.4, 45), 45);
+            expectAt(turned("UP_90")[0], middle(-13.04, 25.33, -90), -90);
+            expectAt(turned("DOWN_90")[0], middle(-19.96, 19.21, 90), 90);
+            // a turned name takes its turned box's height: UP_45's plot ends 16.72 above the node's bottom
+            const up45 = axes(',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelPosition":"UP_45"');
+            expect((up45.chartOffsetY as number) + (up45.chartHeight as number) * 30).toBeCloseTo(9.33, 1);
+        });
+
+        it("names the categories from cy_domainLabelsColumn, and widens the ticks when the labels are tall", () => {
+            const named = texts(
+                axes(',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelsColumn":"chartLabels"'),
+            );
+            expect(named.map(([, , w]) => w)).toEqual(["X", "Y", "Z"]);
+            // at size 20 the range axis is ticked every 25: only 0 is drawn (bar-axis-label-font-size-20)
+            const big = texts(axes(',"cy_showRangeAxis":true,"cy_showDomainAxis":true,"cy_axisLabelFontSize":20'));
+            expect(big.filter(([, , w]) => /^\d+$/.test(w)).map(([, , w]) => w)).toEqual(["0"]);
+            // a line chart's categories past its names are left unnamed
+            const line = texts(
+                axes(
+                    ',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelsColumn":"chartLabels"',
+                    'org.cytoscape.LineChart:{"cy_range":[0.0,10.0],"cy_colors":["#1F77B4"],"cy_dataColumns":["series"]',
+                ),
+            );
+            expect(line.map(([, , w]) => w)).toEqual(["X", "Y", "Z"]);
+            // the oracle's X at 21.36 chart units apart, from 42.72 left of the middle
+            expect(line[0][0]).toBeCloseTo(-21.36, 1);
+        });
+
+        it("leaves a chart without axes as it was, and the default label size at 1", () => {
+            const plain = axes("");
+            expect(plain.chartWidth).toBeUndefined();
+            expect(plain.shapeTexts).toBeUndefined();
+            // images-charts bar-domain-axis: the plot's bottom 5.16 up from where it would be
+            const small = axes(',"cy_showDomainAxis":true');
+            expect((small.chartOffsetY as number) + (small.chartHeight as number) * 30).toBeCloseTo(20.89, 1);
+        });
+    });
+
     it("colors a chart by its cy_colorScheme when it names no colors, as Cytoscape's ColorScheme does", () => {
         const bars = (scheme: string): unknown =>
             read({

@@ -512,7 +512,9 @@ export const NodeStyle = z.strictObject({
      * row of colored cells, one per value. `values` are numbers separated by spaces; `colors` CSS
      * colors separated by spaces, item i drawn in color i and the last color for the rest (a box's
      * whiskers in the first, its median in the second, else black). The plot is a box `size`
-     * (default 1) times the node's, centred on it; the values run along it from `min` (default the
+     * (default 1) times the node's (`width` and `height`, shares of the node's, give its sides
+     * apart), centred on it or moved by `offsetX` / `offsetY` (in the units of `shape.size`, y
+     * down); the values run along it from `min` (default the
      * smaller of 0 and the least value) to `max` (default the greatest), bottom to top, or left to
      * right with `horizontal`; the categories run along the other side, left to right or top to
      * bottom, each an equal share after `margin` (a share of the side, default 0) at each end and
@@ -529,6 +531,10 @@ export const NodeStyle = z.strictObject({
             max: z.number().optional(),
             horizontal: z.boolean().optional(),
             size: z.number().nonnegative().optional(),
+            width: z.number().nonnegative().optional(),
+            height: z.number().nonnegative().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
             margin: z.number().optional(),
             gap: z.number().min(0).max(1).optional(),
             lineWidth: z.number().nonnegative().optional(),

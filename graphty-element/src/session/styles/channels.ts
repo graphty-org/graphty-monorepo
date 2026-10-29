@@ -477,6 +477,10 @@ export interface ChannelValues {
     "node.chartMax": number;
     "node.chartHorizontal": boolean;
     "node.chartSize": number;
+    "node.chartWidth": number;
+    "node.chartHeight": number;
+    "node.chartOffsetX": number;
+    "node.chartOffsetY": number;
     "node.chartMargin": number;
     "node.chartGap": number;
     "node.chartLineWidth": number;
@@ -1029,7 +1033,8 @@ const NODE_CHART_CAVEAT =
     '`node.chartKind` "bar" (bars side by side), "stacked-bar" (the values piled into one bar), "line", "box" ' +
     "(the values are the low whisker, the quartiles and median, the high whisker; its median in the second " +
     'color, else black) or "cells" (a row of colored cells). The plot is a box `node.chartSize` times the ' +
-    "node's; the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
+    "node's (`node.chartWidth` and `node.chartHeight` give its width and height apart, shares of the node's), " +
+    "centered on the node or moved by `node.chartOffsetX` / `-Y` (in the units of `node.size`, y down); the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
     "`node.chartHorizontal`), the categories along the other side after `node.chartMargin` at each end and " +
     "`node.chartGap` between them, both shares of that side. `node.chartLineWidth` is a line's and a " +
     "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline.";
@@ -3140,6 +3145,54 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "chart.size",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartWidth": {
+        channel: "node.chartWidth",
+        target: "node",
+        plainName: "Node Chart Width",
+        shortName: "Chart width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.width",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartHeight": {
+        channel: "node.chartHeight",
+        target: "node",
+        plainName: "Node Chart Height",
+        shortName: "Chart height",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.height",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartOffsetX": {
+        channel: "node.chartOffsetX",
+        target: "node",
+        plainName: "Node Chart Offset X",
+        shortName: "Chart offset x",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "chart.offsetX",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartOffsetY": {
+        channel: "node.chartOffsetY",
+        target: "node",
+        plainName: "Node Chart Offset Y",
+        shortName: "Chart offset y",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "chart.offsetY",
         renderable: true,
         caveat: NODE_CHART_CAVEAT,
     },

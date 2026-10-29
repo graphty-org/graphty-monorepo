@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 
+import { isolatedGitEnv } from "../isolated-git-env.mjs";
 import { baselinesTreeCheck } from "./baselines-tree.mjs";
 
 const dirs = [];
@@ -19,7 +20,7 @@ after(() => dirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
 function repo() {
     const dir = mkdtempSync(join(tmpdir(), "baselines-tree-"));
     dirs.push(dir);
-    const env = { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" };
+    const env = isolatedGitEnv();
     const git = (...args) =>
         execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args], {
             cwd: dir,

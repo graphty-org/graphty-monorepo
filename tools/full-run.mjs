@@ -43,7 +43,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { PUBLISH_HOLD } from "./channel/nightly.mjs";
@@ -711,19 +711,37 @@ function closeRedOnGreen(state, env) {
 }
 
 /**
- * The flaky stories the re-capture listed (flaky.json in each final capture).
+ * The flaky stories the re-capture listed (flaky.json in each final capture), each with the story test its
+ * results.json item names (`test: { file, name }`), when it has one.
  * @param dir the downloaded captures
- * @returns `<project>/<file>: <why>` lines
+ * @returns `{ name: <project>/<file>, why, test }` per story
  */
 export function flakyStories(dir) {
     const out = [];
     for (const f of dir && existsSync(dir) ? readdirSync(dir, { recursive: true }).map(String) : []) {
         const m = /^visual-(.+)-\d+[/\\]flaky\.json$/.exec(f);
         if (!m) continue;
-        for (const s of JSON.parse(readFileSync(join(dir, f), "utf8")))
-            out.push({ name: `${m[1]}/${s.file}`, why: s.why });
+        const results = join(dir, dirname(f), "results.json");
+        const items = existsSync(results) ? (JSON.parse(readFileSync(results, "utf8")).items ?? []) : [];
+        for (const s of JSON.parse(readFileSync(join(dir, f), "utf8"))) {
+            const test = items.find((i) => i.file === s.file)?.test;
+            out.push({ name: `${m[1]}/${s.file}`, why: s.why, test });
+        }
     }
     return out;
+}
+
+/**
+ * A flaky story issue's body. Its "Flaky test: <file> > <story>" line is how the health dashboard's flaky page
+ * (tools/pipeline-health/src/collector/flaky.ts, namesTest) matches the issue to the story test it saw fail.
+ * @param s a flaky story, as flakyStories returns it
+ * @param at where and when it was found
+ * @param tail the closing paragraph
+ * @returns the body
+ */
+export function flakyStoryBody(s, at, tail) {
+    const named = s.test ? `Flaky test: ${s.test.file} > ${s.test.name}\n\n` : "";
+    return `${named}The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
 }
 
 // One open "Flaky in full run: <name>" issue per name: a comment when it recurs
@@ -755,7 +773,7 @@ function fileFlakies(env, lanes, stories) {
         );
     }
     for (const s of stories) {
-        const body = `The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
+        const body = flakyStoryBody(s, at, tail);
         bestEffort(
             () => fileFlaky(s.name, body),
             `filing the flaky story ${s.name}`,

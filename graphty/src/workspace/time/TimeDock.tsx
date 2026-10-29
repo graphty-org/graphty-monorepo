@@ -12,7 +12,7 @@ import { HistogramRow, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, TimeBin, TimeStep, TimeUnit, TimeWindow } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, NumberInput, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { runFailureWords } from "../inspector/words";
@@ -187,6 +187,73 @@ function ReadoutEntry({
 }
 
 /**
+ * How many of the timed elements a bin holds.
+ * @param bin - The bin, or undefined for none.
+ * @param onEdges - Whether time is on the edges, so a bin counts edges rather than nodes.
+ * @returns The count; 0 for no bin.
+ */
+function countIn(bin: TimeBin | undefined, onEdges: boolean): number {
+    if (bin === undefined) {
+        return 0;
+    }
+    return onEdges ? bin.edges : bin.nodes;
+}
+
+/**
+ * What the brush's gesture does: a whole window dragged slides the element's cursor, the graph
+ * following, and its release commits it; an end dragged is drawn here and set on release. One
+ * gesture, one undoable step.
+ * @param session - The session.
+ * @param store - The workspace store, for errors and the announcement.
+ * @param setDrag - Sets the brush drawn while an end is dragged.
+ * @param sliding - Whether a whole-window drag is under way.
+ * @returns The brush's change handlers.
+ */
+function brushGesture(
+    session: GraphSession,
+    store: WorkspaceStore,
+    setDrag: (value: [number, number] | null) => void,
+    sliding: React.RefObject<boolean>,
+): { onChange: (value: [number, number]) => void; onChangeEnd: (value: [number, number]) => void } {
+    const { time } = session;
+
+    return {
+        onChange: (value) => {
+            time.pause();
+            const at = time.current;
+            if (at !== null && at.mode !== "cumulative" && value[1] - value[0] === Number(at.to) - Number(at.from)) {
+                // The whole window dragged: the graph follows the drag, row by row, and the
+                // release records it.
+                setDrag(null);
+                sliding.current = true;
+                time.seek(value[0], { commit: false }).then(() => undefined, reportTimeError(store));
+                return;
+            }
+            setDrag(value);
+        },
+        onChangeEnd: (value) => {
+            time.pause();
+            // A slid cursor is committed as a step of its own, never merged into the window step
+            // before it (#4400).
+            const moved: PromiseLike<unknown> = sliding.current
+                ? time.commit()
+                : time.window({ ...time.current, from: value[0], to: value[1] });
+            sliding.current = false;
+            moved.then(
+                () => {
+                    setDrag(null);
+                    announceWindow(session, store);
+                },
+                (error: unknown) => {
+                    setDrag(null);
+                    reportTimeError(store)(error);
+                },
+            );
+        },
+    };
+}
+
+/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
@@ -197,6 +264,8 @@ export function TimeDock(): React.JSX.Element | null {
     const open = useWorkspaceState((state) => state.timelineOpen);
     // The brush while it is dragged; written to the element once, on release.
     const [drag, setDrag] = useState<[number, number] | null>(null);
+    // A whole-window drag moves the element's cursor; its release commits it as its own step.
+    const sliding = useRef(false);
     const { ref, width } = useElementSize();
 
     // A run the Re-run setting could not re-run says so.
@@ -226,16 +295,9 @@ export function TimeDock(): React.JSX.Element | null {
     const min = first?.start ?? extent.from;
     const max = last?.end ?? extent.to;
     const clamp = (value: number): number => Math.min(max, Math.max(min, value));
-    const range: [number, number] = drag ?? [
-        clamp(window === null ? min : Number(window.from)),
-        clamp(window === null ? max : Number(window.to)),
-    ];
-    const countOf = (bin: TimeBin | undefined): number => {
-        if (bin === undefined) {
-            return 0;
-        }
-        return onEdges ? bin.edges : bin.nodes;
-    };
+    const range: [number, number] =
+        drag ?? (window === null ? [min, max] : [clamp(Number(window.from)), clamp(Number(window.to))]);
+    const countOf = (bin: TimeBin | undefined): number => countIn(bin, onEdges);
     const { nodes, edges } = session.selection;
     const profile =
         nodes.length + edges.length === 0 ? null : time.bins({ maxCount, of: { nodes, edges, incident: true } });
@@ -243,6 +305,7 @@ export function TimeDock(): React.JSX.Element | null {
     const readout = readoutWords(drag, window, extent, unit);
     const { visibleEdges, visibleNodes } = session.visibility.summary;
     const { playing, atStart, atEnd } = time;
+    const playLabel = playing ? "Pause" : "Play";
     const valueText = (value: number, thumb: 0 | 1): string =>
         thumb === 0 ? instantWords(value, unit, step) : rangeWords(value - 1, value, unit, step);
     const binAt = (value: number): TimeBin | undefined => all.find((bin) => value >= bin.start && value < bin.end);
@@ -275,10 +338,10 @@ export function TimeDock(): React.JSX.Element | null {
                         <GLYPHS.stepBack size={16} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
-                <Tooltip label={playing ? "Pause" : "Play"}>
+                <Tooltip label={playLabel}>
                     <ActionIcon
                         variant={playing ? "light" : "subtle"}
-                        aria-label={playing ? "Pause" : "Play"}
+                        aria-label={playLabel}
                         onClick={() => {
                             togglePlay(session, store);
                         }}
@@ -366,36 +429,7 @@ export function TimeDock(): React.JSX.Element | null {
                                 ? instantWords(value, unit, step)
                                 : `${rangeWords(bin.start, bin.end, unit, bin.step)}: ${countWords(countOf(bin), noun)}`;
                         },
-                        onChange: (value) => {
-                            time.pause();
-                            const at = time.current;
-                            if (
-                                at !== null &&
-                                at.mode !== "cumulative" &&
-                                value[1] - value[0] === Number(at.to) - Number(at.from)
-                            ) {
-                                // The whole window dragged: the graph follows the drag, row by row,
-                                // and the release records it.
-                                setDrag(null);
-                                time.seek(value[0], { commit: false }).then(() => undefined, reportTimeError(store));
-                                return;
-                            }
-                            setDrag(value);
-                        },
-                        onChangeEnd: (value) => {
-                            // One gesture, one undoable step.
-                            time.pause();
-                            time.window({ ...window, from: value[0], to: value[1] }).then(
-                                () => {
-                                    setDrag(null);
-                                    announceWindow(session, store);
-                                },
-                                (error: unknown) => {
-                                    setDrag(null);
-                                    reportTimeError(store)(error);
-                                },
-                            );
-                        },
+                        ...brushGesture(session, store, setDrag, sliding),
                     }}
                 />
             </div>

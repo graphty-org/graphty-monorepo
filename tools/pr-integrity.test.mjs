@@ -16,6 +16,7 @@ import {
     hasProof,
     isBreaking,
     masterBaselineCheck,
+    ownedClosure,
     ownerApproved,
     ownerLogins,
     patchId,
@@ -261,6 +262,37 @@ describe("prIntegrity", () => {
             prIntegrity(r.dir, pr(r, { codeowners: `${codeowners}/tools/helper.mjs @owner\n` })).problems,
             [],
         );
+    });
+});
+
+describe("ownedClosure", () => {
+    it("judges the merge result with master: a gap master closed passes, one master opened fails", () => {
+        const r = repo();
+        r.commit("ci: owned tool", {
+            ".github/CODEOWNERS": "/tools/owned.mjs @owner\n",
+            "tools/owned.mjs": 'import "./helper.mjs";\n',
+            "tools/helper.mjs": "export {};\n",
+        });
+        r.git("switch", "-q", "-c", "old");
+        r.commit("chore: unrelated", { "src/c.mjs": "export {};\n" });
+        const head = r.git("rev-parse", "HEAD");
+        const codeowners = r.git("show", "HEAD:.github/CODEOWNERS");
+        // on its own head the branch has the gap
+        assert.ok(ownedClosure(r.dir, { base: head, head, codeowners }).has("tools/helper.mjs"));
+        r.git("switch", "-q", "master");
+        r.commit("ci: own the helper", {
+            ".github/CODEOWNERS": "/tools/owned.mjs @owner\n/tools/helper.mjs @owner\n",
+        });
+        const closed = ownedClosure(r.dir, { base: "master", head, codeowners });
+        assert.deepEqual([...closed.keys()], []);
+        // a gap master opened after the branch left it is named too
+        r.commit("ci: another helper", {
+            "tools/owned.mjs": 'import "./helper.mjs";\nimport "./more.mjs";\n',
+            "tools/more.mjs": "",
+        });
+        assert.deepEqual([...ownedClosure(r.dir, { base: "master", head, codeowners }).keys()], ["tools/more.mjs"]);
+        // the temporary worktree is gone
+        assert.equal(r.git("worktree", "list").split("\n").length, 1);
     });
 });
 

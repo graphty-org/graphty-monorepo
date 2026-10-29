@@ -28,6 +28,11 @@ interface VisibilitySetCommand {
 interface VisibilityWindowCommand {
     readonly op: "visibility.window";
     readonly window: TimeWindow | null;
+    /**
+     * Where a gesture ended (a dragged window let go): its own step, never merged into a window
+     * step recorded just before it.
+     */
+    readonly ownStep?: boolean;
 }
 
 /** `visibility.context`: draw hidden nodes faintly, or not at all. */
@@ -118,7 +123,7 @@ const visibilityWindow: UndoableDefinition<VisibilityWindowCommand> = {
             code: command.window === null ? "visibility.clear-window" : "visibility.window",
             params: {},
         }),
-        coalesce: () => "window",
+        coalesce: (command) => (command.ownStep === true ? null : "window"),
     },
     execute: (command, ctx) => {
         (ctx.services.visibility?.check ?? assertVisibility)(null, command.window);

@@ -356,7 +356,8 @@ export interface TimeApi {
      */
     seek(instant: number | "start" | "end", options?: { readonly commit?: boolean }): Promise<TimeStepEvent>;
     /**
-     * Record the cursor a `seek` with `commit: false` moved, as one undoable step.
+     * Record the cursor a `seek` with `commit: false` moved, as one undoable step of its own: it
+     * never merges into a window step recorded just before it, however soon after that it comes.
      * @returns What the move did, or null when the cursor is where the window already is.
      */
     commit(): Promise<TimeStepEvent | null>;
@@ -1263,9 +1264,10 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
      * Move the window: as its own step, or merged into this play's step.
      * @param next - The window.
      * @param cause - What moved it.
+     * @param ownStep - Record it as its own step, never merged into the window step before it.
      * @returns The event, once the masks and any re-runs the results setting started have settled.
      */
-    const move = async (next: TimeWindow, cause: TimeStepEvent["cause"]): Promise<TimeStepEvent> => {
+    const move = async (next: TimeWindow, cause: TimeStepEvent["cause"], ownStep = false): Promise<TimeStepEvent> => {
         const before = { nodes: visibility.nodeMask(), edges: visibility.edgeMask() };
         if (cause === "play") {
             await dispatcher.transaction("time.play", (tx) => tx.dispatch({ op: "visibility.window", window: next }), {
@@ -1274,6 +1276,8 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             });
             const { steps, position } = dispatcher.history;
             playStep ??= position > 0 ? (steps[position - 1].id as HistoryStepId) : null;
+        } else if (ownStep) {
+            await visibility.commitWindow(next);
         } else {
             await visibility.setWindow(next);
         }
@@ -2147,7 +2151,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                 return null;
             }
 
-            return move(at, "seek");
+            return move(at, "seek", true);
         },
 
         get playing() {

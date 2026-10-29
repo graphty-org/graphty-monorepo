@@ -12,6 +12,7 @@
 import type { Scene } from "@babylonjs/core";
 
 import type { ShaderParams, ShaderProblem } from "../catalog/shaders";
+import { trackOnScene } from "../managers/PendingWork";
 import { QUALITY_LEVELS, ShaderGuard } from "../managers/ShaderGuard";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
@@ -94,43 +95,48 @@ export function createLazyShaderHost(scene: Scene, guard: ShaderGuard = new Shad
             return Promise.reject(new Error("The graph was disposed."));
         }
 
-        loading ??= import("./runtime").then(({ ShaderRuntime }) => {
-            const built = new ShaderRuntime(scene);
-            if (disposed) {
-                built.dispose();
-                throw new Error("The graph was disposed.");
-            }
-
-            built.onLost((hashes) => {
-                for (const listener of listeners) {
-                    listener(hashes);
+        loading ??= trackOnScene(
+            scene,
+            "shader",
+            "a shader's runtime is still loading",
+            import("./runtime").then(({ ShaderRuntime }) => {
+                const built = new ShaderRuntime(scene);
+                if (disposed) {
+                    built.dispose();
+                    throw new Error("The graph was disposed.");
                 }
-            });
-            loaded = built;
-            apply();
-            guard.lend({
-                claimed: () => built.uniforms.claimed,
-                heavyOnScreen: () =>
-                    NodeShaderDrawing.peek(scene)?.guardedDrawn().heavy === true ||
-                    EdgeShaderDrawing.peek(scene)?.guardedDrawn().heavy === true ||
-                    SCENE_SHADERS.get(scene)?.().heavy === true,
-                movingShaders: () =>
-                    [
-                        ...(NodeShaderDrawing.peek(scene)?.guardedDrawn().moving ?? []),
-                        ...(EdgeShaderDrawing.peek(scene)?.guardedDrawn().moving ?? []),
-                        ...(SCENE_SHADERS.get(scene)?.().moving ?? []),
-                    ].filter((hash) => !flashing.has(hash)),
-                freeze: (hashes) => {
-                    for (const hash of hashes) {
-                        flashing.add(hash);
-                        built.uniforms.freeze(hash);
-                    }
 
-                    guard.announce();
-                },
-            });
-            return built;
-        });
+                built.onLost((hashes) => {
+                    for (const listener of listeners) {
+                        listener(hashes);
+                    }
+                });
+                loaded = built;
+                apply();
+                guard.lend({
+                    claimed: () => built.uniforms.claimed,
+                    heavyOnScreen: () =>
+                        NodeShaderDrawing.peek(scene)?.guardedDrawn().heavy === true ||
+                        EdgeShaderDrawing.peek(scene)?.guardedDrawn().heavy === true ||
+                        SCENE_SHADERS.get(scene)?.().heavy === true,
+                    movingShaders: () =>
+                        [
+                            ...(NodeShaderDrawing.peek(scene)?.guardedDrawn().moving ?? []),
+                            ...(EdgeShaderDrawing.peek(scene)?.guardedDrawn().moving ?? []),
+                            ...(SCENE_SHADERS.get(scene)?.().moving ?? []),
+                        ].filter((hash) => !flashing.has(hash)),
+                    freeze: (hashes) => {
+                        for (const hash of hashes) {
+                            flashing.add(hash);
+                            built.uniforms.freeze(hash);
+                        }
+
+                        guard.announce();
+                    },
+                });
+                return built;
+            }),
+        );
         return loading;
     };
 

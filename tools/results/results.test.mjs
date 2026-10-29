@@ -30,6 +30,7 @@ import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.m
 import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
 import { benchmarkRows } from "./post-benchmarks.mjs";
+import { unstableStories } from "./post-unstable-stories.mjs";
 import { dispatchChecks, readChecks } from "./dispatch-base-checks.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
@@ -1270,6 +1271,47 @@ describe("health API fan-out", () => {
             ],
         });
         assert.equal(h.seen.filter((r) => r.url === "/v1/failures").length, 1);
+    });
+    it("names a Stories bin's unstable stories as story tests do, once per story (#4373)", () => {
+        const index = {
+            entries: {
+                "styles-edge--three-d-all-lines": {
+                    id: "styles-edge--three-d-all-lines",
+                    importPath: "./stories/styles/Edge.stories.ts",
+                    name: "Three D All Lines",
+                },
+            },
+        };
+        const results = {
+            items: [
+                {
+                    id: "styles-edge--three-d-all-lines",
+                    file: "styles-edge--three-d-all-lines.png",
+                    status: "unstable",
+                },
+                {
+                    id: "styles-edge--three-d-all-lines",
+                    file: "styles-edge--three-d-all-lines-dark.png",
+                    status: "unstable",
+                },
+                { id: "styles-edge--plain", file: "styles-edge--plain.png", status: "changed" },
+                { id: "gone--story", file: "gone--story.png", status: "unstable" },
+            ],
+        };
+        assert.deepEqual(unstableStories(results, index, ["graphty-element/stories/styles/Edge.stories.ts#1/2"]), [
+            {
+                file: "graphty-element/stories/styles/Edge.stories.ts",
+                name: "Three D All Lines",
+                message:
+                    "visual-review: styles-edge--three-d-all-lines.png is unstable (two renders drew different pictures)",
+            },
+            {
+                file: "gone--story.png",
+                name: "gone--story",
+                message: "visual-review: gone--story.png is unstable (two renders drew different pictures)",
+            },
+        ]);
+        assert.deepEqual(unstableStories({ items: [] }, index, []), []);
     });
     it("sends a benchmark job's results to the health API as one post", async () => {
         const h = await serveHealth();

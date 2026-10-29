@@ -5,7 +5,7 @@
 import type { Cell, Fact, Range, Section, TableRow } from "../../web/src/contract.js";
 import { quantile } from "../model/histogram.js";
 import { MIN } from "../model/items.js";
-import { type LaneJob, readSnapshot, type ReleaseSeen, type WorkflowState } from "../model/snapshots.js";
+import { type LaneJob, NOT_A_TRAIN, readSnapshot, type ReleaseSeen, type WorkflowState } from "../model/snapshots.js";
 import { iso, type Reads } from "./members.js";
 import { notCollected } from "./sections.js";
 
@@ -171,7 +171,7 @@ function outcome(a: ReleaseSeen, testedShas: Set<string>): { code: string; param
 
 /**
  * Train attempts (4.5): the newest release.yml attempts read, newest first; runs of "nothing new" fold into one
- * muted row.
+ * muted row. A promotion, a hold's end or a held candidate's re-test with no fix to test is not a train attempt.
  * @param reads
  */
 export async function trainsTable(reads: Reads): Promise<Section> {
@@ -181,6 +181,7 @@ export async function trainsTable(reads: Reads): Promise<Section> {
     const tested = new Set(all.filter((a) => a.tested).map((a) => a.sha));
     const rows: (TableRow & { code: string })[] = [];
     for (const a of all) {
+        if (!a.tested && a.mode && NOT_A_TRAIN.has(a.mode)) continue;
         const o = outcome(a, tested);
         const time: Cell = { t: "time", at: iso(a.created ?? a.at) };
         const sha: Cell = { t: "sha", v: a.sha };

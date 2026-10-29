@@ -401,11 +401,12 @@ async function directionReports(
 
 /**
  * The sabotage check of `bfs-contract`, `bfs-fused`, `sssp-pred` in depth mode, `bfs-bottom-up`, `bfs-bitset-build`,
- * `bfs-unvisited-flags` and the frontier selector (spec 11.9 item 1): the 30 x 30 grid from its corner and the
- * 500-node path from its last index under each forced path, the choice counters of rmat14 at the default threshold,
- * rmat14's direction and unvisited words under the default rule at both cadences, the path from its middle and the
- * hub-clique fixture forced bottom-up (the clique's `arcsScanned` exactly one read per claim), the directed
- * path's unvisited words, and the one-workgroup predecessor pass, all bitwise against the oracle and the host rules.
+ * `bfs-unvisited-flags` and the frontier selector (spec 11.9 item 1): the 30 x 30 grid from its corner under each
+ * forced path, the 500-node path from its middle forced bottom-up and from its last index under each forced path,
+ * the choice counters of rmat14 at the default threshold, rmat14's direction and unvisited words under the default
+ * rule at both cadences, the hub-clique fixture forced bottom-up (the clique's `arcsScanned` exactly one read per
+ * claim), the directed path's unvisited words, and the one-workgroup predecessor pass, all bitwise against the
+ * oracle and the host rules.
  *
  * It stops at the first fixture with a mismatch (a ratio of Infinity): no later sample can raise the worst ratio
  * above Infinity or move its label, which is the first sample to reach it, so the verdict and the reported label
@@ -420,12 +421,11 @@ export async function bfsReport(ctx: GpuContext): Promise<CheckReport> {
     const grid = snapshotOf(gridEdges(30, 30), { label: "bfs-report-grid" });
     const path = snapshotOf(pathEdges(500), { label: "bfs-report-path" });
     try {
+        // The cheap fixture of each path first, then the path from its middle (where the bottom-up mutants are
+        // caught), and the 500-level traversals from the last index after them: a mutant pays only for the fixtures
+        // before the one that catches it (issue #4372), and the full check still runs every fixture.
         for (const [name, tuning] of FORCED_PATHS) {
             reports.push(...(await traversalReports(ctx, `grid30/${name}`, grid, 0, tuning)));
-            if (caught()) {
-                return mergeReports(reports);
-            }
-            reports.push(...(await traversalReports(ctx, `path500-last/${name}`, path, path.nodeCount - 1, tuning)));
             if (caught()) {
                 return mergeReports(reports);
             }
@@ -435,6 +435,12 @@ export async function bfsReport(ctx: GpuContext): Promise<CheckReport> {
         reports.push(...(await directionReports(ctx, "path500-mid/bottom-up", path, middle, FORCED_BOTTOM_UP)).reports);
         if (caught()) {
             return mergeReports(reports);
+        }
+        for (const [name, tuning] of FORCED_PATHS) {
+            reports.push(...(await traversalReports(ctx, `path500-last/${name}`, path, path.nodeCount - 1, tuning)));
+            if (caught()) {
+                return mergeReports(reports);
+            }
         }
     } finally {
         ctx.release(grid);

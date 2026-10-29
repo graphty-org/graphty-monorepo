@@ -204,9 +204,10 @@ export class DerivationLane {
     /**
      * Told at the end of every pass, after its hooks have brought the picture up to date: the one
      * place every change to project state passes on its way to the screen, so a renderer that
-     * skips frames while nothing changes is told here that something did.
+     * skips frames while nothing changes is told here that something did, and which keys of which
+     * slices the pass derived.
      */
-    passEnded: (() => void) | null = null;
+    passEnded: ((dirty: ReadonlyMap<DerivedSlice, ReadonlySet<string>>) => void) | null = null;
     /** What the running pass, or the last one, catches up with. */
     private passCauseValue: HistoryCause = "command";
 
@@ -419,7 +420,7 @@ export class DerivationLane {
 
             this.current = null;
             try {
-                this.passEnded?.();
+                this.passEnded?.(dirty);
             } catch (error) {
                 this.onError(error);
             }

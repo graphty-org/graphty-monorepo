@@ -278,26 +278,10 @@ export class BasemapManager {
             return { source: this.#name, state: this.#pending ? "loading" : "off", attribution: [] };
         }
 
-        const { ready, failed, layers } = surface.status;
-        const { sources } = surface;
-        // A tile service (not a picture) that drew nothing and failed: the base shows instead.
-        const unreachable = layers.map((layer, i) => !("image" in sources[i]) && layer.ready === 0 && layer.failed > 0);
-        const meshes = surface.root.getChildMeshes();
         let state: BasemapStatus["state"] = "ready";
-        if (
-            this.#pending ||
-            layers.some((layer, i) => !unreachable[i] && layer.loading > 0) ||
-            ready + failed === 0 ||
-            !meshes.some((m) => m.isEnabled()) ||
-            meshes.some((m) => m.isEnabled() && !m.isReady(true))
-        ) {
-            // No tile asked for yet (the map was just made or its source changed) is loading too,
-            // and so is a loaded tile not drawn again yet after a source change, and a tile whose
-            // shader is still compiling: it is not on screen yet. A fallback waits for this too, so
-            // it is told only once the bundled world it falls back to is drawn and credited; the
-            // unreachable service's own retries do not hold it.
+        if (this.loading) {
             state = "loading";
-        } else if (this.#unknown || unreachable.includes(true)) {
+        } else if (this.#unknown || this.#unreachable(surface).includes(true)) {
             state = "fallback";
         }
 
@@ -309,6 +293,51 @@ export class BasemapManager {
         }
 
         return { source: this.#name, state, attribution };
+    }
+
+    /**
+     * Whether the map is still on its way to the screen: its module is loading, a frame or setting
+     * came in it has not been drawn for, or a tile is. Asked by the graph's record of pending work
+     * every time it asks whether the picture is final, so it reads state and builds nothing.
+     * @returns True while the map's state is `loading`.
+     */
+    get loading(): boolean {
+        if (this.#pending) {
+            return true;
+        }
+
+        const surface = this.#surface;
+        if (surface === null) {
+            return false;
+        }
+
+        const { ready, failed, layers } = surface.status;
+        const unreachable = this.#unreachable(surface);
+        const meshes = surface.root.getChildMeshes();
+        // No tile asked for yet (the map was just made or its source changed) is loading too, and
+        // so is a loaded tile not drawn again yet after a source change, and a tile whose shader is
+        // still compiling: it is not on screen yet. A fallback waits for this too, so it is told
+        // only once the bundled world it falls back to is drawn and credited; the unreachable
+        // service's own retries do not hold it.
+        return (
+            layers.some((layer, i) => !unreachable[i] && layer.loading > 0) ||
+            ready + failed === 0 ||
+            !meshes.some((m) => m.isEnabled()) ||
+            meshes.some((m) => m.isEnabled() && !m.isReady(true))
+        );
+    }
+
+    /**
+     * Which of a surface's layers is a tile service (not a picture) that drew nothing and failed:
+     * the base shows instead.
+     * @param surface - The surface.
+     * @returns One flag per layer.
+     */
+    #unreachable(surface: FlatMap | Globe): boolean[] {
+        const { sources } = surface;
+        return surface.status.layers.map(
+            (layer, i) => !("image" in sources[i]) && layer.ready === 0 && layer.failed > 0,
+        );
     }
 
     /**

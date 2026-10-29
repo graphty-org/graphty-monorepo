@@ -99,13 +99,14 @@ async function loadSample(name: string, nodes: number): Promise<ElementUnderTest
 }
 
 /**
- * The Data place's Fields section, opened from the rail when it is not open.
+ * The Data place's Fields section, opened from the rail. The rail's Data button only selects the
+ * Data place, so it is clicked whether or not the place is already open: a reloaded workspace can
+ * reopen the place on its own between a check and a click.
  * @returns queries inside it.
  */
 async function fields(): Promise<ReturnType<typeof within>> {
-    if (screen.queryByRole("region", { name: "Data place" }) === null) {
-        await userEvent.click(screen.getByRole("button", { name: "Data" }));
-    }
+    // Exact, so "Data place" (the region) does not also match.
+    await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
     const place = await screen.findByRole("region", { name: "Data place" }, { timeout: TIMEOUT_MS });
     return within(within(place).getByRole("group", { name: "Fields" }));
 }

@@ -277,6 +277,11 @@ export interface PArrow {
     at?: Pt;
     /** graphty's side: how many pixels past the allowance it sits off its line's end (`capPlaceMiss`); absent when on it. */
     misplaced?: number;
+    /**
+     * graphty's side: an end's arrowhead its style draws part-way along the line (`ArrowStyle.position` between 0 and 1,
+     * Pajek's `arrowPosition`), whose place is judged along the line, never from the line's end.
+     */
+    partWay?: boolean;
 }
 
 /** An edge as drawn. */

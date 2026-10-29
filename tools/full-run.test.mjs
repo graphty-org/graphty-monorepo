@@ -409,6 +409,7 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
             encoding: "utf8",
             env: {
                 ...process.env,
+                GITHUB_ACTOR: "graphty-release-scheduler[bot]", // a run release-rerun.yml sees end (#4359)
                 PATH: `${dir}:${process.env.PATH}`,
                 GITHUB_OUTPUT: "",
                 LANE: "t4",
@@ -448,6 +449,11 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         );
         assert.match(opened.stdout, /^issue=77$/m);
         assert.equal(runLaneRed([], { LANE: "llm", OWNER_ITEM: "the key was refused" }).calls, "");
+    });
+
+    it("files on attempt 1 of a restart dispatched with GITHUB_TOKEN, which is never re-run (#4359)", () => {
+        const env = { RUN_ATTEMPT: "1", MODE: "restart", GITHUB_ACTOR: "github-actions[bot]" };
+        assert.match(runLaneRed([], env).calls, /^issue create --title Full run red: T4 GPU on abcdef1/m);
     });
 });
 
@@ -516,6 +522,11 @@ describe("same-commit re-run", () => {
         const t4 = { state: "red", red: ["t4"], lanes: red({ t4: "failure" }) };
         assert.equal(deferred({ attempt: 1, mode: "full", ...t4 }), true);
         assert.equal(deferred({ attempt: 1, mode: "restart", ...t4 }), true);
+        assert.equal(
+            deferred({ attempt: 1, mode: "restart", actor: "github-actions[bot]", ...t4 }),
+            false,
+            "a GITHUB_TOKEN dispatch is never re-run (#4359)",
+        );
         assert.equal(deferred({ attempt: 2, mode: "full", ...t4 }), false, "the re-run decides");
         assert.equal(deferred({ attempt: 1, mode: "legacy", ...t4 }), false);
         assert.equal(
@@ -538,12 +549,15 @@ describe("same-commit re-run", () => {
     });
 
     // the verdict as release.yml runs it, with a fake gh that logs every call and lists no open issue
-    const runVerdict = (env, { flaky = null, before = null } = {}) => {
+    // openIssues: what the gh listing of priority:critical issues returns
+    const runVerdict = (env, { flaky = null, before = null, openIssues = [] } = {}) => {
         const dir = mkdtempSync(join(tmpdir(), "verdict-"));
         const log = join(dir, "calls.log");
+        writeFileSync(join(dir, "issues.json"), JSON.stringify(openIssues));
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1 $2" = "issue create" ]; then echo https://github.com/o/r/issues/88; fi\n`,
+            `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
+                `if [ "$1 $2" = "issue create" ]; then echo https://github.com/o/r/issues/88; fi\n`,
             {
                 mode: 0o755,
             },
@@ -578,6 +592,8 @@ describe("same-commit re-run", () => {
                 RECORD: join(dir, `verdict-${env.RUN_ATTEMPT}.json`),
                 MODE: "full",
                 HELD: "",
+                // the scheduler's dispatch, which release-rerun.yml sees end
+                GITHUB_ACTOR: "graphty-release-scheduler[bot]",
                 ...env,
             },
         });
@@ -628,6 +644,45 @@ describe("same-commit re-run", () => {
         const other = runVerdict({ RUN_ATTEMPT: "2", LANES: lanesJson({ t4: "failure" }), HELD: "f".repeat(40) });
         assert.equal(other.outputs.hold, "none", "another commit is held: a master slot never replaces it");
     });
+    // #4359: release-due dispatches restarts with GITHUB_TOKEN, and GitHub starts no release-rerun.yml for such a
+    // run, so a deferred attempt-1 red was never filed and never bisected
+    const restart = (openIssues) =>
+        runVerdict(
+            {
+                RUN_ATTEMPT: "1",
+                MODE: "restart",
+                GITHUB_ACTOR: "github-actions[bot]",
+                GOOD: "1111111111",
+                LANES: lanesJson({ ci: "failure" }),
+            },
+            { openIssues },
+        );
+    it("files a new red issue and bisects when a restart whose red issue a fix closed goes red again", () => {
+        const v = restart([]);
+        assert.deepEqual([v.outputs.state, v.outputs.deferred, v.outputs.issue], ["red", "false", "88"]);
+        assert.match(v.calls, /^issue create --title Full run red: CI on abcdef1 --label bug/m);
+        assert.match(
+            v.calls,
+            /^workflow run bisect\.yml --ref master -f lane=ci -f good=1111111111 -f bad=abcdef1234/m,
+        );
+        assert.equal(v.record.deferred, false);
+    });
+    it("updates the still-open red issue and bisects when a restart goes red again", () => {
+        const v = restart([{ number: 4302, title: "Full run red: CI on 5f7c540" }]);
+        assert.deepEqual([v.outputs.state, v.outputs.deferred, v.outputs.issue], ["red", "false", "4302"]);
+        assert.match(v.calls, /^issue edit 4302 --title Full run red: CI on abcdef1$/m);
+        assert.match(v.calls, /^issue comment 4302 --body-file /m);
+        assert.doesNotMatch(v.calls, /issue create/);
+        assert.match(v.calls, /^workflow run bisect\.yml --ref master -f lane=ci /m);
+    });
+    it("still defers a red attempt 1 of a full run the scheduler dispatched, and files it on the re-run", () => {
+        const lanes = lanesJson({ ci: "failure" });
+        const first = runVerdict({ RUN_ATTEMPT: "1", GOOD: "1111111111", LANES: lanes });
+        assert.deepEqual([first.outputs.deferred, first.calls], ["true", ""]);
+        const second = runVerdict({ RUN_ATTEMPT: "2", GOOD: "1111111111", LANES: lanes }, { before: { red: ["ci"] } });
+        assert.match(second.calls, /^issue create --title Full run red: CI on abcdef1/m);
+        assert.match(second.calls, /^workflow run bisect\.yml --ref master -f lane=ci /m);
+    });
     it("reports a held head past its commit only on the hold issue: no red issue, no bisect", () => {
         const sha = "abcdef1234";
         const v = runVerdict({
@@ -653,6 +708,7 @@ describe("lane-red on attempt 1", () => {
                 RESULT: "failure",
                 RUN_ATTEMPT: "1",
                 MODE: "full",
+                GITHUB_ACTOR: "graphty-release-scheduler[bot]",
             },
         });
         assert.equal(r.status, 0, r.stderr);
@@ -693,6 +749,7 @@ describe("the verdict reads the hold from the store when it decides", () => {
                 stdio: "ignore",
                 env: {
                     ...process.env,
+                    GITHUB_ACTOR: "graphty-release-scheduler[bot]", // a run release-rerun.yml sees end (#4359)
                     PATH: `${dir}:${process.env.PATH}`,
                     RESULTS_URL: `http://127.0.0.1:${server.address().port}`,
                     GRAPHTY_RESULTS_TOKEN: "t",
@@ -768,6 +825,7 @@ describe("file-deferred", () => {
             encoding: "utf8",
             env: {
                 ...process.env,
+                GITHUB_ACTOR: "graphty-release-scheduler[bot]", // a run release-rerun.yml sees end (#4359)
                 PATH: `${dir}:${process.env.PATH}`,
                 RESULTS_URL: "",
                 HEALTH_API_URL: "",

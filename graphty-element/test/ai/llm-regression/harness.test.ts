@@ -9,6 +9,7 @@
 import { APICallError, RetryError } from "ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
 import { toSafeError } from "../../../src/ai/safeError";
 import {
     getLlmRegressionApiKey,
@@ -384,6 +385,63 @@ describe("LlmRegressionTestHarness", () => {
             } else {
                 assert.strictEqual(isLlmRegressionEnabled(), true);
             }
+        });
+    });
+    describe("a 400 on a message's first request (#4220)", () => {
+        /** Gemini's 400 as the provider throws it: cleaned by toSafeError. */
+        const invalidArgument = (): Error =>
+            toSafeError(
+                new APICallError({
+                    message: "Request contains an invalid argument.",
+                    url: "https://provider.example/v1",
+                    requestBodyValues: {},
+                    statusCode: 400,
+                    responseBody: '{"error":{"status":"INVALID_ARGUMENT"}}',
+                    isRetryable: false,
+                }),
+            );
+        const answer = { text: "There are 5 nodes.", toolCalls: [], usage: undefined };
+
+        beforeEach(() => {
+            vi.stubEnv(getLlmRegressionKeyVariable(), "test-key");
+            vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        });
+
+        afterEach(() => {
+            vi.unstubAllEnvs();
+            vi.restoreAllMocks();
+        });
+
+        it("sends the unchanged first request once more and returns its answer", async () => {
+            const generate = vi
+                .spyOn(VercelAiProvider.prototype, "generate")
+                .mockRejectedValueOnce(invalidArgument())
+                .mockResolvedValueOnce(answer);
+            const harness = await LlmRegressionTestHarness.create();
+
+            const result = await harness.testPrompt("How many nodes are there?");
+
+            assert.strictEqual(generate.mock.calls.length, 2);
+            assert.deepStrictEqual(generate.mock.calls[1][0], generate.mock.calls[0][0]);
+            assert.strictEqual(result.llmText, answer.text);
+            harness.dispose();
+        });
+
+        it("fails when the resent request is refused too", async () => {
+            const generate = vi.spyOn(VercelAiProvider.prototype, "generate").mockRejectedValue(invalidArgument());
+            const harness = await LlmRegressionTestHarness.create();
+
+            let thrown: unknown;
+            try {
+                await harness.testPrompt("How many nodes are there?", undefined, { maxRetries: 0 });
+            } catch (error) {
+                thrown = error;
+            }
+
+            assert.ok(thrown instanceof Error);
+            assert.match(thrown.message, /failed before any tool ran: Request contains an invalid argument/);
+            assert.strictEqual(generate.mock.calls.length, 2);
+            harness.dispose();
         });
     });
 });

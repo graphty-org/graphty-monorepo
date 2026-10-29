@@ -1,11 +1,13 @@
 /**
  * The oracle association's edge ends: where nodes overlap, a line ends at its node's outline, so an end inside a big
  * node's box but on the outline of a small node drawn over it belongs to the small node (cys-affinity-purification);
- * and a shape inside a node at the end of a line of the node's own drawing (a chart's slice) is no arrowhead.
+ * and a shape inside a node at the end of a line of the node's own drawing (a chart's slice) is no arrowhead; but an
+ * arrowhead lying over a flat node it does not end at, small beside that node, is its line's (json-vis-siblings: 31
+ * of vis-network's 284 arrowheads, each over a neighbour's flat box, were read as free shapes).
  */
 import { assert, describe, it } from "vitest";
 
-import { associate } from "./associate";
+import { arrowheadEdge, associate } from "./associate";
 import { boxOfPoints, type PEdge, type PNode, type Prim, type PScene, type Pt } from "./primitives";
 
 const disc = (cx: number, cy: number, r: number): Pt[] =>
@@ -356,5 +358,45 @@ describe("edge ends at overlapping nodes", () => {
             e.arrows.map((x) => x.end),
             ["target"],
         );
+    });
+
+    it("gives an arrowhead lying over a flat node it does not end at to its line", () => {
+        // vis-network: lines run on to the nodes' centers, the arrowhead at the target's outline; a neighbour's flat
+        // 30 x 8 box lies under the arrowhead, which is drawn after every node
+        const flat = (id: string, cx: number, cy: number): PNode => node(id, cx, cy, 30, 8);
+        const nodes = [node("s", 100, 200), flat("p", 300, 200), flat("q", 282, 203)];
+        const line: PEdge = {
+            ...edge("s->p#g0", "s", "p"),
+            points: [
+                [100, 200],
+                [300, 200],
+            ],
+        };
+        const shape = (points: Pt[]): Prim => ({
+            index: 9,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(points),
+            points,
+            closed: true,
+            corners: 0,
+            fill: { color: "#ffb6c1", opacity: 1, gradient: null },
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+        });
+        const head = shape([
+            [285, 200],
+            [280, 197.5],
+            [280, 202.5],
+            [285, 200],
+        ]);
+        const best = arrowheadEdge(head, [line], nodes, true);
+        assert.strictEqual(best?.e.id, "s->p#g0");
+        assert.strictEqual(best?.end, "target");
+        // a shape half a round node's size in its middle is still that node's drawing
+        const inRound = shape(disc(100, 200, 6));
+        assert.isNull(arrowheadEdge(inRound, [line], [node("s", 100, 200, 20, 20), flat("p", 300, 200)], true));
     });
 });

@@ -6177,6 +6177,8 @@ export class RenderManager implements Manager {
     readonly shaderGuard: ShaderGuard;
     // @internal
     shaderPasses(): ReturnType<ShaderScene["passes"]>;
+    // @internal
+    shaderPicturePending(): boolean;
     startRenderLoop(updateCallback: (frameMs: number) => void): void;
     stopRenderLoop(): void;
     readonly ticks: {
@@ -7060,6 +7062,7 @@ export class UpdateManager implements Manager {
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
+    readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;

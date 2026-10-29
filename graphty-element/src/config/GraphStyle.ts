@@ -151,13 +151,20 @@ export const LayoutTransition = z.strictObject({
     transition: z.string().min(1).max(81),
     /** How long the move takes, in seconds. Default 0.8. */
     seconds: z.number().min(0).max(30).optional(),
+    /**
+     * Hold the move at this point of the way, 0 (where the nodes were) to 1 (where the layout puts
+     * them), instead of running it: the nodes stay drawn there and the picture is final, so
+     * `waitForStableFrame()` resolves on it. Clear it and the move runs on from there. Unset by
+     * default.
+     */
+    hold: z.number().min(0).max(1).optional(),
     /** Its parameters, by the names its catalog entry declares. */
     params: z
         .record(z.string().regex(SHADER_PARAM_NAME), z.union([z.number(), z.string().max(64), z.boolean()]))
         .optional(),
 });
 
-/** How nodes travel to a new layout. See {@link LayoutTransition}. @since 3.36.0 */
+/** How nodes travel to a new layout. See `LayoutTransition`. @since 3.36.0 */
 export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
 
 export const GraphStyle = z.strictObject({

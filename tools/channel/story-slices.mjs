@@ -193,6 +193,20 @@ export function nextSlot(now) {
     throw new Error("unreachable");
 }
 
+// what the review page's rolling target can offer (tools/channel/rolling.mjs OFFERED)
+const QUEUED = new Set(["changed", "new", "unseeded"]);
+
+/**
+ * The rolling review queue's size as the review page sees it: a story's newest render that is changed, new or
+ * unseeded against `tree`, the baselines tree this bin rendered against. A render against an older tree (an approval
+ * merged since) is held back by the page, so counting it would send the owner a notice for nothing to review.
+ * @param data the store's `GET /v1/story-captures` answer
+ * @param tree the posted baselines tree
+ * @returns the count
+ */
+export const queueSize = (data, tree) =>
+    data.captures.filter((c) => QUEUED.has(c.status) && c.baselinesTree === tree).length;
+
 /**
  * What to tell the owner after a bin posted its renders.
  * @param o the facts
@@ -312,8 +326,8 @@ async function main(argv, env) {
 async function tellOwner({ cfg, path, body, before, after, env }) {
     const sent = [];
     const due = notices({
-        before: before.summary.queue,
-        after: after.summary.queue,
+        before: queueSize(before, body.baselinesTree),
+        after: queueSize(after, body.baselinesTree),
         notified: after.notified,
         now: Date.now(),
     });

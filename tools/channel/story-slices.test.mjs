@@ -9,7 +9,16 @@ import { describe, it } from "node:test";
 import { parse } from "yaml";
 
 import { STORY_BIN_LIMIT_MS } from "../test-select.mjs";
-import { captureRows, matrixOf, nextSlot, notices, orderUnits, reachKeys, sliceBins } from "./story-slices.mjs";
+import {
+    captureRows,
+    matrixOf,
+    nextSlot,
+    notices,
+    orderUnits,
+    queueSize,
+    reachKeys,
+    sliceBins,
+} from "./story-slices.mjs";
 
 // allUnits() of master's real story files, recorded on 2026-10-29 (280 units, about 98 capture-minutes)
 const RECORDED = JSON.parse(readFileSync(new URL("fixtures/story-slices-units.json", import.meta.url), "utf8"));
@@ -281,6 +290,21 @@ describe("ci.yml's reach rows (4a)", () => {
 describe("the owner's notices (4d)", () => {
     const at = (iso) => Date.parse(iso);
     const none = { queue: null, slot: null };
+
+    it("counts only renders against the posted baselines tree: an approved picture's stale row is not waiting", () => {
+        const T = "a".repeat(40);
+        const old = "b".repeat(40);
+        const captures = [
+            { status: "changed", baselinesTree: T },
+            { status: "new", baselinesTree: T },
+            { status: "unchanged", baselinesTree: T },
+            { status: "unstable", baselinesTree: T },
+            // rendered before an approval moved master's baselines: the review page holds it back, so no notice
+            { status: "changed", baselinesTree: old },
+        ];
+        assert.equal(queueSize({ captures }, T), 2);
+        assert.equal(queueSize({ captures }, old), 1);
+    });
 
     it("finds the next full-run slot", () => {
         assert.equal(nextSlot(at("2026-10-29T05:59:00Z")), at("2026-10-29T06:00:00Z"));

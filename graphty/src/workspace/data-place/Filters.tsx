@@ -484,10 +484,11 @@ function FilterCard({
     const preview = usePreviewCount(session, shape.kind === "fields" && typing ? ruleOfCards(cards) : null, side);
     const shown = preview ?? (typing ? undefined : count);
     const half = side === "node" ? preview?.nodes : preview?.edges;
+    const things = side === "node" ? "nodes" : "edges";
     const [settled] = useDebouncedValue(
         half === undefined || half === null
             ? null
-            : `${formatNumber(half.matched)} of ${formatNumber(half.total)} ${side === "node" ? "nodes" : "edges"}`,
+            : `${formatNumber(half.matched)} of ${formatNumber(half.total)} ${things}`,
         SPEAK_AFTER_MS,
     );
     useAnnounceChange(typing ? settled : null, false);
@@ -907,7 +908,7 @@ function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: Wo
     return (
         <li>
             <div
-                role="group"
+                role="group" // NOSONAR(S6819): a condition card, drawn like every Filters and Style card; a fieldset brings its own border and legend
                 data-id={TIME_ROW}
                 tabIndex={-1}
                 aria-label={name}

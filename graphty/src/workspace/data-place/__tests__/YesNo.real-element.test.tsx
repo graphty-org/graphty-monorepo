@@ -98,7 +98,7 @@ describe("A yes-or-no column", () => {
             caseSensitive: true,
         });
         assert.equal(session.visibility.summary.visibleNodes, 3);
-        await screen.findByRole("listitem", { name: /^trained is Yes, Hide/ });
+        await screen.findByRole("group", { name: /^trained is Yes, Hide/ });
     });
 
     it("reads Yes and No in a node's values, the selection's summary and Find's value rows", async () => {

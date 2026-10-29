@@ -205,5 +205,8 @@ export function timeValue(
         at = session.time.parse(String(value));
     }
     // A date column that is not the time is written to the day, whatever the timeline's unit.
-    return at === null ? value : instantWords(at, time ? unitOf(session) : "ms");
+    if (at === null) {
+        return value;
+    }
+    return instantWords(at, time ? unitOf(session) : "ms");
 }

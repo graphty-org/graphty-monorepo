@@ -110,7 +110,8 @@ function columnOptions(
         }
         return { rank, choice: { value: name, label: name, glyph, ...(detail === undefined ? {} : { detail }) } };
     });
-    return ranked.sort((a, b) => a.rank - b.rank).map((each) => each.choice);
+    ranked.sort((a, b) => a.rank - b.rank);
+    return ranked.map((each) => each.choice);
 }
 
 /**

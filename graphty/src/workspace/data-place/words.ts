@@ -486,10 +486,9 @@ export function joinWords(source: LoadedSource): string | null {
  */
 export function countWords(source: LoadedSource): string {
     const { nodes, edges } = source.counts;
+    const plural = source.total === 1 ? "" : "s";
     const nodeWords =
-        source.total === undefined
-            ? count(nodes, "node")
-            : `${serverCount(nodes, source.total)} node${source.total === 1 ? "" : "s"}`;
+        source.total === undefined ? count(nodes, "node") : `${serverCount(nodes, source.total)} node${plural}`;
     return [...(nodes > 0 ? [nodeWords] : []), ...(edges > 0 ? [count(edges, "edge")] : [])].join(", ");
 }
 

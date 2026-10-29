@@ -189,7 +189,8 @@ describe("the join screen on the real element", () => {
         assert.isUndefined(session.data.node("TP53")?.tissue);
         const [joined] = session.data.joins();
         assert.strictEqual(joined.matched, 58);
-        await screen.findByLabelText("58/70 matched");
+        // The Sources row names its join ratio with its unit (tier 4 R11).
+        await screen.findByText("58 of 70 rows joined");
 
         // The header's Undo names the step it undoes ("Undo joining ...").
         await userEvent.click(

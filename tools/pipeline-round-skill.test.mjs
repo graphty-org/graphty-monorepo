@@ -17,6 +17,9 @@ const claude = read("CLAUDE.md");
 // The land.mjs commands that refuse since golden was retired (tools/land.mjs RETIRED).
 const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
+// Where a step's heading starts, by its name: steps are renumbered whenever one is added.
+const step = (name) => flat.search(new RegExp(`### \\d+\\. ${name}`));
+
 describe("pipeline-round skill", () => {
     it("names no interim rule: the skill describes only the channels pipeline", () => {
         assert.doesNotMatch(flat, /\*\*Interim rules/);
@@ -30,12 +33,12 @@ describe("pipeline-round skill", () => {
     });
 
     it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
-        const at = (s) => flat.indexOf(s);
-        assert.ok(at("### 1. Red master") >= 0);
-        assert.ok(at("### 1. Red master") < at("### 7. Red or conflicted agent pull requests"));
-        assert.ok(
-            at("### 7. Red or conflicted agent pull requests") < at("### 8. Finished branches with no pull request"),
-        );
+        const red = step("Red master");
+        const prs = step("Red or conflicted agent pull requests");
+        const branches = step("Finished branches with no pull request");
+        assert.ok(red >= 0 && prs >= 0 && branches >= 0);
+        assert.ok(red < prs);
+        assert.ok(prs < branches);
         assert.match(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
@@ -71,9 +74,11 @@ describe("pipeline-round skill", () => {
     });
 
     it("fixes only graphty-agent's red pull requests, never the owner's", () => {
-        const step = flat.slice(flat.indexOf("### 7. Red or conflicted agent pull requests"), flat.indexOf("### 8."));
-        assert.match(step, /opened by graphty-agent \(its `author`\)/);
-        assert.match(step, /#1677/);
+        const prs = step("Red or conflicted agent pull requests");
+        assert.ok(prs >= 0);
+        const body = flat.slice(prs, step("Finished branches with no pull request"));
+        assert.match(body, /opened by graphty-agent \(its `author`\)/);
+        assert.match(body, /#1677/);
     });
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {

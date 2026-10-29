@@ -51,7 +51,12 @@ export default {
         "TimeApi.setSettings",
         "TimeApi.stepBy",
         "TimeApi.window",
+        "VisibilityApi.addCondition",
+        "VisibilityApi.removeCondition",
         "VisibilityApi.set",
+        "VisibilityApi.setConditions",
+        "VisibilityApi.setSteps",
         "VisibilityApi.setWindow",
+        "VisibilityApi.updateCondition",
     ],
 } satisfies CountedWork;

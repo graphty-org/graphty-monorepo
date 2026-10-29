@@ -5,6 +5,8 @@
  */
 import type {
     CategoryId,
+    ChannelId,
+    ChannelOutcome,
     Cmp,
     Fact,
     Iso,
@@ -191,6 +193,41 @@ export function stateChip(
         case "notsetup":
             return `<span class="sw low">not set up</span>`;
     }
+}
+
+// ---------------------------------------------------------------- release channels
+
+/** The overview's release channel tiles: the heading, each channel's name and how its attempts read. */
+export const CHANNELS_HEAD = "Releases";
+export const CHANNELS_SUB = "what each channel serves; each dot a release attempt, oldest to newest";
+
+export const CHANNEL: Record<ChannelId, { name: string; ok: string; none: string }> = {
+    canary: { name: "Canary", ok: "deployed", none: "no deploys recorded" },
+    nightly: { name: "Nightly", ok: "promoted", none: "no promotions recorded" },
+    production: { name: "Production", ok: "promoted", none: "no promotions recorded" },
+};
+
+const OUTCOME: Record<Exclude<ChannelOutcome, "ok">, string> = {
+    bad: "failed",
+    held: "passed, not promoted",
+    cancelled: "cancelled",
+};
+
+/** "deployed 42 min ago", or "no deploys recorded". */
+export const channelSince = (id: ChannelId, at: Iso | null): string =>
+    at ? `${CHANNEL[id].ok} ${fmtAgo(at)}` : CHANNEL[id].none;
+
+/** One attempt's dot title: "19:20: failed, 3f2a91c". */
+export function attemptText(id: ChannelId, a: { at: Iso; outcome: ChannelOutcome; sha?: string }): string {
+    const word = a.outcome === "ok" ? CHANNEL[id].ok : OUTCOME[a.outcome];
+    const sha = a.sha ? ", " + esc(a.sha.slice(0, 7)) : "";
+    return `${fmtTime(a.at)}: ${word}${sha}`;
+}
+
+/** The dot row's label for a screen reader. */
+export function attemptsLabel(n: number): string {
+    if (!n) return "no release attempts recorded";
+    return `last ${n} release ${n === 1 ? "attempt" : "attempts"}, oldest first`;
 }
 
 // ---------------------------------------------------------------- catalog
@@ -395,7 +432,11 @@ export const MEMBER: Record<MemberId, MemberText> = {
         headline: "Spend projected",
     },
     "costs.t4": { name: "T4 GPU", short: "T4 GPU", def: "projected, machine.dev" },
-    "costs.llm": { name: "LLM regression", short: "LLM regression", def: "projected, Gemini" },
+    "costs.llm": {
+        name: "LLM regression (CI, estimated)",
+        short: "LLM regression, CI estimate projected to month-end,",
+        def: "projected to month-end; estimated from CI's paid runs at a flat rate, Gemini",
+    },
     "costs.aws": { name: "AWS", short: "AWS", def: "month to date, Cost Explorer" },
     "costs.cloudflare_usage": {
         name: "Cloudflare usage",
@@ -464,7 +505,7 @@ export const LABEL: Record<string, string> = {
     "cause.flaky": "flaky",
     "cause.infrastructure": "infrastructure",
     "cost.t4": "T4 GPU",
-    "cost.llm": "LLM regression",
+    "cost.llm": "LLM regression (CI, estimated)",
     "cost.sentry": "Sentry",
     "cost.github": "GitHub",
     "cost.cloudflare": "Cloudflare",
@@ -751,7 +792,8 @@ const S: Record<string, (p: P) => string> = {
     "costs.value_by_workflow": () => "List-price value by workflow, not money, this month so far, USD",
     "cost.t4.rate": (p) =>
         `machine.dev, on demand ${fmtN(num(p, "usd_min"))} USD/min, +${fmtN(num(p, "boot_min"))} min boot per job`,
-    "cost.llm.rate": (p) => `Gemini, one paid run a day at ${fmtN(num(p, "usd"))} USD`,
+    "cost.llm.rate": (p) =>
+        `Gemini, CI only: ${fmtN(num(p, "usd"))} USD per paid release run or llm bisect point; local runs not counted`,
     "cost.plan": () => "plan",
     "cost.github.plan": (p) => `Team, ${fmtN(num(p, "seats"))} seats`,
     "cost.cloudflare.plan": () => "Workers Paid",

@@ -59,9 +59,55 @@ const ISO =
     /^([+-])(\d{2}(?:\d{2}){0,2})(\.\d+)?([+-])(\d{3}(?:\d{2}){0,2})(\.\d+)?(?:[+-]\d+(?:\.\d+)?)?(?:CRS[\w:.]+)?\/?$/;
 const GEOHASH = /^[0-9b-hjkmnp-z]{1,12}$/i;
 const MGRS = /^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}(?:\d\d){0,5}$/i;
-// Matched only against singleSpaced text, so every optional space is a literal " ?" and no two
-// quantifiers can trade the same characters: the match is linear on any input.
-const UTM = /^(\d{1,2}) ?([C-HJ-NP-X]) (\d+(?:\.\d+)?) ?(?:m ?)?E? ?[,;]? (\d+(?:\.\d+)?) ?(?:m ?)?N?$/i;
+
+/**
+ * Reads "18T 585738 4507587": a zone of one or two digits, a latitude band, then easting and
+ * northing in meters, each optionally followed by "m" and its "E" or "N", with an optional comma
+ * or semicolon between them. A scanner of single tokens rather than one regex, so the many ways
+ * to share out whitespace between optional parts cannot make it backtrack.
+ * @param text - The text.
+ * @returns Zone, band, easting and northing, or null when the text is not that shape.
+ */
+function readUtm(text: string): { zone: number; band: string; easting: number; northing: number } | null {
+    let at = 0;
+    const take = (token: RegExp): string | null => {
+        token.lastIndex = at;
+        const match = token.exec(text);
+        if (match === null) {
+            return null;
+        }
+        at = token.lastIndex;
+        return match[0];
+    };
+    const space = (): number => take(/\s*/y)?.length ?? 0;
+    space();
+    const zone = take(/\d{1,2}/y);
+    space();
+    const band = take(/[C-HJ-NP-X]/iy);
+    if (zone === null || band === null || space() === 0) {
+        return null;
+    }
+    const easting = take(/\d+(?:\.\d+)?/y);
+    let gap = space();
+    for (const optional of [/m/iy, /e/iy, /[,;]/y]) {
+        if (take(optional) !== null) {
+            gap = space();
+        }
+    }
+    const northing = gap === 0 ? null : take(/\d+(?:\.\d+)?/y);
+    if (easting === null || northing === null) {
+        return null;
+    }
+    space();
+    for (const optional of [/m/iy, /n/iy]) {
+        if (take(optional) !== null) {
+            space();
+        }
+    }
+    return at === text.length
+        ? { zone: Number(zone), band, easting: Number(easting), northing: Number(northing) }
+        : null;
+}
 
 /**
  * ISO 6709 degrees from a sign, integer digits (degrees, then minutes and seconds) and a fraction.
@@ -140,7 +186,7 @@ const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError
     dms: (value) =>
         fromString(value, (text) => {
             try {
-                const parsed = new CoordinateParser(text.replace(/deg/gi, "°")); // NOSONAR(S7781): babylonjs-map's lib is ES2020, which has no String#replaceAll
+                const parsed = new CoordinateParser(text.replaceAll(/deg/gi, "°"));
                 return checked(parsed.getLatitude(), parsed.getLongitude(), value);
             } catch {
                 return locationError("syntax", value);
@@ -164,7 +210,7 @@ const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError
         }),
     mgrs: (value) =>
         fromString(value, (text) => {
-            const compact = text.replace(/\s+/g, ""); // NOSONAR(S7781): babylonjs-map's lib is ES2020, which has no String#replaceAll
+            const compact = text.replaceAll(/\s+/g, "");
             if (!MGRS.test(compact)) {
                 return locationError("syntax", value);
             }
@@ -177,16 +223,16 @@ const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError
         }),
     utm: (value) =>
         fromString(value, (text) => {
-            const m = UTM.exec(singleSpaced(text));
-            if (!m || Number(m[1]) < 1 || Number(m[1]) > 60) {
+            const utm = readUtm(text);
+            if (!utm || utm.zone < 1 || utm.zone > 60) {
                 return locationError("syntax", value);
             }
             try {
                 const { latitude, longitude } = utmToLatLon(
-                    Number(m[3]),
-                    Number(m[4]),
-                    Number(m[1]),
-                    m[2].toUpperCase(),
+                    utm.easting,
+                    utm.northing,
+                    utm.zone,
+                    utm.band.toUpperCase(),
                 );
                 return checked(latitude, longitude, value);
             } catch {

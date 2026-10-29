@@ -31,6 +31,12 @@ export interface OrbitConfig {
  */
 const DEFAULT_FAR_PLANE = 10000;
 
+/** Babylon's own near clip plane, kept everywhere but close to a globe. */
+const DEFAULT_NEAR_PLANE = 1;
+
+/** The nearest the near clip plane comes, close to a globe, so depth keeps its precision. */
+const MIN_NEAR_PLANE = 0.01;
+
 /** No room kept clear: framing uses the whole canvas. */
 const NO_INSETS: FitInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
 
@@ -83,6 +89,17 @@ export function turningFitDistance(center: Vector3, spots: readonly FramingSpot[
     }
 
     return distance;
+}
+
+/**
+ * How far from a sphere's center a perspective camera stands for the sphere's outline to touch the
+ * edges of a view whose half field of view has this tangent: `radius / sin(atan(tan))`.
+ * @param radius - The sphere's radius.
+ * @param tan - The tangent of half the field of view, along the view's shorter side.
+ * @returns The distance.
+ */
+export function sphereFitDistance(radius: number, tan: number): number {
+    return (radius * Math.sqrt(1 + tan * tan)) / tan;
 }
 
 /**
@@ -225,11 +242,27 @@ export class OrbitCameraController {
     }
 
     /**
-     * Zoom by a factor of the current distance, within the same limits as `zoom`.
+     * Zoom by a factor of the current distance, within the same limits as `zoom`. Over a globe the
+     * factor scales the camera's height above its surface instead; see {@link zoomDelta}.
      * @param factor - The distance multiplier (< 1 zooms in, > 1 zooms out)
      */
     public zoomBy(factor: number): void {
-        this.zoom(this.cameraDistance * (factor - 1));
+        this.zoom(this.zoomDelta(factor));
+    }
+
+    /**
+     * How far a zoom by a factor moves the camera: that share of its distance from the pivot, or,
+     * over a globe ({@link grabSphere} or {@link surfaceFloor}), of its height above the surface
+     * along the view. The camera turns about the globe's center, so its distance is the radius
+     * plus its height, and a share of that moved it near the surface by most of its height in one
+     * step; a share of the height slows as the surface nears and never jumps onto it.
+     * @param factor - The multiplier (< 1 zooms in, > 1 zooms out).
+     * @returns The distance delta for {@link zoom}.
+     */
+    public zoomDelta(factor: number): number {
+        const sphere = this.grabSphere ?? this.surfaceFloor;
+        const span = sphere === null ? this.cameraDistance : this.cameraDistance - this.#outside(sphere.radius);
+        return Math.max(0, span) * (factor - 1);
     }
 
     /**
@@ -312,14 +345,23 @@ export class OrbitCameraController {
             return this.config.minZoomDistance;
         }
 
+        return Math.max(this.config.minZoomDistance, this.#outside(floor.radius));
+    }
+
+    /**
+     * The least distance from the pivot, looking the way the camera looks now, that keeps the
+     * camera outside a sphere at the origin; 0 when its line of sight misses the sphere.
+     * @param radius - The sphere's radius.
+     * @returns The distance.
+     */
+    #outside(radius: number): number {
         // The camera stands at pivot - forward * distance; solve |q - f d| >= R for d.
         const world = this.pivot.computeWorldMatrix(true);
         const forward = Vector3.TransformNormal(Vector3.Forward(), world).normalize();
         const q = this.pivot.position;
         const along = Vector3.Dot(q, forward);
-        const disc = along * along - q.lengthSquared() + floor.radius * floor.radius;
-        const outside = disc < 0 ? 0 : along + Math.sqrt(disc);
-        return Math.max(this.config.minZoomDistance, outside);
+        const disc = along * along - q.lengthSquared() + radius * radius;
+        return disc < 0 ? 0 : Math.max(0, along + Math.sqrt(disc));
     }
 
     /**
@@ -362,6 +404,23 @@ export class OrbitCameraController {
         // far plane has to follow the graph. A layout that settles tens of thousands of units
         // across would otherwise be clipped away by Babylon's default 10000.
         this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2);
+        this.camera.minZ = this.#nearPlane();
+    }
+
+    /**
+     * The near clip plane: Babylon's 1 unit, or, over a globe, a quarter of the camera's height
+     * above its surface when that is less, so zooming down to the surface never cuts it away.
+     * @returns The distance.
+     */
+    #nearPlane(): number {
+        const sphere = this.grabSphere ?? this.surfaceFloor;
+        if (sphere === null) {
+            return DEFAULT_NEAR_PLANE;
+        }
+
+        const eye = Vector3.TransformCoordinates(this.camera.position, this.pivot.computeWorldMatrix(true));
+        const height = eye.length() - sphere.radius;
+        return Scalar.Clamp(height / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE);
     }
 
     /**
@@ -415,6 +474,26 @@ export class OrbitCameraController {
 
         const tanY = Math.tan(verticalFov / 2);
         return { tanX: tanY * aspectRatio, tanY };
+    }
+
+    /**
+     * Frame a sphere so it fills the free area's shorter side: the camera stands where the sphere's
+     * outline touches the view's edges, `radius / sin(half the field of view)` from its center.
+     * A box around the sphere would leave it about a quarter smaller: the box's near corners stand
+     * in front of the sphere and out to the side of it.
+     * @param center - The sphere's center, in world space.
+     * @param radius - Its radius.
+     */
+    public zoomToSphere(center: Vector3, radius: number): void {
+        this.#sceneRadius = radius;
+        this.pivot.position.copyFrom(center);
+        this.pivot.computeWorldMatrix(true);
+        this.scene.getEngine().resize();
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        const tan = Math.min(tanX * free.width, tanY * free.height);
+        this.cameraDistance = this.clampDistance(sphereFitDistance(radius, tan));
+        this.updateCameraPosition();
     }
 
     /**

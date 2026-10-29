@@ -87,8 +87,8 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #    full scope), graphty-element's autosave on Safari, iOS and macOS WebKit (work-protection-macos.yml), the security audit of the shipped dependencies and the LLM regression tests (graphty-element's
 #    llm-regression project: real, paid Google Gemini calls that check the model still picks the element's tools,
 #    with the GOOGLE_API_KEY repository secret; a missing secret fails the job, it never skips, and a key or balance
-#    the provider refuses holds the release as an owner item; once per UTC day, after the CI lane is green, and on
-#    every dispatch by a person -- see the llm job). Coverage is published from the same CI run
+#    the provider refuses holds the release as an owner item; in every release test of a candidate, after the CI
+#    lane is green -- see the llm job). Coverage is published from the same CI run
 #    (coverage.yml).
 # 3. Only when all six pass, the version job versions the tested commit with nx release (one local commit holding
 #    only version fields and changelogs). Anything red before the release lands holds the WHOLE release: nothing
@@ -653,19 +653,20 @@ jobs:
     # case has a per-provider limit, 120 s on Google (graphty-element/test/helpers/llm-regression-env.ts), so the
     # job ends on its own.
     #
-    # Once a UTC day (owner decision on #3418, about $29 a month against the ~$60 ceiling): it starts when the
-    # CI lane is green, and runs the paid tests only when no release.yml run passed them yet that day, or when a
-    # person dispatched this run (not a restart; tools/llm-due.mjs, which also warns as spend:llm at $60 in a month). Not due,
-    # the job passes with its test step skipped. Undo: drop the due step's condition.
+    # Every release test of a candidate runs it, once its CI lane is green (owner, 2026-10-29: "LLM tests should only
+    # be running during the full release testing, and should run for each of the 4 canary->nightly releases per
+    # day"): modes full (each scheduled slot), restart and candidate, and the owner-only shadow and legacy runs,
+    # whose gates need it. Never promote-nightly, which tests nothing, and never a pull request or a master push.
+    # tools/llm-spend.mjs warns as spend:llm at $60 in a calendar month; it never stops the run.
     llm:
         name: LLM regression
         needs: [pick, ci]
-        if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         environment: full-run # GOOGLE_API_KEY
         permissions:
-            actions: read # earlier release.yml runs' jobs, for tools/llm-due.mjs
+            actions: read # this month's release.yml runs' jobs, for tools/llm-spend.mjs
             contents: read
         outputs:
             owner_item: ${{ steps.llm.outputs.owner_item }}
@@ -685,35 +686,29 @@ jobs:
                   rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
-            - name: Decide whether the LLM regression tests are due today
-              id: due
+            - name: Check this month's LLM spend
               env:
                   GH_TOKEN: ${{ github.token }}
-              run: node tools/llm-due.mjs
+              run: node tools/llm-spend.mjs
 
             - uses: pnpm/action-setup@v6
-              if: steps.due.outputs.due == 'true'
 
             - uses: actions/setup-node@v7
-              if: steps.due.outputs.due == 'true'
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
-              if: steps.due.outputs.due == 'true'
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             # graphty-element's tests resolve the workspace packages it depends on from their dist folders.
             - name: Build graphty-element and its dependencies
-              if: steps.due.outputs.due == 'true'
               run: pnpm exec nx run graphty-element:build
 
             - name: LLM regression tests
               id: llm
-              if: steps.due.outputs.due == 'true'
               working-directory: graphty-element
               env:
                   VITE_LLM_REGRESSION_PROVIDER: google
@@ -727,11 +722,19 @@ jobs:
                   fi
                   npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
                   status=${PIPESTATUS[0]}
+                  # the run's cost at the tier and cache prices it was billed at, summed from its log (tools/llm-spend.mjs)
+                  echo "usd=$(node ../tools/llm-spend.mjs cost "$RUNNER_TEMP/llm-regression.log")" >> "$GITHUB_OUTPUT"
                   if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
                       echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"
                       echo "::error::Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left): an owner item, not a code defect"
                   fi
                   exit "$status"
+
+            # The run's cost in this step's NAME, so tools/llm-spend.mjs and the health dashboard read it from the
+            # jobs list they already fetch (no log download). It runs after a failed test step too: that run cost money.
+            - name: "LLM regression cost: ${{ steps.llm.outputs.usd }} USD"
+              if: ${{ always() && steps.llm.outputs.usd != '' }}
+              run: echo "::notice::the LLM regression tests cost ${{ steps.llm.outputs.usd }} USD"
 
     # The version and major-bump dry run, a lane like the others (design/ci/channels-pipeline/channels.md, "A planned
     # major or a first publish"; #3455): versions the candidate locally as the version job will, then fails when

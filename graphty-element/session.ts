@@ -489,6 +489,11 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 export type { RuleSide, SourceKey, TextMatchMode } from "./src/catalog/types";
 export type {
     AttributeLeafNodes,
+    FilterCondition,
+    FilterConditionCount,
+    FilterConditionInput,
+    FilterConditionMatches,
+    FilterEffect,
     FilterResult,
     FilterStep,
     RuleTree,

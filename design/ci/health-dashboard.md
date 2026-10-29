@@ -173,7 +173,12 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   queued with no job created; superseded runs still running. Every GitHub-hosted job counts against
   the limit of 60 and a macOS job also against its own 5; machine.dev T4 jobs are not counted.
 - **Local runs**: local vs CI disagreement, local shard time and test-slot waits, and the local
-  runs themselves (gate runs from the push log, shard times). Its members are informational, never
+  runs themselves. Since the pre-push gate retired (no push runs it), a local run is any test run
+  on this machine -- `check:quick`, `test:changed`, an agent's `tools/low-priority.sh` run -- seen
+  as the machine-wide test slot it holds (`tools/test-slots.mjs` logs each hold, with its package
+  or shard family and exit code, to the wait log): runs and failures by what ran, and time by what
+  ran. Gate runs from the push log and shard times from the test ledger still count when the gate
+  is run by hand. Its members are informational, never
   judged, so they have no SLA entry: the page builder reads them from the local writer's rollups.
   The page state follows the local writer: OK while it reports, a gray IDLE when no local runs
   happen (members idle with hatched "no history" sparklines, 3.1), NO DATA when the writer is stale
@@ -583,8 +588,9 @@ The Costs page answers what running the pipeline costs and which process costs i
   `gpu-rerun-on-runner-loss.yml`, dispatches): minutes rounded up, plus one for boot, times the rate
   for the label's tenancy (on demand 0.018 USD/min, spot 0.0045); reconciled monthly with
   machine.dev's Cost Explorer.
-- **LLM regression (money).** One paid run per UTC day (`tools/llm-due.mjs`); until token counts are
-  recorded, paid test steps (as `llm-due.mjs` counts them) times 0.94 USD, about 29 USD a month.
+- **LLM regression (money).** One paid run per full, restart and candidate run (`release.yml`'s `llm`
+  job); until token counts are recorded, paid test steps (as `tools/llm-spend.mjs` counts them) times
+  0.94 USD, about 113 to 170 USD a month at 4 to 6 runs a day.
   Local runs are on the owner's own Gemini bill and not in it.
 - **AWS (money).** Cost Explorer, daily by service; credits left.
 - **Cloudflare and Sentry (money).** Their plans (Cloudflare Workers Paid, 5 USD; the Sentry plan,
@@ -644,7 +650,7 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 | Billing (Cost Explorer, Cloudflare, Sentry)         | daily                | 36 h                |
 | Feed of CI's flaky detections (issue #3610)         | each new flaky entry | not set up          |
 | Benchmark results (CI's benchmark jobs)             | each full run        | 2 d; idle until set |
-| Local writer (test ledger, push log, slot waits)    | each local run       | idle, not judged    |
+| Local writer (slot holds and waits, test ledger)    | each local run       | idle, not judged    |
 
 Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
 results, rows per local run that happened for the local writer, so a quiet week or a retired local

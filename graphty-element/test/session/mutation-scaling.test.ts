@@ -708,6 +708,49 @@ const CASES: readonly Case[] = [
         prepare: (session) => Promise.resolve(() => session.visibility.set({ kind: "degree", min: 2 })),
     },
     {
+        method: "VisibilityApi.setSteps",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.setSteps([{ id: "s", on: true, rule: { kind: "degree", min: 2 } }]),
+            ),
+    },
+    {
+        method: "VisibilityApi.setConditions",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.setConditions([
+                    { effect: "exclude", rule: { kind: "degree", min: 2 } },
+                    { effect: "select", rule: { kind: "degree", max: 1 } },
+                ]),
+            ),
+    },
+    {
+        method: "VisibilityApi.addCondition",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.addCondition({ effect: "select", rule: { kind: "degree", min: 2 } }),
+            ),
+    },
+    {
+        method: "VisibilityApi.updateCondition",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.addCondition({ id: "c", effect: "keep", rule: { kind: "degree", min: 2 } });
+            return () => session.visibility.updateCondition("c", { effect: "select" });
+        },
+    },
+    {
+        method: "VisibilityApi.removeCondition",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.addCondition({ id: "c", effect: "exclude", rule: { kind: "degree", min: 2 } });
+            return () => session.visibility.removeCondition("c");
+        },
+    },
+    {
         method: "VisibilityApi.setWindow",
         growth: "linear",
         prepare: (session, size) =>

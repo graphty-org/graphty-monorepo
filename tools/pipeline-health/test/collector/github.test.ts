@@ -1,6 +1,15 @@
 import { createVerify, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { appJwt, GitHub, installationToken, readAppConfig, APP_PARAMS } from "../../src/collector/github.js";
+import {
+    appJwt,
+    GitHub,
+    HttpError,
+    installationToken,
+    readAppConfig,
+    runJobs,
+    APP_PARAMS,
+} from "../../src/collector/github.js";
+import type { GhJob } from "../../src/collector/parse.js";
 import { fakeGitHub, NOW } from "./fake-github.js";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -66,5 +75,44 @@ describe("GitHub App", () => {
         expect(seen).toEqual([502, 429, 200]);
         await expect(gh.rest("repos/o/r")).rejects.toThrow("HTTP 403");
         expect(seen).toEqual([502, 429, 200, 403]);
+    });
+});
+
+describe("runJobs", () => {
+    // Modelled on release.yml run 40476709992 (2026-10-27, 223 jobs over two attempts): GitHub answered 502 every
+    // time to a page of 25 or more jobs holding one particular job and served pages of 10, so the LLM regression job
+    // on a later page was never read and its paid step was lost from the Costs page.
+    function bigRun(failFrom = 25) {
+        const jobs = Array.from({ length: 223 }, (_, i) => ({
+            id: 122132600000 + i,
+            run_id: 40476709992,
+            run_attempt: i < 108 ? 1 : 2,
+            name: i === 222 ? "LLM regression" : `CI / Test (shard-${i})`,
+        })) as unknown as GhJob[];
+        const sizes: number[] = [];
+        const fetch = async (url: string) => {
+            const u = new URL(url);
+            const size = Number(u.searchParams.get("per_page"));
+            const page = Number(u.searchParams.get("page"));
+            sizes.push(size);
+            const slice = jobs.slice((page - 1) * size, page * size);
+            if (size >= failFrom && slice.some((j) => j.id === jobs[30].id)) return new Response("", { status: 502 });
+            return new Response(JSON.stringify({ total_count: jobs.length, jobs: slice }));
+        };
+        return { jobs, sizes, gh: new GitHub(async () => "t", fetch) };
+    }
+    const path = "repos/graphty-org/graphty-monorepo/actions/runs/40476709992/jobs?filter=all";
+
+    it("reads a page GitHub keeps answering 502 as smaller pages over the same jobs, losing none", async () => {
+        const b = bigRun();
+        const got = await runJobs((p) => b.gh.rest(p), path);
+        expect(got.map((j) => j.id)).toEqual(b.jobs.map((j) => j.id));
+        expect(got.at(-1)?.name).toBe("LLM regression");
+        expect(new Set(b.sizes)).toEqual(new Set([100, 50, 10]));
+    });
+
+    it("fails when a page cannot be read at any size, so the caller keeps the run to read again", async () => {
+        const b = bigRun(1);
+        await expect(runJobs((p) => b.gh.rest(p), path)).rejects.toBeInstanceOf(HttpError);
     });
 });

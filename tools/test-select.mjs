@@ -1714,6 +1714,13 @@ export const STORY_FILE_MS = {
     "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 6_200,
     "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 6_200,
     "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
+    // PR run 40891650568 (2026-10-29): Stories (graph-io-fidelity-4) captured 46 dot Specimens stories and 8 gexf
+    // Samples ones in 361 s and Stories (graph-io-fidelity-9) 41 xgmml Specimens and 9 cytoscapejs Samples in 370 s,
+    // both planned at about 175 s and the pull request's last job; less the Samples at 6.2 s, 6.8 s and 7.7 s a story
+    "graph-io/fidelity-stories/stories/dot/Specimens.stories.ts": 6_800,
+    // gexf's Specimens, measured in the same runs at 4.1 s a story
+    "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 4_100,
+    "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 7_700,
     "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 6_200,
     "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 6_200,
 };

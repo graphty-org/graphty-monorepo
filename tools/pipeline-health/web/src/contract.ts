@@ -316,6 +316,31 @@ export interface StatusResponse {
 export interface OverviewResponse extends StatusResponse {
     page: "overview";
     range: Range;
+    /** Canary, Nightly and Production, in that order; absent from payloads built before the channels were. */
+    channels?: ChannelTile[];
+}
+
+/** A release channel: canary.graphty.app, nightly.graphty.app, graphty.app. */
+export type ChannelId = "canary" | "nightly" | "production";
+
+/**
+ * How one release attempt ended: deployed or promoted (`ok`), failed (`bad`), passed but not promoted (`held`, a
+ * nightly candidate waiting for screenshot approval), or cancelled.
+ */
+export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
+
+/** One channel's tile on the overview (#4460): its state, what it serves, and its recent release attempts. */
+export interface ChannelTile {
+    id: ChannelId;
+    /** The newest attempt's outcome (held is `warn`); `nodata` when no attempt is recorded. */
+    state: "ok" | "warn" | "bad" | "nodata";
+    /** The commit the channel serves now; `null` when it is not known. */
+    sha: string | null;
+    /** When the newest successful attempt deployed or promoted; `null` when none is recorded. */
+    at: Iso | null;
+    /** Its recent release attempts, oldest first (at most 14). */
+    attempts: { at: Iso; outcome: ChannelOutcome; run: number; sha?: string }[];
+    link: Route;
 }
 
 /** `GET /v1/page/<page>?range=`: one category page, or Runners or Local runs (section 2.6). */

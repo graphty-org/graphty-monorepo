@@ -3,6 +3,8 @@
 
 import { createSign } from "node:crypto";
 
+import type { GhJob } from "./parse.js";
+
 export interface AppConfig {
     appId: string;
     installationId: string;
@@ -159,4 +161,52 @@ export class GitHub {
             throw new Error(`GitHub graphql: ${body.errors?.[0]?.message ?? "no data"}`);
         return body.data;
     }
+}
+
+/**
+ * Job page sizes. GitHub answers 502 every time to a page that holds certain jobs of a large run (run 40476709992,
+ * attempt 2: pages of 100, 50 and 25 fail and pages of 10 pass, 2026-10-29), so such a page is read again as smaller
+ * pages over the same jobs. Each size divides the one before it.
+ */
+const JOB_PAGE_SIZES = [100, 50, 10, 1];
+
+type Rest = <T>(path: string) => Promise<T | undefined>;
+interface JobsPage {
+    total_count: number;
+    jobs: GhJob[];
+}
+
+/** One page of `size` jobs, read as smaller pages when GitHub keeps answering it with a server error. */
+async function jobsPage(rest: Rest, path: string, size: number, page: number): Promise<JobsPage | undefined> {
+    try {
+        return await rest<JobsPage>(`${path}&per_page=${size}&page=${page}`);
+    } catch (e) {
+        const smaller = JOB_PAGE_SIZES[JOB_PAGE_SIZES.indexOf(size) + 1];
+        if (!(e instanceof HttpError) || e.status < 500 || smaller === undefined) throw e;
+        const n = size / smaller;
+        const out: JobsPage = { total_count: 0, jobs: [] };
+        for (let p = (page - 1) * n + 1; p <= page * n; p++) {
+            const r = await jobsPage(rest, path, smaller, p);
+            out.total_count = r?.total_count ?? out.total_count;
+            out.jobs.push(...(r?.jobs ?? []));
+            if (!r || r.jobs.length < smaller) break;
+        }
+        return out;
+    }
+}
+
+/**
+ * Every job of a run or an attempt: `path` is the jobs path with its filter
+ * (`repos/<r>/actions/runs/<id>[/attempts/<n>]/jobs?filter=latest|all`). Throws when a page cannot be read at any size.
+ * @param rest GET of a REST path (GitHub.rest, or the backfill's throttled one)
+ * @param path the jobs path
+ */
+export async function runJobs(rest: Rest, path: string): Promise<GhJob[]> {
+    const jobs: GhJob[] = [];
+    for (let page = 1; page <= 10; page++) {
+        const r = await jobsPage(rest, path, JOB_PAGE_SIZES[0], page);
+        jobs.push(...(r?.jobs ?? []));
+        if (!r || jobs.length >= r.total_count || r.jobs.length < JOB_PAGE_SIZES[0]) break;
+    }
+    return jobs;
 }

@@ -308,6 +308,7 @@
         },
         "edge": {
             "width": 1,
+            "minScreenWidth": 0.3,
             "outlineColor": "#6f6f6f",
             "lineStyle": "solid",
             "sourceArrow": "none",

@@ -82,6 +82,8 @@ export type {
     EdgeStyleConfig,
     // The room `element.fitInsets` keeps clear when the graph is framed
     FitInsets,
+    // How the location map's globe looks, as `element.globeLook` takes it
+    GlobeLook,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,

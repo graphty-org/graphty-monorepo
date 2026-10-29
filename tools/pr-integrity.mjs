@@ -230,28 +230,20 @@ export function ownedClosure(cwd, pr) {
     const behind = tryGit(cwd, ["merge-base", "--is-ancestor", pr.base, pr.head]) === null;
     const tree = behind ? tryGit(cwd, ["merge-tree", "--write-tree", pr.base, pr.head]) : null;
     if (!tree) return unownedClosure(cwd, parseCodeowners(pr.codeowners));
-    const env = {
-        ...process.env,
-        GIT_LFS_SKIP_SMUDGE: "1",
-        ...Object.fromEntries(
-            ["AUTHOR", "COMMITTER"].flatMap((w) => [
-                [`GIT_${w}_NAME`, "pr-integrity"],
-                [`GIT_${w}_EMAIL`, "pr-integrity@localhost"],
-            ]),
-        ),
-    };
-    const run = (args) =>
+    // no commit is made: a worktree of the head with no checkout, whose index and files read-tree sets to the merged tree
+    const env = { ...process.env, GIT_LFS_SKIP_SMUDGE: "1" };
+    const run = (args, at = cwd) =>
         execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
-            cwd,
+            cwd: at,
             env,
             encoding: "utf8",
             stdio: "pipe",
         }).trim();
-    const commit = run(["commit-tree", "--no-gpg-sign", tree, "-p", pr.base, "-p", pr.head, "-m", "merge result"]);
     const dir = join(mkdtempSync(join(tmpdir(), "pr-integrity-merge-")), "tree");
-    run(["worktree", "add", "--detach", "--quiet", dir, commit]);
+    run(["worktree", "add", "--detach", "--no-checkout", "--quiet", dir, pr.head]);
     try {
-        const codeowners = tryGit(dir, ["show", "HEAD:.github/CODEOWNERS"]) ?? "";
+        run(["read-tree", "-u", "--reset", tree], dir);
+        const codeowners = tryGit(dir, ["show", `${tree}:.github/CODEOWNERS`]) ?? "";
         return unownedClosure(dir, parseCodeowners(codeowners));
     } finally {
         run(["worktree", "remove", "--force", dir]);

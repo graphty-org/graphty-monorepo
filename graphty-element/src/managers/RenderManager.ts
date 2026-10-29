@@ -485,7 +485,8 @@ class ShaderScene {
     /**
      * Whether a scene shader's picture is on its way, so the frame on screen does not show it yet:
      * the background or the group outline pass still loading, an outline's shader still resolving
-     * or compiling, or a background that owes a draw with the outlines laid out since. Each of
+     * or compiling, a background that owes a draw with the outlines laid out since, or a background
+     * whose layer the last frame did not draw (its program still compiling, issue #3536). Each of
      * these ends by asking for a frame (issue #4243).
      * @returns True while one is on its way.
      */
@@ -494,7 +495,8 @@ class ShaderScene {
             this.backgroundLoads > 0 ||
             this.outlineLoading ||
             this.outline?.pending === true ||
-            this.background?.owesDraw === true
+            this.background?.owesDraw === true ||
+            this.background?.showPending === true
         );
     }
 

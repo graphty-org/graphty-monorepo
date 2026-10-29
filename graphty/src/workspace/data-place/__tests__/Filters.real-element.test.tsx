@@ -98,7 +98,9 @@ describe("Filter cards on the real element", () => {
         await userEvent.click(draft.getByRole("textbox", { name: "value from, number" }));
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
-            assert.isNull(within(screen.getByRole("region", { name: "Data place" })).queryByRole("listitem"));
+            assert.isNull(
+                within(screen.getByRole("region", { name: "Data place" })).queryByRole("list", { name: "Filters" }),
+            );
         });
         assert.lengthOf(session.visibility.conditions, 0);
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Add filter");

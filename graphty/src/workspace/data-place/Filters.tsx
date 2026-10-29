@@ -97,8 +97,15 @@ export function FiltersSection(): React.JSX.Element {
     const [draft, setDraft] = useState<Draft | null>(null);
     const [adding, setAdding] = useState(false);
     const conditions = session?.visibility.conditions ?? [];
-    // Once written, the draft is one of the element's conditions, drawn by the same card.
-    const drafting = draft !== null && !conditions.some((c) => c.id === draft.id);
+    // Once written, the draft is one of the element's conditions, drawn by the same card, and is
+    // let go: removed later, it must not come back as a draft.
+    const written = draft !== null && conditions.some((c) => c.id === draft.id);
+    const drafting = draft !== null && !written;
+    useEffect(() => {
+        if (written) {
+            setDraft(null);
+        }
+    }, [written]);
     const counts = session?.visibility.conditionCounts() ?? [];
 
     useEffect(() => {
@@ -231,7 +238,8 @@ function AddMenu({
     const nodes = fieldItems("node");
     const edges = fieldItems("edge");
     return (
-        <Menu opened={opened} onChange={onOpened} position="bottom-end" withinPortal>
+        // Focus goes to the card an item adds, not back to "+".
+        <Menu opened={opened} onChange={onOpened} position="bottom-end" withinPortal returnFocus={false}>
             <Menu.Target>
                 <Tooltip label="Add filter">
                     <ActionIcon data-filters-plus="" variant="subtle" aria-label="Add filter">

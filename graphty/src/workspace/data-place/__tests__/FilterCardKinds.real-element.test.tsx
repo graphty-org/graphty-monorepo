@@ -84,11 +84,13 @@ async function newCardOn(name: string): Promise<void> {
 }
 
 /**
- * The Data place's cards.
+ * The Filters section's cards.
  * @returns how many are drawn.
  */
-const cardsDrawn = (): number =>
-    within(screen.getByRole("region", { name: "Data place" })).queryAllByRole("listitem").length;
+function cardsDrawn(): number {
+    const list = within(screen.getByRole("region", { name: "Data place" })).queryByRole("list", { name: "Filters" });
+    return list === null ? 0 : within(list).queryAllByRole("listitem").length;
+}
 
 describe("Each kind of filter card", () => {
     beforeAll(async () => {

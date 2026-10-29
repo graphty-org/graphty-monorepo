@@ -167,11 +167,16 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 
 [`local/collector.mjs`](local/collector.mjs) posts this machine's test runs, each record once:
 
-| Source in the main checkout                | Route                        |
-| ------------------------------------------ | ---------------------------- |
-| `tmp/test-ledger/records/<date>/*.json.gz` | `POST /v1/local/invocations` |
-| `tmp/push-log.jsonl` (push gate runs)      | `POST /v1/local/push-runs`   |
-| `tmp/waits.jsonl` (test and GPU slots)     | `POST /v1/local/waits`       |
+| Source in the main checkout                                | Route                        |
+| ---------------------------------------------------------- | ---------------------------- |
+| `tmp/waits.jsonl` (each test run's slot hold: what, exit)  | `POST /v1/local/push-runs`   |
+| `tmp/waits.jsonl` (test and GPU slot waits)                | `POST /v1/local/waits`       |
+| `tmp/test-ledger/records/<date>/*.json.gz` (pre-push gate) | `POST /v1/local/invocations` |
+| `tmp/push-log.jsonl` (pre-push gate runs)                  | `POST /v1/local/push-runs`   |
+
+Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
+(the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
+runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
 
 Host paths, gate logs, working directories and session ids are never posted. Every row has an id from
 its content, so a retried post is harmless.

@@ -20,6 +20,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 Summarized 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
 audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
 
+0. (2026-10-29) A date column is a `date` card field when the element's descriptor says
+   `measurement: "time"` (typed date or the designated time field); its card writes the element's
+   `range` leaf with `as: "time"` (ms bounds, both ends kept). Card bounds: Before X = start(X) - 1,
+   After X = end(X), Between = start(A) .. end(B) - 1, where a 4-digit year spans the year and a
+   day spans the day (`spanOf` in `style/cards.ts`). A bare number under 4 digits is NOT a date: the
+   session parser reads "2" as 2 ms, which wrote a card on the first keystroke.
 1. (2026-10-29) An issue the element raises must name what happened to the file. A graph-io error
    with a line is NOT a refused row: GraphML `<data>` and GEXF `<attvalue>` readers drop only the
    value and keep the node or edge. Those now carry `params: { skipped: "value" }` (graph-io
@@ -52,6 +58,17 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
     will not match; step N lands in screenshot N+1; always `--end`.
 
 ## Decisions and reasons
+
+- 2026-10-29: A date condition is the existing `range` leaf with `as: "time"`, not a new leaf, and
+  the app reads "is a date" from the attribute descriptor's `measurement`, not a new
+  `ReadableValueKind`. Why: adding "date" to `readableValues()` kinds changes what an existing API
+  returns (breaking); the descriptor already says it. In the element the designated field reads the
+  timeline's parsed instants (so the filter and the timeline agree); other columns, and every
+  style-layer and set rule (their resolve context has no instants), read raw values by the shared
+  `readTimeValue` (`session/time/parse.ts`), which `session.time.parse` now calls too.
+- 2026-10-29: Filters writes a typed card on commit (Enter or leaving the box), the Style picker on
+  each change; the date card hands each parseable keystroke to `onChange` either way, so both count
+  while typing.
 
 - 2026-10-29: A dropped value is marked in graph-io, not guessed in the element. Why: the element
   saw only "error, line 179, element gal1RGexp"; nothing said whether the node survived, and
@@ -131,6 +148,13 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-29 worked: a Mantine `Autocomplete` for a date box (suggestions: the column's dates as
+  the table writes them). Its role is `combobox`, not `textbox`: a test that looks for a textbox
+  misses it.
+- 2026-10-29 did not work at first: parsing every keystroke with `session.time.parse` -- "2" read
+  as 2 ms, so a Before card was written before the year was typed; fixed by refusing bare numbers
+  shorter than a year.
 
 - 2026-10-29 worked: a node vitest probe loading the studio file through `{ url }` (fetch stubbed)
   and `{ file }` reproduced "6 rows refused" in both, so the bug was never the address path or a

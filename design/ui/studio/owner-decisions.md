@@ -27,7 +27,10 @@ From the tier 4 dry run (`tier4/dry-run-r1-1.md`).
   as today. Why: a filter or style condition on a date column ("put in before 2005") had no rule to
   write, so T65 B could not be done. An option on the existing leaf, not a new leaf kind, because the
   test is the same "between min and max" and every consumer that already walks `range` leaves keeps
-  working.
+  working. As built: on the designated time field the leaf reads the timeline's own instants, so
+  the two agree on every value; any other column (a column typed as dates) is read by the same
+  parser `session.time.parse` uses (a date written with no zone is UTC). An `as` other than "time"
+  is refused.
 - **A weight role given after the load is the weight runs read.** graphty-element: `data.setRole(column,
 "weight")` documents the role as "the edge weight", but runs and `data.loadedWeight()` read only the
   weight a load mapped, so a weight given in Data > Fields never reached an analysis (T64). Treated as

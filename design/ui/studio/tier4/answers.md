@@ -168,6 +168,14 @@ showing.
   find box offer `installed` as text even after it is read as dates and set as the time, so
   "before 2005" has no condition. The nearest workaround (Starts with "19", Select) selects G01,
   G09 and the hidden G05 and misses G02. B is blocked on this build; no path step count.
+- **B with date conditions (the build after 0ffeae2ef5 that adds them)**: Filters "+" lists
+  `installed` with the calendar glyph; its card opens on Before with the box focused. **Path**:
+  Add filter > telemetry > Yes; Add a condition > depth_cm > "from" 70 > Enter; Add filter >
+  installed > type 2005 > Enter (3 of 12 while it hides); switch that card to Select. The screen
+  reads **5 of 12** nodes and **"5 nodes selected"**: G01, G02 and G09 are marked among the five in
+  the picture, and the two hidden gauges put in before 2005 (G05, G03) are selected too by the
+  Select rule above. Graded on the cards, as for A. Path steps: 12 (B). The same Before 2005 in a
+  style layer's Which nodes keeps 5 of 12 nodes ("installed before 2005, 5 nodes").
 - **Also success**: two separate keep cards (trained; hours) instead of one card with two fields.
 - **Not success**: a style layer that colors them while everyone stays; a selection made by
   clicking nodes one by one (counted P if the counts are right).

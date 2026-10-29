@@ -259,7 +259,8 @@ Each call works for up to 15 minutes and answers `{"done": false, ...}` until th
 invoke it again and it continues from its cursor. `AWS_PROFILE=graphty AWS_REGION=us-east-2 pnpm run
 backfill -- --days 28` runs the same from a workstation. `-- --repair-days 2026-10-09,2026-10-11
 --repair-workflows release.yml,bisect.yml` re-reads only those days' runs of those workflows, whatever the cursors
-say: a backfill made before days were read an hour at a time kept only the newest 1,000 runs of a busier day.
+say: a backfill made before days were read an hour at a time kept only the newest 1,000 runs of a busier day. The
+Lambda takes the same as `"repair": {"days": [...], "workflows": [...]}` in its payload.
 
 It loads newest first, so a call that stops early has loaded the most recent days. Flaky tests come first:
 each warning annotation `[FLAKY]`, `[FLAKY-UNRELATED]` or `[QUARANTINED] ... failed and passed` that the test

@@ -36,7 +36,6 @@ import {
     toRunItem,
     toStepItems,
     workflowFile,
-    type GhJob,
     type GhRun,
     type GqlIssue,
     type GqlPr,

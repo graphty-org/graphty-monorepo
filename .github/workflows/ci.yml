@@ -2887,12 +2887,11 @@ jobs:
         needs: all-checks
         if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref }}
         # A failure here is not the merge's: it must not turn the master build red, which would skip the
-        # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
+        # deploy and have master-guard revert the merge. A missed dispatch fails this job (an error, and a comment on
+        # its issue) and waits for the next slot, which catches up.
         continue-on-error: true
         runs-on: ubuntu-24.04
-        # A dispatch GitHub refuses for the Actions token's hourly rate limit waits for its reset (at most
-        # 55 minutes, RATE_WAIT_MAX_MS) and is made once more; nothing else takes more than a minute.
-        timeout-minutes: 65
+        timeout-minutes: 5
         # actions: write to dispatch release.yml and cancel the red run; issues: write for the red issues and the
         # note on the Release status issue that keeps release-watch quiet about that cancel; pull-requests: read for
         # the merged pull request's description, where tools/pr-open.sh writes Fixes #N; id-token: write to read the held

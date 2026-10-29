@@ -15,8 +15,6 @@ import {
     due,
     fixForwardMerges,
     PAID_RETEST_MAX_MS,
-    RATE_WAIT_MAX_MS,
-    rateLimitWait,
     restartDispatch,
     resumesDue,
     tooOldToRetest,
@@ -148,7 +146,6 @@ describe("release-due approval merges since the last green build", () => {
             join(bin, "gh"),
             `#!/bin/bash\necho "$*" >> ${log}\ncase "$*" in\n` +
                 `"run list"*) echo '${JSON.stringify([{ headSha: green }])}';;\n` +
-                `"api rate_limit"*) echo $(( $(date +%s) - 10 ));;\n` +
                 `"workflow run"*) n=$(( $(cat ${count}) + 1 )); echo $n > ${count}\n` +
                 `  if [ $n -le ${failures} ]; then echo "HTTP 403: API rate limit exceeded for installation." >&2; exit 1; fi;;\n` +
                 `*) ;;\nesac\n`,
@@ -165,31 +162,13 @@ describe("release-due approval merges since the last green build", () => {
         return { out, calls };
     };
 
-    it("dispatches a rate-limited promotion again after the reset", () => {
-        const { out, calls } = dispatch(1);
-        assert.equal(out.status, 0, out.stdout + out.stderr);
-        assert.equal(calls.length, 2);
-        assert.match(calls[1], new RegExp(`mode=promote-nightly -f candidate=${candidate} -f accept=${approval}`));
-        assert.match(out.stdout, /rate-limited; dispatching again after the reset/);
-    });
-
     it("fails the job, naming gh's error, when the promotion cannot be dispatched", () => {
-        const { out, calls } = dispatch(2);
-        assert.equal(calls.length, 2, "one retry only");
+        const { out, calls } = dispatch(1);
+        assert.equal(calls.length, 1);
+        assert.match(calls[0], new RegExp(`mode=promote-nightly -f candidate=${candidate} -f accept=${approval}`));
         assert.equal(out.status, 1, "a missed promotion fails the job");
         assert.match(out.stdout, /::error::gh workflow run release\.yml .*HTTP 403: API rate limit exceeded/);
-    });
-
-    it("waits only for a rate limit whose reset is within the job's time", () => {
-        const now = Date.parse("2026-10-29T13:51:29Z");
-        const limited = "HTTP 403: API rate limit exceeded for installation.";
-        assert.equal(rateLimitWait(limited, now / 1000 + 600, now), 605_000);
-        assert.equal(rateLimitWait(limited, now / 1000 - 30, now), 1000, "a reset already past: just retry");
-        assert.equal(rateLimitWait(limited, now / 1000 + 3600, now), null, "longer than the job may wait");
-        assert.equal(rateLimitWait(limited, Number.NaN, now), null);
-        assert.equal(rateLimitWait("HTTP 422: Unexpected inputs provided", now / 1000, now), null);
-        assert.ok(RATE_WAIT_MAX_MS < 65 * 60 * 1000 - 5 * 60 * 1000, "ci.yml's release-due timeout leaves room");
-        assert.equal(workflow("ci.yml").jobs["release-due"]["timeout-minutes"], 65);
+        assert.equal(dispatch(0).out.status, 0, "a dispatched promotion passes");
     });
 
     it("reads only HEAD without a green build to start from", () => {

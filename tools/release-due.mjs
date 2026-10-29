@@ -198,60 +198,26 @@ const cause = (error) =>
         .trim()
         .split("\n")[0];
 
-// The longest a dispatch waits for the token's rate limit to reset (ci.yml's job timeout leaves room for it).
-export const RATE_WAIT_MAX_MS = 55 * 60 * 1000;
-
 /**
- * How long to wait before a refused dispatch is made once more: only when GitHub refused it for the rate limit (the
- * job's token is the repository's Actions token, whose hourly budget every workflow shares, #4318).
- * @param stderr gh's error output
- * @param reset the budget's reset (`gh api rate_limit`), epoch seconds; NaN when unreadable
- * @param [now] milliseconds
- * @returns milliseconds, or null: not a rate limit, the reset is unknown, or it is further off than RATE_WAIT_MAX_MS
- */
-export function rateLimitWait(stderr, reset, now = Date.now()) {
-    if (!/rate limit exceeded/i.test(stderr ?? "") || !Number.isFinite(reset)) return null;
-    const ms = Math.max(reset * 1000 + 5000 - now, 1000);
-    return ms <= RATE_WAIT_MAX_MS ? ms : null;
-}
-
-// the core budget's reset, epoch seconds; GitHub does not count this call against the budget
-function rateReset() {
-    try {
-        return Number(run("gh", ["api", "rate_limit", "--jq", ".resources.core.reset"]));
-    } catch {
-        return Number.NaN;
-    }
-}
-
-/**
- * A release.yml dispatch: a rate-limited one waits for the reset and is made once more; one that still fails is an
- * error that fails the job (ci.yml keeps the master build green) and is told on `issue`, so it is never missed. The
- * next 6-hour full run catches up on a missed promotion, fix forward or restart.
+ * A release.yml dispatch. One that fails (the job's token is the repository's Actions token, whose hourly budget every
+ * workflow shares and which ran out on 2026-10-29, #4318) is an error that fails the job and is told on `issue`, so
+ * it is never missed; ci.yml keeps the master build green. It does not wait for the rate limit's reset: this job runs
+ * inside the master build, which holds master's build queue until it ends. The next 6-hour full run catches up on a
+ * missed promotion (tools/channel/resume.mjs), fix forward or restart.
  * @param args the `gh` arguments
  * @param issue the hold or red issue to tell, or null
  * @returns whether it was dispatched
  */
-async function dispatchRelease(args, issue) {
-    for (let attempt = 1; ; attempt++) {
-        try {
-            run("gh", args);
-            return true;
-        } catch (error) {
-            const why = String(error.stderr || error.message).trim();
-            const wait = attempt === 1 ? rateLimitWait(why, rateReset()) : null;
-            if (wait !== null) {
-                console.log(
-                    `release-due: rate-limited; dispatching again after the reset, in ${Math.ceil(wait / 1000)} s`,
-                );
-                await new Promise((resolve) => setTimeout(resolve, wait));
-                continue;
-            }
-            console.log(`::error::gh ${args.join(" ")} failed: ${why.replaceAll("\n", " ")}`);
-            process.exitCode = 1;
-            if (issue) tellFailed(issue, args, why);
-            return false;
-        }
+function dispatchRelease(args, issue) {
+    try {
+        run("gh", args);
+        return true;
+    } catch (error) {
+        const why = String(error.stderr || error.message).trim();
+        console.log(`::error::gh ${args.join(" ")} failed: ${why.replaceAll("\n", " ")}`);
+        process.exitCode = 1;
+        if (issue) tellFailed(issue, args, why);
+        return false;
     }
 }
 
@@ -356,7 +322,7 @@ async function promoteApproved(shas, dryRun) {
         if (p.run) {
             const args = ["workflow", "run", "release.yml", "--ref", "master", "-f", "mode=promote-nightly"];
             args.push("-f", `candidate=${p.candidate}`, "-f", `accept=${p.accept}`);
-            await dispatchRelease(args, r.ok ? (r.data?.hold?.issue ?? null) : null);
+            dispatchRelease(args, r.ok ? (r.data?.hold?.issue ?? null) : null);
         } else if (p.comment) {
             run("gh", [
                 "issue",
@@ -428,7 +394,7 @@ async function dispatchFixForward(merges, dryRun) {
         return;
     }
     console.log(`release-due: these merges fix the held candidate forward (#${due.issue}): release.yml mode=candidate`);
-    if (!dryRun) await dispatchRelease(fixForwardDispatch(due.prs), due.issue);
+    if (!dryRun) dispatchRelease(fixForwardDispatch(due.prs), due.issue);
 }
 
 // the last green master build HEAD descends from, or null
@@ -549,7 +515,7 @@ async function main() {
     } catch (error) {
         console.log(`::warning::cancelling the red run failed: ${cause(error)}`);
     }
-    if (!dryRun) await dispatchRelease(restartDispatch(plan.mode, head), plan.issue);
+    if (!dryRun) dispatchRelease(restartDispatch(plan.mode, head), plan.issue);
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -653,6 +653,9 @@ export class LayoutManager implements Manager {
      */
     private preStepsOwed = false;
 
+    /** Set while a pre-step chunk is on its way through a simulation; see `preStepsInFlight`. */
+    #chunkInFlight = false;
+
     /**
      * Set while the running layout's arrangement is the layout's own work: it was built, forward,
      * and nothing but its own steps has placed a node since -- no `positions.set`, no restore.
@@ -784,6 +787,16 @@ export class LayoutManager implements Manager {
      */
     get building(): boolean {
         return this.#building > 0;
+    }
+
+    /**
+     * Whether a chunk of pre-steps is being computed now. The frame loop neither steps the layout
+     * nor judges it settled while one is: see {@link LayoutManager.step}.
+     * @returns True while one is.
+     * @internal
+     */
+    get preStepsInFlight(): boolean {
+        return this.#chunkInFlight;
     }
 
     /**
@@ -2081,7 +2094,13 @@ export class LayoutManager implements Manager {
         if (engine instanceof SimulationLayoutEngine) {
             for (let remaining = preSteps; remaining > 0 && !engine.isSettled;) {
                 const chunk = Math.min(remaining, MAX_ITERATIONS_PER_STEP_CHUNK);
-                await engine.stepAsync(chunk);
+                this.#chunkInFlight = true;
+                try {
+                    await engine.stepAsync(chunk);
+                } finally {
+                    this.#chunkInFlight = false;
+                }
+
                 if (!live()) {
                     return false;
                 }
@@ -2526,11 +2545,22 @@ export class LayoutManager implements Manager {
         // it has run would move the arrangement being restored. The frames after it step again.
         //
         // Nor while a new layout waits its turn: see `replacing`.
-        if (this.#building > 0 || this.restoring() || this.replacing()) {
+        //
+        // Nor while a chunk of pre-steps is on the device. Owed pre-steps are paid outside a build,
+        // over several frames, and a simulation takes more than one batch in flight: a frame's
+        // batch submitted beside a chunk ran iterations the pre-steps did not count and moved where
+        // the next chunk read `settled`, so a slow device -- on which frames fall inside a chunk --
+        // ended the same seed somewhere else than a fast one (issue #3533). The frames step again
+        // once the pre-steps are paid, as they do after a build's.
+        if (this.#building > 0 || this.#chunkInFlight || this.restoring() || this.replacing()) {
             return;
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
+        if (this.#chunkInFlight) {
+            // The payment just started has its first chunk on the device.
+            return;
+        }
         this.syncFollowers();
 
         const engine = this.layoutEngine;

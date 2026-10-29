@@ -280,11 +280,15 @@ export function stepSupportPoints(
     const ys = new Float64Array(n + m);
     let cx = 0;
     let cy = 0;
+    // the middle of the nodes that have a place
+    const placed = nodes.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)).length;
     for (let i = 0; i < n; i++) {
         xs[i] = nodes[i].x / unit;
         ys[i] = nodes[i].y / unit;
-        cx += xs[i] / n;
-        cy += ys[i] / n;
+        if (Number.isFinite(xs[i]) && Number.isFinite(ys[i])) {
+            cx += xs[i] / placed;
+            cy += ys[i] / placed;
+        }
     }
     const center: [number, number] = [cx, cy];
     const ends = edges.map(
@@ -467,14 +471,20 @@ function integrate(
  * @returns Its root.
  */
 function treeOf(xs: Float64Array, ys: Float64Array): Cell {
-    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
-    for (let i = 0; i < xs.length; i++) {
+    // a body at no place (a node at NaN or Infinity) is left out: its box has no size to halve, and inserting it
+    // never ended
+    const placed = [...xs.keys()].filter((i) => Number.isFinite(xs[i]) && Number.isFinite(ys[i]));
+    let [x0, y0, x1, y1] = [0, 0, 0, 0];
+    if (placed.length > 0) {
+        [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    }
+    for (const i of placed) {
         [x0, y0, x1, y1] = [Math.min(x0, xs[i]), Math.min(y0, ys[i]), Math.max(x1, xs[i]), Math.max(y1, ys[i])];
     }
     // vis-network's root: the bodies' box made square about its middle (BarnesHutSolver._formBarnesHutTree)
     const size = Math.max(x1 - x0, y1 - y0, 1e-5);
     const root = newCell((x0 + x1 - size) / 2, (y0 + y1 - size) / 2, size);
-    for (let i = 0; i < xs.length; i++) {
+    for (const i of placed) {
         insert(root, i, xs, ys);
     }
     return root;

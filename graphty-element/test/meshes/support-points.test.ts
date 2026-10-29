@@ -142,6 +142,21 @@ describe("support points", () => {
         }
     });
 
+    it("never hang on a node at no place (NaN or Infinity)", () => {
+        // the Barnes-Hut tree halved a box of no size forever, until the heap ran out
+        const nodes = [at(Number.NaN, 0), at(100, 0), at(50, Number.POSITIVE_INFINITY), at(0, 80)];
+        const edges: SupportEdge[] = [
+            { src: nodes[0], dst: nodes[1], forces: { ...BARNES_HUT, scale: "drawing" } },
+            { src: nodes[1], dst: nodes[3], forces: { ...BARNES_HUT, scale: "drawing" } },
+        ];
+        const unit = balancedUnit(nodes, edges);
+        assert.isTrue(unit === null || Number.isFinite(unit));
+        const points = new Float64Array([50, 0, 50, 40]);
+        stepSupportPoints(nodes, edges, points, new Float64Array(4), 20);
+        // the edge between two placed nodes still gets a place
+        assert.isTrue(Number.isFinite(points[2]) && Number.isFinite(points[3]));
+    });
+
     it("rest where their forces put them, whatever forces they had before", () => {
         const support = new SupportPoints<string>();
         const nodes = [at(0, 0), at(100, 0), at(50, 30)];

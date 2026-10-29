@@ -2154,14 +2154,15 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
 }
 
 /**
- * Reads one end's arrow: its shape, or none when the edge's direction draws no arrow there, and the side it keeps.
+ * Reads one end's arrow: its shape, or none when the edge's direction draws no arrow there, the side it keeps and the
+ * shapes drawn behind it. Read so by the DOT reader and by the GML reader for gv2gml's `targetArrow` / `sourceArrow`.
  * @param end - which end
  * @param raw - its `arrowhead` or `arrowtail`, or null
  * @param on - whether the edge's direction draws an arrow there
  * @param put - receives the values
  * @param at - the sites
  */
-function readEdgeArrow(end: "target" | "source", raw: string | null, on: boolean, put: Put, at: At): void {
+export function readEdgeArrow(end: "target" | "source", raw: string | null, on: boolean, put: Put, at: At): void {
     const arrow = on ? graphvizArrowValue(raw ?? "normal", at(`${end}Arrow`)) : null;
     put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
     if (arrow?.side !== null && arrow?.side !== undefined) {
@@ -2174,6 +2175,12 @@ function readEdgeArrow(end: "target" | "source", raw: string | null, on: boolean
 
 /** The sides an `l` or `r` arrow modifier keeps, by their first letters. */
 const ARROW_SIDES = ["left", "right"] as const;
+
+/** One shape of a Graphviz arrow name: its own name and the side an `l` or `r` keeps (null for the whole shape). */
+interface GraphvizArrowShape {
+    readonly name: string;
+    readonly side: (typeof ARROW_SIDES)[number] | null;
+}
 
 /** The open forms of Graphviz arrows that a neutral shape draws; the others are drawn filled. */
 const GRAPHVIZ_OPEN_ARROWS: ReadonlySet<string> = new Set(["normal", "diamond", "dot", "box", "inv"]);
@@ -2188,17 +2195,16 @@ const GRAPHVIZ_OTHER_ARROWS: ReadonlyMap<string, string> = new Map([
  * The neutral arrow value Graphviz draws for an arrow name (`onormal`, `lbox`, `invempty`), with an open shape the
  * neutral vocabulary has no name for (`obox`, `oinv`) as the value graphty draws it as, and the side an `l` or `r`
  * keeps. A name of several shapes (`boxdotnormal`, `lteeoldiamond`) draws them in a row along the line, the first
- * against the node: the first is the value, the rest its `parts`. Read so by the DOT reader and by the GML reader for
- * gv2gml's `targetArrow` / `sourceArrow`.
+ * against the node: the first is the value, the rest its `parts`.
  * @param raw - the arrow name
  * @param site - where it was read
  * @returns the value, its side (null for the whole shape), and the shapes drawn behind it as the `targetArrowParts`
  * value (null for none)
  */
-export function graphvizArrowValue(
+function graphvizArrowValue(
     raw: string,
     site: CanonSite,
-): { readonly value: string | null; readonly side: "left" | "right" | null; readonly parts: string | null } {
+): { readonly value: string | null; readonly side: GraphvizArrowShape["side"]; readonly parts: string | null } {
     const shapes = graphvizArrows(raw);
     const valueOf = (name: string | undefined): string | null =>
         (name === undefined ? undefined : GRAPHVIZ_OTHER_ARROWS.get(name)) ??
@@ -2224,13 +2230,13 @@ export function graphvizArrowValue(
  * @returns each shape's own name and its side (null for the whole shape), or null for a name outside the grammar (a
  * synonym such as `empty`)
  */
-function graphvizArrows(raw: string): { readonly name: string; readonly side: "left" | "right" | null }[] | null {
+function graphvizArrows(raw: string): GraphvizArrowShape[] | null {
     let rest = raw.trim().toLowerCase();
     // the one synonym the grammar would misread (as `inv`): arrows.c's `invempty` is an open `inv`
     if (rest === "invempty") {
         rest = "oinv";
     }
-    const shapes: { readonly name: string; readonly side: "left" | "right" | null }[] = [];
+    const shapes: GraphvizArrowShape[] = [];
     while (rest.length > 0) {
         const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
         if (m === null) {

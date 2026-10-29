@@ -36,7 +36,7 @@ an edge field's leaf (`withEnds`). The inspector's "Filter to neighbors" writes
 `{ kind: "neighborhood", seeds: [center], depth: reach }` with a reach of 1 to 3
 (`graphty/src/workspace/inspector/NodeValues.tsx`), read back by `toolbar/commands.ts`.
 
-Two defects on master this design fixes: `compileOne`'s `not` negates both halves of a leaf, so a
+Two defects on master, fixed for every new condition (section 1): `compileOne`'s `not` negates both halves of a leaf, so a
 Hide step on an edge field reading `ends` hides the nodes at the matched edges' ends and all their
 other edges ("Hide edges with weight > 5" can blank most of the graph); and the app, not the
 element, decides that edge reading.
@@ -77,7 +77,7 @@ An edge leaf that names no `nodes` reading gets one from the effect:
 | exclude | the matching edges only; no node is hidden                         |
 | select  | the matching edges only                                            |
 
-A `nodes` reading written in the rule wins, so a migrated step keeps exactly the meaning it was
+A `nodes` reading written in the rule (`"all"`, `"ends"` or `"none"`, `AttributeLeafNodes`) wins, so a migrated step keeps exactly the meaning it was
 saved with. Changing a condition's effect never needs a rule rewrite. The app stops adding `ends`.
 
 ### How conditions combine
@@ -146,15 +146,14 @@ unchanged. A keep condition on `r` hides exactly what a step `r` hides, so the m
 for every saved list, including `not` steps and their explicit `ends` (master's endpoint behavior on
 an old edge Hide step survives; only new conditions get the fixed reading).
 
-| Today                                 | Becomes                                                                     | Drawn as                                   |
-| ------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------ |
-| Keep, Matching, one or more fields    | keep, same rule                                                             | an editable card, one field per row        |
-| Keep "has no value" (app's own `not`) | keep, same rule                                                             | the editable "has no value" card, as today |
-| Hide, Matching (`not` of a rule)      | keep, same rule                                                             | "A rule set elsewhere": on box, remove     |
-| Largest component                     | keep, `{ kind: "member", of: "largest-component" }` (or its `not`)          | the Largest component card                 |
-| Neighbors of selection, depth 1 to 3  | keep, `{ kind: "neighborhood", seeds, depth }` with the saved depth exactly | the Neighbors card, depth editable         |
-| Time window                           | unchanged, `visibility.window`, its fixed row at the end                    | unchanged                                  |
-| Data source (two or more loads)       | a condition on the `source` leaf                                            | the Data source card                       |
+- Keep, Matching, one or more fields: keep, same rule; an editable card, one field per row.
+- Keep "has no value" (the app's own `not`): keep, same rule; the editable "has no value" card.
+- Hide, Matching (`not` of a rule): keep, same rule; "A rule set elsewhere" with its box and remove.
+- Largest component: keep, `{ kind: "member", of: "largest-component" }` (or its `not`); the
+  Largest component card.
+- Neighbors of selection: keep, `{ kind: "neighborhood", seeds, depth }` with the saved depth (1 to 3) exactly; the Neighbors card, depth editable.
+- Time window: unchanged, `visibility.window`, its fixed row at the end.
+- Data source (two or more loads): a condition on the `source` leaf; the Data source card.
 
 Old Hide steps open read-only because the owner kept Exclude out of the cards' simple path
 (2026-10-16); they are never dropped. See "Owner decisions" for the alternative.
@@ -215,24 +214,21 @@ New exported types: `FilterCondition`, `FilterConditionInput`, `FilterConditionC
 ### The steps API keeps working, as a view
 
 There is one store, the conditions. `visibility.steps` returns the keep and exclude conditions as
-`{ id, on, rule }` (exclude as `{ kind: "not", of: rule }`, with its derived edge reading written
-out). `setSteps(steps)` and the `visibility.steps` op replace the keep and exclude conditions with
+`{ id, on, rule }` (exclude as `{ kind: "not", of: rule }`, with `nodes: "all"` written into any
+edge leaf that names none, so the step means the same). `setSteps(steps)` and the `visibility.steps` op replace the keep and exclude conditions with
 one keep condition per step (section 2) and leave the select conditions alone. Steps ->
 conditions -> steps is the identity. `steps`, `setSteps` and the `steps` plan effect get
 `@deprecated`; removal waits for a planned major.
 
 Every internal reader and writer moves to conditions, so nothing round-trips through steps:
 
-| Where                               | Today                          | Becomes                                                   |
-| ----------------------------------- | ------------------------------ | --------------------------------------------------------- |
-| `projectFile.ts`, write             | `steps`                        | `steps` (view) and `conditions` (section 4)               |
-| `projectFile.ts`, read              | `setSteps`                     | conditions, one by one (section 4)                        |
-| `projectFile.ts`, clear before open | `setSteps([])`                 | `setConditions([])`: no select condition survives an open |
-| `data.ts`, `reads(...)` walk        | steps                          | conditions                                                |
-| `data.ts`, column rename            | a `visibility.steps` op        | a `visibility.conditions` op: every effect kept           |
-| `recipe.ts`                         | `steps` through `scrubRule`    | `conditions` beside `steps`, same scrub (below)           |
-| `journal.ts`                        | `visibility.steps` -> "filter" | adds `visibility.conditions` -> "filter"                  |
-| `planning.ts`                       | `steps` effect                 | unchanged (deprecated)                                    |
+- `projectFile.ts` write: `steps` (the view) and `conditions` (section 4); read: condition by
+  condition (section 4); clear before an open: `setConditions([])`, so no select condition
+  survives an open.
+- `data.ts`: the `reads(...)` walk covers conditions; a column rename emits a
+  `visibility.conditions` op, so every effect is kept.
+- `recipe.ts`: writes `conditions` beside `steps`, through the same scrub (below).
+- `journal.ts`: `visibility.conditions` -> "filter". `planning.ts`: unchanged (deprecated).
 
 Recipe scrub: `scrubRule` drops id-bound parts (neighborhood seeds). For keep and select a dropped
 part narrows nothing it should not; for exclude, dropping a part of `all[a, ids]` would widen what
@@ -507,9 +503,3 @@ a Select card, a Neighbors card and an old Hide step, reached by clicks in their
   value": it now reads back as itself.
 - **Select over visible elements.** Replaced by "Select ignores visibility" (order-free, matches
   requirement 12's count), rather than recomputing on every keep change.
-- **Apply select conditions on open** (a note) versus never (a blocking item): never; the saved
-  selection is the reader's.
-- **Async counts and stale answers.** Counts are synchronous and cached, so there is no newest
-  request to track.
-- **`plan` effect for conditions.** Dropped until an editor needs a preview.
-- **"Select where..." hotkey.** No menu item is added, so nothing to check.

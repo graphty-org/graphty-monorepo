@@ -4,6 +4,8 @@
 // named by the observation, so a new stock or age needs no code here.
 
 // The repository's CI budgets; the deploy builds from a full checkout, so the root file is bundled in.
+import { createHash } from "node:crypto";
+
 import budgets from "../../../../ci-budgets.json" with { type: "json" };
 import { MIN, type RawItem, type RawKind } from "./items.js";
 
@@ -19,7 +21,8 @@ export interface Contribution {
 export interface MetricSource {
     kind: RawKind;
     field: string;
-    fold: (item: never) => Contribution | null;
+    /** One contribution, or several (one per dimension), or none. */
+    fold: (item: never) => Contribution | Contribution[] | null;
 }
 
 export interface MetricDef {
@@ -28,7 +31,11 @@ export interface MetricDef {
 }
 
 type Of<K extends RawKind> = Extract<RawItem, { kind: K }>;
-const src = <K extends RawKind>(kind: K, field: string, fold: (item: Of<K>) => Contribution | null): MetricSource => ({
+const src = <K extends RawKind>(
+    kind: K,
+    field: string,
+    fold: (item: Of<K>) => Contribution | Contribution[] | null,
+): MetricSource => ({
     kind,
     field,
     fold: fold,
@@ -42,7 +49,26 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs`;
+
+/**
+ * A flake hotspot family (design section 5): a shard run's variant `<family>|flags=..|<shape>` and a flaky test's
+ * family (`graphty`, `graphty-storybook-shots`) name the same family once the variant's flags and shape are dropped.
+ * @param family a shard run's or flaky test's family
+ */
+export const hotspotFamily = (family: string): string => family.split("|")[0];
+
+/**
+ * The flaky.file_runs dimension of one test file in one family: a short hash, not the path, so a day's bucket of
+ * every file CI ran (about 3,000) stays near 80 KB, under DynamoDB's 400 KB item limit and cheap to rewrite.
+ * @param family the shard run's or the flaky test's family
+ * @param file the test file, repository-relative
+ */
+export const fileRunKey = (family: string, file: string): string =>
+    createHash("sha256")
+        .update(`${hotspotFamily(family)}\0${file}`)
+        .digest("base64url")
+        .slice(0, 8);
 
 const FINISHED = new Set(["success", "failure", "timed_out", "startup_failure"]);
 const isMaster = (base: string) => base === "master" || base === "main";
@@ -219,6 +245,17 @@ export const METRICS: MetricDef[] = [
             // ponytail: counts flaky tests, not distinct flaky files per run; a file with two flaky tests counts twice.
             src("test", "seenAt", (t) =>
                 t.source === "ci" && t.outcome === "flaky" && !t.bump ? { n: 0, sum: 1, dim: t.family } : null,
+            ),
+        ],
+    },
+    // Flake hotspots (section 5): how often each test file ran, the denominator of a file's and its tests' rate.
+    {
+        id: "flaky.file_runs",
+        from: [
+            src("shard_run", "endedAt", (s) =>
+                s.source === "ci" && s.attempt === 1
+                    ? s.files.map(([file]) => ({ dim: fileRunKey(s.family, file) }))
+                    : null,
             ),
         ],
     },

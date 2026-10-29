@@ -441,6 +441,64 @@ describe("the Data place's sidebar on the real element", () => {
         });
     });
 
+    it("draws the Sources + items with a glyph and their keys, and says it opens a menu", async () => {
+        await openDataPlace();
+        const add = await place().findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS });
+        assert.equal(add.getAttribute("aria-haspopup"), "menu");
+        assert.equal(add.getAttribute("aria-expanded"), "false");
+        await userEvent.click(add);
+        await waitFor(() => {
+            assert.equal(add.getAttribute("aria-expanded"), "true");
+        });
+        const items = await screen.findAllByRole("menuitem");
+        assert.deepEqual(
+            items.map((item) => item.textContent),
+            ["File...Ctrl+O", "Samples...", "Server...", "Network data...", "PasteCtrl+V"],
+        );
+        for (const item of items) {
+            assert.isNotNull(item.querySelector("svg"), `${item.textContent ?? ""} has a glyph`);
+        }
+        assert.equal(items[0]?.getAttribute("aria-keyshortcuts"), "Control+O");
+        assert.equal(items[4]?.getAttribute("aria-keyshortcuts"), "Control+V");
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("renames a source on a double-click or F2, and its menu shows F2 by Rename", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        const row = await place().findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
+        const main = row.querySelector<HTMLElement>(".dp-source-main");
+        assert.isNotNull(main);
+        await userEvent.dblClick(main as HTMLElement);
+        const input = await screen.findByRole("textbox", { name: "Source name" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, input);
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
+        });
+
+        place().getByRole("listitem", { name: "auth-log.csv" }).querySelector<HTMLElement>(".dp-source-main")?.focus();
+        await userEvent.keyboard("{F2}");
+        const again = await screen.findByRole("textbox", { name: "Source name" });
+        await userEvent.clear(again);
+        // Tab commits the name and moves on: the field is no keyboard trap.
+        await userEvent.type(again, "logins{Tab}");
+        await waitFor(() => {
+            assert.equal(session.data.sources()[0]?.name, "logins");
+            assert.isNull(screen.queryByRole("textbox", { name: "Source name" }));
+        });
+
+        const renamed = place().getByRole("listitem", { name: "logins" });
+        await userEvent.hover(renamed);
+        await userEvent.click(within(renamed).getByRole("button", { name: "logins menu" }));
+        const rename = await screen.findByRole("menuitem", { name: "Rename" });
+        assert.equal(rename.getAttribute("aria-keyshortcuts"), "F2");
+        assert.isNotNull(rename.querySelector("svg"), "Rename has a glyph");
+        await userEvent.keyboard("{Escape}");
+    });
+
     it("hands focus to the dialog a + menu item opens, by keyboard", async () => {
         await openDataPlace();
         const add = await place().findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS });

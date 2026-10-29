@@ -248,6 +248,7 @@ export const STYLE_PROPERTIES: {
         ["supportSpringConstant", "number"],
         ["supportRepulsion", "number"],
         ["supportCentralGravity", "number"],
+        ["supportScale", "text"],
         ["nodeGap", "number"],
         ["sourceNodeGap", "number"],
         ["targetNodeGap", "number"],

@@ -4143,6 +4143,46 @@ Still open:
 - A hierarchical layout turns dynamic curves into its direction's static curve (`horizontal` or `vertical`); graph-io
   draws them straight.
 
+### Round 6 (2026-10-29, #4271): dynamic curves bowed in the drawing's own units
+
+On the files that store no positions, graphty lays the nodes out itself, and its layout spreads them 1.3 to 1.7 times
+farther apart (for their size) than vis-network's physics does. The support forces were in the file's px, so the
+springs were stretched taut and the push of the neighbors fell off with the square of the distance: graphty bowed its
+curves about a third as deep as vis-network (median bend over the chord 0.013 against 0.038 on json-vis-world), and
+drew 0.00 to 0.13 of the lines bent where vis-network bends 0.22 to 0.52.
+
+graph-io now marks such a file's dynamic edges `supportScale: "drawing"` (a file that places every node keeps its px),
+and graphty-element's new `line.supportScale: "drawing"` (channel `edge.supportScale`) takes the forces' unit from the
+drawing: the size at which the forces hold the drawn nodes, and the support points where they stand, in balance (the
+virial of every force is zero there, as wherever a simulation of them rests; under forceAtlas2 a node's push and pull
+are weighted by its degree plus one, as vis-network weights them). On vis-network's own drawings of the five files that
+keep its physics, with its own support points, that unit is 0.999 to 1.008 of the file's px. Taking the points at their
+edges' middles instead gave 0.94 to 1.00, which left the bows a few percent short on the barnesHut files.
+
+| sample (own layouts)   | edge.curve, share bent (vis-network / graphty) before | after | median bend (vis-network / graphty) after |
+| ---------------------- | ----------------------------------------------------- | ----- | ----------------------------------------- |
+| json-vis-world         | 0.36 / 0.04 fail                                      | pass  | 0.038 / 0.043                             |
+| json-vis-unix          | 0.22 / 0 fail                                         | pass  | 0.027 / 0.031                             |
+| json-vis-siblings      | 0.24 / 0.05 fail                                      | pass  | 0.020 / 0.022                             |
+| json-vis-transparency  | 0.52 / 0.13 fail                                      | pass  | 0.048 / 0.042                             |
+| json-vis-lesmiserables | 0.38 / 0.64 fail                                      | pass  | 0.023 / 0.023                             |
+
+The 16 vis-network specimen sheets (`physics: false`) and every other format are unchanged.
+
+The position-matched drawing (`@matched`) left a node the oracle's drawing does not show where graphty's own layout put
+it. On json-vis-lesmiserables three nodes of the dense clique (Listolier, Blacheville, Champmathieu) are drawn wholly
+under others, so they stood far from where vis-network drew them, and the drawing's balance came out 6.6% off
+vis-network's: forceAtlas2's bows are sensitive to the unit, and 62 curves and routes failed. The harness now puts such
+a node at the middle of its placed neighbours when it has two or more (`placeUndrawn`); with them there the balance is
+0.99 of vis-network's. It moves only those three and one node of gexf-hsk-chars (no element there changes).
+
+Still open, for the owner: `@matched`, json-vis-lesmiserables, json-vis-siblings and json-vis-transparency pass more
+curves and routes than before (19 known failures now pass) but not the same ones: 14 elements newly fail (13 near the
+tolerance, several short edges whose support point now settles on the other side, and one group.extra where Listolier
+and Blacheville, with the same neighbours, are placed on one spot). Bends at `@matched` against vis-network's, median
+ratio: lesmiserables 0.83 -> 0.84, siblings 0.57 -> 0.74, transparency 0.80 -> 0.83, world 0.71 -> 0.83, unix 0.68 ->
+0.72. They are not recorded in `oracle-known-failures.json`.
+
 ## Graphviz's own routes drawn for a DOT file without positions (round 4, 2026-10-21)
 
 A DOT file that stores no positions is laid out by graphty-element with Graphviz's own engine (dot, unless the file

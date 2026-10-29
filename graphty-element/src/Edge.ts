@@ -2626,6 +2626,7 @@ export class Edge {
                 centralGravity: line?.supportCentralGravity ?? SUPPORT_DEFAULTS.centralGravity,
                 // a unit of 0 has no size: drawn as unset, as the channel refuses it
                 unit: line?.supportUnit || 1,
+                scale: line?.supportScale ?? "unit",
             },
         };
     }

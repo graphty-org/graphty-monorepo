@@ -421,6 +421,44 @@ export function boxOfPoints(pts: readonly Pt[]): PBox {
     return box;
 }
 
+/**
+ * Places for the nodes a drawing has none for, from their neighbours': each at the middle of its neighbours that have
+ * one, taken in rounds so a node whose neighbours have none waits for them. A node with fewer than two placed
+ * neighbours stays without: one neighbour says nothing of where beside it the node stood. A position-matched drawing moves graphty's nodes to where the program drew them, and a node the
+ * program's drawing does not show (drawn wholly under another, as in a dense clique) would otherwise stay where graphty's
+ * own layout put it, far from the drawing it is moved into.
+ * @param placed - the nodes that have a place
+ * @param ids - every node
+ * @param edges - the edges, as their two nodes
+ * @returns a place for each node in `ids` without one that could be given one
+ */
+export function placeUndrawn(
+    placed: ReadonlyMap<string, Pt>,
+    ids: readonly string[],
+    edges: readonly (readonly [string, string])[],
+): Map<string, Pt> {
+    const at = new Map(placed);
+    const out = new Map<string, Pt>();
+    let waiting = ids.filter((id) => !at.has(id));
+    for (let grew = true; grew && waiting.length > 0;) {
+        const round = waiting.flatMap((id): [string, Pt][] => {
+            const near = edges
+                .filter((e) => e.includes(id))
+                .map(([a, b]) => at.get(a === id ? b : a))
+                .filter((p): p is Pt => p !== undefined);
+            const mean = (k: 0 | 1): number => near.reduce((sum, p) => sum + p[k], 0) / near.length;
+            return near.length < 2 ? [] : [[id, [mean(0), mean(1)]]];
+        });
+        for (const [id, p] of round) {
+            at.set(id, p);
+            out.set(id, p);
+        }
+        grew = round.length > 0;
+        waiting = waiting.filter((id) => !at.has(id));
+    }
+    return out;
+}
+
 /** The tag of a primitive read as an outline a program drew as a filled path (`outlinePaintedAsFill`). */
 export const PAINTED_OUTLINE = "path:painted-outline";
 

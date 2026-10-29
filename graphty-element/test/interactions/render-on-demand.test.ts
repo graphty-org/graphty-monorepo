@@ -655,6 +655,38 @@ describe("renderOnDemand", () => {
         await restsOnTheCurrentPicture(element);
     });
 
+    it("rests a turning graph while its canvas is out of view, and draws it again in view", async () => {
+        // A graph below the fold kept drawing every turn of its camera nobody could see: on a
+        // software GPU the start page's hero cost the page about 160 ms a frame (#4426).
+        const element = await mounted(true);
+        const yaw = (): number => element.getCameraState().pivotRotation?.y ?? Number.NaN;
+        element.autoRotate = 1;
+        const inView = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(inView.rested, 0, "in view, the turning is drawn at every chance");
+
+        // Below the viewport, at the same size.
+        element.style.marginTop = "300vh";
+        await untilResting(element);
+        const before = yaw();
+        const outOfView = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(outOfView.drawn, 0, "out of view, the turning draws nothing");
+        assert.notStrictEqual(yaw(), before, "the camera kept turning");
+
+        element.style.marginTop = "";
+        const draws = countDraws(element);
+        const back = loopTicks(element).rested;
+        while (draws.count() === 0) {
+            if (loopTicks(element).rested - back > MAX_DRAWS) {
+                throw new Error("the turning graph was not drawn again back in view");
+            }
+
+            await nextFrame();
+        }
+
+        element.autoRotate = 0;
+        await restsOnTheCurrentPicture(element);
+    });
+
     it("switched off, draws every frame again", async () => {
         const element = await mounted(true);
         await untilResting(element);

@@ -430,12 +430,15 @@ promotion moves nothing new.
    `green-images` with an approval, no publish hold is open, and every listed version is on npm.
    Refuse a rollback (a nightly older than production's) whose `autosaveFormat` differs from
    production's (section 10).
-2. Before moving anything: `npm whoami` and the token's package access with `NPM_DIST_TAG_TOKEN`,
-   and `npm dist-tag ls` for every package, so an expired or under-scoped token fails before the first
-   tag moves. The round reminds the owner 14 days before `NPM_DIST_TAG_TOKEN_EXPIRES`.
+2. Before moving anything (a dry run too): for every package the plan moves, exchange the job's OIDC
+   token with npm and re-set the tag to the version it already has (`promote.mjs trust`), a write that
+   moves nothing, so a missing `promote.yml` trusted publisher or an unticked "Allow npm dist-tag" fails
+   before the first tag moves.
 3. For each package whose `latest` differs from `channel.json`, `npm dist-tag add <name>@<version>
-latest`. Trusted publishing covers `npm publish` only, so this needs the granular token, a secret
-   of `production` alone. A failure part way leaves some moved; the re-run moves the rest.
+latest` with npm trusted publishing (OIDC, npm 11.21.0 or later): no stored npm token. Each package has a
+   second trusted publisher, workflow `promote.yml`, environment `production`, "Allow npm dist-tag" on and
+   direct `npm publish` off (npm matches the workflow that starts the run, so release.yml's publisher
+   cannot serve it). A failure part way leaves some moved; the re-run moves the rest.
 4. Overlay production's datasets (section 2), push `deployed.json` to graphty-site with
    `graphty/sites/production.json` read from master's tip (its blob id into `channel.json`), and wait
    for its deploy report (section 3). npm moves first, so the docs describe a version `latest` does not install for at
@@ -463,13 +466,14 @@ reachable from master. End to end about 2 hours: light check 10 to 20 minutes, t
 
 **Rollback of production**: dispatch `promote.yml` with the previous nightly. It moves `latest` back
 and redeploys that tarball; the dataset overlay keeps every dataset. The bad versions are also
-deprecated (`npm deprecate <name>@<version> "<reason>"`, same token), because npm skips a deprecated
+deprecated (`npm deprecate <name>@<version> "<reason>"`, by the owner from his own npm login: trusted
+publishing does not cover deprecate), because npm skips a deprecated
 version when it picks a range's best match, so a consumer resolving past `latest` (another client, an
 explicit range) does not land on it. The real fix ships as the next patch through the hotfix path.
 
 **Rollback of nightly**: usually unnecessary, because the revert and the next green run supersede
-it. Otherwise `promote.yml` with `channel: nightly` moves `next` back behind the same approval (the
-`production` environment holds `NPM_DIST_TAG_TOKEN`), and a following job in environment `nightly`
+it. Otherwise `promote.yml` with `channel: nightly` moves `next` back behind the same approval (only a job in
+environment `production` matches the packages' `promote.yml` trusted publishers), and a following job in environment `nightly`
 redeploys the earlier nightly tarball; `channel-ref` moves `channel/nightly`.
 
 **Rollback of canary**: revert on master.

@@ -7,7 +7,8 @@
 //           reads everything a promotion depends on (the nightly's release assets, the results store's
 //           record of them, what the channel serves now, the publish hold, npm) into <dir>/facts.json
 //   check   <facts.json>     prints the plan (JSON) or the refusals, exit 1 on any refusal
-//   token   <plan.json>      npm whoami and the token's write access to every package the plan moves
+//   trust   <plan.json>      npm trusted publishing lets this job set the dist-tag of every package the plan moves
+//           (re-sets each tag to its current version: moves nothing, so a dry run runs it too)
 //   move    <plan.json>      npm dist-tag add for every move (idempotent: a re-run moves the rest)
 //   record  <plan.json> --config <graphty/sites/<site>.json> --config-ref <commit> --approver <login> --out <dir>
 //           writes deployed.json and channel.json for the site repository
@@ -40,7 +41,9 @@ const HOLD_TITLE = "Release held: publish failed";
  * @param project - an nx project name, as channel.json's `versions` keys it
  * @returns the package name
  */
-export const packageOf = (project) => (project.startsWith("@") ? project : `@graphty/${project}`);
+const UNSCOPED = new Set(["babylonjs-map"]);
+export const packageOf = (project) =>
+    project.startsWith("@") || UNSCOPED.has(project) ? project : `@graphty/${project}`;
 
 /**
  * Refusals about whether the assets can be trusted: the tag's shape, and the hashes the nightly job wrote
@@ -143,12 +146,20 @@ export function decide(facts) {
 }
 
 /**
- * Whether `npm access list packages` output gives the token write access to every moved package.
- * @param access - { "<package>": "read-write" | "read-only" }
+ * The moved packages npm's trusted publishing refuses this job for.
  * @param moves - the plan's moves
- * @returns the packages the token cannot write
+ * @param check - a move to the HTTP status of the check (an error status when npm has no trusted publisher
+ *   naming this workflow and environment, or one without "Allow npm dist-tag")
+ * @returns "<package> (<status>)" for each package refused
  */
-export const unwritable = (access, moves) => moves.map((m) => m.package).filter((p) => access[p] !== "read-write");
+export async function untrusted(moves, check) {
+    const refused = [];
+    for (const m of moves) {
+        const status = await check(m);
+        if (status < 200 || status > 299) refused.push(`${m.package} (${status})`);
+    }
+    return refused;
+}
 
 /**
  * The two files a promotion pushes to the site repository: deployed.json (what deploy.yml checks and
@@ -369,7 +380,7 @@ async function main(argv) {
     if (command === "gather") return gather(values);
     const handler = COMMANDS[command];
     if (!handler) {
-        console.error("usage: promote.mjs gather|check|token|move|record|wait|releases (see the header)");
+        console.error("usage: promote.mjs gather|check|trust|move|record|wait|releases (see the header)");
         return 2;
     }
     return handler(readJson(file), values);
@@ -383,12 +394,38 @@ function check(facts) {
     return 0;
 }
 
-function token(plan) {
-    console.log(`npm token of ${run("npm", ["whoami"]).trim()}`);
-    const access = JSON.parse(run("npm", ["access", "list", "packages", "@graphty", "--json"]));
-    const missing = unwritable(access, plan.moves);
-    if (missing.length > 0) console.error(`refused: the token cannot write ${missing.join(", ")}`);
-    return missing.length > 0 ? 1 : 0;
+// For each moved package: the token exchange npm dist-tag makes (npm/cli lib/utils/oidc.js), then a PUT of the
+// tag's current version, which changes nothing but proves the dist-tag permission (npm dist-tag add skips the
+// PUT when the version is unchanged, so it cannot). A package with no tag yet is only exchanged.
+async function trust(plan) {
+    const { ACTIONS_ID_TOKEN_REQUEST_URL: idUrl, ACTIONS_ID_TOKEN_REQUEST_TOKEN: idToken } = process.env;
+    if (!idUrl) throw new Error("no OIDC token: the job needs permissions id-token: write");
+    const oidc = await fetch(`${idUrl}&audience=npm:registry.npmjs.org`, {
+        headers: { Authorization: `bearer ${idToken}` },
+    });
+    const jwt = (await oidc.json()).value;
+    const registry = "https://registry.npmjs.org/-";
+    const check = async ({ package: name, from }) => {
+        const escaped = name.replace("/", "%2f");
+        const res = await fetch(`${registry}/npm/v1/oidc/token/exchange/package/${escaped}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${jwt}` },
+        });
+        if (!res.ok || !from) return res.status;
+        const put = await fetch(`${registry}/package/${escaped}/dist-tags/${plan.distTag}`, {
+            method: "PUT",
+            headers: { Authorization: `Bearer ${(await res.json()).token}`, "content-type": "application/json" },
+            body: JSON.stringify(from),
+        });
+        return put.status;
+    };
+    const refused = await untrusted(plan.moves, check);
+    if (refused.length > 0)
+        console.error(
+            `refused: npm has no trusted publisher for promote.yml (environment production, Allow npm dist-tag) on ${refused.join(", ")}`,
+        );
+    else console.log(`npm trusts this workflow for ${plan.moves.map((m) => m.package).join(", ") || "no package"}`);
+    return refused.length > 0 ? 1 : 0;
 }
 
 function move(plan) {
@@ -409,7 +446,7 @@ function record(plan, values) {
 
 const COMMANDS = {
     check,
-    token,
+    trust,
     move,
     record,
     wait: (plan, values) => waitFor(plan, values.config),

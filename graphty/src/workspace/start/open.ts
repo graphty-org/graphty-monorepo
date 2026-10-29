@@ -23,13 +23,14 @@ import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
 import { fileStylesChoice } from "../settings/preferences";
-import { newProjectId, useStoreValue, type WorkspaceStore } from "../state/store";
+import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
  * element has come up. Each load starts the project's history (`history: "start"`): opening is
- * not a change to undo, and Undo pressed while it loads never cancels it.
+ * not a change to undo, and Undo pressed while it loads never cancels it. The store's `opened`
+ * settles once the load is read and focus handed on.
  * @param workspace - the workspace store.
  * @param name - the project's name.
  * @param load - what to load into the new element.
@@ -47,13 +48,13 @@ export function openProject(
         dialog: null,
         // The name is the project's in graphty-element too, so its autosave entry carries it. Set
         // before the load, which starts the history, so Undo never takes the name back.
-        opening: {
+        ...startOpening({
             name,
             load: async (session) => {
                 await session.config.set({ name });
                 await load(session);
             },
-        },
+        }),
         ends: null,
     }));
 }
@@ -253,10 +254,12 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
         openSeparate(workspace, incoming);
         return;
     }
-    const work =
-        session.data.sources().length === 0
-            ? drawFirst(workspace, session, incoming.source)
-            : takeIn(workspace, session, incoming);
+    const first = session.data.sources().length === 0;
+    const work = first ? drawFirst(workspace, session, incoming.source) : takeIn(workspace, session, incoming);
+    if (first) {
+        // The project's first graph: an open, which `opened` follows as a new project's.
+        workspace.set({ opened: work });
+    }
     work.catch((error: unknown) => {
         workspace.set({ notice: { message: refusalFor(error, incoming.name).what } });
     });
@@ -317,7 +320,13 @@ export function addGraph({ workspace, session }: CommandContext, name: string, l
         openProject(workspace, name, (next) => load(next, { mode: "replace", history: "start" }));
         return;
     }
-    load(session, { mode: session.data.sources().length === 0 ? "replace" : "merge" }).catch((error: unknown) => {
+    const first = session.data.sources().length === 0;
+    const work = load(session, { mode: first ? "replace" : "merge" });
+    if (first) {
+        // The project's first graph: an open, which `opened` follows as a new project's.
+        workspace.set({ opened: work });
+    }
+    work.catch((error: unknown) => {
         workspace.set({ notice: { message: refusalFor(error, name).what } });
     });
 }

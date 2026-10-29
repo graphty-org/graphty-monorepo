@@ -2256,8 +2256,22 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
                 storybook: "graphty-element/storybook-static",
                 files: [],
                 ids: ["a--one"],
-                ms: 0,
+                ms: STORY_MS["graphty-element"],
             },
         ]);
+    });
+
+    it("spreads many changed baselines over bins within the limit, each id once (#4401)", () => {
+        const ids = Array.from({ length: 300 }, (_, i) => `gexf-specimens--s${i}`);
+        const bins = storyBins([entry("graph-io-fidelity", "all", [], ids)], projects, list);
+        assert.ok(bins.length > 1);
+        for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
+        const got = bins.flatMap((b) => b.ids);
+        assert.equal(got.length, ids.length);
+        assert.deepEqual([...got].sort(), [...ids].sort());
+        assert.deepEqual(
+            bins.flatMap((b) => b.files),
+            ["graph-io/fidelity-stories/F.stories.tsx"],
+        );
     });
 });

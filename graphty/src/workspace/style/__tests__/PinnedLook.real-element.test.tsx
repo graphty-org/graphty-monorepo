@@ -11,6 +11,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { dragAcross } from "../../../test/real-pointer";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, waitFor } from "../../../test/test-utils";
@@ -39,16 +40,10 @@ beforeAll(async () => {
 
 describe("the Pinned look of a new project", () => {
     it("rings a node the reader drags, and Selected wins over the ring", async () => {
-        render(<Workspace store={createWorkspaceStore()} />);
-        await pickSample("Florentine families");
-        let found: HTMLElementTagNameMap["graphty-element"] | null = null;
-        await waitFor(
-            () => {
-                found = document.querySelector("graphty-element");
-                assert.equal(found?.session?.data.statistics().nodeCount, 15);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        await openBy(store, () => pickSample("Florentine families"));
+        const found = document.querySelector("graphty-element");
         if (found === null) {
             throw new Error("the element never came up");
         }

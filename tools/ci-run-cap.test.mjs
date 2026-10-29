@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { earlierActive, MAX_WAIT_MINUTES, parseCap, POLL_SECONDS, waitTurn } from "./ci-run-cap.mjs";
+import { earlierActive, MAX_WAIT_MINUTES, parseCap, POLL_SECONDS, RELEASE_SHARE, waitTurn } from "./ci-run-cap.mjs";
 
 const run = (id, started, status, event = "pull_request") => ({
     id,
@@ -119,6 +119,15 @@ test("yields to a release run waiting for a GitHub-hosted runner, not to a T4 or
     assert.equal((await waitTurn({ cap: 2, runId: ME.id, ...f2 })).outcome, "proceeded");
     const f3 = fake({ ci: [ME], release: [run(78, "2026-10-26T02:02:09Z", "queued", "workflow_dispatch")] });
     assert.equal((await waitTurn({ cap: 2, runId: ME.id, ...f3 })).outcome, "gave up waiting");
+    // a release run that already holds its share of runners: its queued jobs are its own max-parallel tail
+    const full = {
+        77: [
+            ...Array.from({ length: RELEASE_SHARE }, () => ({ status: "in_progress", labels: ["ubuntu-24.04"] })),
+            { status: "queued", labels: ["ubuntu-24.04"] },
+        ],
+    };
+    const f4 = fake({ ci: [ME], release, jobs: full });
+    assert.equal((await waitTurn({ cap: 2, runId: ME.id, ...f4 })).outcome, "proceeded");
 });
 
 test("never fails: an API error proceeds, and no cap asks nothing", async () => {

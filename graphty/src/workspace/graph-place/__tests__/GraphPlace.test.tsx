@@ -704,6 +704,10 @@ describe("the Graph place", () => {
         // keeps its words, so nothing new is said.
         await userEvent.type(box, " ");
         assert.equal(region?.textContent, words);
+        // Once the rule with its trailing space is checked again, the suggestion is back under the
+        // box, and the region still says the same words: the space never reaches them.
+        await screen.findByText("Did you mean Degree?");
+        assert.equal(region?.textContent, words);
         await userEvent.clear(box);
         await userEvent.type(box, "=minutes >= 10");
         await waitFor(() => {

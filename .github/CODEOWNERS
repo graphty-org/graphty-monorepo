@@ -99,7 +99,7 @@
 /tools/eslint-rules/story-wait-options.mjs @graphty-org/code-owners
 /tools/full-run.mjs @graphty-org/code-owners
 /tools/gpu-runner-lost.sh @graphty-org/code-owners
-/tools/llm-due.mjs @graphty-org/code-owners
+/tools/llm-spend.mjs @graphty-org/code-owners
 /tools/master-guard.mjs @graphty-org/code-owners
 /tools/merge-coverage.sh @graphty-org/code-owners
 /tools/nx-cache-proxy.mjs @graphty-org/code-owners

@@ -145,7 +145,24 @@ export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): Lo
     return "other";
 }
 
-export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false, load?: LoadKind): JobItem {
+/**
+ * Whether a run is on a branch other than its repository's default one (a dispatch on a work branch, a probe, a
+ * bisect point, a pull request's CodeQL scan), whose failures may be the branch's own.
+ * ponytail: takes master or main as the default branch; read the repository's default_branch if one ever differs.
+ */
+export function offMaster(run: Pick<GhRun, "head_branch">): boolean {
+    const branch = run.head_branch?.replace(/^refs\/heads\//, "");
+    return branch !== "master" && branch !== "main";
+}
+
+export function toJobItem(
+    j: GhJob,
+    repo: string,
+    workflow: string,
+    hang = false,
+    load?: LoadKind,
+    offMasterRun = false,
+): JobItem {
     const skipped = isSkipped(j);
     const fam = family(j.name);
     return {
@@ -163,6 +180,7 @@ export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false
         status: j.status,
         ...opt("conclusion", j.conclusion),
         ...(hang ? { hang: true } : {}),
+        ...(offMasterRun ? { offMaster: true as const } : {}),
         createdAt: Date.parse(j.created_at),
         ...(skipped ? {} : opt("startedAt", ms(j.started_at))),
         ...(skipped ? {} : opt("completedAt", ms(j.completed_at))),
@@ -838,7 +856,13 @@ export function stressQuiet(runs: Pick<StressCursorRun, "at" | "foundFailures">[
 
 export interface Rates {
     t4: { bootMin: number; usdPerMin: Record<string, number> };
-    llm: { step: string; usdPerPaidStep: number; paidConclusions: string[] };
+    llm: {
+        step: string;
+        bisectStep: string;
+        legacyBisectRuns: number[];
+        usdPerPaidStep: number;
+        paidConclusions: string[];
+    };
     fixedMonthly: Record<string, { usd: number } | null>;
 }
 
@@ -864,10 +888,26 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
     };
 }
 
-/** Paid LLM test steps (as tools/llm-due.mjs counts them) times the per-run cost. */
-export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
+/** Whether a bisect.yml run bisects the llm lane: its run name says so, or it is listed from before the name did. */
+const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates) =>
+    !!run && (/\bllm lane\b/.test(run.display_title ?? "") || rates.llm.legacyBisectRuns.includes(run.id));
+
+/**
+ * Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost: release.yml's LLM regression step,
+ * and the test step of each point of a bisect of the llm lane.
+ */
+export function llmCost(
+    j: GhJob,
+    repo: string,
+    rates: Rates,
+    workflow?: string,
+    run?: Pick<GhRun, "id" | "display_title">,
+): CostItem | undefined {
+    const bisect = workflow === "bisect.yml";
+    if (bisect && !llmBisect(run, rates)) return undefined;
+    const step = bisect ? rates.llm.bisectStep : rates.llm.step;
     const paid = (j.steps ?? []).filter(
-        (s) => s.name === rates.llm.step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
+        (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
     if (!paid.length) return undefined;
     const end = Date.parse(paid[paid.length - 1].completed_at ?? j.completed_at ?? j.created_at);

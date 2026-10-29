@@ -192,13 +192,14 @@ export const METRICS: MetricDef[] = [
     },
     // Chronically failing jobs (4.3): when each job of a master push, full run or other run passed or failed, by
     // [workflow, job family, "pass" | "fail"], the times kept exactly so the collector reads each job's newest runs in
-    // order. Pull request runs are left out: their failures may be their own change's.
+    // order. Pull request runs and runs on other branches (a dispatch on a work branch, a probe, a bisect point) are
+    // left out: their failures may be their own change's.
     {
         id: "ci.job_history",
         from: [
             src("job", "completedAt", (j) => {
                 const pass = JOB_PASS.has(j.conclusion ?? "");
-                if (!j.load || j.load === "pr" || j.completedAt === undefined) return null;
+                if (!j.load || j.load === "pr" || j.offMaster || j.completedAt === undefined) return null;
                 if (!pass && !JOB_FAIL.has(j.conclusion ?? "")) return null;
                 return {
                     value: j.completedAt,

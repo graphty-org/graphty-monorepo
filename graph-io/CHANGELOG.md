@@ -1,3 +1,45 @@
+## 0.3.50 (2026-10-29)
+
+### 🚀 Features
+
+- **graph-io:** keep a DOT file's rank subgraphs ([b96749ea5f](https://github.com/graphty-org/graphty-monorepo/commit/b96749ea5f))
+- **graph-io:** read vis-network's dynamic smooth edges as curves through support points ([062cc61c06](https://github.com/graphty-org/graphty-monorepo/commit/062cc61c06))
+- **graph-io:** declare a source's credential slots, and remember keys per slot in graphty-element ([35fb9f5d02](https://github.com/graphty-org/graphty-monorepo/commit/35fb9f5d02))
+
+### 🩹 Fixes
+
+- **tools:** fail a vitest run when Vite reloads a test page mid-run ([#4145](https://github.com/graphty-org/graphty-monorepo/issues/4145))
+- **graphty-element:** drop a duplicate cypher helper, update the API report ([#3395](https://github.com/graphty-org/graphty-monorepo/issues/3395))
+- **graph-io:** re-export BendPoint from the main entry beside graphvizPosBends ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graph-io:** export BendPoint from the dot entry so its API docs build ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graph-io:** write a Pajek line's arrowhead size and read a graphty-written file's arcs unbowed ([2c777460c6](https://github.com/graphty-org/graphty-monorepo/commit/2c777460c6))
+- **graph-io:** export the DOT rank columns and route bends from the root; record rank fixtures ([addd57b962](https://github.com/graphty-org/graphty-monorepo/commit/addd57b962))
+- **graphty-element:** clear the SonarQube findings on round 4's changed lines ([21e0e82d38](https://github.com/graphty-org/graphty-monorepo/commit/21e0e82d38))
+- **graphty-element:** stop growing a label-fit polygon by its corners' reach twice ([385bb4f7b5](https://github.com/graphty-org/graphty-monorepo/commit/385bb4f7b5))
+- **graphty-element:** draw each edge along the route Graphviz lays it ([0ba57c813b](https://github.com/graphty-org/graphty-monorepo/commit/0ba57c813b))
+- **graphty-element:** read and draw the smaller edge settings of Cytoscape.js, DOT and vis-network ([fc282fe5b3](https://github.com/graphty-org/graphty-monorepo/commit/fc282fe5b3))
+- **graphty-element:** judge covered arrowheads, mutual pairs and dashed routes in the comparator ([7162b30896](https://github.com/graphty-org/graphty-monorepo/commit/7162b30896))
+- **graph-io:** read Pajek arcs' arrowhead stops, mutual bows and ap as Pajek 6.02 draws them ([2724b7dcef](https://github.com/graphty-org/graphty-monorepo/commit/2724b7dcef))
+- **graphty-element:** measure self-loop bends against the node's size, not its border-shrunk fill ([7787044066](https://github.com/graphty-org/graphty-monorepo/commit/7787044066))
+- **graphty-element:** hold the oracle raster floors to the GPU path they were measured on ([e2886b7d0f](https://github.com/graphty-org/graphty-monorepo/commit/e2886b7d0f))
+- **graphty-element:** judge a specimen labeled as its caption in the comparator ([58b0da0416](https://github.com/graphty-org/graphty-monorepo/commit/58b0da0416))
+- **graphty-element:** read coincident, banded and tapered Cytoscape.js lines in the comparator ([5439146599](https://github.com/graphty-org/graphty-monorepo/commit/5439146599))
+- **graphty-element:** carry Cytoscape's patterned lines to their own arrowheads in the comparator ([49b1d22e23](https://github.com/graphty-org/graphty-monorepo/commit/49b1d22e23))
+- **graph-io:** refuse SPARQL updates, keep keys out of cursors, never uncap a Cypher query ([9f10dd6b30](https://github.com/graphty-org/graphty-monorepo/commit/9f10dd6b30))
+- **graphty-element:** name vis-network's nodes by where it drew them in the oracle comparator ([4054e4da91](https://github.com/graphty-org/graphty-monorepo/commit/4054e4da91))
+- **graphty-element:** read draw.io's classic arrow as notched in the oracle comparator ([a7b4625796](https://github.com/graphty-org/graphty-monorepo/commit/a7b4625796))
+- **graph-io:** read yEd's standard and yFiles' stealth arrows as notched ([86b45eb252](https://github.com/graphty-org/graphty-monorepo/commit/86b45eb252))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.37
+- Updated graph-format to 1.4.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 0.3.49 (2026-10-28)
 
 ### 🚀 Features

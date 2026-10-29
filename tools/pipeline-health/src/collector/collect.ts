@@ -14,7 +14,7 @@ import type { Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
 import { flakyMembers } from "./flaky.js";
 import { definedJobs, jobMembers, nonGatingJobs } from "./jobs.js";
-import { type Fetch, type GitHub, HttpError } from "./github.js";
+import { type Fetch, type GitHub, HttpError, runJobs } from "./github.js";
 import {
     classifyCancel,
     codeownerPatterns,
@@ -24,6 +24,7 @@ import {
     loadKind,
     masterState,
     npmName,
+    offMaster,
     ownerWaitOf,
     prOfRun,
     prRunOf,
@@ -214,35 +215,9 @@ interface RunsPage {
     total_count: number;
     workflow_runs: GhRun[];
 }
-interface JobsPage {
-    total_count: number;
-    jobs: GhJob[];
-}
-
-/**
- * Every job of a run (`runs/<id>`) or of one attempt (`runs/<id>/attempts/<n>`). GitHub answers 502 to a page of 100
- * jobs for some re-run attempts of the release train (about 100 jobs, run attempt 2) every time, so a server error
- * reads the run again in pages of 50.
- */
-async function allJobs(gh: GitHub, repo: string, run: number | string): Promise<GhJob[]> {
-    try {
-        return await jobPages(gh, repo, run, 100);
-    } catch (e) {
-        if (!(e instanceof HttpError) || e.status < 500) throw e;
-        return jobPages(gh, repo, run, 50);
-    }
-}
-
-async function jobPages(gh: GitHub, repo: string, run: number | string, size: number): Promise<GhJob[]> {
-    const jobs: GhJob[] = [];
-    for (let page = 1; page <= 500 / size; page++) {
-        const r = await gh.rest<JobsPage>(
-            `repos/${repo}/actions/runs/${run}/jobs?per_page=${size}&filter=latest&page=${page}`,
-        );
-        jobs.push(...(r?.jobs ?? []));
-        if (!r || jobs.length >= r.total_count || !r.jobs.length) break;
-    }
-    return jobs;
+/** Every job of a run (`runs/<id>`) or of one attempt (`runs/<id>/attempts/<n>`), latest attempt's. */
+function allJobs(gh: GitHub, repo: string, run: number | string): Promise<GhJob[]> {
+    return runJobs((p) => gh.rest(p), `repos/${repo}/actions/runs/${run}/jobs?filter=latest`);
 }
 
 async function runsPages(gh: GitHub, path: string, maxPages = 5): Promise<GhRun[]> {
@@ -400,12 +375,14 @@ async function writeRuns(
         c.items.push(item);
         if (workflow === "ci.yml" && run.run_attempt > 1 && run.conclusion === "success") await flaky(c, run, repo);
         for (const j of jobs ?? []) {
-            c.items.push(toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false, loadKind(run)));
+            c.items.push(
+                toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false, loadKind(run), offMaster(run)),
+            );
             if (STEP_WORKFLOWS.has(workflow) && j.status === "completed")
                 c.items.push(...toStepItems(j, repo, workflow));
             if (j.status === "completed") {
                 const t4 = t4Cost(j, repo, c.d.rates, workflow);
-                const llm = llmCost(j, repo, c.d.rates, workflow);
+                const llm = llmCost(j, repo, c.d.rates, workflow, run);
                 if (t4) c.items.push(t4);
                 if (llm) c.items.push(llm);
             }

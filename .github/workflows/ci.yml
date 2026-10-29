@@ -744,12 +744,14 @@ jobs:
                   advisory: ${{ steps.advisory.outputs.checks }}
 
     # The six Storybooks (deploy-pages.yml publishes them, the Links job checks them, the Stories job
-    # screenshots their stories). This job keeps the id "build": jobs that need the Storybooks read its outputs,
-    # so the job that uploads the Storybooks is the one called build, and it hands on the packages job's
-    # plan unchanged.
+    # screenshots their stories). It starts beside the packages job, not after it (#3448): nx builds the
+    # packages the Storybooks import itself (from the remote cache, or by building them), so its checkout,
+    # install and Storybook builds no longer wait for the packages job's builds and test plan, which were
+    # about 2 to 3 minutes of every pull request's path to its first Stories job. Jobs that need its plan read
+    # the packages job's outputs.
     build:
         name: Storybooks
-        needs: packages
+        needs: run-cap
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         # build-storybook is an nx-cached target (nx.json), so a Storybook whose inputs the pull request leaves
@@ -761,15 +763,6 @@ jobs:
             contents: read
             actions: read
             checks: write
-        outputs:
-            full: ${{ needs.packages.outputs.full }}
-            light: ${{ needs.packages.outputs.light }}
-            affected: ${{ needs.packages.outputs.affected }}
-            test-matrix: ${{ needs.packages.outputs.test-matrix }}
-            test-count: ${{ needs.packages.outputs.test-count }}
-            advisory-checks: ${{ needs.packages.outputs.advisory-checks }}
-            visual-skip: ${{ needs.packages.outputs.visual-skip }}
-            visual-on: ${{ needs.packages.outputs.visual-on }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -787,35 +780,39 @@ jobs:
                   rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
+            # The same check as the packages job's step of this name: the run reuse_build_run names built this
+            # commit and its Storybooks are all still there. Anything unknown is a build.
+            - name: Reuse the builds of the run named by reuse_build_run
+              id: reuse-build
+              if: inputs.reuse_build_run != ''
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ inputs.reuse_build_run }}
+              run: node tools/ci-reuse-plan.mjs --build-run "$RUN" | tee -a "$GITHUB_OUTPUT"
+
             - uses: pnpm/action-setup@v6
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
 
             - name: Setup Node.js
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
-            - name: Download all package builds
-              if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/download-artifact@v8
-              with:
-                  name: build-packages
-                  path: .
-
             # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
@@ -823,7 +820,7 @@ jobs:
                   restore-keys: lfs-fidelity-references-
 
             - name: Probe the nx remote cache
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               env:
                   NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
                   NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
@@ -855,25 +852,25 @@ jobs:
             # the package builds downloaded above, so none waits on another. A Storybook whose nx inputs
             # (nx.json targetDefaults) match a master build is restored from the remote cache instead.
             - name: Build the Storybooks
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               run: >-
-                  pnpm exec nx run-many -t build-storybook --exclude-task-dependencies --parallel=3
+                  pnpm exec nx run-many -t build-storybook --parallel=3
                   --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the Stories job
             # downloads them from this run as always.
             - name: Download the Storybooks of the run whose results are reused
-              if: needs.packages.outputs.artifacts-run != ''
+              if: steps.reuse-build.outputs.artifacts-run != ''
               uses: actions/download-artifact@v8
               with:
                   pattern: build-storybook-*
                   path: ${{ runner.temp }}/storybooks
-                  run-id: ${{ needs.packages.outputs.artifacts-run }}
+                  run-id: ${{ steps.reuse-build.outputs.artifacts-run }}
                   github-token: ${{ github.token }}
 
             - name: Put the reused Storybooks where this job's uploads read them
-              if: needs.packages.outputs.artifacts-run != ''
+              if: steps.reuse-build.outputs.artifacts-run != ''
               run: |
                   while read -r name dir; do
                       mkdir -p "$(dirname "$dir")"
@@ -937,7 +934,6 @@ jobs:
               uses: ./.github/actions/early-verdict
               with:
                   job: build
-                  advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # Lint every package (every affected one on a pull request), beside the tests.
     lint:
@@ -1445,9 +1441,13 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
-            # A full run with the features-on shards is over 40 jobs; they come last in the matrix
+            # A full run (release.yml, a dispatch, a bisect) runs at most 14 shards at once and its story tests at
+            # most 6, 20 runners in all, so the full run never starves pull requests of runners (#3448); the
+            # Run cap lets pull requests go once the full run holds that share (RELEASE_SHARE in
+            # tools/ci-run-cap.mjs). Its ~25 shards are ~260 runner-minutes, the longest ~19: about 25 minutes
+            # at 14. A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
-            max-parallel: 40
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
 
         steps:
@@ -1743,7 +1743,7 @@ jobs:
     links:
         name: Links
         needs: [packages, build, docs]
-        if: needs.packages.outputs.full == 'true' && needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
+        if: needs.packages.outputs.full == 'true' && needs.packages.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -2039,6 +2039,87 @@ jobs:
                   job: cost-accuracy
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # Master's newest capture of each project the Stories jobs capture: the reference a capture compares a story
+    # without a baseline against. Found once per run and handed to every Stories job as an artifact of this run:
+    # each Stories job finding it itself walked master's commits through the API, about 20 calls a job and 34 jobs
+    # a pull request, and that spent the repository's Actions token (1,000 calls an hour, shared by every workflow)
+    # within minutes of a busy hour (#4318). A reference is only a comparison aid, so a failure here never fails
+    # the run: a Stories job without one captures as before.
+    story-references:
+        name: Story references
+        # no needs: it starts with the Build job instead of after it, so the Stories jobs start when the Build and
+        # Storybooks jobs end (about 1.5 to 3.5 minutes sooner, #3448); it finds every Storybook project's
+        # reference, because which projects have selected stories is known only once Build ends (one walk of
+        # master's runs either way, VISUAL_REVIEW_API_CACHE)
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        continue-on-error: true
+        permissions:
+            contents: read
+            # master's runs and their capture artifacts
+            actions: read
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 2
+                  # cone mode also checks out the root files, visual-review.config.json among them
+                  sparse-checkout: |
+                      tools
+                      visual-review
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            # the Stories jobs' rule: a pull request runs the base branch's capture code, never its own
+            - name: Use the base branch's capture code
+              run: |
+                  if [ "$GITHUB_EVENT_NAME" = pull_request ]; then src=HEAD^1
+                  elif [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then src=$GITHUB_SHA
+                  else exit 0; fi
+                  rm -rf visual-review/capture visual-review/trusted
+                  git archive "$src" visual-review/capture visual-review/trusted | tar -x
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            # `reference` needs no installed dependencies: node and gh only
+            - name: Find master's newest capture of each project
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  # the projects' walks over master read the same runs: each read is made once
+                  VISUAL_REVIEW_API_CACHE: ${{ runner.temp }}/github-api
+              run: |
+                  mkdir -p "$RUNNER_TEMP/story-references"
+                  for project in $(jq -r '.projects | keys[]' visual-review.config.json); do
+                      dir=$(node visual-review/trusted/cli.mjs reference --project "$project" --out "$RUNNER_TEMP/reference") || dir=
+                      if [ -n "$dir" ]; then
+                          cp -r "$dir" "$RUNNER_TEMP/story-references/$project"
+                          echo "$project: $dir"
+                      else
+                          echo "$project: no reference"
+                      fi
+                  done
+
+            - name: Upload the references
+              uses: actions/upload-artifact@v7
+              with:
+                  name: story-references-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/story-references/
+                  retention-days: 1
+                  if-no-files-found: ignore
+
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
     # packed into bins of about 3 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
@@ -2052,14 +2133,13 @@ jobs:
     # report reads these partial captures. No story selected: no job, and "All Checks Pass" counts that a pass.
     stories:
         name: Stories (${{ matrix.name }})
-        needs: [packages, build]
+        # story-references is continue-on-error, so its failure never skips this job
+        needs: [packages, build, story-references]
         # Its story bins are planned only for a pull request's light check, so it runs only there.
         if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
         runs-on: ubuntu-24.04
         permissions:
             contents: read
-            # To download master's newest capture (the reference step below).
-            actions: read
             # The early verdict (the last step) posts a failed "All Checks Pass" check run.
             checks: write
             # The health API's credential (tools/results/post-unstable-stories.mjs posts the unstable stories)
@@ -2165,13 +2245,21 @@ jobs:
                   echo "stories=$ids" >> "$GITHUB_OUTPUT"
                   echo "selected stories: ${ids:-none}"
 
+            # master's newest capture, found once for the run by the Story references job (#4318)
             - name: Download master's newest capture
-              id: reference
               if: github.event_name == 'pull_request' && steps.pick.outputs.stories != ''
               continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  name: story-references-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/story-references
+
+            - name: Use master's newest capture
+              id: reference
+              if: github.event_name == 'pull_request' && steps.pick.outputs.stories != ''
               env:
-                  GH_TOKEN: ${{ github.token }}
-              run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
+                  DIR: ${{ runner.temp }}/story-references/${{ matrix.project }}
+              run: if [ -f "$DIR/results.json" ]; then echo "dir=$DIR" >> "$GITHUB_OUTPUT"; else echo "no reference for this project"; fi
 
             # A changed picture is never a failure (capture exits 0 on changes and on broken stories, which the
             # verdict step below judges); a crash of the tool fails the job.
@@ -2289,6 +2377,9 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
+            # 6 at once outside a pull request (the full run's share of runners, with the test job's 14):
+            # ~116 runner-minutes, the longest leg ~17, so about 20 to 25 minutes (#3448)
+            max-parallel: ${{ github.event_name == 'pull_request' && 256 || 6 }}
             matrix:
                 include:
                     # Two legs (vitest --shard=N/2), merged by story-tests-merge: one job was 31 minutes, the longest
@@ -2750,7 +2841,7 @@ jobs:
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
-            # The run's token shares one API limit with every run of the repository, and a busy hour used it
+            # The run's token shares its API limits with every run of the repository, and a busy hour used one
             # up: the calls failed, the step was continue-on-error, and the early verdict stayed red with the
             # pull request blocked (#3857). So a failed call waits for the limit to reset and tries again, and
             # a clear that still fails fails this job, which "re-run failed jobs" then retries.
@@ -2763,11 +2854,19 @@ jobs:
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
                   # An early verdict is a failure posted through the Checks API: its details link is a run or
-                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten.
+                  # the check run itself, never a job (".../job/<id>"), and only those can be rewritten. The
+                  # listing is one GraphQL query, whose limit is separate from REST's: on 2026-10-29 a run waited
+                  # 18 minutes for the REST limit to reset only to find nothing to clear, which is the usual
+                  # case, so REST is used only for a rewrite.
                   clear() {
                       local ids id
-                      ids=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                          --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id') || return 1
+                      ids=$(gh api graphql -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F sha="$SHA" -F check="$CHECK" -f query='
+                          query($owner: String!, $name: String!, $sha: GitObjectID!, $check: String!) {
+                            repository(owner: $owner, name: $name) { object(oid: $sha) { ... on Commit {
+                              checkSuites(first: 100) { pageInfo { hasNextPage } nodes {
+                                checkRuns(first: 100, filterBy: {checkName: $check, checkType: ALL, conclusions: [FAILURE]}) {
+                                  pageInfo { hasNextPage } nodes { databaseId detailsUrl } } } } } } } }' \
+                          --jq '.data.repository.object.checkSuites | if .pageInfo.hasNextPage or any(.nodes[]; .checkRuns.pageInfo.hasNextPage) then error("over 100 check suites or runs") else .nodes[].checkRuns.nodes[] | select(.detailsUrl | contains("/job/") | not) | .databaseId end') || return 1
                       for id in $ids; do
                           gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
                               -f "output[title]=Superseded by a passing run" \
@@ -2775,16 +2874,17 @@ jobs:
                           echo "cleared early verdict $id"
                       done
                   }
-                  # four tries; between them an exhausted limit waits for its reset (the event that settles it;
-                  # rate_limit itself is free), any other failure a minute. The job's time limit covers one reset.
+                  # four tries; between them an exhausted limit (GraphQL's or REST's) waits for its reset (the
+                  # event that settles it; rate_limit itself is free), any other failure a minute. The job's
+                  # time limit covers one reset.
                   for try in 1 2 3 4; do
                       if clear; then exit 0; fi
                       if (( try == 4 )); then break; fi
-                      read -r remaining reset < <(gh api rate_limit --jq '"\(.resources.core.remaining) \(.resources.core.reset)"' || echo "1 0")
+                      read -r exhausted reset < <(gh api rate_limit --jq '[.resources.core, .resources.graphql] | map(select(.remaining == 0)) | "\(length) \(map(.reset) | max // 0)"' || echo "0 0")
                       wait=60
-                      if [[ "$remaining" == "0" ]]; then wait=$(( reset - $(date +%s) + 5 )); fi
+                      if (( exhausted > 0 )); then wait=$(( reset - $(date +%s) + 5 )); fi
                       if (( wait < 1 )); then wait=1; fi
-                      echo "the API call failed (limit left: $remaining); trying again in ${wait}s"
+                      echo "the API call failed (exhausted limits: $exhausted); trying again in ${wait}s"
                       sleep "$wait"
                   done
                   echo "::error::could not clear the early verdicts of $CHECK; re-run this job to clear them"
@@ -2887,7 +2987,8 @@ jobs:
         needs: all-checks
         if: ${{ !cancelled() && needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref }}
         # A failure here is not the merge's: it must not turn the master build red, which would skip the
-        # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
+        # deploy and have master-guard revert the merge. A missed dispatch fails this job (an error, and a comment on
+        # its issue) and waits for the next slot, which catches up.
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 5
@@ -3078,8 +3179,8 @@ jobs:
     # flaky-screenshot job never read it and pull request captures and their baselines are unchanged.
     features-on-visual:
         name: visual (graphty-element, features on)
-        needs: build
-        if: contains(fromJSON(needs.build.outputs.visual-on || '[]'), 'graphty-element')
+        needs: [packages, build]
+        if: contains(fromJSON(needs.packages.outputs.visual-on || '[]'), 'graphty-element')
         runs-on: ubuntu-24.04
         permissions:
             contents: read

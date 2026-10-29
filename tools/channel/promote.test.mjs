@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { decide, packageOf, records, stampCommit, unwritable, withChangesSince } from "./promote.mjs";
+import { decide, packageOf, records, stampCommit, untrusted, withChangesSince } from "./promote.mjs";
 
 const C = "c".repeat(40);
 const P = "p".repeat(40);
@@ -195,14 +195,13 @@ describe("promote.mjs helpers", () => {
     it("maps nx projects to npm packages", () => {
         assert.equal(packageOf("graphty-element"), "@graphty/graphty-element");
         assert.equal(packageOf("@graphty/remote-logger"), "@graphty/remote-logger");
+        assert.equal(packageOf("babylonjs-map"), "babylonjs-map");
     });
 
-    it("finds the packages the dist-tag token cannot write", () => {
-        const moves = [{ package: "@graphty/a" }, { package: "@graphty/b" }, { package: "@graphty/c" }];
-        assert.deepEqual(unwritable({ "@graphty/a": "read-write", "@graphty/b": "read-only" }, moves), [
-            "@graphty/b",
-            "@graphty/c",
-        ]);
+    it("finds the packages npm's trusted publishing refuses this workflow for", async () => {
+        const moves = [{ package: "@graphty/a" }, { package: "@graphty/b" }, { package: "c" }];
+        const status = { "@graphty/a": 201, "@graphty/b": 404, c: 401 };
+        assert.deepEqual(await untrusted(moves, async (m) => status[m.package]), ["@graphty/b (404)", "c (401)"]);
     });
 
     it("writes deployed.json in the shape deploy.yml checks, and the served channel.json", async () => {

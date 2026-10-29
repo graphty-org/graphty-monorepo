@@ -14,6 +14,7 @@ import {
     masterState,
     NOT_ON_NPM,
     npmName,
+    offMaster,
     oldestUntested,
     OWNER_LOGIN,
     pool,
@@ -114,6 +115,14 @@ describe("runs and jobs", () => {
         const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
         expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
         expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");
+        // A run on another branch is marked, so the job history can leave its failures out.
+        expect(offMaster({ head_branch: "master" })).toBe(false);
+        expect(offMaster({ head_branch: "refs/heads/master" })).toBe(false);
+        expect(offMaster({ head_branch: "ci/4237-probe-2" })).toBe(true);
+        expect(offMaster({ head_branch: "refs/pull/4096/head" })).toBe(true);
+        expect(offMaster({ head_branch: null })).toBe(true);
+        expect(toJobItem(lint, REPO, "ci.yml", false, "other", true).offMaster).toBe(true);
+        expect(toJobItem(lint, REPO, "ci.yml", false, "master")).not.toHaveProperty("offMaster");
     });
 
     it("folds bins into families and sorts jobs into runner pools", () => {
@@ -461,6 +470,27 @@ describe("costs", () => {
                 R,
             ),
         ).toMatchObject({ line: "llm", usd: 0.94 });
+    });
+
+    it("prices each point of a bisect of the llm lane, and no point of another lane", () => {
+        // bisect.yml run 40492117633 (2026-10-27) bisected the llm lane before the run name carried the lane: one
+        // point, its paid step "Run the failing files" (375 Gemini calls).
+        const run = fixture<GhRun>("run-bisect-llm-40492117633.json");
+        const point = fixture<{ jobs: GhJob[] }>("jobs-bisect-llm-40492117633.json").jobs.find((j) =>
+            j.name.startsWith("Point "),
+        )!;
+        expect(llmCost(point, REPO, R, "bisect.yml", run)).toMatchObject({
+            id: `llm#${REPO}/122148555385`,
+            line: "llm",
+            workflow: "bisect.yml",
+            usd: 0.94,
+        });
+        const named = { id: 1, display_title: "Bisect (llm lane)" };
+        expect(llmCost(point, REPO, R, "bisect.yml", named)).toMatchObject({ usd: 0.94 });
+        expect(llmCost(point, REPO, R, "bisect.yml", { id: 1, display_title: "Bisect (ci lane)" })).toBeUndefined();
+        expect(llmCost(point, REPO, R, "bisect.yml", { id: 1, display_title: "Bisect" })).toBeUndefined();
+        // the bisect's step name means nothing in release.yml
+        expect(llmCost(point, REPO, R, "release.yml", run)).toBeUndefined();
     });
 
     it("spreads fixed monthly lines over the month", () => {

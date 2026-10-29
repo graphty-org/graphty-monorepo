@@ -543,7 +543,7 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
   merges since a judged one change only versions or screenshot approvals inherits that verdict
   (`tools/release-diff.mjs`). A store that does not answer makes the slot test master's head.
 - **Lanes**: the full CI suite (every shard and the whole screenshot capture), the T4 GPU lane, Hosts, macOS
-  autosave, the production security audit, the LLM regression tests once a UTC day, and a `Version dry run`
+  autosave, the production security audit, the LLM regression tests (in every full, restart and candidate run), and a `Version dry run`
   that fails when a project would publish a major (below 1.0.0, a minor) or its first version without an entry
   in `release-approvals.json`.
 - **Verdict**, written to the store: `green-clean`, `green-images`, `red` or `owner-item`. A red attempt 1 is
@@ -601,6 +601,10 @@ expires after 2 days (https://docs.npmjs.com/trusted-publishers/):
 2. Then, and not before, create the trusted publisher on `https://www.npmjs.com/package/<name>/access`: GitHub
    Actions, organization `graphty-org`, repository `graphty-monorepo`, workflow `release.yml`, no environment.
 3. Re-run the failed publish job at once: `gh run rerun <run id> --failed`.
+4. Add the package's second trusted publisher, which `promote.yml` uses to move `latest` and `next` with OIDC
+   (no npm token is stored anywhere): Add trusted publisher, GitHub Actions, organization `graphty-org`,
+   repository `graphty-monorepo`, workflow `promote.yml`, environment `production`, "Allow npm dist-tag" ticked,
+   direct `npm publish` not allowed. It never expires unused for long: the next promotion uses it.
 
 ### CI Test Shards
 

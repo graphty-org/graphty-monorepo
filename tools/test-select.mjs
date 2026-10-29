@@ -1714,6 +1714,13 @@ export const STORY_FILE_MS = {
     "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 6_200,
     "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 6_200,
     "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
+    // PR run 40891650568 (2026-10-29): Stories (graph-io-fidelity-4) captured 46 dot Specimens stories and 8 gexf
+    // Samples ones in 361 s and Stories (graph-io-fidelity-9) 41 xgmml Specimens and 9 cytoscapejs Samples in 370 s,
+    // both planned at about 175 s and the pull request's last job; less the Samples at 6.2 s, 6.8 s and 7.7 s a story
+    "graph-io/fidelity-stories/stories/dot/Specimens.stories.ts": 6_800,
+    // gexf's Specimens, measured in the same runs at 4.1 s a story
+    "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 4_100,
+    "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 7_700,
     "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 6_200,
     "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 6_200,
 };
@@ -1751,7 +1758,7 @@ function storyUnits(file, count, recordedMs, rate) {
  * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
  * files packed into bins of at most STORY_BIN_LIMIT_MS, a file counted at the longer of its recorded time and its
  * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
- * changed baseline's story id goes into the project's first bin. A file longer than a bin is split by story into
+ * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
  * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
  * @param stories selectStories()
  * @param projects visual-review.config.json `projects`
@@ -1772,16 +1779,18 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
         // a recorded play-test time marks a heavy file; the project's capture rate is the floor
         const recorded = durations[`${dir.split("/")[0]}-storybook`] ?? {};
         const rate = STORY_MS[s.project] ?? NO_HISTORY_MS;
-        const fileMs = new Map(files.flatMap((f) => storyUnits(f, storiesIn(f), recorded[f] ?? 0, rate)));
-        const units = [...fileMs.keys()];
-        const bins = units.length > 0 ? packBins(units, fileMs, STORY_BIN_LIMIT_MS, 0) : [{ files: [], ms: 0 }];
+        const unitMs = new Map(files.flatMap((f) => storyUnits(f, storiesIn(f), recorded[f] ?? 0, rate)));
+        // a changed baseline's story is one capture at the project's rate, packed with the files (#4401: 300 ids in
+        // one bin overran the job's limit); `id:` keeps it apart from a repository path
+        for (const id of s.baselines) unitMs.set(`id:${id}`, rate);
+        const bins = packBins([...unitMs.keys()], unitMs, STORY_BIN_LIMIT_MS, 0);
         bins.forEach((bin, i) =>
             out.push({
                 name: `${s.project}-${i + 1}`,
                 project: s.project,
                 storybook,
-                files: bin.files,
-                ids: i === 0 ? s.baselines : [],
+                files: bin.files.filter((u) => !u.startsWith("id:")),
+                ids: bin.files.filter((u) => u.startsWith("id:")).map((u) => u.slice(3)),
                 ms: bin.ms,
             }),
         );

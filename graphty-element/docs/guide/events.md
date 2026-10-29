@@ -371,6 +371,19 @@ session.on("style:batch-changed", ({ edits, layers }) => {
 });
 ```
 
+An edit to data alone -- `data.updateNodes()` moving a value into a new category -- repaints the
+layers that read it but publishes no `style:changed`, and `project:changed` fires before that
+repaint, so a legend read on it shows the previous categories. `project:derived`, with the same
+`{ slices, cause }`, fires once the picture has caught up with every change made so far -- after
+any repaint, including one the element put off or started on its own -- so a read on it is
+current. A burst of changes made together gets one event, carrying every slice they touched. A
+key that must follow every change listens to both:
+
+```typescript
+session.on("style:batch-changed", () => drawKey(session.styles.legend()));
+session.on("project:derived", () => drawKey(session.styles.legend())); // data edits, undo, runs
+```
+
 ## Event Timing
 
 Some events fire asynchronously. Understand the order:

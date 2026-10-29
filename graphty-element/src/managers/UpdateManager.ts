@@ -1362,6 +1362,11 @@ export class UpdateManager implements Manager {
         work.watch("layout", "the layout is still running", () => this.layoutIsMoving());
         work.watch(
             "layout",
+            "the layout's pre-steps are still being computed",
+            () => this.layoutManager.preStepsInFlight,
+        );
+        work.watch(
+            "layout",
             "a layout transition is still moving the nodes",
             () => transitionsOf(this.layoutManager)?.moving === true,
         );

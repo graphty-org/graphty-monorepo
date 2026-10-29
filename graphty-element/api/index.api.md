@@ -2689,6 +2689,7 @@ export interface GraphContext {
     getStatsManager(): StatsManager;
     getStylePainter?(): StylePainter | undefined;
     getStyles(): Styles;
+    getUpdateManager?(): UpdateManager;
     getXRConfig?(): XRConfig | undefined;
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;
@@ -3938,6 +3939,26 @@ export type GraphtyWarningCode =
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
 /**
+* A saved filter condition this reader cannot read (an effect it does not know, or a malformed
+* condition) was skipped; the rest were read, and what the file hides was read from its
+* filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
+* @since 3.32.0
+*/
+| "W_FILTER_CONDITION_SKIPPED"
+/**
+* A project's filter conditions are of a version this reader does not know, or are not a
+* list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
+* `params.version` the version found.
+* @since 3.32.0
+*/
+| "W_FILTER_CONDITIONS_UNREADABLE"
+/**
+* A project's filter steps and the keep and exclude filter conditions it also holds disagree
+* (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
+* @since 3.32.0
+*/
+| "W_FILTER_STEPS_DIFFER"
+/**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
 * `"edge"`, and `params.ids` the ids as the layer named them.
@@ -4392,6 +4413,8 @@ export class LayoutManager implements Manager {
     get nodes(): Iterable<Node_2>;
     onRest: (() => void) | null;
     placeGroups(): void;
+    // @internal
+    get preStepsInFlight(): boolean;
     // @internal
     releaseDetachedScope(): void;
     replacing: () => boolean;

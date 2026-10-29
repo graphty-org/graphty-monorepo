@@ -371,6 +371,57 @@ describe("edge effects", () => {
     });
 });
 
+describe("an edge with a surface and an effect", () => {
+    // Issue #4424: both batches drew at one transparent-pass order and one (frozen) distance, so
+    // Babylon kept the order their meshes were made in, which is the order their shaders happened
+    // to resolve. A surface made after the effect painted over it: the Light packets story lost
+    // every packet on one capture, keeping only the glow the bloom pass draws apart.
+    it("draws the effect over the surface, whichever was made first", async () => {
+        const element = await mounted(
+            [
+                { id: "a", x: -6, y: 0 },
+                { id: "b", x: 6, y: 0 },
+            ],
+            [{ source: "a", target: "b" }],
+            [
+                {
+                    name: "Lines",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.width": 24, "edge.color": "#3366cc" },
+                },
+                {
+                    name: "Effect",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: { "edge.shaders": [{ shader: "e5/still" }] },
+                },
+            ],
+        );
+        const [edge] = edgesOf(element);
+        await until(element, "the effect draws", () => edge.drawnEffects.length === 1);
+
+        // The surface's batch is made now, after the effect's.
+        await element.session.styles.add({
+            name: "Surface",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.shaders": [{ shader: "e5/red" }, { shader: "e5/still" }] },
+        });
+        const batches = (): number[] => [
+            ...(EdgeShaderDrawing.peek(element.graph.getScene())?.stats().slots.values() ?? []),
+        ];
+        await until(element, "the surface and the effect both draw", () => {
+            const live = batches().filter((count) => count > 0);
+            return live.length === 2;
+        });
+        await element.graph.waitForStableFrame();
+
+        const pixel = await pixelAt(element, { x: 0, y: 0, z: 0 });
+        assert.isTrue(leads(pixel, 2), `the effect's blue is on top, got ${pixel.join(",")}`);
+    });
+});
+
 describe("lifted edges", () => {
     it("are drawn and picked along the lifted arc for a flat layout in 3D", async () => {
         const element = await mounted(

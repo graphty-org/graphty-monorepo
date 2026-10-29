@@ -650,6 +650,8 @@ export interface DrawnNode {
     outer?: { border: DrawnBorder; gapPx: number } | null;
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
+    /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
+    picture?: ScreenBox;
     label: DrawnLabel | null;
     /** The further texts it draws over its face (`shape.texts`). */
     texts?: DrawnLabel[];
@@ -932,6 +934,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
             return read === null ? [] : [read];
         }),
         // the image of a node with no body is the node itself
+        ...(picture === undefined ? {} : { picture: picture.box }),
         pieces: pieces.filter(
             (piece): piece is { kind: "shape" | "image"; box: ScreenBox } => piece !== picture && piece.kind !== "body",
         ),

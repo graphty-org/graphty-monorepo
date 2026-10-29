@@ -16,10 +16,12 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
+import { browserProjects } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { openBy } from "../../../test/open";
+import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { forgetUsageAnswer } from "../../privacy/usageData";
@@ -31,28 +33,15 @@ import { Workspace } from "../../Workspace";
 const TIMEOUT_MS = 60_000;
 
 /**
- * Waits for the open project's element to come up with the graph loaded.
- * @param nodes - the node count the loaded graph has.
- * @returns the element and its session.
+ * The opened project's element, not the start page's own graph.
+ * @returns the element.
  */
-async function loaded(nodes: number): Promise<{ host: HTMLElement; session: GraphSession }> {
-    let found: { host: HTMLElement; session: GraphSession } | undefined;
-    await waitFor(
-        () => {
-            const host = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            );
-            const session = host?.session;
-            assert.isDefined(session);
-            assert.equal(session.data.statistics().nodeCount, nodes);
-            found = { host: host as HTMLElement, session };
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    if (found === undefined) {
-        throw new Error("the element never came up");
+function openedHost(): HTMLElement {
+    const host = document.querySelector<HTMLElement>("graphty-element:not([data-start-page])");
+    if (host === null) {
+        throw new Error("no opened element");
     }
-    return found;
+    return host;
 }
 
 /**
@@ -115,14 +104,12 @@ describe("focus after the control holding it goes away, on the real element", ()
     it(
         "a sample opened with Enter hands focus to the graph's heading, which says its size",
         async () => {
-            const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
             const sample = screen.getByRole("button", { name: "Open the Florentine families sample" });
             sample.focus();
-            await userEvent.keyboard("{Enter}");
-            const { session } = await loaded(15);
-            await waitFor(() => {
-                assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
-            });
+            const session = await openBy(store, () => userEvent.keyboard("{Enter}"));
+            assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
             unmount();
         },
         TIMEOUT_MS,
@@ -162,14 +149,13 @@ describe("focus after the control holding it goes away, on the real element", ()
     it(
         "Escape from the shortcuts dialog opened from the drawing hands focus back to the drawing",
         async () => {
-            const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-            const { host, session } = await loaded(15);
-            // The node count is up before the open finishes; the open then hands focus to the
-            // graph's heading. Wait for that hand-off, or it takes focus from the drawing later.
-            await waitFor(() => {
-                assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
-            });
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
+            const session = await openBy(store, () => pickSample("Florentine families"));
+            // The open is done once it has handed focus to the graph's heading, so that hand-off
+            // never takes focus from the drawing later.
+            assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
+            const host = openedHost();
             host.shadowRoot?.querySelector("canvas")?.focus();
             assertFocusOnDrawing(host);
 
@@ -190,9 +176,9 @@ describe("focus after the control holding it goes away, on the real element", ()
         "Enter on a recent project hands focus to the graph's heading",
         async () => {
             // A project kept in this browser, so Recent projects lists it.
-            const first = render(<Workspace store={createWorkspaceStore()} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-            const { session } = await loaded(15);
+            const kept = createWorkspaceStore();
+            const first = render(<Workspace store={kept} />);
+            const session = await openBy(kept, () => pickSample("Florentine families"));
             await session.project.rename("Kept Florentine");
             await browserProjects.save(session);
             await refreshStored();
@@ -202,15 +188,9 @@ describe("focus after the control holding it goes away, on the real element", ()
             const { unmount } = render(<Workspace store={store} />);
             const row = await screen.findByRole("gridcell", { name: /^Kept Florentine/ });
             row.focus();
-            await userEvent.keyboard("{Enter}");
-            const opened = await loaded(15);
-            await waitFor(
-                () => {
-                    assert.equal(store.get().project?.name, "Kept Florentine");
-                    assertFocusOnGraphHeading(15, opened.session.data.statistics().edgeCount);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            const opened = await openBy(store, () => userEvent.keyboard("{Enter}"));
+            assert.equal(store.get().project?.name, "Kept Florentine");
+            assertFocusOnGraphHeading(15, opened.data.statistics().edgeCount);
             unmount();
         },
         // Twice the waits inside it, so a failure reports its assertion rather than the test timeout.
@@ -220,7 +200,8 @@ describe("focus after the control holding it goes away, on the real element", ()
     it(
         "Open a file with a data file draws it and hands focus to the graph's heading",
         async () => {
-            const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
             // Every control focus reaches from here on: never the rail, while the file is read.
             const reached: Element[] = [];
             const onFocusIn = (event: FocusEvent): void => {
@@ -234,14 +215,8 @@ describe("focus after the control holding it goes away, on the real element", ()
             // focus goes to the graph's heading.
             chooseCsv();
             openButton().focus();
-            await userEvent.keyboard("{Enter}");
-            await loaded(3);
-            await waitFor(
-                () => {
-                    assertFocusOnGraphHeading(3, 2);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await openBy(store, () => userEvent.keyboard("{Enter}"));
+            assertFocusOnGraphHeading(3, 2);
             document.removeEventListener("focusin", onFocusIn);
             assert.isEmpty(
                 reached.filter(
@@ -260,8 +235,8 @@ describe("focus after the control holding it goes away, on the real element", ()
         async () => {
             const store = createWorkspaceStore();
             const { unmount } = render(<Workspace store={store} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-            const { host } = await loaded(15);
+            await openBy(store, () => pickSample("Florentine families"));
+            const host = openedHost();
 
             store.set({ dockOpen: true });
             (await screen.findByRole("button", { name: "Close table" })).focus();

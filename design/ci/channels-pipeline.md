@@ -51,7 +51,7 @@ production moves `latest` to the same versions and deploys the same site tarball
    canary.graphty.app. Merge to canary: about 20 to 35 min.
 5. **Full run, every 6 hours** on the newest green master build: every shard in both feature-flag
    configurations, every story's screenshot, T4 GPU, Hosts, macOS work protection, the audit, LLM
-   regression once a UTC day. Measured 65 to 93 min today; target 60 to 75 (section 3). Red:
+   regression in every full run. Measured 65 to 93 min today; target 60 to 75 (section 3). Red:
    bisect master's merges with only the failing tests, revert by pull request, fix forward.
 6. **Nightly.** Green with no changed screenshot: version, publish npm `next`, deploy
    nightly.graphty.app (budget 20 min). Changed screenshots: wait for the owner's Finish, then the
@@ -162,8 +162,8 @@ Detail: [channels.md](channels-pipeline/channels.md).
   or one whose diff from the last judged commit is only release-version merges and accept merges
   (`tools/release-diff.mjs`). The version and major-bump dry run is its own lane, and the `version`
   job reuses its plan. Lanes: ci.yml (each On shard starts when its Off twin ends), `gpu.yml`,
-  `hosts.yml`, `work-protection-macos.yml`, the audit, and LLM regression once per UTC day (the first full run
-  of the day whose ci.yml lane is green, and an owner `mode=full` run), started when the ci.yml lane
+  `hosts.yml`, `work-protection-macos.yml`, the audit, and LLM regression in every full, restart and candidate run (owner,
+  2026-10-29), started when the ci.yml lane
   is green (off the critical path). Performance Benchmarks becomes `needs:
 build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-images`, `red` or
   `owner-item`, and also runs the screenshot gate on green-clean (section 5).
@@ -269,7 +269,7 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   (`candidate-fix.mjs plan`): ci.yml with `shards` (the shards of the projects nx calls affected,
   as a light run without screenshots), T4, the audit, Hosts when webgpu-graph-algorithms,
   graph-format or the lockfile changed, macOS work protection when graphty-element or the lockfile
-  changed, and any lane the head's previous verdict found red; LLM regression keeps its daily rule.
+  changed, and any lane the head's previous verdict found red; LLM regression always runs.
   A red CI lane or screenshot capture before, or no earlier run to carry captures from, re-runs
   everything. The `recapture` job shoots every story of an affected Storybook and carries the
   other projects' `visual-final-*` over from the run that judged the head before, shooting their
@@ -287,8 +287,8 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
 - **Production promotion** (`promote.yml`, environment `production`: the owner as required reviewer,
   "prevent self-review" off, master only) refuses a nightly that was not clean or approved, whose
   asset hash differs from the store's, has a publish hold, misses a version on npm, or would roll
-  back across an autosave or project format change; checks the token and every package's dist-tags
-  before moving any; moves `latest`; merges production's datasets (index merged, thumbnails replaced,
+  back across an autosave or project format change; checks that npm's trusted publishing accepts the
+  job for every package and reads every package's dist-tags before moving any; moves `latest`; merges production's datasets (index merged, thumbnails replaced,
   datasets add-only by gunzipped bytes; channels section 2); deploys graphty-site with
   `graphty/sites/production.json` from master's tip; then a `needs:` job in environment `release`
   fast-forwards `channel/production` with the deploy key. Idempotent; `config_only` redeploys with a
@@ -437,7 +437,7 @@ request, gets its own `ACTION NEEDED` line when green; the rest go in one daily 
 ### 6.3 Rulesets and secrets
 
 - Ruleset 23973898: bypass = deploy keys (a ruleset cannot single out one key, so every write deploy
-  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 164375816,
+  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 167635448,
   and files a `priority:critical` issue otherwise); code-owner review required with 0 approvals;
   stale reviews dismissed; last-push approval off. A pull request waiting for the owner is never
   merged with master unless it conflicts.
@@ -447,7 +447,7 @@ request, gets its own `ACTION NEEDED` line when green; the rest go in one daily 
 - **Outside-world secrets live in master-only environments**, job by job: release.yml `land`
   (`release`: `RELEASE_DEPLOY_KEY`), `publish` (`release`: npm OIDC, Pushover), `site` (`nightly`:
   `NIGHTLY_SITE_DEPLOY_KEY`; `GITHUB_TOKEN` for the release), `llm` (`full-run`: `GOOGLE_API_KEY`);
-  promote.yml `promote` (`production`: `NPM_DIST_TAG_TOKEN`, `PRODUCTION_SITE_DEPLOY_KEY`) then
+  promote.yml `promote` (`production`: npm OIDC for the dist-tags, `PRODUCTION_SITE_DEPLOY_KEY`) then
   `channel-ref` (`release`: `RELEASE_DEPLOY_KEY`); ci.yml `sentry-upload` (`master-build`:
   `SENTRY_AUTH_TOKEN`), cache writes (`nx-cache-write`); `dependabot-automerge.yml`
   (`dependabot-automerge`: `AGENT_AUTOMERGE_TOKEN`). Jobs that also run on pull requests declare
@@ -594,10 +594,12 @@ Detail: [features.md](channels-pipeline/features.md).
 Every binding decision of 2026-10-24 and 25 is implemented in sections 1 to 8 and 12. One meets
 an older guideline: "LLM regression once per candidate" at up to 4 candidates a day is up to $113 a
 month against the 2026-10-12 guideline of about $60. The implementation plan (#3418, item
-`llm-once-a-day`) lowered it to once per UTC day: the first full run of the day whose ci.yml lane is
-green, and an owner `mode=full` run, about $29 a month. Budget key `spend:llm` warns at $60 in a
-calendar month with the month's runs counted. Going back to once per candidate is a one-line change
-to the lane's condition (`tools/llm-due.mjs`). Owner rules
+`llm-once-a-day`) first lowered it to once per UTC day; the owner reversed that on 2026-10-29 ("LLM
+tests should only be running during the full release testing, and should run for each of the 4
+canary->nightly releases per day", #4469): the lane runs in every full, restart and candidate run,
+never in promote-nightly, a pull request or a master push. Budget key `spend:llm` still warns at $60 in a
+calendar month with the month's runs counted (`tools/llm-spend.mjs`) until the owner sets a new
+budget. Owner rules
 throughout: no admin merge; nothing unapproved reaches production (step 3 freezes it first, assets
 are hash-checked, first publishes need his go); holds, never exclusions; breaking changes and the
 held grouped major need the owner; states end on events; nothing weakened to pass; flaky tests are
@@ -629,7 +631,7 @@ signature checked on every path.
 | Agent account                       | one more GitHub Team seat ($4 a month at today's list price)                                                                                   |
 | Cloudflare                          | Workers Paid $5 a month (results); R2 for the nx cache, a few GB at $0.015 per GB-month, no egress                                             |
 | T4 lane                             | 4 x 45 min = 3 h a day as a floor; with restarts and hotfix runs (8 of 17 verifications red) 5 h; bisects up to 4 h each, after the local card |
-| LLM regression                      | about $0.94 a run, once a UTC day plus owner runs (about $29 a month); bisects capped at the ceiling (section 9)                               |
+| LLM regression                      | about $0.94 a run, every full, restart and candidate run (4 to 6 a day: about $113 to $170 a month); bisects capped at the ceiling (section 9) |
 | GitHub-hosted Linux, macOS, Windows | free on this public repository; limited by concurrency (60 Linux, 5 macOS jobs; table in channels 5); saturated at 76 merges a day (7.1)       |
 | Git LFS bandwidth                   | up to 880 MB per full run on a cache miss, 100 to 150 GB a month at worst, of 250 GiB; alarm at 150                                            |
 
@@ -773,12 +775,13 @@ In rollout order. Each item says when it is needed, the exact steps, and how to 
    nightly.graphty.app on graphty-nightly and enforce HTTPS. _Check:_ the first nightly deploy serves.
 8. **npm.** _When:_ step 7, only after the session says the publish job declares
    `environment: release`, on a day a nightly is due. On npmjs.com, for each @graphty package's trusted publisher
-   (workflow `release.yml`), set environment `release`. Create a granular token with write on
-   `@graphty` and "bypass 2FA"; store it as `NPM_DIST_TAG_TOKEN` in environment `production` and its
-   expiry date as repository variable `NPM_DIST_TAG_TOKEN_EXPIRES` (the round reminds you 14 days
-   before it expires). For a new package, still only after its first publish fails: create its
-   trusted publisher with environment `release`, never without one. _Check:_ the first `next` publish
-   and a no-op `npm dist-tag add` succeed.
+   (workflow `release.yml`), set environment `release`. For the dist-tags, add a second trusted
+   publisher to every package: workflow `promote.yml`, environment `production`, "Allow npm dist-tag"
+   on, direct `npm publish` off (no stored npm token; the clicks are step 4 of "A new package's first npm
+   publish" in CLAUDE.md). For a new package, still only after its first publish fails: create
+   its `release.yml` trusted publisher with environment `release`, never without one, and its
+   `promote.yml` one with it. _Check:_ the first `next` publish succeeds, and a promote.yml dry run
+   passes "Check npm trusts this workflow for every package".
 9. **Interim urgent release.** _When:_ steps 3 to 8, only if something must ship. Dispatch
    `release.yml -f mode=legacy` and approve its publish and graphty.app deploy in `production`.
    _Check:_ none unless used.

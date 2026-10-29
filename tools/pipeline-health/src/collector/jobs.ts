@@ -100,8 +100,9 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
 export const shortName = (job: string): string => job.split(" / ").at(-1) ?? job;
 
 /**
- * The open issue naming each job, in one GraphQL query: a search per job for its name, confirmed by the name
- * appearing in the title or body as words (as flaky.ts namesTest does for a test).
+ * The open issue owning each job, in one GraphQL query: a search per job for an open bug naming it that is not a
+ * CI budget issue (those are about a job's time, not its failures), confirmed by the name appearing in the title as
+ * words. A mention in a body is not ownership: it named #3447 for "All Checks Pass" and #3606 for "Dependabot".
  * @param gh
  * @param repo
  * @param jobs
@@ -112,17 +113,17 @@ export async function issuesNamingJobs(gh: GitHub, repo: string, jobs: ChronicJo
     if (!names.length) return out;
     const vars: Record<string, string> = {};
     const fields = names.map((n, i) => {
-        vars[`q${i}`] = `repo:${repo} is:issue is:open "${n.replaceAll('"', " ")}"`;
-        return `j${i}: search(query: $q${i}, type: ISSUE, first: 10) { nodes { ... on Issue { number title body } } }`;
+        vars[`q${i}`] = `repo:${repo} is:issue is:open label:bug -label:ci-budget "${n.replaceAll('"', " ")}" in:title`;
+        return `j${i}: search(query: $q${i}, type: ISSUE, first: 10) { nodes { ... on Issue { number title } } }`;
     });
     const decl = names.map((_, i) => `$q${i}: String!`).join(", ");
-    type Node = { number: number; title: string; body: string } | null;
+    type Node = { number: number; title: string } | null;
     const data = await gh.graphql<Record<string, { nodes?: Node[] } | undefined>>(
         `query(${decl}) { ${fields.join(" ")} }`,
         vars,
     );
     names.forEach((n, i) => {
-        const hit = (data[`j${i}`]?.nodes ?? []).find((x) => x && words(`${x.title}\n${x.body}`).includes(words(n)));
+        const hit = (data[`j${i}`]?.nodes ?? []).find((x) => x && words(x.title).includes(words(n)));
         if (hit) out.set(n, hit.number);
     });
     return out;

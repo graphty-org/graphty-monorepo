@@ -2914,9 +2914,20 @@ export interface SessionEventMap {
     /**
      * Project state changed: the slices written and what wrote them. Fires synchronously, as
      * soon as the state has changed and before the picture has caught up; the per-domain events
-     * (`style:changed` and the rest) follow once it has.
+     * (`style:changed` and the rest) follow once it has, then `project:derived`.
      */
     "project:changed": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
+    /**
+     * The picture has caught up with every project change made so far: published once nothing is
+     * left to derive or repaint -- after the per-domain events, and after any repaint the element
+     * put off or started on its own -- with every slice changed or derived since the last one
+     * (changes made in one burst share one event; `cause` is the latest change's). THE event
+     * for a consumer that re-reads derived state -- `styles.legend()`, `styles.counts()`,
+     * `styles.explain()` -- after any change, including an edit to data alone, which publishes no
+     * `style:changed`. Read on `project:changed`, those answer for the previous pass.
+     * @since 3.37.0
+     */
+    "project:derived": { readonly slices: readonly ProjectSlice[]; readonly cause: HistoryCause };
     /**
      * A kept set was created, renamed, redefined or removed: one event per set a write touched,
      * after the write committed. A write that was refused publishes nothing.
@@ -3110,8 +3121,10 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
- * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
- * | `visibility.steps` | none: several steps changed at once, or a reorder |
+ * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id (an edit made through `setSteps`) |
+ * | `visibility.condition-add`, `visibility.condition-on`, `visibility.condition-off`, `visibility.condition-remove` | `id`: the filter condition's id; `effect`: its effect (`"keep"`, `"exclude"` or `"select"`) |
+ * | `visibility.condition-edit` | `id`; `effect`: its effect after the edit; `previousEffect`: its effect before |
+ * | `visibility.steps` | none: several steps or conditions changed at once, or a reorder |
  * | `visibility.playback` | none: how `session.time` moves windows changed |
  * | `time.field` | `column`: the column designated as the time field |
  * | `time.clear-field` | none |
@@ -3207,6 +3220,11 @@ export type HistoryCode =
     | "visibility.step-on"
     | "visibility.step-off"
     | "visibility.step-remove"
+    | "visibility.condition-add"
+    | "visibility.condition-edit"
+    | "visibility.condition-on"
+    | "visibility.condition-off"
+    | "visibility.condition-remove"
     | "visibility.steps"
     | "visibility.playback"
     | "time.field"
@@ -3433,6 +3451,8 @@ export interface CommandOutcomeMap {
     "visibility.context": Promise<void>;
     /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
     "visibility.steps": Promise<void>;
+    /** Settles once the conditions are recorded and the pass that evaluates the masks has run. */
+    "visibility.conditions": Promise<void>;
     /** Settles once the playback settings are recorded. */
     "visibility.playback": Promise<void>;
     /** The new set's id, once it is recorded. */

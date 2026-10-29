@@ -437,7 +437,7 @@ request, gets its own `ACTION NEEDED` line when green; the rest go in one daily 
 ### 6.3 Rulesets and secrets
 
 - Ruleset 23973898: bypass = deploy keys (a ruleset cannot single out one key, so every write deploy
-  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 164375816,
+  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 167635448,
   and files a `priority:critical` issue otherwise); code-owner review required with 0 approvals;
   stale reviews dismissed; last-push approval off. A pull request waiting for the owner is never
   merged with master unless it conflicts.

@@ -400,6 +400,55 @@ describe("nodes drawn as models", () => {
         assert.isAbove(await redPixels(), 500, "the tinted model is drawn red");
     });
 
+    // Issue #4392: a model lands on a frame of its own, after the style repaint that asked for it,
+    // and moves no node. Its edges were told to measure again, but the frame loop visits edges only
+    // when a node moved or something forced the walk, so they kept the ends they had measured
+    // against the placeholder shape, and the story drew either picture depending on whether the
+    // model landed before or after the last frame that walked them.
+    it("ends an edge at the model once it lands, not at the placeholder it replaced", async () => {
+        const element = await mount(600, 300);
+        const { graph } = element;
+        await graph.addNodes([
+            { id: "a", position: { x: -3, y: 0, z: 0 } },
+            { id: "b", position: { x: 3, y: 0, z: 0 } },
+        ]);
+        await graph.addEdges([{ source: "a", target: "b" }]);
+        await graph.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const edge = graph.getDataManager().getEdgesBetween("a", "b")[0];
+        assert.isDefined(edge);
+        /**
+         * How far the arrowhead is drawn from b's center.
+         * @returns The distance.
+         */
+        const headFromB = (): number => {
+            const at = edge.arrowCap?.position;
+            return at === undefined ? Number.NaN : Math.hypot(at.x - 3, at.y, at.z);
+        };
+        const onPlaceholder = headFromB();
+
+        const drawn = nextModelEvent(element, (change) => change.state === "drawn");
+        await element.session.styles.add({
+            name: "racks",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": "asset:sample/server" },
+        });
+        await drawn;
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isTrue(drawnAsModel(graph, "a") && drawnAsModel(graph, "b"));
+        const drawnHead = headFromB();
+
+        // Measured afresh against the model now on screen.
+        edge.invalidatePositionCache();
+        edge.update();
+        const measuredHead = headFromB();
+        assert.isAbove(Math.abs(measuredHead - onPlaceholder), 1e-2, "the rack's surface is not the placeholder's");
+        assert.closeTo(drawnHead, measuredHead, 1e-4, "the arrowhead drawn sits on the model, not the placeholder");
+    });
+
     it("frees a model's template once no layer names it", async () => {
         const element = await mount();
         const { graph } = element;

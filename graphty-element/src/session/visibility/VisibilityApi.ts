@@ -332,6 +332,13 @@ export interface SessionVisibilityApi extends VisibilityApi {
      */
     slideWindow(window: TimeWindow | null): SlideCounts | null;
     /**
+     * Record the window a gesture ended at (`session.time.commit()`): as `setWindow`, but always
+     * its own undoable step, never merged into a window step recorded just before it.
+     * @param window - The window.
+     * @returns The run, which resolves with the counts.
+     */
+    commitWindow(window: TimeWindow): Run<FilterResult>;
+    /**
      * Whether elements outside the time window are drawn as ghosts now: the playback setting
      * `outside` is `"ghost"` and a window is in force.
      */
@@ -1411,6 +1418,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         get rule(): RuleTree | null {
             return ruleNow();
+        },
+
+        commitWindow(window: TimeWindow): Run<FilterResult> {
+            assertVisibility(null, window);
+
+            return edit({ op: "visibility.window", window, ownStep: true }, ruleNow(), window, {});
         },
 
         slideWindow(window: TimeWindow | null): SlideCounts | null {

@@ -568,7 +568,7 @@ corrected. Done: two days of slots, exactly one LLM run a day. Undo: one conditi
 
 **scheduler-updates** (#3458) -- agent, S, owned. `tools/release-scheduler/`: dispatch with `mode: full`;
 the ancestry check with Contents: read (design 4); the daily "exactly one write deploy key, id
-164375816" check that files `priority:critical` (design 6.3). Needs: `owner-cloudflare`,
+167635448" check that files `priority:critical` (design 6.3). Needs: `owner-cloudflare`,
 `full-run-release`. Done: its tests; a seeded second deploy key files one issue. Undo: revert.
 
 **autosave-compat-lane** (#3459) -- agent, M. A lifecycle test opening production's autosave and project

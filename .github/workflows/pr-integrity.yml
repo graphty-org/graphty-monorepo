@@ -23,7 +23,8 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
-            # The head itself, not the merge ref: every rule is measured from the merge base with master.
+            # The head itself, not the merge ref: every rule is measured from the merge base with master, except
+            # the owned closure, which the script judges on its own merge of the head with master (ownedClosure).
             # Full history, for the merge base, the commits and the revert check.
             - uses: actions/checkout@v7
               with:

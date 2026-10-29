@@ -68,36 +68,52 @@ const KEEP_DAYS = 14;
 export function selectRoutes({ changed, app, routes, routesText, everything }) {
     const picked = new Map();
     const why = [];
-    const all = (file, reason) => {
-        why.push({ file, effect: `every route: ${reason}` });
-        for (const r of routes) if (!picked.has(r.id)) picked.set(r.id, `${file}: ${reason}`);
-    };
-    const none = (file, reason) => why.push({ file, effect: `none: ${reason}` });
     for (const file of changed) {
-        const pkg = file.split("/")[0];
-        const inPkg = file.slice(pkg.length + 1);
-        if (app.files.has(file)) all(file, "the app's build runs it");
-        else if (file.startsWith(SUITE)) {
-            if (file.endsWith(".mjs")) all(file, "the suite's own code");
-            else none(file, "not code of the suite");
-        } else if (RUNNER_INPUTS.has(file) || everything.some((re) => re.test(file)))
-            all(file, "an input of every run");
-        else if (file.startsWith(DATA)) {
-            const name = basename(file);
-            const opening = routes.filter((r) => r.text.includes(name));
-            if (opening.length) {
-                why.push({ file, effect: `${opening.length} route(s) open it` });
-                for (const r of opening) if (!picked.has(r.id)) picked.set(r.id, `${file}: the route opens ${name}`);
-            } else if (routesText.includes(name)) all(file, "a shared step names it");
-            else none(file, "no route opens it");
-        } else if (!app.packages.has(pkg) && !app.whole.has(pkg)) none(file, "outside the app's packages");
-        else if (!buildInput(inPkg)) none(file, "a test, story or doc");
-        else if (app.whole.has(pkg)) all(file, `the app bundles ${pkg} from a build whose sources are not known`);
-        else if (/^eslint\.config\./u.test(inPkg)) none(file, "lint configuration");
-        else if (CODE.test(file) && inPkg.startsWith("src/")) none(file, "code the app's build does not run");
-        else all(file, "not code the build maps to sources (fail safe)");
+        const { ids, effect, reason } = effectOf(file, { app, routes, routesText, everything });
+        why.push({ file, effect });
+        for (const id of ids === "all" ? routes.map((r) => r.id) : ids)
+            if (!picked.has(id)) picked.set(id, `${file}: ${reason}`);
     }
     return { routes: picked, why };
+}
+
+const every = (reason) => ({ ids: "all", effect: `every route: ${reason}`, reason });
+const none = (reason) => ({ ids: [], effect: `none: ${reason}`, reason });
+
+/**
+ * What one changed file selects.
+ * @param file a repo-relative path
+ * @param ctx selectRoutes' inputs but the changed files
+ * @returns `{ ids: "all" | route ids, effect, reason }`
+ */
+function effectOf(file, ctx) {
+    const { app, routes, routesText, everything } = ctx;
+    const pkg = file.split("/")[0];
+    const inPkg = file.slice(pkg.length + 1);
+    if (app.files.has(file)) return every("the app's build runs it");
+    if (file.startsWith(SUITE))
+        return file.endsWith(".mjs") ? every("the suite's own code") : none("not code of the suite");
+    if (RUNNER_INPUTS.has(file) || everything.some((re) => re.test(file))) return every("an input of every run");
+    if (file.startsWith(DATA)) return dataEffect(basename(file), routes, routesText);
+    if (!app.packages.has(pkg) && !app.whole.has(pkg)) return none("outside the app's packages");
+    if (!buildInput(inPkg)) return none("a test, story or doc");
+    if (app.whole.has(pkg)) return every(`the app bundles ${pkg} from a build whose sources are not known`);
+    if (/^eslint\.config\./u.test(inPkg)) return none("lint configuration");
+    if (CODE.test(file) && inPkg.startsWith("src/")) return none("code the app's build does not run");
+    return every("not code the build maps to sources (fail safe)");
+}
+
+/**
+ * What a changed data file selects: the routes that open it.
+ * @param name the file's name
+ * @param routes the routes and their source text
+ * @param routesText the whole routes file
+ * @returns as effectOf
+ */
+function dataEffect(name, routes, routesText) {
+    const ids = routes.filter((r) => r.text.includes(name)).map((r) => r.id);
+    if (ids.length) return { ids, effect: `${ids.length} route(s) open it`, reason: `the route opens ${name}` };
+    return routesText.includes(name) ? every("a shared step names it") : none("no route opens it");
 }
 
 const git = (args, cwd = ROOT) => execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
@@ -114,8 +130,6 @@ export function appInputs(root, dist) {
     // the maps name sources relative to where the app was built, whichever folder holds the build now
     const builtAt = join(root, "graphty/dist/assets");
     const assets = join(dist, "assets");
-    const mapSources = (mapFile, from) =>
-        JSON.parse(readFileSync(mapFile, "utf8")).sources.map((s) => resolve(from, s));
     for (const m of readdirSync(assets).filter((f) => f.endsWith(".map"))) {
         for (const abs of mapSources(join(assets, m), builtAt)) {
             const rel = relative(root, abs);
@@ -125,16 +139,29 @@ export function appInputs(root, dist) {
                 files.add(rel);
                 continue;
             }
-            // another package's build output: its own map, or test-select's mapping to its source
-            const own = `${abs}.map`;
-            const srcs = existsSync(own) ? mapSources(own, dirname(abs)) : [sourceOf(root, abs)].filter(Boolean);
-            const inside = srcs.map((s) => relative(root, s)).filter((s) => s.startsWith(`${pkg}/`));
+            const inside = builtFrom(root, abs, pkg);
             if (inside.length) inside.forEach((s) => files.add(s));
             else whole.add(pkg);
         }
     }
     const packages = new Set([...files].map((f) => f.split("/")[0]).concat([...whole], workspaceDeps(root, "graphty")));
     return { files, packages, whole };
+}
+
+const mapSources = (mapFile, from) => JSON.parse(readFileSync(mapFile, "utf8")).sources.map((s) => resolve(from, s));
+
+/**
+ * The source files of the package a build output was built from: its own source map's, or
+ * tools/test-select.mjs's mapping to its source.
+ * @param root the checkout
+ * @param abs a build output's absolute path
+ * @param pkg its package directory
+ * @returns repo-relative paths, empty when not known
+ */
+function builtFrom(root, abs, pkg) {
+    const own = `${abs}.map`;
+    const srcs = existsSync(own) ? mapSources(own, dirname(abs)) : [sourceOf(root, abs)].filter(Boolean);
+    return srcs.map((s) => relative(root, s)).filter((s) => s.startsWith(`${pkg}/`));
 }
 
 /**
@@ -203,113 +230,116 @@ function runFolder() {
     return dir;
 }
 
-async function main(argv) {
-    let o;
-    try {
-        o = parseArgs({
-            args: argv,
-            allowPositionals: true,
-            options: {
-                all: { type: "boolean", default: false },
-                changed: { type: "boolean", default: false },
-                base: { type: "string" },
-                dist: { type: "string" },
-                "no-build": { type: "boolean", default: false },
-                workers: { type: "string", default: "4" },
-            },
-        });
-    } catch (err) {
-        return usage(err.message);
-    }
+function options(argv) {
+    const o = parseArgs({
+        args: argv,
+        allowPositionals: true,
+        options: {
+            all: { type: "boolean", default: false },
+            changed: { type: "boolean", default: false },
+            base: { type: "string" },
+            dist: { type: "string" },
+            "no-build": { type: "boolean", default: false },
+            workers: { type: "string", default: "4" },
+        },
+    });
     const [command] = o.positionals;
-    const v = o.values;
-    if (!["run", "select"].includes(command) || o.positionals.length > 1) return usage("one command: run or select");
-    if (v.all && (v.base || v.changed))
-        return usage("--all runs every route; --changed and --base measure a change: use one");
+    if (!["run", "select"].includes(command) || o.positionals.length > 1) throw new Error("one command: run or select");
+    if (o.values.all && (o.values.base || o.values.changed))
+        throw new Error("--all runs every route; --changed and --base measure a change: use one");
+    return { command, ...o.values };
+}
 
+/**
+ * The app's build to run against: --dist as it is, or graphty/dist, built first unless --no-build.
+ * @param v the options
+ * @returns the build's folder, or null when there is none
+ */
+function theBuild(v) {
     const dist = resolve(v.dist ?? join(ROOT, "graphty/dist"));
     if (!v.dist && !v["no-build"]) {
         console.log("acceptance: building the app (nx caches an unchanged tree)");
-        const built = spawnSync(
-            "bash",
-            [join(ROOT, "tools/low-priority.sh"), "pnpm", "exec", "nx", "run", "graphty:build"],
-            {
-                cwd: ROOT,
-                stdio: "inherit",
-            },
-        );
-        if (built.status !== 0) {
+        const args = [join(ROOT, "tools/low-priority.sh"), "pnpm", "exec", "nx", "run", "graphty:build"];
+        if (spawnSync("bash", args, { cwd: ROOT, stdio: "inherit" }).status !== 0) {
             console.error("acceptance: the app's build failed, nothing run");
-            return 4;
+            return null;
         }
     }
-    if (!existsSync(join(dist, "index.html"))) {
-        console.error(`acceptance: no built app at ${dist}`);
-        return 4;
-    }
+    if (existsSync(join(dist, "index.html"))) return dist;
+    console.error(`acceptance: no built app at ${dist}`);
+    return null;
+}
 
-    const { routes } = await import(pathToFileURL(join(ROOT, SUITE, "routes.mjs")).href);
-    const suite = routes.map((r) => ({ id: r.id, text: r.walk.toString() }));
-    let selection;
-    if (v.all) {
-        selection = { mode: "all", routes: suite.map((r) => ({ id: r.id, why: "--all" })) };
-    } else {
-        const base = v.base ?? pushBaseRef({ cwd: ROOT });
-        const { mergeBase, files } = changedSince(ROOT, base);
-        const s = selectRoutes({
-            changed: files,
-            app: appInputs(ROOT, dist),
-            routes: suite,
-            routesText: readFileSync(join(ROOT, SUITE, "routes.mjs"), "utf8"),
-            everything: loadRules(ROOT).everything,
-        });
-        selection = {
-            mode: "changed",
-            base,
-            mergeBase,
-            changed: s.why,
-            routes: suite.filter((r) => s.routes.has(r.id)).map((r) => ({ id: r.id, why: s.routes.get(r.id) })),
-        };
-    }
-    const folder = runFolder();
-    writeFileSync(join(folder, "selection.json"), JSON.stringify({ dist, ...selection }, null, 1) + "\n");
-    if (selection.mode === "changed") {
-        console.log(
-            `acceptance: ${selection.changed.length} changed file(s) since ${selection.base} (${selection.mergeBase.slice(0, 10)})`,
-        );
-        for (const c of selection.changed) console.log(`  ${c.file}: ${c.effect}`);
-    }
-    console.log(
-        `acceptance: ${selection.routes.length} of ${suite.length} route(s) selected (${join(folder, "selection.json")})`,
-    );
-    if (command === "select") {
-        for (const r of selection.routes) console.log(`  ${r.id}: ${r.why}`);
-        return 0;
-    }
-    if (!selection.routes.length) return 0;
+/**
+ * The routes to run, and why each.
+ * @param v the options
+ * @param dist the build
+ * @param suite each route's id and source text
+ * @returns what selection.json holds
+ */
+function choose(v, dist, suite) {
+    if (v.all) return { mode: "all", routes: suite.map((r) => ({ id: r.id, why: "--all" })) };
+    const base = v.base ?? pushBaseRef({ cwd: ROOT });
+    const { mergeBase, files } = changedSince(ROOT, base);
+    const s = selectRoutes({
+        changed: files,
+        app: appInputs(ROOT, dist),
+        routes: suite,
+        routesText: readFileSync(join(ROOT, SUITE, "routes.mjs"), "utf8"),
+        everything: loadRules(ROOT).everything,
+    });
+    const routes = suite.filter((r) => s.routes.has(r.id)).map((r) => ({ id: r.id, why: s.routes.get(r.id) }));
+    console.log(`acceptance: ${files.length} changed file(s) since ${base} (${mergeBase.slice(0, 10)})`);
+    for (const c of s.why) console.log(`  ${c.file}: ${c.effect}`);
+    return { mode: "changed", base, mergeBase, changed: s.why, routes };
+}
 
-    const ids = selection.routes.map((r) => r.id).join(",");
-    const run = spawnSync(
-        process.execPath,
-        [join(ROOT, SUITE, "run.mjs"), "--only", ids, "--dist", dist, "--workers", v.workers],
-        {
-            cwd: ROOT,
-            stdio: "inherit",
-        },
-    );
+/**
+ * Walk the selected routes and keep what the runner wrote.
+ * @param ids the route ids
+ * @param dist the build
+ * @param workers browsers
+ * @param folder the run folder
+ * @returns the exit status: 0 passed, 1 failed, 4 could not run
+ */
+function walk(ids, dist, workers, folder) {
+    const args = [join(ROOT, SUITE, "run.mjs"), "--only", ids.join(","), "--dist", dist, "--workers", workers];
+    const run = spawnSync(process.execPath, args, { cwd: ROOT, stdio: "inherit" });
     const out = join(ROOT, "tmp/dry-run");
     if (existsSync(out)) cpSync(out, folder, { recursive: true });
     console.log(`acceptance: results and end screens in ${folder}`);
     if (run.status === 0) return 0;
-    if (run.status !== 1) return run.status === 2 ? 2 : 4;
+    if (run.status !== 1) return 4;
     // every route failed for want of the GPU: the lane could not run, not a failed route
     const report = join(folder, "report.json");
-    const failed = existsSync(report)
-        ? JSON.parse(readFileSync(report, "utf8")).results.filter((r) => r.result !== "pass")
-        : [];
-    const noGpu =
-        failed.length === selection.routes.length && failed.every((r) => /NVIDIA card|libEGL/u.test(r.reason ?? ""));
+    const results = existsSync(report) ? JSON.parse(readFileSync(report, "utf8")).results : [];
+    const failed = results.filter((r) => r.result !== "pass");
+    const noGpu = failed.length === ids.length && failed.every((r) => /NVIDIA card|libEGL/u.test(r.reason ?? ""));
     return noGpu ? 4 : 1;
+}
+
+async function main(argv) {
+    let v;
+    try {
+        v = options(argv);
+    } catch (err) {
+        return usage(err.message);
+    }
+    const dist = theBuild(v);
+    if (!dist) return 4;
+    const { routes } = await import(pathToFileURL(join(ROOT, SUITE, "routes.mjs")).href);
+    const suite = routes.map((r) => ({ id: r.id, text: r.walk.toString() }));
+    const selection = choose(v, dist, suite);
+    const folder = runFolder();
+    writeFileSync(join(folder, "selection.json"), JSON.stringify({ dist, ...selection }, null, 1) + "\n");
+    console.log(`acceptance: ${selection.routes.length} of ${suite.length} route(s) selected (${folder})`);
+    if (v.command === "select") {
+        for (const r of selection.routes) console.log(`  ${r.id}: ${r.why}`);
+        return 0;
+    }
+    if (!selection.routes.length) return 0;
+    const ids = selection.routes.map((r) => r.id);
+    return walk(ids, dist, v.workers, folder);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

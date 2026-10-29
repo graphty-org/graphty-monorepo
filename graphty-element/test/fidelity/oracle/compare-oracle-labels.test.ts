@@ -937,6 +937,25 @@ describe("a label drawn as runs side by side", () => {
             out.map((p) => p.text?.content),
             "B I M far",
         );
+        // turned words are no line of text: a chart's category names turned 45 degrees under its bars
+        // (xgmml-specimen-images-charts-p7 bar-domain-label-position-up-45) stay apart on both sides
+        const turned = (content: string, x0: number): Prim => {
+            const p = run(content, x0, 8);
+            p.text = { ...(p.text as PText), rotation: -45 };
+            return p;
+        };
+        assert.notInclude(
+            stackedTexts([turned("a", 100), turned("b", 110), turned("c", 120)]).map((p) => p.text?.content),
+            "a b c",
+        );
+        assert.strictEqual(
+            mergeTexts([
+                text("a", 104, 100, { rotation: -45 }, 8),
+                text("b", 114, 100, { rotation: -45 }, 8),
+                text("c", 124, 100, { rotation: -45 }, 8),
+            ])?.content,
+            "a\nb\nc",
+        );
         // a run whose text keeps its blank before its word (" x" drawn as "x" from where the blank starts)
         const x = run("x", 107, 6);
         x.text = { ...(x.text as PText), blank: { before: true, after: false } };

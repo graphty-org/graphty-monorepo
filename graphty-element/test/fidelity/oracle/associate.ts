@@ -389,6 +389,9 @@ function joinRuns(texts: readonly PText[]): PText[] {
         const size = (p: PText): number => Math.max(p.sizePx, 1);
         const before = out.find(
             (a) =>
+                // turned words are no line of text (a chart's slanted category names), as the oracle's are not
+                a.rotation === 0 &&
+                t.rotation === 0 &&
                 (a.lines?.length ?? 1) < 2 &&
                 (t.lines?.length ?? 1) < 2 &&
                 t.box.x0 - a.box.x1 >= -0.2 * size(a) &&
@@ -3215,6 +3218,9 @@ function besideTexts(texts: readonly Prim[]): Prim[] {
             (q) =>
                 q !== p &&
                 q.text !== null &&
+                // turned words are no line of text (a chart's slanted category names), on either side
+                p.text?.rotation === 0 &&
+                q.text.rotation === 0 &&
                 q.box.x0 - p.box.x1 >= -0.2 * size(p) &&
                 q.box.x0 - p.box.x1 <= 0.5 * size(p) &&
                 cy(q.box) >= p.box.y0 &&

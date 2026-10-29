@@ -1178,7 +1178,7 @@ async function announceEmpty(
  * @param props.onElsewhere - goes to the other kind's tab with a card on its field
  * @returns The control
  */
-function AddCondition({
+export function AddCondition({
     fields,
     elsewhere = [],
     used,
@@ -1545,12 +1545,13 @@ function CardEditor({
 }
 
 /**
- * The body of a card, by its type: a layer's card and a filter step's draw the same one.
+ * The body of a card, by its type: a layer's card and a filter card draw the same one.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
+ * @param props.blank - a new card with no value picked yet: a yes-or-no card shows no choice
  * @returns The body
  */
 export function CardBody({
@@ -1558,7 +1559,14 @@ export function CardBody({
     card,
     side,
     onChange,
-}: Readonly<{ session: GraphSession; card: Card; side: Side; onChange: OnCard }>): React.JSX.Element | null {
+    blank = false,
+}: Readonly<{
+    session: GraphSession;
+    card: Card;
+    side: Side;
+    onChange: OnCard;
+    blank?: boolean;
+}>): React.JSX.Element | null {
     switch (card.type) {
         case "number":
             return <NumberCard session={session} card={card} side={side} onChange={onChange} />;
@@ -1572,7 +1580,7 @@ export function CardBody({
             return (
                 <MatchSelect
                     name={card.field.name}
-                    value={card.match}
+                    value={blank ? null : card.match}
                     data={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, ...PRESENCE]}
                     onChange={(match) => {
                         onChange({ ...card, match: match as typeof card.match });
@@ -1623,7 +1631,7 @@ function fixedText(leaf: RuleTree): string {
  * A card's Match select.
  * @param props - Component props
  * @param props.name - the field's name
- * @param props.value - the chosen value
+ * @param props.value - the chosen value, or null while none is
  * @param props.data - the choices
  * @param props.onChange - takes the card as edited
  * @returns The select
@@ -1635,7 +1643,7 @@ function MatchSelect({
     onChange,
 }: Readonly<{
     name: string;
-    value: string;
+    value: string | null;
     data: readonly { value: string; label: string }[];
     onChange: (value: string) => void;
 }>): React.JSX.Element {

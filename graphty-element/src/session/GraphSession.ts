@@ -2885,6 +2885,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintGhosts();
         },
         onMaskVersion: advanceTick,
+        selection: {
+            current: () => ({
+                nodes: requireSelection(selection).nodeMembers().ids(),
+                edges: requireSelection(selection).edgeMembers().ids(),
+            }),
+            replace: (ids, cause) => {
+                requireSelection(selection).applyNow(
+                    { nodes: [...ids.nodes], edges: [...ids.edges] },
+                    "replace",
+                    cause,
+                );
+            },
+        },
     });
 
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";

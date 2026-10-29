@@ -7,11 +7,11 @@ import { wordsFor } from "../analyze/words";
 import type { InspectedKind } from "../commands/registry";
 import { useAttributeActions } from "../data-place/attributeActions";
 import { SourceGlyph, TypeGlyphIcon } from "../data-place/DataPlace";
-import { FilterStepEditor } from "../data-place/Filters";
-import { stepEditorName } from "../data-place/filterSteps";
+import { TIME_ROW } from "../data-place/filterCards";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { useSourceActions } from "../data-place/sourceActions";
 import { SourceValues } from "../data-place/SourceValues";
+import { TimeCard } from "../data-place/TimeCard";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import {
     loadIndexOf,
@@ -811,14 +811,9 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             return { name: rowName(session, resolved.row) };
         case "rows":
             return { name: rowsHeading(session, resolved.rows) };
-        case "filter-step": {
-            // Whether the step is on, as its row's checkbox says, so the editor alone tells.
-            const step = session.visibility.steps.find((s) => s.id === resolved.step);
-            return {
-                name: stepEditorName(session, resolved.step),
-                from: step === undefined ? undefined : { words: step.on ? "On" : "Off" },
-            };
-        }
+        case "filter-step":
+            // Only the time window's card opens here: a filter card is edited in the Filters section.
+            return { name: resolved.step === TIME_ROW ? "Time window" : "Filter" };
         case "source":
             return sourceHeader(session, resolved.row);
         default:
@@ -906,8 +901,8 @@ function bodyOf(
             // Keyed by the rows, so another selection starts with no receipt of the last one's edit.
             return { only: <MultiRowPanel key={resolved.rows.join(" ")} ids={resolved.rows} /> };
         case "filter-step":
-            // Keyed by the step, so opening another step starts from its own fields.
-            return { only: <FilterStepEditor key={resolved.step} id={resolved.step} /> };
+            // The time window's card; a filter card is edited in place in the Filters section.
+            return { only: resolved.step === TIME_ROW ? <TimeCard /> : <Gone /> };
         case "source":
             return { only: <SourceValues row={resolved.row} /> };
         default:

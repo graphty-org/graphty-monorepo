@@ -264,7 +264,7 @@ describe("the inspector", () => {
         // The tooltip mounts after the theme's 1000 ms open delay, so a deadline of its own would race
         // the delay on a busy machine: the wait has none, and the test's own timeout is the backstop.
         const tip = await screen.findByText(
-            "Hide every node outside this neighborhood. Its step in Filters turns it off",
+            "Hide every node outside this neighborhood. Its card in Filters turns it off",
             {},
             storyWaitOptions(3000),
         );
@@ -274,19 +274,19 @@ describe("the inspector", () => {
             assert.isBelow(tip.getBoundingClientRect().top, command.getBoundingClientRect().bottom);
         });
 
-        // Pressed, it adds the step and still reads as a command, not as pressed.
+        // Pressed, it adds the card and still reads as a command, not as pressed.
         await userEvent.click(command);
         await waitFor(() => {
-            assert.lengthOf(on.visibility.steps, 1);
+            assert.lengthOf(on.visibility.conditions, 1);
         });
         assert.equal(command.getAttribute("data-variant"), "default");
         assert.isNull(command.getAttribute("aria-pressed"));
     });
 
-    it("keeps one step per center: pressed at another reach it moves that step there and turns it on", async () => {
+    it("keeps one card per center: pressed at another reach it moves that card there and turns it on", async () => {
         const { session: on } = await renderInspector();
         const reaches = (): [boolean, number][] =>
-            on.visibility.steps.map((step) => [step.on, step.rule.kind === "neighborhood" ? step.rule.depth : 0]);
+            on.visibility.conditions.map((c) => [c.on, c.rule.kind === "neighborhood" ? c.rule.depth : 0]);
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
@@ -300,9 +300,9 @@ describe("the inspector", () => {
             assert.deepEqual(reaches(), [[true, 2]]);
         });
 
-        // Turned off from its checkbox, then pressed at one hop: the same step, on, one hop out.
+        // Turned off from its checkbox, then pressed at one hop: the same card, on, one hop out.
         await act(async () => {
-            await on.visibility.setSteps(on.visibility.steps.map((step) => ({ ...step, on: false })));
+            await on.visibility.updateCondition(on.visibility.conditions[0].id, { on: false });
         });
         await userEvent.click(
             segment(within(screen.getByRole("radiogroup", { name: "Hops" })).getByRole("radio", { name: "1" })),

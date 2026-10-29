@@ -120,6 +120,12 @@ export function isQuiet(samples: RunnerSample[], now: number, cfg: SliceConfig):
     return samples.filter((s) => s.at > now - HOUR).every((s) => s.longestQueuedMs <= cfg.maxWaitMinutes * MIN);
 }
 
+/** A slice run is queued or running, or one was dispatched in the last 15 minutes and has not shown up yet. */
+function inFlight(i: SliceInput): boolean {
+    const d = i.state.dispatched;
+    return i.running || (!!d && !d.seen && d.at > i.now - 15 * MIN);
+}
+
 /** Whether each share has room for one more slice of its planned size. */
 function capsLeft(spent: SliceSpend[], now: number, cfg: SliceConfig) {
     const used = spentMinutes(spent, now);
@@ -140,8 +146,7 @@ function capsLeft(spent: SliceSpend[], now: number, cfg: SliceConfig) {
 export function decideSlice(i: SliceInput): SliceDecision {
     const { cfg, now, state } = i;
     const none = (reason: SliceReason): SliceDecision => ({ action: "none", reason });
-    const d = state.dispatched;
-    if (i.running || (d && !d.seen && d.at > now - 15 * MIN)) return none("in-flight");
+    if (inFlight(i)) return none("in-flight");
     const latest = state.samples.at(-1);
     if (!latest || latest.at < now - 6 * MIN) return none("no-runner-data");
     if (!isQuiet(state.samples, now, cfg)) return none("not-quiet");

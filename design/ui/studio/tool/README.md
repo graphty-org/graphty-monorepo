@@ -509,6 +509,34 @@ needs to look at it again; only the diverged ones need a walker.
 Participants' sessions are never replayed: a participant drives every step. Pilots, detours,
 keyboard walks and the re-walks after a fix replay.
 
+## The scripted dry run
+
+A dry-run pass starts with the app's scripted routes (`graphty/dry-run/`, one per task half: the
+success path as real clicks and keys on the GPU, with outcome checks read through graphty-element's
+API), not with an agent:
+
+```bash
+node $T/dry-run-pass.mjs --dist <frozen build> --out <main checkout>/tmp/design-studio/tier3/<pass>/script
+```
+
+It runs every route (about a minute for tier 3's 30), keeps the screen each one ended on, and
+compares it with the same route's in the newest earlier pass beside `--out`, with the drawing and
+the status bar covered: the drawing may still be settling when a route ends (what it shows is what the
+outcome checks read), and the autosave chip says "saving..." or "saved" depending on when its write
+lands. A screen that changed is run once more, and one that differs between two runs of the
+same build is marked `unstable` instead of `changed`. `summary.json` in `--out` lists each route's
+task, result, reason, screenshots (`<route>.png`, and `<route>.ui.png` with those covered),
+`change` (`same`, `changed`, `new` or `unstable`) and diff image. The design studio's workflow sends
+a pilot agent only to a task whose route failed or has none, and only the `changed` and `new` screens
+to a reviewer. `node --test $T/dry-run-pass.test.mjs` checks how it finds the earlier pass.
+
+What a `same` screen does not show: the drawing and the status bar are covered, so a drawing problem
+the outcome checks cannot read (labels gone, nodes off screen, a blank canvas) or an error chip in the
+status bar reads as `same` and no reviewer looks at it. An `unstable` screen is logged and not
+reviewed, so a real change on a route that also flickers between runs is hidden until the route is
+made stable. Pilots walk the detours and the keyboard walk; a route that passes is not looked at
+screen by screen.
+
 ## Checking the tool
 
 ```bash

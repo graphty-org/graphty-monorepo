@@ -79,6 +79,10 @@ export function fakeGitHub(opts: { coveralls?: string } = {}): Fake {
             }
             if (body.query.includes("pullRequests")) return json(fixture("gql-pr.json"));
             if (body.query.includes("issues(")) return json(fixture("gql-issue.json"));
+            if (body.query.includes("channel/nightly"))
+                return json({
+                    data: { repository: { nightly: { target: { oid: "a".repeat(40) } }, production: null } },
+                });
             if (body.query.includes("refs(")) return json(fixture("gql-tag.json"));
             if (body.query.includes("test-quarantine.json"))
                 return json({

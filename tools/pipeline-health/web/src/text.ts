@@ -5,6 +5,8 @@
  */
 import type {
     CategoryId,
+    ChannelId,
+    ChannelOutcome,
     Cmp,
     Fact,
     Iso,
@@ -192,6 +194,36 @@ export function stateChip(
             return `<span class="sw low">not set up</span>`;
     }
 }
+
+// ---------------------------------------------------------------- release channels
+
+/** The overview's release channel tiles: the heading, each channel's name and how its attempts read. */
+export const CHANNELS_HEAD = "Releases";
+export const CHANNELS_SUB = "what each channel serves; each dot a release attempt, oldest to newest";
+
+export const CHANNEL: Record<ChannelId, { name: string; ok: string; none: string }> = {
+    canary: { name: "Canary", ok: "deployed", none: "no deploys recorded" },
+    nightly: { name: "Nightly", ok: "promoted", none: "no promotions recorded" },
+    production: { name: "Production", ok: "promoted", none: "no promotions recorded" },
+};
+
+const OUTCOME: Record<Exclude<ChannelOutcome, "ok">, string> = {
+    bad: "failed",
+    held: "passed, not promoted",
+    cancelled: "cancelled",
+};
+
+/** "deployed 42 min ago", or "no deploys recorded". */
+export const channelSince = (id: ChannelId, at: Iso | null): string =>
+    at ? `${CHANNEL[id].ok} ${fmtAgo(at)}` : CHANNEL[id].none;
+
+/** One attempt's dot title: "19:20: failed, 3f2a91c". */
+export const attemptText = (id: ChannelId, a: { at: Iso; outcome: ChannelOutcome; sha?: string }): string =>
+    `${fmtTime(a.at)}: ${a.outcome === "ok" ? CHANNEL[id].ok : OUTCOME[a.outcome]}${a.sha ? `, ${esc(a.sha.slice(0, 7))}` : ""}`;
+
+/** The dot row's label for a screen reader. */
+export const attemptsLabel = (n: number): string =>
+    n ? `last ${n} release ${n === 1 ? "attempt" : "attempts"}, oldest first` : "no release attempts recorded";
 
 // ---------------------------------------------------------------- catalog
 

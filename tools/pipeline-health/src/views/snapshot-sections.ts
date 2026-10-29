@@ -2,10 +2,18 @@
 // Pull requests (time, owner), Flaky tests (quarantine) and Releases (lanes, trains, workflows). A list the
 // collector has not written yet is "not collected", never an empty table.
 
-import type { Cell, Fact, Range, Section, TableRow } from "../../web/src/contract.js";
+import type { Cell, ChannelId, ChannelTile, Fact, Range, Section, TableRow } from "../../web/src/contract.js";
 import { quantile } from "../model/histogram.js";
 import { MIN } from "../model/items.js";
-import { type LaneJob, NOT_A_TRAIN, readSnapshot, type ReleaseSeen, type WorkflowState } from "../model/snapshots.js";
+import {
+    CHANNEL_ATTEMPTS,
+    type ChannelAttempt,
+    type LaneJob,
+    NOT_A_TRAIN,
+    readSnapshot,
+    type ReleaseSeen,
+    type WorkflowState,
+} from "../model/snapshots.js";
 import { iso, type Reads } from "./members.js";
 import { notCollected } from "./sections.js";
 
@@ -235,4 +243,80 @@ export async function workflowsTable(reads: Reads): Promise<Section> {
             },
         }));
     return { kind: "table", id: "workflows", rows };
+}
+
+/** The release modes that can promote a candidate to nightly. */
+const NIGHTLY_MODES = new Set(["full", "restart", "candidate", "promote-nightly"]);
+
+/**
+ * Nightly's attempts, newest first: release attempts in a promoting mode that tested a candidate, ran the nightly
+ * site job or failed. Promoted when the nightly site job passed; held when the run passed without promoting (a
+ * green-images candidate). Attempts read before the nightly site job was kept are left out.
+ * @param seen
+ */
+export function nightlyAttempts(seen: Record<string, ReleaseSeen>): ChannelAttempt[] {
+    return attempts(seen)
+        .filter(
+            (a) =>
+                a.run !== undefined &&
+                a.nightly !== undefined &&
+                NIGHTLY_MODES.has(a.mode ?? "") &&
+                (a.tested ||
+                    (a.nightly !== "skipped" && a.nightly !== "absent") ||
+                    (a.ok === false && a.conclusion !== "cancelled")),
+        )
+        .map((a) => ({
+            at: a.at,
+            outcome:
+                a.conclusion === "cancelled"
+                    ? "cancelled"
+                    : a.ok === false
+                      ? "bad"
+                      : a.nightly === "passed"
+                        ? "ok"
+                        : "held",
+            sha: a.sha,
+            run: a.run as number,
+        }));
+}
+
+const TILE_STATE = { ok: "ok", bad: "bad", held: "warn" } as const;
+
+/** One channel's tile from its attempts (newest first) and the commit its ref holds. */
+function tile(id: ChannelId, newestFirst: ChannelAttempt[], ref: string | undefined): ChannelTile {
+    const shown = newestFirst.slice(0, CHANNEL_ATTEMPTS);
+    const judged = shown.find((a) => a.outcome !== "cancelled");
+    const good = newestFirst.find((a) => a.outcome === "ok");
+    return {
+        id,
+        state: judged ? TILE_STATE[judged.outcome as keyof typeof TILE_STATE] : "nodata",
+        sha: ref ?? good?.sha ?? null,
+        at: good ? iso(good.at) : null,
+        attempts: shown.toReversed().map((a) => ({
+            at: iso(a.at),
+            outcome: a.outcome,
+            run: a.run,
+            ...(a.sha ? { sha: a.sha } : {}),
+        })),
+        link: "/releases",
+    };
+}
+
+/**
+ * The overview's release channels (#4460): Canary (deploy-pages.yml), Nightly (release attempts that can promote)
+ * and Production (promote.yml), each with what it serves and its newest attempts. A channel with no attempt
+ * collected is NO DATA.
+ * @param reads
+ */
+export async function channelTiles(reads: Reads): Promise<ChannelTile[]> {
+    const snap = await readSnapshot(reads.store, "channels");
+    const seen = (await readSnapshot(reads.store, "release")) ?? {};
+    const promotions = Object.values(snap?.promotions ?? {})
+        .filter((a): a is ChannelAttempt => a !== null)
+        .toSorted((a, b) => b.at - a.at);
+    return [
+        tile("canary", snap?.canary ?? [], undefined),
+        tile("nightly", nightlyAttempts(seen), snap?.refs.nightly),
+        tile("production", promotions, snap?.refs.production),
+    ];
 }

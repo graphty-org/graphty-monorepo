@@ -8,7 +8,15 @@ import { DAY, HOUR, homeKey, MIN, ttlAt } from "../model/items.js";
 
 const WEEK = 7 * DAY;
 import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
-import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
+import {
+    CHANNEL_ATTEMPTS,
+    type ChannelAttempt,
+    type ChannelsSnapshot,
+    type OwnerWait,
+    type QuarantineEntry,
+    type ReleaseSeen,
+    type WorkflowState,
+} from "../model/snapshots.js";
 import { readBenches, trend } from "../model/benchmarks.js";
 import type { Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
@@ -16,6 +24,7 @@ import { flakyMembers } from "./flaky.js";
 import { definedJobs, jobMembers, nonGatingJobs } from "./jobs.js";
 import { type Fetch, type GitHub, HttpError } from "./github.js";
 import {
+    canaryAttempts,
     classifyCancel,
     codeownerPatterns,
     fixedCosts,
@@ -26,6 +35,7 @@ import {
     npmName,
     ownerWaitOf,
     prOfRun,
+    promotion,
     prRunOf,
     prStages,
     oldestUntested,
@@ -65,6 +75,7 @@ import {
 } from "./parse.js";
 import { markPrCaused } from "./pr-caused.js";
 import {
+    CHANNEL_REFS_QUERY,
     ISSUE_QUERY,
     OPEN_PAGE,
     ownerFilesQuery,
@@ -719,7 +730,7 @@ function releaseTodo(runs: GhRun[], seen: Record<string, ReleaseSeen>): { newest
         for (const [key, s] of Object.entries(seen))
             if (key.startsWith(`${r.id}.`)) s.mode ??= releaseMode(r.display_title);
         for (let n = 1; n <= r.run_attempt; n++)
-            if (!seen[`${r.id}.${n}`]?.lanes)
+            if (!seen[`${r.id}.${n}`]?.lanes || seen[`${r.id}.${n}`].nightly === undefined)
                 todo.push({ newest: r, path: n === r.run_attempt ? `${r.id}` : `${r.id}/attempts/${n}` });
     }
     return todo;
@@ -757,6 +768,8 @@ async function readReleaseAttempt(
         lanes: a.lanes,
         jobs: a.jobs,
         ...(a.failedJob ? { failedJob: a.failedJob } : {}),
+        nightly: a.nightly,
+        ...(r.conclusion ? { conclusion: r.conclusion } : {}),
     };
     c.items.push(toRunItem(r, repo, { tested: a.tested }));
 }
@@ -813,6 +826,40 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
         c.o("master.untested_age_ms", oldest === undefined ? 0 : c.now - oldest);
     }
     if (newest) await recordSource(c.d.store, "release", newest.at, { ok: true });
+}
+
+/**
+ * The release channels (#4460): canary's deploy-pages.yml runs on master, production's promote.yml runs (each
+ * finished run's jobs read once) and what channel/nightly and channel/production hold. Nightly's attempts are the
+ * release attempts above.
+ */
+async function channels(c: Cycle, gh: GitHub) {
+    const repo = c.d.repo;
+    const list = async (q: string) =>
+        (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/${q}`))?.workflow_runs ?? [];
+    const deploys = await list("deploy-pages.yml/runs?per_page=30&branch=master&event=workflow_run");
+    const promotes = await list("promote.yml/runs?per_page=30&event=workflow_dispatch");
+    const prev = await c.json<ChannelsSnapshot | undefined>("channels", undefined);
+    const promotions: Record<string, ChannelAttempt | null> = {};
+    for (const r of promotes.filter((x) => x.status === "completed")) {
+        const key = `${r.id}.${r.run_attempt}`;
+        const old = prev?.promotions[key];
+        promotions[key] = old === undefined ? promotion(r, await allJobs(gh, repo, r.id)) : old;
+    }
+    const [owner, name] = repo.split("/");
+    type Ref = { target: { oid: string } } | null;
+    const refs = (
+        await gh.graphql<{ repository: { nightly: Ref; production: Ref } }>(CHANNEL_REFS_QUERY, { owner, name })
+    ).repository;
+    const snap: ChannelsSnapshot = {
+        canary: canaryAttempts(deploys).slice(0, CHANNEL_ATTEMPTS),
+        promotions,
+        refs: {
+            ...(refs.nightly ? { nightly: refs.nightly.target.oid } : {}),
+            ...(refs.production ? { production: refs.production.target.oid } : {}),
+        },
+    };
+    await c.setJson("channels", snap);
 }
 
 /** The weekly stress run (4.7), hourly: its newest run's filing, and three weeks finding nothing. */
@@ -1038,6 +1085,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     };
     ok = (await c.part("issues", "collector", readIssues)) && ok;
     await c.part("releases", "release", () => releases(c, gh, heldSince));
+    await c.part("channels", undefined, () => channels(c, gh));
     const open = c.openPrs;
     if (open)
         await c.part("flaky", "collector", async () => {

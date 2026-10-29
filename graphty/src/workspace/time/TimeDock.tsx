@@ -295,10 +295,8 @@ export function TimeDock(): React.JSX.Element | null {
     const min = first?.start ?? extent.from;
     const max = last?.end ?? extent.to;
     const clamp = (value: number): number => Math.min(max, Math.max(min, value));
-    const range: [number, number] = drag ?? [
-        clamp(window === null ? min : Number(window.from)),
-        clamp(window === null ? max : Number(window.to)),
-    ];
+    const range: [number, number] =
+        drag ?? (window === null ? [min, max] : [clamp(Number(window.from)), clamp(Number(window.to))]);
     const countOf = (bin: TimeBin | undefined): number => countIn(bin, onEdges);
     const { nodes, edges } = session.selection;
     const profile =
@@ -307,6 +305,7 @@ export function TimeDock(): React.JSX.Element | null {
     const readout = readoutWords(drag, window, extent, unit);
     const { visibleEdges, visibleNodes } = session.visibility.summary;
     const { playing, atStart, atEnd } = time;
+    const playLabel = playing ? "Pause" : "Play";
     const valueText = (value: number, thumb: 0 | 1): string =>
         thumb === 0 ? instantWords(value, unit, step) : rangeWords(value - 1, value, unit, step);
     const binAt = (value: number): TimeBin | undefined => all.find((bin) => value >= bin.start && value < bin.end);
@@ -339,10 +338,10 @@ export function TimeDock(): React.JSX.Element | null {
                         <GLYPHS.stepBack size={16} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
-                <Tooltip label={playing ? "Pause" : "Play"}>
+                <Tooltip label={playLabel}>
                     <ActionIcon
                         variant={playing ? "light" : "subtle"}
-                        aria-label={playing ? "Pause" : "Play"}
+                        aria-label={playLabel}
                         onClick={() => {
                             togglePlay(session, store);
                         }}

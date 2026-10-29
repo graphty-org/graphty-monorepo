@@ -238,6 +238,7 @@ those too, in plain sentences, and changes nothing.
 | [style.md](style.md) | [style.schema.json](style.schema.json) | The style member: layers, selectors, encodings, carried palettes |
 | [recipe.md](recipe.md) | [recipe.schema.json](recipe.schema.json) | The recipe member: its commands, how it binds to a new graph's columns, how it replays and is recorded |
 | [notes.md](notes.md) | [notes.schema.json](notes.schema.json) | The notes member: people's notes about a graph, how they are saved, and how opening them merges |
+| [assets.md](assets.md) | [assets.schema.json](assets.schema.json) | The assets member: the 3D model files a style names, embedded as given, checked against their digest on read |
 | [sources.md](sources.md) | [sources.schema.json](sources.schema.json) | The sources member: every load in a project's graph (file, URL, network source, sample), per-element provenance, credential slots, reopening and rebuilding |
 | [export-mapping.md](export-mapping.md) | -- | How styles and results are written into other tools' formats |
 | [conformance.md](conformance.md) | -- | The edge-case rulings: input, expected result, the rule each follows; each row becomes a test |
@@ -418,7 +419,8 @@ opening budget through `openDocument`'s `limits` and `openingSeconds`; the impor
 in a session that draws nothing.
 
 - a file of at most 64 MB, nested at most 64 levels deep, checked before it is parsed; the same two
-  limits hold for every JSON import;
+  limits hold for every JSON import. A project file (`session.project.open`) may be up to 256 MiB,
+  because it may embed up to 64 MB of model files (assets.md), about 85 MB as base64;
 - no member name `__proto__` and no object with the same member name twice (`E_BAD_DOCUMENT`);
 - at most 64 members; 1,000 style layers in the file; per style 100 carried palettes of at most 256
   colours; per recipe 1,000 commands;

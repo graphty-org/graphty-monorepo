@@ -969,14 +969,18 @@ const CAP_DEPTH: ReadonlyMap<string, number> = new Map([["tee", 0.5]]);
 
 /**
  * How wide an element cap of a neutral arrow shape is across its line, as a fraction of its depth
- * (FilledArrowRenderer). The triangle, the vee and the diamond are drawn in the writing program's triangle
- * proportions (`ToolArrowhead.aspect`), the others where the program states theirs.
+ * (FilledArrowRenderer). The triangle, the inverted triangle, the vee and the diamond are drawn in
+ * the writing program's triangle proportions (`ToolArrowhead.aspect`), the others where the program
+ * states theirs.
  */
 const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["triangle", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["triangle-open", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["inverted", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["diamond", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    // the crow's three prongs, as wide as the triangle (FilledArrowRenderer.createCrow)
+    ["crow", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["diamond-open", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["tee", 3],
     ["square", 1],
@@ -1005,6 +1009,8 @@ const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
     "triangle-open",
     "vee",
+    // the triangle turned round (Graphviz inv, vis-network inv_triangle)
+    "inverted",
     "diamond",
     "diamond-open",
 ]);
@@ -1014,6 +1020,8 @@ interface ArrowEnd {
     readonly shapes: readonly (StyleValue | null)[];
     /** Its size factor at an edge. */
     readonly size: (i: number) => number;
+    /** The edge's source arrow shapes, which some programs size every arrow of an edge by. */
+    readonly sources: readonly (StyleValue | null)[];
     /** Its length and width against its shape's, per edge. */
     readonly length: readonly (StyleValue | null)[];
     readonly breadth: readonly (StyleValue | null)[];
@@ -1054,6 +1062,15 @@ function imageSizeOf(end: ArrowEnd, i: number): { width: number; height: number 
 }
 
 /**
+ * An edge's source arrow shape, as the program's arrowhead sizing reads it.
+ * @param value - The edge's source arrow value.
+ * @returns The shape, or undefined where it holds none.
+ */
+function sourceShapeOf(value: StyleValue | null | undefined): StyleArrowShape | undefined {
+    return typeof value === "string" ? (value as StyleArrowShape) : undefined;
+}
+
+/**
  * An end's arrow size in the program's proportions, as the element's size factor.
  * @param geometry - How the program sizes its arrowheads.
  * @param scene - Scene units per program unit.
@@ -1073,7 +1090,7 @@ function arrowLengthOf(geometry: ToolArrowhead, scene: number, end: ArrowEnd, wi
     const picture = imageSizeOf(end, i);
     const length =
         picture?.height ??
-        geometry.length(end.size(i), width) *
+        geometry.length(end.size(i), width, sourceShapeOf(end.sources[i])) *
             (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) *
             factor(end.length, i);
     return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
@@ -2118,7 +2135,7 @@ class KindTranslation {
             ...(given.kind === undefined ? {} : { kind: given.kind }),
             selector: this.#scoped(moved),
             ...(given.set === undefined ? {} : { set: given.set }),
-            ...(given.encode === undefined ? {} : { encode: encode }),
+            ...(given.encode === undefined ? {} : { encode: encode as LayerSpec["encode"] }),
             ...(given.userData === undefined ? {} : { userData: given.userData }),
         };
     }
@@ -2826,6 +2843,7 @@ class KindTranslation {
             Head: {
                 shapes: head,
                 size: (i) => factor(size, i),
+                sources: tail,
                 length: headLength,
                 breadth: headWidth,
                 imageWidth: headImageWidth,
@@ -2834,6 +2852,7 @@ class KindTranslation {
             Tail: {
                 shapes: tail,
                 size: (i) => factor(tailSize, i, factor(size, i)),
+                sources: tail,
                 length: tailLength,
                 breadth: tailWidth,
                 imageWidth: tailImageWidth,
@@ -2842,6 +2861,7 @@ class KindTranslation {
             MiddleHead: {
                 shapes: midHead,
                 size: (i) => factor(size, i),
+                sources: tail,
                 length: none,
                 breadth: none,
                 imageWidth: midImageWidth,
@@ -2850,6 +2870,7 @@ class KindTranslation {
             MiddleTail: {
                 shapes: midTail,
                 size: (i) => factor(size, i),
+                sources: tail,
                 length: none,
                 breadth: none,
                 imageWidth: none,

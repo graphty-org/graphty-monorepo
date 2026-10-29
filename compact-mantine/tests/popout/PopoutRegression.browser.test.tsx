@@ -620,6 +620,38 @@ describe("Popout Regression Tests", () => {
             });
             expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
         });
+
+        it("clicking a control marked data-popout-keep (an app's Undo) leaves the Popout open", async () => {
+            const user = userEvent.setup();
+
+            renderPopout(
+                <div>
+                    <Popout>
+                        <Popout.Trigger>
+                            <button>Open Panel</button>
+                        </Popout.Trigger>
+                        <Popout.Panel width={280} header={{ variant: "title", title: "Test" }}>
+                            <Popout.Content>
+                                <span data-testid="panel-content">Panel is open</span>
+                            </Popout.Content>
+                        </Popout.Panel>
+                    </Popout>
+                    <button data-popout-keep="">
+                        <span>Undo</span>
+                    </button>
+                </div>,
+            );
+
+            await user.click(screen.getByRole("button", { name: "Open Panel" }));
+            await waitFor(() => {
+                expect(screen.getByTestId("panel-content")).toBeInTheDocument();
+            });
+
+            // On the button's inner element, as a click on its glyph lands.
+            await user.click(screen.getByText("Undo"));
+
+            expect(screen.getByTestId("panel-content")).toBeInTheDocument();
+        });
     });
 
     /**

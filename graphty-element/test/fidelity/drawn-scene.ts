@@ -985,6 +985,8 @@ export interface DrawnEdge {
         opacity: number;
         /** How far off its node an end cap stands, in its own lengths (`ArrowStyle.gap`), the line stopping at it. */
         gap?: number;
+        /** Where along its line an end cap is drawn (`ArrowStyle.position`): 0 at its own end; absent for a middle cap. */
+        position?: number;
     }[];
     label: DrawnLabel | null;
     /** The texts at its ends (`edge.arrowTailText`, `edge.arrowHeadText`), tail first. */
@@ -1301,6 +1303,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
                 (c.end === "arrowHead" ? internal.drawnStyle?.arrowHead?.gap : undefined) ??
                 (c.end === "arrowTail" ? internal.drawnStyle?.arrowTail?.gap : undefined) ??
                 0,
+            ...(own === undefined || other === undefined ? {} : { position: own.position ?? 0 }),
         };
     });
     return {
@@ -1339,6 +1342,8 @@ export interface DrawnAnnotation {
     kind: "shape" | "text" | "arrow" | "image";
     text?: string;
     box: ScreenBox;
+    /** An arrow's heads, each one's screen box. */
+    heads?: ScreenBox[];
 }
 
 /**
@@ -1354,16 +1359,25 @@ export function readAnnotations(scene: Scene, p: Projector): DrawnAnnotation[] {
             return [];
         }
         const { z } = mesh.getAbsolutePosition();
-        const corners = [p.point(new Vector3(a.box.x0, a.box.y0, z)), p.point(new Vector3(a.box.x1, a.box.y1, z))];
-        const box: ScreenBox = {
-            x0: Math.min(...corners.map((c) => c.x)),
-            x1: Math.max(...corners.map((c) => c.x)),
-            y0: Math.min(...corners.map((c) => c.y)),
-            y1: Math.max(...corners.map((c) => c.y)),
-            near: Math.min(...corners.map((c) => c.depth)),
-            far: Math.max(...corners.map((c) => c.depth)),
+        const onScreen = (b: { x0: number; y0: number; x1: number; y1: number }): ScreenBox => {
+            const corners = [p.point(new Vector3(b.x0, b.y0, z)), p.point(new Vector3(b.x1, b.y1, z))];
+            return {
+                x0: Math.min(...corners.map((c) => c.x)),
+                x1: Math.max(...corners.map((c) => c.x)),
+                y0: Math.min(...corners.map((c) => c.y)),
+                y1: Math.max(...corners.map((c) => c.y)),
+                near: Math.min(...corners.map((c) => c.depth)),
+                far: Math.max(...corners.map((c) => c.depth)),
+            };
         };
-        return [{ kind: a.kind, ...(a.text === undefined ? {} : { text: a.text }), box }];
+        return [
+            {
+                kind: a.kind,
+                ...(a.text === undefined ? {} : { text: a.text }),
+                box: onScreen(a.box),
+                ...(a.heads === undefined ? {} : { heads: a.heads.map(onScreen) }),
+            },
+        ];
     });
 }
 

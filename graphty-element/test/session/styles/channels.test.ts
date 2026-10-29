@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
-import type { EdgeLinePattern } from "../../../src/catalog/types";
+import type { Binding, EdgeLinePattern } from "../../../src/catalog/types";
 import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
@@ -20,6 +20,7 @@ import {
     DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
+    modelBindingProblem,
     type NodeShapeValue,
     type PaintedValue,
     toColorValue,
@@ -79,6 +80,7 @@ const DECLARED = [
     "node.haloScale",
     "node.haloOpacity",
     "node.wireframe",
+    "node.meshDetail",
     "node.flat",
     "node.unlit",
     "node.marker",
@@ -182,6 +184,13 @@ const DECLARED = [
     "node.gradientColors",
     "node.gradientStops",
     "node.gradientKind",
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelFit",
+    "node.modelCenter",
+    "node.texture",
     "edge.color",
     "edge.width",
     "edge.minScreenWidth",
@@ -326,6 +335,10 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
+    "node.shaders",
+    "edge.shaders",
+    "edge.taper",
+    "edge.lift",
 ];
 
 describe("the channel set", () => {
@@ -352,9 +365,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-nine node channels and one hundred and forty edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 159);
-        assert.strictEqual(channelsFor("edge").length, 140);
+    it("splits into one hundred and sixty-eight node channels and one hundred and forty-three edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 168);
+        assert.strictEqual(channelsFor("edge").length, 143);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -630,6 +643,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelFit",
         // Unset, a node is filled flat with its colour.
         "node.gradientColor",
+        // Unset, a node draws its shape and no model.
+        "node.model",
+        // Unset, a node draws its own color and no picture.
+        "node.texture",
         "edge.patternCount",
         // Unset, a wave is drawn within its line's width or its border's ring.
         "edge.waveAmplitude",
@@ -709,6 +726,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        // Unset, no shader parameter is set and no effect is drawn.
+        "node.shaders",
+        "edge.shaders",
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
@@ -1022,6 +1042,38 @@ describe("the arrow-end channels", () => {
             } else {
                 assert.deepStrictEqual(asHead, head, suffix);
             }
+        }
+    });
+});
+
+describe("modelBindingProblem", () => {
+    const at = "encode.node.model";
+
+    it("accepts a value map of asset ids that skips unlisted categories", () => {
+        assert.isNull(modelBindingProblem({ by: "data.kind", map: { a: "asset:a" }, unmapped: "skip" }, at));
+        assert.isNull(modelBindingProblem({ value: "https://example.com/x.glb" }, at), "a literal is judged by origin");
+    });
+
+    it("accepts http(s) URLs among the listed values, and a value read from the data", () => {
+        const url = "https://example.com/x.glb";
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: url }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", missing: { value: url } },
+            { by: "data.url", scale: "passthrough" },
+            { template: ["{data.url}"] },
+        ];
+        for (const binding of bindings) {
+            assert.isNull(modelBindingProblem(binding, at));
+        }
+    });
+
+    it("refuses a listed value that is neither an asset id nor an http(s) URL", () => {
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: "rack.glb" }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", other: { threshold: 1, value: "file:///etc/x.glb" } },
+        ];
+        for (const binding of bindings) {
+            assert.equal(modelBindingProblem(binding, at)?.code, "E_MODEL_URL_BLOCKED");
         }
     });
 });

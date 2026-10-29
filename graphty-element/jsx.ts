@@ -160,6 +160,10 @@ export interface GraphtyElementJSXProps {
      */
     renderOnDemand?: Graphty["renderOnDemand"];
     /**
+     * Sets the reader's shader settings, in place of the ones before.
+     */
+    shaderSettings?: Graphty["shaderSettings"];
+    /**
      * Sets what a selected node looks like.
      */
     selectionStyle?: Graphty["selectionStyle"];
@@ -487,6 +491,7 @@ export interface GraphtyElementJSXProps {
     "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
+    "ongraphty-model-change"?: (event: GraphtyElementEventMap["graphty-model-change"]) => void;
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;
     "ongraphty-node-drag-end"?: (event: GraphtyElementEventMap["graphty-node-drag-end"]) => void;
     "ongraphty-node-drag-start"?: (event: GraphtyElementEventMap["graphty-node-drag-start"]) => void;

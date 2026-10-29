@@ -73,9 +73,11 @@ function serve(answer = true) {
             if (req.url.startsWith("/token")) {
                 const payload = Buffer.from(JSON.stringify({ exp: Date.now() / 1000 + 600 })).toString("base64url");
                 res.end(JSON.stringify({ value: `h.${payload}.s` }));
-            } else if (req.url.startsWith("/v1/plan"))
-                res.end(JSON.stringify(typeof answer === "function" ? answer(req) : { order: ["a"] }));
-            else res.end("{}");
+            } else if (req.url.startsWith("/v1/plan")) {
+                // a function that returns undefined leaves this request unanswered
+                const plan = typeof answer === "function" ? answer(req) : { order: ["a"] };
+                if (plan !== undefined) res.end(JSON.stringify(plan));
+            } else res.end("{}");
         });
     });
     servers.push(server);
@@ -144,10 +146,25 @@ describe("client", () => {
     it("fails open against a store that never answers, and spools the record", async () => {
         const s = await serve(false);
         const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
-        const r = await postInvocation(cfg, { id: "r1.1" }, join(TMP, "spool"), 300);
+        const r = await postInvocation({ ...cfg, retryMs: [10, 10] }, { id: "r1.1" }, join(TMP, "spool"), 300);
         assert.equal(r.ok, false);
         assert.equal(r.why, "no answer in 0.3 s");
+        assert.equal(s.seen.length, 3, "sent once and retried twice");
         assert.deepEqual(JSON.parse(readFileSync(r.spooled, "utf8")), { id: "r1.1" });
+    });
+    it("sends a request again when no answer came, and never one that got an answer", async () => {
+        let calls = 0;
+        const slowOnce = await serve(() => (++calls === 1 ? undefined : { order: ["b"] }));
+        const cfg = { ...config({ RESULTS_URL: slowOnce.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
+        assert.deepEqual(await call(cfg, "GET", "/v1/plan", undefined, 300), { ok: true, data: { order: ["b"] } });
+        assert.equal(calls, 2);
+        mock.method(globalThis, "fetch", () => Promise.resolve(new Response("", { status: 503 })));
+        try {
+            assert.deepEqual(await call(cfg, "GET", "/v1/plan"), { ok: false, why: "HTTP 503" });
+            assert.equal(globalThis.fetch.mock.callCount(), 1);
+        } finally {
+            mock.restoreAll();
+        }
     });
     it("gives the OIDC token request and the call one deadline between them", async () => {
         const signals = [];
@@ -258,11 +275,11 @@ describe("reporter", () => {
     });
     it("ends the run when the store never answers", async () => {
         const s = await serve(false);
-        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
         const r = new ResultsReporter({ env: { GRAPHTY_RESULTS_INVOCATION: "b" }, cfg });
         r.onTestCaseResult(testCase(1));
         await r.onTestRunEnd();
-        assert.equal(s.seen.length, 1);
+        assert.equal(s.seen.length, 3, "the first request and its two retries, and nothing after");
     });
 });
 
@@ -363,10 +380,10 @@ describe("runShape", () => {
 describe("postRecords", () => {
     it("asks a store that never answers once and spools every record", async () => {
         const s = await serve(false);
-        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const cfg = { ...config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
         const spool = join(TMP, "spool-2");
         const rs = await postRecords(cfg, [{ id: "g.1" }, { id: "g.2" }], spool, 300);
-        assert.equal(s.seen.length, 1);
+        assert.equal(s.seen.length, 3, "the first request and its two retries, and nothing after");
         assert.deepEqual(
             rs.map((r) => r.ok),
             [false, false],

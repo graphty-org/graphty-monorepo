@@ -155,6 +155,8 @@ export interface TestItem extends RawBase {
     status: string; // fail | timeout (results-service failureHashes)
     signature: string;
     seenAt: number;
+    /** From a dependency-bump pull request (ingest.ts isBump): the bump's own failure, never counted as flaky. */
+    bump?: true;
 }
 
 export interface PullRequestItem extends RawBase {

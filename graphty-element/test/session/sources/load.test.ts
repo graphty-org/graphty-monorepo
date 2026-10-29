@@ -5,7 +5,7 @@
  * reopens with its loads waiting and nothing fetched.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import {
     createGraphSession,
@@ -347,6 +347,49 @@ describe("a saved project with source loads", () => {
             assert.strictEqual(session.data.edges().length, edges, "a rerun adds no second copy of an edge");
             assert.deepEqual(session.data.nodes()[0]["_source.loads"], [session.data.loads()[0].key]);
             assert.strictEqual(session.data.loads().length, 1, "the load keeps its record and key");
+        });
+    });
+
+    it("lists its waiting loads in session.network, and runs one the reader allows", async () => {
+        let text = "";
+        await withSession(async (session) => {
+            await session.data.import(
+                { source: "people-load", config: { team: "core" } },
+                { endpoint: ENDPOINT, fetch: peopleFetch() },
+            );
+            ({ text } = await session.project.save());
+        });
+
+        await withSession(async (session) => {
+            await session.project.open(text);
+            const [load] = session.data.pendingSourceLoads();
+            const [request] = session.network.pending();
+            assert.deepEqual(request.params, {
+                id: load.id,
+                url: `${ENDPOINT}/`,
+                host: new URL(ENDPOINT).host,
+                kind: "source",
+                by: "source",
+                layerIds: [],
+            });
+            const fetch = peopleFetch();
+            vi.stubGlobal("fetch", fetch);
+            try {
+                await session.network.allow(request.params.id);
+            } finally {
+                vi.unstubAllGlobals();
+            }
+
+            assert.strictEqual(fetch.calls.length, 1);
+            assert.deepEqual(session.network.pending(), []);
+        });
+
+        await withSession(async (session) => {
+            await session.project.open(text);
+            const [request] = session.network.pending();
+            session.network.deny(request.params.id);
+            assert.deepEqual(session.network.pending(), [], "a denied load is not asked again");
+            assert.lengthOf(session.data.pendingSourceLoads(), 1, "and stays unloaded");
         });
     });
 

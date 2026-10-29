@@ -78,6 +78,7 @@
 import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
+import { isShaderId, type ShaderUse } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
     Binding,
@@ -138,7 +139,14 @@ import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { beneathAuthored, placementLayers } from "./autoApply";
-import { channelDescriptor, isChannel, readRenamedChannels, toColorValue } from "./channels";
+import {
+    channelDescriptor,
+    isChannel,
+    mergeShaderUses,
+    placeOfUse,
+    readRenamedChannels,
+    toColorValue,
+} from "./channels";
 import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
 import {
     type BindingPreview,
@@ -156,6 +164,7 @@ import {
     type EncodingRun,
     type EncodingSource,
     type EncodingSpec,
+    type ParamEncodingSpec,
     planColumnEncoding,
     planEncoding,
     proposeColumnBinding,
@@ -329,6 +338,13 @@ export interface TemplateReport {
      * paint is `update(id, { enabled: true })` once the data is there.
      */
     readonly unbound: readonly UnboundLayer[];
+    /**
+     * What happened to the document's shaders, as codes: `shader.held` with `ids`, the ones that
+     * wait for `session.shaders.approve`; `shader.id-taken` with `id`, one the project already
+     * holds with other text (the project's stays). Absent when the document carries none.
+     * @since 3.36.0
+     */
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
 }
 
 /** What applying a style document accepts beyond the document itself. */
@@ -345,6 +361,14 @@ export interface TemplateOptions extends RunOptions {
      * the layers a reader added stay on top of them.
      */
     readonly at?: TemplatePosition;
+    /**
+     * What to do with the shaders the document carries, for this call only: `"hold"` until
+     * `session.shaders.approve`, `"run"` them, or `"refuse"` them (layers naming them draw what
+     * lies beneath). Absent: the element's `shaderSettings.untrusted`, which holds by default.
+     * A `shaderSettings` member in the document itself is ignored.
+     * @since 3.36.0
+     */
+    readonly shaders?: "run" | "hold" | "refuse";
 }
 
 /** Where `applyTemplate` puts a document's layers. */
@@ -621,6 +645,18 @@ export interface StylesApi {
      * ```ts
      * await session.styles.encode({ column: { kind: "node", name: "department" }, channel: "node.color" });
      * ```
+     *
+     * `values` names what each category paints, and leaves a category it does not list alone.
+     * That is how each kind of node is drawn as its own model; `node.model` takes asset ids and
+     * URLs, and a URL waits for its host to be allowed (`session.network`) before it is fetched:
+     *
+     * ```ts
+     * await session.styles.encode({
+     *     column: { kind: "node", name: "kind" },
+     *     channel: "node.model",
+     *     values: { server: "asset:server", person: "asset:person" },
+     * });
+     * ```
      * @param spec - The run or the column, the channel and the taste.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer, and rejects with `E_UNKNOWN_RUN` for a run this
@@ -639,12 +675,17 @@ export interface StylesApi {
      *
      * A refusal is a coded fact whose codes `EncodingRefusalCode` lists; a run spec's refusal carries
      * the code `E_BAD_COMMAND` that `encode()` would reject with.
+     *
+     * `channel` may also be a shader parameter declared `varies`, by its address
+     * (`"node.shaders.uncertainty-aura.intensity"`, since 3.36.0): the binding then maps onto the
+     * parameter's declared range, and is written under that address in a layer's `encode`.
      * @param spec - What `encode()` would be asked.
      * @returns `{ ok: true, binding }` or `{ ok: false, refusal }`.
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE`, `E_UNKNOWN_RUN` or `E_UNKNOWN_CHANNEL`
-     *     for something that does not exist.
+     *     for something that does not exist, `E_UNKNOWN_SHADER` or `E_UNKNOWN_SHADER_PARAM` for an
+     *     address naming no shader or no parameter that varies.
      */
-    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
+    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec | ParamEncodingSpec): EncodingProposal;
     /**
      * Paint the elements a run chose: a route, a chosen set of nodes, a chosen set of edges.
      *
@@ -1260,6 +1301,15 @@ export interface SessionStylesApi extends StylesApi {
      * @returns The compiled layers, bottom first.
      */
     compiled(): readonly CompiledLayer[];
+    /**
+     * Whether the page's own code named this model URL, in a layer it added or updated directly
+     * (`styles.add`, `styles.update`). Only such a URL is fetched without the page allowing its
+     * host; a URL from a project file, a template, an AI command, suggested styles, an encoding or
+     * an expression is not (design/rendering/node-models.md, section 2.6).
+     * @param url - The URL as the layer named it.
+     * @returns True when code named it.
+     */
+    modelUrlFromCode(url: string): boolean;
 }
 
 /**
@@ -1345,6 +1395,8 @@ export interface StylesSources {
     readonly paths?: PathDirectory;
     /** Whether the graph is directed now, which decides the head an edge draws when no layer sets one. */
     readonly directed?: () => boolean;
+    /** Whether `edge.lift` draws now: a flat layout in the 3D view. See {@link ExplainSources.liftDrawn}. */
+    readonly liftDrawn?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
     /**
@@ -1869,6 +1921,55 @@ function documentRowKeys(specs: readonly LayerSpec[], ids: readonly LayerId[]): 
     return keys;
 }
 
+/** The most pasted shaders one style document carries. */
+const DOCUMENT_SHADER_LIMIT = 64;
+
+/** The most shader text one style document carries, in characters. */
+const DOCUMENT_SHADER_TEXT_LIMIT = 262_144;
+
+/**
+ * Check a document's shader list: at most 64 entries, each a namespaced id and its text, at most
+ * 256 KB of text in all. The text itself is checked when the shader is added to the project.
+ * @param shaders - The list, as the document carries it.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, whose `details.code` is `shader.too-many`,
+ *   `shader.too-large` or `shader.id-invalid`.
+ */
+function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
+    if (shaders === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(shaders) || shaders.length > DOCUMENT_SHADER_LIMIT) {
+        const count = Array.isArray(shaders) ? shaders.length : 0;
+        throw badCommand(`A style document carries at most ${String(DOCUMENT_SHADER_LIMIT)} shaders.`, {
+            code: "shader.too-many",
+            count,
+            limit: DOCUMENT_SHADER_LIMIT,
+        });
+    }
+
+    let bytes = 0;
+    for (const entry of shaders as readonly unknown[]) {
+        const { id, text } = (entry ?? {}) as { id?: unknown; text?: unknown };
+        if (!isShaderId(id, true) || typeof text !== "string") {
+            throw badCommand("Each shader in a style document is { id, text }, its id namespaced.", {
+                code: "shader.id-invalid",
+                id: String(id),
+            });
+        }
+
+        bytes += text.length;
+    }
+
+    if (bytes > DOCUMENT_SHADER_TEXT_LIMIT) {
+        throw badCommand("A style document carries at most 256 KB of shader text.", {
+            code: "shader.too-large",
+            bytes,
+            limit: DOCUMENT_SHADER_TEXT_LIMIT,
+        });
+    }
+}
+
 /**
  * Check a style document is one this element can read at all.
  *
@@ -1893,6 +1994,8 @@ function checkDocument(document: StyleDocument): void {
             { version },
         );
     }
+
+    checkDocumentShaders(document.shaders);
 
     const missing = (document.palettes ?? [])
         .filter((palette) => paletteDescriptor(palette.id) === undefined)
@@ -2444,6 +2547,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         edgeIndex: sources.edgeIndex ?? NO_INDEX,
         ...(sources.paths === undefined ? {} : { paths: sources.paths }),
         ...(sources.directed === undefined ? {} : { directed: sources.directed }),
+        ...(sources.liftDrawn === undefined ? {} : { liftDrawn: sources.liftDrawn }),
     };
 
     /**
@@ -2689,6 +2793,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // A document's layer may name a set of the session it was saved in: kept, and reported
             // detached, rather than refused.
             ...(sources.admitScope === undefined || !admit ? {} : { admitScope: sources.admitScope }),
+            // A document's layer may name a shader this page has not registered: kept, and
+            // reported as drawing nothing (`styles.counts`), rather than refused.
+            ...(admit ? {} : { shaders: "report" as const }),
         };
 
         return checkLayerSpec(withDefaultPalettes(given, id), options);
@@ -2783,6 +2890,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param options - A signal, and a progress handler.
      * @returns The run.
      */
+    /**
+     * The model URLs the page's code named in a layer it added or updated itself.
+     *
+     * ponytail: grows for the life of the session, so a URL code once named stays fetchable after
+     * its layer is gone; track it per layer id if a page ever needs to withdraw that.
+     */
+    const codeModelUrls = new Set<string>();
+
+    /**
+     * Record the model URL a direct add or update from code names. A layer that says it came from
+     * anything but the user (an AI command, a run, a template, a plugin) is not code's own.
+     * @param spec - The specification or patch as the caller handed it.
+     */
+    const noteCodeModel = (spec: Partial<LayerSpec>): void => {
+        for (const named of [spec.set?.["node.model"], spec.set?.["node.texture"]]) {
+            if (typeof named === "string" && !named.startsWith("asset:") && (spec.source?.by ?? "user") === "user") {
+                codeModelUrls.add(named);
+            }
+        }
+    };
+
     const edit = <T>(
         verb: StyleVerb,
         label: string,
@@ -3313,6 +3441,59 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             unresolvedPaths: Object.freeze([...unresolved]),
             reason: "add",
         };
+    };
+
+    /**
+     * What a document's shaders do to the project: the ones it adds, and the facts to report.
+     * @param document - The document.
+     * @param asked - The trust the call asked for, if any.
+     * @returns The entries to write and the facts.
+     */
+    const documentShaders = (
+        document: StyleDocument,
+        asked: ShaderTrustMode | undefined,
+    ): {
+        readonly mode: ShaderTrustMode;
+        readonly writes: readonly { readonly id: string; readonly text: string }[];
+        readonly facts: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    } => {
+        const trust = SHADER_TRUST.get(api);
+        const mode = asked ?? trust?.mode() ?? "hold";
+        const writes: { id: string; text: string }[] = [];
+        const facts: CodedFact<"shader.held" | "shader.id-taken">[] = [];
+        if (mode === "refuse") {
+            return { mode, writes, facts };
+        }
+
+        const held: string[] = [];
+        for (const { id, text } of document.shaders ?? []) {
+            // A shader this page registered under the id is the page's own code: the page's
+            // version draws, and the document's copy is not needed.
+            if (trust?.pageOwns(id) === true) {
+                continue;
+            }
+
+            const existing = dispatcher.state.shaders.get(id);
+            if (existing !== undefined) {
+                // The first loaded wins; a second text under the id is reported, not swapped in.
+                if (existing.text !== text) {
+                    facts.push({ code: "shader.id-taken", params: { id } });
+                }
+
+                continue;
+            }
+
+            writes.push({ id, text });
+            if (mode !== "run" && trust?.trusted(text) !== true) {
+                held.push(id);
+            }
+        }
+
+        if (held.length > 0) {
+            facts.push({ code: "shader.held", params: { ids: held } });
+        }
+
+        return { mode, writes, facts };
     };
 
     /**
@@ -3950,7 +4131,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (command.op === "style.template") {
-            return planTemplate(command.document, command.templateId, command.at);
+            const plan = planTemplate(command.document, command.templateId, command.at);
+            const { facts } = documentShaders(command.document, command.shaders);
+            return facts.length === 0 && command.document.shaders === undefined
+                ? plan
+                : { ...plan, result: Object.freeze({ ...plan.result, shaders: Object.freeze(facts) }) };
         }
 
         switch (command.action) {
@@ -4056,6 +4241,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         previewColumn: (binding, channel, column) => previewColumn(binding, channel, column),
         execute(command, draft) {
             const planned = planOf(command);
+            if (command.op === "style.template") {
+                // The layers are planned first, so a refused document writes no shader either.
+                const { mode, writes } = documentShaders(command.document, command.shaders);
+                if (mode === "run") {
+                    SHADER_TRUST.get(api)?.trust(writes.map((entry) => entry.text));
+                }
+
+                for (const { id, text } of writes) {
+                    draft.shaders.set(id, Object.freeze({ text }));
+                }
+            }
+
             const stack = current();
             // The tree follows the stack another verb planned, or is the one a tree verb planned;
             // the stack then takes the tree's order.
@@ -4288,6 +4485,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
+        modelUrlFromCode(url: string): boolean {
+            return codeModelUrls.has(url);
+        },
+
         get(id: LayerId): Layer | undefined {
             return listed().byId.get(id);
         },
@@ -4297,6 +4498,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         add(spec: LayerSpec, at?: LayerPosition, options: RunOptions = {}): Run<Layer> {
+            noteCodeModel(spec);
             return edit<Layer>(
                 "add",
                 `Add layer "${spec.name}"`,
@@ -4306,6 +4508,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         update(id: LayerId, patch: Partial<LayerSpec>, options: StyleUpdateOptions = {}): Run<Layer> {
+            noteCodeModel(patch);
             const { keepEmpty, ...run } = options;
             return edit<Layer>(
                 "update",
@@ -4501,7 +4704,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal {
+        proposeEncoding(asked: EncodingSpec | ColumnEncodingSpec | ParamEncodingSpec): EncodingProposal {
+            // An address is read through its parameter's descriptor where a channel's is read.
+            const spec = asked as EncodingSpec | ColumnEncodingSpec;
             if ("column" in spec) {
                 const { column, declaration } = columnOf(spec);
                 return proposeColumnBinding(spec, column, declaration, scales);
@@ -4715,7 +4920,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        applyTemplate(document: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
+        applyTemplate(given: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
+            // Trust is the reader's and the page's, never the file's: a document that carries
+            // shader settings has them dropped before anything reads it.
+            const { shaderSettings: _ignored, ...document } = given as StyleDocument & { shaderSettings?: unknown };
             return edit<TemplateReport>(
                 "template",
                 "Apply a style document",
@@ -4724,6 +4932,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     document,
                     ...(options.templateId === undefined ? {} : { templateId: options.templateId }),
                     ...(options.at === undefined ? {} : { at: options.at }),
+                    ...(options.shaders === undefined ? {} : { shaders: options.shaders }),
                 },
                 options,
             );
@@ -4927,7 +5136,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         counts(id: LayerId): StyleCounts {
             const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
 
-            return styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
+            const counts = styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
+            // Groups past the outline cap draw nothing; said here, never dropped silently.
+            const left = groupOutlinesOf(api)
+                .filter((each) => each.layer === id)
+                .reduce((sum, each) => sum + each.left, 0);
+            return left === 0
+                ? counts
+                : {
+                      ...counts,
+                      undrawn: Object.freeze([
+                          ...counts.undrawn,
+                          { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
+                      ]),
+                  };
         },
 
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
@@ -5027,6 +5249,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const mine = current().filter((entry) => !entry.layer.locked);
             const layers = mine.map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
+            // The project's shaders travel with its look, verbatim, beside the palettes, and so do
+            // the page's registered shaders its layers name, so the look opens on a page without them.
+            const shaders = [
+                ...[...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text })),
+                ...(SHADER_TRUST.get(api)?.embedded(layers) ?? []).map((entry) => Object.freeze({ ...entry })),
+            ];
             // Saved by place, since an opened document mints new layer ids.
             const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
@@ -5036,6 +5264,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 // Written only when there is something to write, so a look that uses nothing but
                 // the element's own palettes saves byte for byte what it saved before.
                 ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
+                ...(shaders.length === 0 ? {} : { shaders: Object.freeze(shaders) }),
                 ...(tree === undefined ? {} : { tree }),
             });
         },
@@ -5046,7 +5275,136 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     PAINTING.set(api, painting);
+    OUTLINES.set(api, () => groupOutlineSets(painting(current()), sources, (id) => explainSources.nodeIndex(id)));
     return api;
+}
+
+/**
+ * The most group outlines one graph draws, across every layer (`shader.group-cap`): the field
+ * targets hold as many (eight targets of four groups), so no group drawn from a field is ever left
+ * out by them.
+ */
+export const GROUP_OUTLINE_CAP = 32;
+
+/** A group's key: its `groupBy` value, or null for a use drawing one outline. */
+export type GroupKey = string | number | boolean | null;
+
+/**
+ * One use at the place `group` as it draws: its groups and their members, bottom first. A node is a
+ * member when it still carries the use after the stack is resolved.
+ */
+export interface GroupOutlineSet {
+    /** The layer the use is on. */
+    readonly layer: LayerId;
+    /** The use. */
+    readonly use: ShaderUse;
+    /** Its groups, in the order their values were first seen. */
+    readonly groups: readonly { readonly key: GroupKey; readonly members: readonly NodeId[] }[];
+    /** How many groups the cap left out. */
+    readonly left: number;
+}
+
+/** Each stack's outline reader, by the API that owns it; see {@link groupOutlinesOf}. */
+const OUTLINES = new WeakMap<SessionStylesApi, () => readonly GroupOutlineSet[]>();
+
+/**
+ * The group outlines a stack draws now: one per (layer, use at `group`, `groupBy` value), around
+ * the nodes that carry that use once the stack's `node.shaders` lists are resolved. A node without
+ * a `groupBy` value is in no group. At most {@link GROUP_OUTLINE_CAP} groups across the whole
+ * stack, lowest layers first.
+ * @param api - A stack {@link createStylesApi} built (anything else draws none).
+ * @returns The outlines, bottom first.
+ */
+export function groupOutlinesOf(api: object): readonly GroupOutlineSet[] {
+    return OUTLINES.get(api as SessionStylesApi)?.() ?? [];
+}
+
+/**
+ * A group key from a read value: primitives as they are, anything else as text.
+ * @param value - The value.
+ * @returns The key, or undefined for no value.
+ */
+function groupKeyOf(value: unknown): GroupKey | undefined {
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+        ? value
+        : JSON.stringify(value);
+}
+
+/**
+ * The group outlines of a painting stack.
+ * @param stack - The stack as it paints, bottom first.
+ * @param sources - The stack's sources, for the graph's nodes and their values.
+ * @param nodeIndex - A node's index by id.
+ * @returns The outlines.
+ */
+function groupOutlineSets(
+    stack: readonly CompiledLayer[],
+    sources: StylesSources,
+    nodeIndex: (id: NodeId) => number | undefined,
+): readonly GroupOutlineSet[] {
+    const layers = stack.filter(
+        (entry) =>
+            entry.layer.enabled &&
+            entry.layer.target === "node" &&
+            Array.isArray(entry.layer.set?.["node.shaders"]) &&
+            (entry.layer.set["node.shaders"] as readonly ShaderUse[]).length > 0,
+    );
+    const owner = new Map<ShaderUse, LayerId>();
+    for (const { layer } of layers) {
+        for (const use of layer.set?.["node.shaders"] as readonly ShaderUse[]) {
+            owner.set(use, layer.id);
+        }
+    }
+
+    const grouped = [...owner.keys()].filter((use) => use.off !== true && placeOfUse(use) === "group");
+    if (grouped.length === 0) {
+        return [];
+    }
+
+    // Per use, its members by group, in the order the nodes are met.
+    const members = new Map<ShaderUse, Map<GroupKey, NodeId[]>>(grouped.map((use) => [use, new Map()]));
+    for (const id of sources.resolveScope?.(WHOLE_GRAPH).nodes ?? []) {
+        const index = nodeIndex(id);
+        if (index === undefined) {
+            continue;
+        }
+
+        let uses: readonly ShaderUse[] = [];
+        for (const { layer, selector } of layers) {
+            if (selector.test === null || selector.test(index)) {
+                uses = mergeShaderUses(uses, layer.set?.["node.shaders"]);
+            }
+        }
+
+        for (const use of uses) {
+            const groups = members.get(use);
+            const key = use.groupBy === undefined ? null : groupKeyOf(sources.elements.nodeValue(index, use.groupBy));
+            if (groups === undefined || key === undefined) {
+                continue;
+            }
+
+            const list = groups.get(key) ?? [];
+            list.push(id);
+            groups.set(key, list);
+        }
+    }
+
+    let room = GROUP_OUTLINE_CAP;
+    return grouped.map((use) => {
+        const all = [...(members.get(use) ?? [])];
+        const kept = all.slice(0, room);
+        room -= kept.length;
+        return Object.freeze({
+            layer: owner.get(use) as LayerId,
+            use,
+            groups: Object.freeze(kept.map(([key, list]) => ({ key, members: list }))),
+            left: all.length - kept.length,
+        });
+    });
 }
 
 /** Each stack's {@link paintingOf} view, by the API that owns it. */
@@ -5062,4 +5420,34 @@ const PAINTING = new WeakMap<SessionStylesApi, (stack: readonly CompiledLayer[])
  */
 export function paintingOf(api: SessionStylesApi, stack: readonly CompiledLayer[]): readonly CompiledLayer[] {
     return PAINTING.get(api)?.(stack) ?? stack;
+}
+
+/** What a document's shaders do: run, wait for approval, or draw nothing. */
+type ShaderTrustMode = "run" | "hold" | "refuse";
+
+/** What a session's shaders tell its style stack about trust; see {@link setShaderTrust}. */
+interface ShaderTrust {
+    /** The trust a document gets when its call names none. */
+    readonly mode: () => ShaderTrustMode;
+    /** Whether a text may run without asking. */
+    readonly trusted: (text: string) => boolean;
+    /** Approve texts for this session. */
+    readonly trust: (texts: readonly string[]) => void;
+    /** The text of each page-registered shader the layers name, to embed in a saved document. */
+    readonly embedded: (layers: readonly LayerSpec[]) => readonly { readonly id: string; readonly text: string }[];
+    /** Whether the page registered a shader under this id, so a document's copy gives way to it. */
+    readonly pageOwns: (id: string) => boolean;
+}
+
+/** Each stack's shader trust, by the API that owns it. */
+const SHADER_TRUST = new WeakMap<SessionStylesApi, ShaderTrust>();
+
+/**
+ * Tell a style stack how its session trusts shader text, so a document it applies reports which
+ * shaders it holds.
+ * @param api - The stack.
+ * @param trust - The session's trust.
+ */
+export function setShaderTrust(api: SessionStylesApi, trust: ShaderTrust): void {
+    SHADER_TRUST.set(api, trust);
 }

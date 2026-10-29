@@ -12,6 +12,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
 import { engineOf, isDrawn, LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
 import { columnFitWords, layoutErrorWords, locationFieldWords, optionEffectWords } from "./refusalWords";
+import { TransitionRow } from "./TransitionRow";
 
 /** The location map's id, whose form names the columns it read and picks the map it draws on. */
 const MAP_LAYOUT = "location-map";
@@ -363,6 +364,7 @@ export function LayoutForm({
                     disabledReason={disabledReason}
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
                 />
+                <TransitionRow session={session} />
                 {isMap ? (
                     <MapSourceFields value={values.map as BasemapConfig | null | undefined} onChange={pickMap} />
                 ) : null}

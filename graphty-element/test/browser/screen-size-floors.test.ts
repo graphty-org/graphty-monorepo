@@ -63,7 +63,7 @@ describe("screen-size floors", () => {
     });
 
     test("draws a line no thinner than its minimum screen width, in the shader every solid line uses", () => {
-        const mesh = Simple2DLineRenderer.createBatchMesh(0, "#000000", 1, scene, 0.85);
+        const mesh = Simple2DLineRenderer.createBatchMesh(0, "#000000", 1, scene, false, 0.85);
         const floats = (mesh.material as unknown as { _floats: Record<string, number> })._floats;
         assert.strictEqual(floats.minWidth, 0.85);
         assert.strictEqual(floats.width, 0);

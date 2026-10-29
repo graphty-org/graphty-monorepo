@@ -238,6 +238,29 @@ describe("EdgeMesh", () => {
             assert.closeTo(Math.max(...zs) - Math.min(...zs), 0.5, 1e-6);
         });
 
+        test("runs a vee's line up to its notch, as Graphviz, Cytoscape.js and vis-network draw it", () => {
+            // Graphviz strokes the vee's shaft from its notch m (0.5) to its back (arrows.c arrow_type_crow0),
+            // Cytoscape.js and vis-network draw the line under the vee to its notch
+            const geometry = EdgeMesh.getArrowGeometry("vee");
+            const end = EdgeMesh.calculateLineEndpoint(new Vector3(0, 0, 0), new Vector3(1, 0, 0), 2, geometry);
+            assert.closeTo(end.x, -1, 1e-9);
+        });
+
+        test("stops a vee's line further back as the line grows wider than half the vee, never over its barbs", () => {
+            // the default vee is 0.8 x 0.5 = 0.4 across; a line's thickness is its width over 40
+            const stop = (lineWidth: number, size = 1, breadth = 1): number | undefined =>
+                EdgeMesh.getArrowGeometry("vee", { lineWidth, size, breadth }).lineStop;
+            assert.strictEqual(stop(8), 1 / 2);
+            // 12 wide is 0.3 of a 0.4 vee: its end corners sit on the vee's outline 0.75 back from the tip
+            assert.closeTo(stop(12) ?? 0, 0.75, 1e-9);
+            // as wide as the vee or wider: the line stops at the vee's back, as for any other cap
+            assert.strictEqual(stop(30), 1);
+            assert.strictEqual(stop(10, 0.3), 1);
+            // a broader or bigger vee holds a wider line up to its notch
+            assert.strictEqual(stop(12, 1, 2), 1 / 2);
+            assert.strictEqual(stop(12, 2), 1 / 2);
+        });
+
         test("creates different arrow for different styleId", () => {
             const options = { type: "normal" as const, width: 0.5, color: "#FF0000" };
 

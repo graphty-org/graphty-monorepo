@@ -143,10 +143,10 @@ export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1",
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelBackground" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY";
 
 // @public
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
+export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[];
 
 // @public
 export function colorDifference(hex1: string, hex2: string): number;
@@ -891,6 +891,8 @@ export const EdgeStyle: z.ZodObject<{
         }, z.core.$strict>>;
         bezier: z.ZodOptional<z.ZodBoolean>;
         bends: z.ZodOptional<z.ZodString>;
+        taper: z.ZodOptional<z.ZodNumber>;
+        lift: z.ZodOptional<z.ZodNumber>;
         fanSpacing: z.ZodOptional<z.ZodNumber>;
         fanned: z.ZodOptional<z.ZodBoolean>;
         bendCurve: z.ZodOptional<z.ZodEnum<{
@@ -1138,7 +1140,9 @@ export const EdgeStyle: z.ZodObject<{
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public
-export type Encoding = Partial<Record<Channel, Binding>>;
+export type Encoding = Partial<Record<Channel, Binding>> & {
+    [address: ShaderParamAddress]: Binding;
+};
 
 // @public
 export type FileStyleMappingKind = "passthrough" | "discrete" | "continuous";
@@ -1187,10 +1191,19 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[];
 // @public
 export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"color">;
-    color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
+    color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    shader: z.ZodOptional<z.ZodObject<{
+        id: z.ZodString;
+        params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
+    }, z.core.$strict>>;
 }, z.core.$strict>, z.ZodObject<{
     backgroundType: z.ZodLiteral<"skybox">;
     data: z.ZodUnion<[z.ZodURL, z.ZodString]>;
+    color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+    shader: z.ZodOptional<z.ZodObject<{
+        id: z.ZodString;
+        params: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodNumber, z.ZodString, z.ZodBoolean]>>>;
+    }, z.core.$strict>>;
 }, z.core.$strict>], "backgroundType">;
 
 // @public
@@ -1421,6 +1434,9 @@ export interface LayerUnmatchedGroup {
 }
 
 // @public
+export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
+// @public
 export type Lighting = (typeof LIGHTING_VALUES)[number];
 
 // @public
@@ -1495,6 +1511,7 @@ export const NodeShapes: z.ZodEnum<{
     box: "box";
     vee: "vee";
     star: "star";
+    sphere: "sphere";
     cross: "cross";
     rectangle: "rectangle";
     triangle: "triangle";
@@ -1517,7 +1534,6 @@ export const NodeShapes: z.ZodEnum<{
     "round-rectangle": "round-rectangle";
     barrel: "barrel";
     database: "database";
-    sphere: "sphere";
     cylinder: "cylinder";
     cone: "cone";
     capsule: "capsule";
@@ -1552,12 +1568,17 @@ export const NodeStyle: z.ZodObject<{
             diameter: "diameter";
             uniform: "uniform";
         }>>;
+        detail: z.ZodOptional<z.ZodUnion<[z.ZodEnum<{
+            full: "full";
+            low: "low";
+        }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
             diamond: "diamond";
             box: "box";
             vee: "vee";
             star: "star";
+            sphere: "sphere";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -1580,7 +1601,6 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";
-            sphere: "sphere";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -1626,6 +1646,26 @@ export const NodeStyle: z.ZodObject<{
         labelPaddingX: z.ZodOptional<z.ZodNumber>;
         labelPaddingY: z.ZodOptional<z.ZodNumber>;
         labelFitSquare: z.ZodOptional<z.ZodBoolean>;
+        model: z.ZodOptional<z.ZodString>;
+        modelSourceUp: z.ZodOptional<z.ZodEnum<{
+            x: "x";
+            y: "y";
+            z: "z";
+            detected: "detected";
+            "-y": "-y";
+            "-z": "-z";
+            "-x": "-x";
+        }>>;
+        modelTurn: z.ZodOptional<z.ZodNumber>;
+        modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">]>>;
+        modelFit: z.ZodOptional<z.ZodEnum<{
+            stretch: "stretch";
+            contain: "contain";
+        }>>;
+        modelCenter: z.ZodOptional<z.ZodEnum<{
+            bounds: "bounds";
+            origin: "origin";
+        }>>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
@@ -1645,6 +1685,7 @@ export const NodeStyle: z.ZodObject<{
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>], "colorType">, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
         icon: z.ZodOptional<z.ZodString>;
+        image: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
     effect: z.ZodOptional<z.ZodObject<{
         glow: z.ZodOptional<z.ZodObject<{
@@ -1721,6 +1762,7 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             vee: "vee";
             star: "star";
+            sphere: "sphere";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -1743,7 +1785,6 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";
-            sphere: "sphere";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -1780,6 +1821,7 @@ export const NodeStyle: z.ZodObject<{
             box: "box";
             vee: "vee";
             star: "star";
+            sphere: "sphere";
             cross: "cross";
             rectangle: "rectangle";
             triangle: "triangle";
@@ -1802,7 +1844,6 @@ export const NodeStyle: z.ZodObject<{
             "round-rectangle": "round-rectangle";
             barrel: "barrel";
             database: "database";
-            sphere: "sphere";
             cylinder: "cylinder";
             cone: "cone";
             capsule: "capsule";
@@ -2914,6 +2955,27 @@ export type SetOperand = Scope | {
 };
 
 // @public
+export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}`;
+
+// @public
+export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
+
+// @public
+export type ShaderParamValue = number | string | boolean | ShaderClockBinding;
+
+// @public
+export type ShaderText = string;
+
+// @public
+export interface ShaderUse {
+    readonly groupBy?: string;
+    readonly off?: true;
+    readonly params?: Readonly<Record<string, ShaderParamValue>>;
+    readonly place?: ShaderPlace;
+    readonly shader: string;
+}
+
+// @public
 export function simulateDeuteranopia(hex: string): string;
 
 // @public
@@ -2931,6 +2993,10 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    shaders?: readonly {
+        readonly id: string;
+        readonly text: ShaderText;
+    }[];
     tree?: readonly StyleDocumentRow[];
     // (undocumented)
     version: 1;

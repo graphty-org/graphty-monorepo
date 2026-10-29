@@ -485,10 +485,14 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "range":
-            known(["attribute", "min", "max", "nodes"]);
+            known(["attribute", "min", "max", "nodes", "as"]);
             checkQuery(value.attribute, 'A "range" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
             checkBounds(value);
+
+            if (value.as !== undefined && value.as !== "time") {
+                throw bad('A "range" leaf\'s as is "time", or absent to compare numbers.', { as: value.as });
+            }
             checkLeafNodes(value);
 
             return;

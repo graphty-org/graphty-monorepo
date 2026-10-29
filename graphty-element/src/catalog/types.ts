@@ -1957,6 +1957,15 @@ export type RuleTree =
           readonly attribute: Path;
           readonly min?: number;
           readonly max?: number;
+          /**
+           * How each value is read. Absent, the leaf compares numbers. `"time"` compares instants:
+           * `min` and `max` are epoch milliseconds, and each value is read the way the session's
+           * time field reads it (`session.time.parse`: a date with no zone is UTC; a designated
+           * column's own unit), so `{ max: Date.UTC(2005, 0, 1) - 1, as: "time" }` keeps what
+           * happened before 2005.
+           * @since 3.36.0
+           */
+          readonly as?: "time";
           /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
       }

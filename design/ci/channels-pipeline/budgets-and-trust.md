@@ -310,8 +310,9 @@ Ruleset "Protect master" (id 23973898), read on 2026-10-24:
 - pull request required, merge commits only, 0 approvals, `require_code_owner_review: false`;
 - required checks `All Checks Pass` and `Lint PR Title`.
 
-The one deploy key is "release workflow push (version commit and tags)" (id 164375816), used by
-release.yml as `RELEASE_DEPLOY_KEY`.
+The one deploy key is "release deploy key 2026-10-25" (id 167635448), used by release.yml and
+promote.yml as environment `release`'s `RELEASE_DEPLOY_KEY`. It replaced "release workflow push
+(version commit and tags)" (id 164375816), whose repository-level secret no job reads.
 
 ### 3.2 Target
 
@@ -320,7 +321,7 @@ release.yml as `RELEASE_DEPLOY_KEY`.
   access on the repository, not one key, so a write key added later would bypass master and the tag
   ruleset silently. The scheduler Worker (which already holds the App key and files an issue when it
   cannot dispatch) checks once a day, with the App's Administration: read, that
-  `repos/graphty-org/graphty-monorepo/keys` holds exactly one write key, id 164375816, and that the
+  `repos/graphty-org/graphty-monorepo/keys` holds exactly one write key, id 167635448, and that the
   ruleset's bypass list is unchanged, and files a `priority:critical` issue otherwise.
 - pull request rule: `require_code_owner_review: true`, `required_approving_review_count: 0` (a pull
   request that touches no owned path needs no review and auto-merges on green),

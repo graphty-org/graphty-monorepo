@@ -10,8 +10,9 @@
 const API = "https://api.github.com";
 const REPO = "graphty-org/graphty-monorepo";
 export const ISSUE_TITLE = "Release scheduler could not start a release train";
-// The one write deploy key the repository may hold: "release workflow push (version commit and tags)".
-export const RELEASE_DEPLOY_KEY_ID = 164375816;
+// The one write deploy key the repository may hold: "release deploy key 2026-10-25", the key in
+// environment release's RELEASE_DEPLOY_KEY that release.yml and promote.yml push with.
+export const RELEASE_DEPLOY_KEY_ID = 167635448;
 export const DEPLOY_KEY_ISSUE_TITLE = "graphty-monorepo's write deploy keys are not exactly the release key";
 const ISSUE_LABELS = ["bug", "priority:critical", "effort:medium"];
 // The daily deploy key check's cron, in wrangler.toml beside the release slots.

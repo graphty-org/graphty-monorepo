@@ -17,6 +17,12 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0.  (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
+    match (Before -> After, Between -> Before) clears the box but the filter keeps the old bounds,
+    so the card reads "After [empty]" while its count and the marks still show Before 2005
+    (re-walk T65B-path/17.png, 24.png). Fix: a date card with no bound must write no condition (or
+    keep the bound it can carry over); test by real input switching the match.
+
 Summarized 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
 audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
 
@@ -155,6 +161,17 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-29: Targeted re-walk of the refused-row, date-condition and weight-role fixes on a fresh
+  build (sessions in `design/ui/studio/tmp/r1-dry1-recheck-U2/`). Worked: yeast from its address
+  331/361 with no chip (T60B-success/07.png), sources.graphml clean; Before 2005 + Select marks
+  G01, G02, G09 and 5 in all (T65B-path/14.png); a style layer's Which nodes takes the date card
+  (T65B-style/20.png); km set in Fields and by the header's Role > Weight both open Shortest path
+  on km and the path totals 14.1 km (T64B-success-analyze/43.png, T64B-role-weight/22.png); trips
+  closer reads as PageRank's default and Shortest path lists it disabled, never "farther".
+  Did not work: switching a date card's match leaves stale bounds (see Top of mind 00). Lesson:
+  `--replay` "matches" ignore a combobox's value and a card's body (None -> km, text card -> date
+  card both "matched"), so look at the screenshots at every step a fix should change.
 
 - 2026-10-29 worked: a Mantine `Autocomplete` for a date box (suggestions: the column's dates as
   the table writes them). Its role is `combobox`, not `textbox`: a test that looks for a textbox

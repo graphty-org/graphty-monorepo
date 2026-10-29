@@ -545,6 +545,9 @@ A new published `GraphtyWarningCode` union, for notices that stop nothing:
 | `W_SOURCE_URL_REDACTED` | a save left values that name a credential out of the sources member: a URL load's query parameters, or a network load's endpoint, cursor or REST mapping members; details `{ id, names }` (sources.md, "URLs" rule 2, "Network loads" rules 3 and 4) |
 | `W_SOURCE_STEPS_IGNORED` | a sources member says `data: "steps"` but the file embeds that graph; the data applied; details `{ kind, pointer, graph }`, `graph` null for the file's one graph |
 | `W_SOURCE_UNREGISTERED` | a sources entry names a network source this release has not registered; kept, not offered; details `{ kind, pointer, id, source }` (sources.md, "Reopening" rule 4) |
+| `W_FILTER_CONDITION_SKIPPED` | a saved filter condition this reader cannot read (an unknown effect, a malformed condition) was skipped; what the file hides was read from its `visibility.steps`; details `{ slice: "visibility", id }` (graphty-element `docs/guide/filter-conditions.md`, "Saving") |
+| `W_FILTER_CONDITIONS_UNREADABLE` | a `visibility.conditions` field of an unknown `version`, or not a list; the steps were read; details `{ slice: "visibility", version }` |
+| `W_FILTER_STEPS_DIFFER` | a file's `visibility.steps` disagree with the keep and exclude conditions it also holds; the conditions were read; details `{ slice: "visibility" }` |
 | `W_VERSION_UPGRADED` | a member of an older version was read and upgraded; a save writes the new version; details `{ kind, pointer, found, version }` |
 
 `E_TOO_LARGE` and `E_CAP_EXCEEDED` are widened to the document limits and the recipe budgets, and

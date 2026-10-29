@@ -267,7 +267,7 @@ refuses the whole file.
 | `"attributes"`, `"valueLabels"`                             | `graphty-session`     |
 
 `config` is the settings, `arrangement` where each node stands, `pins` the pinned nodes,
-`visibility` the filter and time window, `sets` the kept sets, `views` the saved camera views,
+`visibility` the filter, the filter conditions and the time window, `sets` the kept sets, `views` the saved camera views,
 `attributes` the declared columns and `valueLabels` the names given to values
 (`data.setValueLabel`).
 Both lists may gain values in a minor release; leave out a code you do not know.

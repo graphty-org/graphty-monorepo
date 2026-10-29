@@ -51,6 +51,13 @@ export function spendWarning(count, month) {
     return `spend:llm: ${count} LLM regression runs in ${month} is about $${spend.toFixed(2)}, at or over the $${MONTHLY_CEILING} monthly ceiling`;
 }
 
+/**
+ * Whether a failed request is GitHub's own (5xx), worth asking again.
+ * @param e the error
+ * @returns true for a 5xx
+ */
+const serverError = (e) => e.status >= 500;
+
 /** Tries of one request GitHub answers 5xx, and the waits between them. */
 export const RETRY = { tries: 3, waitMs: 2000 };
 
@@ -65,7 +72,7 @@ export async function getRetried(get, path) {
         try {
             return await get(path);
         } catch (e) {
-            if (!(e.status >= 500) || i >= RETRY.tries) throw e;
+            if (!serverError(e) || i >= RETRY.tries) throw e;
             await sleep(RETRY.waitMs * i);
         }
     }
@@ -89,7 +96,7 @@ async function jobsPage(get, path, size, page) {
         return await getRetried(get, `${path}&per_page=${size}&page=${page}`);
     } catch (e) {
         const smaller = SIZES[SIZES.indexOf(size) + 1];
-        if (!(e.status >= 500) || !smaller) throw e;
+        if (!serverError(e) || !smaller) throw e;
         const n = size / smaller;
         const out = { total_count: 0, jobs: [] };
         for (let p = (page - 1) * n + 1; p <= page * n; p++) {

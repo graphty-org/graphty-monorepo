@@ -158,6 +158,40 @@ describe("pick", () => {
         assert.deepEqual([p.run, p.sha], [true, "c2"]);
     });
 
+    it("tests the run's own commit when the candidate's workflow files differ from it (#4522)", () => {
+        // run 40926721806: dispatched on c3, whose ci.yml added a Checks step and its package.json script; the
+        // newest site was c2, which lacks the script, so master's ci.yml on c2 went red with no defect in c2
+        const s = { candidate: { sha: "c2", builtAt: 1 }, sites: ["c2"], recent: [] };
+        const sameWorkflows = (a, b) => a === b;
+        const p = pick({ mode: "full", head: "c3", store: s, firstParents, stray: code, sameWorkflows });
+        assert.deepEqual([p.run, p.sha, p.site], [true, "c3", "build"]);
+        // a restart dispatched once master moved past the merge it tests
+        const r = pick({
+            mode: "restart",
+            head: "c2",
+            workflow: "c3",
+            store: s,
+            firstParents,
+            stray: code,
+            sameWorkflows,
+        });
+        assert.deepEqual([r.run, r.sha, r.site], [true, "c3", "build"]);
+        // the same workflows: the older candidate and its kept site, as before
+        const same = pick({ mode: "full", head: "c3", store: s, firstParents, stray: code, sameWorkflows: () => true });
+        assert.deepEqual([same.sha, same.site], ["c2", undefined]);
+        // a slot that does nothing stays idle, and the held head is the hold's to test whatever its workflows
+        const judged = { ...s, recent: [{ sha: "c2", state: "red" }] };
+        assert.equal(
+            pick({ mode: "full", head: "c3", store: judged, firstParents, stray: code, sameWorkflows }).run,
+            false,
+        );
+        const held = { ...s, hold: { head: "c0", base: "c0" } };
+        assert.equal(
+            pick({ mode: "full", head: "c3", store: held, firstParents, stray: code, sameWorkflows }).sha,
+            "c0",
+        );
+    });
+
     it("tests master's head when the store does not answer or records no site", () => {
         assert.deepEqual(pick({ mode: "full", head: "h", store: null, firstParents, stray: code }).sha, "h");
         const none = { candidate: null, recent: [] };

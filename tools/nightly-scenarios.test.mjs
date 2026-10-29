@@ -903,6 +903,17 @@ describe("the nightly path's scenario matrix", () => {
         assert.equal(autoAbandon({ hold: old, chain, sites: [N], recent: [images] }).abandon, false);
     });
 
+    it("(17) the newest site's workflow files differ from the run's (#4522): the run's own commit is tested and its site assembled", () => {
+        // the pick (tools/full-run.mjs) tested the older candidate H with M's ci.yml, whose new Checks step ran a
+        // package.json script H lacks; it now picks M, which has no kept site yet
+        const r = fullRun({ judged: { held: "" }, pick: { sha: M, build_run: "", site: "build" } });
+        assert.deepEqual([r.jobs.ci.inputs.ref, r.jobs.ci.inputs.reuse_build_run], [M, ""]);
+        ran(r, "pick", ...LANE_JOBS, "verdict", "candidate_site", "version", "land", "publish", "site");
+        assert.equal(r.conclusion, "success");
+        // an ordinary pick whose candidate shares the run's workflows reuses that commit's master site
+        skipped(fullRun({ judged: { held: "" } }), "candidate_site");
+    });
+
     describe("(15) a GitHub 5xx", () => {
         // a gh that answers 502 to its first `fail` calls, then as the row says
         const fakeGh = (name, fail, body) => {

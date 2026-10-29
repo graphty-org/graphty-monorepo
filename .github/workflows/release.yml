@@ -360,6 +360,10 @@ jobs:
             # head is past it; shards the ci.yml `shards` input (empty: the whole suite); hosts and macos "false" leave
             # those lanes out; capture the projects whose stories are all shot again
             forward: ${{ steps.candidate.outputs.forward }}
+            # "build" when the tested commit is this run's own because the candidate's workflow files differ from it
+            # (tools/full-run.mjs pick, #4522): its master build may not have kept a site yet, so candidate_site
+            # assembles one
+            site: ${{ steps.candidate.outputs.site }}
             shards: ${{ steps.forward.outputs.shards }}
             hosts: ${{ steps.forward.outputs.hosts }}
             macos: ${{ steps.forward.outputs.macos }}
@@ -1568,13 +1572,14 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-    # A held head past its commit (a fix forward) has no master build, so no deploy-pages.yml run assembled its site:
-    # this run assembles site-<head> from its own CI call's builds, the way deploy-pages.yml does for master, and keeps
-    # it for the site job (now, or after the owner's screenshot approval). It deploys nothing.
+    # A held head past its commit (a fix forward) has no master build, so no deploy-pages.yml run assembled its site,
+    # and the run's own commit, tested because the candidate's workflow files differ from it (pick output site), may
+    # not have one yet: this run assembles site-<head> from its own CI call's builds, the way deploy-pages.yml does for
+    # master, and keeps it for the site job (now, or after the owner's screenshot approval). It deploys nothing.
     candidate_site:
         name: Assemble the held head's site
         needs: [pick, ci]
-        if: ${{ !cancelled() && needs.pick.outputs.forward != '' && needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && (needs.pick.outputs.forward != '' || needs.pick.outputs.site == 'build') && needs.ci.result == 'success' }}
         # deploy-pages.yml asks for these (its deploy job, which a call skips); a called workflow gets no more
         permissions:
             contents: read

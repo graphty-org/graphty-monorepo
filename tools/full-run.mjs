@@ -3,8 +3,9 @@
 // sections 5 and 6): which commit a slot tests, and the verdict on it.
 //
 //   node tools/full-run.mjs pick      which commit to test, or why the slot does nothing
-//       env MODE (full | restart | candidate), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's
-//       OIDC token; writes run, sha, why, good, held and forward to GITHUB_OUTPUT
+//       env MODE (full | restart | candidate), HEAD_SHA (the commit the run started on), GITHUB_SHA (the commit
+//       whose workflows run); RESULTS_URL and the job's OIDC token; writes run, sha, why, good, held, forward and
+//       site to GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
@@ -87,7 +88,14 @@ export const LANES = {
  * The commit a slot tests, or why it does nothing.
  * @param o the inputs
  * @param o.mode full, restart or candidate
- * @param o.head the commit the run started on (master's head when it was dispatched)
+ * @param o.head the commit the run started on (master's head when it was dispatched); a restart's: the merge it tests
+ * @param o.workflow the commit whose workflow files this run runs (GITHUB_SHA: master's head when it was dispatched);
+ *     defaults to head
+ * @param o.sameWorkflows (from, to) => whether two commits have the same .github/workflows tree. The run's called
+ *     workflows (ci.yml, gpu.yml, ...) are the workflow commit's, but their jobs check out the tested commit, so an
+ *     older commit whose workflows differ would run steps written for newer source (#4522: a new Checks step and the
+ *     package.json script it runs, missing from the candidate); such a slot tests the workflow commit itself, and
+ *     the run assembles its site (output site=build), since its master build may not have kept one yet
  * @param o.store `GET /v1/candidate`'s answer (candidate, sites, recent), or null when the store did not answer
  * @param o.firstParents (sha) => that commit and its first parents, newest first
  * @param o.stray (from, to) => the changes between two commits that are neither versions nor screenshot approvals
@@ -109,9 +117,11 @@ export const LANES = {
 export function pick({
     mode,
     head,
+    workflow = head,
     store,
     firstParents,
     stray,
+    sameWorkflows = () => true,
     sameBaselines = () => true,
     onNightly = () => true,
     hasNightly = () => true,
@@ -154,6 +164,18 @@ export function pick({
         };
     }
     const p = pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold });
+    // the held head above keeps this run's workflows: it is the commit the hold exists to test, and a step it lacks
+    // is fixed forward on it like any other red
+    if (p.run && p.sha !== workflow && !sameWorkflows(p.sha, workflow)) {
+        return {
+            run: true,
+            sha: workflow,
+            good: p.good ?? "",
+            held,
+            site: "build",
+            why: `${short(p.sha)}'s workflow files differ from this run's (${short(workflow)}): testing ${short(workflow)}, whose own they are`,
+        };
+    }
     return { ...p, held };
 }
 
@@ -533,6 +555,15 @@ async function pickMain(env) {
     const stray = (from, to) => diffCommits(from, to, { acceptMerges: true }).stray;
     const baselines = (sha) => sh("git", ["rev-parse", `${sha}:visual-baselines`]);
     const sameBaselines = (from, to) => baselines(from) === baselines(to);
+    // unknown (a commit this checkout lacks) counts as different: testing the workflow's own commit is always sound
+    const workflows = (sha) => {
+        try {
+            return sh("git", ["rev-parse", `${sha}:.github/workflows`]);
+        } catch {
+            return `unknown ${sha}`;
+        }
+    };
+    const sameWorkflows = (from, to) => workflows(from) === workflows(to);
     const NIGHTLY = "refs/remotes/origin/channel/nightly";
     const onNightly = (sha) => isOnNightly(sha, NIGHTLY);
     const hasNightly = (sha) => {
@@ -551,7 +582,9 @@ async function pickMain(env) {
     const p = pick({
         mode: env.MODE,
         head: env.HEAD_SHA,
+        workflow: env.GITHUB_SHA || env.HEAD_SHA,
         store,
+        sameWorkflows,
         firstParents,
         stray,
         sameBaselines,
@@ -570,6 +603,7 @@ async function pickMain(env) {
         why: p.why,
         held: p.held ?? "",
         forward: p.forward ?? "",
+        site: p.site ?? "",
     });
 }
 

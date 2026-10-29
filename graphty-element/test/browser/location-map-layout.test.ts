@@ -170,9 +170,9 @@ describe("the location map layout", () => {
         assert.equal(strip?.style.display, "none");
     });
 
-    it("switches between a flat map and a globe in 3D, with raised arcs and great-circle arcs", async () => {
+    it("switches between a 2D map and a globe in 3D, with raised arcs and great-circle arcs", async () => {
         await graph.setViewMode("3d");
-        await placeAirports({}, 60);
+        await placeAirports({ mapDimension: "2d" }, 60);
         const edges = [...graph.getDataManager().edges.values()];
         assert.isAbove(edges.length, 10);
 
@@ -185,7 +185,7 @@ describe("the location map layout", () => {
         const lowest = Math.min(...(flatArc ?? []).map((p) => p.z));
         assert.isBelow(lowest, at(id).z - 0.5, "the arc rises off the map");
 
-        await graph.setLayout("location-map", { surface: "globe" });
+        await graph.setLayout("location-map", { mapDimension: "3d" });
         await settled();
         await drawnFrames(graph.getScene(), 2);
         const p = at(id);
@@ -214,6 +214,119 @@ describe("the location map layout", () => {
         const engine = graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { surface: string } | null };
         assert.equal(engine.geoFrame?.surface, "flat");
         assert.isNull(longestCurve(edges));
+    });
+
+    it("draws a globe mapScale times larger under nodes, edges and arcs that keep their size", async () => {
+        await graph.setViewMode("3d");
+        const id = String(FLIGHTS.ids.idOf(0));
+        const edges = (): Edge[] => [...graph.getDataManager().edges.values()];
+        /** What the globe and the drawing measure at one mapScale, at the default view. */
+        async function measure(
+            mapScale: number,
+            nodeScale: "scene" | "screen",
+        ): Promise<{
+            radius: number;
+            lift: number;
+            nodeWorld: number;
+            nodeOverHeight: number;
+            widths: number[];
+            arcRise: number;
+        }> {
+            await graph.setLayout("location-map", { mapScale, nodeScale });
+            await settled();
+            await drawnFrames(graph.getScene(), 2);
+            const frame = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
+                .geoFrame;
+            const p = at(id);
+            const mesh = graph.getNode(id)?.mesh;
+            assert.isDefined(mesh);
+            const curve = longestCurve(edges()) ?? [];
+            const first = curve[0];
+            const last = curve.at(-1) ?? first;
+            const surface = Math.max(Math.hypot(first.x, first.y, first.z), Math.hypot(last.x, last.y, last.z));
+            const rise = Math.max(...curve.map((q) => Math.hypot(q.x, q.y, q.z))) - surface;
+            const chord = Math.hypot(first.x - last.x, first.y - last.y, first.z - last.z);
+            return {
+                radius: frame.radius,
+                lift: Math.hypot(p.x, p.y, p.z) - frame.radius,
+                nodeWorld: mesh.getBoundingInfo().boundingBox.extendSizeWorld.length(),
+                // a node's scene size over the camera's height above the globe: what one size on
+                // screen holds fixed, however the camera stands
+                nodeOverHeight:
+                    mesh.getBoundingInfo().boundingBox.extendSizeWorld.length() /
+                    ((graph.getScene().activeCamera?.globalPosition.length() ?? Number.NaN) - frame.radius),
+                widths: edges().map((e) => e.drawnLine?.width ?? Number.NaN),
+                arcRise: rise / chord,
+            };
+        }
+
+        await placeAirports({}, 60);
+        const one = await measure(1, "scene");
+        const three = await measure(3, "scene");
+        assert.closeTo(three.radius / one.radius, 3, 1e-9, "the globe is three times larger");
+        assert.closeTo(three.lift, one.lift, 1e-3, "a node stands the same height above it");
+        assert.closeTo(three.nodeWorld, one.nodeWorld, 1e-6, "a node keeps its size in scene units");
+        assert.deepEqual(three.widths, one.widths, "an edge keeps its width");
+        assert.closeTo(three.arcRise, one.arcRise, 0.02, "an arc still rises in proportion to the distance it spans");
+
+        // on screen: a screen-sized node keeps its size on screen, so it does not grow with the globe
+        const screenOne = await measure(1, "screen");
+        const screenThree = await measure(3, "screen");
+        assert.isAbove(screenOne.nodeOverHeight, 0);
+        assert.closeTo(
+            screenThree.nodeOverHeight / screenOne.nodeOverHeight,
+            1,
+            0.01,
+            "a node keeps its size on screen",
+        );
+    });
+
+    it("draws the 2D map mapScale times larger under nodes and edges that keep their size, framed whole", async () => {
+        await graph.setViewMode("2d");
+        const ids = [String(FLIGHTS.ids.idOf(0)), String(FLIGHTS.ids.idOf(57))];
+        /** What the map and the drawing measure at one mapScale, at the default view. */
+        async function measure(
+            mapScale: number,
+            nodeScale: "scene" | "screen",
+        ): Promise<{ apart: number; nodeWorld: number; viewHeight: number; mapHeight: number; widths: number[] }> {
+            await graph.setLayout("location-map", { mapScale, nodeScale });
+            await settled();
+            await drawnFrames(graph.getScene(), 2);
+            const frame = (
+                graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { mapFrame: { height: number } } }
+            ).geoFrame;
+            const camera = graph.getScene().activeCamera;
+            const [a, b] = ids.map((id) => at(id));
+            const mesh = graph.getNode(ids[0])?.mesh;
+            assert.isDefined(mesh);
+            return {
+                apart: Math.hypot(a.x - b.x, a.y - b.y),
+                nodeWorld: mesh.getBoundingInfo().boundingBox.extendSizeWorld.length(),
+                viewHeight: (camera?.orthoTop ?? Number.NaN) - (camera?.orthoBottom ?? Number.NaN),
+                mapHeight: frame.mapFrame.height,
+                widths: [...graph.getDataManager().edges.values()].map((e) => e.drawnLine?.width ?? Number.NaN),
+            };
+        }
+
+        await placeAirports({}, 60);
+        const one = await measure(1, "scene");
+        const six = await measure(6, "scene");
+        assert.closeTo(six.apart / one.apart, 6, 0.01, "nodes are drawn six times further apart");
+        assert.closeTo(six.mapHeight / one.mapHeight, 6, 1e-6, "on a map six times larger");
+        assert.closeTo(six.nodeWorld, one.nodeWorld, 1e-6, "a node keeps its size in scene units");
+        assert.deepEqual(six.widths, one.widths, "an edge keeps its width");
+        assert.closeTo(six.viewHeight / one.viewHeight, 6, 0.6, "the default view still frames the whole map");
+        assert.isAtLeast(six.viewHeight, six.mapHeight, "the whole map is in view");
+
+        // on screen: a screen-sized node keeps its size on screen, so it does not shrink with the map
+        const screenOne = await measure(1, "screen");
+        const screenSix = await measure(6, "screen");
+        assert.closeTo(
+            screenSix.nodeWorld / screenSix.viewHeight / (screenOne.nodeWorld / screenOne.viewHeight),
+            1,
+            0.01,
+            "a node keeps its size on screen",
+        );
     });
 
     it("puts nodes with no usable location in a tray and reports them", async () => {

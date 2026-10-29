@@ -117,7 +117,8 @@ describe("collector with the GitHub App", () => {
         expect(report.skipped).toEqual([
             "jobs of graphty-org/graphty-monorepo run 40249709094: GitHub repos/graphty-org/graphty-monorepo/actions/runs/40249709094/jobs: HTTP 502",
         ]);
-        // Pages of 100 tried, then retried twice; then the same in pages of 50.
+        // Pages of 100 tried, then retried twice; then the same in pages of 50 and 10; then, past three failed
+        // requests (an outage, src/collector/github.ts), one page of 1 without retries.
         expect(hits.map((u) => new URL(u).searchParams.get("per_page"))).toEqual([
             "100",
             "100",
@@ -125,6 +126,10 @@ describe("collector with the GitHub App", () => {
             "50",
             "50",
             "50",
+            "10",
+            "10",
+            "10",
+            "1",
         ]);
         expect(observed(store, "master.red_builds")).toBe(1);
         expect(observed(store, "release.lanes_red")).toBe(3);
@@ -137,7 +142,7 @@ describe("collector with the GitHub App", () => {
         down = false;
         const next = await collect(deps(store, fake, NOW + 5 * MIN));
         expect(next.skipped).toEqual([]);
-        expect(hits).toHaveLength(7);
+        expect(hits).toHaveLength(11);
         expect(homes(store, "run").some((r) => String(r.pk).includes("40249709094"))).toBe(true);
     });
 

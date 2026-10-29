@@ -3636,8 +3636,9 @@ export interface SessionLayout {
     setDimension(dimension: "2d" | "3d"): Promise<void>;
     /**
      * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
-     * `surface` is `setting.notIn2d`, because the 2D view always draws its flat map. A form shows
-     * an option not in effect disabled, with words for the code.
+     * `mapDimension` is `setting.notIn2d`, because the 2D view always draws its 2D map; then
+     * `params.drawn` is the value the view draws instead (`"2d"`). A form shows an option not in
+     * effect disabled, or offering only that value, with words for the code.
      * @param id - The layout's catalogue id.
      * @param option - The option's name.
      * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.

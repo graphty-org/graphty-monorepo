@@ -1763,13 +1763,35 @@ export class RenderManager implements Manager {
         this.requestFrame();
     }
 
+    /** The graph's own background colour, last applied. */
+    #backgroundColor = DEFAULT_BACKGROUND_COLOR;
+
+    /** A colour drawn in place of the graph's background (a globe's look), or null. */
+    #backgroundOverride: string | null = null;
+
+    /**
+     * Clear the canvas to a colour in place of the graph's background colour, or null to draw the
+     * graph's own again. A skybox, when the graph has one, still covers it.
+     * @param color - Hex colour string, or null.
+     */
+    set backgroundOverride(color: string | null) {
+        if (color === this.#backgroundOverride) {
+            return;
+        }
+
+        this.#backgroundOverride = color;
+        this.setBackgroundColor(this.#backgroundColor);
+        this.requestFrame();
+    }
+
     /**
      * Update the background color
      * @param color - Hex color string (e.g., "#FFFFFF")
      */
     private setBackgroundColor(color: string): void {
+        this.#backgroundColor = color;
         try {
-            this.scene.clearColor = Color4.FromHexString(color);
+            this.scene.clearColor = Color4.FromHexString(this.#backgroundOverride ?? color);
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
             this.eventManager.emitGraphError(null, err, "other", {

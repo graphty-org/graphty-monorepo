@@ -624,6 +624,10 @@ describe("the Overview and the import of time", () => {
         const to = from + span * 0.1;
         await act(async () => {
             await session.time.window({ from, to, step: "week" });
+            // Window edits recorded within a second of each other merge into one step; an undo
+            // and a redo end that, so the drag below is counted on its own however fast it runs.
+            await session.undo();
+            await session.redo();
         });
         const before = session.history.position;
         const live: TimeStepEvent[] = [];

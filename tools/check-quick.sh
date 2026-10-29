@@ -16,7 +16,7 @@
 #    site (tools/docs-affected.sh, the pre-push gate's rule);
 # 8. the bundle size checks ci.yml's Checks job runs, for graphty-element and cytoscape-extensions when
 #    affected or their script changed;
-# 9. only with --with-dry-run: the graphty app's build, then its dry run (graphty/dry-run/run.mjs, every
+# 9. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
 #    route, on this machine's NVIDIA card). Never by default: the agent that owns a long-lived branch
 #    asks for it before opening the pull request (CLAUDE.md, "Shipping a change", step 2; issue #3269).
 #
@@ -97,7 +97,7 @@ if affected cytoscape-extensions; then
     step "Bundle size (cytoscape-extensions)" pnpm --filter @graphty/cytoscape-extensions run size
 fi
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.
-dry_run() { pnpm exec nx run graphty:build && node graphty/dry-run/run.mjs; }
+dry_run() { pnpm exec nx run graphty:build && node graphty/acceptance/run.mjs; }
 if [ "$DRY_RUN" = 1 ]; then
     step "Dry run of the graphty app (NVIDIA GPU)" dry_run
 fi

@@ -35,8 +35,8 @@ function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     writeFileSync(join(repo, "tools/sonar-gate.mjs"), envDump(out("sonar.json"), "STUB_RC_SONAR"));
     writeFileSync(join(repo, "tools/test-slots.mjs"), envDump(out("gpu.json"), "STUB_RC_GPU"));
     writeFileSync(join(repo, "tools/pr-integrity.mjs"), envDump(out("integrity.json"), "STUB_RC_INTEGRITY"));
-    mkdirSync(join(repo, "graphty/dry-run"), { recursive: true });
-    writeFileSync(join(repo, "graphty/dry-run/run.mjs"), envDump(out("dryrun.json"), "STUB_RC_DRYRUN"));
+    mkdirSync(join(repo, "graphty/acceptance"), { recursive: true });
+    writeFileSync(join(repo, "graphty/acceptance/run.mjs"), envDump(out("dryrun.json"), "STUB_RC_DRYRUN"));
     copyFileSync(new URL("./docs-affected.sh", import.meta.url).pathname, join(repo, "tools/docs-affected.sh"));
     writeFileSync(join(repo, "tools/copy-docs-content.js"), "");
     writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { "docs:api:graph-io": "x" } }));

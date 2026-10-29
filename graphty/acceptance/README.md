@@ -46,7 +46,7 @@ node graphty/acceptance/run.mjs --dist <dir>    # another build of the app
 
 `pnpm run check:quick --with-dry-run` runs the quick check, then builds the app and runs every route. When the
 quick check would run whole test shards (a change to root files), `pnpm exec nx run graphty:build` then
-`node graphty/dry-run/run.mjs` gets to the routes in minutes.
+`node graphty/acceptance/run.mjs` gets to the routes in minutes.
 Nothing runs the dry run automatically: the agent that owns a long-lived branch runs it before opening
 the pull request (the root CLAUDE.md, "Shipping a change", step 2, says when).
 

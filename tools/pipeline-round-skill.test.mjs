@@ -176,7 +176,7 @@ describe("pipeline-round skill in the channels order", () => {
     });
 });
 
-// Issue #3269: the dry run of the graphty app (graphty/dry-run/run.mjs) is run by the agent that owns a long-lived
+// Issue #3269: the dry run of the graphty app (graphty/acceptance/run.mjs) is run by the agent that owns a long-lived
 // branch, before it opens the pull request -- never automatically. CLAUDE.md step 2 and the subagent rules both
 // skills append to every prompt name the command and when to run it.
 describe("the dry run before a long-lived branch's pull request", () => {
@@ -193,7 +193,7 @@ describe("the dry run before a long-lived branch's pull request", () => {
             assert.match(text, /pnpm run check:quick --with-dry-run/);
             assert.match(text, /long-lived/);
             assert.match(text, /graphty app/);
-            assert.match(text, /node graphty\/dry-run\/run\.mjs/);
+            assert.match(text, /node graphty\/acceptance\/run\.mjs/);
             assert.match(text, /shared component/);
         });
     }

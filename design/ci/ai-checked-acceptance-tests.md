@@ -427,7 +427,7 @@ the acceptance tests do not hook into the nightly branch sync (`design/ci/branch
 and test shards and leaves the acceptance lane to the branch's owner. The automatic runs, on a
 branch and in verification, cover only the routes a change affects.
 
-Until `acceptance.mjs` exists, the command is the dry run's (`graphty/dry-run/run.mjs`, every route):
+The command for every route is `node tools/acceptance.mjs run --all` (or `graphty/acceptance/run.mjs`):
 `pnpm run check:quick --with-dry-run` (issue #3269), with the same occasions as below.
 
 The agent that owns a long-running branch decides when to run wider, and runs it with

@@ -130,7 +130,7 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > branch after a large change (a refactor of a shared component, a dependency or lockfile upgrade, a change to
 > graphty-element's styling, layout or rendering), whose change reaches the graphty app also runs
 > `pnpm run check:quick --with-dry-run` (the app's dry run on the NVIDIA card; or `pnpm exec nx run graphty:build`
-> then `node graphty/dry-run/run.mjs`, faster when the quick check runs whole test shards) and fixes every failed
+> then `node graphty/acceptance/run.mjs`, faster when the quick check runs whole test shards) and fixes every failed
 > route before opening its pull request. Run long commands through `tools/low-priority.sh`;
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:

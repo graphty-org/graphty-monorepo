@@ -91,6 +91,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         return r.data;
     };
     try {
+        // a store without the rolling slices' routes yet (deployed with tools/results-service) has nothing to offer
+        const ready = await call(cfg, "GET", CAPTURES_PATH);
+        if (!ready.ok && ready.why === "HTTP 404") {
+            console.error("rolling: the results store has no story captures route yet; nothing to offer");
+            console.log("[]");
+            process.exit(0);
+        }
         console.log(JSON.stringify(await main(get)));
     } catch (e) {
         console.error(`rolling: ${e.message}`);

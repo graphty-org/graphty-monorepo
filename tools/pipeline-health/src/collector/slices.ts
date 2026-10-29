@@ -7,6 +7,7 @@
 import { DAY, HOUR, MIN } from "../model/items.js";
 import { type AppConfig, type Fetch, GitHub, installationToken } from "./github.js";
 import type { GhJob, GhRun } from "./parse.js";
+import { setAge, type StoryCaptures } from "./slice-metrics.js";
 
 /** config/slices.json: every limit of the dispatcher, tuned by a pull request to that file. */
 export interface SliceConfig {
@@ -198,14 +199,9 @@ export function nextState(
     };
 }
 
-/** GET /v1/story-captures' summary as the decision reads it; the oldest unit capture is the rotation's age. */
-export function storeSummary(body: {
-    summary?: { lastSliced?: { sha: string } | null; oldestNewestAt?: number | null };
-    units?: { at: number }[];
-}): StoreSummary {
-    const units = body.units ?? [];
-    const oldestAt = units.length ? Math.min(...units.map((u) => u.at)) : (body.summary?.oldestNewestAt ?? null);
-    return { lastSlicedSha: body.summary?.lastSliced?.sha ?? null, oldestAt };
+/** GET /v1/story-captures' summary as the decision reads it; the set's age (setAge) is the rotation's age. */
+export function storeSummary(body: StoryCaptures, now: number): StoreSummary {
+    return { lastSlicedSha: body.summary?.lastSliced?.sha ?? null, oldestAt: setAge(body, now).oldestAt };
 }
 
 /** The results store (tools/results-service) the dispatcher reads: its URL and a local token, in SSM. */
@@ -240,7 +236,7 @@ export function sliceDeps(
                       signal: AbortSignal.timeout(15_000),
                   });
                   if (!res.ok) throw new Error(`results store: HTTP ${res.status}`);
-                  return storeSummary((await res.json()) as Parameters<typeof storeSummary>[0]);
+                  return (await res.json()) as StoryCaptures;
               }
             : undefined;
     const gh = app && cfg.dispatch ? new GitHub(() => installationToken(app, f, Date.now()), f) : undefined;

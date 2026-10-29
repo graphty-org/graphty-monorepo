@@ -3555,6 +3555,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             applyLighting: RENDER,
             getRenderStats: READ,
             ticks: READ,
+            canvasInView: READ,
             shaderGuard: RENDER,
         },
     },

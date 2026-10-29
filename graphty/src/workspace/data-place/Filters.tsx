@@ -8,7 +8,19 @@
 
 import { ControlSection, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
 import type { FilterCondition, FilterConditionCount, GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, CloseButton, Group, Menu, Pill, Stack, Text, Tooltip } from "@mantine/core";
+import {
+    ActionIcon,
+    Button,
+    Checkbox,
+    CloseButton,
+    Group,
+    Menu,
+    Pill,
+    Stack,
+    Text,
+    Tooltip,
+    VisuallyHidden,
+} from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -289,8 +301,9 @@ function CountChips({ count }: Readonly<{ count: FilterConditionCount | undefine
     if (count.unresolved.length > 0) {
         return (
             <Tooltip label="Hidden or removed column">
-                <span role="img" aria-label="Hidden or removed column">
+                <span>
                     <GLYPHS.hide size={14} aria-hidden />
+                    <VisuallyHidden>Hidden or removed column</VisuallyHidden>
                 </span>
             </Tooltip>
         );
@@ -427,13 +440,14 @@ function FilterCard({
     const name = condition === undefined ? (field?.name ?? "New filter") : conditionWords(session, condition.rule);
     const select = condition?.effect === "select";
     const on = condition?.on ?? true;
+    const action = select ? "Select" : "Hide";
 
     return (
-        <li
+        <li // NOSONAR(S6847): the card listens for keys its own controls send up (Enter commits, Escape drops a draft)
             ref={box}
             data-id={id}
             tabIndex={-1}
-            aria-label={draft ? name : `${name}, ${select ? "Select" : "Hide"}`}
+            aria-label={draft ? name : `${name}, ${action}`}
             className="ws-card dp-filter"
             data-off={on ? undefined : ""}
             // Escape drops a new card wherever focus is in it, before a box takes the key to keep its

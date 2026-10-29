@@ -190,8 +190,10 @@ export default tseslint.config(
             "no-restricted-syntax": [
                 "error",
                 {
+                    // waitFor, vi.waitFor and expect.poll; statistics().nodeCount read or destructured inside
+                    // one. A helper that reads it outside the call is not seen.
                     selector:
-                        "CallExpression[callee.name='waitFor']:not(:has(Literal[value='graphty-element[data-start-page]'])) MemberExpression[property.name='nodeCount'][object.callee.property.name='statistics']",
+                        ":matches(CallExpression[callee.name='waitFor'], CallExpression[callee.property.name=/^(waitFor|poll)$/]):not(:has(Literal[value='graphty-element[data-start-page]'])) :matches(MemberExpression[property.name='nodeCount'][object.callee.property.name='statistics'], VariableDeclarator[init.callee.property.name='statistics'] > ObjectPattern > Property[key.name='nodeCount'])",
                     message:
                         "Do not wait on the node count: await the open (openBy in src/test/open.tsx) or the load's own promise.",
                 },

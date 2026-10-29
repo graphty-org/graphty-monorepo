@@ -15,6 +15,9 @@ import { render } from "./test-utils";
 /**
  * Does what starts an open (a click on a sample, a dataset, Open...), then waits for that open to
  * finish. Waits on the store's own changes, with no deadline of its own: a hang is the test's.
+ * What "finished" covers depends on the open (see the store's `opened`): a first graph brought
+ * into an empty project settles at its load, with no focus step, and kept work reopened in this
+ * tab may move focus a moment later, so a focus assertion there still waits on focus.
  * @param store - the workspace store.
  * @param act - the reader's action that starts the open.
  * @returns the opened project's session; rejects with the load's error when the open failed.

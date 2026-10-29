@@ -187,7 +187,11 @@ export interface WorkspaceState {
     /**
      * The latest open's whole run -- a new project's (a sample, a dataset, a file, kept work), to
      * its load read and focus handed on, or a first graph's into an empty project, to its load
-     * read: resolves then, or rejects with the load's error. The node count arrives before the
+     * read: resolves then, or rejects with the load's error. Kept work reopened in this tab asks
+     * for focus on the graph's heading, which moves once the heading is drawn, so focus there may
+     * move after this settles. A data file opened from the start screen settles once the Data page
+     * shows. An open replaced by a newer one, or whose project closes before its element comes up,
+     * never settles. The node count arrives before the
      * rest of an open, so whatever waits for an open to finish (a test after a click) awaits this
      * instead. Null before the first open.
      */

@@ -33,7 +33,7 @@ import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
-import type { BasemapConfig, BasemapStatus, MapFrameFact } from "./config/Basemap";
+import type { BasemapConfig, BasemapStatus, GlobeLook, MapFrameFact } from "./config/Basemap";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
@@ -2298,6 +2298,41 @@ export class Graph implements GraphContext {
      */
     setAttributionOffset(pixels: number): void {
         this.basemapManager.attributionOffset = pixels;
+    }
+
+    /** See {@link setGlobeLook}. */
+    #globeLook: GlobeLook = Object.freeze({});
+
+    /**
+     * How the globe under the `location-map` layout looks beyond its map; see {@link setGlobeLook}.
+     * @returns The look.
+     * @since 3.31.0
+     */
+    getGlobeLook(): GlobeLook {
+        return this.#globeLook;
+    }
+
+    /**
+     * Set how the globe under the `location-map` layout looks beyond its map: a glow of air around
+     * its rim, a sun lighting one side, and a colour the canvas is cleared to while it is drawn.
+     * Every part is off unless set. A view setting, not saved with the project; it takes effect at
+     * once on a globe drawn now, and on every globe drawn after.
+     * @param look - The look; a part left out is off.
+     * @since 3.31.0
+     */
+    setGlobeLook(look: GlobeLook): void {
+        this.#globeLook = Object.freeze({ ...look });
+        this.basemapManager.globeLook = this.#globeLook;
+        this.#lookOfFrame(this.#geoFrame());
+    }
+
+    /**
+     * The background the globe's look asks for while a globe is drawn, else the graph's own.
+     * @param frame - The frame now active, or null.
+     */
+    #lookOfFrame(frame: LocationMapFrame | null): void {
+        const color = this.#globeLook.background ?? null;
+        this.renderManager.backgroundOverride = frame?.surface === "globe" ? color : null;
     }
 
     /**
@@ -4710,15 +4745,19 @@ export class Graph implements GraphContext {
 
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
-     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii).
+     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii) and
+     * its near clip plane comes in as it nears the surface, so the surface is never cut away.
      * @param frame - The frame now active, or null.
      */
     #followFrame(frame: LocationMapFrame | null): void {
         this.camera.setZoomToPointer(this.#zoomToPointer || frame !== null);
+        this.#lookOfFrame(frame);
         const orbit = this.camera.getActiveController();
         if (orbit instanceof OrbitCameraController) {
             orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * 1.02 } : null;
             orbit.grabSphere = frame?.surface === "globe" ? { radius: frame.radius } : null;
+            // The near clip plane follows the globe (or its going).
+            orbit.updateCameraPosition();
         }
     }
 
@@ -4768,8 +4807,8 @@ export class Graph implements GraphContext {
             warnings: frame.warnings,
         };
         return frame.surface === "globe"
-            ? { ...common, surface: "globe", radius: frame.radius }
-            : { ...common, surface: "flat", projection: frame.projection, bounds: frame.bounds, size: frame.size };
+            ? { ...common, mapDimension: "3d", radius: frame.radius, bounds: frame.bounds }
+            : { ...common, mapDimension: "2d", projection: frame.projection, bounds: frame.bounds, size: frame.size };
     }
 
     /**

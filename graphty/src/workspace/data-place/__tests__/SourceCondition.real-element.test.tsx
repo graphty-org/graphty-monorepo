@@ -19,6 +19,21 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML, PLAIN_JSON } from "../fixtures";
 
+/** Four sites and no routes: a load that supplies only nodes. */
+const SITES_JSON = JSON.stringify({ nodes: ["a", "b", "c", "d"].map((id) => ({ id })), edges: [] });
+
+/** Five routes, four among the sites and one to a new site, e. */
+const ROUTES_JSON = JSON.stringify({
+    nodes: [],
+    edges: [
+        ["a", "b"],
+        ["b", "c"],
+        ["c", "d"],
+        ["d", "a"],
+        ["d", "e"],
+    ].map(([source, target]) => ({ source, target })),
+});
+
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
 
@@ -116,14 +131,18 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
-        assert.deepEqual(session.visibility.conditions[0].rule, { kind: "source", sources: [people.key] });
+        assert.deepEqual(session.visibility.conditions[0].rule, {
+            kind: "source",
+            sources: [people.key],
+            side: "nodes",
+        });
         assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
-        // The card is named for the load, not its key, and counts both kinds.
+        // The card is named for the load, not its key, and counts the nodes it keeps.
         const card = await within(screen.getByRole("region", { name: "Data place" })).findByRole("group", {
             name: /^from people\.json/,
         });
-        assert.lengthOf(within(card).getAllByText(/ of /), 2);
-        // Both chips show their whole "X of Y" at the panel's width: not cut to an ellipsis, and not
+        assert.lengthOf(within(card).getAllByText(/ of /), 1);
+        // Its chip shows its whole "X of Y" at the panel's width: not cut to an ellipsis, and not
         // clipped or covered by the card's controls (the chip is what the reader sees at its far end).
         for (const text of card.querySelectorAll<HTMLElement>(".cm-entity-text")) {
             assert.isAtMost(text.scrollWidth, text.clientWidth, text.textContent ?? "");
@@ -140,5 +159,33 @@ describe("picking nodes by a condition card from the Data place", () => {
         await within(screen.getByRole("region", { name: "Data place" })).findByRole("group", {
             name: /^from a removed source/,
         });
+    });
+
+    it("keeps the edges between the kept nodes, whichever load supplied them", async () => {
+        const session = await openWithGraph();
+        await session.data.removeSource(session.data.sources()[0].key);
+        // One load holds the sites, the other the routes between them and one new site, e.
+        await session.data.import({ type: "json", name: "sites.json", config: { data: SITES_JSON } });
+        await session.data.import(
+            { type: "json", name: "routes.json", config: { data: ROUTES_JSON } },
+            { mode: "merge" },
+        );
+        await waitFor(() => {
+            assert.lengthOf(session.data.sources(), 2);
+        });
+        assert.lengthOf(session.data.edges(), 5);
+
+        await newCardOn("Data source");
+        const loads = await screen.findByRole("group", { name: "Data source values" });
+        await userEvent.click(within(loads).getByRole("checkbox", { name: /^sites\.json/ }));
+
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 1);
+        });
+        assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
+        // The four routes among a to d stay; only d to e, whose end is left out, goes.
+        const shownEdges = session.data.edges().filter((edge) => session.visibility.isVisible(edge.id));
+        assert.lengthOf(shownEdges, 4);
+        await screen.findByRole("button", { name: "Filter: 4 of 5 nodes, 4 of 5 edges" });
     });
 });

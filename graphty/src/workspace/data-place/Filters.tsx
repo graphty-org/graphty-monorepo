@@ -1025,8 +1025,13 @@ export function FilterChip(): React.JSX.Element | null {
         return null;
     }
     const counts = session.visibility.conditionCounts();
-    const edges = hiding.some((c) => (counts.find((each) => each.id === c.id)?.edges ?? null) !== null);
-    const words = chipWords(session.visibility.summary, edges);
+    const { summary } = session.visibility;
+    // Edges are counted when a card speaks of them, or when the filter left any out (a node card
+    // hides the edges at the nodes it hides).
+    const edges =
+        summary.visibleEdges < summary.totalEdges ||
+        hiding.some((c) => (counts.find((each) => each.id === c.id)?.edges ?? null) !== null);
+    const words = chipWords(summary, edges);
     // The time window is one of the filters in force, as the Filters list shows it.
     const window = session.time.field === null ? null : session.time.current;
     const on = [

@@ -320,7 +320,11 @@ describe("the Data place's sidebar on the real element", () => {
             }),
         );
         await waitFor(() => {
-            assert.deepEqual(session.visibility.conditions[0]?.rule, { kind: "source", sources: [first.key] });
+            assert.deepEqual(session.visibility.conditions[0]?.rule, {
+                kind: "source",
+                sources: [first.key],
+                side: "nodes",
+            });
         });
     });
 

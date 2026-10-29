@@ -190,7 +190,11 @@ showing.
   came from it). On 0ffeae2ef5 that card also leaves out every edge from deliveries.csv: the screen
   reads "12 of 13 nodes, 0 of 18 edges" (B "11 of 12 nodes, 0 of 14 edges"), and ticking the second
   file brings P13 back. The site / station "Has a value" card gives 12 of 13 (B 11 of 12) and keeps
-  the other edges (A 17, B 13). Both count; the edge loss is the build's defect.
+  the other edges (A 17, B 13). Both count; the edge loss is the build's defect. On builds after
+  009087a540 the Data source card keeps every edge whose two ends it keeps: the screen reads "12 of
+  13 nodes, 17 of 18 edges" (B "11 of 12 nodes, 13 of 14 edges"), the routes stay drawn, and the
+  card's own chip counts nodes only ("12 of 13"); ticking the second file shows 13 of 13 and 18 of
+  18 (B 12 of 12 and 14 of 14).
 - **A card on the id cannot leave one node out on 0ffeae2ef5**: text cards offer only Contains,
   Starts with, Ends with, Is exactly, Has a value and Has no value, and Hide hides what does not
   match, so an id card for P13 with Hide leaves P13 alone in the picture (1 of 13). That is not
@@ -220,7 +224,8 @@ showing.
 - **Start**: `pantries-narrowed.txt` (B `gauges-narrowed.txt`): both lists together, with a Data
   source card on that leaves P13 (B G12) out of the picture, the state T66 leaves. On 0ffeae2ef5
   that card also leaves out every edge, so the start shows A 12 of 13 nodes and 0 of 18 edges (B 11
-  of 12 and 0 of 14).
+  of 12 and 0 of 14). On builds after 009087a540 the start shows A 12 of 13 nodes and 17 of 18
+  edges (B 11 of 12 and 13 of 14), with the routes drawn.
 - **Success**, A: `downloads/` holds the node table and the edge table as CSV (one file each, or a
   zip of both), the node file with **13** rows including P13 and the `site` column, the edge file
   with 18 (headers `source,target,trips`, not the person's `from,to,trips`). B: `downloads/` holds a

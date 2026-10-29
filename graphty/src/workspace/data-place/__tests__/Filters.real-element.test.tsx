@@ -501,6 +501,23 @@ describe("Filter cards on the real element", () => {
         });
     });
 
+    it("Escape in an open card's Add a condition list closes only the list; the card stays open", async () => {
+        const { session } = await openWithGraph();
+        await addValueCard(session);
+        const add = (await card(VALUE)).getByRole("button", { name: "Add a condition" });
+        await userEvent.click(add);
+        const search = await screen.findByRole("combobox", { name: "Find an attribute" });
+        await waitFor(() => {
+            assert.equal(document.activeElement, search);
+        });
+        await realInput.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("combobox", { name: "Find an attribute" }));
+            assert.equal(document.activeElement, add);
+        });
+        assert.isNotNull((await card(VALUE)).queryByRole("textbox", { name: "value from, number" }));
+    });
+
     it("a written card rests as its summary when another opens; one card is open at a time", async () => {
         const { session } = await openWithGraph();
         await addValueCard(session);

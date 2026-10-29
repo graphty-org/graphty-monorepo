@@ -3327,8 +3327,6 @@ async function prove() {
             "Open a file",
             "--upload",
             "florentine.gml",
-            "--click",
-            "Load",
             "--expect",
             "role=button:Project: florentine",
         );
@@ -3686,14 +3684,14 @@ async function prove() {
             ) && pngs(H).length === 2,
             x.out,
         );
-        // a planted two-kind name: the open Attribute list's option "weight" and the Data panel's
-        // row "weight". "#n" picks by position, which a person never sees, so it is refused
+        // a planted two-kind name ("weight" names controls of more than one kind on the Data page;
+        // which kinds moves with the build). "#n" picks by position, which a person never sees, so it is refused
         x = step(H, "--click", "Data", "--click", "Add filter step", "--click", "Attribute");
         const before = pngs(H).length;
         x = step(H, "--click", "weight#1");
         check(
             "a position pick among different kinds of control is refused, naming each kind",
-            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: .*"role=option:weight"/.test(
+            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: "role=\w+:weight", "role=\w+:weight"/.test(
                 x.out,
             ) && pngs(H).length === before + 1,
             x.out,
@@ -3727,10 +3725,10 @@ async function prove() {
     const I = join(base, "session-i");
     r = node(["--start", I, "empty", "--task", "T17A"]);
     if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
-        // a data file dropped on the start screen opens the Data page as a new graph, not a project
-        const x = step(I, "--drop", "friends.csv", "--expect", "Open as a new graph");
+        // a data file dropped on the start screen opens as a new graph, with no step between
+        const x = step(I, "--drop", "friends.csv", "--expect", "role=button:Project: friends");
         check(
-            "a file dropped on the start screen opens it on the Data page",
+            "a file dropped on the start screen opens it as a new graph",
             x.code === 0 && /dropped the file friends\.csv .*; the page took it/.test(x.out),
             x.out,
         );
@@ -3756,7 +3754,7 @@ async function proveRoutes(base, check, node, step) {
     const R = join(base, "route-walk");
     let r = node(["--start", R, "empty"]);
     if (!check("a walk to replay starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) return;
-    step(R, "--click", "Open a file", "--upload", "florentine.gml", "--click", "Load");
+    step(R, "--click", "Open a file", "--upload", "florentine.gml");
     step(R, "--hover", "Undo");
     let x = step(R, "--click", "Nothing is called this", "--key", "Tab");
     check(

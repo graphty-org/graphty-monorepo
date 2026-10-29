@@ -42,6 +42,13 @@ on:
                 default: ""
     workflow_dispatch:
         inputs:
+            # `gh workflow run ci.yml --ref <branch> -f shards='["<shard>"]'` times a full-run-only shard on a runner
+            # before its pull request merges (#4270), without running the whole suite.
+            shards:
+                description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
+                type: string
+                required: false
+                default: ""
             reuse_build_run:
                 description: "the id of a run that built this same commit (the master push run): download its builds instead of building, when they are all still there"
                 type: string

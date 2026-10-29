@@ -38,7 +38,7 @@ export const FORMATS = [...registered, ...unregistered];
  * Checks that do not hold yet, by `<input> plans` or `<input> writes`, with the defect: each runs as an expected
  * failure, so the fix turns it red until it is removed from here. All found by the style fidelity fixtures.
  */
-export const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
+const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
     ["dot/fidelity/real-depcruise.gv writes", "an outside edit of the written DOT gives no new exception"],
     [
         "json/fidelity/vis-siblings.json writes",
@@ -115,7 +115,7 @@ export function sharedInputs(format: StyleFormat): StyleInput[] {
 }
 
 /** One writing format's inputs in a slice, as `[name, input]` rows for `it.each`. */
-export interface WriteSlice {
+interface WriteSlice {
     /** The inputs whose round trip should hold. */
     readonly pass: (readonly [string, StyleInput])[];
     /** The inputs whose round trip is a known failure (KNOWN_FAILURES). */

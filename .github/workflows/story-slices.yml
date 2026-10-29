@@ -1,0 +1,281 @@
+# The rolling screenshot slices (design/visual-testing/early-capture.md, 4a): renders a small slice of every
+# project's stories fresh from one master commit X, oldest units first (the units X's merges reach before them),
+# compares each picture with X's own baselines and records the result in the results store, so the whole set is
+# rendered again many times a day and a changed picture is known long before the 6-hour full run. Every picture is
+# rendered here from X; nothing is reused, skipped or approved. The full run's complete capture stays the release
+# gate, and nothing waits for a slice.
+#
+# Dispatch only: the pipeline-health collector starts it when the runners are quiet (plan step 5), or a person by
+# hand: gh workflow run story-slices.yml --ref master -f mode=base -f post=false
+# One concurrency group without cancel-in-progress: a running slice is never cancelled, but a dispatch while one runs
+# replaces a waiting one (GitHub keeps one pending run per group), which is why the dispatcher never dispatches while
+# a slice is in flight. A slice never saves a cache entry (it only restores the
+# LFS baselines) and uses only the Storybook artifacts of exactly X's green ci.yml push build: when they are gone,
+# its bins fail.
+name: Story slices
+
+on:
+    workflow_dispatch:
+        inputs:
+            sha:
+                description: "The master commit to render (its ci.yml push build must be green); empty: master's newest green build"
+                required: false
+                default: ""
+            mode:
+                description: "base (2 bins, after a master build) or idle (6 bins, while the runners are idle)"
+                required: true
+                default: base
+                type: choice
+                options: [base, idle]
+            bins:
+                description: "Bins instead of the mode's (1 to 20); empty: the mode's"
+                required: false
+                default: ""
+            post:
+                description: "Write the renders to the results store; false is a dry run that only captures"
+                required: true
+                default: true
+                type: boolean
+
+# contents: read for the checkouts; actions: read to find X's build and download its Storybooks; id-token: write is
+# the results store's credential (reads and the slice's own rows)
+permissions:
+    contents: read
+    actions: read
+    id-token: write
+
+concurrency:
+    group: story-slices
+
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
+
+jobs:
+    # Which units this slice renders (tools/channel/story-slices.mjs plan). Node built-ins, git and the store only:
+    # no install.
+    plan:
+        name: Plan the slice
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        outputs:
+            sha: ${{ steps.build.outputs.sha }}
+            run: ${{ steps.build.outputs.run }}
+            matrix: ${{ steps.plan.outputs.matrix }}
+            count: ${{ steps.plan.outputs.count }}
+        steps:
+            # X's green ci.yml push build on master: its Storybooks are what the bins render, and only its own
+            - name: Find the commit's green master build
+              id: build
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  SHA: ${{ inputs.sha }}
+              run: |
+                  q="repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?event=push&branch=master&status=success&per_page=1"
+                  [[ -n "$SHA" ]] && q="$q&head_sha=$SHA"
+                  read -r run sha < <(gh api "$q" --jq '.workflow_runs[0] | "\(.id) \(.head_sha)"' || true)
+                  if [[ -z "$run" || "$run" = null ]]; then
+                      echo "::error::no green ci.yml push build of master for ${SHA:-master}"
+                      exit 1
+                  fi
+                  echo "sha=$sha" >> "$GITHUB_OUTPUT"
+                  echo "run=$run" >> "$GITHUB_OUTPUT"
+                  echo "rendering $sha from ci.yml run $run"
+
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ steps.build.outputs.sha }}
+                  # the merges since the last sliced commit, for their reach rows (at most 100 are asked about)
+                  fetch-depth: 300
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Plan the slice
+              id: plan
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  SHA: ${{ steps.build.outputs.sha }}
+                  BINS: ${{ inputs.bins || (inputs.mode == 'idle' && '6' || '2') }}
+              run: node tools/channel/story-slices.mjs plan --sha "$SHA" --bins "$BINS" | tee -a "$GITHUB_OUTPUT"
+
+    # One bin: X's checkout, X's baselines and the pinned fonts, master's capture code, X's built Storybook. A changed
+    # or new picture is shot twice, as in the Stories jobs; each bin posts its own rows.
+    capture:
+        name: Slice (${{ matrix.name }})
+        needs: plan
+        if: needs.plan.outputs.count != '0'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ needs.plan.outputs.sha }}
+                  fetch-depth: 1
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  rm -rf $OVERLAY
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            # Restore only: the full run's Story tests jobs save these entries; a slice adds none to the Actions cache.
+            - name: Restore this project's baseline images
+              uses: actions/cache/restore@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+
+            # master's capture code (this workflow's), as the full run's re-capture does for an older commit
+            - name: Use the workflow's capture code
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  rm -rf visual-review/capture visual-review/trusted
+                  git archive "$GITHUB_SHA" visual-review/capture visual-review/trusted | tar -x
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Read the Playwright version
+              id: playwright
+              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
+
+            # Restore only, like the baselines: ci.yml's jobs save this entry.
+            - name: Restore Playwright browsers
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: visual-review
+
+            - name: Install Chromium
+              working-directory: visual-review
+              run: pnpm exec playwright install chromium
+
+            # Exactly X's build: no fallback to another commit's Storybook. A missing or expired artifact fails the bin.
+            - name: Download the commit's Storybook build
+              uses: actions/download-artifact@v8
+              with:
+                  name: ${{ matrix.artifact }}
+                  path: ${{ matrix.storybook }}/
+                  run-id: ${{ needs.plan.outputs.run }}
+                  github-token: ${{ github.token }}
+
+            # The bin's units as story ids from the built Storybook's index, as ci.yml's Stories jobs pick them: a
+            # "<file>#<k>/<n>" part is the k-th of every n of the file's stories in the index's order.
+            - name: Pick the bin's stories
+              id: pick
+              env:
+                  FILES: ${{ toJSON(matrix.files) }}
+                  STORYBOOK: ${{ matrix.storybook }}
+              run: |
+                  ids=$(jq -r --argjson files "$FILES" '
+                      . as $index | [$files[] | capture("^(?<f>[^#]+)(#(?<k>[0-9]+)/(?<n>[0-9]+))?$") as $s
+                          | [$index.entries[] | select(.type == "story")
+                              | select((.importPath | sub("^(\\.\\.?/)+"; "")) as $p | $s.f == $p or ($s.f | endswith("/" + $p)))
+                              | .id]
+                          | to_entries[] | select($s.k == null or .key % ($s.n | tonumber) == ($s.k | tonumber) - 1)
+                          | .value] | unique | join(",")' "$STORYBOOK/index.json")
+                  echo "stories=$ids" >> "$GITHUB_OUTPUT"
+                  echo "selected stories: ${ids:-none}"
+
+            # A changed picture is never a failure; a crash of the tool fails the bin.
+            - name: Capture the bin's stories
+              id: capture
+              if: steps.pick.outputs.stories != ''
+              env:
+                  STORIES: ${{ steps.pick.outputs.stories }}
+              run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --stories "$STORIES"
+
+            - name: Upload the renders
+              if: always()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: visual-slice-${{ matrix.name }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/visual/
+                  retention-days: 7
+                  if-no-files-found: ignore
+
+            # The bin's rows: every render's status and hashes against X's baselines tree, and the units it rendered
+            # whole (only when the capture finished, so a broken bin's units stay oldest for the next slice). Units
+            # with no story in X's Storybook (pick found none) are recorded as rendered with no renders, so they do
+            # not stay oldest and take a bin of every later slice for nothing.
+            - name: Record the renders in the results store
+              if: always() && inputs.post && (steps.capture.outcome != 'skipped' || (steps.pick.outcome == 'success' && steps.pick.outputs.stories == ''))
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  PROJECT: ${{ matrix.project }}
+                  FILES: ${{ toJSON(matrix.files) }}
+                  SHA: ${{ needs.plan.outputs.sha }}
+                  ARTIFACT: visual-slice-${{ matrix.name }}-${{ github.run_attempt }}
+                  STORIES: ${{ steps.pick.outputs.stories }}
+                  CAPTURED: ${{ steps.capture.outcome }}
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  if [[ -z "$STORIES" && "$CAPTURED" == skipped ]]; then
+                      echo "::warning::no story of $FILES is in the built Storybook; recorded as rendered with none"
+                      f="$RUNNER_TEMP/empty-results.json"
+                      echo '{"complete":true,"items":[]}' > "$f"
+                  fi
+                  [[ -f "$f" ]] || { echo "::error::the capture wrote no results.json"; exit 1; }
+                  node tools/channel/story-slices.mjs post --project "$PROJECT" --results "$f" --files "$FILES" \
+                      --sha "$SHA" --tree "$(git rev-parse HEAD:visual-baselines)" --artifact "$ARTIFACT"
+
+            - name: Summarize the bin
+              if: always()
+              env:
+                  NAME: ${{ matrix.name }}
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  {
+                      echo "### Slice ($NAME)"
+                      if [[ -f "$f" ]]; then
+                          jq -r '"\(.items | length) renders", "", "| status | items |", "|---|---|",
+                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |"),
+                              "", (.items[] | select(.status != "unchanged" and .status != "excluded") | "- \(.status): \(.id // .file)")' "$f"
+                      else
+                          echo "No capture: no story of this bin is in the built Storybook, or capture did not start."
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"

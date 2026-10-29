@@ -35,8 +35,10 @@ import {
     cardFields,
     cardsName,
     cardWords,
+    dayWords,
     DEFAULT_NAME_KEY,
     edgeCards,
+    endWords,
     isFinished,
     isPicked,
     keyOf,
@@ -47,6 +49,8 @@ import {
     sameSelector,
     selectorOf,
     type Side,
+    spanOf,
+    startWords,
     TEXT_WORDS,
     type TextMode,
 } from "./cards";
@@ -1547,6 +1551,9 @@ function glyphOf(kind: CardField["kind"]): (typeof VALUE_GLYPHS)[keyof typeof VA
     if (kind === "source") {
         return GLYPHS.file;
     }
+    if (kind === "date") {
+        return GLYPHS.time;
+    }
     return VALUE_GLYPHS[kind === "name" ? "text" : kind];
 }
 
@@ -1663,6 +1670,8 @@ export function CardBody({
     switch (card.type) {
         case "number":
             return <NumberCard session={session} card={card} side={side} onChange={onChange} />;
+        case "date":
+            return <DateCard session={session} card={card} side={side} onChange={onChange} />;
         case "category":
             return <CategoryCard session={session} card={card} side={side} onChange={onChange} variant={variant} />;
         case "text":
@@ -2163,6 +2172,199 @@ function NumberCard({
                 <Text size="xs" c="dimmed">
                     {many(missing, side)} {missing === 1 ? "has" : "have"} no value and {missing === 1 ? "is" : "are"}{" "}
                     left out.
+                </Text>
+            )}
+        </Stack>
+    );
+}
+
+/** A date card's boxes: the one Before or After takes, or Between's two. */
+type DateBox = "before" | "after" | "from" | "to";
+
+/**
+ * The bound one date box writes from its text: Before keeps what is before the span the text
+ * names, After what is after it, Between from the first span's start to the second's end.
+ * @param box - the box.
+ * @param span - the span its text names.
+ * @param span.start - the span's first instant.
+ * @param span.end - the first instant after it.
+ * @returns the card's bound it sets, and its value.
+ */
+function boundOf(box: DateBox, span: { start: number; end: number }): { key: "min" | "max"; value: number } {
+    switch (box) {
+        case "before":
+            return { key: "max", value: span.start - 1 };
+        case "after":
+            return { key: "min", value: span.end };
+        case "from":
+            return { key: "min", value: span.start };
+        default:
+            return { key: "max", value: span.end - 1 };
+    }
+}
+
+/**
+ * A date box's text as the card holds it.
+ * @param box - the box.
+ * @param card - the card.
+ * @returns the text, empty while the box's bound is unset.
+ */
+function boxText(box: DateBox, card: Extract<Card, { type: "date" }>): string {
+    if (box === "before" || box === "to") {
+        if (card.max === undefined) {
+            return "";
+        }
+        return box === "before" ? startWords(card.max + 1) : endWords(card.max + 1);
+    }
+    if (card.min === undefined) {
+        return "";
+    }
+    return box === "after" ? endWords(card.min) : startWords(card.min);
+}
+
+/**
+ * A date card: Before, After or Between, with boxes that take a date or a year as the time field
+ * reads them ("2005", "2005-03-01", "Mar 1, 2005"), offering the column's dates as the table writes
+ * them. The card takes each keystroke that names a date, so its count follows the typing; text
+ * that names none is said under the box when it is committed (Enter, leaving the box).
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.card - the card
+ * @param props.side - nodes or edges
+ * @param props.onChange - takes the card as edited
+ * @returns The body
+ */
+function DateCard({
+    session,
+    card,
+    side,
+    onChange,
+}: Readonly<{
+    session: GraphSession;
+    card: Extract<Card, { type: "date" }>;
+    side: Side;
+    onChange: OnCard;
+}>): React.JSX.Element {
+    const { name, path, on } = card.field;
+    const [drafts, setDrafts] = useState<Partial<Record<DateBox, string>>>({});
+    const [refused, setRefused] = useState<DateBox | null>(null);
+    const messageId = useId();
+    const counts = useMemo(() => session.data.valueCounts(path, { kind: on }), [session, path, on]);
+    // The column's dates as the table writes them, each once, in time order.
+    const dates = useMemo(() => {
+        const days = counts.values
+            .map((each) => session.time.parse(String(each.value)))
+            .filter((at): at is number => at !== null)
+            .sort((a, b) => a - b);
+        return [...new Set(days.map(dayWords))];
+    }, [session, counts]);
+    const edit = (box: DateBox, text: string): void => {
+        setDrafts({ ...drafts, [box]: text });
+        if (text.trim() === "") {
+            setRefused(null);
+            const { key } = boundOf(box, { start: 0, end: 0 });
+            onChange({ ...card, [key]: undefined });
+            return;
+        }
+        const span = spanOf(session, text);
+        if (span === null) {
+            return;
+        }
+        setRefused(null);
+        const { key, value } = boundOf(box, span);
+        const next = { ...card, [key]: value };
+        // A Between whose from is after its to keeps what it held until the boxes agree.
+        if (next.min === undefined || next.max === undefined || next.min <= next.max) {
+            onChange(next);
+        }
+    };
+    const commit = (box: DateBox): void => {
+        const text = drafts[box];
+        if (text !== undefined && text.trim() !== "" && spanOf(session, text) === null) {
+            setRefused(box);
+            return;
+        }
+        setDrafts((now) => ({ ...now, [box]: undefined }));
+    };
+    const box = (key: DateBox, label: string): React.JSX.Element => {
+        const typed = (drafts[key] ?? "").trim().toLowerCase();
+        const listed = dates.filter((each) => each.toLowerCase().includes(typed)).slice(0, 8);
+        return (
+            <Autocomplete
+                size="xs"
+                aria-label={label}
+                data-enter-done
+                placeholder="A date or a year"
+                aria-invalid={refused === key || undefined}
+                aria-describedby={refused === key ? messageId : undefined}
+                error={refused === key}
+                value={drafts[key] ?? boxText(key, card)}
+                data={listed}
+                filter={({ options }) => options}
+                // Listed only while the reader types in the box: focus alone, or a committed date,
+                // never covers the card with the column's dates.
+                dropdownOpened={typed !== "" && listed.length > 0}
+                onChange={(text) => {
+                    edit(key, text);
+                }}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                        flushSync(() => {
+                            commit(key);
+                        });
+                    } else if (event.key === "Escape" && event.currentTarget.value !== "") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        commit(key);
+                    }
+                }}
+                onBlur={() => {
+                    commit(key);
+                }}
+            />
+        );
+    };
+    return (
+        <Stack gap={4} data-card-body>
+            <MatchSelect
+                name={name}
+                value={card.match}
+                data={[
+                    { value: "before", label: "Before" },
+                    { value: "after", label: "After" },
+                    { value: "between", label: "Between" },
+                    ...PRESENCE,
+                ]}
+                onChange={(match) => {
+                    setDrafts({});
+                    setRefused(null);
+                    onChange({
+                        ...card,
+                        match: match as typeof card.match,
+                        min: match === "before" ? undefined : card.min,
+                        max: match === "after" ? undefined : card.max,
+                    });
+                }}
+            />
+            {card.match === "before" && box("before", `${name} before, a date or a year`)}
+            {card.match === "after" && box("after", `${name} after, a date or a year`)}
+            {card.match === "between" && (
+                <Group gap={4} wrap="nowrap">
+                    {box("from", `${name} from, a date or a year`)}
+                    <Text size="xs">to</Text>
+                    {box("to", `${name} to, a date or a year`)}
+                </Group>
+            )}
+            {refused !== null && (
+                <Text id={messageId} size="xs" c="var(--cm-text-danger)" role="alert">
+                    &quot;{(drafts[refused] ?? "").trim()}&quot; is not a date. Type a date or a year, like{" "}
+                    {dates[0] ?? "2005"}.
+                </Text>
+            )}
+            {card.match !== "absent" && card.match !== "present" && counts.missing > 0 && (
+                <Text size="xs" c="dimmed">
+                    {many(counts.missing, side)} {counts.missing === 1 ? "has" : "have"} no value and{" "}
+                    {counts.missing === 1 ? "is" : "are"} left out.
                 </Text>
             )}
         </Stack>

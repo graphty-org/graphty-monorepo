@@ -184,4 +184,57 @@ describe("Cytoscape charts", () => {
             chartHorizontal: false,
         });
     });
+
+    it("colors a chart by its cy_colorScheme when it names no colors, as Cytoscape's ColorScheme does", () => {
+        const bars = (scheme: string): unknown =>
+            read({
+                NODE_CUSTOMGRAPHICS_1: `org.cytoscape.BarChart:{"cy_range":[0.0,10.0],"cy_type":"GROUPED","cy_colorScheme":"${scheme}","cy_dataColumns":["a","b","c"]}`,
+            }).chartColors;
+        // the colors Cytoscape 3.10.5 drew on xgmml-specimen-images-charts-p5 and -p6
+        expect(bars("RAINBOW")).toBe("#ff0000 #00ff00 #0000ff");
+        expect(bars("CONTRASTING")).toBe("#ff0000 #ff00ff #0000ff");
+        expect(bars("MODULATED")).toBe("#ff0000 #7dfd7d #1e1ef6");
+        expect(bars("YL_OR_RD")).toBe("#ffeda0 #feb24c #f03b20");
+        // a gradient with no zero color has two: the bar past them is JFreeChart's light gray
+        expect(bars("BLUE_RED")).toBe("#ff0000 #0000ff #c0c0c0");
+        expect(bars("Blue-Red")).toBe("#ff0000 #0000ff #c0c0c0");
+        // an unknown or random scheme gives no colors, so nothing is drawn
+        expect(bars("NO_SUCH_SCHEME")).toBeUndefined();
+        const pie = read({
+            NODE_CUSTOMGRAPHICS_1: 'org.cytoscape.PieChart:{"cy_colorScheme":"RAINBOW","cy_dataColumns":["a","b","c"]}',
+        });
+        expect(pie.pieColors).toBe("#0000ff #00ff00 #ff0000");
+    });
+
+    it("picks heat strips' and up-down bars' up, zero and down colors from a color scheme as BarLayer does", () => {
+        const bars = (type: string, scheme: string, values: string): unknown =>
+            read({
+                NODE_CUSTOMGRAPHICS_1: `org.cytoscape.BarChart:{"cy_range":[-3.0,3.0],"cy_type":"${type}","cy_colorScheme":"${scheme}","cy_values":${values}}`,
+            }).chartColors;
+        // two colors: up red, down blue, and zero black (BarLayer takes colors[1] as zero only from three colors)
+        expect(bars("HEAT_STRIPS", "Blue-Red", "[1.0,-2.0,3.0]")).toBe("#550000 #0000aa #ff0000");
+        // down is colors[2], never the last of RAINBOW's one color per value
+        expect(bars("UP_DOWN", "RAINBOW", "[1.0,-1.0,2.0,-2.0,3.0]")).toBe("#ff0000 #00ff66 #ff0000 #00ff66 #ff0000");
+        // down is colors[1] from two colors, Java's gray from one
+        expect(bars("UP_DOWN", "Blue-Red", "[1.0,-1.0]")).toBe("#ff0000 #0000ff");
+        expect(
+            read({
+                NODE_CUSTOMGRAPHICS_1:
+                    'org.cytoscape.BarChart:{"cy_range":[-3.0,3.0],"cy_type":"UP_DOWN","cy_colors":["#D62728"],"cy_values":[1.0,-1.0]}',
+            }).chartColors,
+        ).toBe("#d62728 #808080");
+    });
+
+    it("reads a chart's own cy_values before its data columns", () => {
+        const v = read({
+            NODE_CUSTOMGRAPHICS_1:
+                'org.cytoscape.PieChart:{"cy_values":[1.0,1.0,2.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]}',
+        });
+        expect(v.pieSizes).toBe("0.5 0.25 0.25");
+        const noColumns = read({
+            NODE_CUSTOMGRAPHICS_1:
+                'org.cytoscape.PieChart:{"cy_values":[1.0,1.0,2.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"]}',
+        });
+        expect(noColumns.pieColors).toBe("#1f77b4 #2ca02c #d62728");
+    });
 });

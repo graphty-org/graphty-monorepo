@@ -8537,3 +8537,80 @@ describe("release.yml's job conditions under a skipped ancestor", () => {
         assert.deepEqual(missing, []);
     });
 });
+
+describe("a full run never tests a candidate with another commit's workflow files (#4522)", () => {
+    // run 40926721806: dispatched on fb592ce, whose ci.yml added a Checks step and its package.json script, it tested
+    // the older a4c81c3 with that ci.yml and failed on ERR_PNPM_NO_SCRIPT. When the candidate cannot be handed to
+    // channel/full-run, the run's own commit is tested in its place.
+    const pick = parseYaml(workflow("release.yml")).jobs.pick;
+    const step = pick.steps.find((s) => s.id === "handoff");
+    const dir = mkdtempSync(join(tmpdir(), "handoff-skew-"));
+    const git = (...a) =>
+        execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...a], { cwd: dir, encoding: "utf8" }).trim();
+    const commit = (path, text) => {
+        mkdirSync(join(dir, path, ".."), { recursive: true });
+        writeFileSync(join(dir, path), text);
+        git("add", "-A");
+        git("commit", "-q", "--no-gpg-sign", "-m", path);
+        return git("rev-parse", "HEAD");
+    };
+    git("init", "-q", "-b", "master");
+    const old = commit(".github/workflows/release.yml", "no hand-off yet\n");
+    const later = commit("src.js", "1");
+    const head = commit(".github/workflows/ci.yml", "a new Checks step\n");
+    const run = ({ sha, held = "", allowed = "false", top = head }) => {
+        writeFileSync(join(dir, "gh"), `#!/bin/bash\necho ${allowed}\n`, { mode: 0o755 });
+        const out = join(dir, "out.txt");
+        writeFileSync(out, "");
+        const r = spawnSync("bash", ["-c", step.run], {
+            cwd: dir,
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                SHA: sha,
+                HELD: held,
+                GITHUB_SHA: top,
+                GITHUB_REPOSITORY: "o/r",
+                GITHUB_OUTPUT: out,
+            },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        return Object.fromEntries(
+            readFileSync(out, "utf8")
+                .split("\n")
+                .filter(Boolean)
+                .map((l) => l.split("=")),
+        );
+    };
+
+    it("tests the run's own commit, with its site assembled, when the candidate's workflows differ", () => {
+        assert.deepEqual(run({ sha: old }), { sha: head, site: "build" });
+        assert.deepEqual(run({ sha: later }), { sha: head, site: "build" });
+    });
+
+    it("keeps a candidate whose workflows are this run's, the held head, and this commit itself", () => {
+        commit(".github/workflows/release.yml", "refs/heads/channel/full-run\n");
+        const same = commit("src.js", "2");
+        commit("tools/x.mjs", "3"); // not a workflow file: the candidate shares the run's workflows
+        assert.deepEqual(run({ sha: same, top: git("rev-parse", "HEAD") }), {});
+        assert.deepEqual(run({ sha: old, held: old }), {}, "the hold exists to test exactly that commit");
+        assert.deepEqual(run({ sha: head }), {});
+    });
+
+    it("hands a candidate with the hand-off off as before, and the outputs carry the swap", () => {
+        const handed = commit(".github/workflows/release.yml", "refs/heads/channel/full-run\nnewer\n");
+        commit(".github/workflows/ci.yml", "another step\n");
+        assert.deepEqual(run({ sha: handed, allowed: "true" }), { handoff: "true", release: "false" });
+        assert.match(pick.outputs.sha, /steps\.handoff\.outputs\.sha \|\| steps\.candidate\.outputs\.sha/);
+        assert.equal(
+            pick.outputs.build_run,
+            "${{ steps.handoff.outputs.sha == '' && steps.candidate.outputs.build_run || '' }}",
+        );
+        assert.equal(pick.outputs.site, "${{ steps.handoff.outputs.site }}");
+        assert.match(
+            parseYaml(workflow("release.yml")).jobs.candidate_site.if,
+            /needs\.pick\.outputs\.site == 'build'/,
+        );
+    });
+});

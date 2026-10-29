@@ -160,12 +160,13 @@ Detail: [channels.md](channels-pipeline/channels.md).
   newest master first-parent commit whose push build is green and whose `site-<sha>` exists, from
   the store (canary's build stamp is a cross-check after step 8). It skips a commit already judged,
   or one whose diff from the last judged commit is only release-version merges and accept merges
-  (`tools/release-diff.mjs`). The called workflows (ci.yml, gpu.yml, ...) are always the dispatching
-  commit's, while their jobs check out the picked one, so a pick whose `.github/workflows` tree
-  differs from the dispatching commit's tests the dispatching commit instead, and the run assembles
-  its site (`candidate_site`): a new CI step and the script it runs then always meet (#4522). The
-  held head is the exception: the hold exists to test it, and a step it lacks is fixed forward like
-  any other red. The version and major-bump dry run is its own lane, and the `version`
+  (`tools/release-diff.mjs`). A candidate other than the dispatching commit is handed to a run on
+  `channel/full-run` at that commit, so its own workflow files test it; when the hand-off cannot
+  run (a candidate from before it, or environments that do not allow the branch) and the
+  candidate's `.github/workflows` differ from the dispatching commit's, the dispatching commit is
+  tested in its place and the run assembles its site (`candidate_site`), so a new CI step and the
+  script it runs always meet (#4522). The held head is the exception: the hold exists to test it.
+  The version and major-bump dry run is its own lane, and the `version`
   job reuses its plan. Lanes: ci.yml (each On shard starts when its Off twin ends), `gpu.yml`,
   `hosts.yml`, `work-protection-macos.yml`, the audit, and LLM regression in every full, restart and candidate run (owner,
   2026-10-29), started when the ci.yml lane

@@ -6,7 +6,7 @@
  * landed at the origin with no warning (issue #2956).
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { LayoutWarningEvent } from "../../src/events";
 import { type Graph, operationQueueOf } from "../../src/Graph";
@@ -70,5 +70,30 @@ describe("the fixed layout", () => {
 
         assert.deepEqual(at("a"), { x: 10, y: 0, z: 0 });
         assert.deepEqual(warnings, [{ layoutType: "fixed", code: "W_NO_POSITION", params: { missing: 2, total: 3 } }]);
+    });
+
+    it("places the nodes all the same, and reports W_ROUTES_NOT_LAID, when Graphviz cannot route the edges", async () => {
+        // No Worker, so no Graphviz: the edges are drawn the element's way and the nodes still go where the data says.
+        vi.stubGlobal("Worker", undefined);
+        try {
+            await graph.addNodes([
+                { id: "a", position: { x: 0, y: 0, z: 0 } },
+                { id: "b", position: { x: 100, y: 0, z: 0 } },
+            ]);
+            await graph.addEdges([{ src: "a", dst: "b" }]);
+            await graph.setLayout("fixed", { edgeRoutes: "graphviz" });
+            await operationQueueOf(graph).waitForCompletion();
+            // the answer waits for Graphviz's, which here is the failure
+            await vi.waitFor(() => {
+                graph.update();
+                assert.deepEqual(at("b"), { x: 100, y: 0, z: 0 });
+            });
+        } finally {
+            vi.unstubAllGlobals();
+        }
+
+        assert.deepEqual(warnings, [
+            { layoutType: "fixed", code: "W_ROUTES_NOT_LAID", params: { reason: "graphviz.unavailable" } },
+        ]);
     });
 });

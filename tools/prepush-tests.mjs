@@ -48,9 +48,9 @@
  * A shard passes only when it exits 0 AND its log shows a finished vitest run (tools/shard-verdict.mjs). Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. The failed shard's whole log is also copied to
- * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, times the shards a merged selected run covers, not counting
- * its wait for a browser or test slot) fails. The stage itself has no time limit: waiting for slots
- * other gates hold is not a failure of this push.
+ * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. Neither a shard nor the
+ * stage has a time limit: a hung test is ended by the one hang guard every vitest config sets (its
+ * testTimeout and hookTimeout), and waiting for slots other gates hold is not a failure of this push.
  */
 
 import { spawn, spawnSync, execFileSync } from "node:child_process";
@@ -64,7 +64,7 @@ import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-
 import { checkShard, expectedRuns } from "./shard-verdict.mjs";
 import { afterShard, closeFinished, quarantineEnabled, shQuote, splitLog } from "./test-quarantine.mjs";
 import { planRuns, selectBaseOf, selectedCommand, startAdvisory } from "./test-select.mjs";
-import { liveTickets, markGate, slotDir } from "./test-slots.mjs";
+import { liveTickets, slotDir } from "./test-slots.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -131,6 +131,49 @@ export function localShards(affected) {
     const dirs = new Set(affected.map((p) => p.replace(/^@graphty\//, "")));
     const shards = SHARDS.filter((s) => dirs.has(s.package));
     return [...shards.filter((s) => s["needs-browser"]), ...shards.filter((s) => !s["needs-browser"])];
+}
+
+// Each shard's share of runs that failed (failed or error, of those that passed or failed) in the last 14 days.
+const RATES_SQL = `SELECT shard, 1.0 * SUM(outcome IN ('failed', 'error')) / COUNT(*) AS rate FROM invocation
+  WHERE outcome IN ('passed', 'failed', 'error') AND started_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-14 days')
+  GROUP BY shard`;
+
+/**
+ * Each shard's recent failure rate, from the test ledger. Never throws: without the ledger the map is empty and
+ * the shards keep the order they have.
+ * @param [lib] the test ledger module (tests pass a stand-in)
+ * @param [log] where a line about an unavailable ledger goes
+ * @returns shard name -> failure rate, 0 to 1
+ */
+export function failureRates(lib = ledger, log = console.log) {
+    let db;
+    try {
+        const opened = lib?.openLedger(process.env, ROOT) ?? { why: "the ledger is unavailable" };
+        db = opened.db;
+        if (!db) throw new Error(opened.why);
+        return new Map(
+            db
+                .prepare(RATES_SQL)
+                .all()
+                .map((r) => [r.shard, r.rate]),
+        );
+    } catch (e) {
+        log(`ledger: no failure rates (${e.message.split("\n")[0]}); the shards start in their usual order`);
+        return new Map();
+    } finally {
+        db?.close();
+    }
+}
+
+/**
+ * The shards with the likeliest failures first, so a failing push fails early; a stable sort, so shards with the
+ * same rate (or none) keep their order (localShards': browser shards first).
+ * @param shards the shards to run
+ * @param rates failureRates()
+ * @returns the shards, highest failure rate first
+ */
+export function byFailureRate(shards, rates) {
+    return [...shards].sort((a, b) => (rates.get(b.shard) ?? 0) - (rates.get(a.shard) ?? 0));
 }
 
 /**
@@ -447,34 +490,18 @@ const readJson = (file) => {
 
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
-const TIMEOUT = process.env.PREPUSH_SHARD_TIMEOUT ?? "30m";
-const UNIT_SECS = { "": 1, s: 1, m: 60, h: 3600, d: 86400 };
-
-/**
- * A run's time limit, for timeout(1): one shard's limit for each shard it covers, so a selected run that
- * planRuns() merged from several slices of one family gets the time those slices had together (issue #3337).
- * @param shard a shard entry, selected or not
- * @param [limit] one shard's limit, in timeout(1)'s form (30m, 1800, 1.5h)
- * @returns the limit, unchanged when it covers one shard or is not in that form
- */
-export function shardTimeout(shard, limit = TIMEOUT) {
-    const n = shard.covers?.length ?? 1;
-    const m = /^(\d+(?:\.\d+)?)([smhd]?)$/u.exec(String(limit).trim());
-    return n > 1 && m ? `${Math.ceil(Number(m[1]) * UNIT_SECS[m[2]] * n)}s` : limit;
-}
 
 /**
  * How one shard runs, from its checkout: through tools/run-tests.sh (with `command` instead of the shard's own when
- * given) under the shard timeout, in a machine-wide test slot (tools/test-slots.mjs) taken outside the timeout so
- * the wait does not count against the shard, and after the browser slot: nothing holding a test slot ever waits
- * for a browser slot, so the two cannot wait on each other.
+ * given), in a machine-wide test slot (tools/test-slots.mjs), and after the browser slot: nothing holding a test
+ * slot ever waits for a browser slot, so the two cannot wait on each other.
  * @param shard a SHARDS entry
  * @param [command] the command to run instead
  * @returns argv
  */
 function shardArgv(shard, command) {
     const what = command ? ["--command", shard.shard, command] : [shard.shard];
-    const cmd = ["timeout", "--kill-after=30s", shardTimeout(shard), "bash", "tools/run-tests.sh", ...what];
+    const cmd = ["bash", "tools/run-tests.sh", ...what];
     cmd.unshift(process.execPath, join(dirname(fileURLToPath(import.meta.url)), "test-slots.mjs"));
     return shard["needs-browser"] && existsSync(GATE) ? [GATE, ...cmd] : cmd;
 }
@@ -758,7 +785,8 @@ async function main() {
         process.exit(1);
     }
     const passes = passed(planned, main);
-    const shards = passes.run;
+    // The likeliest failures start first (graphty-1 to -3 fail 11-18% of runs, graph-format almost never).
+    const shards = byFailureRate(passes.run, failureRates());
     if (shards.length === 0) {
         console.log(nothingToRun(gated, planned));
         return;
@@ -786,16 +814,15 @@ async function main() {
     const start = (shard) => {
         const log = join(logs, `${shard.shard}.log`);
         const out = createWriteStream(log);
-        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken outside the timeout so the wait
-        // does not count against the shard, and after the browser slot: nothing holding a test slot ever waits for
-        // a browser slot, so the two cannot wait on each other.
+        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken after the browser slot: nothing
+        // holding a test slot ever waits for a browser slot, so the two cannot wait on each other.
         const what = shard.selected ? ["--command", shard.shard, shard["test-command"]] : [shard.shard];
         // Through the quarantine wrapper (tools/test-quarantine.mjs): when only tests failed, it runs the failed
         // files once more, and a flaky or quarantined test does not fail the shard. The gate's own copies of it
-        // and of test-slots.mjs, so a gate fix holds for every branch at once (TEST_SLOT_GATE: the gate lane).
+        // and of test-slots.mjs, so a gate fix holds for every branch at once.
         const shardRun = ["bash", "tools/run-tests.sh", ...what].map(shQuote).join(" ");
         const quarantine = [join(tools, "test-quarantine.mjs"), "run", shard.shard, shardRun, "--via-run-tests"];
-        const cmd = ["timeout", "--kill-after=30s", shardTimeout(shard), process.execPath, ...quarantine];
+        const cmd = [process.execPath, ...quarantine];
         cmd.unshift(process.execPath, join(tools, "test-slots.mjs"));
         if (shard["needs-browser"] && existsSync(GATE)) {
             cmd.unshift(GATE);
@@ -813,7 +840,6 @@ async function main() {
                 ...shardEnv(shard),
                 ...(runId ? { TEST_LEDGER_RUN: runId } : {}),
                 TEST_QUARANTINE_RESULT: resultFile,
-                TEST_SLOT_GATE: String(process.pid),
             },
         });
         child.stdout.pipe(out);
@@ -831,7 +857,8 @@ async function main() {
                 // The ledger records the first run and the retry as two runs, each with its own exit status.
                 const parts = splitLog(text);
                 const facts = { code: q?.firstCode ?? code, log: parts.first, runId, startedAt: t0, logFile: log };
-                if (q?.retryRunId) {
+                // A retry that ran none of the failed files (test-quarantine's retryRan) is no run of them.
+                if (q?.retryRunId && q.retryRan !== false) {
                     const retried = { ...shard, selected: q.retryFiles };
                     ledgerRecord(retried, main, {
                         code: q.retryCode,
@@ -1052,8 +1079,6 @@ async function main() {
         }
     };
 
-    // While the shards run, every test run and browser command outside a gate waits in the low lane (tools/test-slots.mjs).
-    process.on("exit", markGate());
     // On by default; with GRAPHTY_TEST_QUARANTINE=0 the wrapper writes no result and nothing here runs.
     if (quarantineEnabled()) {
         quarantineLines.push(...closeFinished(main, ROOT).map((left) => `  [QUARANTINE-] ${left}`));

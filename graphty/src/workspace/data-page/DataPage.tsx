@@ -3,20 +3,25 @@ import "./data-page.css";
 import {
     DataTable,
     type DataTableColumn,
+    FileSource,
     PANEL_GRID,
+    pickFiles,
     Popout,
     PopoutManager,
     ResetButton,
     SegmentedControl,
+    useFileDrop,
 } from "@graphty/compact-mantine";
 import {
     type DraftRow,
     type DraftTable,
     type GraphSession,
     isGraphtyError,
+    LOAD_ROLES,
     type LoadDraft,
     type LoadReport,
     type TableMapping,
+    type TimeUnit,
 } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -33,8 +38,6 @@ import {
     Select,
     Stack,
     Text,
-    Textarea,
-    TextInput,
     Title,
     Tooltip,
 } from "@mantine/core";
@@ -47,9 +50,12 @@ import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
 import { openProjectFile } from "../project/actions";
 import { writeFileStylesChoice } from "../settings/preferences";
+import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
+import { showNotices } from "../time/timeActions";
+import { UNIT_CHOICES } from "../time/timeWords";
 import {
     elementRole,
     kindChanged,
@@ -57,10 +63,10 @@ import {
     offersStyles,
     type PageChoices,
     type PageRole,
-    ROLES_BY_KIND,
     rowsAreOf,
     setRole,
     setRowsAre,
+    setTimeUnit,
     setWeightMeaning,
     weightHolder,
 } from "./choices";
@@ -89,7 +95,7 @@ import {
     UNMATCHED_HINTS,
 } from "./words";
 
-/** The URL / Paste entry pop-out's width. */
+/** The From a URL pop-out's width. */
 const ENTRY_WIDTH = 280;
 
 /** The File settings pop-out's width. */
@@ -208,7 +214,6 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     // A read the reader starts on the open page (another file, a file setting) is said; the read
     // the page opens on is not, and its rows are said by the grid once they arrive.
     useAnnounceChange(page.reading && page.source !== null ? `Reading ${sourceName(page.source)}` : null);
-    const fileInput = useRef<HTMLInputElement>(null);
     // The door that opened the page (New from data... on the start screen) goes with the start
     // screen; focus goes to the page's first ask, "Choose a file...", or its first control.
     const pageRef = useRef<HTMLElement>(null);
@@ -278,13 +283,10 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
 
     const load = async (): Promise<void> => {
         const { source } = page;
-        // A refused load stays on the page, its problem block shown and Load disabled (T5).
-        if (!(await page.load())) {
+        // A refused load stays on the page, its problem block shown and Load disabled (T5). A new
+        // graph starts its history; data added to an open graph stays undoable.
+        if (!(await page.load(request.intent === "new" ? "start" : undefined))) {
             return;
-        }
-        // A new graph starts its history; data added to an open graph stays undoable.
-        if (request.intent === "new") {
-            session?.history.clear();
         }
         if (session !== null && source?.kind === "files") {
             rememberLoad(session, { files: source.files, choices: page.choices });
@@ -305,6 +307,10 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
             return;
         }
         noticeFileStyles(store, session);
+        // A time field marked at import says what its values held, as Set as time does.
+        if (session.time.field !== null) {
+            showNotices(session, store, session.time.notices());
+        }
         // The status line, written once the place is showing and the header has its name: the
         // graph as the header names it, its size and the rows the load left out. Nothing reruns
         // by itself after a replace, so that line says how many runs now need it.
@@ -320,9 +326,6 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }));
     };
 
-    /** Whether the next chosen files join the table on the page (Tables "+") or replace the source. */
-    const joining = useRef(false);
-
     // A table the reader just added is the one the preview shows once the files are read again,
     // not the first table: the view follows the reader's own action.
     const added = useRef<string | null>(null);
@@ -336,8 +339,9 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     }, [draft, setTableId]);
 
     const chooseFiles = (join: boolean): void => {
-        joining.current = join;
-        fileInput.current?.click();
+        void pickFiles({ multiple: true }).then((files) => {
+            addFiles(files, join);
+        });
     };
 
     const addFiles = (files: readonly File[], join: boolean): void => {
@@ -374,6 +378,11 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     useEffect(() => {
         addFilesRef.current = addFiles;
     });
+    // The whole page takes a drop, which joins the table on the page as Tables "+" does.
+    const onDrop = useCallback((files: File[]) => {
+        addFilesRef.current(files, true);
+    }, []);
+    useFileDrop(pageRef, onDrop);
     useEffect(
         () =>
             whileDataPageOpen(store, (next) => {
@@ -405,29 +414,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
 
     return (
         <PopoutManager>
-            <section
-                ref={pageRef}
-                className="dp-page"
-                aria-label="Data page"
-                onDragOver={(event) => {
-                    event.preventDefault();
-                }}
-                onDrop={(event) => {
-                    event.preventDefault();
-                    addFiles([...event.dataTransfer.files], true);
-                }}
-            >
-                <input
-                    ref={fileInput}
-                    type="file"
-                    multiple
-                    hidden
-                    data-testid="data-page-file-input"
-                    onChange={(event) => {
-                        addFiles([...(event.currentTarget.files ?? [])], joining.current);
-                        event.currentTarget.value = "";
-                    }}
-                />
+            <section ref={pageRef} className="dp-page" aria-label="Data page">
                 <header className="dp-header">
                     <Title order={1} size="h4">
                         {title}
@@ -451,6 +438,9 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                             joins={joins}
                             onChooseFiles={() => {
                                 chooseFiles(false);
+                            }}
+                            onFiles={(files) => {
+                                addFiles(files, false);
                             }}
                         />
                     </section>
@@ -516,9 +506,18 @@ interface PartProps {
  * @returns The list
  */
 function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => void }): React.JSX.Element {
-    const [entry, setEntry] = useState<"url" | "paste" | null>(null);
+    const { store } = useWorkspace();
+    const [entry, setEntry] = useState(false);
     const addButton = useRef<HTMLButtonElement>(null);
     const { draft } = page;
+    const paste = async (): Promise<void> => {
+        const pasted = await readPasted();
+        if (pasted === null) {
+            store.set({ notice: { message: "Clipboard empty" } });
+        } else {
+            page.setSource(pasted);
+        }
+    };
     return (
         <section className="dp-tables" aria-label="Tables">
             <Group justify="space-between" wrap="nowrap" className="dp-section-head">
@@ -538,46 +537,46 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                         <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
                         <Menu.Item
                             onClick={() => {
-                                setEntry("url");
+                                setEntry(true);
                             }}
                         >
                             From a URL...
                         </Menu.Item>
                         <Menu.Item
                             onClick={() => {
-                                setEntry("paste");
+                                void paste();
                             }}
                         >
-                            Paste...
+                            Paste
                         </Menu.Item>
                     </Menu.Dropdown>
                 </Menu>
                 {/* Opened from the menu, so there is no Popout.Trigger: the panel docks to "+". */}
-                <Popout
-                    opened={entry !== null}
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            setEntry(null);
-                        }
-                    }}
-                >
+                <Popout opened={entry} onOpenChange={setEntry}>
                     <Popout.Panel
                         width={ENTRY_WIDTH}
-                        header={{ variant: "title", title: entry === "paste" ? "Paste" : "From a URL" }}
+                        header={{ variant: "title", title: "From a URL" }}
                         anchorX={addButton}
                         anchorY={addButton}
                         placement="right"
                     >
                         <Popout.Content>
-                            {entry === null ? null : (
-                                <EntryForm
-                                    kind={entry}
-                                    onDone={(source) => {
-                                        setEntry(null);
-                                        page.setSource(source);
+                            {entry ? (
+                                <FileSource
+                                    variant="row"
+                                    url
+                                    multiple
+                                    placeholder="Address"
+                                    onUrl={(url) => {
+                                        setEntry(false);
+                                        page.setSource({ kind: "url", url });
+                                    }}
+                                    onFiles={(files) => {
+                                        setEntry(false);
+                                        page.setSource({ kind: "files", files });
                                     }}
                                 />
-                            )}
+                            ) : null}
                         </Popout.Content>
                     </Popout.Panel>
                 </Popout>
@@ -683,64 +682,6 @@ function TableRow({ page, draft, table }: PartProps & { draft: LoadDraft; table:
 }
 
 /**
- * The URL or paste entry under "+".
- * @param props - Component props
- * @param props.kind - Which entry
- * @param props.onDone - Called with the source
- * @returns The form
- */
-function EntryForm({
-    kind,
-    onDone,
-}: Readonly<{
-    kind: "url" | "paste";
-    onDone: (source: PageSource) => void;
-}>): React.JSX.Element {
-    const [value, setValue] = useState("");
-    return (
-        <form
-            onSubmit={(event) => {
-                event.preventDefault();
-                if (value.trim() !== "") {
-                    onDone(kind === "url" ? { kind: "url", url: value.trim() } : { kind: "text", text: value });
-                }
-            }}
-        >
-            <Stack gap="xs">
-                {kind === "url" ? (
-                    <TextInput
-                        label="Address"
-                        size="sm"
-                        data-autofocus
-                        value={value}
-                        onChange={(event) => {
-                            setValue(event.currentTarget.value);
-                        }}
-                    />
-                ) : (
-                    <Textarea
-                        label="Data"
-                        size="sm"
-                        autosize
-                        minRows={4}
-                        data-autofocus
-                        value={value}
-                        onChange={(event) => {
-                            setValue(event.currentTarget.value);
-                        }}
-                    />
-                )}
-                <Group justify="flex-end">
-                    <Button type="submit" size="sm">
-                        Read
-                    </Button>
-                </Group>
-            </Stack>
-        </form>
-    );
-}
-
-/**
  * The problem block (section 4, "Problem"): what happened, what to do, at most one action.
  * @param props - Component props
  * @param props.refusal - The words
@@ -775,28 +716,29 @@ type Joins = { readonly name: string; readonly nodes: number; readonly edges: nu
  * @param props.page - The page state
  * @param props.joins - The graph an addition joins, or null
  * @param props.onChooseFiles - Opens the file picker
+ * @param props.onFiles - Reads files dropped or chosen in the empty view
  * @returns The view
  */
 function MainView({
     page,
     joins,
     onChooseFiles,
-}: PartProps & { joins: Joins; onChooseFiles: () => void }): React.JSX.Element {
+    onFiles,
+}: PartProps & { joins: Joins; onChooseFiles: () => void; onFiles: (files: File[]) => void }): React.JSX.Element {
     const { draft, source } = page;
     if (source === null) {
         // The whole page takes a drop; this area says so at the size of the space it fills.
         return (
             <div className="dp-drop">
-                <Stack align="center" gap="xs" className="dp-drop-area">
-                    <GLYPHS.upload size={28} aria-hidden />
-                    <Text fw={600}>Drop a file here</Text>
-                    <Text size="xs" c="dimmed">
-                        The file is read here and never uploaded.
-                    </Text>
-                    <Button size="sm" variant="default" onClick={onChooseFiles}>
-                        Choose a file...
-                    </Button>
-                </Stack>
+                <FileSource
+                    variant="drop"
+                    multiple
+                    url
+                    onFiles={onFiles}
+                    onUrl={(url) => {
+                        page.setSource({ kind: "url", url });
+                    }}
+                />
             </div>
         );
     }
@@ -1069,7 +1011,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
     const kind = rowsAreOf(draft, table, page.choices);
     const changed = kindChanged(draft, table, page.choices);
     const options: { value: string; label: string }[] = [
-        ...ROLES_BY_KIND[kind].map((role) => ({ value: role, label: roleWords(role) })),
+        ...LOAD_ROLES[kind].takes.map((role) => ({ value: role, label: roleWords(role) })),
         { value: "attribute", label: roleWords("attribute") },
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),
@@ -1083,16 +1025,30 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
             {table.columns.map((column) => {
                 const own = elementRole(draft, table, column.name, page.choices);
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
+                const current = chosen ?? own ?? "auto";
+                // A role the file sets is a fact, not a choice: plain words, never a box to open.
+                if (table.fixed) {
+                    return (
+                        <div key={column.name} className="dp-role" data-testid="fixed-role">
+                            <Text size="xs" fw={500}>
+                                {column.name}
+                            </Text>
+                            <Text size="xs">{options.find((option) => option.value === current)?.label}</Text>
+                            <Text size="xs" c="dimmed">
+                                {TYPE_WORDS[column.type] ?? column.type}
+                            </Text>
+                        </div>
+                    );
+                }
                 return (
                     <div key={column.name} className="dp-role">
                         <Group gap={8} wrap="nowrap" align="flex-end">
                             <Select
                                 label={column.name}
                                 aria-label={`Role of ${column.name}`}
-                                value={chosen ?? own ?? "auto"}
+                                value={current}
                                 data={options}
                                 allowDeselect={false}
-                                disabled={table.fixed}
                                 style={{ flex: 1 }}
                                 onChange={(value) => {
                                     choose(column.name, value ?? undefined);
@@ -1101,7 +1057,6 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                             {chosen !== undefined && (
                                 <ResetButton
                                     label={column.name}
-                                    disabled={table.fixed}
                                     onClick={() => {
                                         choose(column.name, undefined);
                                     }}
@@ -1111,12 +1066,29 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                         <Text size="xs" c="dimmed">
                             {TYPE_WORDS[column.type] ?? column.type}
                         </Text>
+                        {/* A number column holding times says how its numbers read: epoch or years. */}
+                        {(chosen ?? own) === "time" && (column.type === "number" || column.type === "integer") ? (
+                            <Select
+                                size="xs"
+                                label="Unit"
+                                aria-label={`Unit of ${column.name}`}
+                                value={page.choices.tables[table.id]?.timeUnit ?? "ms"}
+                                data={UNIT_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                                allowDeselect={false}
+                                disabled={table.fixed}
+                                onChange={(value) => {
+                                    if (value !== null) {
+                                        page.setChoices(setTimeUnit(table, value as TimeUnit, page.choices));
+                                    }
+                                }}
+                            />
+                        ) : null}
                     </div>
                 );
             })}
         </fieldset>
     );
-    // Boxes that cannot change say why where they stand, as "Each row is" does above them.
+    // Roles that cannot change say why where they stand, as "Each row is" does above them.
     return table.fixed ? (
         <Input.Wrapper labelElement="div" label="Column roles" description="Set by the file" size="sm">
             {list}
@@ -1267,6 +1239,9 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 scrolls when they do not fit, never a box inside it. */}
             <DataTable
                 label={`Rows of ${table.name}`}
+                // The panel list pitch, not the spreadsheet rows DataTable draws by default.
+                rowHeight={PANEL_GRID.ROW_PITCH}
+                headerHeight={PANEL_GRID.ROW_PITCH}
                 columns={columns}
                 data={rows}
                 // The grid says the count it is given when its rows change; a preview of the first

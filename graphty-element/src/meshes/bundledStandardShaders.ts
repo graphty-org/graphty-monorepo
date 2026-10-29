@@ -11,7 +11,7 @@
  *
  * The side-effect imports below put both shader languages' default shaders in the ShaderStore with
  * the element itself, and {@link useBundledStandardShaders} marks each StandardMaterial created in
- * the scene as already loaded, so Babylon skips the `import()`.
+ * the scene as already loaded from the moment it is constructed, so Babylon skips the `import()`.
  */
 
 import "@babylonjs/core/Shaders/default.vertex";
@@ -20,6 +20,8 @@ import "@babylonjs/core/ShadersWGSL/default.vertex";
 import "@babylonjs/core/ShadersWGSL/default.fragment";
 
 import { type Scene, ShaderStore, StandardMaterial } from "@babylonjs/core";
+
+import { pinShadersLoaded } from "./pinShadersLoaded";
 
 /** The shaders StandardMaterial would otherwise import lazily, by ShaderStore key. */
 const DEFAULT_SHADERS = ["defaultVertexShader", "defaultPixelShader"] as const;
@@ -34,23 +36,10 @@ function defaultShadersStored(): boolean {
 
 /**
  * Make every StandardMaterial created in `scene` skip Babylon's lazy shader import.
- *
- * The scene announces a material from inside Material's constructor, before StandardMaterial's
- * own constructor writes `_shadersLoaded = false` (a private Babylon field), so the flag is
- * pinned with an accessor that ignores that write rather than set once.
  * @param scene - The scene whose materials are pinned.
  */
 export function useBundledStandardShaders(scene: Scene): void {
-    if (!defaultShadersStored()) {
-        return;
+    if (defaultShadersStored()) {
+        pinShadersLoaded(StandardMaterial, scene);
     }
-    scene.onNewMaterialAddedObservable.add((material) => {
-        if (material instanceof StandardMaterial) {
-            Object.defineProperty(material, "_shadersLoaded", {
-                configurable: true,
-                get: () => true,
-                set: () => undefined,
-            });
-        }
-    });
 }

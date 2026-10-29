@@ -188,6 +188,7 @@ synchronously. Since 0.2 it returns a `Promise<GraphSnapshot>` from the download
 | `datasets/celegans-neural`                   | C. elegans neurons (directed, weighted)                   | 297 / 2,345    |              |
 | `datasets/political-blogs`                   | US political blogs, 2004 (directed)                       | 1,490 / 19,022 | `lean`       |
 | `datasets/openflights`                       | OpenFlights airports and routes (directed)                | 3,214 / 36,906 |              |
+| `datasets/venice-transit`                    | Venice bus, tram and waterbus stops (directed, weighted)  | 1,874 / 2,702  |              |
 | `datasets/yeast-perturbation`                | Yeast galactose network, Cytoscape's demo (directed, x/y) | 331 / 361      |              |
 | `datasets/stelzl-interactome`                | Human protein interactions, Stelzl 2005 (directed, x/y)   | 1,691 / 3,128  |              |
 | `datasets/wikipathways-senescence-autophagy` | WikiPathways WP615 pathway drawing (directed, x/y)        | 161 / 118      |              |

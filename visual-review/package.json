@@ -1,6 +1,6 @@
 {
     "name": "@graphty/visual-review",
-    "version": "0.2.35",
+    "version": "0.2.36",
     "description": "Self-hosted visual review of Storybook stories: capture in GitHub Actions, keep the baselines in git (Git LFS), accept or reject each change in a local page, and gate pull requests",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -8,7 +8,15 @@
         "visual-review": "./trusted/cli.mjs"
     },
     "exports": {
-        "./package.json": "./package.json"
+        "./package.json": "./package.json",
+        "./vitest": {
+            "types": "./capture/story-test.d.mts",
+            "default": "./capture/story-test.mjs"
+        },
+        "./vitest/setup": {
+            "types": "./capture/story-test-setup.d.mts",
+            "default": "./capture/story-test-setup.mjs"
+        }
     },
     "files": [
         "trusted/",
@@ -58,7 +66,13 @@
         "pngjs": "7.0.0"
     },
     "peerDependencies": {
-        "playwright": ">=1.49.0"
+        "playwright": ">=1.49.0",
+        "vitest": ">=4.0.0"
+    },
+    "peerDependenciesMeta": {
+        "vitest": {
+            "optional": true
+        }
     },
     "devDependencies": {
         "@types/node": "^20.19.9",

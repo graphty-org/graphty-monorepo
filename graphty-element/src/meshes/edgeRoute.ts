@@ -133,6 +133,42 @@ export function fileRoute(
 }
 
 /**
+ * A route's inner points without those an end cap covers: each point nearer an end than that end's
+ * reach is dropped, so the cap points along the stretch of route it lies over, not along a stub. A
+ * route laid round a node of another shape than the one drawn (Graphviz's spline, which ends on the
+ * outline Graphviz was handed) can leave its last point a hair outside the drawn node, and the stub
+ * from there to the outline points the cap anywhere.
+ * @param mid - The inner points, flat x, y, z, from the start.
+ * @param start - Where the line starts.
+ * @param end - Where the line ends.
+ * @param reach - How near each end a point may not lie: 0 for an end without a cap.
+ * @param reach.start - At the start.
+ * @param reach.end - At the end.
+ * @returns The points kept, flat.
+ */
+export function clearOfCaps(
+    mid: readonly number[],
+    start: Xyz,
+    end: Xyz,
+    reach: { readonly start: number; readonly end: number },
+): number[] {
+    const n = mid.length / 3;
+    const near = (i: number, to: Xyz, limit: number): boolean =>
+        Math.hypot(mid[3 * i] - to.x, mid[3 * i + 1] - to.y, mid[3 * i + 2] - to.z) < limit;
+    let first = 0;
+    while (first < n && near(first, start, reach.start)) {
+        first++;
+    }
+
+    let last = n - 1;
+    while (last >= first && near(last, end, reach.end)) {
+        last--;
+    }
+
+    return mid.slice(3 * first, 3 * (last + 1));
+}
+
+/**
  * Which part of a stored route is drawn: from its first point outside the source node to its last
  * outside the target -- what a tool draws when it clips a line at the outlines -- except that an end
  * at a port is drawn from the port itself, wherever it lies.
@@ -317,6 +353,85 @@ export function surfaceReach(dir: Xyz, half: Xyz, radius: number | null, ellipti
     );
 
     return Number.isFinite(reach) ? reach : 0;
+}
+
+/** The fewest pieces a lifted route is drawn with, so its arc reads as a curve. */
+const LIFT_PIECES = 16;
+
+/**
+ * A route lifted out of its layout plane (`edge.lift`): resampled into at least
+ * {@link LIFT_PIECES} pieces, spread over its segments by length, each point raised along +z by
+ * `lift * sin(pi * s)`, where `s` is how far along the route it is by length. The ends stay where
+ * they are, so the route still leaves and meets its nodes, and the highest point is `lift` above
+ * the middle of the route.
+ * @param flat - The route, flat x, y, z, ends included.
+ * @param lift - How far the middle rises, in world units; 0 returns the route as it is.
+ * @returns The lifted route.
+ */
+export function liftRoute(flat: readonly number[], lift: number): number[] {
+    const n = flat.length / 3;
+    if (lift === 0 || n < 2 || !Number.isFinite(lift)) {
+        return [...flat];
+    }
+
+    const lengths: number[] = [];
+    let total = 0;
+    for (let i = 0; i + 1 < n; i++) {
+        const p = i * 3;
+        const length = Math.hypot(flat[p + 3] - flat[p], flat[p + 4] - flat[p + 1], flat[p + 5] - flat[p + 2]);
+        lengths.push(length);
+        total += length;
+    }
+
+    if (total === 0) {
+        return [...flat];
+    }
+
+    const out = [flat[0], flat[1], flat[2]];
+    let walked = 0;
+    for (let i = 0; i + 1 < n; i++) {
+        const p = i * 3;
+        const steps = Math.max(1, Math.round((LIFT_PIECES * lengths[i]) / total));
+        for (let s = 1; s <= steps; s++) {
+            const f = s / steps;
+            const along = (walked + f * lengths[i]) / total;
+            out.push(
+                flat[p] + (flat[p + 3] - flat[p]) * f,
+                flat[p + 1] + (flat[p + 4] - flat[p + 1]) * f,
+                flat[p + 2] + (flat[p + 5] - flat[p + 2]) * f + lift * Math.sin(Math.PI * along),
+            );
+        }
+
+        walked += lengths[i];
+    }
+
+    // The last point is the route's own end, raised by sin(pi) = 0 up to rounding: put it back exactly.
+    out.splice(-3, 3, ...flat.slice(-3));
+    return out;
+}
+
+/**
+ * The points of a route strictly between its ends that lie outside both end nodes' reach, so a
+ * route trimmed at the node surfaces never doubles back inside a node.
+ * @param flat - The route, flat x, y, z, ends (the node centers) included.
+ * @param srcReach - How far from the source center its surface lies.
+ * @param dstReach - The same for the target.
+ * @returns The interior points kept, flat.
+ */
+export function interiorOutside(flat: readonly number[], srcReach: number, dstReach: number): number[] {
+    const n = flat.length / 3;
+    const out: number[] = [];
+    const last = (n - 1) * 3;
+    for (let i = 1; i < n - 1; i++) {
+        const p = i * 3;
+        const fromSrc = Math.hypot(flat[p] - flat[0], flat[p + 1] - flat[1], flat[p + 2] - flat[2]);
+        const fromDst = Math.hypot(flat[p] - flat[last], flat[p + 1] - flat[last + 1], flat[p + 2] - flat[last + 2]);
+        if (fromSrc > srcReach && fromDst > dstReach) {
+            out.push(flat[p], flat[p + 1], flat[p + 2]);
+        }
+    }
+
+    return out;
 }
 
 /** How many pieces a self-loop's teardrop, and the most a fanned edge's arc, is drawn with. */
@@ -665,4 +780,78 @@ export function pointFromEnd(path: readonly Xyz[], fraction: number): { tip: Xyz
     }
 
     return null;
+}
+
+/** The most pieces a raised arc or a great-circle arc is drawn with. */
+const RAISED_STEPS = 48;
+
+/**
+ * A raised arc over a flat map (`line.route` "arc"): from one end to the other in the vertical plane
+ * through both, bowed toward the viewer (-z, the side the cameras look from) by a parabola whose peak,
+ * at the middle, is `height` times the distance between the ends across the map (the x-y plane).
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The peak as a share of the map distance between the ends.
+ * @returns The points, flat x, y, z, both ends included.
+ */
+export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
+    const chord = Math.hypot(dst.x - src.x, dst.y - src.y);
+    const peak = height * chord;
+    if (peak <= 0) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const pieces = fanArcPieces(chord, peak);
+    const out: number[] = [];
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
+        const lift = 4 * peak * t * (1 - t);
+        out.push(src.x + (dst.x - src.x) * t, src.y + (dst.y - src.y) * t, src.z + (dst.z - src.z) * t - lift);
+    }
+
+    return out;
+}
+
+/**
+ * A great-circle arc over a globe centered on the origin (`line.route` "great-circle"): along the
+ * great circle between the two ends' directions, its distance from the center running from one
+ * end's to the other's, lifted at the middle by `height` times the arc's length (sin(pi t)).
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The lift as a share of the arc's length.
+ * @returns The points, flat x, y, z, both ends included; the straight line when the ends are in
+ *     one direction from the center, or in opposite ones.
+ */
+export function greatCircleArc(src: Xyz, dst: Xyz, height: number): number[] {
+    const ra = Math.hypot(src.x, src.y, src.z);
+    const rb = Math.hypot(dst.x, dst.y, dst.z);
+    const straight = [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    if (ra === 0 || rb === 0) {
+        return straight;
+    }
+
+    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
+    const angle = Math.acos(cos);
+    const sin = Math.sin(angle);
+    if (sin < 1e-6) {
+        return straight;
+    }
+
+    const lift = height * angle * ((ra + rb) / 2);
+    const pieces = Math.min(
+        RAISED_STEPS,
+        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
+    );
+    const out: number[] = [];
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
+        const a = Math.sin((1 - t) * angle) / sin / ra;
+        const b = Math.sin(t * angle) / sin / rb;
+        const r = ra + (rb - ra) * t + lift * Math.sin(Math.PI * t);
+        out.push((a * src.x + b * dst.x) * r, (a * src.y + b * dst.y) * r, (a * src.z + b * dst.z) * r);
+    }
+
+    out.splice(0, 3, src.x, src.y, src.z);
+    out.splice(-3, 3, dst.x, dst.y, dst.z);
+    return out;
 }

@@ -1,9 +1,10 @@
 /**
  * The three field states -- not set, set and mixed -- drawn and named the same way by the number,
- * color and select fields, in a real browser: not set and Mixed are gray italic (two cues), a set
- * value is the body ink, "Mixed" is sentence case with an outlined chit rather than a color, and
- * the accessible name says the state. Also: disabled styling follows a disabled fieldset and
- * aria-disabled, and the number field refuses letters and keeps to its minimum. The number and
+ * color and select fields, in a real browser: nothing is drawn in a gray italic Figma does not have
+ * (a placeholder is Figma's tertiary ink, upright; "Mixed" is the value's ink), a set value is the
+ * body ink, "Mixed" is sentence case with an outlined chit rather than a color, and the accessible
+ * name says the state. Also: disabled styling follows a disabled fieldset and aria-disabled, and
+ * the number field takes a letter and reverts it on commit (Figma), and keeps to its minimum. The number and
  * select fields are PanelField, with a ResetButton beside them in a FieldRow once a value is set.
  */
 import { TextInput } from "@mantine/core";
@@ -89,6 +90,24 @@ describe("field states", () => {
             .toBeInTheDocument();
         await expect.element(page.getByRole("spinbutton", { name: "Size", exact: true })).toBeInTheDocument();
         await expect.element(page.getByRole("combobox", { name: "Shape", exact: true })).toBeInTheDocument();
+    });
+
+    it("not set: no field is italic; a placeholder is Figma's tertiary ink", async () => {
+        await renderThemed(<Fields />);
+        for (const box of boxes()) {
+            expect(ink(box)).not.toContain("italic");
+        }
+        const number = screen.getAllByTestId("panel-field-value")[0] as HTMLInputElement;
+        expect(getComputedStyle(number, "::placeholder").color).toBe("rgba(0, 0, 0, 0.3)");
+    });
+
+    it("Mixed: the word in the value's ink, upright", async () => {
+        await renderThemed(<Fields mixed />);
+        for (const box of boxes()) {
+            expect(ink(box)).not.toContain("italic");
+        }
+        const number = screen.getAllByTestId("panel-field-value")[0] as HTMLInputElement;
+        expect(getComputedStyle(number, "::placeholder").color).toBe("rgba(0, 0, 0, 0.898)");
     });
 });
 
@@ -293,14 +312,15 @@ describe("disabled styling", () => {
 });
 
 describe("number field keyboard", () => {
-    it("refuses letters as they are typed and leaves the value unchanged", async () => {
+    it("takes letters as typed and reverts them on commit, leaving the value unchanged (Figma)", async () => {
         const onChange = vi.fn();
         await renderThemed(<PanelField kind="number" label="Size" value={5} onChange={onChange} />);
         const box = page.getByRole("spinbutton", { name: "Size" });
         await userEvent.click(box);
         await userEvent.keyboard("{End}abc");
-        expect((box.element() as HTMLInputElement).value).toBe("5");
+        expect((box.element() as HTMLInputElement).value).toBe("5abc");
         await userEvent.keyboard("{Tab}");
+        expect((box.element() as HTMLInputElement).value).toBe("5");
         expect(onChange).not.toHaveBeenCalled();
     });
 

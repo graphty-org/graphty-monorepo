@@ -19,6 +19,25 @@ import * as errors from "../../src/errors/index";
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
+    // the node models (design/rendering/node-models.md section 4)
+    "E_MODEL_FETCH",
+    "E_MODEL_URL_BLOCKED",
+    "E_MODEL_TOO_LARGE",
+    "E_MODEL_STRUCTURE",
+    "E_MODEL_FORMAT_UNSUPPORTED",
+    "E_MODEL_FORMAT_UNKNOWN",
+    "E_MODEL_AMBIGUOUS",
+    "E_MODEL_MISSING_FILE",
+    "E_MODEL_EXTERNAL_URL",
+    "E_MODEL_DECODER_UNAVAILABLE",
+    "E_MODEL_PARSE",
+    "E_MODEL_PART_AMBIGUOUS",
+    "E_MODEL_PART_REQUIRED",
+    "E_MODEL_WEB_PAGE",
+    "E_MODEL_ZIP",
+    "E_MODEL_NAME_TAKEN",
+    "E_MODEL_UNKNOWN_ASSET",
+    "E_MODEL_DIGEST_MISMATCH",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -34,6 +53,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOURCE_PARAM",
     "E_SOURCE_LIMIT",
     "E_SOURCE_UNKNOWN",
+    "E_SOURCE_PENDING",
+    "E_LOAD_UNKNOWN",
     "E_SOURCE_UNSUPPORTED",
     "E_SOURCE_INVALID",
     "E_CREDENTIAL_NOT_STORABLE",
@@ -49,10 +70,14 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_OPTION",
     "E_OPTION_RANGE",
     "E_UNKNOWN_ATTRIBUTE",
+    "E_NO_TIME_FIELD",
     "E_UNKNOWN_ALGORITHM",
     "E_UNKNOWN_LAYOUT",
     "E_UNKNOWN_FORMAT",
     "E_UNKNOWN_PALETTE",
+    "E_UNKNOWN_SHADER",
+    "E_SHADER_KIND",
+    "E_UNKNOWN_SHADER_PARAM",
     "E_UNKNOWN_CAMERA",
     "E_UNKNOWN_GENERATOR",
     "E_UNKNOWN_DATASET",
@@ -133,10 +158,14 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_CHANNEL":
         case "E_UNKNOWN_OPTION":
         case "E_UNKNOWN_ATTRIBUTE":
+        case "E_NO_TIME_FIELD":
         case "E_UNKNOWN_ALGORITHM":
         case "E_UNKNOWN_LAYOUT":
         case "E_UNKNOWN_FORMAT":
         case "E_UNKNOWN_PALETTE":
+        case "E_UNKNOWN_SHADER":
+        case "E_SHADER_KIND":
+        case "E_UNKNOWN_SHADER_PARAM":
         case "E_UNKNOWN_CAMERA":
         case "E_UNKNOWN_GENERATOR":
         case "E_UNKNOWN_DATASET":
@@ -197,6 +226,25 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PATH_COUNT_OVERFLOW":
         case "E_INTERNAL":
             return "refused";
+        case "E_MODEL_FETCH":
+        case "E_MODEL_URL_BLOCKED":
+        case "E_MODEL_TOO_LARGE":
+        case "E_MODEL_STRUCTURE":
+        case "E_MODEL_FORMAT_UNSUPPORTED":
+        case "E_MODEL_FORMAT_UNKNOWN":
+        case "E_MODEL_AMBIGUOUS":
+        case "E_MODEL_MISSING_FILE":
+        case "E_MODEL_PART_AMBIGUOUS":
+        case "E_MODEL_WEB_PAGE":
+        case "E_MODEL_PART_REQUIRED":
+        case "E_MODEL_EXTERNAL_URL":
+        case "E_MODEL_DECODER_UNAVAILABLE":
+        case "E_MODEL_PARSE":
+        case "E_MODEL_ZIP":
+        case "E_MODEL_NAME_TAKEN":
+        case "E_MODEL_UNKNOWN_ASSET":
+        case "E_MODEL_DIGEST_MISMATCH":
+            return "model";
         case "E_SOURCE_BLOCKED":
         case "E_SOURCE_AUTH":
         case "E_SOURCE_FORBIDDEN":
@@ -211,6 +259,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOURCE_PARAM":
         case "E_SOURCE_LIMIT":
         case "E_SOURCE_UNKNOWN":
+        case "E_SOURCE_PENDING":
+        case "E_LOAD_UNKNOWN":
         case "E_SOURCE_UNSUPPORTED":
         case "E_SOURCE_INVALID":
         case "E_CREDENTIAL_NOT_STORABLE":

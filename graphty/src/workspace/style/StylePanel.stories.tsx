@@ -5,9 +5,9 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { freshStore } from "../../stories/freshStore";
 import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
-import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
@@ -57,8 +57,7 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     expect(session.config.editableBase).toBe(true);
     await session.layout.setDimension("2d");
     await session.layout.set("circular");
-    // A layout change frames the camera on later frames, and a framing still pending takes the
-    // view insets in force when it lands (the legend card's, once a layer exists), so wait for it.
+    // A layout change frames the camera on later frames: wait for the framing to land.
     await element.waitForStableFrame();
     const idOf = (name: string): string => {
         const node = session.data.nodes().find((n) => n.name === name);
@@ -200,7 +199,7 @@ type Story = StoryObj<typeof meta>;
  */
 function sceneStory(play: (scene: Scene) => Promise<void>): Story {
     return {
-        args: { store: createWorkspaceStore() },
+        ...freshStore(),
         play: async ({ canvasElement }) => {
             const scene = await loadScene(canvasElement);
             await play(scene);
@@ -240,13 +239,11 @@ export const HoveredAtRest: Story = sceneStory(async () => {
     await openStyle("Hovered");
 });
 
-/**
- * Key people's Shape "+": Size is set, so Shape is the one property left, and "+" adds its line
- * at once (a menu of one item is one more click for nothing), waiting for a value.
- */
+/** Key people's Shape "+", then Shape: its line is added, waiting for a value. */
 export const AddToShape: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
     await waitFor(() => {
         expect(tab.querySelector('[data-section="node-shape"] .ws-row[data-line="node.shape"]')).not.toBeNull();
     }, storyWaitOptions(1000));
@@ -375,7 +372,7 @@ export const NewLayer: Story = sceneStory(async () => {
     await page().findByTestId("style-tab", {}, storyWaitOptions(1000));
 });
 
-// Checkpoint 2: pickers, popovers with category rows and New layer for a value, labels, effects.
+// Checkpoint 2: pickers, popovers with category rows and New layer for a value, labels, shaders.
 
 /** Key people's Size by a value: the value picker open from the vary glyph. */
 export const VaryBy: Story = sceneStory(async () => {
@@ -497,11 +494,18 @@ export const LabelSettings: Story = sceneStory(async () => {
     await page().findByRole("dialog", { name: "Label settings" }, storyWaitOptions(1000));
 });
 
-/** Key people's Effects "+": the effects the layer does not draw yet. */
-export const EffectsMenu: Story = sceneStory(async () => {
+/** Key people's Shape "+": the options the layer does not set yet, Wireframe, Outline, Glow and Halo among them. */
+export const ShapeMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
-    await userEvent.click(within(tab).getByRole("button", { name: "Add to node effects" }));
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
     await page().findAllByRole("menuitem", {}, storyWaitOptions(1000));
+});
+
+/** Key people's Shaders "+": the one gallery, its search, the place and origin filters and the tiles. */
+export const ShadersGallery: Story = sceneStory(async () => {
+    const tab = await openStyle("Key people");
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shaders" }));
+    await page().findByTestId("shader-gallery", {}, storyWaitOptions(1000));
 });
 
 // Checkpoint 3: the Values tab and Graph settings.
@@ -562,8 +566,7 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");
     await element.session.styles.settled();
-    // A layout change frames the camera on later frames, and a framing still pending takes the
-    // view insets in force when it lands (the legend card's, once a layer exists), so wait for it.
+    // A layout change frames the camera on later frames: wait for the framing to land.
     await element.waitForStableFrame();
     return element;
 }
@@ -574,7 +577,7 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
  * "One color per value". The binding popover is left open.
  */
 export const FootballConference: Story = {
-    args: { store: createWorkspaceStore() },
+    ...freshStore(),
     play: async ({ canvasElement }) => {
         const element = await loadFootball(canvasElement);
         const { session } = element;
@@ -624,15 +627,6 @@ export const FootballConference: Story = {
             expect(binding !== undefined && "by" in binding ? binding.scale : undefined).toBe("ordinal");
         }, storyWaitOptions(1000));
         await within(popover).findByRole("combobox", { name: /^Palette/ }, storyWaitOptions(1000));
-        // The key card the binding brings up reserves room at the canvas's left edge. The circular
-        // layout's own framing lands on a later frame, before or after that room exists depending
-        // on the machine's speed, and a framing that lands after it keeps clear of it: two pictures
-        // of one story (#3360). The frame the story ends on is made the same everywhere: the room
-        // in force, then one framing asked for inside it.
-        await waitFor(() => {
-            expect(element.viewInsets.left).toBeGreaterThan(0);
-        }, storyWaitOptions(1000));
-        element.zoomToFit();
         await element.waitForStableFrame();
     },
 };

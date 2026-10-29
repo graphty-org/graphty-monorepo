@@ -47,6 +47,9 @@
 
 export type { RegisterOptions } from "./src/catalog/pluginRegistry";
 
+// The experiments every element and session on the page switches on unless it names its own.
+export { setDefaultFeatures } from "./src/features/resolve";
+
 // ---------------------------------------------------------------------------------------------
 // Options: one mechanism for all six points
 // ---------------------------------------------------------------------------------------------
@@ -86,6 +89,35 @@ export {
 } from "./src/catalog/paletteRegistry";
 export type { PaletteDescriptor, PaletteId, PaletteRegistration } from "./src/catalog/types";
 export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
+
+// ---------------------------------------------------------------------------------------------
+// Shader: a descriptor and a GLSL body, checked as pasted shader text is
+// ---------------------------------------------------------------------------------------------
+
+export { clearRegisteredShadersForTesting, registerShader } from "./src/catalog/shaderRegistry";
+export type {
+    ShaderClock,
+    ShaderClockBinding,
+    ShaderDescriptor,
+    ShaderPlace,
+    ShaderPreview,
+    ShaderRegistration,
+    ShaderSource,
+    ShaderTarget,
+} from "./src/catalog/shaders";
+export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
+
+// ---------------------------------------------------------------------------------------------
+// Layout transition: how nodes travel from one layout to the next, on the CPU
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    TransitionDescriptor,
+    TransitionDrawable,
+    TransitionNode,
+    TransitionRegistration,
+} from "./src/transitions/registry";
+export { clearRegisteredTransitionsForTesting, registerTransition } from "./src/transitions/registry";
 
 // ---------------------------------------------------------------------------------------------
 // File format: a reader class carrying its own description
@@ -160,6 +192,7 @@ export type {
     ExportLoss,
     ExportLossCode,
     ExportResult,
+    ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
 export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
@@ -390,6 +423,7 @@ export { defineAlgorithm } from "./src/simple/defineAlgorithm";
 export { defineLayout } from "./src/simple/defineLayout";
 export { defineLogDestination } from "./src/simple/defineLogDestination";
 export { definePalette } from "./src/simple/definePalette";
+export { defineShader } from "./src/simple/defineShader";
 export type {
     AlgorithmContext,
     AlgorithmDefinition,
@@ -414,6 +448,8 @@ export type {
     PlainLogRecord,
     Point,
     Score,
+    ShaderDefinition,
+    ShaderParamShorthand,
     ShorthandValue,
     WholeGraphScoreDefinition,
 } from "./src/simple/types";

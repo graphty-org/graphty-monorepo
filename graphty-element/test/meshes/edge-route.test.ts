@@ -10,6 +10,7 @@ import {
     bendPoints,
     bezierThroughControls,
     centerArc,
+    clearOfCaps,
     crossingOf,
     curveThroughMidpoints,
     cutFromEnd,
@@ -18,6 +19,8 @@ import {
     fanOffset,
     fanSlot,
     fileRoute,
+    interiorOutside,
+    liftRoute,
     parseBends,
     parsePort,
     pointFromEnd,
@@ -88,6 +91,32 @@ describe("edge route geometry", () => {
         }
         // a polyline with no interior point is unchanged
         assert.deepEqual(roundCorners([0, 0, 0, 1, 1, 1]), [0, 0, 0, 1, 1, 1]);
+    });
+
+    it("lifts a route into an arc over its middle, keeping its ends", () => {
+        const out = liftRoute([0, 0, 0, 10, 0, 0], 2);
+        assert.isAtLeast(out.length / 3 - 1, 16, "a straight route is drawn as at least sixteen pieces");
+        assert.deepEqual(out.slice(0, 3), [0, 0, 0]);
+        assert.deepEqual(out.slice(-3), [10, 0, 0]);
+        // the middle point is the highest, at the lift, and the route never leaves the x-z plane
+        const middle = out.length / 3 / 2;
+        assert.closeTo(out[Math.floor(middle) * 3 + 2], 2, 1e-9);
+        for (let i = 0; i < out.length; i += 3) {
+            assert.strictEqual(out[i + 1], 0);
+            assert.isAtLeast(out[i + 2], 0);
+            assert.isAtMost(out[i + 2], 2 + 1e-9);
+        }
+
+        // a bent route keeps its corners and is raised by how far along it each point is
+        const bent = liftRoute([0, 0, 0, 0, 4, 0, 4, 4, 0], 1);
+        assert.include(bent.join(","), "0,4,1", "the corner, halfway along by length, is raised by the whole lift");
+        assert.deepEqual(liftRoute([0, 0, 0, 1, 0, 0], 0), [0, 0, 0, 1, 0, 0], "no lift is the route itself");
+    });
+
+    it("keeps only the interior points outside both end nodes", () => {
+        const route = [0, 0, 0, 0.5, 0, 0, 2, 0, 0, 3.5, 0, 0, 4, 0, 0];
+        assert.deepEqual(interiorOutside(route, 1, 1), [2, 0, 0]);
+        assert.deepEqual(interiorOutside(route, 0.1, 0.1), [0.5, 0, 0, 2, 0, 0, 3.5, 0, 0]);
     });
 
     it("draws a curve through midpoints as an elliptical quarter round one right-angled bend", () => {
@@ -328,5 +357,22 @@ describe("an arrow cap part-way along a line", () => {
         assert.closeTo(Math.hypot((long?.at.x ?? 0) - 10, long?.at.y ?? 0), 12, 1e-5);
         // a path wholly nearer its end than the cap
         assert.isNull(cutFromEnd([at(0, 0), at(1, 0)], 4));
+    });
+});
+
+describe("a bent line's points under its end caps", () => {
+    const at = (x: number, y: number): { x: number; y: number; z: number } => ({ x, y, z: 0 });
+
+    it("drops a point a hair short of a capped end, so the cap points along the route and not along the stub", () => {
+        // a route down to (10, 0.2), then a 0.2-long stub sideways to the outline at (10.2, 0.2)
+        const mid = [0, 10, 0, 10, 5, 0, 10, 0.2, 0];
+        assert.deepEqual(clearOfCaps(mid, at(0, 12), at(10.2, 0.2), { start: 0, end: 2 }), [0, 10, 0, 10, 5, 0]);
+    });
+
+    it("keeps every point at an end without a cap, and points farther than the reach", () => {
+        const mid = [1, 0, 0, 5, 1, 0, 9, 0, 0];
+        assert.deepEqual(clearOfCaps(mid, at(0, 0), at(10, 0), { start: 0, end: 0 }), mid);
+        assert.deepEqual(clearOfCaps(mid, at(0, 0), at(10, 0), { start: 2, end: 0.5 }), [5, 1, 0, 9, 0, 0]);
+        assert.deepEqual(clearOfCaps(mid, at(0, 0), at(10, 0), { start: 20, end: 20 }), [], "all under the caps");
     });
 });

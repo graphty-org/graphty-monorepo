@@ -56,8 +56,10 @@ export interface Fixture {
     /**
      * The fixture page's URL.
      * @param params - `key`, `tab`, `n` (nodes, 30 by default), `rows` (`early`, the default, or `late`),
-     *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), and for a page
-     *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending).
+     *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), `list` (`1`: report
+     *   `listAutosaves` before the element mounts, as `listed`), and for a page
+     *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
+     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -146,7 +148,7 @@ IDBDatabase.prototype.transaction = function (stores, mode, ...rest) {
 };
 </script>
 <script type="module">
-import "/bundle.js";
+import { listAutosaves } from "/bundle.js";
 const params = new URLSearchParams(location.search);
 const tab = params.get("tab") ?? "t";
 const n = Number(params.get("n") ?? 30);
@@ -165,6 +167,15 @@ document.addEventListener("freeze", () => report("freeze"));
 document.addEventListener("resume", () => report("resume"));
 window.addEventListener("pagehide", (e) => report("pagehide", { persisted: e.persisted }));
 window.addEventListener("pageshow", (e) => report("pageshow", { persisted: e.persisted }));
+
+// list=1: before the element exists, read the key's entries and report which one is this tab's own,
+// as a start screen does on load; with the session storage item that names it.
+const listed = async () => (await listAutosaves(params.get("key"))).map((e) => ({ id: e.id, own: e.own, live: e.live }));
+if (params.get("list") === "1") {
+    let item = null;
+    try { item = sessionStorage.getItem("graphty-autosave:own:" + params.get("key")); } catch {}
+    report("listed", { item, entries: await listed() });
+}
 
 const ids = Array.from({ length: n }, (_, i) => "n" + i);
 // On a grid, as a laid-out graph is: with no position every node sits at the origin, and the camera
@@ -192,7 +203,13 @@ el.addEventListener("graphty-autosave-status", (e) => {
     }
 });
 el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { params: e.detail.params }));
-el.addEventListener("graphty-autosave-available", (e) => report("available", { reason: e.detail.reason, id: e.detail.entry.id }));
+// Every entry not restored, and why: the ready report carries them, so a test reads the page's
+// whole decision from one report whatever order the reports arrive in.
+const available = [];
+el.addEventListener("graphty-autosave-available", (e) => {
+    available.push({ reason: e.detail.reason, id: e.detail.entry.id });
+    report("available", { reason: e.detail.reason, id: e.detail.entry.id });
+});
 const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
 if (params.get("rows") !== "late") rows();
 document.body.appendChild(el);
@@ -204,7 +221,9 @@ const ready = el.autosaver.ready.then(async (restored) => {
     for (let f = 0; f < 6000 && (el.session.data.snapshot().nodeCount < n || el.session.data.snapshot().edgeCount < n); f++) await new Promise((r) => setTimeout(r, 10));
     const s = el.autosaver.status;
     const probes = [...new Set(Array.from(el.session.data.nodes(), (node) => node.probe ?? null))];
-    report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null });
+    // The key's entries as stored, for a page that restored nothing: what the tab that holds the work has.
+    const entries = restored ? null : (await el.autosaver.list()).map((e) => ({ id: e.id, revision: e.revision, live: e.live }));
+    report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null, available, entries });
     return restored;
 });
 let edits = 0;
@@ -236,6 +255,7 @@ window.fixture = {
         await el.session.runs.start("degree", undefined, { as: "hidden-run", style: false });
     },
     status: () => el.autosaver.status,
+    listed,
     async check() {
         await ready;
         const probes = new Set();
@@ -327,10 +347,15 @@ function bodyOf(request: IncomingMessage): Promise<string> {
 
 /**
  * Start the fixture server on a free loopback port.
+ * @param options - `bundles`: more builds of graphty-element by name (a path to each one's
+ *   `graphty.bundle.js`); the page loads one instead of the built ./bundle with the URL parameter
+ *   `build=<name>`, from the same origin, so it sees the same storage.
+ * @param options.bundles - The builds by name.
  * @returns The fixture.
  */
-export async function startFixture(): Promise<Fixture> {
+export async function startFixture(options: { bundles?: Record<string, string> } = {}): Promise<Fixture> {
     const bundle = readFileSync(BUNDLE);
+    const builds = new Map(Object.entries(options.bundles ?? {}).map(([name, file]) => [name, readFileSync(file)]));
     const log: LogEvent[] = [];
     const waiters = new Set<() => void>();
     const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -364,10 +389,23 @@ export async function startFixture(): Promise<Fixture> {
             return;
         }
 
+        const build = /^\/bundle-(.+)\.js$/.exec(url.pathname)?.[1];
+        if (build !== undefined && builds.has(build)) {
+            response
+                .writeHead(200, { "content-type": "text/javascript", "cache-control": "max-age=3600" })
+                .end(builds.get(build));
+            return;
+        }
+
         if (url.pathname === "/fixture.html") {
+            const named = url.searchParams.get("build");
+            const page =
+                named !== null && builds.has(named)
+                    ? PAGE.replace('import "/bundle.js";', `import "/bundle-${named}.js";`)
+                    : PAGE;
             response
                 .writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
-                .end(PAGE);
+                .end(page);
             return;
         }
 

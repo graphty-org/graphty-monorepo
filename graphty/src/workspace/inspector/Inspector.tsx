@@ -47,7 +47,17 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { count, edgeName, groupName, KIND_WORDS, leftOutOf, PATH_WORD, runTime, selectionWords } from "./words";
+import {
+    count,
+    edgeName,
+    groupName,
+    KIND_WORDS,
+    leftOutOf,
+    nodeName,
+    PATH_WORD,
+    runTime,
+    selectionWords,
+} from "./words";
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -169,6 +179,11 @@ function useCloseOnNewSelection(session: GraphSession | null, store: Workspace["
                 }
             }),
             session.on("canvas:element-click", close),
+            // A click on a group outline selects the layer that draws it, as a click on its tree row.
+            session.on("canvas:group-outline-click", ({ layer }) => {
+                const id = session.styles.get(layer)?.row ?? layer;
+                store.set({ inspected: { kind: "layer-row", id } });
+            }),
         ];
         return () => {
             for (const stop of stops) {
@@ -757,7 +772,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         // A node is named by its id until graphty-element publishes its name (#895).
         case "node":
             return {
-                name: String(resolved.node),
+                // A node is called by its label, else its id.
+                name: nodeName(session, resolved.node),
                 swatch: swatchOf(session, { node: resolved.node }),
                 // A node a filter hides is still selected; the header says why it is not drawn.
                 ...(session.visibility.isVisible(resolved.node) ? {} : { kind: "Node, hidden by a filter" }),

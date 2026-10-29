@@ -1,17 +1,18 @@
 import "./canvas.css";
 
+import type { BasemapStatusEvent, LayoutWarningEvent } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@graphty/graphty-element/session";
-import { Button, Menu, Tooltip } from "@mantine/core";
+import { Button, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { groupsAnnouncement, pathAnnouncement } from "../analyze/words";
-import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { selectedNameWords } from "../inspector/words";
+import { layoutWarningWords } from "../layout/refusalWords";
 import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { KeyRoom, LegendCard } from "./LegendCard";
-import { dataBlocks, keyBlocks } from "./legendWords";
+import { LegendCard } from "./LegendCard";
+import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -20,9 +21,10 @@ const ENDED: Partial<Record<RunStatus, string>> = { succeeded: "finished", faile
 
 /**
  * The element's events after which the legend or the node count may read differently: a filter
- * step changes what the key counts.
+ * step changes what the key counts. `style:batch-changed` closes a repaint once, however many
+ * edits it carried (a grouping run adds a layer per group).
  */
-const REDRAW_EVENTS = ["style:changed", "run:changed", "project:changed", "visibility:changed"] as const;
+const REDRAW_EVENTS = ["style:batch-changed", "run:changed", "project:changed", "visibility:changed"] as const;
 
 /** What the canvas draws from, read from the session. */
 interface CanvasReading {
@@ -59,7 +61,9 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             const { nodeCount, edgeCount } = session.data.statistics();
             const blocks = keyBlocks(dataBlocks(session));
             setReading({ blocks, nodeCount, edgeCount, load });
-            const keyHasEntries = blocks.length > 0;
+            // An effect is listed in a key that shows, and never opens it: a style write of an
+            // effect is no reason for the key to appear.
+            const keyHasEntries = blocks.some((block) => !isEffectBlock(block));
             if (store.get().keyHasEntries !== keyHasEntries) {
                 store.set({ keyHasEntries });
             }
@@ -131,6 +135,132 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
     return reading;
 }
 
+/**
+ * The widest data, in degrees of latitude or longitude, the app draws over a street map rather
+ * than the bundled Natural Earth picture, which is a 2048 pixel world: at the scale of a country or
+ * a city it is a blur.
+ */
+const DETAILED_MAP_SPAN = 20;
+
+/**
+ * The street map the app draws small data over: free, keyless and credited on the canvas, as
+ * OpenStreetMap's tile usage policy asks (https://operations.osmfoundation.org/policies/tiles/);
+ * the map only loads the tiles in view and never prefetches.
+ */
+const DETAILED_MAP_SOURCE = "openstreetmap";
+
+/**
+ * Draws data of a country or a city over a detailed street map. The element's own default is the
+ * bundled world picture, which contacts no third party; choosing a tiled source is the app's
+ * call. Made once per project, the first time a flat map is drawn while the reader has chosen no
+ * map, as the layout's `map` option, so the Map form names it and the reader can change it.
+ */
+function useDetailedMapForSmallData(): void {
+    const { element } = useWorkspace();
+    useEffect(() => {
+        const session = element?.session;
+        if (element === null || session === undefined) {
+            return undefined;
+        }
+        let chosen = false;
+        const onBasemap = (): void => {
+            const frame = element.mapFrame;
+            const { layout } = session;
+            if (
+                chosen ||
+                frame?.surface !== "flat" ||
+                layout.id !== "location-map" ||
+                (layout.options.map ?? null) !== null
+            ) {
+                return;
+            }
+            const [[west, south], [east, north]] = frame.bounds;
+            if (Math.max(east - west, north - south) > DETAILED_MAP_SPAN) {
+                return;
+            }
+            chosen = true;
+            // Only the map changes: the element swaps it under nodes that stay where they are.
+            void layout.set("location-map", { options: { ...layout.options, map: { source: DETAILED_MAP_SOURCE } } });
+        };
+        element.addEventListener("basemap-status", onBasemap);
+        return () => {
+            element.removeEventListener("basemap-status", onBasemap);
+        };
+    }, [element]);
+}
+
+/** The words a change of the map under a map layout is announced with, by its state. */
+const BASEMAP_STATE_WORDS: Readonly<Record<string, string>> = {
+    ready: "Map shown",
+    fallback: "Map unavailable, showing Natural Earth",
+};
+
+/**
+ * Posts the location map's notice ("6 of 14 nodes unplaced", with Select), read from the
+ * element's `layout-warning` event, and announces the map's state as it changes, read from its
+ * `basemap-status` event. A warning from a layout that is no longer the active one is ignored, and
+ * the same count for the same layout and options is posted once: a 2D/3D switch runs the layout
+ * again and would otherwise post it again. A new project brings a new element and starts afresh.
+ */
+function useLayoutWarningNotice(): void {
+    const { element, store } = useWorkspace();
+    useEffect(() => {
+        const session = element?.session;
+        if (element === null || session === undefined) {
+            return undefined;
+        }
+        let posted: string | null = null;
+        let message: string | null = null;
+        const onWarning = (event: CustomEvent<LayoutWarningEvent>): void => {
+            const { layoutType, code, params } = event.detail;
+            const words = layoutWarningWords(code, params);
+            if (words === null || layoutType !== session.layout.id) {
+                return;
+            }
+            const key = JSON.stringify([layoutType, session.layout.options, words]);
+            if (key === posted) {
+                return;
+            }
+            posted = key;
+            message = words;
+            const ids = Array.isArray(params.ids) ? (params.ids as (string | number)[]) : [];
+            store.set({
+                notice: {
+                    message: words,
+                    ...(ids.length === 0
+                        ? {}
+                        : {
+                              action: {
+                                  label: "Select",
+                                  run: () => {
+                                      void session.selection.apply({ nodes: ids });
+                                  },
+                              },
+                          }),
+                },
+            });
+        };
+        let announced: string | null = null;
+        const onBasemap = (event: CustomEvent<BasemapStatusEvent>): void => {
+            const words = BASEMAP_STATE_WORDS[event.detail.state];
+            if (words !== undefined && words !== announced) {
+                announced = words;
+                store.set({ announcement: words });
+            }
+        };
+        element.addEventListener("layout-warning", onWarning);
+        element.addEventListener("basemap-status", onBasemap);
+        return () => {
+            element.removeEventListener("layout-warning", onWarning);
+            element.removeEventListener("basemap-status", onBasemap);
+            // The notice was about this project's graph: it does not carry into the next.
+            if (message !== null && store.get().notice?.message === message) {
+                store.set({ notice: null });
+            }
+        };
+    }, [element, store]);
+}
+
 /** Props for LoadingCard. */
 interface LoadingCardProps {
     /** The project being read. */
@@ -169,30 +299,6 @@ export function LoadingCard({
 }
 
 /**
- * The empty card's Add data... button, held back (with its reason as a tooltip) while the command
- * cannot run.
- * @param props - The component props
- * @param props.addData - The data.add command
- * @returns The button
- */
-function AddDataButton({
-    addData,
-}: Readonly<{ addData: NonNullable<ReturnType<typeof useCommand>> }>): React.JSX.Element {
-    return (
-        <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
-            <Button
-                size="xs"
-                aria-disabled={addData.disabledReason !== null}
-                data-disabled={addData.disabledReason === null ? undefined : true}
-                onClick={addData.disabledReason === null ? addData.run : undefined}
-            >
-                {addData.command.label}
-            </Button>
-        </Tooltip>
-    );
-}
-
-/**
  * What the canvas draws over the element (tier1-design.md section 2.4): the legend card at its
  * top left, and one state card at its center -- loading while the element reports a load, empty
  * while it holds no node, with Add data... and Open a sample. The canvas has no other buttons.
@@ -208,12 +314,17 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const legendShown = useWorkspaceState((state) => state.legendShown);
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
-    const addData = useCommand("data.add");
+    // The empty card's doors: the Sources "+" doors a first source most often comes through.
+    const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
     const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
+    useLayoutWarningNotice();
+    useDetailedMapForSmallData();
 
     if (session === null) {
         return null;
     }
+    // Effects alone do not show the key: the reader asks for it (Legend), or another row keys.
+    const keyed = blocks.some((block) => !isEffectBlock(block));
 
     let card: React.ReactNode = null;
     if (load !== null) {
@@ -231,19 +342,24 @@ export function CanvasOverlays(): React.JSX.Element | null {
                 icon={<GLYPHS.empty size={20} />}
                 title="No nodes to draw"
                 actions={
-                    <>
-                        {addData === null ? null : <AddDataButton addData={addData} />}
-                        <Menu position="bottom" withinPortal>
-                            <Menu.Target>
-                                <Button size="xs" variant="default">
-                                    Open a sample
-                                </Button>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                                <SampleItems />
-                            </Menu.Dropdown>
-                        </Menu>
-                    </>
+                    doors.length === 0
+                        ? undefined
+                        : doors.map((door) => (
+                              <Tooltip
+                                  key={door.command.id}
+                                  label={door.disabledReason}
+                                  disabled={door.disabledReason === null}
+                              >
+                                  <Button
+                                      size="xs"
+                                      aria-disabled={door.disabledReason !== null}
+                                      data-disabled={door.disabledReason === null ? undefined : true}
+                                      onClick={door.disabledReason === null ? door.run : undefined}
+                                  >
+                                      {door.command.label}
+                                  </Button>
+                              </Tooltip>
+                          ))
                 }
             />
         );
@@ -251,11 +367,8 @@ export function CanvasOverlays(): React.JSX.Element | null {
 
     return (
         <>
-            {legendShown && blocks.length > 0 ? <KeyRoom /> : null}
             {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {legendShown && (blocks.length > 0 || legendAsked) ? (
-                <LegendCard blocks={blocks} session={session} />
-            ) : null}
+            {legendShown && (keyed || legendAsked) ? <LegendCard blocks={blocks} session={session} /> : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>
     );

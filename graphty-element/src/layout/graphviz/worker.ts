@@ -12,7 +12,7 @@ import type { GraphvizReply, GraphvizRequest } from "./protocol";
  */
 function handle(event: MessageEvent<GraphvizRequest>): void {
     const request = event.data;
-    const answer = request.kind === "probe" ? probe() : layout(request.dot, request.engine);
+    const answer = request.kind === "probe" ? probe() : layout(request.dot, request.engine, request.pinned);
     void answer.then((reply: GraphvizReply) => {
         self.postMessage(reply);
     });

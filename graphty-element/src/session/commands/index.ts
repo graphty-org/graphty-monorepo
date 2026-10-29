@@ -6,6 +6,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { ISSUE_DEFINITIONS } from "../issues";
 import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
@@ -17,6 +18,7 @@ import { LAYOUT_DEFINITIONS } from "./layout";
 import { NOTE_DEFINITIONS } from "./notes";
 import { POSITIONS_DEFINITIONS } from "./positions";
 import { SET_DEFINITIONS } from "./sets";
+import { SHADER_DEFINITIONS } from "./shaders";
 import { SOURCE_EXPAND_DEFINITIONS } from "./source-expand";
 import { SOURCE_LOAD_DEFINITIONS } from "./source-load";
 import { STYLE_DEFINITIONS } from "./style";
@@ -37,6 +39,8 @@ export interface BatchCommand {
     readonly fact?: CodedFact<HistoryCode>;
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
+    /** Starts the history: see `ImportOptions.history`. */
+    readonly startsHistory?: boolean;
 }
 
 /**
@@ -92,9 +96,11 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...ALGO_DEFINITIONS,
     batch,
     ...DATA_DEFINITIONS,
+    ...ISSUE_DEFINITIONS,
     ...SOURCE_LOAD_DEFINITIONS,
     ...SOURCE_EXPAND_DEFINITIONS,
     ...STYLE_DEFINITIONS,
+    ...SHADER_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
     ...SET_DEFINITIONS,
     ...NOTE_DEFINITIONS,

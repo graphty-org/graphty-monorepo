@@ -44,15 +44,6 @@ function offset(el: FigmaElement, origin: FigmaElement): { x: number; y: number 
     return { x: el.box[0] - origin.box[0], y: el.box[1] - origin.box[1] };
 }
 
-/**
- * The outlined surface every style field shares (the select's), which the paint field takes in
- * place of Figma's gray fill: the panel color inside a 1px --cm-border edge.
- */
-const OUTLINED = {
-    light: { backgroundColor: "#ffffff", borderTopColor: "#e6e6e6" },
-    dark: { backgroundColor: "#2c2c2c", borderTopColor: "#444444" },
-} as const;
-
 /** The paint field captures, light and dark: Fill 3373E5 at 50%. */
 const PAINT = {
     light: {
@@ -105,8 +96,18 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             const container = await renderPaint(scheme);
             const mine = part(container, ".cm-paint-field");
 
-            expectMeasured(mine, figmaSpec(field, ["width", "height", "borderTopWidth", "borderRadius", ...TYPE]));
-            expectMeasured(mine, OUTLINED[scheme]);
+            expectMeasured(
+                mine,
+                figmaSpec(field, [
+                    "width",
+                    "height",
+                    "backgroundColor",
+                    "borderTopColor",
+                    "borderTopWidth",
+                    "borderRadius",
+                    ...TYPE,
+                ]),
+            );
             expectMeasured(
                 part(mine, ".cm-paint-chit"),
                 {
@@ -146,17 +147,18 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             expect([seam.width, seam.height, hex(seam.backgroundColor)]).toEqual([
                 "1px",
                 "22px",
-                OUTLINED[scheme].borderTopColor,
+                scheme === "light" ? "#ffffff" : "#2c2c2c",
             ]);
             expect(part(mine, ".cm-paint-opacity .cm-paint-input")).toHaveValue("50");
             expect(part(mine, ".cm-paint-hex")).toHaveValue("3373E5");
         });
 
-        it("hover keeps the outlined edge, as the select's does", async () => {
+        it("hover paints the whole field's border", async () => {
+            const field = await figmaElement(PAINT[scheme].hover, { cls: "paintPanelColorValueContainer" });
             const container = await renderPaint(scheme);
             const mine = part(container, ".cm-paint-field");
             await drive(mine, "hover");
-            expectMeasured(mine, OUTLINED[scheme]);
+            expectMeasured(mine, figmaSpec(field, ["borderTopColor", "backgroundColor"]));
         });
 
         it("focus (keyboard into the hex box) rings the whole field", async () => {
@@ -164,10 +166,7 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             const container = await renderPaint(scheme);
             const mine = part(container, ".cm-paint-field");
             await drive(part(mine, ".cm-paint-hex"), "focus");
-            expectMeasured(mine, {
-                ...figmaSpec(field, ["borderTopColor"]),
-                backgroundColor: OUTLINED[scheme].backgroundColor,
-            });
+            expectMeasured(mine, figmaSpec(field, ["borderTopColor", "backgroundColor"]));
         });
 
         it("focus on the chit also rings the chit itself", async () => {
@@ -186,7 +185,7 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
 
     it("paint field, AA mode: a 3:1 field edge at rest", async () => {
         const container = await renderPaint("light", true);
-        expectMeasured(part(container, ".cm-paint-field"), { borderTopColor: "#00000073" });
+        expectMeasured(part(container, ".cm-paint-field"), { boxShadow: "rgba(0, 0, 0, 0.45) 0px 0px 0px 1px inset" });
     });
 
     it("paint field, disabled: panel fill, disabled border and ink", async () => {
@@ -386,7 +385,7 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             const { container } = await renderFigma(
                 <div style={{ width: 240 }}>
                     <ColorPickerPanel
-                        value="#000007"
+                        value="#3373E5"
                         onChange={() => undefined}
                         swatches={["#D9D9D9", "#FFFFFF", ...Array.from({ length: 8 }, (_, i) => `#00000${i}`)]}
                     />
@@ -395,6 +394,13 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             );
             const picker = part(container, ".cm-color-picker");
             const buttons = [...picker.querySelectorAll<HTMLElement>(".cm-color-swatch-button")];
+            // Exactly the swatches passed in: the color the picker opened on is not added.
+            expect(buttons).toHaveLength(10);
+            // No ring, no dot: Figma marks no swatch.
+            for (const button of buttons) {
+                expect(getComputedStyle(button).outlineColor).toBe("rgba(0, 0, 0, 0)");
+                expect(getComputedStyle(button, "::after").content).toBe("none");
+            }
             expectMeasured(
                 buttons[0],
                 { ...figmaSpec(first, ["width", "height", "borderRadius"]), x: 16 },

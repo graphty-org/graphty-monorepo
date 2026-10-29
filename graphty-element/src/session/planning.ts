@@ -33,6 +33,15 @@ import type {
 } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
+import { bestRole, cachedGazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
+import {
+    chosenLocation,
+    type ColumnValues,
+    isLocationRefusal,
+    listLocation,
+    type LocationDesignation,
+    resolveLocation,
+} from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
@@ -41,6 +50,7 @@ import type { LayoutCommand, LayoutSetCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
 import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
+import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
@@ -59,9 +69,10 @@ import {
     refused,
     type ScopeCandidate,
 } from "./cost";
+import type { DataIssuesCommand } from "./issues";
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
-import type { GraphStatistics } from "./types";
+import type { GraphStatistics, LocationColumns } from "./types";
 import type { StepCounts } from "./visibility/VisibilityApi";
 
 // ---------------------------------------------------------------------------------------------
@@ -117,8 +128,10 @@ export type SessionCommand =
     | AlgoRemoveCommand
     | AlgoMoveCommand
     | DataCommand
+    | DataIssuesCommand
     | SourceExpandOpCommand
     | StyleCommand
+    | ShaderCommand
     | VisibilityCommand
     | SetCommand
     | NoteCommand
@@ -161,6 +174,17 @@ export type PlanEffect =
           readonly exact: boolean;
           /** How many elements were sampled, when they were estimated. */
           readonly sampled?: number;
+          /**
+           * For a filter-steps change: what it leaves visible step by step. `start` is before the
+           * first step (the filter and the time window alone), then one entry per step that is
+           * on, in order; `nodes` and `edges` above are what the last one leaves.
+           */
+          readonly steps?: {
+              /** What is left before any step. */
+              readonly start: { readonly nodes: number; readonly edges: number };
+              /** What is left after each step that is on. */
+              readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
+          };
       }
     | {
           /** What a change to the graph would add, remove and alter. */
@@ -207,18 +231,6 @@ export type PlanEffect =
           readonly legendChannels: number;
           /** Its size in bytes. */
           readonly bytes: number;
-      }
-    | {
-          /**
-           * What a filter-steps change would leave visible: `start` before the first step (the
-           * filter and the time window alone), then one entry per step that is on, in order, with
-           * the nodes and edges left after it.
-           */
-          readonly kind: "steps";
-          /** What is left before any step. */
-          readonly start: { readonly nodes: number; readonly edges: number };
-          /** What is left after each step that is on. */
-          readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
       }
     | {
           /** Nothing to preview. */
@@ -301,6 +313,10 @@ export interface PlanningContext {
     readonly nodeValues?: (path: string) => readonly unknown[] | null;
     /** The run whose result field a `groupBy` path is, or undefined for a data attribute. */
     readonly runOf?: (path: string) => string | undefined;
+    /** Every node attribute's name, for a layout that looks for its input among them. */
+    readonly nodeAttributes?: () => readonly string[];
+    /** The location designated in `data.knownFields`, which the location map reads unless told otherwise. */
+    readonly locationDesignation?: () => LocationDesignation;
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
     /** The weight the graph was loaded with, for the weight a run would read. */
@@ -508,6 +524,58 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * What a filter-steps change would leave visible, as a `match` effect: what the last step leaves,
+ * and the counts step by step.
+ * @param counts - What is left before any step and after each one that is on.
+ * @returns The effect.
+ */
+function stepsEffect(counts: StepCounts): PlanEffect {
+    const last = counts.steps.at(-1) ?? counts.start;
+    return Object.freeze({
+        kind: "match" as const,
+        nodes: last.nodes,
+        edges: last.edges,
+        exact: true,
+        steps: { start: counts.start, steps: counts.steps },
+    });
+}
+
+/**
+ * The plan of a filter-steps change: what each step leaves, or why the steps are refused.
+ * @param context - What planning reads.
+ * @param command - The change.
+ * @param preview - Counts what the steps leave.
+ * @returns The plan.
+ */
+function planSteps(
+    context: PlanningContext,
+    command: Extract<SessionCommand, { op: "visibility.steps" }>,
+    preview: (steps: readonly FilterStep[]) => StepCounts,
+): Plan {
+    const cost = unavailableEstimate(undefined, notEstimated(command));
+    try {
+        return Object.freeze({
+            ok: true,
+            cost,
+            effect: stepsEffect(preview(command.steps)),
+            caveats: context.defaultCaveats,
+        });
+    } catch (error) {
+        if (!(error instanceof GraphtyError)) {
+            throw error;
+        }
+
+        return Object.freeze({
+            ok: false,
+            blocked: Object.freeze({ code: error.code, reason: error.message }),
+            cost,
+            effect: Object.freeze({ kind: "none" as const }),
+            caveats: context.defaultCaveats,
+        });
+    }
+}
+
+/**
  * What one command would do, what it would cost, and whether it would be allowed.
  *
  * The gate is asked the same question here that it is asked when the run starts, from the same
@@ -523,7 +591,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
     }
 
     if (command.op === "visibility.steps" && context.previewSteps !== undefined) {
-        return planVisibilitySteps(context, command, command.steps, context.previewSteps);
+        return planSteps(context, command, context.previewSteps);
     }
 
     if (command.op !== "algo.run") {
@@ -561,44 +629,6 @@ function planLayout(context: PlanningContext, command: LayoutSetCommand): Plan {
         effect: Object.freeze({ kind: "none" as const }),
         caveats: context.defaultCaveats,
     });
-}
-
-/**
- * The plan of a filter-steps command: the counts each step would leave, or why it cannot run.
- * @param context - What planning reads.
- * @param command - The command.
- * @param steps - The command's steps.
- * @param previewSteps - Counts what the steps would leave.
- * @returns The plan.
- */
-function planVisibilitySteps(
-    context: PlanningContext,
-    command: SessionCommand,
-    steps: readonly FilterStep[],
-    previewSteps: (steps: readonly FilterStep[]) => StepCounts,
-): Plan {
-    const cost = unavailableEstimate(undefined, notEstimated(command));
-    try {
-        const counts = previewSteps(steps);
-        return Object.freeze({
-            ok: true,
-            cost,
-            effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
-            caveats: context.defaultCaveats,
-        });
-    } catch (error) {
-        if (!(error instanceof GraphtyError)) {
-            throw error;
-        }
-
-        return Object.freeze({
-            ok: false,
-            blocked: Object.freeze({ code: error.code, reason: error.message }),
-            cost,
-            effect: Object.freeze({ kind: "none" as const }),
-            caveats: context.defaultCaveats,
-        });
-    }
 }
 
 /**
@@ -816,6 +846,10 @@ function layoutRefusal(
         return planarRefusal(graph, cache, id);
     }
 
+    if (engine === "location-map") {
+        return locationRefusal(context, id, options);
+    }
+
     if (engine === "bfs") {
         return missingNode(graph, id, "start", options.start);
     }
@@ -831,6 +865,111 @@ function layoutRefusal(
     }
 
     return groupingRefusal(context, id, engine, raw, options);
+}
+
+/**
+ * Every node attribute with its values, for finding the location.
+ * @param context - What planning reads.
+ * @returns The columns.
+ */
+function nodeColumns(context: PlanningContext): ColumnValues[] {
+    return (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: context.nodeValues?.(name) ?? [] }));
+}
+
+/**
+ * The columns the location map layout reads when its own options name none: the designated ones,
+ * else the ones it finds by name or by their values.
+ * @param context - What planning reads.
+ * @returns The columns and where they come from.
+ */
+export function locationColumns(context: PlanningContext): LocationColumns {
+    const none = { location: null, latitude: null, longitude: null };
+    const designation = context.locationDesignation?.();
+    const choice = chosenLocation(none, designation);
+    const designated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
+    const places = cachedGazetteer();
+    const answer = resolveLocation(choice, nodeColumns(context), (path) => context.nodeValues?.(path) ?? null, places);
+    const listing = listLocation(designation, answer, (source) =>
+        source.role === "auto" ? (bestRole(source.values, places) ?? "city") : source.role,
+    );
+    const { using } = listing;
+    const listed = {
+        kinds: listing.kinds,
+        using,
+        unused: Object.freeze(
+            using === null
+                ? []
+                : listing.unused.map((kind) => ({ code: "location.unused" as const, params: { kind, using } })),
+        ),
+    };
+    if (isLocationRefusal(answer)) {
+        const { location, latitude, longitude } = choice;
+        return Object.freeze({
+            from: designated ? "designated" : "none",
+            ...(designated ? { location, latitude, longitude } : none),
+            role: null,
+            within: null,
+            ...listed,
+        });
+    }
+
+    const { source } = answer;
+    if (source.kind === "place") {
+        const role = source.role === "auto" ? (bestRole(source.values, places) ?? "auto") : source.role;
+        return Object.freeze({
+            from: designated ? "designated" : "detected",
+            ...none,
+            location: source.column,
+            role,
+            within: source.within !== null && "column" in source.within ? source.within.column : null,
+            ...listed,
+        });
+    }
+
+    return Object.freeze({
+        from: designated ? "designated" : "detected",
+        ...(source.kind === "location"
+            ? { ...none, location: source.column }
+            : { ...none, latitude: source.latitude, longitude: source.longitude }),
+        role: "coords",
+        within: null,
+        ...listed,
+    });
+}
+
+/**
+ * Whether the location map layout refuses this graph: no column it can read locations from, or
+ * half a latitude and longitude pair it cannot complete. The same answer the layout's own run
+ * reaches, from the same resolver.
+ * @param context - What planning reads.
+ * @param id - The layout's id.
+ * @param options - The layout's options.
+ * @returns The refusal, or undefined.
+ */
+function locationRefusal(
+    context: PlanningContext,
+    id: string,
+    options: Readonly<Record<string, unknown>>,
+): EstimateRefusal | undefined {
+    const read = (path: string): readonly unknown[] | null => context.nodeValues?.(path) ?? null;
+    const option = (name: string): string | null =>
+        typeof options[name] === "string" && options[name] !== "" ? options[name] : null;
+    const gazetteerUrl = typeof options.gazetteer === "string" ? options.gazetteer : GAZETTEER_URL;
+    const answer = resolveLocation(
+        chosenLocation(
+            { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
+            context.locationDesignation?.(),
+        ),
+        nodeColumns(context),
+        read,
+        options.gazetteer === false ? false : cachedGazetteer(gazetteerUrl),
+    );
+    return isLocationRefusal(answer)
+        ? refused(`the layout "${id}" found no location to read`, "layout.needs-location", {
+              layout: id,
+              ...answer.params,
+          })
+        : undefined;
 }
 
 /**

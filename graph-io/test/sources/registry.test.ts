@@ -15,10 +15,10 @@ import {
 } from "../../src/index.js";
 import { rejection } from "./helpers.js";
 
-const BUILTIN = ["ndex", "cypher", "neo4j", "neptune", "rest", "openalex"];
+const BUILTIN = ["ndex", "cypher", "neo4j", "neptune", "rest", "openalex", "sparql"];
 
 describe("the default registry", () => {
-    it("lists six built-in sources with descriptors and loads none of them", () => {
+    it("lists seven built-in sources with descriptors and loads none of them", () => {
         const formats = createRegistry();
         const listed = formats.listSources();
         expect(listed.map((s) => s.id)).toEqual(BUILTIN);

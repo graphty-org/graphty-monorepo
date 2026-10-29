@@ -1,0 +1,34 @@
+{
+    "name": "@graphty/pipeline-health",
+    "version": "0.0.0",
+    "description": "Pipeline health dashboard backend: AWS CDK stack and Lambda handlers",
+    "license": "MIT",
+    "type": "module",
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "synth": "cdk synth --quiet",
+        "backfill": "esbuild src/collector/backfill-cli.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/backfill.mjs && node dist/backfill.mjs",
+        "deploy": "cdk deploy --profile graphty --require-approval never"
+    },
+    "dependencies": {
+        "@aws-sdk/client-codebuild": "3.1149.0",
+        "@aws-sdk/client-cost-explorer": "3.1149.0",
+        "@aws-sdk/client-dynamodb": "3.1149.0",
+        "@aws-sdk/client-ssm": "3.1149.0",
+        "@aws-sdk/lib-dynamodb": "3.1149.0",
+        "@modelcontextprotocol/sdk": "1.32.1"
+    },
+    "devDependencies": {
+        "@types/aws-lambda": "8.10.164",
+        "@types/node": "22.20.5",
+        "aws-cdk": "2.1145.0",
+        "aws-cdk-lib": "2.273.0",
+        "constructs": "10.8.1",
+        "esbuild": "0.28.2",
+        "typescript": "5.9.3",
+        "vite": "8.3.5",
+        "vitest": "4.1.12"
+    },
+    "packageManager": "pnpm@10.34.5"
+}

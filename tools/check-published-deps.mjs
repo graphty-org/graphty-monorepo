@@ -57,13 +57,14 @@ const FORBIDDEN_FILES = [
 
 const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));
 
-// Static imports and re-exports start at column 0 in both tsc and rollup output; anything
-// indented is inside a string or a comment (graphty-element's bundle carries example code for
-// its AI prompt as template strings). A `[^;]` body lets a multi-line `import {\n a,\n} from`
-// match without running on into the next statement.
+// Static imports and re-exports start at column 0 in both tsc and rollup output, or right after
+// the `;` that ends the statement before them in minified output (`import{a as b}from"x";`);
+// anything indented is inside a string or a comment (graphty-element's bundle carries example
+// code for its AI prompt as template strings). A `[^;]` body lets a multi-line
+// `import {\n a,\n} from` match without running on into the next statement.
 const IMPORT_PATTERNS = [
-    /^(?:import|export)\s[^;]*?\sfrom\s*["']([^"'\n]+)["']/gm,
-    /^import\s*["']([^"'\n]+)["']/gm,
+    /(?:^|;)(?:import|export)\b[^;]*?\bfrom\s*["']([^"'\n]+)["']/gm,
+    /(?:^|;)import\s*["']([^"'\n]+)["']/gm,
     /\bimport\(\s*["']([^"'\n]+)["']\s*\)/g,
     /\brequire\(\s*["']([^"'\n]+)["']\s*\)/g,
     /^\/\/\/\s*<reference\s+types\s*=\s*["']([^"'\n]+)["']/gm,

@@ -1,6 +1,6 @@
 /**
  * Small files the Data place's stories and tests load through the element's own import, inline so
- * nothing is fetched. Each is what a reader could open: a graph file and a plain JSON file.
+ * nothing is fetched. Each is what a reader could open: a graph file, a plain JSON file and two tables.
  */
 
 /** Eight characters with names, groups and (for two of them) a birth year; ties counted. */
@@ -42,14 +42,14 @@ export const PLAIN_JSON = JSON.stringify({
     ],
 });
 
-/** A JSON file whose nodes carry 16 attributes besides their id, past the 15 at which Find appears. */
-export const WIDE_JSON = JSON.stringify({
-    nodes: ["a", "b", "c"].map((id, i) => ({
-        id,
-        ...Object.fromEntries(Array.from({ length: 16 }, (_, k) => [`m${String(k + 1).padStart(2, "0")}`, i + k])),
-    })),
-    edges: [
-        { source: "a", target: "b" },
-        { source: "b", target: "c" },
-    ],
-});
+/** An event table: who signed in to which host, and how much they sent; "admin" is both a user and a host. */
+export const AUTH_LOG_CSV = [
+    "time,user,host,bytes",
+    "1,alice,web1,10",
+    "2,bob,db1,20",
+    "3,admin,web1,30",
+    "4,alice,admin,40",
+].join("\n");
+
+/** A node file naming some of the auth log's hosts. */
+export const HOSTS_CSV = "id,os\nweb1,linux\ndb1,bsd\n";

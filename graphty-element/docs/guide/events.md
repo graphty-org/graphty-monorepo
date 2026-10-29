@@ -80,6 +80,11 @@ graph.on("data-loading-complete", ({ nodesLoaded, edgesLoaded, report }) => {
 The same report is available afterwards, without keeping the event, as
 `element.session.data.lastImport()`.
 
+`data-loading-complete` and `data-loaded` are heard once the load is in the graph for good: its
+step is in the history, its nodes are placed and painted, and a replacing load or `clearData` can
+no longer withdraw it. A load that is withdrawn before then emits neither, and its promise rejects
+with `E_SUPERSEDED`.
+
 ### Every load has an id
 
 `addDataFromSource`, `loadFromFile` and `loadFromUrl` resolve to `{ loadId }`, and every event
@@ -349,6 +354,20 @@ changed layers read that nothing in the session answers yet:
 graph.on("style-changed", (e) => {
     console.log(e.reason, `${e.layers} layer(s)`, e.painted);
     // The stack itself is read back with graph.getSession().styles.list()
+});
+```
+
+One repaint can carry many edits: a grouping run such as Louvain adds a layer per group, and a
+held undo passes several steps, so one pass can publish dozens of `style:changed` events in a row.
+A listener that only re-reads the picture -- `styles.legend()`, `styles.counts()` -- listens to
+the session's `style:batch-changed` instead. It fires once per repaint, right after the last
+`style:changed` of that repaint (for an undo, a redo or a restore, in a microtask after the last
+step), with `{ edits, layers, cause }`: how many `style:changed` events it closes, every layer
+they touched (each once), and the cause of the last one:
+
+```typescript
+session.on("style:batch-changed", ({ edits, layers }) => {
+    drawKey(session.styles.legend()); // once per repaint, however many edits it carried
 });
 ```
 

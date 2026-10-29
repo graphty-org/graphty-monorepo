@@ -28,7 +28,9 @@ const LATIN_RANGE =
 /** Token-level switches the AA option flips (non-color values built from color tokens). */
 const FIGMA_SWITCHES = `--cm-field-shadow: none;
     --cm-field-shadow-hover: none;
-    --cm-field-border: var(--cm-border);`;
+    --cm-field-border: var(--cm-border);
+    --cm-segment-chosen-weight: 450;
+    --cm-tree-action-overlap: -4px;`;
 
 /*
  * Mantine's `c="dimmed"` color follows the AA secondary text, so `<Text c="dimmed">` meets AA too
@@ -40,6 +42,8 @@ const FIGMA_SWITCHES = `--cm-field-shadow: none;
 const AA_SWITCHES = `--cm-field-shadow: inset 0 0 0 1px var(--cm-field-edge);
     --cm-field-shadow-hover: inset 0 0 0 1px var(--cm-field-edge-hover);
     --cm-field-border: var(--cm-field-edge);
+    --cm-segment-chosen-weight: 600;
+    --cm-tree-action-overlap: 0px;
     --mantine-color-dimmed: var(--cm-text-secondary) !important;`;
 
 /**
@@ -247,9 +251,8 @@ ${FOCUSABLE_REST} {
 /* The menu surface (spec 6.5, 8.1): menus, list boxes and context menus follow the page's
    scheme. Every rule inside reads the menu tokens (--cm-bg-menu, --cm-text-menu, ...), which on
    their own are the always-dark values; this surface points them at the page-following set, so a
-   light app gets a light menu with dark ink and a dark app the dark menu. The highlights are the
-   brand's and the danger fill's darker steps in each scheme, so the white row text and shortcut
-   on them meet 4.5:1 and the pill meets 3:1 against the surface.
+   light app gets a light menu with dark ink and a dark app the dark menu. The highlights are
+   Figma's brand and danger fills; the AA option darkens them and the shortcut on them.
 
    The class cm-menu-inverse keeps Figma's always-dark menu in both schemes (a Menu adds it for
    variant="inverse"; any other dropdown, a Select's or a Combobox's, takes it through
@@ -270,9 +273,7 @@ ${FOCUSABLE_REST} {
     --cm-text-menu-secondary: var(--cm-text-menu-page-secondary);
     --cm-text-menu-disabled: var(--cm-text-menu-page-disabled);
     --cm-border-menu: var(--cm-border-menu-page);
-    --cm-bg-brand: light-dark(var(--cm-bg-brand-pressed), var(--cm-bg-brand-hover));
-    --cm-bg-danger: light-dark(var(--cm-bg-danger-pressed), var(--cm-bg-danger-hover));
-    --cm-text-onbrand-secondary: var(--cm-text-onbrand);
+    --cm-text-onbrand-secondary: var(--cm-menu-onbrand-secondary);
 }
 .cm-menu-surface.cm-menu-inverse { color-scheme: dark; }
 :where([data-mantine-color-scheme="light"]) .cm-menu-surface.cm-menu-inverse {

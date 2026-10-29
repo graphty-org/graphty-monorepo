@@ -6,15 +6,19 @@
 # Usage:
 #   ./tools/visual-preview.sh <pull request number> [--expect <commit>]
 #   ./tools/visual-preview.sh --head <commit>      (tools/prepush.sh, before a push)
-#   ./tools/visual-preview.sh --promote <commit>   (tools/prepush.sh, once every check passed)
-#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh, when the push was refused)
+#   ./tools/visual-preview.sh --promote <commit>   (tools/push-queue.sh, once GitHub accepted the push)
+#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh or push-queue.sh, when it was refused)
 #
 # --head builds what CI WILL build once the commit is pushed: the commit merged into origin/master,
 # fetched first, made here (git merge-tree) instead of fetched from GitHub. The capture is staged in
 # local/.pending-<commit>, which the review page never reads; --promote moves it to the open pull
 # request of the current branch when it has one (tmp/pr-status/status.json, else one gh call), so the
 # review page offers it as soon as the push lands, and --discard deletes it. Staging keeps a refused
-# push from replacing the preview of the head already on GitHub. Without a pull request it goes under
+# push from replacing the preview of the head already on GitHub. VISUAL_PREVIEW_BRANCH (tools/land.mjs,
+# whose check worktrees are detached) names the branch being pushed, whose pull request it captures for;
+# then --promote leaves a capture made for a pull request staged, the review page offers it as "pending
+# push" (decisions allowed, no Finish) while the gate runs, and land.mjs makes it the pull request's
+# preview once the push landed. Without a pull request it goes under
 # local/branch-<branch> and only checks that every story captures. A merge conflict with origin/master
 # skips the capture (CI cannot build that pull request either).
 #
@@ -76,9 +80,13 @@ case "${1:-}" in
     --head | --promote | --discard) MODE="${1#--}" ;;
 esac
 if [[ "$MODE" != "pr" ]]; then
+    # Under tools/push-queue.sh the gate's --promote does nothing: the queue promotes after GitHub
+    # accepted the push, and discards the capture when the push was rejected. 2026-10-24: promoted before
+    # a push of golden-cut that was then rejected, a capture replaced the cut's owner-reviewed preview.
+    [[ "$MODE" == promote && "${PUSH_QUEUE_PROMOTES:-}" == 1 ]] && exit 0
     HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
     # The branch of the checkout being pushed: PREPUSH_ROOT when the gate runs from its live copy.
-    BRANCH="$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)"
+    BRANCH="${VISUAL_PREVIEW_BRANCH:-$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)}"
     PR=""
     if [[ -n "$BRANCH" ]]; then
         PR="$(jq -r --arg b "$BRANCH" '[.pullRequests[]? | select(.head == $b) | .number][0] // empty' \
@@ -91,6 +99,8 @@ if [[ "$MODE" != "pr" ]]; then
     case "$MODE" in
         promote)
             [[ -d "$STAGED" ]] || exit 0
+            # land.mjs moves it after its push (defaultPreview); until then it is pending push.
+            [[ -z "${VISUAL_PREVIEW_BRANCH:-}" || -z "$PR" ]] || exit 0
             rm -rf "${ROOT:?}/$KEY.old"
             [[ ! -e "$ROOT/$KEY" ]] || mv "$ROOT/$KEY" "$ROOT/$KEY.old"
             mv "$STAGED" "$ROOT/$KEY"
@@ -372,6 +382,9 @@ if [[ ${#PROJECTS[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# The cut's preview (VISUAL_PREVIEW_PRIORITY, set by tools/land.mjs, or the gate's capture of a push to
+# golden-cut: a cut or a cut fix) takes the next browser slot ahead of landing checks (tools/with-browser.sh).
+[[ -z "${VISUAL_PREVIEW_PRIORITY:-}" && "${BRANCH:-}" != golden-cut ]] || export BROWSER_SLOT_PRIORITY=high
 WRAP=()
 [[ -x "${WITH_BROWSER:-$HERE/tools/with-browser.sh}" ]] && WRAP=("${WITH_BROWSER:-$HERE/tools/with-browser.sh}")
 # Only a preview naming a pull request and its head is decidable on the review page.

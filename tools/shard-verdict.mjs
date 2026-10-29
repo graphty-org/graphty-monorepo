@@ -9,7 +9,14 @@
  * run summary (the "Test Files" line) for each vitest run its command makes, and every report file its
  * command asks vitest to write was written during the run.
  *
- * Used by tools/run-tests.sh (the CLI below) and tools/prepush-tests.mjs (shardVerdict).
+ * A run whose output is larger than LOG_BUDGET_BYTES fails too, naming its most repeated lines. A normal
+ * shard writes at most about 3.5 MB (compact-mantine; most write under 200 KB, measured over every gate
+ * log of 2026-10-15 to 2026-10-23); React's act() warning flood of tier 3 wrote 85 to 108 MB per graphty
+ * shard (37k to 435k warnings), doubled the shards' time and failure rate, and passed every gate twice.
+ * With the budget a flood fails the first run that has it, with the repeated warning named.
+ *
+ * Used by tools/run-tests.sh (the CLI below) and tools/prepush-tests.mjs (shardVerdict); the budget also by
+ * tools/test-quarantine.mjs, the wrapper every shard runs through in CI and in the gate (overBudget).
  *
  * Usage: node tools/shard-verdict.mjs <shard> <exit-status> <log-file> <start-ms> [<command>]
  *   <command> replaces the shard's own (a run of selected test files); prints the cause and exits 1 when the run did not pass; exits with 0 when it did.
@@ -48,6 +55,44 @@ export function expectedReports(command) {
     return [join(dir, ".vitest-reports", shard ? `blob-${shard[1]}-${shard[2]}.json` : "blob.json")];
 }
 
+/** The most a passing shard's output may hold: about 3 times the largest normal shard's. */
+export const LOG_BUDGET_BYTES = 12 * 1024 * 1024;
+
+/**
+ * The lines a log repeats most, for the cause of a run over the budget.
+ * @param log a run's whole output
+ * @param [top] how many to name
+ * @returns "<count> x <line>" entries, most repeated first
+ */
+export function topRepeated(log, top = 5) {
+    const counts = new Map();
+    for (const raw of stripVTControlCharacters(log).split("\n")) {
+        const line = raw.trim();
+        if (line) counts.set(line, (counts.get(line) ?? 0) + 1);
+    }
+    return [...counts]
+        .filter(([, n]) => n > 1)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, top)
+        .map(([line, n]) => `${n} x ${line.slice(0, 200)}`);
+}
+
+/**
+ * Why a run's output is too large: over the budget, with its most repeated lines.
+ * @param log the run's whole output
+ * @param [logBudget] the most bytes it may hold
+ * @returns the cause, or null when it is within the budget
+ */
+export function overBudget(log, logBudget = LOG_BUDGET_BYTES) {
+    const bytes = Buffer.byteLength(log);
+    if (bytes <= logBudget) return null;
+    const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
+    const top = topRepeated(log)
+        .map((l) => `    ${l}`)
+        .join("\n");
+    return `its output is ${mb(bytes)}, over the ${mb(logBudget)} budget (a warning flood?); the most repeated lines:\n${top}`;
+}
+
 /**
  * The verdict on one shard run.
  * @param run the run
@@ -55,9 +100,10 @@ export function expectedReports(command) {
  * @param run.log the run's whole output
  * @param run.runs how many vitest runs the command makes (expectedRuns)
  * @param run.missingReports the expected report files that are missing or older than the run
+ * @param run.logBudget the most bytes the output may hold (LOG_BUDGET_BYTES)
  * @returns `{ pass: true }`, or `{ pass: false, cause }` naming why
  */
-export function shardVerdict({ code, log, runs = 1, missingReports = [] }) {
+export function shardVerdict({ code, log, runs = 1, missingReports = [], logBudget = LOG_BUDGET_BYTES }) {
     if (code !== 0) {
         return { pass: false, cause: `exit ${code}` };
     }
@@ -75,6 +121,10 @@ export function shardVerdict({ code, log, runs = 1, missingReports = [] }) {
             pass: false,
             cause: `exit 0 but no report written by this run: ${missingReports.join(", ")}`,
         };
+    }
+    const over = overBudget(log, logBudget);
+    if (over) {
+        return { pass: false, cause: `exit 0 but ${over}` };
     }
     return { pass: true };
 }

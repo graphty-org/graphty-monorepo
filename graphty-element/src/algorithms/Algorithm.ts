@@ -24,6 +24,7 @@ import {
     type ScopeInputDeclaration,
 } from "./input/ScopedInput";
 import { type LoadedWeightFact, resolveRunWeight, type WeightReading, type WeightReads } from "./input/weight";
+import { cpuDispatcher } from "./offThread";
 import type { RunControls } from "./results/types";
 import { type OptionsFromSchema, type OptionsSchema, resolveOptions } from "./types/OptionSchema";
 import { type Graph as LegacyGraph, legacyGraphOf } from "./utils/legacyGraph";
@@ -598,8 +599,9 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
                 }
 
                 // The CPU port, through the SAME dispatcher: one call site, one result shape, one
-                // loop in the adapter above.
-                return { value: await fn(accelerated(null), snapshot), precision: CPU_PRECISION };
+                // loop in the adapter above. Over a large graph its listed members compute in a
+                // Worker the element owns, so the page keeps drawing (see offThread.ts).
+                return { value: await fn(cpuDispatcher(snapshot), snapshot), precision: CPU_PRECISION };
             },
         };
     }

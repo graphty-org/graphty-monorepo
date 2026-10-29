@@ -108,7 +108,7 @@ export {
 
 // ============================================================ network sources (experimental)
 // The contract, the load functions and credentials; each built-in source's code is its own subpath
-// (@graphty/graph-io/sources/ndex, /cypher, /rest), loaded on first use.
+// (@graphty/graph-io/sources/ndex, /cypher, /rest, /sparql), loaded on first use.
 export {
     SOURCE_ISSUE,
     type SourceBlockedCause,
@@ -119,7 +119,9 @@ export {
     type AwsSigV4Options,
     type CredentialBind,
     credentials,
+    credentialSlots,
     fromStorableCredential,
+    type SlotValue,
     type StorableCredential,
     storableCredential,
 } from "./sources/credentials.js";
@@ -136,8 +138,10 @@ export {
     SOURCE_ENTITY_ATTR,
     SOURCE_FORMAT_PREFIX,
     SOURCE_STUB_ATTR,
+    SPARQL_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
+export { sha256Hex } from "./sources/sigv4.js";
 export {
     type Recording,
     recordingFrom,
@@ -164,6 +168,7 @@ export {
     type RetryOptions,
     type SourceBase,
     type SourceContext,
+    type SourceCredentialSlot,
     type SourceCursor,
     type SourceDescriptor,
     type SourceFeature,
@@ -185,6 +190,7 @@ export {
     type SourceRuntime,
     type SourceRuntimeReason,
     type SourceSample,
+    type SourceTotal,
     type SourceValidators,
 } from "./sources/types.js";
 
@@ -227,6 +233,7 @@ export {
     type CysImportOptions,
 } from "./formats/cys/index.js";
 export {
+    type BendPoint,
     DOT_ISSUE,
     DOT_LOSS,
     DOT_STYLE_BLOCK_ATTRIBUTE,
@@ -235,6 +242,9 @@ export {
     type DotExportOptions,
     dotImporter,
     type DotImportOptions,
+    graphvizPosBends,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
 } from "./formats/dot/index.js";
 export {
     GEXF_1_2_CAPABILITIES,

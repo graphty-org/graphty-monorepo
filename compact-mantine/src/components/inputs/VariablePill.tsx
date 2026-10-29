@@ -3,6 +3,7 @@ import React, { useRef, useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { UiGlyph } from "../../icons";
+import { useCompactStyles } from "../../theme/useCompactStyles";
 import type { ActivationHandler, ChangeHandler } from "../../types/events";
 
 /** Props for VariablePill. */
@@ -121,6 +122,9 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
         className,
         style,
     } = props;
+    // The chit and the pill draw on plain elements, so no themed component sets the contrast mode
+    // of the theme in use before they paint.
+    useCompactStyles();
     const [draft, setDraftState] = useState("");
     // Mirrored in a ref: Escape clears the draft and blurs in one handler, and the blur must see
     // the cleared draft, not the render's.
@@ -160,7 +164,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                 data-kind={kind}
             >
                 {/* The name may be cut to fit the row: the tooltip says it whole. */}
-                <Tooltip label={tooltip} position="top" style={{ whiteSpace: "pre-line" }}>
+                <Tooltip label={tooltip} style={{ whiteSpace: "pre-line" }}>
                     <button
                         type="button"
                         className="cm-var-fill-button"
@@ -208,7 +212,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                 </span>
             )}
             <span className="cm-var-pill-slot">
-                <Tooltip label={tooltip} position="top" style={{ whiteSpace: "pre-line" }}>
+                <Tooltip label={tooltip} style={{ whiteSpace: "pre-line" }}>
                     <button
                         type="button"
                         className="cm-var-pill cm-focus-outside"

@@ -26,7 +26,7 @@ describe("GradientEditor", () => {
 
     it("renders color stops header", () => {
         renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
-        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+        expect(screen.getByText("Stops")).toBeInTheDocument();
     });
 
     it("renders add button", () => {
@@ -137,14 +137,14 @@ describe("GradientEditor", () => {
     it("works in fully uncontrolled mode without onChange", () => {
         renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
-        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+        expect(screen.getByText("Stops")).toBeInTheDocument();
         expect(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })).toHaveLength(2);
     });
 
     it("uses default stops when neither stops nor defaultStops provided", () => {
         renderGradientEditor(<GradientEditor onChange={vi.fn()} />);
 
-        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+        expect(screen.getByText("Stops")).toBeInTheDocument();
         expect(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i }).length).toBeGreaterThanOrEqual(2);
     });
 
@@ -676,7 +676,7 @@ describe("GradientEditor", () => {
         it("groups the stops under their own heading", () => {
             renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
 
-            const group = screen.getByRole("group", { name: "Color Stops" });
+            const group = screen.getByRole("group", { name: "Stops" });
             expect(group.tagName).toBe("FIELDSET");
             expect(group).toContainElement(screen.getByRole("slider", { name: "Stop 1 position" }));
         });
@@ -732,7 +732,7 @@ describe("GradientEditor", () => {
             );
 
             expect(screen.getByRole("spinbutton", { name: "Gradient direction" })).toBeInTheDocument();
-            expect(screen.getByRole("group", { name: "Color Stops" })).toBeInTheDocument();
+            expect(screen.getByRole("group", { name: "Stops" })).toBeInTheDocument();
         });
     });
 });

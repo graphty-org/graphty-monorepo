@@ -207,6 +207,34 @@ describe("key holds", () => {
         assert.lengthOf(dispatcher.pending, 0);
     });
 
+    it("gives a queued command's slot up while it waits for a writer beside the queue, and waitersSettled waits for it", async () => {
+        const { dispatcher, queue } = setup();
+
+        const writer = outcome(
+            dispatcher.dispatch({ op: "fake.import", name: "big", gate: "chunk" }, { beside: true }),
+        );
+        const queued = outcome(dispatcher.dispatch({ op: "fake.import", name: "small" }));
+        await queue.next();
+        let settled = false;
+        const waitersSettled = dispatcher.waitersSettled().then((waited) => {
+            settled = true;
+            return waited;
+        });
+        await tick();
+
+        // The queue is idle here with the command still owed: a settle wait must not stop at it.
+        assert.isFalse(settled, "waitersSettled waits for the command waiting on the key");
+        assert.deepEqual(executions, ["import:big"]);
+
+        gates.open("chunk");
+        assert.isTrue(await waitersSettled);
+        assert.deepEqual(await writer, { value: undefined });
+        assert.deepEqual(await queued, { value: undefined });
+        assert.deepEqual(executions, ["import:big", "import:small"]);
+        assert.strictEqual(dispatcher.state.config.get("graph"), "small");
+        assert.isFalse(await dispatcher.waitersSettled(), "nothing left to wait for");
+    });
+
     it("drops a dispatch waiting on a chunked writer that rolls back", async () => {
         const { dispatcher, queue } = setup();
 
@@ -279,6 +307,65 @@ describe("queueScheduler over the element's operation queue", () => {
             throw new Error("an obsoleted run never executes");
         },
     };
+
+    it("does not hang a queued command waiting on a batch whose queued member is behind it", async () => {
+        interface Edit {
+            readonly op: "edit";
+        }
+
+        interface Batch {
+            readonly op: "batch";
+            readonly steps: readonly (Load | Edit)[];
+        }
+
+        const edit: UndoableDefinition<Edit> = {
+            op: "edit",
+            undo: {
+                kind: "undoable",
+                fact: () => ({ code: "transaction", params: { label: null } }),
+                label: () => "Edited a",
+            },
+            moves: false,
+            keys: () => ["graph/a"],
+            lane: { kind: "immediate" },
+            execute(_c, ctx) {
+                ctx.draft.config.set("a", true);
+            },
+        };
+        const batch: UndoableDefinition<Batch> = {
+            op: "batch",
+            undo: {
+                kind: "undoable",
+                fact: () => ({ code: "transaction", params: { label: null } }),
+                label: () => "Batch",
+            },
+            moves: false,
+            keys: () => [],
+            lane: { kind: "immediate" },
+            members: (c) => ({
+                label: "Batch",
+                fact: { code: "transaction", params: { label: null } },
+                steps: c.steps,
+            }),
+            execute() {
+                throw new Error("a batch runs as a transaction of its members");
+            },
+        };
+        const queue = new OperationQueueManager(new EventManager());
+        const dispatcher = new Dispatcher({ definitions: [load, edit, batch], scheduler: queueScheduler(queue) });
+
+        // B is queued first; the batch's immediate member then holds graph/a, and its queued member
+        // is queued behind B. B's turn finds the batch holding its key.
+        const first = outcome(dispatcher.dispatch({ op: "load", name: "first" }));
+        const batched = outcome(
+            dispatcher.dispatch({ op: "batch", steps: [{ op: "edit" }, { op: "load", name: "batched" }] }),
+        );
+
+        assert.deepEqual(await batched, { value: [undefined, undefined] });
+        assert.deepEqual(await first, { value: undefined });
+        assert.isFalse(await dispatcher.waitersSettled());
+        queue.dispose();
+    });
 
     it("runs queued commands on the real queue, and its obsolescence rules cancel with reason obsolete", async () => {
         const queue = new OperationQueueManager(new EventManager());

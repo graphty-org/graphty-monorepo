@@ -61,9 +61,22 @@ relationships and paths, also inside lists and maps; each node and relationship 
 query that returns only scalars (`RETURN count(n)`) fails with `E_SOURCE_NOT_A_GRAPH` and
 `params.columns`. Add a `LIMIT` to your own queries: they are not paged.
 
+With `limits: { maxNodes: n }`, your own query is sent as `CALL { <query> } RETURN * LIMIT n`:
+the cap counts result rows, not nodes. When every row came back, `report.source.next` is
+`{ rows: 2n }`, and continuing from it runs the whole query again with twice the rows, from the
+start, so a caller merges the new rows over the old. A server that cannot run your query inside
+`CALL { }` fails the load with `E_SOURCE_PARAM` (`name: "maxNodes"`, `reason: "uncappable"`); it is
+never run without the cap you set. Load it without `maxNodes` to run it as written.
+
 `"all"` pages by the node id (never with `SKIP`), so a page costs the same however deep it is. With
 `limits: { maxNodes }` a load stops after the page that reached the cap, keeps what came first and
 gives `report.source.next`; pass it back as `cursor` to continue.
+
+A first page of `"all"` on Neo4j with at most one label and no `idProperty` also counts the nodes,
+in one lookup Neo4j answers from its counts whatever the database's size, and gives the count as
+`report.source.total.nodes`, so you can show "100 of 28,455". With `countFirst: true` every
+`"all"` load counts its nodes and relationships (`total.nodes`, `total.edges`), Neptune too. A
+continued page (`cursor`), `"query"` and `"neighborhood"` count nothing.
 
 ## Parameters
 
@@ -80,7 +93,7 @@ gives `report.source.next`; pass it back as `cursor` to continue.
 | `transport`         | `"query-api"`, `"bolt"`, `"neptune-https"` or `"neptune-analytics"`               |
 | `profile`           | `"neo4j"`, `"neptune"` or `"auto"` (default): how the server spells its ids       |
 | `long`              | integers past 2^53: `"f64"` (default, rounded, warns `W_PRECISION`) or `"string"` |
-| `countFirst`        | count first, so `onProgress` gets a total (`"all"` only)                          |
+| `countFirst`        | count nodes and relationships first, for `onProgress` and `report.source.total`   |
 | `pageSize`          | rows per page of `"all"`, 1 to 100000                                             |
 
 Labels, relationship types and property names cannot be query parameters, so they are quoted:

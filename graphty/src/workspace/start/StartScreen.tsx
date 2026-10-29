@@ -1,5 +1,6 @@
 import "./start.css";
 
+import { useFileDrop } from "@graphty/compact-mantine";
 import {
     DATASET_DESCRIPTORS,
     type DatasetMeta,
@@ -8,22 +9,20 @@ import {
 } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import React, { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { RecoveredWork } from "../autosave/RecoveredWork";
+import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
-import { focusIsLost } from "../frame/focus";
-import { MainMenu } from "../frame/menus";
-import { NoticeSlot } from "../frame/NoticeSlot";
 import { GLYPHS } from "../glyphs";
-import { ariaKey } from "../keys/keys";
 import { UsageDataCard } from "../privacy/UsageDataCard";
-import { openProjectFile, openRecent } from "../project/actions";
+import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
+import { openServerForm } from "../server/commands";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
@@ -33,7 +32,7 @@ import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openGenerated, openSample, openUrl, pictureOf } from "./open";
+import { openDataset, openFiles, openGenerated, openModel, openSample, openUrl, pictureOf } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -74,6 +73,10 @@ const FIELDS: Readonly<Record<string, string>> = {
     // The app's own copies of football and florentine-families, by their sample ids.
     "college-football": "Sports",
     florentine: "Social",
+    "campus-contacts": "Social",
+    "graph-research": "Science",
+    "marvel-films": "Culture",
+    "paper-citations": "Science",
     "political-books": "Politics",
     dolphins: "Animals",
     "contiguous-usa": "Places",
@@ -81,6 +84,7 @@ const FIELDS: Readonly<Record<string, string>> = {
     "celegans-neural": "Biology",
     "political-blogs": "Politics",
     openflights: "Places",
+    "venice-transit": "Places",
     "yeast-perturbation": "Biology",
     "stelzl-interactome": "Biology",
     "wikipathways-senescence-autophagy": "Biology",
@@ -105,6 +109,10 @@ const HOOKS: Readonly<Record<string, string>> = {
     football: "Conferences fall out of who played whom",
     "college-football": "Conferences fall out of who played whom",
     florentine: "How the Medici brokered power",
+    "campus-contacts": "A week of who was near whom",
+    "graph-research": "A research community grows",
+    "marvel-films": "A film universe, release by release",
+    "paper-citations": "Thirty years of citations",
     "political-books": "Left, right and the few in between",
     dolphins: "A pod with two social circles",
     "contiguous-usa": "Borders as a network",
@@ -112,6 +120,7 @@ const HOOKS: Readonly<Record<string, string>> = {
     "celegans-neural": "The wiring of a whole nervous system",
     "political-blogs": "The 2004 blogosphere, split by party",
     openflights: "Every airline route on Earth",
+    "venice-transit": "Every stop by bus, tram and boat",
     "yeast-perturbation": "Cytoscape's classic gene network",
     "stelzl-interactome": "Human proteins that bind each other",
     "wikipathways-senescence-autophagy": "A drawn pathway from NDEx",
@@ -186,7 +195,7 @@ function firstSentence(text: string): string {
 }
 
 /**
- * The sample library: the app's four samples first, then every other dataset in graph-samples'
+ * The sample library: the app's own samples first, then every other dataset in graph-samples'
  * catalog that graphty-element can open, in the catalog's order, then every generator. A dataset
  * past the element's published ceilings is left out: its tile could only open an empty graph.
  * @param samples - The app's own samples.
@@ -211,7 +220,7 @@ function sampleTiles(
                 field,
                 size: dataset === undefined ? sample.size : sizeWords(dataset),
                 sentence: sample.sentence,
-                picture: dataset === undefined ? undefined : pictureOf(dataset),
+                picture: dataset === undefined ? sample.picture : pictureOf(dataset),
                 note: undefined,
                 words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
                 open: ({ store }: LibraryActions) => {
@@ -459,26 +468,15 @@ function LibraryTile({
     onClick,
 }: Readonly<{ tile: SampleTile; label: string; onClick: () => void }>): React.JSX.Element {
     const generated = tile.field === GENERATED;
-    // The name is the label; the size line is the description, so a screen reader hears it too.
-    const described = useId();
     return (
-        <UnstyledButton
-            className="ws-land-sample"
-            data-start-door={`sample:${tile.id}`}
-            aria-label={label}
-            aria-describedby={described}
-            title={tile.sentence}
-            onClick={onClick}
-        >
+        <UnstyledButton className="ws-land-sample" aria-label={label} title={tile.sentence} onClick={onClick}>
             <TilePicture picture={tile.picture} />
             <span className="ws-land-sample-tag">
                 {generated ? <GLYPHS.generated size={11} aria-hidden /> : null}
                 {tile.field}
             </span>
             <span className="ws-land-sample-t">{tile.hook}</span>
-            <span className="ws-land-sample-m" id={described}>
-                {generated ? tile.sentence : `${tile.name} -- ${tile.size}`}
-            </span>
+            <span className="ws-land-sample-m">{generated ? tile.sentence : `${tile.name} -- ${tile.size}`}</span>
             {tile.note === undefined ? null : <span className="ws-land-sample-note">{tile.note}</span>}
         </UnstyledButton>
     );
@@ -688,30 +686,15 @@ function useScrolledPast(lockup: React.RefObject<HTMLElement | null>): boolean {
  * The start page, shown whenever no project is open: the graphty lockup, the headline and the
  * launcher over a live graph drawn by graphty-element, and a bar of facts at the foot. A first visit
  * gets Open a file, Open network data, Samples and New project; a returning reader gets Resume, their
- * recent projects, Open a file and New project. A file dropped anywhere on it opens, as Open a
- * file opens one.
- * @param props - Component props
- * @param props.openRef - Takes Open a file, the first way in: where focus goes when the page comes
- *     back, once the usage data card is answered and when a notice is closed from inside it
- * @param props.lastDoor - Takes the way in that last had focus (its `data-start-door`), so the
- *     page coming back can hand focus to the control that left it
+ * recent projects, Open a file and New project. A file dropped anywhere on it opens.
  * @returns The start page
  */
-export function StartScreen({
-    openRef,
-    lastDoor,
-}: Readonly<{
-    openRef?: RefObject<HTMLButtonElement | null>;
-    lastDoor?: RefObject<string | null>;
-}>): React.JSX.Element {
+export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
-    const ownOpenRef = useRef<HTMLButtonElement>(null);
-    const firstDoor = openRef ?? ownOpenRef;
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
     const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
-    const [dragging, setDragging] = useState(false);
     const [network, setNetwork] = useState(false);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
@@ -728,47 +711,24 @@ export function StartScreen({
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window"), so the
-    // listeners go on globalThis (the window) rather than on an element.
-    useEffect(() => {
-        const over = (event: DragEvent): void => {
-            event.preventDefault();
-            setDragging(true);
-        };
-        const leave = (event: DragEvent): void => {
-            if (event.relatedTarget === null) {
-                setDragging(false);
-            }
-        };
-        const drop = (event: DragEvent): void => {
-            event.preventDefault();
-            setDragging(false);
-            const file = event.dataTransfer?.files.item(0) ?? null;
-            if (file !== null) {
-                void openProjectFile(workspace, file);
-            }
-        };
-        globalThis.addEventListener("dragover", over);
-        globalThis.addEventListener("dragleave", leave);
-        globalThis.addEventListener("drop", drop);
-        return () => {
-            globalThis.removeEventListener("dragover", over);
-            globalThis.removeEventListener("dragleave", leave);
-            globalThis.removeEventListener("drop", drop);
-        };
-    }, [workspace]);
+    // The drop target is the whole window ("drop a file anywhere in this window"). graphty-element
+    // says whether it is a model before it is read as graph data.
+    const onDrop = useCallback(
+        (files: File[]) => {
+            void holdsModel(files).then((model) => {
+                if (model) {
+                    openModel(workspace.store, files[0]?.name ?? "Model", files);
+                } else {
+                    openFiles(workspace, files);
+                }
+            });
+        },
+        [workspace],
+    );
+    const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
     const [latest] = recent;
-    // The last Recent projects row removed takes Your projects, and the launcher's Open a file,
-    // with it: focus goes to the first-visit launcher's Open a file, not the page.
-    const wasReturning = useRef(returning);
-    useEffect(() => {
-        if (wasReturning.current && !returning && focusIsLost()) {
-            firstDoor.current?.focus();
-        }
-        wasReturning.current = returning;
-    }, [returning, firstDoor]);
     const showSamples = (): void => {
         document.getElementById("ws-land-samples")?.scrollIntoView({ behavior: "smooth" });
     };
@@ -777,12 +737,8 @@ export function StartScreen({
             <GLYPHS.private size={13} aria-hidden /> Or drop a file anywhere. It never leaves your computer.
         </Text>
     );
-    const openKey = openDoor?.command.keys?.[0];
     const openButton = (variant: "primary" | "tint"): React.JSX.Element => (
         <Button
-            ref={firstDoor}
-            data-start-door="file.open"
-            aria-keyshortcuts={openKey === undefined ? undefined : ariaKey(openKey)}
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
             onClick={openDoor?.run}
             leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
@@ -804,7 +760,6 @@ export function StartScreen({
         <Button
             variant="default"
             className="ws-land-plain"
-            data-start-door="project.new"
             leftSection={<GLYPHS.add size={16} aria-hidden />}
             onClick={newDoor?.run}
         >
@@ -813,18 +768,8 @@ export function StartScreen({
     );
 
     return (
-        <div // NOSONAR(S6848): focus only records which door last held it; the page is not a control
-            className="ws-land"
-            data-scheme={scheme}
-            onFocus={(event) => {
-                if (lastDoor !== undefined && event.target instanceof HTMLElement) {
-                    lastDoor.current =
-                        event.target.closest<HTMLElement>("[data-start-door]")?.dataset.startDoor ?? null;
-                }
-            }}
-        >
+        <div className="ws-land" data-scheme={scheme}>
             <header className="ws-land-top" data-scrolled={scrolled || undefined}>
-                <MainMenu start />
                 <Anchor
                     className="ws-land-toplogo"
                     href="#"
@@ -957,24 +902,17 @@ export function StartScreen({
             {returning ? (
                 <section className="ws-land-band" id="ws-land-projects" aria-label="Your projects">
                     <h2 className="ws-land-h2">Your projects</h2>
-                    <RecentProjects emptyFocus={firstDoor} />
+                    <RecentProjects />
                 </section>
             ) : null}
 
             <SampleLibrary />
 
             <div className="ws-land-usage">
-                <UsageDataCard
-                    onAnswered={() => {
-                        // The card's buttons go; focus goes to the first way in, not the page.
-                        firstDoor.current?.focus();
-                    }}
-                />
+                <UsageDataCard />
             </div>
 
             <PageFoot />
-
-            <NoticeSlot returnFocus={firstDoor} />
 
             <NetworkDataDialog
                 opened={network}
@@ -985,6 +923,14 @@ export function StartScreen({
                 onOpenLink={(url) => {
                     setNetwork(false);
                     openUrl(workspace.store, url);
+                }}
+                onOpenFiles={(files) => {
+                    setNetwork(false);
+                    openFiles(workspace, files);
+                }}
+                onOpenServer={() => {
+                    setNetwork(false);
+                    openServerForm(workspace.store);
                 }}
             />
 

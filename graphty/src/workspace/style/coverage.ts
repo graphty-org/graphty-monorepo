@@ -13,6 +13,8 @@ const no = (notOffered: string): Home => ({ notOffered });
 
 /** A channel golden added after the unified Style panel was designed; the panel has no row for it yet. */
 const NOT_PLACED = no("added to graphty-element after the Style panel's design; no row for it yet");
+/** A node's 3D model or picture: put on nodes by dropping a file on the canvas; the panel has no row for it yet. */
+const MODEL = no("set by dropping a model or a picture on the canvas; the Style panel has no row for it yet");
 /** A label's font, weight or italic as its own channel; the panel sets them inside the label style. */
 const TEXT_FIELD = no("the panel sets it inside the label style, Label settings, Type");
 
@@ -21,8 +23,16 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.color": at("Nodes, Fill, Color"),
     "node.size": at("Nodes, Shape, Size"),
     "node.shape": at("Nodes, Shape, Shape"),
-    "node.opacity": at("Nodes, Visibility, Opacity"),
-    "node.wireframe": at("Nodes, Rendering, Wireframe"),
+    "node.model": MODEL,
+    "node.modelSourceUp": MODEL,
+    "node.modelTurn": MODEL,
+    "node.modelTint": MODEL,
+    "node.modelFit": MODEL,
+    "node.modelCenter": MODEL,
+    "node.texture": MODEL,
+    "node.opacity": at("Nodes, Fill, Color opacity (its own line when it varies by a value)"),
+    "node.wireframe": at("Nodes, Shape, Wireframe (on with a low-detail mesh)"),
+    "node.meshDetail": no("no row of its own: Shape's Wireframe row writes it low with the wireframe"),
     "node.visible": at("Nodes, Visibility, Show"),
     "node.label": at("Nodes, Text, Label entry, source (a value, or Fixed text)"),
     "node.labelStyle": at("Nodes, Label entry look, position and Label settings"),
@@ -34,12 +44,12 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.tooltipSize": at("Nodes, Text, Tooltip entry size"),
     "node.tooltipColor": at("Nodes, Text, Tooltip entry Tooltip settings, Text color"),
     "node.tooltipBackground": at("Nodes, Text, Tooltip entry Tooltip settings, Background"),
-    "node.outline": at("Nodes, Effects, Outline"),
-    "node.glow": at("Nodes, Effects, Glow"),
-    "node.glowStrength": at("Nodes, Effects, Glow strength"),
-    "node.haloColor": at("Nodes, Effects, Halo"),
-    "node.haloScale": at("Nodes, Effects, Halo size"),
-    "node.haloOpacity": at("Nodes, Effects, Halo opacity"),
+    "node.outline": at("Nodes, Shape, Outline"),
+    "node.glow": at("Nodes, Shape, Glow"),
+    "node.glowStrength": at("Nodes, Shape, Glow strength"),
+    "node.haloColor": at("Nodes, Shape, Halo"),
+    "node.haloScale": at("Nodes, Shape, Halo size"),
+    "node.haloOpacity": at("Nodes, Shape, Halo opacity"),
     "node.flat": no('nothing draws it; Graph settings, Lighting "flat" gives the look'),
     "node.marker": no("graphty-element refuses it"),
     "node.sizeMode": NOT_PLACED,
@@ -62,9 +72,13 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelFont": TEXT_FIELD,
     "edge.labelWeight": TEXT_FIELD,
     "edge.labelItalic": TEXT_FIELD,
+    "node.shaders": at("Nodes, Shaders, one row per use, added from the gallery"),
+    "edge.shaders": at("Edges, Shaders, one row per use, added from the gallery"),
+    "edge.taper": at("Edges, Line, Taper"),
+    "edge.lift": at("Edges, Line, Lift"),
     "edge.color": at("Edges, Line, Color"),
     "edge.width": at("Edges, Line, Width"),
-    "edge.opacity": at("Edges, Visibility, Opacity"),
+    "edge.opacity": at("Edges, Line, Color opacity (its own line when it varies by a value)"),
     "edge.style": at("Edges, Line, Pattern"),
     "edge.patternCount": at("Edges, Line, Pattern count"),
     "edge.curvature": at("Edges, Line, Curved"),
@@ -87,10 +101,10 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.arrowTailTextSize": at("Edges, Text, Label at source end size"),
     "edge.arrowTailTextColor": at("Edges, Text, Label at source end settings, Text color"),
     "edge.arrowTailTextBackground": at("Edges, Text, Label at source end settings, Background"),
-    "edge.bandColor": at("Edges, Effects, Band"),
-    "edge.bandWidth": at("Edges, Effects, Band width"),
-    "edge.bandOpacity": at("Edges, Effects, Band opacity"),
-    "edge.animationSpeed": at("Edges, Effects, Motion"),
+    "edge.bandColor": at("Edges, Line, Band"),
+    "edge.bandWidth": at("Edges, Line, Band width"),
+    "edge.bandOpacity": at("Edges, Line, Band opacity"),
+    "edge.animationSpeed": at("Edges, Line, Dash motion"),
     "edge.label": at("Edges, Text, Label entry, source (a value, or Fixed text)"),
     "edge.labelStyle": at("Edges, Label entry look, position and Label settings"),
     "edge.labelSize": at("Edges, Label entry, size"),
@@ -227,6 +241,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.fanned": NOT_PLACED,
     "edge.bendCurve": NOT_PLACED,
     "edge.arcRadius": NOT_PLACED,
+    "edge.route": NOT_PLACED,
+    "edge.arcHeight": NOT_PLACED,
     "edge.nodeGap": NOT_PLACED,
     "edge.sourcePort": NOT_PLACED,
     "edge.targetPort": NOT_PLACED,
@@ -299,6 +315,22 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.labelOffsetY": NOT_PLACED,
     "edge.labelShiftX": NOT_PLACED,
     "edge.labelShiftY": NOT_PLACED,
+    "node.groupPadding": NOT_PLACED,
+    "node.groupPaddingRatio": NOT_PLACED,
+    "node.groupPaddingOf": NOT_PLACED,
+    "node.groupMinWidth": NOT_PLACED,
+    "node.groupMinWidthBiasLeft": NOT_PLACED,
+    "node.groupMinHeight": NOT_PLACED,
+    "node.groupMinHeightBiasTop": NOT_PLACED,
+    "node.groupIncludeLabels": NOT_PLACED,
+    "edge.sourceNodeGap": NOT_PLACED,
+    "edge.targetNodeGap": NOT_PLACED,
+    "edge.supportModel": NOT_PLACED,
+    "edge.supportUnit": NOT_PLACED,
+    "edge.supportSpringLength": NOT_PLACED,
+    "edge.supportSpringConstant": NOT_PLACED,
+    "edge.supportRepulsion": NOT_PLACED,
+    "edge.supportCentralGravity": NOT_PLACED,
 };
 
 const TYPE = at("Label settings, Type");
@@ -402,6 +434,7 @@ export const VARY_DECISIONS = {
     look: "A label's look is a set of fields, each set in its settings; its size, text color and background vary through their own properties",
     opacity:
         "Opacity varies by a value from its own field in the color's settings pop-out (Color, Line, Ends, Halo and Band settings), shown as a percent",
+    shader: "A shader is picked from the gallery, not varied: what varies per element is its parameters declared 'varies', each bound from the shader's settings pop-out",
 } as const;
 
 /**
@@ -418,6 +451,8 @@ export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
     "edge.labelStyle": VARY_DECISIONS.look,
     "edge.arrowHeadTextStyle": VARY_DECISIONS.look,
     "edge.arrowTailTextStyle": VARY_DECISIONS.look,
+    "node.shaders": VARY_DECISIONS.shader,
+    "edge.shaders": VARY_DECISIONS.shader,
 };
 
 /**
@@ -470,6 +505,7 @@ export function publishedGraphSettings(): string[] {
 export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     "background.color": at("Graph settings, Canvas, Background color"),
     "background.skybox": at("Graph settings, Canvas, Background image"),
+    "background.shader": NOT_PLACED,
     "selection.color": at("Selected row, Effects, Halo"),
     "selection.scale": at("Selected row, Effects, Halo settings"),
     "selection.opacity": at("Selected row, Effects, Halo settings"),

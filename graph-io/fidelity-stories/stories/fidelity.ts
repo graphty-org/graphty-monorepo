@@ -3,15 +3,18 @@
  * real SVG export, rasterized, from the oracle library `graph-io/test/fidelity/oracles/`) with which program and
  * version drew it and whether it stands in for another program, beside graphty-element's drawing of the same file
  * with its file styles (side by side on a wide screen, stacked on a narrow one); below them the two overlaid, and
- * the comparator's table judging what graphty-element drew against that SVG property by property, with each
- * property's floor from `graphty-element/test/fidelity/oracle-floors.json`. The numbers are the oracle tests' own:
+ * the comparator's table judging what graphty-element drew against that SVG property by property, red where an element
+ * fails that `graphty-element/test/fidelity/oracle-known-failures.json` does not list (what fails the oracle tests),
+ * with each property's recorded rate from `graphty-element/test/fidelity/oracle-floors.json`. The numbers are the
+ * oracle tests' own:
  * the story mounts the element off to the side at the oracle canvas size and runs the same comparison
  * (`graphty-element/test/fidelity/oracle/oracle-library.ts`). graphty-element's drawing is its own screenshot
  * (`captureScreenshot`) at the oracle canvas size, so touch and scroll cannot move the camera; the `live` arg
  * shows the interactive canvas instead.
  *
- * The story root has `whenDone()`, which settles once the table is drawn; visual-review waits on it before the
- * capture. A failure is printed as "fidelity story failed: <reason>", which the capture treats as a failed story.
+ * The story root has `whenDone()`, which settles once the table is drawn and, unless `live`, the element is gone (only
+ * its screenshot stays); visual-review waits on it before the capture. A failure is printed as "fidelity story failed:
+ * <reason>", which the capture treats as a failed story.
  */
 import "../../../graphty-element/index.ts";
 
@@ -30,6 +33,7 @@ import {
     oraclePngUrl,
 } from "../../../graphty-element/test/fidelity/oracle/oracle-library";
 import oracleFloors from "../../../graphty-element/test/fidelity/oracle-floors.json";
+import oracleKnown from "../../../graphty-element/test/fidelity/oracle-known-failures.json";
 import { CORPUS_SAMPLES } from "../../test/fidelity/corpus-samples";
 import { type FidelitySample, SAMPLES } from "../../test/fidelity/samples";
 import { SPECIMEN_SAMPLES } from "../../test/fidelity/specimens/index";
@@ -40,8 +44,17 @@ const { width: W, height: H } = ORACLE_CANVAS;
 const FLOORS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
     ...oracleFloors.floors,
     ...oracleFloors.standInFloors,
+    ...oracleFloors.specificationFloors,
 };
-const ALLOWED: Readonly<Record<string, unknown>> = oracleFloors.allowedDrops;
+
+/** Who judged a sheet judged per setting, one line per reference (judges.json). */
+const REFERENCE_TITLE: Readonly<Record<string, string>> = {
+    oracle: "Judged by the sheet's oracle",
+    "cytoscape-gml": "Judged by Cytoscape desktop's GML reader (STAND-IN, scored apart)",
+    gml2gv: "Judged by gml2gv | neato -n2 (STAND-IN, scored apart)",
+    specification: "Judged by the specification (not a program: each expectation cites its section in judges.json)",
+};
+const KNOWN: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = oracleKnown.known;
 
 const esc = (s: unknown): string =>
     String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
@@ -64,43 +77,48 @@ function provenance(meta: Record<string, unknown>): string {
 }
 
 /**
- * The comparator's table: the counts and the fit, then one row per property with its pass count, rate and floor.
+ * The comparator's table: the counts and the fit, then one row per property with its pass count, rate and recorded
+ * rate, red where an element fails that the known failures do not list.
  * @param id - the sample
  * @param report - the comparison
  * @param scored - false for a sketch no program drew, which is reported but never scored
+ * @param judgedOnly - list only the properties it judged (one reference's share of a sheet judged per setting)
  * @returns HTML
  */
-function table(id: string, report: OracleReport, scored: boolean): string {
+function table(id: string, report: OracleReport, scored: boolean, judgedOnly = false): string {
     const c = report.counts;
     const t = report.transform;
     const floors = FLOORS[id] ?? {};
-    const rows = ORACLE_PROPERTIES.map((p) => {
-        const r = report.properties[p];
-        const floor = floors[p];
-        let color: string = COLORS.unjudged;
-        let shown = "not judged";
-        if (r.passRate !== null) {
-            const below = floor !== undefined && r.passRate < floor - 1e-9 && !(`${id}/${p}` in ALLOWED);
-            if (below) {
-                color = COLORS.fail;
-            } else {
-                color = r.passRate >= 1 ? COLORS.pass : COLORS.partial;
+    const known = KNOWN[id] ?? {};
+    const rows = ORACLE_PROPERTIES.filter((p) => !judgedOnly || report.properties[p].n > 0)
+        .map((p) => {
+            const r = report.properties[p];
+            const floor = floors[p];
+            let color: string = COLORS.unjudged;
+            let shown = "not judged";
+            if (r.passRate !== null) {
+                const listed = new Set(known[p] ?? []);
+                if ((report.failures[p] ?? []).some((x) => !listed.has(x))) {
+                    color = COLORS.fail;
+                } else {
+                    color = r.passRate >= 1 ? COLORS.pass : COLORS.partial;
+                }
+                shown = `${String(r.pass)}/${String(r.n)} (${String(Math.round(r.passRate * 100))}%)`;
             }
-            shown = `${String(r.pass)}/${String(r.n)} (${String(Math.round(r.passRate * 100))}%)`;
-        }
-        const worst = r.worst
-            .slice(0, 3)
-            .map((w) => `${w.id}: oracle ${JSON.stringify(w.oracle)}, graphty ${JSON.stringify(w.graphty)}`)
-            .join("\n");
-        const title = [r.tolerance, worst].filter(Boolean).join("\n");
-        const floorText = floor === undefined ? "-" : `${String(Math.round(floor * 100))}%`;
-        return `<tr title="${esc(title)}"><th>${p}</th><td style="background:${color}">${esc(shown)}</td><td>${floorText}</td></tr>`;
-    }).join("");
+            const worst = r.worst
+                .slice(0, 3)
+                .map((w) => `${w.id}: oracle ${JSON.stringify(w.oracle)}, graphty ${JSON.stringify(w.graphty)}`)
+                .join("\n");
+            const title = [r.tolerance, worst].filter(Boolean).join("\n");
+            const floorText = floor === undefined ? "-" : `${String(Math.round(floor * 100))}%`;
+            return `<tr title="${esc(title)}"><th>${p}</th><td style="background:${color}">${esc(shown)}</td><td>${floorText}</td></tr>`;
+        })
+        .join("");
     const fit = t
         ? `Fit residual ${(t.rms * 100).toFixed(1)}% of the diagonal${t.unrelatedLayout ? " (unrelated layouts: positions and routes not judged)" : ""}.`
         : "No fit.";
     return `<p>Nodes ${String(c.matchedNodes)} of ${String(c.oracleNodes)} matched (graphty drew ${String(c.graphtyNodes)}); edges ${String(c.matchedEdges)} of ${String(c.oracleEdges)} (drew ${String(c.graphtyEdges)}). ${fit}${scored ? "" : " A sketch no program drew: reported, never scored."}</p>
-<table><tr><th>property</th><th>passed</th><th>floor</th></tr>${rows}</table>`;
+<table><tr><th>property</th><th>passed</th><th>recorded</th></tr>${rows}</table>`;
 }
 
 const STYLE = `<style>
@@ -231,8 +249,18 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                 middle.caption.textContent = `graphty-element, file styles (${how}); ${loaded.slice(loaded.indexOf("; ") + 2)}`;
                 right.lastElementChild?.remove();
                 if (hasOracle) {
-                    const { report, scores } = await compareWithOracle(sample.id, element, sha256, loaded);
-                    right.insertAdjacentHTML("beforeend", table(sample.id, report, Object.keys(scores).length > 0));
+                    const { report, scores, references } = await compareWithOracle(sample.id, element, sha256, loaded);
+                    if (references.length === 0) {
+                        right.insertAdjacentHTML("beforeend", table(sample.id, report, Object.keys(scores).length > 0));
+                    }
+                    // a sheet judged per setting: each reference's share, with the floors of its own key
+                    for (const r of references) {
+                        const key = r.reference === "oracle" ? sample.id : `${sample.id}~${r.reference}`;
+                        right.insertAdjacentHTML(
+                            "beforeend",
+                            `<h2>${esc(REFERENCE_TITLE[r.reference] ?? r.reference)}</h2>${table(key, r.report, true, true)}`,
+                        );
+                    }
                 } else {
                     right.insertAdjacentHTML("beforeend", "<p>Nothing to compare against.</p>");
                 }
@@ -251,6 +279,11 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
             if (live) {
                 graphtyImg.hidden = true;
                 host.classList.add("live");
+            } else {
+                // Its screenshot is all the story shows, so the element goes, and its scene with it. Left on the page
+                // off to the side, it went on drawing every frame in the software-rendered capture browser, and every
+                // screenshot waited for those frames: 10 s of hsk-chars' 27 s shoot hook, against 1.7 s without (#4314).
+                host.remove();
             }
             await Promise.all(decoded);
         } catch (e) {

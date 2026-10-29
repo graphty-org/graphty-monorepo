@@ -938,11 +938,14 @@ const isLocal = () => state.target?.local === true;
 const scale = () => state.data?.results.scale ?? 1;
 // The default branch's name, as the server reports it.
 const branchName = (t = state.target) => t?.defaultBranch ?? state.list?.defaultBranch ?? "master";
+// The default branch's target: the held candidate (`serve --candidate next`) by its commit, else a seed.
+const masterLabel = (commit, t) =>
+    commit ? `${branchName(t)} candidate ${commit.slice(0, 10)}` : `${branchName(t)} seed`;
 const labelOf = (t) => {
     if (t.local) {
         return "Local preview";
     }
-    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr}`;
+    return t.pr === null ? masterLabel(t.candidate?.commit, t) : `#${t.pr}`;
 };
 const undecidedOf = (t) => t.projects.reduce((n, p) => n + p.undecided, 0);
 const finishedOf = (t) => t.projects.reduce((n, p) => n + (p.finished ?? 0), 0);
@@ -1176,6 +1179,41 @@ function drawHeader() {
     if (!isLocal()) {
         finishSlot.append(...finishControl(state.target));
     }
+    watchPending();
+}
+
+// A pending push (the server's pendingPush): the capture is of a commit the pre-push gate is still
+// checking, not yet the pull request's head. Its images are decided as usual; Finish waits until that
+// commit is the head, and the header asks the server again every PENDING_POLL_MS meanwhile, so Finish
+// turns on by itself once the push lands.
+const PENDING_POLL_MS = 15000;
+let pendingTimer = null;
+const pendingText = (t) =>
+    `Pending push: these images are of ${t.pendingPush.slice(0, 10)}, which the gate is still checking. ` +
+    "Decide them now; Finish opens once it is pushed.";
+function watchPending() {
+    clearTimeout(pendingTimer);
+    pendingTimer = null;
+    const id = state.target?.id;
+    if (!state.target?.pendingPush || state.screen === "targets") {
+        return;
+    }
+    pendingTimer = setTimeout(async () => {
+        pendingTimer = null;
+        try {
+            const list = await api("/api/prs?cached=1");
+            const fresh = list.targets?.find((t) => t.id === id);
+            if (fresh && state.target?.id === id) {
+                state.list = list;
+                state.target = { ...state.target, pendingPush: fresh.pendingPush, headSha: fresh.headSha };
+                drawHeader();
+                return;
+            }
+        } catch {
+            // asked again below
+        }
+        watchPending();
+    }, PENDING_POLL_MS);
 }
 
 // Finish names its target and how many decisions it would publish. At 0 it is unavailable, and
@@ -1186,8 +1224,12 @@ function finishControl(t) {
     const count = t.unpublished ?? 0;
     // Nothing new, but an earlier Finish's record waits for the passkey: Finish signs it.
     const resign = count === 0 && t.resign === true && t.passkey?.required === true;
-    const can = (count > 0 || resign) && !running();
-    const why = count === 0 && !resign ? ["Nothing new", " to finish"] : null;
+    const pending = Boolean(t.pendingPush);
+    const can = (count > 0 || resign) && !running() && !pending;
+    let why = count === 0 && !resign ? ["Nothing new", " to finish"] : null;
+    if (pending) {
+        why = ["Pending push", `: ${t.pendingPush.slice(0, 10)} is not pushed yet`];
+    }
     return [
         tallyLine(t),
         el(
@@ -1200,6 +1242,8 @@ function finishControl(t) {
                 onclick: (e) => {
                     if (can) {
                         finishTarget(t.id, e.currentTarget);
+                    } else if (pending) {
+                        say(pendingText(t));
                     } else {
                         say(running() ? "A Finish is running: wait for it to end." : "Nothing new to finish.");
                     }
@@ -1304,15 +1348,17 @@ async function followTargets(seq, ask) {
         const before = JSON.stringify([state.list?.targets ?? null, state.list?.inbox ?? null]);
         state.list = list;
         showCount(list.inbox);
-        const stale = list.targets && list.updatedAt !== null && list.now - list.updatedAt > 60000;
-        if (ask === "cached" && stale && !list.refreshing) {
-            ask = "refresh";
-            continue;
-        }
+        // Drawn before a stale list asks for a refresh: that answer is the same list, so it would
+        // never be drawn and the screen would stay an empty box until the list changed (#4111).
         if (JSON.stringify([list.targets ?? null, list.inbox ?? null]) === before) {
             drawListLine();
         } else {
             drawTargets();
+        }
+        const stale = list.targets && list.updatedAt !== null && list.now - list.updatedAt > 60000;
+        if (ask === "cached" && stale && !list.refreshing) {
+            ask = "refresh";
+            continue;
         }
         const net = networkLine(list.network, list.now);
         if (!list.targets) {
@@ -1463,7 +1509,7 @@ function inboxView(inbox) {
                         openTarget(r.id, true);
                     },
                 },
-                el("strong", {}, `#${r.pr} `),
+                el("strong", {}, r.pr === null ? "" : `#${r.pr} `),
                 el("span", { class: "inbox-title" }, r.title),
                 el(
                     "span",
@@ -1479,7 +1525,7 @@ function inboxView(inbox) {
         el(
             "li",
             { class: "inbox-bad", "data-inbox": r.id },
-            el("strong", {}, `#${r.pr} `),
+            el("strong", {}, r.pr === null ? "" : `#${r.pr} `),
             el("span", { class: "inbox-title" }, r.title),
             el("span", { class: "meta" }, `${r.project}: ${r.reason}`),
             r.logUrl ? link(r.logUrl, "Job log") : null,
@@ -1487,7 +1533,9 @@ function inboxView(inbox) {
         );
     const groups = inbox.groups ?? [];
     const grouped = new Set(groups.flatMap((g) => g.ids));
-    const ready = inbox.ready.filter((r) => !grouped.has(r.id)).map(readyRow);
+    // The held candidate above everything: nightly waits on it.
+    const held = inbox.ready.filter((r) => r.pr === null).map(readyRow);
+    const ready = inbox.ready.filter((r) => r.pr !== null && !grouped.has(r.id)).map(readyRow);
     const notReady = inbox.notReady.filter((r) => !grouped.has(r.id)).map(badRow);
     const groupRows = groups.map((g) => {
         const rows = g.ids.map((id, n) => {
@@ -1557,6 +1605,7 @@ function inboxView(inbox) {
         "section",
         { class: "inbox", "aria-label": "Waiting for you" },
         el("h2", {}, readyCount > 0 ? `Ready for you (${readyCount})` : "Nothing waiting for you"),
+        held.length > 0 ? el("ul", { class: "inbox-list" }, held) : null,
         groupRows.length > 0 ? el("ul", { class: "inbox-list" }, groupRows) : null,
         ready.length > 0 ? el("ul", { class: "inbox-list" }, ready) : null,
         notReady.length > 0 ? [el("h3", {}, "Not ready"), el("ul", { class: "inbox-list" }, notReady)] : null,
@@ -1793,7 +1842,7 @@ function targetHeading(t) {
     if (t.local) {
         return "Local preview ";
     }
-    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr} `;
+    return t.pr === null ? `${masterLabel(t.candidate?.commit, t)} ` : `#${t.pr} `;
 }
 
 // A target card's title: a link to the pull request when there is one.
@@ -1938,6 +1987,10 @@ const PREVIEW_NOTE =
     "Captured on this computer from the pull request's head, before CI. Decide and Finish on it as on CI's " +
     "capture: CI checks it, and anything CI draws differently comes back to you.";
 
+const PENDING_NOTE =
+    "Captured on this computer from the commit the pre-push gate is checking, before it is pushed. Decide it " +
+    "now: a later capture with the same image keeps your decision. Finish opens once the commit is pushed.";
+
 function projectRow(t, p) {
     const results = Object.entries(p.counts)
         .filter(([s]) => REVIEWABLE.includes(s))
@@ -1954,7 +2007,10 @@ function projectRow(t, p) {
             p.acceptable || t.local || p.downloading || p.problem
                 ? null
                 : el("span", { class: "badge" }, "Reject only here: accept on a pull request"),
-            p.preview ? [" ", el("span", { class: "badge", title: PREVIEW_NOTE }, "local preview, CI pending")] : null,
+            p.preview && !p.pending
+                ? [" ", el("span", { class: "badge", title: PREVIEW_NOTE }, "local preview, CI pending")]
+                : null,
+            p.pending ? [" ", el("span", { class: "badge", title: PENDING_NOTE }, "pending push")] : null,
         ),
         el(
             "td",
@@ -2509,6 +2565,8 @@ function showGrid() {
     const approvedItems = ordered(reviewable().filter((i) => decisionOf(i)?.approvedBefore));
     const visible = visibleItems().filter((i) => !decisionOf(i)?.approvedBefore);
     const noiseItems = visible.filter((i) => i.noise);
+    // Unchanged only on the second capture: not reviewable, but a timing race in the story.
+    const flakyItems = state.data.items.filter((i) => i.flaky && !REVIEWABLE.includes(i.status));
     const { shown: clustered, rest: items } = clustersOf(visible.filter((i) => !i.noise));
     const { errors, sections } = gridSections(items);
     render(
@@ -2523,6 +2581,7 @@ function showGrid() {
         errors.length > 0 ? errorsGroup(errors) : null,
         approvedItems.length > 0 ? approvedGroup(approvedItems) : null,
         noiseItems.length > 0 ? noiseGroup(noiseItems) : null,
+        flakyItems.length > 0 ? flakyGroup(flakyItems) : null,
         ...(items.length + clustered.length + noiseItems.length === 0
             ? [el("p", { class: "empty" }, ...[emptyGridText()].flat())]
             : [
@@ -2629,6 +2688,24 @@ const errorsGroup = (errors) =>
                 "or exclude the story with a reason.",
         ),
         el("ol", { class: "error-list" }, errors),
+    );
+
+// The flaky captures: the first shot differed from the baseline and the second matched, so the gate
+// counts them unchanged. Nothing to decide; listed so the race in the story is seen and fixed.
+const flakyGroup = (items) =>
+    el(
+        "details",
+        { class: "group flaky", open: true },
+        el(
+            "summary",
+            {},
+            `Flaky (${items.length}): unchanged only on the second capture, so the story has a timing race`,
+        ),
+        el(
+            "ul",
+            {},
+            items.map((i) => el("li", {}, itemName(i))),
+        ),
     );
 
 // The accepts approved before, folded into a group of their own.
@@ -4205,7 +4282,8 @@ const endFinish = (t, primary) =>
             type: "button",
             class: primary ? "primary" : null,
             "aria-describedby": "end-heading",
-            onclick: (e) => finishTarget(t.id, e.currentTarget),
+            "aria-disabled": t.pendingPush ? "true" : null,
+            onclick: (e) => (t.pendingPush ? say(pendingText(t)) : finishTarget(t.id, e.currentTarget)),
         },
         `Finish ${labelOf(t)} (${t.unpublished})`,
     );
@@ -4794,7 +4872,7 @@ async function updateTarget(t) {
 }
 
 const isUpdate = (job) => job?.kind === "update";
-const jobLabel = (job) => (job.pr === null ? `${branchName()} seed` : `#${job.pr}`);
+const jobLabel = (job) => (job.pr === null ? masterLabel(job.candidate) : `#${job.pr}`);
 
 // ---------------------------------------------------------------- Finish
 
@@ -4829,8 +4907,10 @@ function commitAndPostLines(t, f) {
         lines.push(f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.");
     } else if (seed) {
         const day = new Date().toISOString().slice(0, 10);
+        // A candidate's branch is replaced by each Finish, which keeps its open pull request.
+        const branch = t.candidate ? `visual/approve-${t.candidate.commit.slice(0, 12)}` : `visual/seed-${day}`;
         lines.push(
-            `Push visual/seed-${day} with ${kinds.join(" and ")} and open its pull request` +
+            `Push ${branch} with ${kinds.join(" and ")} and open its pull request` +
                 `${f.acceptNotes > 0 ? `, with ${plural(f.acceptNotes, "accept note")} in its description` : ""}.`,
         );
     } else {
@@ -4928,8 +5008,9 @@ function approvedList(t, items) {
 }
 
 // What the passkey does for this Finish, from POST /api/finish-prepare: once a passkey is known it
-// signs the decisions of every Finish that commits any, and also the baselines the Finish leaves on
-// the branch when nothing is rejected or left undecided. With nothing new to decide, it signs the
+// signs the decisions of every Finish that commits any, with one prompt; when nothing is rejected
+// or left undecided, that prompt signs the baselines the Finish leaves on the branch, which hold
+// the decisions. With nothing new to decide, it signs the
 // record of an earlier Finish that was pushed unsigned. Before a passkey is known, accepts are not
 // yet protected, and the sheet says so. Rejects alone never wait for a passkey to be registered.
 function passkeySentence(f, prepared) {
@@ -4951,8 +5032,8 @@ function passkeySentence(f, prepared) {
         return el(
             "p",
             { class: "passkey" },
-            "Your passkey signs your decisions, then the baselines this Finish leaves on the branch: two " +
-                "prompts (Face ID or a security key).",
+            "Your passkey signs your decisions and the baselines this Finish leaves on the branch, in one " +
+                "prompt (Face ID or a security key).",
         );
     }
     if (prepared.required) {
@@ -4975,27 +5056,6 @@ function passkeySentence(f, prepared) {
             "does not check who accepted. Register a passkey on the targets screen and merge its pull request " +
             "to turn that on.",
     );
-}
-
-// After the passkey signed the decisions, a Finish that signs the baselines too asks again: the
-// baselines hold the signed decisions, so one approval cannot cover both. Safari starts WebAuthn
-// only from a press, so this is a second sheet. Resolves to the approval, or null when cancelled.
-async function approveTree(t, prepared) {
-    let approval = null;
-    const go = await ask(
-        [
-            el("h2", { id: "tree-title" }, `Sign the baselines of ${labelOf(t)}`),
-            el(
-                "p",
-                {},
-                "Your decisions are signed. Now your passkey signs the baselines this Finish leaves on the branch, " +
-                    "which lets the merge go ahead.",
-            ),
-        ],
-        `Sign the baselines of ${labelOf(t)}`,
-        { label: "tree-title", onYes: () => (approval = approve(prepared)) },
-    );
-    return go ? approval : null;
 }
 
 // Finish publishes every decision of one target. It asks the server what it would do, states it
@@ -5105,11 +5165,10 @@ async function finishAttempt(id, notice) {
             return { retry: passkeyCancelled(err, t) };
         }
     }
-    // The decisions are signed into the accept commit (not pushed yet); the baselines, when this
-    // Finish signs them, take a second approval.
+    // A Finish that does not sign the baselines signs its decisions into the accept commit (not
+    // pushed yet); one that does signs them with the baselines, which hold them.
     if (approval && prepared.signs === "record") {
-        const signed = await signDecisions(id, t, prepared, approval);
-        return signed.prepared ? startFinish(id, t, signed.prepared, signed.approval, true) : signed;
+        return (await signDecisions(id, prepared, approval)) ?? startFinish(id, t, prepared, null, true);
     }
     return startFinish(id, t, prepared, approval, false);
 }
@@ -5151,21 +5210,15 @@ const passkeyCancelled = (err, t) =>
         ? "Passkey cancelled: nothing was changed."
         : passkeyFailure(err, t.passkey);
 
-// Signs the decisions with the passkey's `approval`, then asks for the baselines' approval when this
-// Finish signs them too. Answers `{ prepared, approval }` for the start (approval null when nothing
-// more is signed), or a finishAttempt answer when it did not get that far.
-async function signDecisions(id, t, prepared, approval) {
+// Signs the decisions with the passkey's `approval`. Answers null when signed, else a finishAttempt
+// answer to show the sheet again.
+async function signDecisions(id, prepared, approval) {
     sayBusy("Signing your decisions...");
     try {
-        const next = await api("/api/finish-prepare", { id, challenge: prepared.challenge, approval });
-        // approveTree's promise settles with Face ID's answer, or null when cancelled.
-        const tree = next.required ? await approveTree(t, next) : null;
-        if (next.required && !tree) {
-            return FINISH_CANCELLED;
-        }
-        return { prepared: next, approval: tree };
+        await api("/api/finish-prepare", { id, challenge: prepared.challenge, approval });
+        return null;
     } catch (err) {
-        return { retry: err?.status ? `${err.message}. Nothing was changed.` : passkeyCancelled(err, t) };
+        return { retry: `${err.message}. Nothing was changed.` };
     }
 }
 
@@ -5341,7 +5394,7 @@ function drawFinishPanel() {
     const step = state.job.step ?? "";
     const now = steps.findIndex(([, , match]) => match.test(step));
     const count = /\((\d+) of (\d+) done\)/.exec(step);
-    const label = state.job.pr === null ? `${branchName()} seed` : `#${state.job.pr}`;
+    const label = jobLabel(state.job);
     const panel = el(
         "section",
         { class: "finish-panel", id: "finish-panel" },
@@ -5395,7 +5448,7 @@ function track(job) {
             interrupted: true,
             error:
                 `the server restarted while this Finish was at "${last.step}" and kept no record of it: check ` +
-                `whether ${last.branch ?? "the visual/seed-* branch"} on origin has its commit before pressing Finish again`,
+                `whether ${last.branch ?? "the visual/seed-* or visual/approve-* branch"} on origin has its commit before pressing Finish again`,
         };
     }
     state.job = !job && last?.interrupted ? last : job;
@@ -5439,13 +5492,19 @@ function finishStatusLine(out) {
     ];
 }
 
+// The target a job was about. A Finish of an earlier candidate is not about the one offered now.
+function jobTarget(job) {
+    const candidate = job.candidate ?? null;
+    return state.list?.targets?.find((x) => x.id === job.target && (x.candidate?.commit ?? null) === candidate);
+}
+
 function finishOutcome() {
     const job = state.job;
     if (!job || job.running || state.dismissed === job.id) {
         return null;
     }
-    const label = job.pr === null ? `${branchName()} seed` : `#${job.pr}`;
-    const t = state.list?.targets?.find((x) => x.id === job.target);
+    const label = jobLabel(job);
+    const t = jobTarget(job);
     const dismiss = el(
         "button",
         {

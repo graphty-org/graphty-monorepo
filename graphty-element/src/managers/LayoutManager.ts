@@ -19,6 +19,8 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
+import { laidGroupMargins } from "../layout/groupMargins";
+import { labelBounds, paddedBox, sizedGroupBox } from "../layout/groupSizing";
 import {
     LayoutEngine,
     layoutEngineInternals,
@@ -44,6 +46,7 @@ import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { Styles } from "../Styles";
+import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
@@ -429,6 +432,21 @@ interface BuildOptions {
      * cannot be laid out is inactive instead.
      */
     readonly explicitScope?: boolean;
+    /** Whether this build changes the layout, so the graph's `layoutTransition` moves the nodes. */
+    readonly transition?: boolean;
+    /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
+    readonly fromSeed?: boolean;
+}
+
+/**
+ * Whether two values of the `layout` slice draw the same arrangement: the same layout, options and
+ * scope, whatever the dimension.
+ * @param a - One value.
+ * @param b - The other.
+ * @returns True when only the dimension can differ.
+ */
+function sameArrangement(a: LayoutChoice, b: LayoutChoice): boolean {
+    return a.engine === b.engine && a.options === b.options && a.scope === b.scope;
 }
 
 /**
@@ -564,6 +582,21 @@ function unscopedLayout(type: string): GraphtyError {
         source: "layout",
         details: { layout: type, field: "scope" },
     });
+}
+
+/** An engine with options that change only what it draws under the graph, which it takes as it stands. */
+interface DrawingOptionsTaker {
+    /** Takes the options and returns true when only such options changed; false asks for a new run. */
+    takeDrawingOptions: (options: Readonly<Record<string, unknown>>) => boolean;
+}
+
+/**
+ * Whether an engine takes drawing-only options as it stands (the location map's `map`).
+ * @param engine - The engine.
+ * @returns True when it does.
+ */
+function takesDrawingOptions(engine: LayoutEngine | undefined): engine is LayoutEngine & DrawingOptionsTaker {
+    return engine !== undefined && typeof (engine as Partial<DrawingOptionsTaker>).takeDrawingOptions === "function";
 }
 
 /**
@@ -1244,6 +1277,9 @@ export class LayoutManager implements Manager {
         const previousMembers = this.members;
         const previousDriver = this.runningDriver;
         const previousDriverOptions = this.driverOptions;
+        // Where the nodes are drawn now, taken before the new engine can place any of them.
+        const transitions = how.transition === true ? transitionsOf(this) : undefined;
+        transitions?.begin(transitions.snapshot());
 
         // THE CONSUMER'S OPTIONS, not the merged ones: a driver rebuild builds the layout
         // again from these, and the element re-derives the dimension options itself.
@@ -1298,6 +1334,7 @@ export class LayoutManager implements Manager {
             // with the call; a plugin that opened a worker, a socket or a GPU buffer in its
             // constructor would otherwise leak one per failed attempt.
             engine.dispose();
+            transitions?.end();
 
             // Restore previous layout engine if initialization failed
             this.engine = previousEngine;
@@ -1372,6 +1409,7 @@ export class LayoutManager implements Manager {
                         this.reportLayoutFailure(type, error, "stepped");
                     },
                     dataManager: this.dataManager,
+                    fromSeed: how.fromSeed,
                 };
                 engine = new SimulationLayoutEngine(init);
             }
@@ -1644,6 +1682,7 @@ export class LayoutManager implements Manager {
                 restoring: false,
                 live: () => true,
                 explicitScope: scope !== undefined && this.carriedScope !== undefined,
+                transition: this.engine !== undefined,
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -1738,6 +1777,21 @@ export class LayoutManager implements Manager {
             }
         }
 
+        // New options that change only what the engine draws under the graph (the location map's
+        // `map`) are taken by the engine as it stands: no node moves.
+        const engine = this.layoutEngine;
+        if (
+            built !== null &&
+            takesDrawingOptions(engine) &&
+            built.engine === choice.engine &&
+            built.scope === choice.scope &&
+            this.engineDimension === dimension &&
+            engine.takeDrawingOptions(choice.options)
+        ) {
+            this.#built = choice;
+            return;
+        }
+
         const previous = this.carriedScope;
         this.carriedScope = choice.scope;
         try {
@@ -1746,6 +1800,9 @@ export class LayoutManager implements Manager {
                 restoring,
                 live,
                 explicitScope: options.explicitScope === true,
+                // A first layout, a restore and a 2D/3D switch place the nodes in one frame.
+                transition:
+                    !restoring && built !== null && this.layoutEngine !== undefined && !sameArrangement(built, choice),
             });
         } catch (error) {
             this.carriedScope = previous;
@@ -2110,7 +2167,9 @@ export class LayoutManager implements Manager {
      * pre-steps are owed, because the first frame spends them over everything there is by then.
      * Not while a new layout waits its turn, which is built over the whole graph anyway, nor while
      * another graph write waits, whose own pass starts the layout over once for the whole run.
-     * A static or simulation layout reloads over the whole graph at every freeze already.
+     * A static layout reloads over the whole graph at every freeze already. A simulation reloads
+     * too, but from the arrangement the frames before had stepped it to, so a seeded one starts
+     * over from its seed like any other (issue #3379).
      * @returns True when the layout starts over.
      */
     private restartsForNewData(): boolean {
@@ -2122,7 +2181,6 @@ export class LayoutManager implements Manager {
             !this.graphWritesWaiting() &&
             engine !== undefined &&
             !(engine instanceof StaticLayoutEngine) &&
-            !(engine instanceof SimulationLayoutEngine) &&
             typeof (this.driverOptions as { seed?: unknown }).seed === "number"
         );
     }
@@ -2147,6 +2205,7 @@ export class LayoutManager implements Manager {
             restoring: false,
             live: () => this.#generation === generation,
             explicitScope: false,
+            fromSeed: true,
         });
         this.#applying = rebuild.catch(() => undefined);
         try {
@@ -2199,22 +2258,29 @@ export class LayoutManager implements Manager {
             return;
         }
 
-        const rows: number[] = [];
-        for (const { group } of this.followingGroups()) {
-            const index = this.dataManager.nodes.get(group)?.index;
-            if (index !== undefined && validRow(index)) {
-                rows.push(index);
+        const rowOf = (id: NodeIdType): number | undefined => {
+            const index = this.dataManager.nodes.get(id)?.index;
+            return index !== undefined && validRow(index) ? index : undefined;
+        };
+        const groups = new Map<number, number[]>();
+        for (const { group, members } of this.followingGroups()) {
+            const index = rowOf(group);
+            if (index !== undefined) {
+                groups.set(
+                    index,
+                    members.map(rowOf).filter((row) => row !== undefined),
+                );
             }
         }
 
-        const key = rows.join(",");
+        const key = JSON.stringify([...groups]);
         if (engine === this.followersOf && key === this.followersKey) {
             return;
         }
 
         this.followersOf = engine;
         this.followersKey = key;
-        layoutEngineInternals.setFollowers(engine, rows.length === 0 ? null : new Set(rows));
+        layoutEngineInternals.setFollowers(engine, groups.size === 0 ? null : new Set(groups.keys()), groups);
     }
 
     /**
@@ -2272,6 +2338,12 @@ export class LayoutManager implements Manager {
         }
 
         seen.add(group.group);
+        const laid = this.laidBox(group, byId, seen);
+        if (laid !== undefined) {
+            return laid;
+        }
+
+        const sizing = this.dataManager.nodes.get(group.group)?.groupSizing;
         const min = [Infinity, Infinity, Infinity];
         const max = [-Infinity, -Infinity, -Infinity];
         let pad = 0;
@@ -2289,6 +2361,10 @@ export class LayoutManager implements Manager {
                 max[axis] = Math.max(max[axis], c[axis] + h[axis]);
             }
 
+            if (sizing?.includeLabels === true) {
+                this.growByLabel(id, extent.center, min, max);
+            }
+
             pad = Math.max(pad, inner === undefined ? extent.half.x : (this.groupPads.get(inner.group) ?? 0));
         }
 
@@ -2296,14 +2372,119 @@ export class LayoutManager implements Manager {
             return null;
         }
 
-        const half = (axis: number): number => (max[axis] - min[axis]) / 2 + pad;
+        // A group its style sizes (a Cytoscape.js compound parent) is sized as that style says;
+        // any other reaches its largest member's radius, or an inner group's margin, past them.
+        const sized = sizing === undefined ? { box: paddedBox(min, max, pad), pad } : sizedGroupBox(min, max, sizing);
+        this.groupBoxes.set(group.group, sized.box);
+        this.groupPads.set(group.group, sized.pad);
+        return sized.box;
+    }
+
+    /**
+     * Grow a members' box by where a member's label draws its words: the words' rectangle on the
+     * label plane's world bounds, taken relative to the member's mesh, around the member's box
+     * centre now (the plane follows its node, which may have moved since the last frame drew it),
+     * bounded as Cytoscape.js bounds a label ({@link labelBounds}).
+     * @param id - The member.
+     * @param at - The member's centre now.
+     * @param min - The box's low corner, grown in place.
+     * @param max - Its high corner, grown in place.
+     */
+    private growByLabel(id: NodeIdType, at: GroupBox["center"], min: number[], max: number[]): void {
+        const node = this.dataManager.nodes.get(id);
+        const label = node?.wordedLabel;
+        const plane = label?.labelMesh;
+        if (node === undefined || !label || !plane || plane.isDisposed() || !plane.isEnabled()) {
+            return;
+        }
+
+        plane.computeWorldMatrix(true);
+        const { minimumWorld: lo, maximumWorld: hi } = plane.getBoundingInfo().boundingBox;
+        const words = label.textBounds;
+        const origin = node.mesh.getAbsolutePosition();
+        // the words' fractions run across from the plane's left and down from its top; y runs up
+        const w = hi.x - lo.x;
+        const h = hi.y - lo.y;
+        const box = labelBounds(
+            {
+                x0: at.x + lo.x + words.left * w - origin.x,
+                x1: at.x + lo.x + words.right * w - origin.x,
+                y0: at.y + hi.y - words.bottom * h - origin.y,
+                y1: at.y + hi.y - words.top * h - origin.y,
+            },
+            at.y,
+            label.emHeight * h,
+            label.pixelHeight * h,
+        );
+        min[0] = Math.min(min[0], box.x0);
+        max[0] = Math.max(max[0], box.x1);
+        min[1] = Math.min(min[1], box.y0);
+        max[1] = Math.max(max[1], box.y1);
+    }
+
+    /**
+     * The box of a group its layout laid out itself, as Graphviz lays a cluster: its members' drawn
+     * boxes (an inner group's own box), reaching past them on each side as far as the layout drew
+     * it past them -- its margin, its label and the edges it routes inside it. So it is drawn where
+     * the layout drew it, and still follows its members when one is moved. Remembered as
+     * {@link boxOf} remembers a box, its largest margin as its pad.
+     * @param group - The group.
+     * @param byId - Every following group, by id.
+     * @param seen - The groups on the way here, so a cycle ends.
+     * @returns The box, or undefined when the layout laid no margins for the group or no member is placed.
+     */
+    private laidBox(
+        group: NodeGroup,
+        byId: ReadonlyMap<NodeIdType, NodeGroup>,
+        seen: Set<NodeIdType>,
+    ): GroupBox | undefined {
+        const row = this.dataManager.nodes.get(group.group)?.index;
+        const engine = this.layoutEngine;
+        const margins = row === undefined || engine === undefined ? undefined : laidGroupMargins.get(engine)?.get(row);
+        if (margins === undefined) {
+            return undefined;
+        }
+
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        for (const id of group.members) {
+            const inner = byId.get(id);
+            const extent = inner === undefined ? this.nodeBox(id) : this.boxOf(inner, byId, seen);
+            for (let axis = 0; extent !== null && axis < 3; axis++) {
+                const c = [extent.center.x, extent.center.y, extent.center.z][axis];
+                const h = [extent.half.x, extent.half.y, extent.half.z][axis];
+                min[axis] = Math.min(min[axis], c - h);
+                max[axis] = Math.max(max[axis], c + h);
+            }
+        }
+
+        if (!Number.isFinite(min[0])) {
+            return undefined;
+        }
+
+        const x0 = min[0] - margins.left;
+        const x1 = max[0] + margins.right;
+        const y0 = min[1] - margins.bottom;
+        const y1 = max[1] + margins.top;
         const box: GroupBox = {
-            center: { x: (min[0] + max[0]) / 2, y: (min[1] + max[1]) / 2, z: (min[2] + max[2]) / 2 },
-            half: { x: half(0), y: half(1), z: half(2) },
+            center: { x: (x0 + x1) / 2, y: (y0 + y1) / 2, z: (min[2] + max[2]) / 2 },
+            half: { x: (x1 - x0) / 2, y: (y1 - y0) / 2, z: (max[2] - min[2]) / 2 },
         };
         this.groupBoxes.set(group.group, box);
-        this.groupPads.set(group.group, pad);
+        this.groupPads.set(group.group, Math.max(margins.left, margins.right, margins.bottom, margins.top));
         return box;
+    }
+
+    /**
+     * Where a placed node is and how far its drawn surface reaches along each axis: the box a
+     * layout that sizes nodes by their drawn extents (Graphviz) lays it out as.
+     * @param id - The node.
+     * @returns Its centre and half extents, or null when it is not placed.
+     */
+    private nodeBox(id: NodeIdType): GroupBox | null {
+        const extent = this.nodeExtent(id);
+        const node = this.dataManager.nodes.get(id);
+        return extent === null || node === undefined ? extent : { center: extent.center, half: node.drawnHalfExtents };
     }
 
     /**
@@ -2352,10 +2533,16 @@ export class LayoutManager implements Manager {
         this.runPreStepsOnceThereIsSomethingToStep();
         this.syncFollowers();
 
-        if (this.layoutEngine && this.running && !this.layoutEngine.isSettled) {
-            this.layoutEngine.step();
+        const engine = this.layoutEngine;
+        if (engine && this.running && !engine.isSettled) {
+            engine.step();
             // See the note in `_setLayoutInternal`: the element publishes, not the engine.
-            this.layoutEngine.publishPositions();
+            engine.publishPositions();
+        } else if (engine instanceof SimulationLayoutEngine && this.running) {
+            // An accelerated batch lands after the frame that submitted it published, so the batch
+            // that settled the simulation is published here, on the frame that finds it settled and
+            // stops the layout (issue #3379).
+            engine.publishPositions();
         }
     }
 
@@ -2486,6 +2673,10 @@ export class LayoutManager implements Manager {
         // Mark layout as running again (it may have been settled with no nodes)
         this.running = true;
 
+        if (this.restartsForNewData()) {
+            return this.restart();
+        }
+
         // A SIMULATION LAYOUT IS TOLD BY THE FREEZE, NOT BY THIS LIST. It runs over the snapshot,
         // so what it needs is for the snapshot to exist: `getSnapshot()` is lazy and is the only
         // place the store freezes, and the freeze emits `snapshot-replaced` synchronously, so the
@@ -2501,10 +2692,6 @@ export class LayoutManager implements Manager {
             });
 
             return Promise.resolve();
-        }
-
-        if (this.restartsForNewData()) {
-            return this.restart();
         }
 
         // `updatePositions` is declared on the base class and the element's ten blind steps are

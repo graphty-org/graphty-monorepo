@@ -520,9 +520,10 @@ describe("DOT quirks from DOTDataSource, the Graphviz grammar and research note 
         expect(cluster.snapshot.nodes.value("label", 0)).toBe("L");
         expect(cluster.snapshot.nodes.value("color", 0)).toBe("red");
         expect(cluster.snapshot.nodes.byRole("parent")?.value(1)).toBe(0);
-        const rank = await parse("digraph { { rank=same; a; b } a -> b }");
+        const rank = await parse("digraph { { rank=same; a; b } { color=red; a } a -> b }");
         expect(rank.snapshot.nodeCount).toBe(2);
-        expect(rank.report.issues.map((i) => i.code)).toContain("W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED");
+        expect(rank.snapshot.nodes.value("graphty.rank", 1)).toBe("same");
+        expect(rank.report.issues.map((i) => i.code)).toEqual(["W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED"]);
         const named = await parse("digraph { subgraph s { a; b } }");
         expect(named.snapshot.ids.toArray()).toEqual(["a", "b"]);
     });

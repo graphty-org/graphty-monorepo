@@ -9,6 +9,8 @@
 import { APICallError, RetryError } from "ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
+import { toSafeError } from "../../../src/ai/safeError";
 import {
     getLlmRegressionApiKey,
     getLlmRegressionKeyVariable,
@@ -207,7 +209,20 @@ describe("LlmRegressionTestHarness", () => {
             );
         });
 
+        it("a depleted prepaid balance is the owner's to fix, as the AiController keeps the error", () => {
+            // Google, 2026-10-27: HTTP 402. The controller's last error is toSafeError's plain Error, not
+            // an APICallError: only its name, message and statusCode are left.
+            const depleted = apiError(
+                402,
+                "Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.",
+            );
+            assert.ok(accountRefusalOf(depleted));
+            assert.strictEqual(accountRefusalOf(toSafeError(depleted)), "HTTP 402");
+            assert.strictEqual(accountRefusalOf(toSafeError(apiError(401, ""))), "HTTP 401");
+        });
+
         it("a rate limit or an ordinary failure is not an account refusal", () => {
+            assert.strictEqual(accountRefusalOf(toSafeError(apiError(429, '{"type":"rate_limit_error"}'))), null);
             assert.strictEqual(accountRefusalOf(apiError(429, '{"type":"rate_limit_error"}')), null);
             assert.strictEqual(accountRefusalOf(apiError(500, "overloaded")), null);
             assert.strictEqual(accountRefusalOf(new Error("tool failed")), null);
@@ -370,6 +385,63 @@ describe("LlmRegressionTestHarness", () => {
             } else {
                 assert.strictEqual(isLlmRegressionEnabled(), true);
             }
+        });
+    });
+    describe("a 400 on a message's first request (#4220)", () => {
+        /** Gemini's 400 as the provider throws it: cleaned by toSafeError. */
+        const invalidArgument = (): Error =>
+            toSafeError(
+                new APICallError({
+                    message: "Request contains an invalid argument.",
+                    url: "https://provider.example/v1",
+                    requestBodyValues: {},
+                    statusCode: 400,
+                    responseBody: '{"error":{"status":"INVALID_ARGUMENT"}}',
+                    isRetryable: false,
+                }),
+            );
+        const answer = { text: "There are 5 nodes.", toolCalls: [], usage: undefined };
+
+        beforeEach(() => {
+            vi.stubEnv(getLlmRegressionKeyVariable(), "test-key");
+            vi.spyOn(console, "warn").mockImplementation(() => undefined);
+        });
+
+        afterEach(() => {
+            vi.unstubAllEnvs();
+            vi.restoreAllMocks();
+        });
+
+        it("sends the unchanged first request once more and returns its answer", async () => {
+            const generate = vi
+                .spyOn(VercelAiProvider.prototype, "generate")
+                .mockRejectedValueOnce(invalidArgument())
+                .mockResolvedValueOnce(answer);
+            const harness = await LlmRegressionTestHarness.create();
+
+            const result = await harness.testPrompt("How many nodes are there?");
+
+            assert.strictEqual(generate.mock.calls.length, 2);
+            assert.deepStrictEqual(generate.mock.calls[1][0], generate.mock.calls[0][0]);
+            assert.strictEqual(result.llmText, answer.text);
+            harness.dispose();
+        });
+
+        it("fails when the resent request is refused too", async () => {
+            const generate = vi.spyOn(VercelAiProvider.prototype, "generate").mockRejectedValue(invalidArgument());
+            const harness = await LlmRegressionTestHarness.create();
+
+            let thrown: unknown;
+            try {
+                await harness.testPrompt("How many nodes are there?", undefined, { maxRetries: 0 });
+            } catch (error) {
+                thrown = error;
+            }
+
+            assert.ok(thrown instanceof Error);
+            assert.match(thrown.message, /failed before any tool ran: Request contains an invalid argument/);
+            assert.strictEqual(generate.mock.calls.length, 2);
+            harness.dispose();
         });
     });
 });

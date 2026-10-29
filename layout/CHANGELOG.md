@@ -1,3 +1,26 @@
+## 2.5.11 (2026-10-28)
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **ci:** name a shard group's members in the test matrix so story-tests legs find them ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **compact-mantine:** take only the storybook 8.6.19 security fix ([#3492](https://github.com/graphty-org/graphty-monorepo/issues/3492))
+- clear the last SonarQube findings (NaN-safe comparisons, readonly props, vector normalising) ([703577afbc](https://github.com/graphty-org/graphty-monorepo/commit/703577afbc))
+- clear the SonarQube findings on the studio branch's changed lines ([9de6080dbd](https://github.com/graphty-org/graphty-monorepo/commit/9de6080dbd))
+- **graphty-element:** lay out Spectral by the smallest Laplacian eigenvectors ([4dcee7c739](https://github.com/graphty-org/graphty-monorepo/commit/4dcee7c739))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.40
+- Updated visual-review to 0.2.36
+- Updated graph-format to 1.4.8
+- Updated algorithms to 3.4.15
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 2.5.10 (2026-10-21)
 
 ### 🧱 Updated Dependencies

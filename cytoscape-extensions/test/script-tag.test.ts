@@ -44,7 +44,7 @@ describe("the script-tag bundle", () => {
         expect(code).not.toMatch(/\bimport\s*\(\s*["'`]|^\s*import\s|^\s*export\s/m);
         // its one dynamic import is the loader, which resolves against the script's own URL
         expect(code.match(/\bimport\(/g)).toHaveLength(1);
-        expect(code).toMatch(/import\(new URL\("cdn\/"\+/);
+        expect(code).toMatch(/import\(new URL\(["'`]cdn\/["'`]\+/);
         expect(code).not.toMatch(/graphmlImporter|function karate\(/);
         expect(code).not.toMatch(/probeNodeWebGpu/);
         // the GPU detection is inside it

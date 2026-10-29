@@ -33,6 +33,7 @@ describe("layout pace", () => {
         frameMs: number,
         minDelta = 0,
         layout: "ngraph" | "forceatlas2" = "ngraph",
+        msPerClockRead = 0,
     ): Promise<{ passes: number; steps: number; x: number }> {
         graph = await createTestGraph();
         const inner = graph as unknown as { renderManager: RenderManager; updateManager: UpdateManager };
@@ -58,7 +59,10 @@ describe("layout pace", () => {
         // guard for real users. Here the frame time is stated, so the real clock is held still while
         // frames are pumped; otherwise a slow runner cuts frames short and the pass count measures
         // the machine (issue #2261).
-        const clock = vi.spyOn(performance, "now").mockReturnValue(performance.now());
+        // A test of the per-frame budget moves it on by a fixed amount at every read instead, so
+        // stepping "costs" time without the test depending on how fast the machine is.
+        let clockAt = performance.now();
+        const clock = vi.spyOn(performance, "now").mockImplementation(() => (clockAt += msPerClockRead));
         try {
             while (layoutManager.running && !engine.isSettled && passes < 5000) {
                 inner.updateManager.update(frameMs);
@@ -102,6 +106,24 @@ describe("layout pace", () => {
         assert.equal(slow.steps, fast.steps, "the pace changes when iterations run, never where the layout ends");
         assert.equal(slow.x, fast.x, "and leaves the layout in the same place");
         assert.isAtMost(slow.passes, Math.ceil(fast.steps / 12) + 1, `settled in ${slow.passes} passes of 200 ms`);
+    });
+
+    // On a slow CPU a 1 s frame owed 12 rounds and could spend half of itself on them, which kept
+    // the next frame at 1 s: an iPad drew a frame a second while a 3,000 node layout settled. A
+    // frame now stops taking rounds once they would pass an absolute budget, whatever it owes.
+    it("takes no more catch-up rounds than the frame budget allows, and still ends in the same place", async () => {
+        const fast = await settle(1000 / 60);
+        // Every clock read 30 ms later: one round "costs" at least 30 ms, so a second would pass
+        // the budget. Without it the 1 s frames would each take several rounds.
+        const slow = await settle(1000, 0, "ngraph", 30);
+
+        assert.equal(slow.passes, slow.steps, "one round, one step, per frame once a round fills the budget");
+        assert.equal(
+            slow.steps,
+            fast.steps,
+            "deferring rounds changes when steps are taken, never where the layout ends",
+        );
+        assert.equal(slow.x, fast.x, "and leaves the layout in the same place");
     });
 
     // `minDelta` stops the layout once a round of steps moves no node that far. A slow frame runs

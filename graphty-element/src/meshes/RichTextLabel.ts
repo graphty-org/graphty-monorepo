@@ -754,6 +754,8 @@ export class RichTextLabel {
         if (!tempCtx) {
             return;
         }
+        // measured with the glyphs it is drawn with (see _drawContent)
+        tempCtx.textRendering = "geometricPrecision";
 
         this.wrapToWidth(tempCtx);
 
@@ -1017,6 +1019,11 @@ export class RichTextLabel {
         const { height } = this.texture.getSize();
 
         ctx.clearRect(0, 0, width, height);
+        // Chromium hints a font's glyphs or not by the device pixel ratio in force when it first
+        // loaded that font, and keeps the loaded font for the page, so the same label drew one
+        // pixel taller or shorter depending on what the page had drawn before (#3472).
+        // geometricPrecision always draws unhinted glyphs, the same on every page.
+        ctx.textRendering = "geometricPrecision";
 
         const scaleX = width / this.actualDimensions.width;
         const scaleY = height / this.actualDimensions.height;
@@ -2205,6 +2212,25 @@ export class RichTextLabel {
             top: y / height,
             bottom: (y + this.textSize.height) / height,
         };
+    }
+
+    /**
+     * The label's font size times its line count, as a fraction of the plane's height: how tall Cytoscape.js bounds
+     * its words, where {@link textBounds} gives the line boxes they are drawn in.
+     * @returns The fraction.
+     */
+    public get emHeight(): number {
+        const { height } = this.actualDimensions;
+        return height > 0 ? (this.options.fontSize * Math.max(1, this.parsedContent.length)) / height : 0;
+    }
+
+    /**
+     * One pixel of the label's font as a fraction of the plane's height, in the units {@link emHeight} measures.
+     * @returns The fraction.
+     */
+    public get pixelHeight(): number {
+        const { height } = this.actualDimensions;
+        return height > 0 ? 1 / height : 0;
     }
 
     /**

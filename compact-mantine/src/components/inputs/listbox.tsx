@@ -10,6 +10,7 @@ import React from "react";
 import { FLOATING_UI_Z_INDEX } from "../../constants/popout";
 import { defaultLabels } from "../../i18n/labels";
 import { UiGlyph } from "../../icons";
+import { capped, VIEWPORT_CAP_MARGIN, visualBand } from "../overlays/viewportCap";
 
 /** The list's inset: its top padding, and how far it starts before the trigger. */
 const LISTBOX_EDGE = 8;
@@ -53,11 +54,12 @@ function anchorBoxes(state: ListState): { anchor: DOMRect; reference: DOMRect } 
  * Measured from the rendered list, so it follows groups, separators and scrolling without being
  * told the selected index.
  *
- * A list taller than the viewport (less 6px each side) that would cross its edge when aligned is
- * cut there instead of being pushed back inside, as macOS does: its height is capped to the part
- * that fits and its content scrolled, so the selected option still lands on the field. A list
- * that fits whole is pushed back inside instead (floating-ui's shift), moving the selected option
- * off the field by the overflow, so every option shows.
+ * A list taller than the visual viewport less 16px (the cap every dropdown shares, viewportCap.ts)
+ * that would cross its edge when aligned is cut there instead of being pushed back inside, as
+ * macOS does: its height is capped to the part that fits 8px inside the visual viewport and its
+ * content scrolled, so the selected option still lands on the field. A list that fits whole is
+ * pushed back inside instead (floating-ui's shift), moving the selected option off the field by
+ * the overflow, so every option shows. The visual viewport, so an on-screen keyboard shrinks it.
  *
  * ponytail: a long list on a field near the edge is still cut to whatever fits beside the field,
  * which can be a few rows; open it toward the room when that shows.
@@ -83,18 +85,22 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     // Where the list's content would start, unscrolled, for the selected option to sit on the field.
     const contentTop =
         anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + floating.scrollTop);
-    // The list is the part of that content inside the viewport less the margin. A field outside
-    // that band cannot have its option both on it and inside it, and a list that fits the band
-    // whole is never cut (cut, a short list on a field at the window's edge shows a strip with no
-    // option): either way the list opens unscrolled and shift pulls it in.
-    const viewportBottom = floating.ownerDocument.documentElement.clientHeight - VIEWPORT_MARGIN;
+    // The list is the part of that content inside the visual viewport less half the cap's margin
+    // each side. A field outside that band cannot have its option both on it and inside it, and a
+    // list that fits the band whole is never cut (cut, a short list on a field at the window's
+    // edge shows a strip with no option): either way the list opens unscrolled, at most the cap
+    // tall, and shift pulls it in.
+    const edge = VIEWPORT_CAP_MARGIN / 2;
+    const view = visualBand();
+    const viewportTop = view.top + edge;
+    const viewportBottom = Math.min(floating.ownerDocument.documentElement.clientHeight, view.bottom) - edge;
     const inside =
-        anchor.top >= VIEWPORT_MARGIN &&
+        anchor.top >= viewportTop &&
         anchor.bottom <= viewportBottom &&
-        floating.scrollHeight > viewportBottom - VIEWPORT_MARGIN;
-    const top = inside ? Math.max(contentTop, VIEWPORT_MARGIN) : contentTop;
+        floating.scrollHeight > viewportBottom - viewportTop;
+    const top = inside ? Math.max(contentTop, viewportTop) : contentTop;
     const bottom = Math.min(contentTop + floating.scrollHeight, viewportBottom);
-    floating.style.maxHeight = inside ? `${String(bottom - top)}px` : "";
+    floating.style.maxHeight = inside ? capped(`${String(bottom - top)}px`) : "";
     floating.scrollTop = top - contentTop;
     return { mainAxis: top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
 }
@@ -545,7 +551,7 @@ export function ensureListboxKeyboard(): void {
         const trigger = list?.id ? document.querySelector(`[aria-controls="${list.id}"]`) : null;
         syncSelected(openList(trigger));
     });
-    // Focus that leaves an open list's trigger for another control (Tab, Shift+Tab, a script)
+    // Focus that leaves an open list's trigger for another control (a script; Tab is held while the list is open)
     // closes the list. Mantine's Select closes on blur only when searchable, so a select-only
     // list stayed open over the controls focus moved to, where Escape no longer reached it. Its
     // own click toggles the list; options never take focus, so a press inside does not land here.
@@ -592,40 +598,20 @@ export function ensureListboxKeyboard(): void {
             const option = options[(from + i) % count];
             if ((option.textContent ?? "").trim().toLocaleLowerCase().startsWith(needle)) {
                 missOn = null;
-                showRun(list, typed);
                 speak(list, "");
                 walkHighlight(input, list, option);
                 lastAt = performance.now();
                 return;
             }
         }
-        // No option starts with the run: no highlight, and a line saying so, shown and spoken.
+        // No option starts with the run: no highlight, and the reason spoken (Figma draws nothing).
         // Mantine's store keeps its index (only its own handlers move it), so the miss also holds
         // back Enter until the next move.
         missOn = input;
-        const words = listNoMatch(typed);
-        showRun(list, words);
-        speak(list, words);
+        speak(list, listNoMatch(typed));
         list.querySelector("[data-combobox-selected]")?.removeAttribute("data-combobox-selected");
         input.removeAttribute("aria-activedescendant");
         lastAt = performance.now();
-    };
-    /**
-     * Draws a line at the foot of the open list: the run while it matches, so the reader sees what
-     * was typed, or the no-match line.
-     * @param list - the open list
-     * @param text - the line
-     */
-    const showRun = (list: HTMLElement, text: string): void => {
-        const surface = list.closest<HTMLElement>(".cm-listbox") ?? list;
-        let line = surface.querySelector<HTMLElement>(":scope > .cm-listbox-typed");
-        if (line === null) {
-            line = surface.ownerDocument.createElement("div");
-            line.className = "cm-listbox-typed";
-            line.setAttribute("aria-hidden", "true");
-            surface.append(line);
-        }
-        line.textContent = text;
     };
     const enabledOptions = (list: HTMLElement): HTMLElement[] =>
         [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(
@@ -680,6 +666,11 @@ export function ensureListboxKeyboard(): void {
             const list = openSelectList(event.target);
             const input = event.target as HTMLInputElement;
             if (!list || event.ctrlKey || event.metaKey || event.altKey) {
+                return;
+            }
+            // Tab does nothing while a list is open (Figma); Escape or a choice closes it first.
+            if (event.key === "Tab") {
+                event.preventDefault();
                 return;
             }
             if (!printable(event)) {

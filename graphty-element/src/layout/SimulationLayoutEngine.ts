@@ -307,6 +307,13 @@ export interface SimulationEngineInit {
     readonly report: (error: GraphtyError) => void;
     /** The data manager the snapshot, its undirected copy and the position array come from. */
     readonly dataManager: DataManager;
+    /**
+     * Start the first load from the seed rather than from the arrangement the element holds: the
+     * rebuild a seeded layout makes when new data arrives, so the frames that stepped the graph
+     * as it stood before do not decide where it settles (issue #3379). Pinned rows are replayed
+     * after `init()` as for any build.
+     */
+    readonly fromSeed?: boolean;
 }
 
 /**
@@ -352,6 +359,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #controller: AccelerationController;
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
+    /** See {@link SimulationEngineInit.fromSeed}; cleared by the first load. */
+    #fromSeed: boolean;
 
     /**
      * One reused pair, valid until the next call. `Edge.update()` reads it and drops it, and a
@@ -476,6 +485,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#controller = built.controller;
         this.#report = built.report as (error: GraphtyError) => void;
         this.#dataManager = built.dataManager as DataManager;
+        this.#fromSeed = built.fromSeed === true;
         this.#targetCentre = resolveCentre(this.#options.model.center ?? this.#options.center);
 
         // THE FIRST ADOPTION IS THE IDENTITY. Nothing has been published yet, so an arrangement
@@ -604,7 +614,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#syncWork();
         this.#snapshot = snapshot;
         this.#positions = positions;
-        this.#adoptPositions(snapshot.nodeCount, positions);
+        const simPositions = this.#adoptPositions(snapshot.nodeCount, positions);
+        if (this.#fromSeed) {
+            // Every row unplaced, so `#seed` draws the whole graph from the seed alone.
+            this.#fromSeed = false;
+            simPositions.fill(Number.NaN);
+        }
+
         this.#build();
     }
 

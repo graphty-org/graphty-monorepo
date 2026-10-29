@@ -60,9 +60,11 @@ describe("Undo from the reader's keys", () => {
     it("starts a sample's history: Undo is disabled and Control+Z leaves the graph", async () => {
         answerUsageData("declined");
         const { session, store } = await openSample();
-        const undo = screen.getByRole("button", { name: "Undo" });
+        // The sample is drawn before its load settles; settling clears the history, and Undo's
+        // name drops the load's step.
         await waitFor(() => {
             assert.isFalse(session.canUndo, "opening is not a change to undo");
+            const undo = screen.getByRole("button", { name: "Undo" });
             assert.isTrue(undo.hasAttribute("disabled") || undo.getAttribute("aria-disabled") === "true");
         });
         assert.isFalse(session.project.dirty, "an opened sample has no unsaved changes");
@@ -71,6 +73,54 @@ describe("Undo from the reader's keys", () => {
         await userEvent.keyboard("{Control>}z{/Control}");
         assert.equal(session.data.statistics().nodeCount, NODES);
         assert.isNull(store.get().notice);
+    });
+
+    it("Control+Z while a sample is still loading neither cancels the open nor leaves a step", async () => {
+        answerUsageData("declined");
+        // The sample's file is held until the reader has pressed Control+Z, so the key lands
+        // while the load is pending work, whatever the machine's speed.
+        const realFetch = globalThis.fetch.bind(globalThis);
+        let release = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        let fetching = (): void => undefined;
+        const fetched = new Promise<void>((resolve) => {
+            fetching = resolve;
+        });
+        const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+            if (String(input instanceof Request ? input.url : input).includes("les-miserables")) {
+                fetching();
+                await held;
+            }
+            return realFetch(input, init);
+        });
+        try {
+            const store = createWorkspaceStore();
+            render(<Workspace store={store} />);
+            await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+            await fetched;
+            (document.activeElement as HTMLElement | null)?.blur();
+            await userEvent.keyboard("{Control>}z{/Control}");
+            release();
+
+            let session: GraphSession | undefined;
+            await waitFor(
+                () => {
+                    session = document.querySelector("graphty-element")?.session;
+                    assert.isTrue(
+                        store.get().notice !== null || session?.data.statistics().nodeCount === NODES,
+                        "the open settled",
+                    );
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.isNull(store.get().notice, "the open was not cancelled");
+            assert.equal(session?.data.statistics().nodeCount, NODES);
+            assert.isFalse(session?.canUndo, "opening is not a change to undo");
+        } finally {
+            spy.mockRestore();
+        }
     });
 
     it("names the act it undid, and keeps the find box's typing its own to undo", async () => {
@@ -106,7 +156,7 @@ describe("Undo from the reader's keys", () => {
     it("names the act when Control+Z is pressed on the drawing", async () => {
         answerUsageData("declined");
         const { session, store } = await openSample();
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Layer/ }));
         await waitFor(() => {
             assert.isTrue(session.canUndo);

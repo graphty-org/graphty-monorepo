@@ -5,16 +5,27 @@
 //   node tools/verify.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    chmodSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { failureHashes, newRunId, writeRecord } from "./test-ledger.mjs";
+import { failureHashes, newRunId, rebuild, writeRecord } from "./test-ledger.mjs";
 import {
     backendOf,
     bounds,
+    captureChanges,
+    captureProblems,
     brokerVerdict,
     ciGate,
     claim,
@@ -31,6 +42,7 @@ import {
     run,
     setBackend,
     start,
+    stop,
     verifyContext,
     watch,
     withState,
@@ -78,6 +90,7 @@ let gateStarted;
 let concurrent;
 let most;
 let published;
+let onVerified; // each [branch, commit] a pass told auto-ship about
 let runs;
 let ctx;
 
@@ -130,6 +143,7 @@ const fake = {
         return process.pid;
     },
     publishRef: (_c, sha) => published.push(sha),
+    onVerified: (c, sha) => onVerified.push([c.branch, sha]),
     shards: ["s1", "s2"],
 };
 const settle = async () => {
@@ -160,6 +174,7 @@ beforeEach(() => {
     concurrent = 0;
     most = 0;
     published = [];
+    onVerified = [];
     runs = [];
 });
 
@@ -174,6 +189,7 @@ describe("a run", () => {
         assert.equal(s.verified, tip);
         assert.equal(s.last.status, "passed");
         assert.equal(s.run, null, "the run marked itself ended");
+        assert.deepEqual(onVerified, [["golden", tip]], "the pass is told to auto-ship once");
     });
 
     it("leaves a commit a newer landing supersedes at the next shard boundary, records it, and goes on", async () => {
@@ -324,6 +340,62 @@ describe("a confirming run and a bisect", () => {
         assert.notEqual(atNext.superseded?.commit, tip, "a bisected commit is never recorded as superseded");
         assert.deepEqual(gated, [tip, fixed]);
         assert.equal(readState(ctx).verified, fixed);
+    });
+});
+
+describe("stopping a run", () => {
+    // A run as `start` makes one: detached, so it leads a process group, with a child of its own (the gate). Its
+    // stdout closes only when both are gone.
+    const liveRun = async () => {
+        const { spawn } = await import("node:child_process");
+        const { once } = await import("node:events");
+        const leader = spawn("sh", ["-c", "sleep 600 & echo $!; wait"], {
+            detached: true,
+            stdio: ["ignore", "pipe", "ignore"],
+        });
+        const [pid] = await once(leader.stdout, "data");
+        return { leader, gate: Number(pid), closed: once(leader.stdout, "end") };
+    };
+    const procStartOf = (pid) => {
+        const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+        return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
+    };
+
+    it("stops a live run's whole process group, records it stopped, and start resumes it", async () => {
+        const { leader, gate, closed } = await liveRun();
+        const tip = git(repo, "rev-parse", "origin/golden");
+        await withState(ctx, (s) => {
+            s.run = { pid: leader.pid, pidStart: procStartOf(leader.pid), pgid: leader.pid, commit: tip, step: "gate" };
+        });
+        assert.match(describeState(ctx), /running: pid/);
+        const line = await stop(ctx);
+        assert.match(
+            line,
+            new RegExp(`run pid ${leader.pid} at gate .*stopped \\(SIGTERM to process group ${leader.pid}\\)`),
+        );
+        await closed; // the run and its gate are both gone: nobody holds the pipe any more
+        assert.equal(
+            existsSync(`/proc/${gate}/stat`) && !/\) Z /.test(readFileSync(`/proc/${gate}/stat`, "utf8")),
+            false,
+        );
+        const s = readState(ctx);
+        assert.equal(s.run, null);
+        assert.deepEqual([s.stopped.pid, s.stopped.step, s.stopped.commit], [leader.pid, "gate", tip]);
+        assert.match(describeState(ctx), new RegExp(`stopped: pid ${leader.pid} at gate`));
+        assert.match(await start(ctx), /started/, "start resumes it");
+        await settle();
+        assert.equal(readState(ctx).run, null, "the resumed run ended");
+    });
+
+    it("clears a run whose process is gone, which status flags as dead", async () => {
+        const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+        await withState(ctx, (s) => {
+            s.run = { pid: dead, pidStart: "1", commit: null, step: "gate" };
+        });
+        assert.match(describeState(ctx), new RegExp(`run DEAD: pid ${dead} stopped at gate`));
+        assert.match(await stop(ctx), /was already gone; cleared/);
+        assert.equal(readState(ctx).run, null);
+        assert.match(await stop(ctx), /no run to stop/);
     });
 });
 
@@ -628,6 +700,7 @@ describe("golden-cut", () => {
         await settle();
         assert.deepEqual(gated, []);
         assert.equal(readState(cut).verified, at);
+        assert.deepEqual(onVerified, [["golden-cut", at]], "a cut taken as verified is a pass too");
 
         git(repo, "checkout", "-q", "-b", "cut-fix", "origin/golden-cut");
         writeFileSync(join(repo, "fix.txt"), "f\n");
@@ -926,6 +999,101 @@ describe("verification in CI (ciGate)", () => {
         assert.match(r.output, /All Checks Pass: success/);
     });
 
+    // A verification run's visual-<project>-<attempt> artifacts, written where `gh run download -D <dir>` puts them.
+    const artifacts = (files) => (line) => {
+        const out = line.split(" -D ")[1];
+        for (const [name, json] of Object.entries(files)) {
+            mkdirSync(join(out, name.split("/")[0]), { recursive: true });
+            writeFileSync(join(out, name), JSON.stringify(json));
+        }
+        return "";
+    };
+    const visualJobs = (conclusion = "success") => [
+        { id: 51, name: "Verify / Build", conclusion: "success" },
+        { id: 52, name: "Verify / visual (graphty)", conclusion },
+        { id: 53, name: "Verify / visual (layout)", conclusion: "success" },
+        { id: 54, name: "Verify / All Checks Pass", conclusion: "success" },
+    ];
+
+    it("marks a verified commit's screenshots clean or not from its run's captures, without failing it", async () => {
+        const clean = land("cap1", { "cap1.txt": "1\n" });
+        const ok = { complete: true, items: [{ id: "a", status: "unchanged" }] };
+        const { c, calls } = ciCtx([
+            releaseIdle,
+            [/workflows\/golden-verify\.yml\/runs/, runOf(clean, { status: "completed", conclusion: "success" })],
+            [/actions\/runs\/7\/jobs/, { jobs: visualJobs() }],
+            [
+                /^run download 7 -p visual-\* -D /,
+                artifacts({
+                    "visual-graphty-1/results.json": { complete: true, items: [{ id: "a", status: "unstable" }] },
+                    "visual-graphty-2/results.json": ok,
+                    "visual-layout-1/skipped.json": { skipped: "not affected" },
+                }),
+            ],
+        ]);
+        await setBackend(c, "ci");
+        await requestVerification(c, clean);
+        await settle();
+        let s = readState(c);
+        assert.equal(s.verified, clean);
+        assert.deepEqual(s.captures[clean].problems, [], "the newest attempt's capture decides");
+        assert.equal(s.captures[clean].clean, true);
+        assert.match(describeState(c), /screenshots: clean \(https:\/\/github\.test\/runs\/7\)/);
+        assert.equal(calls.filter((l) => l.startsWith("run download")).length, 1, "one download per verified commit");
+
+        const shaky = land("cap2", { "cap2.txt": "2\n" });
+        const d = ciCtx(
+            [
+                releaseIdle,
+                [/workflows\/golden-verify\.yml\/runs/, runOf(shaky, { status: "completed", conclusion: "success" })],
+                [/actions\/runs\/7\/jobs/, { jobs: visualJobs("failure") }],
+                [
+                    /^run download 7 /,
+                    artifacts({
+                        "visual-graphty-1/results.json": { complete: false, expected: 3, items: [ok.items[0]] },
+                    }),
+                ],
+            ],
+            undefined,
+            { stateFile: c.stateFile, lock: c.lock, backendFile: c.backendFile },
+        ).c;
+        await requestVerification(d, shaky);
+        await settle();
+        s = readState(d);
+        assert.equal(s.verified, shaky, "screenshots never fail verification");
+        assert.equal(s.captures[shaky].clean, false);
+        assert.deepEqual(s.captures[shaky].problems, [
+            "visual (graphty) ended failure",
+            "graphty: incomplete (1 of 3)",
+            "no capture of layout was uploaded",
+        ]);
+        assert.equal(s.captures[clean].clean, true, "the earlier verdict is kept");
+        assert.match(describeState(d), /screenshots: NOT clean, so never cut: visual \(graphty\) ended failure/);
+    });
+
+    it("reads a project's newest capture attempt for its changed images", () => {
+        const at = join(dir, "changes");
+        const write1 = (name, items) => {
+            mkdirSync(join(at, name), { recursive: true });
+            writeFileSync(join(at, name, "results.json"), JSON.stringify({ complete: true, items }));
+        };
+        write1("visual-graphty-1", [{ file: "x.png", status: "changed", flaky: false }]);
+        write1("visual-graphty-2", [{ file: "x.png", status: "unchanged", flaky: true }]);
+        const jobs = [{ name: "Verify / visual (graphty)" }, { name: "Verify / visual (layout)" }];
+        const r = captureChanges(jobs, at);
+        assert.deepEqual(r.changed, []);
+        assert.deepEqual(
+            r.flaky.map((i) => i.file),
+            ["x.png"],
+        );
+    });
+
+    it("finds no capture job in a run without one, which is not clean", () => {
+        assert.deepEqual(captureProblems([{ name: "Verify / Build", conclusion: "success" }], join(dir, "none")), [
+            "the run has no screenshot capture job",
+        ]);
+    });
+
     it("never takes a green re-run of the failed jobs alone as verified: it starts a full run", async () => {
         const tip = tipOf();
         const rerun = [
@@ -1130,6 +1298,81 @@ describe("verification in CI (ciGate)", () => {
         assert.ok(calls.includes(`workflow run golden-verify.yml -f ref=${tip} -f shards=["s1"]`), "with its shards");
     });
 
+    it("records the images CI draws differently from their baselines, and the flaky ones, for golden-cut too", async () => {
+        // After the test above put golden-verify.yml on master, so CI can run the cut.
+        const cut = land("cap3", { "cap3.txt": "3\n" });
+        const item = (file, status, flaky = false) => ({ id: file, file, status, flaky, baseline: "b", capture: "c" });
+        const results = {
+            complete: true,
+            items: [
+                item("a.dark.png", "unchanged"),
+                item("a.light.png", "unchanged", true),
+                item("b.dark.png", "changed"),
+                item("c.dark.png", "excluded"),
+                item("d.dark.png", "new"),
+            ],
+        };
+        const { c } = ciCtx(
+            [
+                releaseIdle,
+                [/workflows\/golden-verify\.yml\/runs/, runOf(cut, { status: "completed", conclusion: "success" })],
+                [/actions\/runs\/7\/jobs/, { jobs: visualJobs() }],
+                [/^run download 7 /, artifacts({ "visual-graphty-1/results.json": results })],
+            ],
+            undefined,
+            { branch: "golden-cut" },
+        );
+        await setBackend(c, "ci");
+        await requestVerification(c, cut);
+        await settle();
+        const s = readState(c);
+        assert.equal(s.verified, cut);
+        const name = (i) => `${i.project}/${i.file} ${i.status}`;
+        assert.deepEqual(s.captures[cut].changed.map(name), ["graphty/b.dark.png changed", "graphty/d.dark.png new"]);
+        assert.deepEqual(s.captures[cut].flaky.map(name), ["graphty/a.light.png unchanged"]);
+        assert.deepEqual(s.captures[cut].changed[0], {
+            project: "graphty",
+            file: "b.dark.png",
+            status: "changed",
+            baseline: "b",
+            capture: "c",
+        });
+    });
+
+    it("quarantines the tests a green run let through as flaky, with the range's landings as suspects", async () => {
+        const tip = land("gf1", { "gf1.txt": "1\n" });
+        process.env.TEST_QUARANTINE_DIR = join(dir, "quarantine-green");
+        rebuild({ TEST_LEDGER_DIR: join(dir, "ledger-green") });
+        const note = "[FLAKY] s1: p/c.test.ts > t failed and passed on the same inputs, so it does not fail the shard";
+        const filed = [];
+        const answer = { data: { node: { checkRuns: { nodes: [{ annotations: { nodes: [{ message: note }] } }] } } } };
+        const { c, calls } = ciCtx(
+            [
+                releaseIdle,
+                [
+                    /\/runs\?head_sha=/,
+                    runOf(tip, { status: "completed", conclusion: "success", check_suite_node_id: "CS1" }),
+                ],
+                [/^api graphql [\s\S]*id=CS1$/, answer],
+                [/^issue create /, (line) => (filed.push(line), "https://github.com/o/r/issues/12")],
+            ],
+            undefined,
+            { env: { ...env, TEST_LEDGER_DIR: join(dir, "ledger-green"), GRAPHTY_TEST_QUARANTINE: "1" } },
+        );
+        try {
+            const r = await ciGate(c, tip);
+            assert.equal(r.code, 0, "a green run stays green");
+            assert.equal(calls.filter((l) => l.startsWith("api graphql")).length, 1, "one GraphQL call");
+            assert.equal(filed.length, 1);
+            assert.match(filed[0], /newly intermittent/);
+            assert.match(filed[0], new RegExp(`${tip} gf1`), "the landing is a suspect");
+            const days = readdirSync(join(dir, "ledger-green/records"));
+            assert.equal(days.length, 1, "recorded in the ledger");
+        } finally {
+            delete process.env.TEST_QUARANTINE_DIR;
+        }
+    });
+
     describe("a failing run, as GitHub recorded it", () => {
         const FAILURE = "Error: expected 3 to be 4";
         /**
@@ -1142,9 +1385,13 @@ describe("verification in CI (ciGate)", () => {
          * @param o.rerunFails whether the one re-run fails too
          * @param [o.localFails] `(sha, run, target) => boolean`, whether run k here fails the target
          * @param [o.second] the artifact fails a second test, `p/c.test.ts > u`, too
+         * @param [o.retryPassesU] a second report (the quarantine's retry) passes `u`
          * @returns `{ c, calls, checks, pushes, filed }`: pushes are the commits pushed to golden-bisect-<n>
          */
-        const recorded = (tag, { ciFails, rerunFails, localFails = () => false, second = false }) => {
+        const recorded = (
+            tag,
+            { ciFails, rerunFails, localFails = () => false, second = false, retryPassesU = false },
+        ) => {
             const ids = [];
             const idOf = (sha) => (ids.includes(sha) ? ids.indexOf(sha) : ids.push(sha) - 1) + 100;
             const shaOf = (line) => ids[Number(/runs\/(\d+)/.exec(line)[1]) - 100];
@@ -1185,6 +1432,9 @@ describe("verification in CI (ciGate)", () => {
                         const out = line.split(" -D ")[1];
                         mkdirSync(out, { recursive: true });
                         writeFileSync(join(out, "junit-p-4242.xml"), junit);
+                        const passU =
+                            '<testsuites><testsuite name="c"><testcase classname="c.test.ts" name="u"/></testsuite></testsuites>';
+                        if (retryPassesU) writeFileSync(join(out, "junit-p-4243.xml"), passU);
                         return "";
                     },
                 ],
@@ -1241,6 +1491,13 @@ describe("verification in CI (ciGate)", () => {
             );
             assert.equal(reruns(calls), 0, "a failure that reproduces here needs no CI re-run");
             assert.deepEqual(pushes(), [], "and is bisected here");
+            const misses = join(c.env.TEST_LEDGER_DIR, "misses");
+            const miss = JSON.parse(readFileSync(join(misses, readdirSync(misses)[0]), "utf8"));
+            assert.deepEqual(
+                [miss.culprit, miss.branch, miss.changed, miss.tests],
+                [culprit, "rh1", ["rh.txt"], [{ file: "p/c.test.ts", ran: false }]],
+                "the culprit's miss: what it changed, what failed, and that its land check did not run it",
+            );
             assert.ok(!published.includes(tip));
         });
 
@@ -1321,6 +1578,25 @@ describe("verification in CI (ciGate)", () => {
             assert.equal(s.last.bisect.ci, true, "so the bisect runs in CI");
             assert.ok(pushes().length > 0);
             assert.equal(s.last.culprit.sha, culprit);
+        });
+
+        it("keeps a test that passed on the quarantine's retry as a target, so it is confirmed here", async () => {
+            const breaks = (sha) => has(sha, "rp.txt");
+            const { c, checks } = recorded("retry-pass", {
+                ciFails: breaks,
+                second: true,
+                retryPassesU: true,
+                localFails: (sha, _k, t) => t.name === "t" && breaks(sha),
+            });
+            await verifyFrom(c);
+            const tip = land("rp1", { "rp.txt": "1\n" });
+            await requestVerification(c, tip);
+            await settle();
+            assert.deepEqual(
+                checks[0].targets.map((t) => t.name).sort(),
+                ["t", "u"],
+                "u failed once in CI: confirmed, not dropped",
+            );
         });
 
         it("CI-only and passing on its re-run: quarantined, nothing bisected, golden-verified stays", async () => {
@@ -1408,6 +1684,88 @@ describe("verification in CI (ciGate)", () => {
                 }
                 assert.match(s.last.culprit.evidence.parent.judgedLocally, /CI cannot run/, "the record says so");
                 assert.equal(s.ciUnavailable, undefined);
+            });
+        });
+
+        // A cut's head off origin/master, pushed to golden-cut: with the workflow in its tree or without.
+        const cutOffMaster = (name, files) => {
+            git(repo, "checkout", "-q", "-b", name, "origin/master");
+            for (const [f, text] of Object.entries(files)) {
+                mkdirSync(join(repo, f, ".."), { recursive: true });
+                writeFileSync(join(repo, f), text);
+            }
+            git(repo, "add", ".");
+            git(repo, "commit", "-q", "-m", `fix: ${name}`);
+            git(repo, "push", "-q", "-f", "origin", "HEAD:golden-cut");
+            const head = git(repo, "rev-parse", "HEAD");
+            git(repo, "checkout", "-q", "golden");
+            return head;
+        };
+
+        it("before golden-verify.yml: a cut CI cannot run gets no candidate push and no local gate; its pull request's CI verifies it", async () => {
+            await withoutWorkflowOnMaster(async () => {
+                const { c, calls } = ciCtx([releaseIdle], undefined, { branch: "golden-cut" });
+                await setBackend(c, "ci");
+                const head = cutOffMaster("cut-no-workflow", { "cnw.txt": "c\n" });
+                await withState(c, (s) => {
+                    s.noRun = { commit: head, ref: "golden-cut-candidate", attempt: 30, at: "t" };
+                    s.ciUnavailable = { since: "t", cause: "no CI run created twice" };
+                });
+                await requestVerification(c, head);
+                await settle();
+                const s = readState(c);
+                assert.equal(s.last.status, "ciCannotRun");
+                assert.equal(s.last.commit, head);
+                assert.match(s.last.reason, /CI cannot run \w+: it predates golden-verify\.yml/);
+                assert.notEqual(remoteAt("golden-cut-candidate"), head, "never pushed to the candidate branch");
+                assert.ok(!calls.some((l) => /golden-verify\.yml\/runs/.test(l)), "no run is looked for");
+                assert.deepEqual(gated, [], "the local gate does not run it");
+                assert.equal(s.verified, undefined, "not recorded as verified: its pull request's CI is");
+                assert.equal(s.noRun, undefined, "the stuck run's trouble is cleared");
+                assert.equal(s.ciUnavailable, undefined);
+                assert.equal(s.run, null, "the run ended");
+                assert.deepEqual(onVerified, [["golden-cut", head]], "auto-ship is told, as after a pass");
+                assert.match(
+                    describeState(c),
+                    /last: ciCannotRun \w+ at .*: verification: the cut pull request's CI is the verification \(its tree predates golden-verify\.yml\)/,
+                );
+            });
+        });
+
+        it("before golden-verify.yml: a cut whose tree has the workflow still goes to CI", async () => {
+            await withoutWorkflowOnMaster(async () => {
+                let head;
+                const script = [
+                    releaseIdle,
+                    [
+                        /golden-verify\.yml\/runs/,
+                        (line) => runOf(head, { status: "completed", conclusion: "success" })(line),
+                    ],
+                ];
+                const { c } = ciCtx(script, undefined, { branch: "golden-cut" });
+                await setBackend(c, "ci");
+                head = cutOffMaster("cut-with-workflow", {
+                    "cww.txt": "c\n",
+                    ".github/workflows/golden-verify.yml": "name: Golden verify\n",
+                });
+                await requestVerification(c, head);
+                await settle();
+                const s = readState(c);
+                assert.equal(remoteAt("golden-cut-candidate"), head, "pushed to the candidate branch");
+                assert.equal(s.last.status, "passed");
+                assert.equal(s.verified, head);
+            });
+        });
+
+        it("before golden-verify.yml: a golden commit whose tree has the workflow still goes to CI", async () => {
+            await withoutWorkflowOnMaster(async () => {
+                const { c } = recorded("golden-with-workflow", { ciFails: () => false });
+                await verifyFrom(c);
+                const tip = land("gw1", { ".github/workflows/golden-verify.yml": "name: Golden verify\n" });
+                await requestVerification(c, tip);
+                await settle();
+                assert.equal(remoteAt("golden-candidate"), tip, "pushed to the candidate branch");
+                assert.equal(readState(c).verified, tip);
             });
         });
 

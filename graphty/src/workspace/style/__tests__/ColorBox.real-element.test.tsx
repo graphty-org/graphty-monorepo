@@ -2,8 +2,8 @@
  * The color box of a style line, on the REAL graphty-element and driven by real clicks and keys:
  * after Enter, the next color typed replaces the value; a click into the focused box selects its
  * value, so typing replaces it; Control+Z right after Enter undoes the change in the drawing; the
- * box is read with a color word; a refused entry is one line under the whole row, with the name
- * still beside the box.
+ * box is read with a color word; a refused entry draws nothing (Figma reverts it silently), with the
+ * name still beside the box.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -134,20 +134,50 @@ describe("a style line's color box", () => {
         });
     });
 
-    it("draws a refusal as one line under the whole row, the name and the vary button beside the box", async () => {
-        const { line, box } = await openColorLine();
+    it("reverts a refused entry and draws nothing for it, the name and the vary button beside the box", async () => {
+        const { session, line, box } = await openColorLine();
+        const before = painted(session);
         await userEvent.keyboard("bluex{Enter}");
-        const message = await within(line).findByRole("alert");
+        await waitFor(() => {
+            assert.notStrictEqual(hexBox().value.toLowerCase(), "bluex", "the box no longer holds the refused text");
+        });
+        assert.deepEqual(painted(session), before, "nothing was written");
+        assert.isNull(within(line).queryByRole("alert"), "no sentence is drawn under the row");
         const name = line.querySelector<HTMLElement>(".ws-field-name");
         const vary = line.querySelector<HTMLElement>(".ws-vary button");
         assert.isNotNull(name);
         assert.isNotNull(vary);
         const field = box.getBoundingClientRect();
         const middle = (rect: DOMRect): number => rect.top + rect.height / 2;
-        const said = message.getBoundingClientRect();
-        assert.isAtLeast(said.top, field.bottom, "the message is under the box");
-        assert.isAtMost(said.left, name?.getBoundingClientRect().left ?? 0, "it starts under the name");
         assert.closeTo(middle(name?.getBoundingClientRect() ?? field), middle(field), 2, "the name is beside the box");
         assert.closeTo(middle(vary?.getBoundingClientRect() ?? field), middle(field), 2, "so is the vary button");
+    });
+
+    it("writes the Fill opacity typed in its picker to the node opacity, the color staying six digits", async () => {
+        const { session } = await openColorLine();
+        await userEvent.keyboard("blue{Enter}");
+        await waitFor(() => {
+            assert.include(painted(session), "#0000FF");
+        });
+        // The Style tab's field is too narrow for the opacity box beside the hex, so the opacity
+        // is typed in the picker the swatch opens.
+        const line = document.querySelector<HTMLElement>('[data-testid="style-tab"] .ws-row[data-line="node.color"]');
+        if (line === null) {
+            throw new Error("no Color line");
+        }
+        await userEvent.click(within(line).getByTestId("compact-color-input-swatch"));
+        const opacity = await screen.findByTestId("color-picker-opacity");
+        await userEvent.tripleClick(opacity);
+        await userEvent.keyboard("50{Enter}");
+        await waitFor(() => {
+            const paint = session.styles.list().find((one: Layer) => one.name === "Paint" && one.target === "node");
+            assert.strictEqual(paint?.set?.["node.opacity"], 0.5);
+            const color = paint?.set?.["node.color"];
+            assert.strictEqual(typeof color === "string" ? color.toUpperCase() : color, "#0000FF");
+        });
+        assert.isNull(
+            document.querySelector('[data-testid="style-tab"] .ws-row[data-line="node.opacity"]'),
+            "no Opacity line of its own",
+        );
     });
 });

@@ -126,7 +126,7 @@ async function dataPageWith(file: File): Promise<GraphSession> {
     });
     await screen.findByRole("heading", { name: "Open as a new graph" });
     const session = await elementSession();
-    await userEvent.upload(screen.getByTestId("data-page-file-input"), file);
+    dropOn(screen.getByRole("region", { name: "Data page" }), file);
     await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
     return session;
 }
@@ -211,13 +211,8 @@ describe("import styles from files, on the real element", () => {
             localStorage.setItem(IMPORT_FILE_STYLES.key, preference);
             render(<Workspace store={createWorkspaceStore()} />);
             dropOn(globalThis, styledGexf());
-            // A data file dropped on the start screen opens the Data page, its box set from the
-            // preference, and loads on Load.
-            await screen.findByRole("heading", { name: "Open as a new graph" }, { timeout: TIMEOUT_MS });
+            // A data file dropped on the start screen is drawn at once, with the preference's choice.
             const session = await elementSession();
-            const box = await screen.findByRole("checkbox", { name: CHECKBOX }, { timeout: TIMEOUT_MS });
-            assert.equal((box as HTMLInputElement).checked, preference === "on");
-            await userEvent.click(screen.getByRole("button", { name: "Load" }));
             await loadedTwelve(session);
             if (preference === "on") {
                 await waitFor(

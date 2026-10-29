@@ -1,3 +1,5 @@
+export type { BasemapConfig, BasemapSourceId, BasemapStatus, LocationSourceFact, MapFrameFact } from "./Basemap";
+export { Basemap } from "./Basemap";
 export type { AdHocData, ImageData } from "./common";
 export { colorToHex } from "./common";
 export type { EdgeStyleConfig } from "./EdgeStyle";
@@ -5,12 +7,18 @@ export { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, EdgeOutlineTypes, Edge
 export type { FetchEdgesFn, FetchNodesFn, FitInsets, GraphBehaviorConfig } from "./GraphBehavior";
 export type { NodeIdType } from "./GraphBehavior";
 export { GraphBehaviorOpts } from "./GraphBehavior";
-export type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "./GraphStyle";
+export type {
+    GraphBackgroundConfig,
+    GraphSelectionStyleConfig,
+    GraphSelectionStyleInput,
+    LayoutTransitionConfig,
+} from "./GraphStyle";
 export {
     DEFAULT_BACKGROUND_COLOR,
     DEFAULT_SELECTION_STYLE,
     GraphBackground,
     GraphSelectionStyleOpts,
+    LayoutTransition,
 } from "./GraphStyle";
 export type { Lighting } from "./Lighting";
 export { DEFAULT_LIGHTING, isLighting, LIGHTING_VALUES } from "./Lighting";

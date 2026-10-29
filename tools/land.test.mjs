@@ -19,19 +19,23 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
-import { busyLine, noteBody } from "./branch-note.mjs";
-import { failedTest, moveGoldenGood, syncDue, testStage } from "./branch-sync.mjs";
+import { noteBody } from "./branch-note.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     acquireLock,
     context,
+    cutFixReason,
     defaultPreview,
+    gateSnapshot,
     handOff,
     issueRefs,
     landedBranches,
     lightGate,
     main,
+    newestStableCut,
     prBody,
+    previewEnv,
+    previewSettled,
     readLock,
     sync,
 } from "./land.mjs";
@@ -67,6 +71,7 @@ const branch = (name, files, message, base = "origin/master") => {
 let gh;
 let previews;
 let previewHeads;
+let watches; // each [pr, head] a cut's preview watcher waits on, to run auto-ship
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
 let checks; // the landing checks: the gate on golden's next commit, without the lock, sending nothing
@@ -108,12 +113,20 @@ before(() => {
     git(repo, "commit", "-q", "-m", "base");
     git(repo, "push", "-q", "origin", "master");
     git(dir, "clone", "-q", join(dir, "origin.git"), "other");
+    // These tests exercise the golden flow itself; the retirement has its own test below.
     ctx = context(repo, {
         env,
+        retired: false,
         gh: (_ctx, args) => {
             gh.push(args);
             const cut = args.includes("golden-cut");
             if (args[1] === "graphql") return graphql(args.find((a) => a.startsWith("query=")));
+            if (args[0] === "run") return JSON.stringify([{ conclusion: gh.master ?? "success" }]);
+            // What a cut fix's --reason names: an issue, or a workflow run.
+            const issue = args[0] === "api" && /\/issues\/(\d+)$/.exec(args[1]);
+            if (issue) return JSON.stringify(gh.issueApi?.[issue[1]] ?? {});
+            const runOf = args[0] === "api" && /\/actions\/runs\/(\d+)$/.exec(args[1]);
+            if (runOf) return JSON.stringify(gh.runs?.[runOf[1]] ?? {});
             if (args[1] === "list") {
                 const pr = cut ? gh.cut : gh.open && { number: 7, isDraft: true, url: "u/pull/7" };
                 return JSON.stringify(pr ? [pr] : []);
@@ -151,6 +164,7 @@ before(() => {
             previews.push(pr);
             previewHeads.push(git(cwd, "rev-parse", "HEAD"));
         },
+        watchPreview: (_c, pr, sha) => watches.push([pr, sha]),
         addWorktree: (c, base) => git(c.main, "worktree", "add", "-q", "-b", "golden", c.golden, base),
         addCutWorktree: (c, sha) => git(c.main, "worktree", "add", "-q", "-b", "golden-cut", c.cut, sha),
         install: (c) => {
@@ -180,6 +194,7 @@ beforeEach(() => {
     verifies = [];
     previews = [];
     previewHeads = [];
+    watches = [];
     pushResult = 0;
     pushes = 0;
     refspecs = [];
@@ -724,6 +739,7 @@ describe("landing several branches", () => {
         assert.deepEqual(landSubjects(2), ["land: multi/f", "land: multi/d"]);
         assert.equal(originGolden(), head());
         assert.match(r.out, /multi\/e\s+gate failure, log: tmp\/push-gate-logs\/x\.log/);
+        assert.match(r.out, /the gate refused multi\/d, multi\/e, multi\/f together \(its log names the last/);
         assert.equal(gh.filter((a) => isEdit(a)).length, 1);
         assert.deepEqual(previews, [7]);
     });
@@ -752,6 +768,30 @@ describe("landing several branches", () => {
         assert.equal(landSubjects(1)[0], "land: multi/q");
         assert.equal(originGolden(), head());
         assert.match(r.out, /multi\/a\s+already on golden\n\s+multi\/q\s+landed/);
+    });
+
+    it("reports branches of the batch that conflict with each other before merging, and lands the rest", async () => {
+        branch("sib/one", { "sib.txt": "one\n" }, "feat: sib one", "origin/golden");
+        branch("sib/two", { "sib.txt": "two\n" }, "feat: sib two", "origin/golden");
+        branch("sib/three", { "sib3.txt": "three\n" }, "feat: sib three", "origin/golden");
+        gh.open = true;
+        const r = await run("land", "sib/one", "sib/two", "sib/three");
+        assert.equal(r.code, 2, r.out);
+        assert.match(
+            r.out,
+            /these branches of the batch conflict with each other:\n {2}sib\/one and sib\/two: sib\.txt\n/,
+        );
+        assert.ok(
+            r.out.indexOf("conflict with each other") < r.out.indexOf("land: sib/two conflicts with golden"),
+            "reported before merging",
+        );
+        assert.match(
+            r.out,
+            /sib\/one\s+landed\n\s+sib\/two\s+conflict with sib\/one, merged before it in this batch\n\s+sib\/three\s+landed/,
+        );
+        assert.match(r.out, /merge the earlier branch into the later/);
+        assert.deepEqual(landSubjects(2), ["land: sib/three", "land: sib/one"]);
+        assert.equal(originGolden(), head());
     });
 
     it("exits 5 when a conflict and a gate failure each keep a branch out, golden as it was", async () => {
@@ -858,7 +898,7 @@ describe("cuts", () => {
         assert.equal(r.code, 1, r.out);
         assert.match(r.out, /is not on origin\/golden/);
         assert.equal(pushes, 0);
-        assert.equal(gh.length, 0);
+        assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
     });
 
     it("cuts only a verified commit: a stable preview newer than golden-verified is not taken", async () => {
@@ -870,6 +910,27 @@ describe("cuts", () => {
         assert.match(r.out, /no verified golden commit/);
         assert.equal(pushes, 0);
         rmSync(join(repo, "tmp/visual-review/local/103"), { recursive: true });
+    });
+
+    it("while CI verifies golden, takes only a commit whose CI captures verification found clean", () => {
+        const line = firstParents();
+        verifiedAt(line[0]);
+        preview("104", line[0], ["unchanged"]);
+        preview("105", line[1], ["unchanged"]);
+        const state = join(repo, "tmp/golden/verify.json");
+        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+        try {
+            assert.equal(newestStableCut(ctx), line[0], "local verification: the preview alone decides");
+            const captures = { [line[0]]: { clean: false, problems: ["graphty: unstable a.png"] } };
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci" }, captures }));
+            assert.equal(newestStableCut(ctx), null, "not clean, and line[1] has no CI verdict: nothing to cut");
+            captures[line[1]] = { clean: true, problems: [] };
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci" }, captures }));
+            assert.equal(newestStableCut(ctx), line[1]);
+        } finally {
+            rmSync(state, { force: true });
+            for (const k of ["104", "105"]) rmSync(join(repo, "tmp/visual-review/local", k), { recursive: true });
+        }
     });
 
     it("cuts the newest golden commit whose preview has no unstable or failed images, and opens its pull request", async () => {
@@ -886,6 +947,7 @@ describe("cuts", () => {
         assert.ok(create.includes("--draft") && create.includes("chore: ship a golden cut into master"));
         assert.match(gh.body, /A cut of `golden` at .*Approvals that ship are made here/);
         assert.deepEqual(previews, [9]);
+        assert.deepEqual(watches, [[9, line[1]]], "auto-ship runs once that preview ends");
         assert.deepEqual(verifies, [["golden-cut", line[1]]], "ship waits for the cut's verification");
     });
 
@@ -899,6 +961,80 @@ describe("cuts", () => {
         const edit = gh.find((a) => isEdit(a));
         assert.ok(edit.includes("title=chore: ship a golden cut into master"));
         assert.deepEqual(previews, [9]);
+    });
+
+    it("keeps the cut frozen while its pull request awaits the owner's Finish, and moves it after", async () => {
+        const held = remote("refs/heads/golden-cut");
+        preview("9", held, ["changed"]);
+        gh.open = true;
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: held };
+        branch("frozen/next", { "fz.txt": "z\n" }, "feat: after the cut", "origin/golden");
+        assert.equal((await run("land", "frozen/next")).code, 0);
+        const next = git(golden, "rev-parse", "HEAD");
+        verifiedAt(next);
+        preview("110", next, ["unchanged"]);
+        pushes = 0;
+        const frozen = await run("cut");
+        assert.equal(frozen.code, 1, frozen.out);
+        assert.match(
+            frozen.out,
+            /#9 awaits the owner's review: its preview of [0-9a-f]{10} is done and it has no Finish yet/,
+        );
+        assert.equal(remote("refs/heads/golden-cut"), held);
+        assert.equal(pushes, 0);
+
+        // The owner's Finish: an accept commit, then the signed approval of the baselines tree it made.
+        git(other, "fetch", "-q", "origin");
+        git(other, "checkout", "-q", "-B", "finish-side", "origin/golden-cut");
+        mkdirSync(join(other, "visual-baselines/p"), { recursive: true });
+        write(other, "visual-baselines/p/frozen.png", "png\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): accept visual baselines for #9");
+        const tree = git(other, "rev-parse", "HEAD:visual-baselines");
+        mkdirSync(join(other, "visual-review-approvals"), { recursive: true });
+        write(other, `visual-review-approvals/${tree}.json`, "{}\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): approve the visual baselines of #9");
+        git(other, "push", "-q", "origin", "finish-side");
+        gh.cut = { ...gh.cut, headRefOid: git(other, "rev-parse", "HEAD") };
+        git(other, "checkout", "-q", "master");
+        const moved = await run("cut");
+        assert.equal(moved.code, 0, moved.out);
+        assert.equal(remote("refs/heads/golden-cut"), next);
+        rmSync(join(repo, "tmp/visual-review/local/110"), { recursive: true });
+    });
+
+    it("keeps a shipped cut frozen even with no accept commits, and freezes cut-fix with it", async () => {
+        const held = remote("refs/heads/golden-cut");
+        gh.open = true;
+        gh.issueApi = { 500: { state: "open", title: "CI red on master", labels: [{ name: "priority:critical" }] } };
+        branch("frozen/shipped", { "fs.txt": "s\n" }, "feat: after the shipped cut", "origin/golden");
+        assert.equal((await run("land", "frozen/shipped")).code, 0);
+        const next = git(golden, "rev-parse", "HEAD");
+        verifiedAt(next);
+        preview("110", next, ["unchanged"]);
+        branch("frozen/cutfix", { "fc.txt": "c\n" }, "fix: the cut", "origin/golden-cut");
+        pushes = 0;
+        // Shipped: ready, its CI running. Nothing on golden-cut that the newer golden commit lacks.
+        gh.cut = { number: 9, isDraft: false, url: "u/pull/9", headRefOid: held };
+        const shipped = await run("cut");
+        assert.equal(shipped.code, 1, shipped.out);
+        assert.match(
+            shipped.out,
+            /#9 is shipped \(ready, its CI running or about to merge\), so golden-cut stays frozen/,
+        );
+        const fixShipped = await run("cut-fix", "frozen/cutfix", "--reason", "500");
+        assert.equal(fixShipped.code, 1, fixShipped.out);
+        assert.match(fixShipped.out, /frozen\/cutfix cannot go into the cut now: #9 is shipped/);
+        // In review: a draft whose preview of its head is done, with no Finish.
+        preview("9", held, ["changed"]);
+        gh.cut = { ...gh.cut, isDraft: true };
+        const fixReview = await run("cut-fix", "frozen/cutfix", "--reason", "500");
+        assert.equal(fixReview.code, 1, fixReview.out);
+        assert.match(fixReview.out, /frozen\/cutfix cannot go into the cut now: #9 awaits the owner's review/);
+        assert.equal(remote("refs/heads/golden-cut"), held);
+        assert.equal(pushes, 0);
+        rmSync(join(repo, "tmp/visual-review/local/110"), { recursive: true });
     });
 
     it("ship marks the cut pull request ready with auto-merge when its preview is of its head", async () => {
@@ -986,6 +1122,31 @@ describe("cuts", () => {
         }
     });
 
+    it("ship takes the verification and preview of a commit the head differs from only in the review's directories", async () => {
+        const previewed = remote("refs/heads/golden-cut");
+        write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: previewed }));
+        preview("9", previewed, ["changed"]);
+        // An update of the baselines from master: a merge commit (two parents) that changes only visual-baselines/.
+        git(other, "fetch", "-q", "origin");
+        git(other, "checkout", "-q", "-B", "baselines-side", "origin/master");
+        mkdirSync(join(other, "visual-baselines/p"), { recursive: true });
+        write(other, "visual-baselines/p/from-master.png", "png\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): a baseline from master");
+        git(other, "checkout", "-q", "-B", "update", "origin/golden-cut");
+        git(other, "merge", "-q", "--no-ff", "-m", "Merge master's baselines", "baselines-side");
+        git(other, "push", "-q", "origin", "update:golden-cut");
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: git(other, "rev-parse", "HEAD") };
+        git(other, "checkout", "-q", "master");
+        try {
+            const r = await run("ship");
+            assert.equal(r.code, 0, r.out);
+            assert.ok(gh.some((a) => a[1] === "ready"));
+        } finally {
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
+        }
+    });
+
     it("the preview it starts waits for GitHub to list the pushed commit as the head", async () => {
         const fake = join(dir, "fake-preview");
         mkdirSync(join(fake, "tools"), { recursive: true });
@@ -1005,6 +1166,51 @@ describe("cuts", () => {
         assert.equal(readFileSync(called, "utf8"), `42 --expect ${sha}\n`);
     });
 
+    it("tells the gate's capture which branch it pushes to, so it captures for that branch's pull request", () => {
+        assert.deepEqual(previewEnv("golden"), { VISUAL_PREVIEW_BRANCH: "golden" });
+        assert.deepEqual(previewEnv("golden-cut"), { VISUAL_PREVIEW_BRANCH: "golden-cut" });
+    });
+
+    it("after the push makes the gate's capture of the pushed head the preview, and starts none", async () => {
+        const fake = join(dir, "fake-preview-staged");
+        mkdirSync(join(fake, "tools"), { recursive: true });
+        const called = join(fake, "called");
+        writeFileSync(join(fake, "tools/visual-preview.sh"), `#!/bin/sh\necho "$@" > ${called}\n`, { mode: 0o755 });
+        git(dir, "init", "-q", fake);
+        git(fake, "commit", "-q", "--allow-empty", "-m", "x");
+        const sha = git(fake, "rev-parse", "HEAD");
+        const local = join(repo, "tmp/visual-review/local");
+        const stage = (name, status) => {
+            mkdirSync(join(local, name, "p"), { recursive: true });
+            writeFileSync(join(local, name, "status.json"), JSON.stringify(status));
+            writeFileSync(join(local, name, "p/results.json"), "{}");
+        };
+        try {
+            // The preview of the head GitHub listed before, and the gate's capture of the pushed head.
+            stage("42", { state: "done", pr: 42, head: "0".repeat(40) });
+            stage(`.pending-${sha}`, { state: "done", pr: 42, head: sha });
+            defaultPreview(ctx, 42, fake);
+            assert.equal(JSON.parse(readFileSync(join(local, "42/status.json"), "utf8")).head, sha);
+            assert.ok(existsSync(join(local, "42/p/results.json")));
+            assert.ok(!existsSync(join(local, `.pending-${sha}`)));
+            assert.ok(!existsSync(join(local, "42.old")));
+            assert.ok(!existsSync(called), "no second capture of the same commit");
+
+            // A capture for another pull request, or one that failed, is never taken: a fresh preview starts.
+            rmSync(join(local, "42"), { recursive: true });
+            stage(`.pending-${sha}`, { state: "done", pr: 43, head: sha });
+            defaultPreview(ctx, 42, fake);
+            while (!existsSync(called)) await new Promise((r) => setImmediate(r));
+            assert.ok(existsSync(join(local, `.pending-${sha}`)));
+            rmSync(called);
+            stage(`.pending-${sha}`, { state: "failed", pr: 42, head: sha });
+            defaultPreview(ctx, 42, fake);
+            while (!existsSync(called)) await new Promise((r) => setImmediate(r));
+        } finally {
+            rmSync(local, { recursive: true, force: true });
+        }
+    });
+
     it("ship refuses a cut head that is not verified, and ships it once golden-cut's verification passed it", async () => {
         const wt = branch("cut/unverified", { "uv.txt": "u\n" }, "fix: unverified", "origin/golden-cut");
         git(wt, "push", "-q", "origin", "HEAD:golden-cut");
@@ -1022,6 +1228,66 @@ describe("cuts", () => {
         rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
     });
 
+    it("ship takes a cut head CI cannot verify (ciCannotRun): its pull request's CI is the verification", async () => {
+        const wt = branch("cut/ci-cannot-run", { "ccr.txt": "c\n" }, "fix: ci cannot run", "origin/golden-cut");
+        git(wt, "push", "-q", "origin", "HEAD:golden-cut");
+        const head = git(wt, "rev-parse", "HEAD");
+        preview("9", head, ["changed"]);
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: head };
+        const state = { last: { status: "ciCannotRun", commit: head, reason: "CI cannot run" } };
+        write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify(state));
+        try {
+            const r = await run("ship");
+            assert.equal(r.code, 0, r.out);
+            assert.match(
+                r.out,
+                /verification: the cut pull request's CI is the verification \(its tree predates golden-verify\.yml\)/,
+            );
+            assert.ok(gh.some((a) => a[1] === "ready"));
+        } finally {
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
+        }
+    });
+
+    it("ship prints CI's changed and flaky screenshots and refuses a changed one the owner has not approved", async () => {
+        const wt = branch("cut/ci-drawn", { "cd.txt": "c\n" }, "fix: ci draws it otherwise", "origin/golden-cut");
+        git(wt, "push", "-q", "origin", "HEAD:golden-cut");
+        const head = git(wt, "rev-parse", "HEAD");
+        preview("9", head, ["unchanged"]);
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: head };
+        const fresh = {
+            project: "graphty",
+            file: "a.dark.png",
+            status: "new",
+            baseline: null,
+            capture: "c".repeat(64),
+        };
+        const flaky = { project: "graphty", file: "b.light.png", status: "unchanged", baseline: "b", capture: "b" };
+        const captures = { [head]: { clean: true, run: "https://r/1", changed: [fresh], flaky: [flaky] } };
+        write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: head, captures }));
+        try {
+            const r = await run("ship");
+            assert.equal(r.code, 1, r.out);
+            assert.match(r.out, /CI screenshot changed: graphty\/a\.dark\.png new/);
+            assert.match(r.out, /CI screenshot flaky: graphty\/b\.light\.png unchanged/);
+            assert.match(r.out, /#9 draws 1 screenshot\(s\) differently in CI \(https:\/\/r\/1\) from the approved/);
+            assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
+
+            // The owner approves CI's picture: the baseline at the head is now exactly that capture.
+            mkdirSync(join(wt, "visual-baselines/graphty"), { recursive: true });
+            write(wt, "visual-baselines/graphty/a.dark.png", `version x\noid sha256:${fresh.capture}\nsize 1\n`);
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test(workspace): accept a.dark.png");
+            const accepted = git(wt, "rev-parse", "HEAD");
+            gh.cut = { ...gh.cut, headRefOid: accepted };
+            const shipped = await run("ship");
+            assert.equal(shipped.code, 0, shipped.out);
+            assert.match(shipped.out, /CI screenshot changed, approved again since: graphty\/a\.dark\.png new/);
+        } finally {
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
+        }
+    });
+
     it("ship refuses when the cut pull request moved since its preview", async () => {
         const line = firstParents();
         preview("9", line[1], ["changed"]);
@@ -1031,6 +1297,200 @@ describe("cuts", () => {
         assert.match(r.out, /#9 moved since its preview/);
         assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
     });
+
+    describe("auto-ship", () => {
+        const shipped = () => gh.filter((a) => a[1] !== "list");
+        // A cut head off master (never pushed: the cut pull request's head is all auto-ship reads), verified.
+        const cutHead = (name, files, verified = true) => {
+            const sha = git(branch(name, files, `fix: ${name}`), "rev-parse", "HEAD");
+            const v = join(repo, "tmp/golden/verify-golden-cut.json");
+            if (verified) write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: sha }));
+            else rmSync(v, { force: true });
+            gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: sha };
+            return sha;
+        };
+
+        it("ships a verified cut whose preview of its head changes no image, once", async () => {
+            const sha = cutHead("auto/clean", { "clean.txt": "c\n" });
+            preview("9", sha, ["unchanged", "excluded", "unchanged"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.deepEqual(shipped(), [
+                ["pr", "ready", "9"],
+                ["pr", "merge", "9", "--auto", "--merge"],
+            ]);
+            assert.match(readFileSync(join(repo, "tmp/golden/auto-ship.log"), "utf8"), /shipped #9 at/);
+
+            // The second event (the verification after the preview) finds it shipped and does nothing.
+            gh.cut = { ...gh.cut, isDraft: false };
+            gh.length = 0;
+            const again = await run("auto-ship");
+            assert.equal(again.code, 0, again.out);
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("waits for the owner when any image changed, or the cut changes a baseline", async () => {
+            const sha = cutHead("auto/changed", { "changed.txt": "c\n" });
+            preview("9", sha, ["unchanged", "changed"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.match(r.out, /waiting: #9 waits for the owner: 1 changed \(graphty\/s1.png changed\)/);
+            assert.deepEqual(shipped(), []);
+
+            for (const status of ["new", "removed", "unseeded", "unstable", "moved"]) {
+                preview("9", sha, ["unchanged", status]);
+                await run("auto-ship");
+                assert.deepEqual(shipped(), [], status);
+            }
+
+            cutHead("auto/baseline", { "b.txt": "b\n" });
+            const wt = join(dir, "wt-auto-baseline");
+            mkdirSync(join(wt, "visual-baselines/p"), { recursive: true });
+            write(wt, "visual-baselines/p/s.png", "png\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test: a baseline");
+            const based = git(wt, "rev-parse", "HEAD");
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: based }));
+            gh.cut = { ...gh.cut, headRefOid: based };
+            preview("9", based, ["unchanged"]);
+            const b = await run("auto-ship");
+            assert.match(b.out, /baselines: visual-baselines\/ differs from the base \(tree [0-9a-f]+\), and no/);
+            assert.deepEqual(shipped(), []);
+
+            const red = cutHead("auto/red", { "red.txt": "r\n" });
+            preview("9", red, ["unchanged"]);
+            gh.master = "failure";
+            const m = await run("auto-ship");
+            delete gh.master;
+            assert.match(m.out, /waits: master's last build is failure/);
+            assert.deepEqual(shipped(), []);
+
+            const bang = git(branch("auto/bang", { "bang.txt": "b\n" }, "feat(x)!: drop y"), "rev-parse", "HEAD");
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: bang }));
+            gh.cut = { ...gh.cut, headRefOid: bang };
+            preview("9", bang, ["unchanged"]);
+            const k = await run("auto-ship");
+            assert.match(k.out, /owner's go on a breaking commit: feat\(x\)!: drop y/);
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("waits while CI's own capture of the verified cut changed an image", async () => {
+            const sha = cutHead("auto/ci-changed", { "acc.txt": "c\n" }, false);
+            const item = { project: "graphty", file: "n.dark.png", status: "new", baseline: null, capture: "d" };
+            const captures = { [sha]: { clean: true, run: "https://r/2", changed: [item], flaky: [] } };
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: sha, captures }));
+            preview("9", sha, ["unchanged"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.match(r.out, /waiting: #9 draws 1 screenshot\(s\) differently in CI/);
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("ships a cut whose verification is its own pull request's CI (ciCannotRun)", async () => {
+            const sha = cutHead("auto/ci-cannot-run", { "accr.txt": "c\n" }, false);
+            const state = { last: { status: "ciCannotRun", commit: sha, reason: "CI cannot run" } };
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify(state));
+            preview("9", sha, ["unchanged"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.match(r.out, /verification: the cut pull request's CI is the verification/);
+            assert.deepEqual(shipped(), [
+                ["pr", "ready", "9"],
+                ["pr", "merge", "9", "--auto", "--merge"],
+            ]);
+        });
+
+        it("ships a cut whose changed baselines tree carries the owner's approval of exactly that tree", async () => {
+            cutHead("auto/approved", { "approved.txt": "a\n" });
+            const wt = join(dir, "wt-auto-approved");
+            mkdirSync(join(wt, "visual-baselines/p"), { recursive: true });
+            write(wt, "visual-baselines/p/a.png", "png\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test(workspace): accept visual baselines for #9");
+            const accepted = git(wt, "rev-parse", "HEAD");
+            const tree = git(wt, "rev-parse", "HEAD:visual-baselines");
+            const statement = { version: 1, baselines: "visual-baselines", tree, commit: accepted };
+            mkdirSync(join(wt, "visual-review-approvals"), { recursive: true });
+            write(wt, `visual-review-approvals/${tree}.json`, JSON.stringify(statement));
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test(workspace): approve the visual baselines of #9");
+            const sha = git(wt, "rev-parse", "HEAD");
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: sha }));
+            gh.cut = { ...gh.cut, headRefOid: sha };
+            preview("9", sha, ["unchanged"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.deepEqual(shipped(), [
+                ["pr", "ready", "9"],
+                ["pr", "merge", "9", "--auto", "--merge"],
+            ]);
+
+            // The same approval no longer covers a tree changed after it.
+            write(wt, "visual-baselines/p/b.png", "png\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test(workspace): accept visual baselines for #9");
+            const later = git(wt, "rev-parse", "HEAD");
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: later }));
+            gh.cut = { ...gh.cut, headRefOid: later };
+            gh.length = 0;
+            preview("9", later, ["unchanged"]);
+            const stale = await run("auto-ship");
+            assert.match(stale.out, /waits for the owner: 1 changed \(baselines: .*no visual-review-approvals\//);
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("waits for verification, and for a preview of exactly the head", async () => {
+            const sha = cutHead("auto/unverified", { "uv2.txt": "u\n" }, false);
+            preview("9", sha, ["unchanged"]);
+            const r = await run("auto-ship");
+            assert.match(r.out, /waiting: #9 is not verified yet/);
+            assert.deepEqual(shipped(), []);
+            assert.match(readFileSync(join(repo, "tmp/golden/auto-ship.log"), "utf8"), /not verified yet/);
+
+            const other = cutHead("auto/other", { "o.txt": "o\n" });
+            preview("9", sha, ["unchanged"]);
+            const moved = await run("auto-ship");
+            assert.match(moved.out, /waiting: #9 (moved|has no finished screenshot preview)/);
+            assert.deepEqual(shipped(), []);
+            preview("9", other, ["unchanged"], "running");
+            await run("auto-ship");
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("runs after the preview of the cut's head ends, past an older head's status, not after a newer one", async () => {
+            const older = cutHead("auto/older", { "older.txt": "o\n" });
+            const wt = join(dir, "wt-auto-older");
+            write(wt, "newer.txt", "n\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "fix: newer");
+            const sha = git(wt, "rev-parse", "HEAD");
+            preview("9", older, ["unchanged"]);
+            // Resolving on the older head's status would answer false.
+            const waiting = previewSettled(ctx, 9, sha);
+            preview("9", sha, ["unchanged"], "running");
+            preview("9", sha, ["unchanged"]);
+            assert.equal(await waiting, true);
+
+            const replaced = previewSettled(ctx, 9, older);
+            assert.equal(await replaced, false, "a newer head's preview replaced it");
+        });
+
+        it("never ships while a cut is pushing golden-cut", async () => {
+            const sha = cutHead("auto/cutting", { "cutting.txt": "c\n" });
+            preview("9", sha, ["unchanged"]);
+            mkdirSync(ctx.cutLock, { recursive: true });
+            write(ctx.cutLock, "owner.json", JSON.stringify({ pid: process.pid, host: hostname(), since: "now" }));
+            try {
+                const r = await run("auto-ship");
+                assert.equal(r.code, 0, r.out);
+                assert.match(r.out, /waiting: a cut is pushing golden-cut now/);
+                assert.equal(gh.length, 0);
+            } finally {
+                rmSync(ctx.cutLock, { recursive: true, force: true });
+            }
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"), { force: true });
+        });
+    });
 });
 
 describe("cut fixes", () => {
@@ -1038,18 +1498,60 @@ describe("cut fixes", () => {
         ["origin/golden-cut", "origin/golden"].every(
             (b) => spawnSync("git", ["merge-base", "--is-ancestor", sha, b], { cwd: repo, env }).status === 0,
         );
+    // A red master's alarm: an open priority:critical issue.
+    beforeEach(() => {
+        gh.issueApi = { 500: { state: "open", title: "CI red on master", labels: [{ name: "priority:critical" }] } };
+    });
+
+    it("refuses a fix that names no red master, failed deploy or release hold, and pushes nothing", async () => {
+        branch("cutfix/why", { "why.txt": "w\n" }, "fix: why", "origin/golden-cut");
+        gh.issueApi[501] = { state: "open", title: "a feature", labels: [{ name: "priority:high" }] };
+        gh.issueApi[502] = { state: "closed", title: "CI red on master", labels: [{ name: "priority:critical" }] };
+        gh.runs = { 77: { path: ".github/workflows/ci.yml", conclusion: "failure", head_branch: "golden-cut" } };
+        for (const reason of [
+            [],
+            ["--reason", "501"],
+            ["--reason", "502"],
+            ["--reason", "run:77"],
+            ["--reason=soon"],
+        ]) {
+            const r = await run("cut-fix", "cutfix/why", ...reason);
+            assert.equal(r.code, 1, r.out);
+            assert.match(
+                r.out,
+                /cutfix\/why is not a cut fix: .*only for a red master, a failed deploy or a release hold/,
+            );
+            assert.match(r.out, /Every other fix lands on golden: node tools\/land\.mjs land <branch>/);
+        }
+        assert.equal(pushes, 0);
+    });
+
+    it("takes a failed release or deploy run, or a release hold issue, as the reason", async () => {
+        gh.issueApi[503] = { state: "open", title: "Release held: T4 GPU failed on abc", labels: [{ name: "bug" }] };
+        gh.runs = {
+            78: { path: ".github/workflows/release.yml", conclusion: "failure", head_branch: "master" },
+            79: { path: ".github/workflows/deploy-pages.yml", conclusion: "timed_out", head_branch: "master" },
+            80: { path: ".github/workflows/ci.yml", conclusion: "failure", head_branch: "master" },
+        };
+        for (const reason of ["#503", "run:78", "run:79", "run:80", "500"])
+            assert.ok(cutFixReason(ctx, reason).ok, reason);
+        gh.runs[78].conclusion = "success";
+        assert.match(cutFixReason(ctx, "run:78").error, /is not a failed release, deploy or master run/);
+    });
 
     it("refuses a branch that would bring golden commits the cut lacks, and says how to start one", async () => {
         branch("cutfix/advance", { "adv.txt": "a\n" }, "feat: after the cut");
         gh.open = true;
         assert.equal((await run("land", "cutfix/advance")).code, 0);
         branch("cutfix/from-golden", { "fg.txt": "x\n" }, "fix: from golden", "origin/golden");
-        const r = await run("cut-fix", "cutfix/from-golden");
+        const r = await run("cut-fix", "cutfix/from-golden", "--reason", "500");
         assert.equal(r.code, 1, r.out);
         assert.match(
             r.out,
-            /cutfix\/from-golden cannot go into the cut: it would bring \d+ commits of golden or master/,
+            /cutfix\/from-golden cannot go into the cut: it was not started from origin\/golden-cut: it would bring 4 commits of golden or master/,
         );
+        assert.match(r.out, /\n {2}[0-9a-f]{10} land: cutfix\/advance\n {2}[0-9a-f]{10} feat: after the cut\n/);
+        assert.match(r.out, /Any other fix lands on golden: node tools\/land\.mjs land <branch>/);
         assert.match(r.out, /\.\/tools\/worktree-new\.sh <branch> origin\/golden-cut/);
         assert.deepEqual(refspecs, ["golden:golden"], "nothing pushed to golden-cut");
     });
@@ -1059,7 +1561,7 @@ describe("cut fixes", () => {
         const tip = git(wt, "rev-parse", "HEAD");
         gh.open = true;
         gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: "x" };
-        const r = await run("cut-fix", "cutfix/ok");
+        const r = await run("cut-fix", "cutfix/ok", "--reason", "500");
         assert.equal(r.code, 0, r.out);
         assert.deepEqual(refspecs, ["HEAD:refs/heads/golden-cut", "golden:golden"]);
         git(repo, "fetch", "-q", "origin");
@@ -1080,11 +1582,100 @@ describe("cut fixes", () => {
     });
 
     it("run again, finds the fix on both and pushes nothing", async () => {
-        const r = await run("cut-fix", "cutfix/ok");
+        const r = await run("cut-fix", "cutfix/ok", "--reason", "500");
         assert.equal(r.code, 0, r.out);
         assert.match(r.out, /already on golden-cut/);
         assert.match(r.out, /already on golden/);
         assert.equal(pushes, 0);
+    });
+
+    describe("while golden is being flushed", () => {
+        const flush = () => join(repo, "tmp/golden/flush");
+        beforeEach(() => {
+            mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+            writeFileSync(flush(), "");
+        });
+        after(() => rmSync(flush(), { force: true }));
+
+        it("refuses land and sync, naming the flush, and pushes nothing", async () => {
+            branch("flush/feature", { "ff.txt": "f\n" }, "feat: during the flush");
+            for (const argv of [["land", "flush/feature", "--dry-run"], ["land", "flush/feature"], ["sync"]]) {
+                const r = await run(...argv);
+                assert.equal(r.code, 1, r.out);
+                assert.match(r.out, /golden is being flushed to master \(.*tmp\/golden\/flush exists\)/);
+            }
+            assert.equal(pushes, 0);
+        });
+
+        it("still runs a cut fix, its dry run pushing nothing and its run landing on both", async () => {
+            const wt = branch("flush/cutfix", { "fc.txt": "fix\n" }, "fix: the cut in a flush", "origin/golden-cut");
+            const tip = git(wt, "rev-parse", "HEAD");
+            gh.open = true;
+            gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: "x" };
+            const dry = await run("cut-fix", "flush/cutfix", "--reason", "500", "--dry-run");
+            assert.equal(dry.code, 0, dry.out);
+            assert.match(dry.out, /dry run: flush\/cutfix merges into golden-cut; nothing pushed/);
+            assert.equal(pushes, 0);
+            const r = await run("cut-fix", "flush/cutfix", "--reason", "500");
+            assert.equal(r.code, 0, r.out);
+            assert.deepEqual(refspecs, ["HEAD:refs/heads/golden-cut", "golden:golden"]);
+            git(repo, "fetch", "-q", "origin");
+            assert.ok(onBoth(tip), "on golden-cut and golden");
+        });
+    });
+});
+
+describe("golden retired (#3418)", () => {
+    let saved;
+    before(() => {
+        saved = ctx;
+        ctx = { ...ctx, retired: true };
+    });
+    after(() => {
+        ctx = saved;
+    });
+
+    it("is the default", () => {
+        assert.equal(context(repo, { env }).retired, true);
+    });
+
+    it("refuses land, cut, cut-fix, ship, auto-ship and sync, pointing to pr-open.sh, and pushes nothing", async () => {
+        const before = pushes;
+        for (const argv of [
+            ["land", "any/branch"],
+            ["land", "any/branch", "--dry-run"],
+            ["cut"],
+            ["cut-fix", "any/branch", "--reason", "500"],
+            ["ship"],
+            ["auto-ship"],
+            ["sync"],
+        ]) {
+            const r = await run(...argv);
+            assert.equal(r.code, 1, argv.join(" "));
+            assert.match(
+                r.out,
+                new RegExp(`${argv[0]} is retired: golden no longer reaches master .*tools/pr-open\\.sh`),
+            );
+        }
+        assert.equal(pushes, before);
+    });
+
+    it("still runs status", async () => {
+        const r = await run("status");
+        assert.doesNotMatch(r.out, /is retired/);
+    });
+
+    it("still brings the main checkout to GitHub's master when it refuses", async () => {
+        write(other, "retired-main.txt", "m\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "chore: master moves");
+        git(other, "pull", "-q", "--no-rebase", "origin", "master");
+        git(other, "push", "-q", "origin", "master");
+        const to = git(other, "rev-parse", "HEAD");
+        const r = await run("land", "any/branch");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /moved the main checkout's master from [0-9a-f]{10} to /);
+        assert.equal(git(repo, "rev-parse", "HEAD"), to);
     });
 });
 
@@ -1164,17 +1755,38 @@ describe("pruning branches", () => {
 });
 
 describe("the main checkout", () => {
-    // A new commit on GitHub's master, made from the other clone.
+    // A new commit on GitHub's master, made from the other clone, and verification passing it.
     const advanceMaster = (name) => {
         write(other, `${name}.txt`, `${name}\n`);
         git(other, "add", ".");
         git(other, "commit", "-q", "-m", `chore: ${name}`);
         git(other, "pull", "-q", "--no-rebase", "origin", "master");
         git(other, "push", "-q", "origin", "master");
+        git(other, "push", "-q", "-f", "origin", "HEAD:golden-verified");
         return git(other, "rev-parse", "HEAD");
     };
+    const branch = () => git(repo, "symbolic-ref", "--short", "HEAD");
+    // A main checkout left on golden-verified by the old rule.
+    before(() => git(repo, "checkout", "-q", "-B", "golden-verified", "master"));
+    after(() => git(repo, "checkout", "-q", "master"));
 
-    it("fast-forwards its master to origin/master when it is behind and clean", async () => {
+    it("switches from golden-verified to master, keeping untracked files and golden-verified", async () => {
+        const from = git(repo, "rev-parse", "HEAD");
+        write(repo, "keep-untracked.txt", "mine\n");
+        const to = advanceMaster("main-switch");
+        const r = await run("status");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(branch(), "master", r.out);
+        assert.equal(git(repo, "rev-parse", "HEAD"), to);
+        assert.equal(git(repo, "rev-parse", "golden-verified"), from, "golden-verified is left where it was");
+        assert.equal(readFileSync(join(repo, "keep-untracked.txt"), "utf8"), "mine\n");
+        assert.match(
+            r.out,
+            new RegExp(`switched the main checkout from golden-verified \\(${from.slice(0, 10)}\\) to master`),
+        );
+    });
+
+    it("fast-forwards master when GitHub's master moves", async () => {
         const from = git(repo, "rev-parse", "HEAD");
         const to = advanceMaster("main-ff");
         const r = await run("status");
@@ -1195,9 +1807,10 @@ describe("the main checkout", () => {
         git(repo, "checkout", "-q", "-b", "side");
         try {
             advanceMaster("main-side");
-            const before = git(repo, "rev-parse", "master");
+            const before = git(repo, "rev-parse", "HEAD");
             const r = await run("status");
-            assert.equal(git(repo, "rev-parse", "master"), before);
+            assert.equal(branch(), "side");
+            assert.equal(git(repo, "rev-parse", "HEAD"), before);
             assert.match(r.out, /left the main checkout .* alone: it is on side, not master/);
         } finally {
             git(repo, "checkout", "-q", "master");
@@ -1215,6 +1828,16 @@ describe("the main checkout", () => {
         } finally {
             git(repo, "checkout", "--", "a.txt");
         }
+    });
+
+    it("leaves it alone with a warning when its branch has commits GitHub's lacks", async () => {
+        git(repo, "checkout", "-q", "golden-verified");
+        git(repo, "commit", "-q", "--allow-empty", "-m", "chore: local only");
+        const before = git(repo, "rev-parse", "HEAD");
+        advanceMaster("main-ahead");
+        const r = await run("status");
+        assert.equal(git(repo, "rev-parse", "HEAD"), before);
+        assert.match(r.out, /alone: its golden-verified has commits origin\/golden-verified does not/);
     });
 });
 
@@ -1284,193 +1907,12 @@ describe("the live copy", () => {
         writeFileSync(join(copy, "tools/land.mjs"), readFileSync(tool));
         writeFileSync(join(copy, "tools/branch-note.mjs"), readFileSync(new URL("./branch-note.mjs", import.meta.url)));
         writeFileSync(join(copy, "tools/wait-log.mjs"), readFileSync(new URL("./wait-log.mjs", import.meta.url)));
-        writeFileSync(join(copy, "tools/branch-sync.mjs"), readFileSync(new URL("./branch-sync.mjs", import.meta.url)));
+        writeFileSync(join(copy, "tools/ship-risks.mjs"), readFileSync(new URL("./ship-risks.mjs", import.meta.url)));
         // The copy would hand off to LAND_LIVE, i.e. to itself, if the hand-off mark did not stop it.
         const r = cli(copy, "nonsense");
         assert.equal(r.status, 1, r.stderr);
         assert.equal(r.stderr.match(/usage:/g).length, 1, r.stderr);
         assert.doesNotMatch(r.stderr, /no live copy/);
-    });
-});
-
-describe("the branch sync", () => {
-    const remote = (ref) =>
-        spawnSync("git", ["rev-parse", "-q", "--verify", ref], {
-            cwd: join(dir, "origin.git"),
-            env,
-            encoding: "utf8",
-        }).stdout.trim();
-    const parents = (sha) => git(repo, "rev-list", "--parents", "-n", "1", sha).split(" ").slice(1);
-    const short = (sha) => sha.slice(0, 10);
-    // The bodies of the comments the sync posted on an issue, and of the notes it edited (any issue).
-    const bodies = (match) =>
-        gh.filter((a) => a[0] === "api" && a.some(match)).map((a) => a.find((x) => x.startsWith("body=")).slice(5));
-    const posted = (n) => bodies((x) => x.endsWith(`issues/${n}/comments`));
-    const edited = () => bodies((x) => /issues\/comments\/\d+$/.test(x));
-    const landed = {};
-    let checks;
-    let failOn;
-    let tips;
-    const work = (name, files) => {
-        const wt = branch(name, files, `feat: ${name}`, "origin/golden");
-        git(wt, "push", "-q", "origin", name);
-        return git(wt, "rev-parse", "HEAD");
-    };
-
-    before(async () => {
-        ctx.syncCheck = async (_c, job) => {
-            checks.push(job.base);
-            return failOn.has(job.base) ? { ok: false, what: "graphty-1: draws the panel" } : { ok: true };
-        };
-        git(repo, "fetch", "-q", "origin");
-        branch("sync/l0", { "s.txt": "zero\n" }, "feat: l0", "origin/golden");
-        assert.equal((await run("land", "sync/l0")).code, 0);
-        git(repo, "fetch", "-q", "origin");
-        tips = {
-            w: work("feat/4001-w", { "s.txt": "w\n" }),
-            v: work("feat/4002-v", { "v.txt": "v\n" }),
-            u: work("feat/4003-u", { "s.txt": "u\n" }),
-        };
-        // A branch with no commit for a month: stale.
-        const wt = join(dir, "wt-stale");
-        git(repo, "worktree", "add", "-q", "-b", "feat/4004-old", wt, "origin/golden");
-        write(wt, "old.txt", "old\n");
-        git(wt, "add", ".");
-        const old = new Date(Date.now() - 30 * 864e5).toISOString();
-        const r = spawnSync("git", ["commit", "-q", "-m", "feat: old"], {
-            cwd: wt,
-            env: { ...env, GIT_AUTHOR_DATE: old, GIT_COMMITTER_DATE: old },
-        });
-        assert.equal(r.status, 0);
-        git(wt, "push", "-q", "origin", "feat/4004-old");
-        // Three landings after the branches started: l2 changes the line w and u change.
-        for (const [b, files] of [
-            ["sync/l1", { "l1.txt": "1\n" }],
-            ["sync/l2", { "s.txt": "two\n" }],
-            ["sync/l3", { "l3.txt": "3\n" }],
-        ]) {
-            branch(b, files, `feat: ${b}`, "origin/golden");
-            assert.equal((await run("land", b)).code, 0);
-            git(repo, "fetch", "-q", "origin");
-            landed[b] = git(repo, "rev-parse", "origin/golden");
-        }
-        // Verification passed up to l3: golden-good takes only verified commits.
-        git(repo, "push", "-q", "-f", "origin", `${landed["sync/l3"]}:refs/heads/golden-verified`);
-        git(repo, "fetch", "-q", "origin");
-        const d = join(repo, "tmp/visual-review/local/sync-good");
-        mkdirSync(d, { recursive: true });
-        write(d, "status.json", JSON.stringify({ state: "done", head: landed["sync/l3"], projects: [] }));
-    });
-    after(() => {
-        ctx.syncCheck = undefined;
-    });
-    beforeEach(() => {
-        checks = [];
-        failOn = new Set();
-        gh.issues = {
-            4001: { comments: [] },
-            4002: { comments: [] },
-            4003: { comments: [noteBody("feat/4003-u", { busy: busyLine("1d", "a design study") })] },
-            4004: { comments: [] },
-        };
-    });
-
-    it("moves golden-good forward to the newest golden commit with a stable preview, as a tag on origin", () => {
-        assert.equal(moveGoldenGood(ctx, { dryRun: true }), landed["sync/l3"]);
-        assert.notEqual(remote("refs/tags/golden-good"), landed["sync/l3"], "a dry run pushes nothing");
-        assert.equal(moveGoldenGood(ctx), landed["sync/l3"]);
-        assert.equal(remote("refs/tags/golden-good"), landed["sync/l3"]);
-    });
-
-    it("--dry-run says what it would merge and where it is blocked, and changes nothing", async () => {
-        const r = await run("sync", "--branch", "feat/4001-w", "--dry-run");
-        assert.equal(r.code, 0, r.out);
-        assert.match(
-            r.out,
-            /feat\/4001-w: 3 landing\(s\) behind; would merge \w+ \(land: sync\/l1\), then the checks of what it changes \(\(root\)\)/,
-        );
-        assert.match(r.out, /blocked at \w+ \(land: sync\/l2\) by a conflict in s\.txt/);
-        assert.equal(remote("refs/heads/feat/4001-w"), tips.w);
-        assert.deepEqual(checks, []);
-        assert.deepEqual(posted(4001), []);
-    });
-
-    it("merges the newest landing that merges cleanly, pushes the merge, and names the landing that blocks it", async () => {
-        const r = await run("sync", "--branch", "feat/4001-w");
-        assert.equal(r.code, 0, r.out);
-        const tip = remote("refs/heads/feat/4001-w");
-        assert.deepEqual(parents(tip), [tips.w, landed["sync/l1"]], "a merge of the branch and the landing");
-        assert.deepEqual(checks, [landed["sync/l1"]], "checked once, against the landing it merged");
-        const [note, told] = posted(4001);
-        const blocked = `blocked at ${short(landed["sync/l2"])} (land: sync/l2) by a conflict in s.txt`;
-        assert.match(
-            note,
-            new RegExp(
-                `- sync: synced up to ${short(landed["sync/l1"])} \\(land: sync/l1\\); ${blocked.replace(/[()]/g, "\\$&")} \\(\\d{4}-`,
-            ),
-        );
-        assert.ok(told.startsWith(`pipeline-round: sync blocked feat/4001-w -- ${blocked}`), told);
-    });
-
-    it("steps back by binary search past landings whose checks fail, and names the failing check", async () => {
-        failOn = new Set([landed["sync/l3"]]);
-        const r = await run("sync", "--branch", "feat/4002-v");
-        assert.equal(r.code, 0, r.out);
-        assert.deepEqual(parents(remote("refs/heads/feat/4002-v")), [tips.v, landed["sync/l2"]]);
-        assert.deepEqual(checks, [landed["sync/l3"], landed["sync/l1"], landed["sync/l2"]]);
-        assert.match(
-            posted(4002)[0],
-            /blocked at \w+ \(land: sync\/l3\) by a failing check graphty-1: draws the panel/,
-        );
-    });
-
-    it("syncs up to golden-good once the checks pass, then has nothing to do", async () => {
-        assert.equal((await run("sync", "--branch", "feat/4002-v")).code, 0);
-        assert.equal(parents(remote("refs/heads/feat/4002-v"))[1], landed["sync/l3"]);
-        git(repo, "fetch", "-q", "origin");
-        const r = await run("sync", "--branch", "feat/4002-v");
-        assert.match(r.out, /feat\/4002-v: up to date with golden-good/);
-    });
-
-    it("gives a busy branch only the conflict check: no checks, no push", async () => {
-        const r = await run("sync", "--branch", "feat/4003-u");
-        assert.equal(r.code, 0, r.out);
-        assert.equal(remote("refs/heads/feat/4003-u"), tips.u);
-        assert.deepEqual(checks, []);
-        assert.match(
-            edited()[0],
-            /- sync: busy, not synced; blocked at \w+ \(land: sync\/l2\) by a conflict in s\.txt/,
-        );
-    });
-
-    it("skips a stale branch, lists it in status, asks its issue once a week, and is due once a day", async () => {
-        const r = await run("sync");
-        assert.equal(r.code, 0, r.out);
-        assert.doesNotMatch(r.out, /feat\/4004-old:/);
-        assert.match(posted(4004).join("\n"), /^pipeline-round: stale branch feat\/4004-old -- no commit since/);
-        gh.length = 0;
-        await run("sync");
-        assert.deepEqual(posted(4004), [], "asked once a week");
-        gh.issues[4001].comments = [noteBody("feat/4001-w", { sync: "synced up to abc (land: sync/l1)" })];
-        const s = await run("status");
-        assert.match(
-            s.out,
-            /stale \(no commit in 7\+ days.*land, close or park each\n {2}feat\/4004-old \(last commit/,
-        );
-        assert.match(s.out, /branch\s+issue\s+owner\s+last commit\s+ready\s+worktree\s+sync\n/);
-        assert.match(s.out, /feat\/4001-w .*synced up to abc \(land: sync\/l1\)/);
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        assert.equal(syncDue(ctx, new Date()), false, "it ran today");
-        assert.equal(syncDue(ctx, new Date(tomorrow.setHours(0, 30))), false, "not before 01:00");
-        assert.equal(syncDue(ctx, new Date(tomorrow.setHours(2, 0))), true);
-    });
-
-    it("names the failing shard and test from the gate's test stage", () => {
-        const out =
-            "Shards: graphty-1\n  [FAIL] graphty-1 (exit 1, 30s); the end of x.log:\n FAIL  src/a.test.ts > draws it\n";
-        assert.equal(failedTest(out), "graphty-1: src/a.test.ts > draws it");
-        assert.equal(failedTest(""), "tests");
     });
 });
 
@@ -1491,28 +1933,22 @@ describe("the light gate", () => {
             rmSync(state);
         }
     });
+});
 
-    it("keeps the nightly sync's test shards off while CI verifies golden", () => {
-        const state = join(repo, "tmp/golden/verify.json");
-        const log = join(repo, "tmp/golden/sync-test.log");
-        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
-        const ran = [];
-        const step = (cmd) => {
-            ran.push(cmd);
-            return { status: 0, out: "" };
-        };
-        const run = { dir: repo, log, projects: ["layout"], job: { branch: "b", base: "abc" } };
-        try {
-            writeFileSync(log, "");
-            assert.deepEqual(testStage(ctx, step, run), { ok: true });
-            assert.equal(ran.length, 1, "the local backend runs the gate's test stage");
-            writeFileSync(state, JSON.stringify({ backend: { name: "ci", reason: null, at: "t" } }));
-            assert.deepEqual(testStage(ctx, step, run), { ok: true });
-            assert.equal(ran.length, 1, "the light gate runs no shard");
-            assert.match(readFileSync(log, "utf8"), /\[LIGHT\] no test shards/);
-        } finally {
-            rmSync(state, { force: true });
-            rmSync(log, { force: true });
-        }
+describe("the gate snapshot of a landing", () => {
+    it("takes one held snapshot at the first push and gives every later push of the run the same one", async () => {
+        const live = join(dir, "snap-live");
+        mkdirSync(join(live, "tools"), { recursive: true });
+        const calls = join(dir, "snap-calls");
+        // A stand-in for tools/gate-snapshot.sh --hold: names its snapshot, then holds it until stdin closes.
+        const script = `#!/bin/sh\necho "$*" >>'${calls}'\necho '${live}-snap'\ncat >/dev/null\n`;
+        writeFileSync(join(live, "tools/gate-snapshot.sh"), script, { mode: 0o755 });
+        const c = { main: dir, env: { ...env, PUSH_QUEUE_GATE: live } };
+        assert.equal(await gateSnapshot(c), `${live}-snap`);
+        assert.equal(await gateSnapshot(c), `${live}-snap`, "the check and the push share it");
+        assert.equal(readFileSync(calls, "utf8"), `--hold ${live}\n`, "taken once, and held");
+        // A snapshot given as the live gate is used as it is.
+        writeFileSync(join(live, ".gate-snapshot"), "sha\n");
+        assert.equal(await gateSnapshot({ main: dir, env: { ...env, PUSH_QUEUE_GATE: live } }), live);
     });
 });

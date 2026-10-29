@@ -673,3 +673,39 @@ describe("the frame loop and the repaints do work in proportion to the graph", (
         });
     }
 });
+
+// A finished run's layer repaints every node, and applying 3,214 nodes' paint in one frame took
+// 450 ms at a 6x CPU throttle. A frame now paints in batches and stops starting batches once its
+// time is up. Given no time at all, each frame paints exactly one batch.
+describe("a repaint of every node", () => {
+    it("is drawn across several frames, one batch a frame when the frame has no time to spare", async () => {
+        const size = 400;
+        const element = await mount(size);
+        try {
+            const { graph } = element;
+            await graph
+                .getSession()
+                .styles.add({ name: "Red", selector: { match: "everything" }, set: { "node.color": "#ff0000" } });
+            await settled(graph);
+            const painter = graph.getStylePainter();
+            assert.isTrue(painter.hasPending, "the repaint is waiting for the next frame");
+            const manager = updateManagerOf(graph);
+
+            const perFrame: number[] = [];
+            while (painter.hasPending && perFrame.length < size) {
+                const counter = countCalls(Node.prototype, "applySessionPaint");
+                try {
+                    manager.syncStyles(0);
+                } finally {
+                    counter.restore();
+                }
+                perFrame.push(counter.count.calls);
+            }
+
+            assert.deepStrictEqual(perFrame, [128, 128, 128, 16], "every node once, one batch of 128 a frame");
+            assert.isFalse(painter.hasPending, "and nothing is left to paint");
+        } finally {
+            element.remove();
+        }
+    });
+});

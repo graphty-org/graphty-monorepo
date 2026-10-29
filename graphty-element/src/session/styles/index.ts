@@ -42,6 +42,7 @@ export type {
     EncodingRun,
     EncodingSource,
     EncodingSpec,
+    ParamEncodingSpec,
 } from "./EncodingSpec";
 export type {
     ChannelAgreement,
@@ -97,7 +98,9 @@ export type {
     LayerReach,
     MarkSpec,
     SessionStylesApi,
+    StyleBatchChange,
     StyleChange,
+    StyleFileDocument,
     StylesApi,
     StylesSources,
     StyleUpdateOptions,

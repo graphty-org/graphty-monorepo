@@ -132,19 +132,21 @@ Every command has `--help`; `visual-review --help` lists them.
 }
 ```
 
-| Key             | Default                   | Meaning                                                                                                             |
-| --------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `defaultBranch` | `main`                    | The branch baselines are seeded from and pull requests merge into                                                   |
-| `workflow`      | `visual-review.yml`       | The workflow file whose runs hold the captures; the review page looks runs up by it                                 |
-| `baselines`     | `visual-baselines`        | Where baselines live: `<baselines>/<project>/<story id>[.<mode>].png`, and review records in `<baselines>/reviews/` |
-| `approvals`     | `visual-review-approvals` | Where Finish commits your approvals of the baselines tree, `<approvals>/<tree>.json`; outside `baselines`           |
-| `workDir`       | `.visual-review`          | Where `serve` downloads captures and keeps its decisions and session token; keep it out of git                      |
-| `commitPrefix`  | `test`                    | The conventional-commit type and scope of the commits Finish makes, e.g. `test(ui)`                                 |
-| `issueLabels`   | `["bug"]`                 | Labels of the issue Finish opens for rejects on the default branch; each must exist                                 |
-| `fontconfig`    | none (host fonts)         | A `fonts.conf` in the repository that every capture draws with, locally and in CI (see "Pinned fonts")              |
-| `updateCheck`   | none                      | A shell command `update` runs on its merge before it pushes (see "Update from the default branch")                  |
-| `usage`         | `false`                   | `true`: the review page records how you review, on this computer only (see "Usage events")                          |
-| `projects`      | (required)                | One entry per Storybook; the id names its baselines directory, CI job and artifact                                  |
+| Key              | Default                   | Meaning                                                                                                             |
+| ---------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `defaultBranch`  | `main`                    | The branch baselines are seeded from and pull requests merge into                                                   |
+| `workflow`       | `visual-review.yml`       | The workflow file whose runs hold the captures; the review page looks runs up by it                                 |
+| `baselines`      | `visual-baselines`        | Where baselines live: `<baselines>/<project>/<story id>[.<mode>].png`, and review records in `<baselines>/reviews/` |
+| `approvals`      | `visual-review-approvals` | Where Finish commits your approvals of the baselines tree, `<approvals>/<tree>.json`; outside `baselines`           |
+| `workDir`        | `.visual-review`          | Where `serve` downloads captures and keeps its decisions and session token; keep it out of git                      |
+| `commitPrefix`   | `test`                    | The conventional-commit type and scope of the commits Finish makes, e.g. `test(ui)`                                 |
+| `issueLabels`    | `["bug"]`                 | Labels of the issue Finish opens for rejects on the default branch; each must exist                                 |
+| `fontconfig`     | none (host fonts)         | A `fonts.conf` in the repository that every capture draws with, locally and in CI (see "Pinned fonts")              |
+| `updateCheck`    | none                      | A shell command `update` runs on its merge before it pushes (see "Update from the default branch")                  |
+| `candidates`     | none                      | A shell command `serve --candidate next` runs to list the default branch's full runs (see "Candidates")             |
+| `usage`          | `false`                   | `true`: the review page records how you review, on this computer only (see "Usage events")                          |
+| `ignoreBranches` | `[]`                      | Branch-name prefixes whose pull requests the review page never lists, e.g. `["dependabot/"]`                        |
+| `projects`       | (required)                | One entry per Storybook; the id names its baselines directory, CI job and artifact                                  |
 
 Per project:
 
@@ -256,7 +258,9 @@ token, or the whole URL `serve` printed, and it loads. The field hides what you 
   To open the page from another device (an iPad, say), serve HTTPS: set `HOST` to the machine's
   name and `HTTPS_CERT_PATH` and `HTTPS_KEY_PATH` to a certificate and key for it.
 - `serve` refuses to start without git-lfs: an accept would commit raw PNGs.
-- `--master-run <run id>` also lists the default branch at that run, for seeding.
+- `--candidate <run id>` (or `--master-run <run id>`) also lists the default branch at that run,
+  for seeding.
+- `--candidate next` lists the default branch's next candidate instead (see [Candidates](#candidates)).
 - `--results <dir>` serves local captures offline (a directory of `<project>/results.json`), for
   looking at a story before a pull request exists. It is listed as "Local preview" and is look
   only: no Accept, Reject or Exclude, and no Finish.
@@ -742,15 +746,16 @@ Finish applies every decision on one target, across all its projects, at once:
   [Approving with a passkey](#approving-with-a-passkey)): a second commit holding only
   `<approvals>/<tree>.json` (the config's `approvals`, `visual-review-approvals` by default),
   your signed statement that the baselines directory of the accept commit, git tree `<tree>`, is
-  approved. Once a passkey is known, the sheet says "Your passkey signs your decisions, then the
-  baselines this Finish leaves on the branch: two prompts (Face ID or a security key)." and its
+  approved. Once a passkey is known, the sheet says "Your passkey signs your decisions and the
+  baselines this Finish leaves on the branch, in one prompt (Face ID or a security key)." and its
   final button reads **Sign and finish #201**. Pressing it opens the Face ID (or Touch ID) prompt
-  for your decisions at once; then a second sheet, **Sign the baselines of #201**, asks for the
-  baselines. Cancelling either changes nothing: the sheet comes back saying "Passkey cancelled:
-  nothing was changed." with its final button focused, so Enter tries again.
-- **Your decisions are signed whenever Finish commits any**, once a passkey is known: the review
-  record carries your approval, so the images you accepted count as approved before on later pull
-  requests. When anything is rejected or left undecided, or a project's capture did not load, only
+  at once. The baselines tree holds the review record, so that one approval signs your decisions
+  too. Cancelling changes nothing: the sheet comes back saying "Passkey cancelled: nothing was
+  changed." with its final button focused, so Enter tries again.
+- **Your decisions are signed whenever Finish commits any**, once a passkey is known, so the
+  images you accepted count as approved before on later pull requests: by your approval of the
+  baselines tree that holds the review record, or, when the baselines are not signed, by your
+  approval written into the record itself. When anything is rejected or left undecided, or a project's capture did not load, only
   the decisions are signed, with one prompt: the sheet says "Your passkey signs your decisions
   ... The baselines are not signed, because ...", and Finish commits the accepts and the signed
   record and posts the rejects. The pull request stays blocked until a later Finish, with every
@@ -864,18 +869,19 @@ Finish asks for your passkey when the server knows of a key for the page's host 
 commits anything. It runs in this order, so what you sign is what lands:
 
 1. When the sheet opens, the server commits your accepts and the review record (the accept
-   commit), without pushing it. The SHA-256 of the record's canonical JSON is the first challenge
-   your device signs.
-2. When you approve, the server checks the signature with the gate's own code and writes it into
-   the record, in the accept commit. A Finish that rejects anything or leaves anything undecided
-   pushes that commit now.
-3. Otherwise it builds the statement: that commit, the git tree of the baselines directory in it
-   (which holds the signed record), the baselines directory's name, the pull request and the time.
-   Its SHA-256 is the second challenge. The tree holds the signed record, so one approval cannot
-   cover both.
-4. When you approve again, Finish checks that signature too, commits the statement with your
-   approval as `<approvals>/<tree>.json` on top of the accept commit (outside the baselines
-   directory, so the tree you signed stays exactly as it was), and pushes both.
+   commit), without pushing it, and builds the statement: that commit, the git tree of the
+   baselines directory in it (which holds the review record), the baselines directory's name, the
+   pull request and the time. The SHA-256 of the statement's canonical JSON is the challenge your
+   device signs, once.
+2. When you approve, Finish checks the signature with the gate's own code, commits the statement
+   with your approval as `<approvals>/<tree>.json` on top of the accept commit (outside the
+   baselines directory, so the tree you signed stays exactly as it was), and pushes both. The tree
+   hash covers the review record's bytes, so the review server counts its accepts as approved
+   before on later pull requests.
+
+A Finish that rejects anything or leaves anything undecided signs no tree: the challenge is the
+SHA-256 of the review record instead, and the server writes your approval into the record in the
+accept commit and pushes it.
 
 A branch that moved after the sheet opened refuses the push ("capture is stale"), and nothing is
 pushed. On a Mac, Touch ID or your login password takes Face ID's place.
@@ -1004,6 +1010,24 @@ If the default branch's capture could not be downloaded (its artifacts expired, 
 finished one), every story without a baseline is `new` on that pull request. Re-run its `visual` job
 once the default branch's run has finished.
 
+## Candidates
+
+A repository that promotes the default branch only once its screenshots are approved lists its full
+runs with the `candidates` command (configuration): JSON on stdout,
+`[{ "commit": "<sha>", "runId": 123, "waiting": true, "at": <ms> }]`, where `waiting` means the run
+waits for its screenshots' approval and `at` orders the runs. `serve --candidate next` runs it at
+every refresh and lists the oldest waiting run as the default branch's target, named
+`<branch> candidate <sha> (N queued)`. It stays offered while newer candidates arrive; they queue
+behind it. Decisions are kept by image hash, so an image decided on one candidate arrives decided on
+the next.
+
+Finish on a candidate commits the accepts on the candidate's commit, pushes them to
+`visual/approve-<sha>` and opens a pull request to the default branch. The commit may change only
+the baselines and approvals directories: Finish refuses to push anything else. The candidate stays
+offered until the command stops reporting it `waiting` or its accept commit reaches the default branch.
+A Finish that rejects anything posts only the rejects (one issue, as for a seed), drops the candidate
+and offers the next one, with the rejected images still rejected and the accepts still saved.
+
 ## Iterating on a story before a pull request exists
 
 To try a story's look quickly, capture it locally and look at it, as a PNG or in the page:
@@ -1020,6 +1044,102 @@ rather than minutes, and then reports no baseline as removed. Start the server w
 after each change. Such an ad hoc capture is look only. To approve before CI has captured, push,
 capture the pull request's merge tree as a local preview (`serve --previews` above), and accept it
 on the pull request; CI's capture stays the judge.
+
+## Checking that two machines draw the same pixels
+
+Two captures of the same commit should hold the same bytes, wherever they ran. To check, capture
+the same stories in both places and compare the two results:
+
+```bash
+npx visual-review parity --project web ci-capture/web local-capture/web
+```
+
+Each argument is a capture's `--out` directory (or its `results.json`). The command prints one
+line per story and mode whose image bytes differ, that only one side captured, or that one side
+failed to capture, and exits 1 if there is any. No threshold applies: from the same commit, any
+difference means one of the two environments draws differently (a missing font, a GPU path), and
+that is the thing to fix.
+
+## Taking the screenshots inside the story tests
+
+A Storybook project whose stories already run as Vitest tests (`@storybook/addon-vitest`) can take
+each story's screenshot at the end of its own test instead of rendering every story again from a
+built Storybook. The pictures, the comparison and the results are the same as `capture`'s, so
+`serve` and `gate` read them unchanged.
+
+```ts
+// vitest.config.ts: the storybook project
+import { PRODUCTION, visualStoryTest } from "@graphty/visual-review/vitest";
+
+const visual = visualStoryTest({ project: "web", out: "tmp/stories/web" });
+
+export default defineConfig({
+    test: {
+        reporters: ["default", visual.reporter],
+        projects: [
+            {
+                ...PRODUCTION, // as capture: production mode and NODE_ENV, a 404 for a missing file
+                plugins: [storybookTest({ configDir: ".storybook" })],
+                test: {
+                    name: "storybook",
+                    browser: {
+                        enabled: true,
+                        provider: playwright(visual.providerOptions),
+                        instances: [{ browser: "chromium" }],
+                        viewport: visual.viewport,
+                        commands: visual.commands,
+                    },
+                    setupFiles: [".storybook/vitest.setup.visual.ts", ".storybook/vitest.setup.ts"],
+                },
+            },
+        ],
+    },
+});
+```
+
+```ts
+// .storybook/vitest.setup.visual.ts
+import { afterEach, beforeEach } from "vitest";
+import { commands } from "vitest/browser";
+import { installVisualStoryTest } from "@graphty/visual-review/vitest/setup";
+
+installVisualStoryTest({ afterEach, beforeEach, commands });
+```
+
+Each run writes a partial capture into `out`. Run the tests in shards if you like (`vitest run
+--shard=1/3`, each into its own directory), then combine the partials into the capture the review
+page and the gate read:
+
+```bash
+npx visual-review merge-results --project web --out captures/web tmp/stories/web-1 tmp/stories/web-2 tmp/stories/web-3
+```
+
+It is complete only when every shard is there once, the shards between them ran every story file of
+the project (a run of some files, or a file that failed to load, leaves it incomplete) and each
+reported every story test it ran; a baseline no story drew is reported removed.
+A story test fails when its play fails, when the project's `waitFor` console rule matches, or when
+two renders of it draw different pictures (unstable); a changed or new picture passes and waits for
+review. A second run of the same commit into the same directory (a retry of the failed story files)
+keeps the first run's items and replaces only the stories it shoots again, so a story that was
+unstable and then settled reads as one capture; a new run needs an empty directory.
+
+A story test renders each story several times in one page -- once for the test, again for each
+mode, and again when a shot differs -- where `capture` gives every render a fresh page. So a story
+must draw the same picture however often it is rendered: state its play changes (a store, a module
+variable, a registry keyed by it) is made anew for each render, in a loader, never once when the
+story file loads. Between renders the page's local and session storage are cleared, every IndexedDB
+store is emptied (its database kept, so a connection the page still holds never blocks it) and the
+clock starts again at 2026-01-01T12:00:00Z.
+
+The story tests' server answers a path that is no file with a 404, as `capture`'s static server does
+(spread `PRODUCTION` into the project's config), so a story that fetches a missing file is refused in
+both.
+
+A story taller or wider than the 1200 x 900 viewport is shot in viewport-sized tiles: the test's
+frame keeps the viewport's size (so `vh` units and a layout centered in the window draw as in
+`capture`'s full-page shot), its document is scrolled to each tile, elements with `position: fixed`
+are pinned where they are first, and the stitched picture is encoded by Chromium's own screenshot,
+as `capture`'s is.
 
 ## How captures and baselines move
 

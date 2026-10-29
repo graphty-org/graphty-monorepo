@@ -10,10 +10,20 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync } from "node:fs";
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import { SKIPPED_FILE, validateResults } from "./results.mjs";
+import { artifactReader, zipEntries, zipEntry } from "./zip-range.mjs";
 
 /**
  * Runs a program and resolves with its trimmed stdout. A program that runs longer than
@@ -157,13 +167,14 @@ const PULLS_QUERY = `query($owner: String!, $name: String!, $after: String) {
  * commit, in one GraphQL query per 100 pull requests: one REST call per pull request spent about
  * 1,500 of the account's 5,000 calls an hour with 50 of them open.
  * @param {Function} gh the gh runner
- * @param {{ workflow: string }} config the workflow file that captures (the config's `workflow`)
+ * @param {{ workflow: string, ignoreBranches?: string[] }} config the workflow file that captures (the
+ *     config's `workflow`), and the branch-name prefixes whose pull requests are left out
  * @returns {Promise<{ number: number, title: string, url: string, headSha: string, branch: string, draft: boolean,
  *     run: { id: number, status: string, conclusion: string | null, updatedAt: string } | null }[]>}
  *     the pull requests; `run` is null when CI never ran on the head, and its status and
  *     conclusion are lowercase, as REST spells them
  */
-export async function openPullRequests(gh, { workflow }) {
+export async function openPullRequests(gh, { workflow, ignoreBranches = [] }) {
     const out = [];
     for (let after = null; ;) {
         const args = ["api", "graphql", "-F", "owner={owner}", "-F", "name={repo}", "-f", `query=${PULLS_QUERY}`];
@@ -172,6 +183,9 @@ export async function openPullRequests(gh, { workflow }) {
         }
         const page = JSON.parse(await gh(args)).data.repository.pullRequests;
         for (const p of page.nodes) {
+            if (ignoreBranches.some((prefix) => p.headRefName.startsWith(prefix))) {
+                continue;
+            }
             const suites = (p.commits.nodes[0]?.commit.checkSuites.nodes ?? []).filter((s) =>
                 s.workflowRun?.workflow.resourcePath.endsWith(`/${workflow}`),
             );
@@ -239,12 +253,24 @@ export const getRun = async (gh, id) => toRun(await api(gh, `repos/{owner}/{repo
  * @returns {Promise<Record<string, { conclusion: string | null, url: string } | undefined>>} by project
  */
 export async function visualJobs(gh, run, attempt, projects) {
-    const { jobs } = await api(gh, `repos/{owner}/{repo}/actions/runs/${run.id}/attempts/${attempt}/jobs?per_page=100`);
-    const visual = jobs.filter((j) => /^visual\b/.test(j.name));
+    // Every page: a run that calls the workflow beside other lanes can have more than 100 jobs.
+    const jobs = [];
+    for (let page = 1; ; page++) {
+        const got = await api(
+            gh,
+            `repos/{owner}/{repo}/actions/runs/${run.id}/attempts/${attempt}/jobs?per_page=100&page=${page}`,
+        );
+        jobs.push(...got.jobs);
+        if (got.jobs.length < 100 || jobs.length >= (got.total_count ?? 0)) {
+            break;
+        }
+    }
+    // A called workflow's jobs are named "<caller job> / visual (<project>)".
+    const visual = jobs.filter((j) => /(^| \/ )visual\b/.test(j.name));
     return Object.fromEntries(
         projects.map((p) => {
             // The exact name: "visual (graphty-element)" also contains "graphty".
-            const job = visual.find((j) => j.name === `visual (${p})`);
+            const job = visual.find((j) => j.name === `visual (${p})` || j.name.endsWith(` / visual (${p})`));
             return [p, job && { conclusion: job.conclusion, url: job.html_url }];
         }),
     );
@@ -361,23 +387,27 @@ function download(gh, runId, name, dir) {
 export async function downloadCaptures(gh, run, projects, tmp, others = [], landed = () => {}, planned = () => {}) {
     const { artifacts } = await api(gh, `repos/{owner}/{repo}/actions/runs/${run.id}/artifacts?per_page=100`);
     for (const a of artifacts) {
-        const p = /^visual-(.+)-\d+$/.exec(a.name)?.[1];
+        const p = /^visual-(?:final-)?(.+)-\d+$/.exec(a.name)?.[1];
         if (p && !projects.includes(p) && !others.includes(p)) {
             others.push(p);
         }
     }
+    // A run that shot its changed stories a second time keeps the gated result of both shots as
+    // visual-final-<project>-<attempt>: that one is the capture, whatever the first shot said.
+    const newestOf = (pattern) =>
+        artifacts
+            .filter((x) => pattern.test(x.name))
+            .map((x) => ({
+                name: x.name,
+                expired: x.expired,
+                bytes: x.size_in_bytes ?? 0,
+                attempt: Number(pattern.exec(x.name)[1]),
+            }))
+            .sort((x, y) => y.attempt - x.attempt)[0];
     const newest = Object.fromEntries(
         projects.map((project) => {
-            const pattern = new RegExp(`^visual-${project}-(\\d+)$`);
-            const a = artifacts
-                .filter((x) => pattern.test(x.name))
-                .map((x) => ({
-                    name: x.name,
-                    expired: x.expired,
-                    bytes: x.size_in_bytes ?? 0,
-                    attempt: Number(pattern.exec(x.name)[1]),
-                }))
-                .sort((x, y) => y.attempt - x.attempt)[0];
+            const final = newestOf(new RegExp(String.raw`^visual-final-${project}-(\d+)$`));
+            const a = final ? { ...final, final: true } : newestOf(new RegExp(String.raw`^visual-${project}-(\d+)$`));
             return [project, a ?? null];
         }),
     );
@@ -391,7 +421,7 @@ export async function downloadCaptures(gh, run, projects, tmp, others = [], land
             if (!a) {
                 out[project] = null;
             } else {
-                const dir = join(tmp, `${run.id}-${a.attempt}`, project);
+                const dir = join(tmp, `${run.id}-${a.attempt}${a.final ? "-final" : ""}`, project);
                 const got = { attempt: a.attempt, bytes: a.bytes };
                 if (a.expired) {
                     out[project] = whole(dir) ? { dir, ...got } : { dir: null, ...got, expired: true };
@@ -419,35 +449,141 @@ export async function downloadCaptures(gh, run, projects, tmp, others = [], land
  * @param {string} project the project id
  * @param {string} tmp the download root
  * @param {{ workflow: string, defaultBranch: string }} config the capturing workflow and the branch
+ * @param {{ reader?: ((artifact: object) => Promise<{ read: (start: number, end: number) => Promise<Buffer>, size: number } | null>) | null }} [options]
+ *     `reader` opens an artifact for range reads (by default with GH_TOKEN, in CI), so only results.json and
+ *     the images the capture compares with (`new` and `unseeded` items) are downloaded; without one, or when
+ *     a range read fails, the whole artifact is downloaded
  * @returns {Promise<string | null>} the capture's directory, or null when no run has one
  */
-export async function newestMasterCapture(gh, project, tmp, { workflow, defaultBranch }) {
+export async function newestMasterCapture(
+    gh,
+    project,
+    tmp,
+    { workflow, defaultBranch },
+    { reader = tokenReader() } = {},
+) {
     // The branch's newest commits, then each one's run: GitHub's list of a workflow's runs filtered
     // by branch now and then answers with a stale page (runs from weeks ago), which made a pull
     // request compare with an old capture or none. Commits and a run by head sha answer consistently.
-    const commits = await api(gh, `repos/{owner}/{repo}/commits?sha=${encodeURIComponent(defaultBranch)}&per_page=10`);
-    for (const { sha } of commits) {
+    // The list holds every ancestor. A push to the default branch captures nothing, so a capture
+    // comes from the pull request run of a head merged into it (a merge's later parent, whose run
+    // captured the merged tree); a merged branch's earlier commits captured an older branch state
+    // and are skipped by walking the first-parent line and only each commit's own parents.
+    const commits = await api(gh, `repos/{owner}/{repo}/commits?sha=${encodeURIComponent(defaultBranch)}&per_page=30`);
+    const shas = [];
+    let next = commits[0]?.sha;
+    for (const { sha, parents = [] } of commits) {
+        if (sha === next) {
+            shas.push(sha, ...parents.slice(1).map((p) => p.sha));
+            next = parents[0]?.sha;
+        }
+    }
+    for (const sha of shas) {
         const run = await newestCiRun(gh, sha, { workflow });
         if (!run) {
             continue;
         }
-        const got = (await downloadCaptures(gh, run, [project], tmp))[project];
-        if (got?.error) {
-            // Not skipped: an older capture would be compared instead of this one.
-            throw new Error(got.error);
-        }
-        const dir = got?.dir;
-        let results = null;
-        try {
-            results = dir ? JSON.parse(readFileSync(join(dir, "results.json"), "utf8")) : null;
-        } catch {
-            // An unreadable capture is skipped like a missing one.
-        }
-        if (results && validateResults(results).length === 0 && results.complete && results.project === project) {
+        const dir = await runCapture(gh, run, project, tmp, reader);
+        if (dir) {
             return dir;
         }
     }
     return null;
+}
+
+/**
+ * One run's complete capture of a project for newestMasterCapture(): the subset when `reader` can read it,
+ * else the whole artifact.
+ * @param {Function} gh the gh runner
+ * @param {{ id: number }} run the run
+ * @param {string} project the project id
+ * @param {string} tmp the download root
+ * @param {((artifact: object) => Promise<{ read: (start: number, end: number) => Promise<Buffer>, size: number } | null>) | null} reader
+ *     opens an artifact for range reads
+ * @returns {Promise<string | null>} the directory, or null when the run has no complete capture
+ */
+async function runCapture(gh, run, project, tmp, reader) {
+    const subset = reader ? await referenceSubset(gh, run, project, tmp, reader).catch(() => null) : null;
+    if (subset) {
+        return subset;
+    }
+    const got = (await downloadCaptures(gh, run, [project], tmp))[project];
+    if (got?.error) {
+        // Not skipped: an older capture would be compared instead of this one.
+        throw new Error(got.error);
+    }
+    const dir = got?.dir;
+    let results = null;
+    try {
+        results = dir ? JSON.parse(readFileSync(join(dir, "results.json"), "utf8")) : null;
+    } catch {
+        // An unreadable capture is skipped like a missing one.
+    }
+    return results && validateResults(results).length === 0 && results.complete && results.project === project
+        ? dir
+        : null;
+}
+
+function tokenReader() {
+    const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+    return token ? (a) => artifactReader(a.archive_download_url, token) : null;
+}
+
+/**
+ * Downloads from a run's capture of one project only results.json and the images loadReference() in
+ * capture.mjs reads (`new` and `unseeded` items): a large project's capture is hundreds of megabytes,
+ * and a Stories bin compares a few stories.
+ * @param {Function} gh the gh runner
+ * @param {{ id: number }} run the run
+ * @param {string} project the project id
+ * @param {string} tmp the download root
+ * @param {(artifact: object) => Promise<{ read: (start: number, end: number) => Promise<Buffer>, size: number } | null>} reader opens an artifact
+ * @returns {Promise<string | null>} the directory, or null when this run's capture cannot be read this way
+ */
+export async function referenceSubset(gh, run, project, tmp, reader) {
+    const { artifacts } = await api(gh, `repos/{owner}/{repo}/actions/runs/${run.id}/artifacts?per_page=100`);
+    const pick = (re) =>
+        artifacts
+            .filter((x) => re.test(x.name) && !x.expired)
+            .sort((x, y) => Number(re.exec(y.name)[1]) - Number(re.exec(x.name)[1]))[0];
+    const a =
+        pick(new RegExp(String.raw`^visual-final-${project}-(\d+)$`)) ??
+        pick(new RegExp(String.raw`^visual-${project}-(\d+)$`));
+    const zip = a ? await reader(a) : null;
+    const entries = zip ? await zipEntries(zip.read, zip.size) : null;
+    const file = async (name) => {
+        const e = entries.get(name);
+        return e ? zipEntry(zip.read, e) : null;
+    };
+    const json = entries ? await file("results.json") : null;
+    if (!json) {
+        return null;
+    }
+    const results = JSON.parse(json.toString("utf8"));
+    if (validateResults(results).length > 0 || !results.complete || results.project !== project) {
+        return null;
+    }
+    const dir = join(tmp, `${run.id}-${a.name.replace(/^visual-/u, "")}-subset`, project);
+    rmSync(dir, { recursive: true, force: true });
+    const part = `${dir}.part`;
+    rmSync(part, { recursive: true, force: true });
+    mkdirSync(part, { recursive: true });
+    const wanted = results.items.filter((i) => i.status === "new" || i.status === "unseeded").map((i) => i.file);
+    // ponytail: 8 range reads at a time, one per image; batch neighbours into one range if a capture has thousands
+    for (let i = 0; i < wanted.length; i += 8) {
+        await Promise.all(
+            wanted.slice(i, i + 8).map(async (name) => {
+                const bytes = await file(name);
+                if (bytes) {
+                    mkdirSync(dirname(join(part, name)), { recursive: true });
+                    writeFileSync(join(part, name), bytes);
+                }
+            }),
+        );
+    }
+    writeFileSync(join(part, "results.json"), json);
+    renameSync(part, dir);
+    return dir;
 }
 
 /**

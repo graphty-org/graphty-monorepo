@@ -129,6 +129,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "nodeId",
     "edgeId",
     "runId",
+    // the credential slot a source load filled, as the project file names it (PendingSourceLoad)
+    "credentialSlot",
     "field",
     "column",
     // the column a load read (the weight's attribute, the columns an edge's ends came from)
@@ -146,12 +148,16 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "digest",
     "dataDigest",
     "fingerprint",
+    // a shader text's SHA-256, which trust settings name
+    "hash",
     "version",
     "at",
     "startedAt",
     "path",
     "mediaType",
     "color",
+    // the hex color the background is drawn in (SessionConfig.backgroundColor)
+    "backgroundColor",
     // network sources: a source's id, the service's address and origin, when a load finished,
     // and the reader's own user name on that service
     "source",
@@ -159,12 +165,36 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "origin",
     "loadedAt",
     "username",
+    // a shader's id and the data path a layer's boundary groups its nodes by
+    "shader",
+    "groupBy",
+    // a shader's GLSL source and its low-detail body, the consumer's own text handed back parsed
+    // (ShaderTextResult.registration)
+    "glsl",
+    "lowDetail",
+    // a 3D model reference exactly as a style layer wrote it: a model id or a URL
+    "ref",
+    // where a model or picture came from, as the consumer gave it: its address, the address's host,
+    // and a dropped file's own name and folder path
+    "url",
+    "host",
+    "fileName",
+    "webkitRelativePath",
+    // the name of a source's credential slot, an identifier its descriptor declares ("api_key")
+    "slot",
     // the consumer's own words handed back: a style folder's name (StyleDocumentRow.folder) and the
     // text a reader typed into a find (FindContainsRow.text)
     "folder",
     "text",
     // a BCP 47 locale tag the consumer chose to print numbers in (BindingNumberFormat.locale)
     "locale",
+    // the names of the consumer's columns the location map reads (LocationColumns)
+    "location",
+    "latitude",
+    "longitude",
+    "within",
+    // the name of the credential slot a load filled, an identifier its source's descriptor declares
+    "credentialSlot",
 ]);
 
 const DECLARATION =
@@ -253,6 +283,13 @@ export function sessionReachable(declarations) {
 }
 
 /**
+ * Types whose every plain string property is a column name of the consumer's table, whatever the
+ * property is called: a table's column roles (TableMapping, where `kind` names the column holding
+ * each row's kind) and a join key's incoming column (JoinKey.file).
+ */
+const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
+
+/**
  * Whether a result type may hold a plain string under this property name.
  * @param type - the declaring type's name
  * @param property - the property's name
@@ -260,6 +297,7 @@ export function sessionReachable(declarations) {
  */
 function allowedPlainString(type, property) {
     if (PLAIN_STRING_ALLOWLIST.has(property) || /[a-z](Id|Key)$/.test(property)) return true;
+    if (COLUMN_NAME_TYPES.has(type)) return true;
     // catalog descriptions describe the thing registered, not the consumer's graph (#1604)
     return property === "description" && type.endsWith("Descriptor");
 }

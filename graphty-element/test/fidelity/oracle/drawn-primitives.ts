@@ -8,7 +8,7 @@
 import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnEdge, DrawnGraph, DrawnLabel } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
-import { extendToTip, measureArrow, mergeTexts, withinShape } from "./associate";
+import { extendToTip, measureArrow, mergeTexts, stackedOn, withinShape } from "./associate";
 import {
     type ArrowShape,
     boxOfPoints,
@@ -22,6 +22,7 @@ import {
     type PNode,
     type PScene,
     type PShape,
+    type Pt,
     type PText,
 } from "./primitives";
 
@@ -162,6 +163,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     // a triangle with a bar behind it reads as the triangle
     "triangle-tee": "triangle",
     "triangle-cross": "triangle",
+    // a disc at the tip with a triangle behind it pointing at it, read as itself whichever way it points
+    "circle-triangle": "circle-triangle",
     // a picture standing on the line
     image: "image",
     // a delta with a bar across the line behind it, a gap between them; a hollow one's is its filled twin's
@@ -202,6 +205,82 @@ const POINTING_BACK: Partial<Record<ArrowShape, ArrowShape>> = {
     vee: "crow",
     crow: "vee",
 };
+
+/** One of graphty's drawn caps. */
+type DrawnCap = DrawnEdge["caps"][number];
+
+/** How far off its line's end a cap may sit before a reader sees it stand off, sit back or sit aside, in pixels. */
+const CAP_PLACE_PX = 2;
+
+/**
+ * graphty's cap as drawn: its shape by its name, unless its outline points the other way along the line (a head drawn
+ * backward), and how far it sits off its line's end. The name alone read a head drawn backward, or one standing 15 px
+ * off its line, 30 px back along it or 12 px to its side, as a head in its place (extendToTip bridged a gap to it).
+ * @param c - the cap
+ * @param line - the line as drawn, source end first, before any cap carries it on
+ * @returns the arrow
+ */
+function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
+    const end = CAP_END[c.end];
+    const open =
+        (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
+        STROKED_NAMES.some((n) => c.name.includes(n));
+    // a cap part-way along is classed against the line's direction, source to target, as the oracle's is: a mid tail
+    // points back along it
+    const named = arrowShapeNamed(c.name);
+    const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
+    // a picture's colors are its own, not the cap's
+    const look = { filled: !open, color: shape === "image" ? null : c.color, shape };
+    if (c.outline === null) {
+        return { end, length: c.sizePx, width: c.sizePx, ...look };
+    }
+    const read = measureArrow(c.outline, line, end, { filled: look.filled, color: look.color });
+    const backward = end !== "middle" && POINTING_BACK[shape] !== undefined && read.shape === POINTING_BACK[shape];
+    const arrow = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    // an end's head its style draws part-way along the line is no head at the line's end: where along the line it sits
+    // is judged against the program's (pajek-graphstream-b: Pajek's and graphty's both at the middle, failed for
+    // standing 260 px off the line's end)
+    const position = c.position ?? 0;
+    if (end !== "middle" && position > 0 && position < 1) {
+        return { ...arrow, partWay: true };
+    }
+    // a half arrow lies to one side of its line by its make
+    const misplaced = end === "middle" ? 0 : capPlaceMiss(c.outline, line, end, !shape.startsWith("half"));
+    return misplaced > 0 ? { ...arrow, misplaced } : arrow;
+}
+
+/**
+ * How far past `CAP_PLACE_PX` a cap at a line's end sits off it: ahead of the end with a gap between, behind it
+ * wholly back along the line, or its middle aside from the line by more than a quarter of its width.
+ * @param outline - the cap's points
+ * @param line - the line, source end first
+ * @param end - the end it caps
+ * @param centered - whether the cap is drawn centered on its line (not half an arrow)
+ * @returns the pixels past the allowance, 0 for a cap on its end
+ */
+export function capPlaceMiss(
+    outline: readonly Pt[],
+    line: readonly Pt[],
+    end: "source" | "target",
+    centered = true,
+): number {
+    const run = end === "target" ? line : [...line].reverse();
+    const tip = run.at(-1);
+    const from = [...run].reverse().find((p) => tip !== undefined && Math.hypot(p[0] - tip[0], p[1] - tip[1]) >= 1);
+    if (tip === undefined || from === undefined || outline.length === 0) {
+        return 0;
+    }
+    const len = Math.hypot(tip[0] - from[0], tip[1] - from[1]);
+    const [ux, uy] = [(tip[0] - from[0]) / len, (tip[1] - from[1]) / len];
+    const along = outline.map(([x, y]) => (x - tip[0]) * ux + (y - tip[1]) * uy);
+    const across = outline.map(([x, y]) => -(x - tip[0]) * uy + (y - tip[1]) * ux);
+    const width = Math.max(...across) - Math.min(...across);
+    const middle = (Math.max(...across) + Math.min(...across)) / 2;
+    const ahead = Math.max(0, Math.min(...along));
+    const behind = Math.max(0, -Math.max(...along));
+    const aside = centered ? Math.max(0, Math.abs(middle) - 0.25 * width) : 0;
+    return Math.max(0, Math.max(ahead, behind, aside) - CAP_PLACE_PX);
+}
 
 /** The caps whose name says "open" though they are drawn filled: graphty's half-open is one filled barb (a half vee). */
 const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
@@ -287,11 +366,17 @@ function edgeGradientOf(drawn: DrawnEdge["gradient"], points: readonly [number, 
         return null;
     }
     const n = drawn.colors.length;
+    // a linear piece is one flat color from its start to its end: a hard switch between two pieces is drawn as one, not
+    // blended across the two pieces' middles (dot-specimen-edges-lines color-segments, red;0.5:blue)
     const stops = drawn.colors
-        .map((color, i) => {
-            const t = (i + 0.5) / n;
-            return { offset: drawn.kind === "radial" ? Math.abs(2 * t - 1) : t, color, opacity: 1 };
-        })
+        .flatMap((color, i) =>
+            drawn.kind === "radial"
+                ? [{ offset: Math.abs((2 * (i + 0.5)) / n - 1), color, opacity: 1 }]
+                : [
+                      { offset: i / n, color, opacity: 1 },
+                      { offset: (i + 1) / n, color, opacity: 1 },
+                  ],
+        )
         .sort((a, b) => a.offset - b.offset);
     const [a, b] = [points[0], points.at(-1) ?? points[0]];
     return {
@@ -378,6 +463,48 @@ function linelessCaps(
 }
 
 /**
+ * Where a reader sees each edge end: an end at a node drawn wholly under another at the same place (`hiddenBy`, a
+ * station drawn over another line's station, json-cyjs-tokyo's 199) is at the node drawn over it, the one the line is
+ * seen to end at, as the oracle's side reads it (`withoutCovered`). Only a node centered on the one over it (within
+ * the node position tolerance, `stackedOn`): one merely inside a bigger node's box is told hidden or not by a half
+ * pixel each side measures alike only by chance (json-cyjs-perf), and moving its ends there would part the sides. An
+ * edge between two nodes drawn one over the other keeps its own ends: it is no loop of the node in front.
+ * @param scene - the scene, its nodes' `drawn.hiddenBy` set
+ * @param drawnIds - the nodes the primitives draw
+ * @returns each edge's ends as seen
+ */
+function shownEnds(
+    scene: Scene,
+    drawnIds: ReadonlySet<string>,
+): (e: { source: string; target: string }) => Pick<PEdge, "source" | "target" | "ownEnds"> {
+    const byId = new Map(scene.nodes.map((n) => [n.id, n]));
+    const hider = new Map<string, string>();
+    for (const n of scene.nodes) {
+        const by = n.drawn?.hiddenBy;
+        const over = typeof by === "string" ? byId.get(by) : undefined;
+        if (over !== undefined && stackedOn([n.x, n.y], over)) {
+            hider.set(n.id, over.id);
+        }
+    }
+    const shownAt = (id: string): string => {
+        const seen = new Set([id]);
+        let at = hider.get(id);
+        while (at !== undefined && !drawnIds.has(at) && !seen.has(at)) {
+            seen.add(at);
+            at = hider.get(at);
+        }
+        return at !== undefined && drawnIds.has(at) ? at : id;
+    };
+    return ({ source, target }) => {
+        const [s, t] = [shownAt(source), shownAt(target)];
+        if ((s === t && source !== target) || (s === source && t === target)) {
+            return { source, target };
+        }
+        return { source: s, target: t, ownEnds: { source, target } };
+    };
+}
+
+/**
  * graphty's drawing as primitives.
  * @param scene - `extractScene` of the drawing
  * @param drawn - `readDrawn` of the same frame
@@ -400,6 +527,11 @@ export function drawnPrimitives(
         const d = drawn.nodes.get(n.id);
         const inset = d === undefined ? 0 : 2 * borderInset(d);
         const ownLabel = n.label?.visible === true && d?.label ? textOf(d.label) : null;
+        const rule = d?.label?.nodeSizeRule;
+        const sized =
+            rule !== undefined && d?.label && (n.label?.visible === true || n.drawn?.labelHiddenBySize === true)
+                ? { sizedLabel: { label: textOf(d.label), acrossPx: rule.acrossPx, min: rule.min } }
+                : {};
         // its further texts (a record's fields) are its label too, as the oracle reads every text in the node's box
         // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is
         const parts = (d?.texts ?? []).map((t) => ({ ...textOf(t), align: undefined }));
@@ -470,10 +602,12 @@ export function drawnPrimitives(
                       }
                     : null,
             label,
+            ...sized,
             inset: inset > 0,
             ...(faceless === undefined ? {} : { faceless }),
         });
     }
+    const ends = shownEnds(scene, new Set(nodes.map((n) => n.id)));
     const edges = scene.edges.flatMap((e) => {
         const d = drawn.edges.get(e.id);
         if (d === undefined || !d.shown || e.points.length < 2 || e.width <= 0 || e.opacity <= 0) {
@@ -482,21 +616,7 @@ export function drawnPrimitives(
         // a cap drawn at no opacity or no size draws nothing
         const arrows: PArrow[] = d.caps
             .filter((c) => c.opacity > 0 && c.sizePx > 0)
-            .map((c) => {
-                const end = CAP_END[c.end];
-                const open =
-                    (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
-                    STROKED_NAMES.some((n) => c.name.includes(n));
-                // a cap part-way along is classed against the line's direction, source to target, as the oracle's
-                // is: a mid tail points back along it
-                const named = arrowShapeNamed(c.name);
-                const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
-                // a picture's colors are its own, not the cap's
-                const look = { filled: !open, color: shape === "image" ? null : c.color, shape };
-                return c.outline === null
-                    ? { end, length: c.sizePx, width: c.sizePx, ...look }
-                    : measureArrow(c.outline, d.points, end, look);
-            });
+            .map((c) => drawnArrow(c, d.points));
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
         // an open half circle standing off its node (a gap, Cytoscape's OPEN_HALF_CIRCLE): the line stops at the arc's
@@ -524,8 +644,7 @@ export function drawnPrimitives(
         return [
             {
                 id: e.id,
-                source: e.source,
-                target: e.target,
+                ...ends(e),
                 points,
                 stroke: {
                     // a line painted in a gradient shows its first stop's color, as the oracle's does
@@ -541,6 +660,11 @@ export function drawnPrimitives(
                 },
                 arrows,
                 outline: outlineOf(d.outline),
+                // a band over the line, which graphty draws solid
+                overlay:
+                    d.overlay === null || d.overlay === undefined
+                        ? null
+                        : { color: d.overlay.color, opacity: d.overlay.opacity, width: d.overlay.width },
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge
                 label: mergeTexts(
                     [e.label !== null ? d.label : null, ...d.endLabels]
@@ -596,14 +720,26 @@ export function drawnPrimitives(
             ...drawnGroups.flatMap((g) => (!boxed(g) && g.label !== null ? [g.label] : [])),
         ],
         strays: [
-            ...(scene.annotations ?? []).map((a) => ({
-                tag: `annotation-${a.kind}`,
-                kind: a.kind === "text" ? ("text" as const) : ("shape" as const),
-                box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
-                fill: null,
-                stroke: null,
-                text: a.text ?? null,
-            })),
+            ...(scene.annotations ?? []).flatMap((a) => [
+                {
+                    tag: `annotation-${a.kind}`,
+                    kind: a.kind === "text" ? ("text" as const) : ("shape" as const),
+                    box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
+                    fill: null,
+                    stroke: null,
+                    text: a.text ?? null,
+                },
+                // an arrow's heads are shapes of their own to a reader, as the program's drawing has them (Cytoscape
+                // desktop's annotation arrows on the specimen-images-charts pages, 68 heads a page read as missing)
+                ...(a.heads ?? []).map((h) => ({
+                    tag: "annotation-arrow-head",
+                    kind: "shape" as const,
+                    box: { x0: h.x, y0: h.y, x1: h.x + h.w, y1: h.y + h.h },
+                    fill: null,
+                    stroke: null,
+                    text: null,
+                })),
+            ]),
             ...linelessCaps(scene, drawn),
         ].map((s, index) => ({ index, ...s })),
     };

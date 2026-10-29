@@ -27,12 +27,20 @@ export class Simple2DLineRenderer {
      * @param color - Hex color string (e.g., "#ff0000")
      * @param opacity - Opacity value 0-1
      * @param scene - Babylon.js scene
+     * @param widened - Whether its slots carry a taper's static values (`EdgeLineBatch`)
      * @param minScreenWidth - The fewest screen pixels wide the line is drawn (`line.minScreenWidth`)
      * @returns The template mesh, with its material
      */
-    static createBatchMesh(width: number, color: string, opacity: number, scene: Scene, minScreenWidth = 0): Mesh {
+    static createBatchMesh(
+        width: number,
+        color: string,
+        opacity: number,
+        scene: Scene,
+        widened = false,
+        minScreenWidth = 0,
+    ): Mesh {
         const mesh = CustomLineRenderer.createJoinedLineMesh(
-            { width, color, opacity, worldWidth: true, minScreenWidth },
+            { width, color, opacity, worldWidth: true, widened, minScreenWidth },
             scene,
         );
         mesh.name = "line-2d";

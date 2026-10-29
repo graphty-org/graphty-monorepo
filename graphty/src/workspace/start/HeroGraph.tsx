@@ -6,6 +6,7 @@ import { UnstyledButton } from "@mantine/core";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
+import { siteConfig } from "../../siteConfig";
 import { GLYPHS } from "../glyphs";
 import { HeroTurns } from "./heroTurns";
 import { Groups, Path, Star } from "./icons";
@@ -27,6 +28,15 @@ export interface HeroSample {
  * behind them (the workspace's element does the same, issue #1943).
  */
 const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" }, rendering: { onDemand: true } } as const;
+
+/**
+ * A graph that starts still arrives already arranged: the layout's steps are taken before its
+ * first frame, stopping once it settles, instead of drawn one frame at a time. The steps and where
+ * the layout ends are the same; only the flight in is not drawn. A reader who asked for less
+ * motion sees no flight, and a picture of the still page (Storybook) is final as soon as the graph
+ * is up, where drawing the flight held every start screen picture for seconds (issue #4041).
+ */
+const HERO_STILL_LAYOUT_BEHAVIOR = { ...HERO_LAYOUT_BEHAVIOR, layout: { preSteps: 1000 } } as const;
 
 /**
  * The selection's own halo is hidden: the clicked node is marked by the page's highlight layer
@@ -369,7 +379,9 @@ export function HeroGraph({
     const [shown, setShown] = useState<Shown>({ communities: true, key: false, path: false, flat: false });
     const [said, setSaid] = useState<Said>({});
     const turns = useContext(HeroTurns);
-    const [turning, setTurning] = useState(() => turns && !prefersStill());
+    // Read once: the pause button changes the turning, never how the graph arrived.
+    const [startsStill] = useState(() => !turns || prefersStill());
+    const [turning, setTurning] = useState(!startsStill);
     const [card, setCard] = useState<CardFacts | null>(null);
     // What Key players and Shortest path each left on the graph, so each button takes away
     // only its own. Each names its nodes in its own layer: a node both name gets one label.
@@ -625,8 +637,10 @@ export function HeroGraph({
                         aria-label="A network drawn as a 3D graph. Drag or use the arrow keys to turn it; point at a node to see its neighbors, click it for details."
                         background={{ backgroundType: "color", color: background }}
                         pixelRatio="device"
-                        layoutBehavior={HERO_LAYOUT_BEHAVIOR}
+                        layoutBehavior={startsStill ? HERO_STILL_LAYOUT_BEHAVIOR : HERO_LAYOUT_BEHAVIOR}
                         selectionStyle={HERO_SELECTION_STYLE}
+                        // The site's experiments, as on the workspace's element.
+                        features={siteConfig().features}
                         style={{ display: "block", width: "100%", height: "100%" }}
                     />
                 ) : null}

@@ -391,6 +391,18 @@ function checkDoorRoot(path: unknown, walker: Walker): void {
 }
 
 /**
+ * Check that a leaf's member is a list of strings.
+ * @param list - The member's value.
+ * @param message - What it must be, for the refusal.
+ * @param details - The refusal's details.
+ */
+function checkStrings(list: unknown, message: string, details: Record<string, unknown>): void {
+    if (!Array.isArray(list) || !list.every((entry) => typeof entry === "string")) {
+        throw bad(message, details);
+    }
+}
+
+/**
  * Refuse an attribute leaf's `nodes` that is neither `"all"` nor `"ends"`.
  * @param value - The leaf.
  */
@@ -441,6 +453,16 @@ function checkTextLeaf(value: Loose, walker: Walker): void {
 }
 
 /**
+ * Check a leaf's side, when it has one.
+ * @param value - The leaf.
+ */
+function checkSide(value: Readonly<Record<string, unknown>>): void {
+    if (value.side !== undefined && value.side !== "nodes" && value.side !== "edges") {
+        throw bad(`A "${String(value.kind)}" leaf's side is "nodes" or "edges".`, { side: value.side });
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -476,9 +498,9 @@ function checkTree(value: unknown, walker: Walker): void {
             checkDoorRoot(value.attribute, walker);
             checkLeafNodes(value);
 
-            if (!Array.isArray(value.values) || !value.values.every((entry) => typeof entry === "string")) {
-                throw bad('A "categories" leaf\'s values are a list of strings.', { values: value.values });
-            }
+            checkStrings(value.values, 'A "categories" leaf\'s values are a list of strings.', {
+                values: value.values,
+            });
 
             return;
         case "degree":
@@ -511,6 +533,15 @@ function checkTree(value: unknown, walker: Walker): void {
         case "self-loop":
         case "repeated-edge":
             known([]);
+
+            return;
+        case "source":
+            known(["sources", "side"]);
+            checkSide(value);
+
+            checkStrings(value.sources, 'A "source" leaf\'s sources are a list of load keys.', {
+                sources: value.sources,
+            });
 
             return;
         case "member":
@@ -606,6 +637,8 @@ export function speaksEdges(
         case "self-loop":
         case "repeated-edge":
             return true;
+        case "source":
+            return node.side !== "nodes";
         case "member":
             return readingOfScope(node.of, referent) !== "induced";
         case "item": {

@@ -434,6 +434,57 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.deepEqual(shaderFailures(webgpu), []);
     });
 
+    it("holds the drawn graph in the frame a resize is painted in, and keeps drawing after it", async () => {
+        const graph = await open("webgpu");
+        await drawStyledRing(graph);
+        await graph.waitForStableFrame();
+        const { engine } = graph;
+        assert.instanceOf(engine, WebGPUEngine);
+        const errors: string[] = [];
+        engine._device.addEventListener("uncapturederror", (event) => {
+            errors.push(event.error.message);
+        });
+
+        const { container } = mounted[mounted.length - 1];
+        const height = HEIGHT + 100;
+        // The element's own ResizeObserver calls graph.resize(); this one stands in for it and
+        // reads the canvas in the same rendering step, before it is painted.
+        const opaque = new Promise<number>((resolve) => {
+            const observer = new ResizeObserver(([entry]) => {
+                if (entry.contentRect.height !== height) {
+                    return;
+                }
+
+                observer.disconnect();
+                graph.resize();
+                const copy = document.createElement("canvas");
+                copy.width = graph.canvas.width;
+                copy.height = graph.canvas.height;
+                const context = copy.getContext("2d");
+                assert.isNotNull(context);
+                context.drawImage(graph.canvas, 0, 0);
+                const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+                let count = 0;
+                for (let at = 3; at < pixels.length; at += 4) {
+                    count += pixels[at] === 255 ? 1 : 0;
+                }
+
+                resolve(count / (pixels.length / 4));
+            });
+            observer.observe(container);
+        });
+        container.style.height = `${String(height)}px`;
+
+        assert.isAbove(await opaque, 0.99, "the canvas holds a frame, not the texture the resize cleared");
+        // The frame drawn for the resize ended inside its own frame, so the loop's next frames
+        // reach the canvas too: no command buffer refers to a texture already presented.
+        await drawnFrames(graph.scene, 2);
+        assert.deepEqual(errors, []);
+        const resized = await screenshot(graph, "webgpu-resized");
+        const { ink } = compare(resized, resized);
+        assert.isAbove(ink, 0.01, "the picture after the resize has almost nothing on it");
+    });
+
     it("draws with WebGL and says why when the GLSL compiler cannot be fetched", async () => {
         // The first WebGPU graph on the page fetches the compiler; a failed fetch is not
         // remembered, so the next graph asks again -- and this one is refused.

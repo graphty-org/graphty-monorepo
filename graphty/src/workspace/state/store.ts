@@ -7,10 +7,16 @@
  * tests each get their own.
  */
 
-import type { AutosaveEntry, Graphty as GraphtyElement, Lighting, ViewInsets } from "@graphty/graphty-element";
+import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/schema";
-import type { GraphSession, NoteTargetInput } from "@graphty/graphty-element/session";
-import { useSyncExternalStore } from "react";
+import type {
+    DataSourceInput,
+    GraphSession,
+    LoadDraft,
+    NoteTargetInput,
+    SourceKey,
+} from "@graphty/graphty-element/session";
+import { type ReactNode, useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
 
@@ -22,11 +28,14 @@ type Page = "panels" | "data-page";
 
 /** One notice (section 2.4): one message and at most one action. */
 export interface Notice {
+    /** Its words; the notice shows them unless it has content. */
     readonly message: string;
     /** A failure: it stays until the reader dismisses it, rather than going after 6 s. */
     readonly error?: boolean;
     /** Describes the selection that just went: a new selection takes it down at once. */
     readonly endsWithSelection?: boolean;
+    /** What it shows instead of the words, such as the replace receipt's chips. */
+    readonly content?: ReactNode;
     readonly action?: { readonly label: string; readonly run: () => void };
 }
 
@@ -68,6 +77,8 @@ export interface WorkspaceState {
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
+    /** How fast the timeline plays: 1, 2 or 4 steps a second. The reader's choice, not saved with the project. */
+    readonly timeSpeed: 1 | 2 | 4;
     /**
      * The table dock's tab: "nodes", "edges" or a group run's "g:<run id>". Kept while the dock
      * is closed, and set by whatever opens the dock on a table (the Data place's source rows).
@@ -78,6 +89,34 @@ export interface WorkspaceState {
      * table and cleared by the dock; null when none is asked for.
      */
     readonly dockColumn: string | null;
+    /**
+     * Whether the open table dock fills the canvas area, with the configuration beside it (data
+     * prototype spec section 3.5). A file with problems opens it so.
+     */
+    readonly dockMaximized: boolean;
+    /**
+     * A table read to join onto the graph, waiting for the join screen (spec section 3.6): a second
+     * file dropped, picked, pasted or chosen in Samples while the graph holds data. The join screen
+     * loads or disposes the draft and sets this back to null.
+     */
+    readonly joining: {
+        readonly name: string;
+        readonly draft: LoadDraft;
+        /** What the draft was read from, for Replace data and Open as a separate graph. */
+        readonly source?: DataSourceInput;
+    } | null;
+    /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
+    readonly editingJoin: SourceKey | null;
+    /**
+     * The edge ends picked for a load whose rows are still nodes (Fields' Rows are, or a header's
+     * Role): the load is read again as edges once both are picked.
+     */
+    readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
+    /**
+     * Whether the timeline dock is shown under the canvas while a time field is set;
+     * `timeline.toggle` (T) flips it, and designating a field shows it.
+     */
+    readonly timelineOpen: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -118,11 +157,6 @@ export interface WorkspaceState {
     /** Graph settings, Outline width: every outline's width, or null for the element's own. */
     readonly outlineWidth: number | null;
     /**
-     * The canvas margins the legend card covers, reported by the card and handed to the element
-     * so a fit never puts a node under it. Empty while no card is drawn.
-     */
-    readonly viewInsets: ViewInsets;
-    /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. The table dock's Export... sets the table that is showing.
      */
@@ -152,6 +186,8 @@ export interface WorkspaceState {
     readonly opening: {
         readonly name: string;
         readonly load: (session: GraphSession, element: GraphtyElement) => Promise<void>;
+        /** Where focus goes once it is loaded, when not to the opened graph's heading. */
+        readonly focus?: () => void;
     } | null;
     /**
      * Whether graphty-element keeps the reader's work in the browser (its autosave). The
@@ -187,8 +223,14 @@ const INITIAL: WorkspaceState = {
     rightWidth: PANEL_MIN,
     dockHeight: DOCK_DEFAULT,
     dockOpen: false,
+    timeSpeed: 1,
     dockTab: "nodes",
     dockColumn: null,
+    dockMaximized: false,
+    joining: null,
+    editingJoin: null,
+    ends: null,
+    timelineOpen: true,
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,
@@ -198,7 +240,6 @@ const INITIAL: WorkspaceState = {
     sameSizeAtAnyDepth: null,
     lighting: "studio",
     outlineWidth: null,
-    viewInsets: {},
     exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,
@@ -306,4 +347,52 @@ export function tabFor(kind: InspectedKind | undefined, remembered: WorkspaceSta
         return null;
     }
     return kind.alwaysOpenOn ?? remembered[kind.kind] ?? kind.defaultTab ?? kind.tabs[0];
+}
+
+/** The session storage item the reader's place is kept under, for a reload of this tab. */
+const PLACE_ITEM = "app.graphty.workspace.place";
+
+/** The part of the chrome a reload of this tab puts back: the page, the place, the tab and the row. */
+type KeptPlace = Pick<WorkspaceState, "page" | "place" | "inspected" | "tabs" | "styleSide">;
+
+/**
+ * Keeps the reader's place in this tab's session storage while a project is open, so a reload
+ * (or a tab the browser discarded and loaded again) can put it back; forgets it once no project
+ * is open. Presentation state only: the graph is graphty-element's to keep.
+ * @param store - the workspace store.
+ * @returns a function that stops keeping it.
+ */
+export function keepPlace(store: WorkspaceStore): () => void {
+    let last = "";
+    const write = (): void => {
+        const { project, page, place, inspected, tabs, styleSide } = store.get();
+        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide });
+        if (text === last) {
+            return;
+        }
+        last = text;
+        try {
+            if (text === "") {
+                sessionStorage.removeItem(PLACE_ITEM);
+            } else {
+                sessionStorage.setItem(PLACE_ITEM, text);
+            }
+        } catch {
+            // No session storage here: a reload starts on the Graph place.
+        }
+    };
+    return store.subscribe(write);
+}
+
+/**
+ * The place this tab kept before it was reloaded.
+ * @returns the place, or an empty change when none was kept.
+ */
+export function keptPlace(): Partial<KeptPlace> {
+    try {
+        const text = sessionStorage.getItem(PLACE_ITEM);
+        return text === null ? {} : (JSON.parse(text) as Partial<KeptPlace>);
+    } catch {
+        return {};
+    }
 }

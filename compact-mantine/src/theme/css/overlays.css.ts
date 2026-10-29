@@ -13,6 +13,7 @@
  * and this sheet is appended after Mantine's, so a single `cm-*` class wins. The few Mantine
  * rules that are stronger are answered with a matching selector, noted where they occur.
  */
+import { VIEWPORT_CAP } from "../../components/overlays/viewportCap";
 import { cmFont } from "../tokens";
 import { ROW_LIT, ROW_UNLIT } from "./00-foundation.css";
 
@@ -104,11 +105,10 @@ const css = `
     text-overflow: ellipsis;
 }
 
-/* A row with a second line (MenuItemDescription): it grows to a 44px touch target (WCAG 2.5.5)
-   and both lines stay whole; the leading and trailing slots stay centered on it. */
+/* A row with a second line (MenuItemDescription), which Figma never draws: it grows to hold both
+   lines whole (38: 16 + 14 + 4 above and below); the leading and trailing slots stay centered. */
 .cm-menu-item:has(.cm-menu-item-description) {
     height: auto;
-    min-height: 44px;
     padding-block: 4px;
 }
 .cm-menu-item-description {
@@ -227,14 +227,34 @@ const css = `
 
 /* ---------------------------------------------------------------- 8.4 light popover */
 
-/* Mantine Popover and HoverCard dropdowns: the foundation's cm-popover-surface, padding 8. */
-.cm-popover { padding: 8px; }
+/* Mantine Popover and HoverCard dropdowns, and every Combobox dropdown (a Popover dropdown): the
+   foundation's cm-popover-surface, padding 8. Never taller than the visual viewport's cap
+   (viewportCap.ts): the contents scroll inside, and a Combobox search field at the top stays in
+   view. A dropdown with an arrow is not made a scroll container, which would clip the arrow.
+   ponytail: an arrowed popover taller than the cap is cut, not scrolled; scroll an inner box if
+   one ever is. */
+.cm-popover { padding: 8px; max-height: ${VIEWPORT_CAP}; }
+.cm-popover:not(:has(> .cm-popover-arrow)) { overflow-y: auto; }
+.cm-popover > .mantine-Combobox-search:first-child {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: var(--cm-bg);
+    /* Paints over the dropdown's 8px top padding, which rows would otherwise scroll through. */
+    box-shadow: 0 -8px 0 0 var(--cm-bg);
+}
 .cm-popover-arrow { border: 0; }
 
 /* The Popout panel. Never taller than the window: the header stays and the body scrolls, so every
    field can be reached, and focus moving to a field scrolls it into view. */
-/* 6px off the window's bottom (POPOUT_WINDOW_MARGIN in PopoutPanel.tsx). */
-.cm-popout { overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 6px); }
+/* 6px off the window's bottom (POPOUT_WINDOW_MARGIN in PopoutPanel.tsx), and never above the
+   visual viewport's cap (viewportCap.ts). */
+.cm-popout {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: min(calc(100vh - 6px), ${VIEWPORT_CAP});
+}
 .cm-popout > .cm-popout-header { flex-shrink: 0; }
 .cm-popout-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .cm-popout:focus { outline: none; }
@@ -326,21 +346,19 @@ const css = `
     padding: 8px 16px;
     ${cmFont("body")}
 }
-/* ModalFooter: 48 tall across the modal's full width (it cancels the body's 8px 16px padding,
+/* ModalFooter: 40 tall across the modal's full width (it cancels the body's 8px 16px padding,
    leaving Figma's 8px between the last field and the footer), a 1px top divider, buttons
-   end-aligned 8px apart, 16px in from both sides and 12px above and below 24px buttons.
-   A deliberate departure from Figma's 40px footer with an 8px end inset (design/figma-spec.md
-   8.5): that put the last button 8px from the edge inside a 13px corner, too tight for touch. */
+   end-aligned 8px apart, padding 0 8 0 16 (pm/dialog-file--save-to-version-history). */
 .cm-modal-footer {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
     box-sizing: border-box;
-    height: 48px;
+    height: 40px;
     margin: 8px -16px -8px;
     padding-block: 0;
-    padding-inline: 16px;
+    padding-inline: 16px 8px;
     box-shadow: inset 0 1px 0 var(--cm-border);
 }
 

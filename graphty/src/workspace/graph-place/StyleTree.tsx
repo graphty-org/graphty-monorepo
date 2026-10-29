@@ -1,7 +1,7 @@
 import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
@@ -12,6 +12,7 @@ import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { StylePanel } from "../style/StylePanel";
 import { colorName, hexOf } from "../style/words";
+import { unitOf } from "../time/timeActions";
 import { openers } from "../toolbar/popover";
 import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
@@ -147,6 +148,30 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
 }
 
 /**
+ * The mark a layer row shows while the run it paints is out of date, with why in its tooltip and name.
+ * @param props - Component props
+ * @param props.words - why the run is out of date
+ * @param props.children - the row's count, drawn after the mark
+ * @returns the mark and the count
+ */
+function OutOfDateMark({ words, children }: Readonly<{ words: string; children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <span className="ws-row-stale">
+            <Tooltip label={words}>
+                <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                    role="img"
+                    aria-label={words}
+                    className="ws-row-over"
+                >
+                    <GLYPHS.outOfDate size={12} aria-hidden />
+                </span>
+            </Tooltip>
+            {children}
+        </span>
+    );
+}
+
+/**
  * What a grouping run's layer shows on its row: the color it paints (and its word), and how many nodes it
  * matches. Kept whatever conditions the layer is narrowed or widened by since the run made it.
  * Undefined for any other row.
@@ -256,8 +281,15 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const { store } = workspace;
     const inspected = useWorkspaceState((state) => state.inspected);
     const renamingRow = useWorkspaceState((state) => state.renamingRow);
-    // "Select layers...": a checkbox on every row, and a tap adds a row or takes it out (touch).
+    // The row menu's "Select more": a checkbox on every row, and a tap adds a row or takes it out
+    // (touch).
     const [selecting, setSelecting] = useState(false);
+    // Done or Escape leaves the mode, keeps the selection and says once how many it holds.
+    const leaveSelecting = useCallback((): void => {
+        setSelecting(false);
+        const picked = selectedIds(store.get().inspected, session).length;
+        store.set({ announcement: `${count(picked, "layer")} selected` });
+    }, [store, session]);
     // Escape leaves the mode first, wherever focus is, before it clears a selection: the window's
     // command keys skip a key used up here.
     useEffect(() => {
@@ -267,14 +299,14 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         const onKeyDown = (event: KeyboardEvent): void => {
             if (isPanelEscape(event)) {
                 event.preventDefault();
-                setSelecting(false);
+                leaveSelecting();
             }
         };
         document.addEventListener("keydown", onKeyDown);
         return () => {
             document.removeEventListener("keydown", onKeyDown);
         };
-    }, [selecting]);
+    }, [selecting, leaveSelecting]);
     // Hovered counts the node under the pointer, which no style or data change reports: read the
     // counts again whenever the pointer reaches a node, moves to another or leaves.
     const [, setHoverMoves] = useState(0);
@@ -357,11 +389,18 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         const stale = staleOf(session, row);
         const description = [
             ...(group?.color === undefined ? [] : [group.color]),
-            ...(stale === null ? [] : [staleWords(stale)]),
+            ...(stale === null ? [] : [staleWords(stale, unitOf(session))]),
             ...states,
             ...(over ? [overWords] : []),
         ];
         const name = rowName(session, row.id);
+        const plainCount = group?.count ?? <RowCount paints={paints} />;
+        const counted =
+            stale === null ? (
+                plainCount
+            ) : (
+                <OutOfDateMark words={staleWords(stale, unitOf(session))}>{plainCount}</OutOfDateMark>
+            );
         return {
             id: row.id,
             name,
@@ -371,7 +410,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             movable: !isBaseRow(session, row.id),
             dimmed: hidden,
             // Every layer row says how many it matches: its nodes, or with none its edges.
-            count: over ? <PaintedOverMark words={overWords} /> : (group?.count ?? <RowCount paints={paints} />),
+            count: over ? <PaintedOverMark words={overWords} /> : counted,
             swatch: group?.swatch,
             actions,
             description: description.length === 0 ? undefined : description.join(", "),
@@ -388,24 +427,39 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             return null;
         }
         return (
-            <RowMenuItems
-                tree={tree}
-                row={found.row}
-                parent={found.folders.at(-1)}
-                onMoveTo={(folderId) => {
-                    // The row's menu acts on every selected row when the row is one of them.
-                    const picked = selectedIds(inspected, session);
-                    const ids = picked.includes(found.row.id) ? picked : [found.row.id];
-                    void orNotice(store, `move ${found.row.name}`, moveRows(session, ids, folderId));
-                }}
-            />
+            <>
+                {/* First, so touch has a way to select several rows, and everyone sees one. */}
+                <CommandMenuItem
+                    label="Select more"
+                    icon={<GLYPHS.check size={14} aria-hidden />}
+                    shortcut={undefined}
+                    reason={null}
+                    onRun={() => {
+                        const picked = selectedIds(inspected, session);
+                        openRows(store, tree, picked.includes(found.row.id) ? picked : [...picked, found.row.id]);
+                        setSelecting(true);
+                    }}
+                />
+                <Menu.Divider />
+                <RowMenuItems
+                    tree={tree}
+                    row={found.row}
+                    parent={found.folders.at(-1)}
+                    onMoveTo={(folderId) => {
+                        // The row's menu acts on every selected row when the row is one of them.
+                        const picked = selectedIds(inspected, session);
+                        const ids = picked.includes(found.row.id) ? picked : [found.row.id];
+                        void orNotice(store, `move ${found.row.name}`, moveRows(session, ids, folderId));
+                    }}
+                />
+            </>
         );
     };
 
     const onRowKeyDown = (id: string, event: React.KeyboardEvent): void => {
         if (selecting && event.key === "Escape") {
             event.preventDefault();
-            setSelecting(false);
+            leaveSelecting();
             return;
         }
         const row = findTreeRow(tree, id)?.row;
@@ -427,25 +481,12 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 <Text span className="ws-style-tree-title">
                     Style layers
                 </Text>
-                <AddMenu
-                    session={session}
-                    store={store}
-                    selected={selectedIds(inspected, session)}
-                    onSelectMany={() => {
-                        setSelecting(true);
-                    }}
-                />
+                <AddMenu session={session} store={store} selected={selectedIds(inspected, session)} />
             </div>
             {selecting && (
                 <Group className="ws-style-tree-selecting" gap={4} wrap="nowrap" px={8} justify="space-between">
-                    <Text size="xs">Check the layers to select them</Text>
-                    <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        onClick={() => {
-                            setSelecting(false);
-                        }}
-                    >
+                    <Text size="xs">{selectedIds(inspected, session).length} selected</Text>
+                    <Button size="compact-xs" variant="subtle" onClick={leaveSelecting}>
                         Done
                     </Button>
                 </Group>
@@ -496,25 +537,21 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
 /**
  * The "+" beside the tree's title, where layers come from: Layer makes a real layer at once with
  * its name ready to type; Folder makes "New folder" the same way; Analyze... opens the toolbar's
- * Analyze popover (the one Analyze), and closing it gives focus back to this "+". Select layers... puts a
- * checkbox on every row, so several rows can be selected by touch.
+ * Analyze popover (the one Analyze), and closing it gives focus back to this "+".
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
  * @param props.selected - the rows selected in the tree; Folder puts two or more of them in it
- * @param props.onSelectMany - turns the tree's checkbox mode on
  * @returns The button and its menu
  */
 function AddMenu({
     session,
     store,
     selected,
-    onSelectMany,
 }: Readonly<{
     session: GraphSession;
     store: WorkspaceStore;
     selected: readonly string[];
-    onSelectMany: () => void;
 }>): React.JSX.Element {
     const button = useRef<HTMLButtonElement>(null);
     const analyze = useCommand("analyze.open");
@@ -563,9 +600,6 @@ function AddMenu({
                     }}
                 >
                     Folder
-                </Menu.Item>
-                <Menu.Item leftSection={<GLYPHS.check size={14} aria-hidden />} onClick={onSelectMany}>
-                    Select layers...
                 </Menu.Item>
                 {analyze !== null && (
                     <CommandMenuItem

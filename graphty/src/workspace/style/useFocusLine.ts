@@ -1,4 +1,5 @@
 import type { Channel } from "@graphty/graphty-element/schema";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 /** What can take keyboard focus inside a line. */
@@ -31,8 +32,18 @@ export function lineTarget(line: Element | null | undefined): HTMLElement | null
 /** The line waiting for focus, as a selector; module state, so it outlives a remount of the tab. */
 let pending: string | null = null;
 
-/** The lines each section of the last drawn tab listed, and which row the tab was; outlives a remount. */
-let drawn: { readonly panel: string; readonly lines: ReadonlyMap<string, readonly string[]> } | null = null;
+/**
+ * The lines each section of the last drawn tab listed, and which row of which session the tab was;
+ * outlives a remount. A row's id is only unique within its session: another session (a project
+ * opened again, a story rendered again in the same page) numbers its rows from the start, and its
+ * new layer's tab must not be read as the old one's lines going away. Held weakly, so a closed
+ * project's session is not kept alive by the last tab it drew.
+ */
+let drawn: {
+    readonly session: WeakRef<GraphSession>;
+    readonly panel: string;
+    readonly lines: ReadonlyMap<string, readonly string[]>;
+} | null = null;
 
 /**
  * The lines each section of a tab lists.
@@ -129,10 +140,11 @@ export function focusSectionNext(from: Element, channel: Channel): void {
  * A line that comes or goes with nobody asking (an Undo or Redo) while focus is in the tab or has
  * fallen to the page takes focus itself: a line that came back, in its field; a line taken away, at
  * its section's "+".
+ * @param session - the element's session the row belongs to.
  * @param panel - which row the tab shows, so a change of row is never read as lines coming or going.
  * @returns the ref for the element that holds the lines.
  */
-export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T | null> {
+export function useFocusLine<T extends HTMLElement>(session: GraphSession, panel: string): RefObject<T | null> {
     const scope = useRef<T>(null);
     const handed = useRef<string | null>(null);
     // No dependency list: the line appears on whatever render the element's change causes.
@@ -143,11 +155,11 @@ export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T 
         }
         const was = drawn;
         const now = linesOf(node);
-        drawn = { panel, lines: now };
+        drawn = { session: new WeakRef(session), panel, lines: now };
         // Focus fell to the page, or stays in the tab (on a "+" an Undo did not take away).
         const active = document.activeElement;
         const free = active === null || active === document.body || node.contains(active);
-        if (pending === null && free && was?.panel === panel) {
+        if (pending === null && free && was?.session.deref() === session && was.panel === panel) {
             controlForChange(node, was.lines, now)?.focus();
         }
         if (pending === null) {
@@ -214,4 +226,13 @@ export function openListNext(channel: Channel | null): void {
  */
 export function listOpensNext(channel: Channel): boolean {
     return listNext === channel;
+}
+
+/**
+ * The bottom of the app header, so a tall pop-out beside the panel starts below it and never
+ * covers it.
+ * @returns its bottom in viewport pixels, or 0 when there is no header.
+ */
+export function headerBottom(): number {
+    return document.querySelector(".ws-header")?.getBoundingClientRect().bottom ?? 0;
 }

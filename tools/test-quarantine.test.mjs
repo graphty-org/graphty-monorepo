@@ -14,16 +14,20 @@ import { after, describe, it } from "node:test";
 import {
     activeList,
     afterShard,
+    blameChange,
     closeFinished,
     decide,
+    failedFirst,
     emptyState,
     PASSES_TO_LEAVE,
     quarantineEnabled,
     quarantineTests,
     readState,
     runShard,
+    shardOfRun,
     splitLog,
 } from "./test-quarantine.mjs";
+import { selectedCommand } from "./test-select.mjs";
 
 const TMP = mkdtempSync(join(tmpdir(), "test-quarantine-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
@@ -48,6 +52,23 @@ const entry = (t, extra = {}) => ({
     since: DAY,
     expires: LATER,
     ...extra,
+});
+
+describe("failedFirst", () => {
+    it("keeps only the flaky tests that failed on the first run", () => {
+        const first = { failures: [{ file: "a.ts", name: "t1" }] };
+        const second = { failures: [{ file: "a.ts", name: "t2" }] };
+        const d = decide({ family: "graphty", first, firstOutcome: "failed", second, list: [] });
+        assert.deepEqual(
+            d.flaky.map((f) => f.name),
+            ["t1", "t2"],
+        );
+        assert.deepEqual(
+            failedFirst(d.flaky, first).map((f) => f.name),
+            ["t1"],
+        );
+        assert.deepEqual(failedFirst(d.flaky, undefined), []);
+    });
 });
 
 describe("decide", () => {
@@ -111,7 +132,7 @@ describe("the list", () => {
 // `suite`: the first run fails as a whole file (a hook timed out), so vitest counts it under "Failed Suites", not
 // under "Tests N failed". `oldNaming`: the checkout predates the run-id JUnit names (vitest.ci-junit.mjs before
 // e3f94aced7) and writes junit-<package>-<pid>.xml whatever TEST_LEDGER_RUN says.
-function checkout({ retryFails, quarantine = [], suite = false, oldNaming = false }) {
+function checkout({ retryFails, quarantine = [], suite = false, oldNaming = false, retryReport = "full" }) {
     const root = fresh();
     mkdirSync(join(root, "tools"));
     mkdirSync(join(root, "test-results"));
@@ -129,11 +150,14 @@ function checkout({ retryFails, quarantine = [], suite = false, oldNaming = fals
             )
             .join("")}</testsuite></testsuites>`;
     writeFileSync(join(root, "first.xml"), junit([T1]));
-    writeFileSync(join(root, "retry.xml"), junit(retryFails ? [T1] : []));
+    writeFileSync(
+        join(root, "retry.xml"),
+        retryReport === "empty" ? "<testsuites></testsuites>" : junit(retryFails ? [T1] : []),
+    );
     // the retry: `bash tools/run-tests.sh --command graphty-1 '<files command>'`
     writeFileSync(
         join(root, "tools/run-tests.sh"),
-        `echo "$3" > retry-command; cp retry.xml "test-results/junit-graphty-${run}2.xml"; ${retryFails ? "echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1" : "echo ' Test Files  1 passed (1)'"}`,
+        `echo "$3" > retry-command; ${retryReport === "none" ? "true" : "cp"} retry.xml "test-results/junit-graphty-${run}2.xml"; ${retryFails ? "echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1" : "echo ' Test Files  1 passed (1)'"}`,
     );
     const counts = suite
         ? "echo ' Failed Suites 1 '; echo ' Test Files  1 failed | 1 passed (2)'; echo '      Tests  1 passed (1)'"
@@ -141,6 +165,66 @@ function checkout({ retryFails, quarantine = [], suite = false, oldNaming = fals
     const first = `cp first.xml "test-results/junit-graphty-${run}1.xml"; ${counts}; exit 1`;
     return { root, first };
 }
+
+describe("blameChange", () => {
+    // A ledger whose failuresBefore() count is `prior[file]`.
+    const ledgerOf = (prior) => () => ({
+        db: { prepare: () => ({ get: (file) => ({ n: prior[file] ?? 0 }) }), close: () => {} },
+    });
+    const d = { pass: true, flaky: [fail(T1), fail(T2)], excused: [], failing: [] };
+    const landCheck = { TEST_LEDGER_KIND: "land-check", TEST_LEDGER_BRANCH: "fix/1-x" };
+
+    it("fails a land check on a flaky test with no failure before the change, and names the landing", () => {
+        const r = blameChange(d, fresh(), "graphty", landCheck, ledgerOf({ [T2.file]: 3 }));
+        assert.equal(r.pass, false);
+        assert.deepEqual(
+            r.caused.map((f) => f.name),
+            [T1.name],
+        );
+        assert.deepEqual(
+            r.flaky.map((f) => f.name),
+            [T2.name],
+            "flaky before the change: quarantined",
+        );
+        assert.deepEqual(
+            r.failing.map((f) => f.name),
+            [T1.name],
+        );
+        assert.equal(r.suspects[0].branch, "fix/1-x");
+    });
+
+    it("changes nothing outside a land check, and with no ledger only names the suspect", () => {
+        assert.equal(blameChange(d, fresh(), "graphty", {}, ledgerOf({})).pass, true);
+        const none = blameChange(d, fresh(), "graphty", landCheck, () => ({ why: "no database yet" }));
+        assert.equal(none.pass, true);
+        assert.equal(none.flaky.length, 2);
+        assert.equal(none.suspects[0].branch, "fix/1-x");
+    });
+});
+
+describe("shardOfRun", () => {
+    const layout = {
+        shard: "layout",
+        package: "layout",
+        "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
+    };
+
+    it("retries a story-tests leg's failed story files with the leg's own config, not the unit shard's", () => {
+        const command = "cd layout && pnpm exec vitest run --config vitest.storybook.config.ts";
+        const shard = shardOfRun(fresh(), layout, command);
+        assert.equal(shard["test-command"], command);
+        assert.equal(
+            selectedCommand(fresh(), shard, ["layout/stories/3d/Spring3D.stories.ts"]),
+            "cd layout && pnpm exec vitest run --config=vitest.storybook.config.ts 'stories/3d/Spring3D.stories.ts'",
+        );
+    });
+
+    it("keeps the shard's own command for a command that is not a plain vitest run of its package", () => {
+        assert.equal(shardOfRun(fresh(), layout, "bash tools/run-tests.sh layout"), layout);
+        assert.equal(shardOfRun(fresh(), layout, "cd algorithms && pnpm exec vitest run"), layout);
+        assert.equal(shardOfRun(fresh(), undefined, "cd layout && pnpm exec vitest run"), undefined);
+    });
+});
 
 describe("runShard", () => {
     const run = async (c, env = {}) => {
@@ -191,6 +275,18 @@ describe("runShard", () => {
         assert.deepEqual(result.ran.sort(), [T1.file, T2.file]);
     });
 
+    // A story leg once retried its stories under the unit config, which found no test files: with no report
+    // the failure was never judged, and an empty report called every failure flaky and passed the leg.
+    for (const retryReport of ["none", "empty"]) {
+        it(`fails the shard when the retry wrote ${retryReport === "none" ? "no report" : "an empty report"}`, async () => {
+            const { code, result } = await run(checkout({ retryFails: false, retryReport }));
+            assert.equal(code, 1);
+            assert.equal(result.retried, true);
+            assert.equal(result.retryRan, false);
+            assert.deepEqual(result.flaky, []);
+        });
+    }
+
     // #3323: a graphty shard whose file failed as a whole (a setup hook timed out) was never retried: vitest's
     // "Tests" line counts no failed test, so the run looked like an error rather than test failures.
     it("retries a file that failed as a whole suite", async () => {
@@ -233,6 +329,15 @@ describe("runShard", () => {
         );
     });
 
+    it("fails a run whose output is over the log budget, whatever it exited with, quarantine on or off", async () => {
+        const flood = `for i in 1 2 3 4 5 6 7 8; do echo 'Warning: An update was not wrapped in act(...)'; done; echo ' Test Files  1 passed (1)'`;
+        const opts = (env) => ({ root: fresh(), env: { ...process.env, ...env }, state: emptyState(), logBudget: 200 });
+        for (const env of [{ GRAPHTY_TEST_QUARANTINE: undefined }, { GRAPHTY_TEST_QUARANTINE: "0" }]) {
+            assert.equal(await runShard("graphty-1", flood, opts(env)), 1, JSON.stringify(env));
+            assert.equal(await runShard("graphty-1", "echo ok", opts(env)), 0, "within the budget it passes");
+        }
+    });
+
     it("splits a log at the retry for the ledger", () => {
         assert.deepEqual(splitLog("a\ntest-quarantine: retrying x\nb"), {
             first: "a\n",
@@ -263,6 +368,15 @@ describe("afterShard", () => {
         assert.equal(calls.length, 1, "a test already quarantined files nothing");
         const gpu = afterShard({ main, root, shard: "webgpu-graph-algorithms-node", result: flaky, gh, day: DAY });
         assert.deepEqual(gpu.added, [], "GPU tests are never quarantined");
+    });
+
+    it("names a land check's landing as suspect in the issue", () => {
+        const main = fresh();
+        const root = checkout({}).root;
+        const suspects = [{ sha: "abc123", branch: "fix/1-x" }];
+        afterShard({ main, root, shard: "graphty-2", result: { ...flaky, suspects }, gh, day: DAY });
+        assert.match(calls.at(-1).at(-1), /- abc123 fix\/1-x/);
+        assert.equal(Object.values(readState(main).added)[0].suspects, undefined, "kept out of the entry");
     });
 
     it(`ends an entry after ${PASSES_TO_LEAVE} gate runs in a row that passed it; a failure starts the count again`, () => {

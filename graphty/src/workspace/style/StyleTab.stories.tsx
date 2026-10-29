@@ -4,9 +4,10 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { freshStore, storeOf } from "../../stories/freshStore";
 import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
-import { createWorkspaceStore, type WorkspaceStore } from "../state/store";
+import type { WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import ring from "./__fixtures__/ring.json";
 
@@ -114,10 +115,11 @@ type Story = StoryObj<typeof meta>;
 function styleStory(
     play?: (canvasElement: HTMLElement, element: GraphtyElement, store: WorkspaceStore) => Promise<void>,
 ): Story {
-    const store = createWorkspaceStore({ project: { name: "Ring", id: 1 } });
     return {
-        args: { store },
-        play: async ({ canvasElement }) => {
+        ...freshStore({ project: { name: "Ring", id: 1 } }),
+        play: async (context) => {
+            const { canvasElement } = context;
+            const store = storeOf(context);
             store.set({ inspected: null });
             const element = await loadRing(canvasElement);
             // The app's choice for every project it opens: the starting rows, Everything holding
@@ -139,11 +141,11 @@ export const MeasureRow: Story = styleStory(async (canvasElement, element, store
     await inspectPageRank(canvasElement, element, store);
 });
 
-/** Effects "+" on the measure row: the effects the row does not draw yet (`#/style-pickers/plus-menu`). */
+/** Shape "+" on the measure row: the options the row does not set yet (`#/style-pickers/plus-menu`). */
 export const PlusMenu: Story = styleStory(async (canvasElement, element, store) => {
     await inspectPageRank(canvasElement, element, store);
     await userEvent.click(
-        await tab(canvasElement).findByRole("button", { name: "Add to node effects" }, storyWaitOptions(1000)),
+        await tab(canvasElement).findByRole("button", { name: "Add to node shape" }, storyWaitOptions(1000)),
     );
 });
 

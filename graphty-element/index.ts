@@ -51,6 +51,7 @@ export type {
     GraphtyCapabilitiesChangeDetail,
     GraphtyElementEventMap,
     GraphtyHistoryChangeDetail,
+    GraphtyModelChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
 } from "./src/graphty-element";
@@ -74,14 +75,22 @@ export { Node } from "./src/Node";
 // Style configuration types
 export type {
     AdHocData,
+    // The map under the location map layout, as `element.basemap` takes it, and what it is doing
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
     EdgeStyleConfig,
     // The room `element.fitInsets` keeps clear when the graph is framed
     FitInsets,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
+    // How nodes travel to a new layout, as `session.config.set({ layoutTransition })` takes it
+    LayoutTransitionConfig,
     // How the 3D nodes are lit, as `element.lighting` takes it
     Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -102,6 +111,7 @@ export type { PartialXRConfig } from "./src/config/xr-config-schema";
 
 // Style configuration values and helpers
 export {
+    Basemap,
     colorToHex,
     DEFAULT_LIGHTING,
     DEFAULT_VIEW_MODE,
@@ -127,7 +137,11 @@ export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSugg
 
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
+export type { RenderQuality, RenderQualityChange, RenderQualityCode, ShaderSettings } from "./src/session/shaders";
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+// Which experiments an element switched on (element.enabledFeatures)
+export type { FeatureId } from "./src/features/registry";
+export type { EnabledFeatures } from "./src/features/resolve";
 // How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
 // one node's label as drawn (element.labelOf)
 export type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
@@ -152,7 +166,7 @@ export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./sr
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point
-export type { ElementAtResult } from "./src/catalog/types";
+export type { DrawnShaders, ElementAtResult, GroupOutlineAtResult } from "./src/catalog/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 
@@ -227,6 +241,7 @@ export type {
     ExportLoss,
     ExportLossCode,
     ExportResult,
+    ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
 
@@ -262,12 +277,14 @@ export { defineAlgorithm } from "./src/simple/defineAlgorithm";
 export { defineLayout } from "./src/simple/defineLayout";
 export { defineLogDestination } from "./src/simple/defineLogDestination";
 export { definePalette } from "./src/simple/definePalette";
+export { defineShader } from "./src/simple/defineShader";
 
 // =============================================================================
 // Events
 // =============================================================================
 export type {
     AiEventType,
+    BasemapStatusEvent,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,

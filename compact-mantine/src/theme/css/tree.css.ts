@@ -37,8 +37,6 @@ const css = `
     touch-action: pan-y;
 }
 .cm-tree-row[data-strong] { font-weight: 600; }
-/* The row being dragged. */
-.cm-tree-row[data-dragging] { opacity: 0.5; }
 .cm-tree-row::before,
 .cm-tree-row::after {
     content: "";
@@ -71,9 +69,9 @@ const css = `
 .cm-tree-row[data-tint="parent"][aria-selected="true"]::after {
     box-sizing: content-box;
     height: 24px;
-    /* A selected parent is told apart from the band its children wear: the stronger selected
-       tint, where bg-selected sits within 1.2:1 of the band in dark (#394360 on #32394d). */
-    background: var(--cm-bg-selected-hover);
+    /* Figma's selected tint; the AA option takes the stronger one, since bg-selected sits within
+       1.2:1 of the band in dark (#394360 on #32394d). */
+    background: var(--cm-tree-parent-selected);
     border-bottom: 4px solid var(--cm-bg-selected-secondary);
     border-radius: 5px 5px 0 0;
 }
@@ -81,7 +79,7 @@ const css = `
 .cm-tree-row[data-tint="child-last"]::before { display: block; }
 .cm-tree-row[data-tint="child-last"]::before { bottom: 4px; border-radius: 0 0 5px 5px; }
 .cm-tree-row[data-tint^="child"]:hover::after,
-.cm-tree-row[data-tint^="child"][data-state="hover"]::after { background: var(--cm-bg-selected); }
+.cm-tree-row[data-tint^="child"][data-state="hover"]::after { background: var(--cm-tree-child-hover); }
 
 /* Keyboard focus (ours; Figma rows take no focus): a 1px ring on the 24 pill area. */
 .cm-tree-ring {
@@ -106,9 +104,9 @@ const css = `
     justify-content: center;
     width: 16px;
     height: 32px;
-    /* Drawn at rest, at 3:1 or more against the panel: a folder that hides its caret until
-       hovered reads as a leaf. */
-    color: var(--cm-icon-secondary);
+    /* Figma: hidden at rest, shown while the pointer is over the panel or the row is open. */
+    color: var(--cm-icon-tertiary);
+    visibility: hidden;
 }
 /* The caret's pointer target: 24 wide, centered on the 16px slot and over its neighbours' edges,
    and the row's full 32px height, so a click anywhere above or below the glyph opens the row. */
@@ -122,6 +120,11 @@ const css = `
     width: 24px;
     height: 32px;
 }
+.cm-tree:hover .cm-tree-caret,
+.cm-tree:focus-within .cm-tree-caret,
+.cm-tree-row:hover .cm-tree-caret,
+.cm-tree-row[data-state="hover"] .cm-tree-caret,
+.cm-tree-row[aria-expanded="true"] .cm-tree-caret { visibility: visible; }
 .cm-tree-check {
     flex: none;
     display: flex;
@@ -227,8 +230,8 @@ const css = `
     .cm-tree-progress[data-indeterminate] .cm-tree-progress-fill { width: 100%; opacity: 0.5; animation: none; }
 }
 
-/* Lock / eye / pin: 24 x 24 hit targets side by side, never overlapping (WCAG 2.5.8), ending 8
-   from the panel edge. Hidden until the row is hovered or focused; a toggle that is on stays
+/* Lock / eye / pin: 24 hit targets on Figma's 20 pitch, ending 8 from the panel edge. The AA
+   option and a coarse pointer set them side by side, each a whole 24 x 24 target (WCAG 2.5.8). Hidden until the row is hovered or focused; a toggle that is on stays
    visible, and so does an action marked data-at-rest (an eye an app shows on every row). */
 .cm-tree-actions {
     flex: none;
@@ -244,6 +247,10 @@ const css = `
 .cm-tree-actions:has(> [data-pinned]):not(:has(button, input)) {
     flex: 0 4 auto;
     min-width: 0;
+}
+.cm-tree-actions > * + * { margin-inline-start: var(--cm-tree-action-overlap); }
+@media (pointer: coarse) {
+    .cm-tree-actions > * + * { margin-inline-start: 0; }
 }
 .cm-tree-actions > [data-pinned]:not(button, :has(button, input)) {
     min-width: 0;
@@ -446,8 +453,6 @@ const css = `
 .cm-result-name,
 .cm-result-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-result-match { font-weight: 600; }
-/* A result reads as the text typed to find it: "->" stays two characters, not Inter's arrow. */
-.cm-result-name { font-feature-settings: "calt" 0; }
 .cm-result-path { font-size: 10px; line-height: 16px; color: var(--cm-text-secondary); }
 /* lines={2}: the name and the path each wrap to a second line before they end in "...". */
 .cm-result-row[data-lines="2"] .cm-result-name,
@@ -641,6 +646,30 @@ const css = `
     white-space: nowrap;
 }
 
+/* ---- EntityChip: a node or edge count or name ------------------------------------------ */
+.cm-entity-chip {
+    flex: none;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    max-width: 100%;
+    padding: 0 6px 0 4px;
+    border: 0;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--cm-entity-ink) 12%, transparent);
+    color: var(--cm-text);
+    ${cmFont("body")}
+    white-space: nowrap;
+}
+.cm-entity-chip[data-kind="node"] { --cm-entity-ink: var(--cm-entity-node); }
+.cm-entity-chip[data-kind="edge"] { --cm-entity-ink: var(--cm-entity-edge); }
+.cm-entity-chip .cm-entity-icon { flex: none; color: var(--cm-entity-ink); }
+.cm-entity-chip .cm-entity-text { overflow: hidden; text-overflow: ellipsis; }
+button.cm-entity-chip { cursor: pointer; }
+button.cm-entity-chip:hover { background: color-mix(in srgb, var(--cm-entity-ink) 20%, transparent); }
+
 /* ---- DataTable (10.6) -------------------------------------------------------------------- */
 .cm-dt { display: flex; flex-direction: column; gap: 8px; width: 100%; color: var(--cm-text); }
 .cm-dt-count { flex: none; color: var(--cm-text-secondary); ${cmFont("body")} }
@@ -687,6 +716,7 @@ const css = `
 .cm-dt.cm-dt-compact .cm-dt-cell.cm-dt-header { padding: 0 4px; }
 .cm-dt .cm-dt-header { ${cmFont("body")} font-weight: 600; letter-spacing: normal; color: var(--cm-text); }
 .cm-dt .cm-dt-row[aria-selected="true"] > .cm-dt-cell { background: var(--cm-bg-selected); }
+.cm-dt .cm-dt-cell[data-tone="warning"] { color: var(--cm-text-warning); }
 /* The active (keyboard) cell: a 1px box drawn inside the cell; the grid line stays. */
 .cm-dt .cm-dt-cell::before,
 .cm-dt .cm-dt-sort::before {
@@ -724,6 +754,22 @@ const css = `
 .cm-dt .cm-dt-header-icon { flex: none; display: inline-flex; align-items: center; color: var(--cm-icon-secondary); }
 .cm-dt .cm-dt-sort[data-with-menu],
 .cm-dt .cm-dt-cell.cm-dt-header[data-with-menu] { padding-inline-end: 32px; }
+/* A header's end controls (a warning): before the menu caret, always shown. */
+.cm-dt .cm-dt-header-end {
+    position: absolute;
+    inset-inline-end: 4px;
+    top: 50%;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    transform: translateY(-50%);
+}
+.cm-dt .cm-dt-header-end[data-with-menu] { inset-inline-end: 32px; }
+.cm-dt .cm-dt-sort[data-with-end],
+.cm-dt .cm-dt-cell.cm-dt-header[data-with-end] { padding-inline-end: 32px; }
+.cm-dt .cm-dt-sort[data-with-end][data-with-menu],
+.cm-dt .cm-dt-cell.cm-dt-header[data-with-end][data-with-menu] { padding-inline-end: 56px; }
 .cm-dt .cm-dt-header-menu {
     position: absolute;
     inset-inline-end: 4px;

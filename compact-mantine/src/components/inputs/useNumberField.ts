@@ -39,15 +39,6 @@ interface NumberFieldOptions {
     onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
 }
 
-/**
- * How many letters a text holds.
- * @param text - the text
- * @returns the count of letters in any script
- */
-function letters(text: string): number {
-    return text.match(/\p{L}/gu)?.length ?? 0;
-}
-
 /** The props the field's `<input>` takes. */
 interface NumberFieldInputProps {
     value: string;
@@ -143,10 +134,8 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         "aria-valuemax": max,
         onChange: (event) => {
             const text = event.currentTarget.value;
-            // A number field refuses a letter as it is typed, rather than taking it and quietly
-            // reverting on commit. Letters already there (a unit, a word the caller showed) can
-            // still be deleted. Locale digits are not letters.
-            if (!locked && letters(text) <= letters(draftRef.current ?? display)) {
+            // A letter is taken as typed and reverts on commit, as in Figma.
+            if (!locked) {
                 setDiscarded(false);
                 setDraft(text);
             }

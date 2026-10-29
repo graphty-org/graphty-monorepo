@@ -216,7 +216,24 @@ interface Building extends FoldableLayer {
     drawn?: Map<Channel, unknown[]>;
     worth: number;
     fallback?: readonly LayerSpec[];
+    /** A layer of an end label's own face, drawn over the rest of its rule's (`END_LABEL_FACE`). */
+    ends?: true;
 }
+
+/**
+ * An end label's own face, which wins over the label's at that end. Each is drawn in a layer of its own over the rest
+ * of its rule's: in the rule's own layer it would take the end caption's channel from the label's, and leave the
+ * edges without a face of their own to the layers under it (dot-specimen-edge-labels drew every other head label in
+ * Graphviz's default 14 point Times once `labelfontsize` was read).
+ */
+const END_LABEL_FACE: ReadonlySet<string> = new Set([
+    "sourceLabelSize",
+    "targetLabelSize",
+    "sourceLabelColor",
+    "targetLabelColor",
+    "sourceLabelFont",
+    "targetLabelFont",
+]);
 
 /** Notes, one per code, kind and property. */
 class Notes {
@@ -650,6 +667,14 @@ function channelPlans(
             ["chartLineWidth", [length("node.chartLineWidth")]],
             ["chartBorderColor", [id("node.chartBorderColor")]],
             ["chartBorderWidth", [length("node.chartBorderWidth")]],
+            ["groupPadding", [length("node.groupPadding")]],
+            ["groupPaddingRatio", [id("node.groupPaddingRatio")]],
+            ["groupPaddingOf", [id("node.groupPaddingOf")]],
+            ["groupMinWidth", [length("node.groupMinWidth")]],
+            ["groupMinHeight", [length("node.groupMinHeight")]],
+            ["groupMinWidthBiasLeft", [id("node.groupMinWidthBiasLeft")]],
+            ["groupMinHeightBiasTop", [id("node.groupMinHeightBiasTop")]],
+            ["groupIncludeLabels", [id("node.groupIncludeLabels")]],
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],
             ["height", [length("node.height")]],
@@ -801,7 +826,25 @@ function channelPlans(
         ["bendCurve", [table("edge.bendCurve", BEND_CURVES)]],
         // a multiple of the distance between the nodes: no unit to convert
         ["arcRadius", [id("edge.arcRadius")]],
+        // A support point's numbers are the file's, in its own units; the unit says how long one is in the scene.
+        [
+            "supportModel",
+            [
+                table("edge.supportModel", SUPPORT_MODELS),
+                {
+                    channel: "edge.supportUnit",
+                    convert: (value) => (typeof value === "string" ? round(factors.scene ?? 1) : null),
+                    identity: false,
+                },
+            ],
+        ],
+        ["supportSpringLength", [id("edge.supportSpringLength")]],
+        ["supportSpringConstant", [id("edge.supportSpringConstant")]],
+        ["supportRepulsion", [id("edge.supportRepulsion")]],
+        ["supportCentralGravity", [id("edge.supportCentralGravity")]],
         ["nodeGap", [length("edge.nodeGap", factors.node * SCENE_PER_UNIT.node)]],
+        ["sourceNodeGap", [length("edge.sourceNodeGap", factors.node * SCENE_PER_UNIT.node)]],
+        ["targetNodeGap", [length("edge.targetNodeGap", factors.node * SCENE_PER_UNIT.node)]],
         ["sourcePort", [id("edge.sourcePort")]],
         ["targetPort", [id("edge.targetPort")]],
         ["label", [id("edge.label")]],
@@ -816,6 +859,14 @@ function channelPlans(
         ["sourceLabelOffsetY", [length("edge.arrowTailTextOffsetY", factors.node * SCENE_PER_UNIT.node)]],
         ["targetLabelRotation", [id("edge.arrowHeadTextRotation")]],
         ["sourceLabelRotation", [id("edge.arrowTailTextRotation")]],
+        // an end label's own face, where the file gives it one apart from the label's (Graphviz's labelfontsize,
+        // labelfontcolor, labelfontname); written after the label's own, so it wins at that end
+        ["targetLabelSize", labelSize("edge.arrowHeadTextSize", "edge.arrowHeadTextLetterSize")],
+        ["sourceLabelSize", labelSize("edge.arrowTailTextSize", "edge.arrowTailTextLetterSize")],
+        ["targetLabelColor", [id("edge.arrowHeadTextColor")]],
+        ["sourceLabelColor", [id("edge.arrowTailTextColor")]],
+        ["targetLabelFont", [id("edge.arrowHeadTextFont")]],
+        ["sourceLabelFont", [id("edge.arrowTailTextFont")]],
         ["labelColor", [label("labelColor"), ...captions("Color")]],
         // Another program draws an edge's end labels in its label's font size (Cytoscape.js, Graphviz); graphty
         // writes its own captions' sizes apart.
@@ -891,6 +942,12 @@ const BEND_CURVES: ReadonlyMap<string, string> = new Map([
     ["arc", "arc"],
 ]);
 
+/** The element's support force law for each neutral one. */
+const SUPPORT_MODELS: ReadonlyMap<string, string> = new Map([
+    ["barnesHut", "barnesHut"],
+    ["forceAtlas2", "forceAtlas2"],
+]);
+
 /** The element's node gradient kind for each neutral one. */
 const NODE_GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
     ["linear", "linear"],
@@ -912,14 +969,18 @@ const CAP_DEPTH: ReadonlyMap<string, number> = new Map([["tee", 0.5]]);
 
 /**
  * How wide an element cap of a neutral arrow shape is across its line, as a fraction of its depth
- * (FilledArrowRenderer). The triangle, the vee and the diamond are drawn in the writing program's triangle
- * proportions (`ToolArrowhead.aspect`), the others where the program states theirs.
+ * (FilledArrowRenderer). The triangle, the inverted triangle, the vee and the diamond are drawn in
+ * the writing program's triangle proportions (`ToolArrowhead.aspect`), the others where the program
+ * states theirs.
  */
 const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["triangle", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["triangle-open", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["vee", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    ["inverted", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["diamond", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    // the crow's three prongs, as wide as the triangle (FilledArrowRenderer.createCrow)
+    ["crow", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["diamond-open", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     ["tee", 3],
     ["square", 1],
@@ -948,6 +1009,8 @@ const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
     "triangle-open",
     "vee",
+    // the triangle turned round (Graphviz inv, vis-network inv_triangle)
+    "inverted",
     "diamond",
     "diamond-open",
 ]);
@@ -957,6 +1020,8 @@ interface ArrowEnd {
     readonly shapes: readonly (StyleValue | null)[];
     /** Its size factor at an edge. */
     readonly size: (i: number) => number;
+    /** The edge's source arrow shapes, which some programs size every arrow of an edge by. */
+    readonly sources: readonly (StyleValue | null)[];
     /** Its length and width against its shape's, per edge. */
     readonly length: readonly (StyleValue | null)[];
     readonly breadth: readonly (StyleValue | null)[];
@@ -997,6 +1062,15 @@ function imageSizeOf(end: ArrowEnd, i: number): { width: number; height: number 
 }
 
 /**
+ * An edge's source arrow shape, as the program's arrowhead sizing reads it.
+ * @param value - The edge's source arrow value.
+ * @returns The shape, or undefined where it holds none.
+ */
+function sourceShapeOf(value: StyleValue | null | undefined): StyleArrowShape | undefined {
+    return typeof value === "string" ? (value as StyleArrowShape) : undefined;
+}
+
+/**
  * An end's arrow size in the program's proportions, as the element's size factor.
  * @param geometry - How the program sizes its arrowheads.
  * @param scene - Scene units per program unit.
@@ -1016,7 +1090,7 @@ function arrowLengthOf(geometry: ToolArrowhead, scene: number, end: ArrowEnd, wi
     const picture = imageSizeOf(end, i);
     const length =
         picture?.height ??
-        geometry.length(end.size(i), width) *
+        geometry.length(end.size(i), width, sourceShapeOf(end.sources[i])) *
             (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) *
             factor(end.length, i);
     return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
@@ -1875,9 +1949,10 @@ class KindTranslation {
      * @param rule - The rule.
      * @param bucket - Its place in rule order.
      * @param selector - What the layer selects.
+     * @param ends - Whether it is the rule's layer of end label faces (`END_LABEL_FACE`).
      * @returns The layer.
      */
-    #layerFor(rule: StyleRule, bucket: number, selector: Selector): Building {
+    #layerFor(rule: StyleRule, bucket: number, selector: Selector, ends = false): Building {
         const key = JSON.stringify(selector);
         // A layer rebuilt from one graphty wrote is never painted into by a later pass.
         const same = this.#built.filter(
@@ -1886,7 +1961,9 @@ class KindTranslation {
                 layer.spec.fileStyle?.ruleId === rule.id &&
                 this.#rebuilt.get(rule) !== layer,
         );
-        const found = same.find((layer) => JSON.stringify(layer.spec.selector) === key);
+        const found = same.find(
+            (layer) => JSON.stringify(layer.spec.selector) === key && (layer.ends ?? false) === ends,
+        );
         if (found !== undefined) {
             return found;
         }
@@ -1913,6 +1990,7 @@ class KindTranslation {
             },
             paint: new Map(),
             worth: kind === "custom" ? 0 : 1000,
+            ...(ends ? { ends: true as const } : {}),
         };
         this.#built.push(layer);
         return layer;
@@ -2057,7 +2135,7 @@ class KindTranslation {
             ...(given.kind === undefined ? {} : { kind: given.kind }),
             selector: this.#scoped(moved),
             ...(given.set === undefined ? {} : { set: given.set }),
-            ...(given.encode === undefined ? {} : { encode: encode }),
+            ...(given.encode === undefined ? {} : { encode: encode as LayerSpec["encode"] }),
             ...(given.userData === undefined ? {} : { userData: given.userData }),
         };
     }
@@ -2197,7 +2275,10 @@ class KindTranslation {
      * @param only - The properties to translate, every one when absent.
      */
     #neutralRule(rule: StyleRule, bucket: number, source: ExtractedStyles, only?: ReadonlySet<string>): void {
-        const props = [...Object.keys(rule.set ?? {}), ...Object.keys(rule.map ?? {})];
+        // an end label's own face last, so its layer is made over the rule's own
+        const props = [...Object.keys(rule.set ?? {}), ...Object.keys(rule.map ?? {})].sort(
+            (a, b) => Number(END_LABEL_FACE.has(a)) - Number(END_LABEL_FACE.has(b)),
+        );
         for (const property of props) {
             if (only !== undefined ? !only.has(property) : COMPOSITE[this.#kind].has(property)) {
                 continue;
@@ -2368,7 +2449,7 @@ class KindTranslation {
         }
 
         const selector = this.#selectorOf(rule.where, source, rule.id);
-        const layer = this.#layerFor(rule, bucket, selector);
+        const layer = this.#layerFor(rule, bucket, selector, END_LABEL_FACE.has(property));
         recordPaint(layer, plan.channel, drawn);
         const set = rule.set?.[property as StyleProperty];
         if (set !== undefined) {
@@ -2762,6 +2843,7 @@ class KindTranslation {
             Head: {
                 shapes: head,
                 size: (i) => factor(size, i),
+                sources: tail,
                 length: headLength,
                 breadth: headWidth,
                 imageWidth: headImageWidth,
@@ -2770,6 +2852,7 @@ class KindTranslation {
             Tail: {
                 shapes: tail,
                 size: (i) => factor(tailSize, i, factor(size, i)),
+                sources: tail,
                 length: tailLength,
                 breadth: tailWidth,
                 imageWidth: tailImageWidth,
@@ -2778,6 +2861,7 @@ class KindTranslation {
             MiddleHead: {
                 shapes: midHead,
                 size: (i) => factor(size, i),
+                sources: tail,
                 length: none,
                 breadth: none,
                 imageWidth: midImageWidth,
@@ -2786,6 +2870,7 @@ class KindTranslation {
             MiddleTail: {
                 shapes: midTail,
                 size: (i) => factor(size, i),
+                sources: tail,
                 length: none,
                 breadth: none,
                 imageWidth: none,

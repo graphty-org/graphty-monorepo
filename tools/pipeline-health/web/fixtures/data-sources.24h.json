@@ -1,0 +1,740 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "24h",
+    "page": "data-sources",
+    "state": "bad",
+    "setBy": {
+        "member": "data-sources.stress_run",
+        "state": "bad",
+        "value": {
+            "word": "filed",
+            "n": 0
+        },
+        "fact": {
+            "code": "short.stress_filed",
+            "params": {
+                "filed": 0,
+                "failures": 27
+            }
+        }
+    },
+    "others": [],
+    "notes": [
+        {
+            "code": "data.note.notsetup",
+            "params": {
+                "n": 4
+            }
+        }
+    ],
+    "members": [
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "code": "sla.passed_and_filed"
+                },
+                "red": {
+                    "code": "sla.filing_failed"
+                }
+            },
+            "link": "/data-sources/stress",
+            "id": "data-sources.stress_run",
+            "value": {
+                "word": "filed",
+                "n": 0
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "code": "sla.past_2x"
+                }
+            },
+            "link": "/data-sources/sources",
+            "id": "data-sources.past_age",
+            "value": {
+                "n": 0
+            },
+            "note": {
+                "code": "data.past_age.note",
+                "params": {
+                    "judged": 8,
+                    "idle": 1,
+                    "notsetup": 3
+                }
+            }
+        },
+        {
+            "state": "ok",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "code": "sla.under_pct",
+                    "params": {
+                        "pct": 20
+                    }
+                },
+                "needs6h": true
+            },
+            "link": "/data-sources/sources",
+            "id": "data-sources.thin",
+            "value": {
+                "n": 0
+            },
+            "value6h": {
+                "n": 0
+            },
+            "n": 54,
+            "minN": 3
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 10,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 20,
+                    "unit": "min"
+                }
+            },
+            "link": "/data-sources/sources",
+            "id": "data-sources.collector",
+            "value": {
+                "n": 2,
+                "unit": "min",
+                "ago": true
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": ">",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 20,
+                    "unit": "pct"
+                }
+            },
+            "link": "/data-sources/sources",
+            "id": "data-sources.app_rate",
+            "value": {
+                "n": 94,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 90,
+                    "unit": "pct"
+                }
+            },
+            "link": "/data-sources/sources",
+            "id": "data-sources.write_budget",
+            "value": {
+                "n": 7,
+                "unit": "pct"
+            },
+            "note": {
+                "code": "data.write_budget.note",
+                "params": {
+                    "limit": 300000
+                }
+            }
+        }
+    ],
+    "sections": [
+        {
+            "kind": "table",
+            "id": "stress",
+            "sub": {
+                "code": "data.stress.sub",
+                "params": {
+                    "workflow": "restricted-cpu-stress.yml"
+                }
+            },
+            "rows": [
+                {
+                    "cells": {
+                        "run": {
+                            "t": "list",
+                            "sep": "comma",
+                            "items": [
+                                {
+                                    "t": "time",
+                                    "at": "2026-10-25T08:42:00Z"
+                                },
+                                {
+                                    "t": "run",
+                                    "id": 40177689577
+                                }
+                            ]
+                        },
+                        "result": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "stress.filing_failed",
+                                    "params": {
+                                        "step": "File the load-sensitive tests",
+                                        "failures": 27,
+                                        "cap": 25,
+                                        "file": "oracle-scorecard.test.ts",
+                                        "cause": "Git LFS pictures missing"
+                                    }
+                                }
+                            }
+                        },
+                        "filed": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "stress.filed_tracked",
+                                "params": {
+                                    "filed": 0,
+                                    "issue": 3539
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "run": {
+                            "t": "time",
+                            "at": "2026-10-18T08:19:00Z"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "stress.found_nothing"
+                            }
+                        },
+                        "filed": {
+                            "t": "num",
+                            "n": 0
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "run": {
+                            "t": "time",
+                            "at": "2026-10-11T10:18:00Z"
+                        },
+                        "result": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "stress.found_nothing"
+                            }
+                        },
+                        "filed": {
+                            "t": "num",
+                            "n": 0
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "sources",
+            "rows": [
+                {
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.collector"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.collector.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T23:28:00Z"
+                        },
+                        "limit": {
+                            "t": "dur",
+                            "s": 900
+                        },
+                        "volume": {
+                            "t": "num",
+                            "n": 100,
+                            "unit": "pct"
+                        },
+                        "error": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.ci-results"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.ci-results.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T23:26:00Z"
+                        },
+                        "limit": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "source.limit_runs",
+                                "params": {
+                                    "h": 2
+                                }
+                            }
+                        },
+                        "volume": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "source.since_no_history",
+                                "params": {
+                                    "since": "2026-10-25T20:42:00Z"
+                                }
+                            }
+                        },
+                        "error": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.ci-timings"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.ci-timings.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T23:26:00Z"
+                        },
+                        "limit": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "source.limit_runs",
+                                "params": {
+                                    "h": 2
+                                }
+                            }
+                        },
+                        "volume": {
+                            "t": "num",
+                            "n": 96,
+                            "unit": "pct"
+                        },
+                        "error": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.releases"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.releases.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T18:24:00Z"
+                        },
+                        "limit": {
+                            "t": "dur",
+                            "s": 25200
+                        },
+                        "volume": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "source.trains",
+                                "params": {
+                                    "got": 4,
+                                    "of": 4
+                                }
+                            }
+                        },
+                        "error": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.npm"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.npm.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T22:52:00Z"
+                        },
+                        "limit": {
+                            "t": "dur",
+                            "s": 10800
+                        },
+                        "volume": {
+                            "t": "none"
+                        },
+                        "error": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.stress"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.stress.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T09:30:00Z"
+                        },
+                        "limit": {
+                            "t": "dur",
+                            "s": 691200
+                        },
+                        "volume": {
+                            "t": "none"
+                        },
+                        "error": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "source.error.filing"
+                            }
+                        },
+                        "state": {
+                            "t": "state",
+                            "state": "bad"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.hosts"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.hosts.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T04:30:00Z"
+                        },
+                        "limit": {
+                            "t": "dur",
+                            "s": 108000
+                        },
+                        "volume": {
+                            "t": "none"
+                        },
+                        "error": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.billing"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.billing.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T13:30:00Z"
+                        },
+                        "limit": {
+                            "t": "dur",
+                            "s": 129600
+                        },
+                        "volume": {
+                            "t": "none"
+                        },
+                        "error": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "none"
+                        }
+                    }
+                },
+                {
+                    "past": true,
+                    "cells": {
+                        "source": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.local"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "source.local.what"
+                                }
+                            }
+                        },
+                        "write": {
+                            "t": "ago",
+                            "at": "2026-10-25T14:30:00Z"
+                        },
+                        "limit": {
+                            "t": "none"
+                        },
+                        "volume": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "source.no_local_gate",
+                                "params": {
+                                    "since": "2026-10-25T00:00:00Z"
+                                }
+                            }
+                        },
+                        "error": {
+                            "t": "none"
+                        },
+                        "state": {
+                            "t": "state",
+                            "state": "idle"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "not-set-up",
+            "rows": [
+                {
+                    "cells": {
+                        "member": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.sentry_usage"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.usage.events"
+                                }
+                            }
+                        },
+                        "on": {
+                            "t": "label",
+                            "code": "page.costs"
+                        },
+                        "unblock": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "unblock.sentry_token"
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "member": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "cost.cloudflare_usage"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "cost.usage.requests"
+                                }
+                            }
+                        },
+                        "on": {
+                            "t": "label",
+                            "code": "page.costs"
+                        },
+                        "unblock": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "unblock.cloudflare_token"
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "member": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "member.releases.channels"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "notsetup.channels.what"
+                                }
+                            }
+                        },
+                        "on": {
+                            "t": "label",
+                            "code": "page.releases"
+                        },
+                        "unblock": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "unblock.channels",
+                                "params": {
+                                    "issue": 3418
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "member": {
+                            "t": "sub",
+                            "main": {
+                                "t": "label",
+                                "code": "source.flaky-feed"
+                            },
+                            "sub": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "notsetup.flaky_feed.what"
+                                }
+                            }
+                        },
+                        "on": {
+                            "t": "label",
+                            "code": "page.flaky"
+                        },
+                        "unblock": {
+                            "t": "fact",
+                            "fact": {
+                                "code": "unblock.flaky_feed"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

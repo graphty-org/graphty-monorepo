@@ -22,24 +22,6 @@ import { Workspace } from "../../Workspace";
 /** A hang guard for the element coming up and runs finishing, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
 
-/**
- * Waits until the element holds the room the store reserves, so the camera has the insets to frame
- * with before the next stable frame is read.
- * @param element - the element.
- * @param store - the workspace store.
- */
-async function insetsInForce(element: HTMLElementTagNameMap["graphty-element"], store: WorkspaceStore): Promise<void> {
-    await waitFor(
-        () => {
-            const held = element.viewInsets;
-            for (const [side, room] of Object.entries(store.get().viewInsets)) {
-                assert.strictEqual(held[side as keyof typeof held], room, `the ${side} inset reached the element`);
-            }
-        },
-        { timeout: TIMEOUT_MS },
-    );
-}
-
 /** Where the pictures for the owner's review go, relative to this file. */
 const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
 
@@ -264,26 +246,32 @@ describe("the canvas key on the real element", () => {
     });
 
     it("at 900 x 700 leaves the drawing at least half the canvas's width", async () => {
-        const { session, element, store } = await longKey();
+        const { session, element } = await longKey();
         const canvas = element.closest<HTMLElement>(".ws-canvas");
         assert.isNotNull(canvas);
         const ids = session.data.nodes().map((node) => node.id);
-        // The key's room is reserved and the graph framed clear of it: wait for the inset, then for
-        // the frame after it to land and settle, and measure the drawing as it stays.
-        await waitFor(
-            () => {
-                assert.isNotEmpty(Object.keys(store.get().viewInsets));
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await insetsInForce(element, store);
+        // The key floats over the drawing, which is framed in the whole canvas: measure it as it stays.
         await element.waitForStableFrame();
-        const xs = ids.flatMap((id) => {
-            const at = element.nodeScreenPosition(id);
-            return at === null || at === undefined ? [] : [at.x];
-        });
-        const span = Math.max(...xs) - Math.min(...xs);
-        assert.isAtLeast(span, (canvas?.clientWidth ?? 0) / 2, "the drawing's width on the canvas");
+        const measure = (): { count: number; min: number; max: number; span: number } => {
+            const xs = ids.flatMap((id) => {
+                const at = element.nodeScreenPosition(id);
+                return at === null || at === undefined ? [] : [at.x];
+            });
+            const min = Math.min(...xs);
+            const max = Math.max(...xs);
+            return { count: xs.length, min, max, span: max - min };
+        };
+        const first = measure();
+        const width = canvas?.clientWidth ?? 0;
+        if (first.span < width / 2) {
+            // Diagnostics for #3767 (passed on retry in CI, never reproduced locally): whether the
+            // "stable" frame was still moving shows in a second measurement after another wait.
+            await element.waitForStableFrame();
+            const again = measure();
+            assert.fail(
+                `the drawing's width on the canvas: ${JSON.stringify({ first, again, canvasWidth: width, nodes: ids.length })}`,
+            );
+        }
         await page.screenshot({ path: `${SHOTS}/key-900x700.png` });
     });
 
@@ -402,16 +390,7 @@ describe("the canvas key on the real element", () => {
             selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
             set: { "node.haloColor": "#ff00ff" },
         });
-        await waitFor(
-            () => {
-                assert.isDefined(
-                    store.get().viewInsets.left ?? store.get().viewInsets.top,
-                    "the key came up and reserved its room",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await insetsInForce(element, store);
+        await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
         await element.waitForStableFrame();
 
         const now = drawn();
@@ -448,8 +427,12 @@ describe("the canvas key on the real element", () => {
             });
         const framed = drawn();
         const unmoved = async (what: string): Promise<void> => {
-            await insetsInForce(element, store);
             await element.waitForStableFrame();
+            assert.deepEqual(
+                element.viewInsets,
+                { top: 0, right: 0, bottom: 0, left: 0 },
+                "the key is an overlay, never a view inset",
+            );
             const now = drawn();
             assert.strictEqual(now.length, framed.length);
             now.forEach((value, at) => {
@@ -465,15 +448,6 @@ describe("the canvas key on the real element", () => {
             set: { "node.color": "#ff00ff" },
         });
         await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await waitFor(
-            () => {
-                assert.isDefined(
-                    store.get().viewInsets.left ?? store.get().viewInsets.top,
-                    "the key came up and reserved its room",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
         await unmoved("the key coming up moved the drawing");
 
         await session.runs.start("louvain");
@@ -496,5 +470,75 @@ describe("the canvas key on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         await unmoved("Undo taking the key away moved the drawing");
+    });
+
+    it("does not come up for an effect, and names the effect when the reader asks for the key", async () => {
+        await page.viewport(1440, 900);
+        const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
+        render(<Workspace store={store} />);
+        const element = await waitFor(
+            () => {
+                const found = document.querySelector("graphty-element");
+                assert.isDefined(found?.session);
+                return found;
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const session = element?.session;
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        await session.config.set({ startingRows: true, editableBase: true });
+        const ids = session.data.nodes().map((node) => node.id);
+        const layer = await session.styles.add({
+            name: "Glowing",
+            target: "node",
+            selector: { match: "ids", nodes: ids.slice(0, 5) },
+            set: { "node.shaders": [{ shader: "uncertainty-aura" }] },
+        });
+        await session.styles.settled();
+        await element?.waitForStableFrame();
+        // A style write of a shader is no reason for the key to come up.
+        assert.isNull(screen.queryByRole("region", { name: "Legend" }));
+        assert.isFalse(store.get().keyHasEntries);
+
+        // Asked for, the key names the shader, as the catalog does.
+        store.set({ legendShown: true, legendAsked: true });
+        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const section = await within(legend).findByRole("group", { name: "Shaders: Glowing" });
+        assert.deepEqual(
+            [...section.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent),
+            ["Aura"],
+        );
+
+        // A shader a project adds is named by its catalog name, as a built-in is.
+        const added = await session.shaders.add(`/* graphty-shader 1
+{ "id": "acme/sticker", "name": "Sticker", "place": "replace" }
+*/
+vec4 shade(NodeInput n) {
+    return vec4(n.color.rgb, step(length(n.uv), 0.9));
+}
+`);
+        assert.isTrue(added.ok, JSON.stringify(added));
+        const sticker = added.ok ? added.descriptor.id : "";
+        await session.styles.update(layer.id, {
+            set: { "node.shaders": [{ shader: "uncertainty-aura" }, { shader: sticker }] },
+        });
+        await session.styles.settled();
+        await waitFor(() => {
+            const now = within(legend).getByRole("group", { name: "Shaders: Glowing" });
+            assert.deepEqual(
+                [...now.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent),
+                ["Aura, Sticker"],
+            );
+        });
+
+        // A shader the layer turns off draws nothing, so its block goes: no empty "Shaders" block.
+        await session.styles.update(layer.id, { set: { "node.shaders": [{ shader: "uncertainty-aura", off: true }] } });
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.isNull(within(legend).queryByRole("group", { name: /^Shaders/ }));
+        });
     });
 });

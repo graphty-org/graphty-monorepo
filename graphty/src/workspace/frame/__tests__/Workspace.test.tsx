@@ -1,11 +1,14 @@
 /**
  * The workspace frame without the element: what it draws, its menus, its keys, rename, the
- * notice slot and the build stamp. The element is not registered in this file, so its tag stays
- * an empty box and no session arrives; `Workspace.real-element.test.tsx` covers the element.
+ * notice slot and the build stamp. The element is not registered in this file, so its host holds
+ * an empty box where the tag goes once defined and no session arrives;
+ * `Workspace.real-element.test.tsx` covers the element.
  */
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { storyWaitOptions } from "../../../stories/wait";
+import { pickSample } from "../../../test/samples-dialog";
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
@@ -58,7 +61,7 @@ describe("the workspace frame", () => {
         renderWorkspace();
 
         assert.isNull(screen.queryByRole("banner", { name: "Project" }));
-        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        await pickSample("Florentine families");
 
         assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Places" }));
@@ -68,9 +71,18 @@ describe("the workspace frame", () => {
     it("draws every region", () => {
         renderWorkspace(OPEN);
 
-        assert.isNotNull(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        // The privacy chip reports state, so it sits in the status bar along the bottom, not the header.
+        const bar = screen.getByRole("contentinfo", { name: "Status" });
+        assert.isNotNull(within(bar).getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        assert.isNull(
+            within(screen.getByRole("banner", { name: "Project" })).queryByRole("button", {
+                name: /^(Local only|Usage data on, content masked)$/,
+            }),
+        );
+        const frame = document.querySelector(".ws-app");
+        assert.strictEqual(frame?.lastElementChild, bar, "the bar is the frame's bottom row");
         assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
-        assert.isNotNull(document.querySelector("graphty-element"));
+        assert.isNotNull(document.querySelector('[data-element-host="loading"]'));
         // The one main landmark needs no name, so the rail's Graph button is the only "Graph".
         assert.lengthOf(screen.getAllByRole("main"), 1);
         assert.isNull(screen.getByRole("main").getAttribute("aria-label"));
@@ -104,7 +116,7 @@ describe("the workspace frame", () => {
 
         assert.isNotNull(screen.getByRole("region", { name: "Data page" }));
         assert.isFalse(document.querySelector('aside[aria-label="Inspector"]')?.checkVisibility());
-        assert.isNotNull(document.querySelector("graphty-element"));
+        assert.isNotNull(document.querySelector('[data-element-host="loading"]'));
         // The Data place is lit while the Data page shows (tier1-design.md 2.10).
         assert.equal(screen.getByRole("button", { name: "Data" }).getAttribute("aria-current"), "page");
     });
@@ -200,23 +212,6 @@ describe("the workspace frame", () => {
         assert.isNull(screen.queryByRole("menu"));
     });
 
-    it("draws the start screen's shorter menu, without the rows that need a project", async () => {
-        renderWorkspace();
-
-        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        const rows = within(await screen.findByRole("menu"))
-            .getAllByRole("menuitem")
-            .map(rowLabel);
-        assert.deepEqual(rows, [
-            "New project",
-            "Open project or file...",
-            "Open sample",
-            "Settings...",
-            "Keyboard shortcuts",
-            "Help",
-        ]);
-    });
-
     it("shows a disabled command with its reason and keeps it focusable", async () => {
         renderWorkspace(OPEN);
 
@@ -227,7 +222,7 @@ describe("the workspace frame", () => {
         assert.notStrictEqual(undo.tabIndex, -1);
         assert.notStrictEqual(screen.getByRole("button", { name: "Redo" }).tabIndex, -1);
         await userEvent.hover(undo);
-        assert.isNotNull(await screen.findByText("Nothing to undo", undefined, { timeout: 3000 }));
+        assert.isNotNull(await screen.findByText("Nothing to undo", undefined, storyWaitOptions(3000)));
     });
 
     it("says what the Main menu holds and where the privacy chip leads, in tooltips", async () => {
@@ -235,11 +230,11 @@ describe("the workspace frame", () => {
 
         await userEvent.hover(screen.getByRole("button", { name: "Main menu" }));
         assert.isNotNull(
-            await screen.findByText("Main menu: open, save, export, settings", undefined, { timeout: 3000 }),
+            await screen.findByText("Main menu: open, save, export, settings", undefined, storyWaitOptions(3000)),
         );
         await userEvent.unhover(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.hover(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
-        assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined, { timeout: 3000 }));
+        assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined, storyWaitOptions(3000)));
     });
 
     it("renames the project with F2 and with a tap on its name", async () => {

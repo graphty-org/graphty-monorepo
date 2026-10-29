@@ -17,6 +17,8 @@ export const REST_DESCRIPTOR: SourceDescriptor = Object.freeze({
     version: 1,
     auth: ["bearer", "api-key"],
     authRequired: "optional",
+    // ponytail: a mapping without `expand` or paging cannot do either; per-mapping features when a form needs them
+    features: ["expand", "probe", "validate", "page"],
     params: [{ name: "mapping", plainName: "Mapping", type: "text", required: true }],
     samples: [
         {
@@ -47,7 +49,13 @@ export const OPENALEX_DESCRIPTOR: SourceDescriptor = Object.freeze({
     defaultEndpoint: "https://api.openalex.org",
     auth: ["api-key"],
     authRequired: "optional",
+    // OpenAlex documents its key as the api_key query parameter
+    credentials: [
+        { name: "api_key", kind: "api-key", required: false, plainName: "API key", send: { query: "api_key" } },
+    ],
+    apiKey: { query: "api_key" },
     rateLimit: { requests: 10, perMs: 1000 },
+    features: ["expand", "probe", "validate", "page"],
     params: [
         { name: "work", plainName: "Work", type: "string" },
         { name: "author", plainName: "Author", type: "string" },
@@ -69,6 +77,7 @@ export const OPENALEX_DESCRIPTOR: SourceDescriptor = Object.freeze({
             plainName: "Watts-Strogatz paper's citations",
             params: { work: "W2112090702" },
             whole: false,
+            firstPage: 200,
         },
     ],
 });

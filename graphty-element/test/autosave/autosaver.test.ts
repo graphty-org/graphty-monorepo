@@ -283,6 +283,7 @@ describe("the parts a change writes", () => {
             "data",
             "rest",
             "run:links",
+            "sources",
             "stash",
         ]);
     });
@@ -425,6 +426,47 @@ describe("fencing", () => {
     });
 });
 
+/**
+ * Web Locks' order: a claim is granted or refused when it is made, but its answer reaches the page
+ * later. `gate` holds back the answers until `open`, so two claims of one lock are in flight at once.
+ */
+class GatedLocks extends FakeLocks {
+    #held: (() => void)[] | null = null;
+    #asked: () => void = () => undefined;
+    /** Settles once a claim is made while gated. */
+    asked: Promise<void> = Promise.resolve();
+
+    gate(): void {
+        this.#held = [];
+        this.asked = new Promise((resolve) => {
+            this.#asked = resolve;
+        });
+    }
+
+    open(): void {
+        const held = this.#held ?? [];
+        this.#held = null;
+        held.forEach((answer) => {
+            answer();
+        });
+    }
+
+    override claim(name: string): Promise<(() => void) | null> {
+        const answer = super.claim(name);
+        const held = this.#held;
+        if (held === null) {
+            return answer;
+        }
+
+        this.#asked();
+        return new Promise((resolve) => {
+            held.push(() => {
+                resolve(answer);
+            });
+        });
+    }
+}
+
 describe("the back/forward cache", () => {
     it("releases the lock at once on entering it, and resume and pageshow together take it back once", async () => {
         const { saver, locks } = await written();
@@ -439,6 +481,32 @@ describe("the back/forward cache", () => {
         await Promise.all([saver.reclaim(), saver.reclaim()]);
         assert.strictEqual(saver.status.entry, id, "the page keeps its own entry");
         assert.isTrue((await locks.held()).has(name), "and holds its lock again");
+    });
+
+    it("keeps its own entry when a write after pagehide and the reclaim at pageshow both claim its lock", async () => {
+        const locks = new GatedLocks();
+        const { session, saver } = await written({ locks });
+        const id = saver.status.entry ?? "";
+        await session.styles.add(STYLE);
+
+        // pagehide, persisted: a write starts, and the lock is released before Chrome freezes the page.
+        const pagehide = saver.flush(true);
+        saver.releaseLockNow();
+        // visibilitychange (hidden) asks for another write, which, with the lock released, claims it.
+        locks.gate();
+        const hidden = saver.flush(true);
+        await locks.asked;
+        // pageshow: the page is back, and claims the same lock while the write's claim is in flight.
+        const reclaimed = saver.reclaim();
+        locks.open();
+        await Promise.all([pagehide, hidden, reclaimed]);
+        await saver.settled();
+
+        assert.strictEqual(saver.status.entry, id, "the page keeps its own entry");
+        assert.strictEqual(saver.status.state, "saved");
+        assert.isTrue((await locks.held()).has(lockName(KEY, id)), "it holds its lock");
+        saver.releaseLockNow();
+        assert.isFalse((await locks.held()).has(lockName(KEY, id)), "and can release it: no claim was lost");
     });
 });
 
@@ -744,5 +812,41 @@ describe("status", () => {
         assert.strictEqual(saver.status.revision, 2);
         assert.isTrue(saver.status.unexported);
         assert.isString(saver.status.savedAt);
+    });
+});
+
+describe("timeline playback", () => {
+    it("writes nothing while time plays, and once after the pause", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "csv",
+            config: { data: "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,2026-01-03\nD,E,2026-01-04\n" },
+        });
+        const { store, clock, saver } = await written({ session });
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.setSettings({ step: "day" });
+        await saver.flush();
+        const before = store.log.length;
+
+        const steps: number[] = [];
+        await new Promise<void>((resolve) => {
+            session.on("time:step", (step) => {
+                steps.push(step.index);
+                // Every timer autosave could have armed falls due between two steps.
+                clock.advance(60_000);
+            });
+            session.on("time:pause", () => {
+                resolve();
+            });
+            session.time.play({ interval: 0 });
+        });
+
+        assert.isAbove(steps.length, 2);
+        assert.strictEqual(store.log.length, before, "no write while playing");
+        clock.advance(60_000);
+        await vi.waitFor(() => {
+            assert.strictEqual(store.log.length, before + 1, "one write after the pause");
+        });
+        session.dispose();
     });
 });

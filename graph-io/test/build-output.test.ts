@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const FORMAT_DIRS = readdirSync(resolve("./src/formats")).sort();
 
 /** The network source subpaths, `./sources/<name>`, built as dist/sources-<name>.js. */
-const SOURCE_DIRS = ["cypher", "ndex", "rest"];
+const SOURCE_DIRS = ["cypher", "ndex", "rest", "sparql"];
 
 interface PackageJsonShape {
     name: string;
@@ -207,7 +207,13 @@ describe("Build Output Tests", () => {
     it.skipIf(!bundleExists)("should have built every subpath entry with its one-line declaration", () => {
         for (const dir of FORMAT_DIRS) {
             expect(existsSync(resolve(`./dist/${dir}.js`)), dir).toBe(true);
-            expect(existsSync(resolve(`./dist/${dir}.js.map`)), dir).toBe(true);
+            // Vite 8 (Rolldown) writes no map for a facade entry, one that only imports and re-exports its
+            // chunks: it has no code of its own to map. Such an entry's chunks carry the maps.
+            const facade = readFileSync(resolve(`./dist/${dir}.js`), "utf-8")
+                .trim()
+                .split("\n")
+                .every((line) => /^(import|export) \{[^}]*\}( from "\.\/chunks\/[^"]+\.js")?;$/.test(line));
+            expect(facade || existsSync(resolve(`./dist/${dir}.js.map`)), dir).toBe(true);
             expect(existsSync(resolve(`./dist/src/formats/${dir}/index.d.ts`)), dir).toBe(true);
             const dts = readFileSync(resolve(`./dist/${dir}.d.ts`), "utf-8");
             expect(dts.trim(), dir).toBe(`export * from "./src/formats/${dir}/index.js";`);
@@ -217,7 +223,7 @@ describe("Build Output Tests", () => {
     it.skipIf(!bundleExists)("lets a bundler drop the default registry when only FormatRegistry is imported", () => {
         // without the annotation every format stays in a bundle that registers one format of its own
         expect(readFileSync(resolve("./dist/graph-io.js"), "utf-8")).toMatch(
-            /const registry = \/\* @__PURE__ \*\/ createRegistry\(\);/,
+            /(?:const|var) registry = \/\* @__PURE__ \*\/ createRegistry\(\);/,
         );
     });
 

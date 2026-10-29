@@ -24,7 +24,11 @@ import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
+import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
+import type { ModelDescriptor } from "./models";
+import type { ScreenshotPreset } from "./screenshotPresets";
+import type { ShaderDescriptor, ShaderText, ShaderUse } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -59,6 +63,42 @@ export type EdgeId = string;
  */
 export type ElementAtResult =
     { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
+
+/**
+ * What `element.groupOutlineAt(point)` finds under a point: a group outline a style layer draws (a
+ * use at the place `group` on its `node.shaders`), by its layer, its shader and its group, the
+ * topmost outline first. `group` is the group's `groupBy` value, null for a use drawing one outline.
+ * @since 3.36.0
+ */
+export interface GroupOutlineAtResult {
+    readonly kind: "group-outline";
+    readonly layer: LayerId;
+    readonly shader: string;
+    readonly group: string | number | boolean | null;
+}
+
+/**
+ * What the element's shaders draw now, as `element.drawnShaders()` reads it: for tools, tests and
+ * an application that shows whether an effect is playing. Read it again after a frame; it is not
+ * a live value.
+ * @since 3.36.0
+ */
+export interface DrawnShaders {
+    /**
+     * Per node shader id, at any place: how many uses of it nodes draw now, and how many of them
+     * are playing their entrance (a reticle's snap, a shockwave's ring) at this moment.
+     */
+    readonly nodes: ReadonlyMap<string, { readonly drawn: number; readonly entering: number }>;
+    /**
+     * The group outlines drawn on the last frame, bottom first: each one's layer, shader and the
+     * `groupBy` value of each group it outlines (null for a use drawing one outline).
+     */
+    readonly groupOutlines: readonly {
+        readonly layer: LayerId;
+        readonly shader: string;
+        readonly groups: readonly (string | number | boolean | null)[];
+    }[];
+}
 
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
@@ -184,6 +224,7 @@ export const KNOWN_LAYOUT_IDS = [
     "layers",
     "fixed",
     "random",
+    "location-map",
 ] as const;
 
 /** A layout id: a built-in name, or a plugin's. */
@@ -481,16 +522,37 @@ export const OPTION_TYPES = [
     "attribute",
     "partition",
     "ordering",
+    /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
+    "color",
     "unknown",
 ] as const;
 
 /** The kind of control an option asks for. */
 export type OptionType = (typeof OPTION_TYPES)[number];
 
-/** One choice offered by an option whose type is "enum". */
+/** One choice offered by an option whose type is "enum", or a column `catalog.optionsFor` lists. */
 export interface OptionChoice {
     value: string;
     label: string;
+    /**
+     * Why this choice does not fit the option, when it does not: a column whose values the
+     * option cannot read. A form lists such a choice after the fitting ones, disabled, and writes
+     * the words for the code. Absent for a choice that fits.
+     * @since 3.31.0
+     */
+    refusal?: OptionChoiceRefusal;
+}
+
+/**
+ * Why a column does not fit a location option of the `location-map` layout:
+ * `location.column-unfit`, with `params.role` (`latitude`, `longitude` or `location`) and
+ * `params.share`, the share of its values read in that role (0 to 1; a column fits from 0.5).
+ * New codes may be added in a minor release.
+ * @since 3.31.0
+ */
+export interface OptionChoiceRefusal {
+    readonly code: "location.column-unfit";
+    readonly params: { readonly role: "latitude" | "longitude" | "location"; readonly share: number };
 }
 
 /**
@@ -594,6 +656,7 @@ export type Channel =
     | "node.haloScale"
     | "node.haloOpacity"
     | "node.wireframe"
+    | "node.meshDetail"
     | "node.flat"
     | "node.unlit"
     | "node.marker"
@@ -689,6 +752,21 @@ export type Channel =
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.model"
+    | "node.modelSourceUp"
+    | "node.modelTurn"
+    | "node.modelTint"
+    | "node.modelFit"
+    | "node.modelCenter"
+    | "node.texture"
+    | "node.groupPadding"
+    | "node.groupPaddingRatio"
+    | "node.groupPaddingOf"
+    | "node.groupMinWidth"
+    | "node.groupMinHeight"
+    | "node.groupMinWidthBiasLeft"
+    | "node.groupMinHeightBiasTop"
+    | "node.groupIncludeLabels"
     | "edge.color"
     | "edge.width"
     | "edge.minScreenWidth"
@@ -719,7 +797,17 @@ export type Channel =
     | "edge.fanned"
     | "edge.bendCurve"
     | "edge.arcRadius"
+    | "edge.supportModel"
+    | "edge.supportSpringLength"
+    | "edge.supportSpringConstant"
+    | "edge.supportRepulsion"
+    | "edge.supportCentralGravity"
+    | "edge.supportUnit"
+    | "edge.route"
+    | "edge.arcHeight"
     | "edge.nodeGap"
+    | "edge.sourceNodeGap"
+    | "edge.targetNodeGap"
     | "edge.sourcePort"
     | "edge.targetPort"
     | "edge.arrowHead"
@@ -794,8 +882,13 @@ export type Channel =
     | "node.tooltipColor"
     | "node.tooltipBackground"
     | "edge.visible"
+    | "edge.labelBackground"
     | "edge.arrowHeadTextBackground"
     | "edge.arrowTailTextBackground"
+    | "node.shaders"
+    | "edge.shaders"
+    | "edge.taper"
+    | "edge.lift"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
     | "edge.labelWrapEllipsis"
@@ -807,7 +900,6 @@ export type Channel =
     | "edge.labelTextAlign"
     | "edge.labelLocation"
     | "edge.labelRotation"
-    | "edge.labelBackground"
     | "edge.labelOutline"
     | "edge.labelOutlineWidth"
     | "edge.labelBorder"
@@ -862,8 +954,20 @@ export interface Rgba {
  */
 export type { LabelStyle } from "./label-style";
 
-/** A literal value written to a channel. */
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
+/**
+ * A literal value written to a channel. The shader channels (`node.shaders`, `edge.shaders`) take
+ * a list of {@link ShaderUse}.
+ */
+export type ChannelValue = string | number | boolean | LabelStyle | Rgba | readonly ShaderUse[];
+
+/**
+ * An `encode` key that binds one shader parameter per element:
+ * `"<target>.shaders.<shader id>.<parameter id>"`, such as `"node.shaders.uncertainty-aura.intensity"`.
+ * It binds that parameter on the layer's own uses of the shader. The parameter must be declared
+ * `varies`.
+ * @since 3.36.0
+ */
+export type ShaderParamAddress = `${"node" | "edge"}.shaders.${string}.${string}`;
 
 /** Literal values, one per channel. */
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
@@ -1048,8 +1152,11 @@ export type Binding =
           choices?: string[];
       };
 
-/** Declarative attribute-to-channel bindings. */
-export type Encoding = Partial<Record<Channel, Binding>>;
+/**
+ * Declarative attribute-to-channel bindings. A key is a channel, or a shader parameter's address
+ * (see {@link ShaderParamAddress}).
+ */
+export type Encoding = Partial<Record<Channel, Binding>> & { [address: ShaderParamAddress]: Binding };
 
 /**
  * What a "top N" does with the tie group its cut falls in. `"fewer"` (the default) leaves the
@@ -1093,11 +1200,13 @@ export type Selector =
     | { match: "rule"; where: RuleTree; edges?: EdgeReading }
     /**
      * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-     * edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
-     * each change with no step.
+     * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
+     * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
+     * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
+     * follows each change with no step.
      * @since 3.26.0
      */
-    | { match: "state"; state: "selected" | "hovered" }
+    | { match: "state"; state: "selected" | "hovered" | "ghosted" | "pinned" }
     /**
      * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
      * or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
@@ -1195,6 +1304,12 @@ export interface StyleDocument {
      * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.
      */
     tree?: readonly StyleDocumentRow[];
+    /**
+     * The text of each pasted shader the layers name, verbatim in the shader text format, so a
+     * document copied alone keeps its shaders. Absent when the layers name none.
+     * @since 3.36.0
+     */
+    shaders?: readonly { readonly id: string; readonly text: ShaderText }[];
 }
 
 /** One row of a saved style tree: a layer, by its place in the document, or a folder. */
@@ -1497,11 +1612,25 @@ export interface FunctionDescriptor {
  * What a column does for the graph, beyond holding values: the node ids were read from it
  * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
  * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
- * (`"edgeId"`).
+ * (`"edgeId"`), or node locations are read from it, one column per kind (`"latitude"`,
+ * `"longitude"`, `"coordinates"`, `"country"`, `"region"`, `"city"`).
  *
  * OPEN UNION: roles may be added in a minor release; handle unknown roles.
  */
-export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+export type AttributeRole =
+    | "key"
+    | "label"
+    | "weight"
+    | "source"
+    | "target"
+    | "time"
+    | "edgeId"
+    | "latitude"
+    | "longitude"
+    | "coordinates"
+    | "country"
+    | "region"
+    | "city";
 
 /**
  * One thing that reads a column: a style layer whose selector or bindings read it, or a finished
@@ -1573,6 +1702,24 @@ export interface AttributeDescriptor {
      * ```
      */
     usedBy?: readonly AttributeUse[];
+    /**
+     * The loads whose rows carry the column, oldest first (`session.data.sources()` keys). Absent
+     * when no load recorded what it supplied.
+     */
+    sources?: readonly SourceKey[];
+    /**
+     * True when the column was hidden with `session.data.setHidden`; absent otherwise. Its values
+     * are all still there: what to leave out for a hidden column is the consumer's choice.
+     * @since 3.30.0
+     */
+    hidden?: boolean;
+    /**
+     * True when every value is a whole number from 1000 to 2999 and they span 500 or less, as a
+     * column of years does (`1975`); absent otherwise. A consumer that groups digits may leave
+     * them ungrouped for such a column: `1975`, not `1,975`.
+     * @since 3.30.0
+     */
+    yearLike?: true;
 }
 
 /**
@@ -1794,8 +1941,8 @@ export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" 
  * `repeated-edge` speak edges; `range` and `categories` speak each half whose elements carry the
  * attribute (one on `data.weight` speaks edges); `member` speaks the referenced set's nodes, and
  * its edges only when that set is read `listed` or `clipped` (`"visible"` is); `item` and
- * `threshold` speak the half or halves their field lives on; every other leaf speaks nodes. A
- * group with no members constrains nothing.
+ * `threshold` speak the half or halves their field lives on; `source` speaks both halves, or the
+ * one its `side` names; every other leaf speaks nodes. A group with no members constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
@@ -1887,9 +2034,33 @@ export type RuleTree =
           /** Which nodes the leaf keeps when its value lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
       }
+    /**
+     * The nodes and edges any of these loads supplied (`session.data.sources()` keys): what
+     * `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
+     * Speaks nodes and edges.
+     */
+    | {
+          readonly kind: "source";
+          readonly sources: readonly SourceKey[];
+          /**
+           * Which half the rule speaks: both when absent; `"nodes"` keeps the nodes the loads
+           * supplied and leaves every edge between them, whichever load supplied it; `"edges"`
+           * keeps only the edges they supplied. @since 3.30.0
+           */
+          readonly side?: RuleSide;
+      }
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * Which half of the graph a `source` rule leaf speaks: its nodes or its edges.
+ * @since 3.30.0
+ */
+export type RuleSide = "nodes" | "edges";
+
+/** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
+export type SourceKey = string; // NOSONAR(S6564): a named public type in the API report; removing it breaks consumers
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.
@@ -2113,6 +2284,18 @@ export interface CatalogApi {
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
     /**
+     * Every shader the element can draw: its presets first, then shaders registered through
+     * `registerShader` or `defineShader`.
+     * @since 3.36.0
+     */
+    shaders(): readonly ShaderDescriptor[];
+    /**
+     * Every layout transition `layoutTransition` can name: the element's presets first, then the
+     * ones registered through `registerTransition`.
+     * @since 3.36.0
+     */
+    transitions(): readonly TransitionDescriptor[];
+    /**
      * Every graph generator `session.data.generate` runs, with a default name, one sentence and
      * its parameters with their defaults and ranges. Supplied by @graphty/graph-samples.
      */
@@ -2122,6 +2305,17 @@ export interface CatalogApi {
      * and license. Supplied by @graphty/graph-samples.
      */
     datasets(): readonly DatasetMeta[];
+    /**
+     * Every sample 3D model graphty-element ships, which a style layer names in `node.model`
+     * (`"asset:sample/server"`) without adding a file, with a plain name and a thumbnail picture.
+     */
+    models(): readonly ModelDescriptor[];
+    /**
+     * Every screenshot preset `captureScreenshot({ preset })` takes, with the size, format and
+     * background each sets, so an export dialog can show them. Static; also published as
+     * `SCREENSHOT_PRESET_DESCRIPTORS` from the `./catalog` entry.
+     */
+    screenshotPresets(): readonly ScreenshotPreset[];
     /**
      * @deprecated Not implemented. Removed at the next major release unless it is implemented
      * first (issue #331).

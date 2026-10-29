@@ -12,8 +12,9 @@ import { browserProjects, type GraphSession, isGraphtyError, projectFileName } f
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { focusOpenedGraph } from "../frame/focus";
-import { newProjectId, type WorkspaceStore } from "../state/store";
+import { focusOpenedGraphLater } from "../frame/focus";
+import { runHeld, withHeldShaders } from "../settings/heldShaders";
+import { newProjectId, type Notice, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 
@@ -37,22 +38,31 @@ interface ProjectFileState {
     reading: boolean;
 }
 
-/** Where a file being opened came from. */
-interface FileSource {
+/** Where a file being opened came from, and what to do when graphty-element reads it as data. */
+export interface FileSource {
     /** Its handle, where the browser keeps them. */
     handle?: FileSystemFileHandle;
-    /** Its Recent projects entry, for a remembered file. */
+    /** Its Recent projects entry, when opened from there. */
     recentId?: string;
     /** Its `browserProjects` id, for a project kept in this browser. */
     storedId?: string;
+    /** The new project's name until the file names it, when it opens from the start screen. */
+    name?: string;
+    /**
+     * Imports the file when `project.open` reads it as data (`opened: "graph"`) rather than a
+     * project; `fresh` when it opens a new project from the start screen.
+     */
+    onData?: (ctx: CommandContext, fresh: boolean) => Promise<void>;
 }
 
-/** A file waiting to open, where it came from, and whether its project is new. */
+/** A file waiting to open, and whether it opens a new project from the start screen. */
 interface PendingFile extends FileSource {
     file: File;
-    /** Opened from the start screen: a data file loads as the new project, not into one. */
     fresh?: boolean;
 }
+
+/** The codes `project.open` refuses a data file with, as `session.data.prepare` does. */
+const DATA_REFUSALS: ReadonlySet<string> = new Set(["E_UNKNOWN_FORMAT", "E_PARSE_FAILED"]);
 
 const states = new WeakMap<WorkspaceStore, ProjectFileState>();
 
@@ -362,6 +372,7 @@ type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
  * @param report - what the element said of the file.
  * @param file - the file.
  * @param fresh - whether it opens as a new graph, from the start screen.
+ * @param focusLater - moves focus to the opened graph, unless the reader moved it meanwhile.
  */
 function openedData(
     workspace: CommandContext["workspace"],
@@ -369,6 +380,7 @@ function openedData(
     report: OpenReport,
     file: File,
     fresh: boolean,
+    focusLater: (focus?: boolean) => void,
 ): void {
     if (report.opened === "graph") {
         // A data file goes through the Data page, where its roles and weight are chosen like
@@ -379,14 +391,13 @@ function openedData(
             workspace.set({ project: null });
         }
         openDataPage(workspace, { intent: fresh ? "new" : "add", files: [file] });
+        focusLater(false);
         return;
     }
-    if (fresh) {
-        // Opened as a new graph, so it starts its history (a project file does so itself).
-        session.history.clear();
-        focusOpenedGraph();
-    } else {
-        workspace.set({ notice: { message: `Added ${file.name} to this project` } });
+    // Opened as a new graph, it started its history (`history: "start"`).
+    focusLater(fresh);
+    if (!fresh) {
+        workspace.set({ notice: heldNotice(workspace, session, { message: `Added ${file.name} to this project` }) });
     }
 }
 
@@ -397,18 +408,22 @@ function openedData(
  * @param session - the session.
  * @param report - what the element said of the file.
  * @param pending - the file and where it came from.
+ * @param focusLater - moves focus to the opened graph, unless the reader moved it meanwhile.
  */
 async function openedProject(
     workspace: CommandContext["workspace"],
     session: GraphSession,
     report: OpenReport,
     pending: PendingFile,
+    focusLater: (focus?: boolean) => void,
 ): Promise<void> {
     const name = report.name ?? headerName(workspace);
     // The inspector shows the project that opened, and focus goes to its heading: whatever
     // row or control held focus belonged to the graph it replaced.
     workspace.set((state) => ({ project: state.project && { ...state.project, name }, inspected: null }));
-    requestAnimationFrame(focusOpenedGraph);
+    requestAnimationFrame(() => {
+        focusLater();
+    });
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;
     state.recentId = pending.recentId ?? null;
@@ -416,9 +431,9 @@ async function openedProject(
     const lost = report.problems.length;
     const parts = lost === 1 ? "part" : "parts";
     workspace.set({
-        notice: {
+        notice: heldNotice(workspace, session, {
             message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
-        },
+        }),
     });
 }
 
@@ -450,6 +465,25 @@ function openFailed(ctx: CommandContext, session: GraphSession, pending: Pending
 }
 
 /**
+ * A load's notice, naming the shaders the element held from the file, with Run, which runs each
+ * through its checks and says how many did not pass.
+ * @param workspace - the workspace store.
+ * @param session - the session.
+ * @param notice - the load's notice.
+ * @returns the notice.
+ */
+function heldNotice(workspace: WorkspaceStore, session: GraphSession, notice: Notice): Notice {
+    return withHeldShaders(session, notice, () => {
+        void runHeld(session).then((failed) => {
+            if (failed > 0) {
+                const shaders = failed === 1 ? "1 shader" : `${String(failed)} shaders`;
+                workspace.set({ notice: { message: `${shaders} did not pass the checks`, error: true } });
+            }
+        });
+    });
+}
+
+/**
  * Opens a file in the session through graphty-element's one intake verb, `project.open`. A
  * project file replaces the project (refused over unsaved changes until the reader says Discard);
  * the header takes the project's name, and Save writes the browser-kept project it came from
@@ -467,15 +501,34 @@ async function openInSession(
     pending: PendingFile,
     discard: boolean,
 ): Promise<boolean> {
-    const { file, fresh = false } = pending;
+    const { file, onData, fresh = false } = pending;
+    const focusLater = focusOpenedGraphLater();
     try {
-        const report = await session.project.open(file, { discard, fileName: file.name });
-        if (report.opened !== "project") {
-            openedData(ctx.workspace, session, report, file, fresh);
+        // From the start screen a document opens as a new graph, so it starts the history.
+        const report = await session.project.open(file, {
+            discard,
+            fileName: file.name,
+            ...(fresh ? { history: "start" as const } : {}),
+        });
+        if (report.opened === "graph" && onData !== undefined) {
+            // A data file: imported the way the caller imports one, not as the element's draft.
+            focusLater(false);
+            report.draft?.dispose();
+            await onData(ctx, fresh);
             return true;
         }
-        await openedProject(ctx.workspace, session, report, pending);
+        if (report.opened !== "project") {
+            openedData(ctx.workspace, session, report, file, fresh, focusLater);
+            return true;
+        }
+        await openedProject(ctx.workspace, session, report, pending, focusLater);
     } catch (error) {
+        focusLater(false);
+        if (onData !== undefined && isGraphtyError(error) && DATA_REFUSALS.has(error.code)) {
+            // A data file the element could not read: the data import says why, in its own words.
+            await onData(ctx, fresh);
+            return true;
+        }
         return openFailed(ctx, session, pending, error);
     }
     return true;
@@ -488,17 +541,19 @@ async function openInSession(
  * reads the file once it is up, and a data file then opens the Data page as a new graph.
  * @param ctx - the command context.
  * @param file - the file.
- * @param source - where it came from: its handle, Recent projects entry or browser-kept project.
+ * @param source - where it came from: its handle, Recent projects entry or browser-kept project;
+ *     the new project's name; and how to import it as data (`onData`), in place of the Data page.
  */
 export async function openProjectFile(ctx: CommandContext, file: File, source: FileSource = {}): Promise<void> {
-    const pending: PendingFile = { file, ...source };
+    const { name = withoutExtension(file.name), ...from } = source;
+    const pending: PendingFile = { file, ...from };
     if (ctx.workspace.get().project !== null && ctx.session !== null) {
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
     fileState(ctx.workspace).pending = { ...pending, fresh: true };
     ctx.workspace.set((state) => ({
-        project: { name: withoutExtension(file.name), id: newProjectId(state) },
+        project: { name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,

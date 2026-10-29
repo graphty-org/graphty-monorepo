@@ -53,7 +53,9 @@ export interface LayoutRecommendation {
     readonly fact: CodedFact<LayoutRecommendationCode>;
     /**
      * The options to pass with the layout, when the rule read them from the file: for a Graphviz
-     * file, its graph attributes as `{ attributes }`. Absent when the layout's defaults apply.
+     * file, its graph attributes as `{ attributes }`; for a DOT file that places every node, with
+     * the Graphviz package installed, `{ edgeRoutes: "graphviz", graphvizAttributes }`, so Graphviz
+     * routes the edges round the placed nodes. Absent when the layout's defaults apply.
      * @since 3.29.0
      */
     readonly options?: Readonly<Record<string, unknown>>;
@@ -68,6 +70,7 @@ export interface LayoutRecommendation {
  * | Code | Why |
  * | --- | --- |
  * | `recommend.fixed` | Every node already carries a coordinate, so the arrangement the data arrived with is kept |
+ * | `recommend.location-map` | The nodes carry geographic locations (`locations` was true), so they are drawn on a map (since 3.31.0) |
  * | `recommend.random` | The graph is larger than `largeGraphThreshold`, so it is scattered from a seed instead of settling a force simulation |
  * | `recommend.circular` | Nothing is connected, so a ring puts the nodes in a readable order where a force layout has no pull to work with |
  * | `recommend.force` | Connected nodes pulled together and unconnected ones pushed apart shows the graph's structure |
@@ -80,6 +83,7 @@ export interface LayoutRecommendation {
  */
 export type LayoutRecommendationCode =
     | "recommend.fixed"
+    | "recommend.location-map"
     | "recommend.random"
     | "recommend.circular"
     | "recommend.force"
@@ -125,6 +129,13 @@ export interface LayoutRecommendationOptions {
      * @since 3.29.0
      */
     readonly graphvizAvailable?: boolean;
+    /**
+     * Whether the nodes carry geographic locations the location map layout can read (its cost
+     * estimate is available). `GraphSession.recommendLayout()` answers this itself. Omitted counts
+     * as no.
+     * @since 3.31.0
+     */
+    readonly locations?: boolean;
 }
 
 /** The graph attributes a Graphviz file passes on to the engine that draws it. */
@@ -143,6 +154,7 @@ const GRAPHVIZ_FILE_ATTRIBUTES = [
     "root",
     "mindist",
     "newrank",
+    "clusterrank",
     "ordering",
     "ratio",
     "pack",
@@ -162,6 +174,9 @@ const GRAPHVIZ_FILE_ATTRIBUTES = [
     "beautify",
     "center",
 ] as const;
+
+/** The graph attributes Graphviz's routes between placed nodes follow: the kind of line, and how far they keep from the nodes. */
+const ROUTE_ATTRIBUTES = ["splines", "sep", "esep"] as const;
 
 /** One rule of the table: the arrangement it names, when it fires, and what it would say. */
 interface LayoutRule {
@@ -187,6 +202,8 @@ interface RuleInput {
     readonly placedNodes: number;
     /** The node count above which this graph counts as large. */
     readonly largeGraphThreshold: number;
+    /** Whether the nodes carry geographic locations. */
+    readonly locations: boolean;
 }
 
 /**
@@ -204,6 +221,12 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
         reason:
             "Every node already carries a coordinate, so this keeps the arrangement the data " +
             "arrived with instead of computing a new one over the top of it.",
+    },
+    {
+        id: "location-map",
+        code: "recommend.location-map",
+        fires: ({ statistics, locations }) => statistics.nodeCount > 0 && locations,
+        reason: "The nodes carry geographic locations, so they are drawn where they are, on a map.",
     },
     {
         id: "random",
@@ -300,9 +323,14 @@ export function recommendLayout(
         statistics,
         placedNodes: options.placedNodes ?? 0,
         largeGraphThreshold: options.largeGraphThreshold ?? DEFAULT_LIMITS.largeGraphThreshold,
+        locations: options.locations === true,
     };
     const placesAll = statistics.nodeCount > 0 && input.placedNodes >= statistics.nodeCount;
-    const engine = placesAll ? null : graphvizEngineFor(options.file);
+    if (placesAll) {
+        return withGraphvizRoutes(recommendByRules(input), options, statistics);
+    }
+
+    const engine = graphvizEngineFor(options.file);
     if (engine !== null) {
         const params = { ...factOf("recommend.graphviz-file", input).params, engine };
         const descriptor = LAYOUT_DESCRIPTORS.find((candidate) => candidate.id === graphvizLayoutId(engine));
@@ -341,17 +369,52 @@ export function graphvizEngineFor(file: LayoutRecommendationOptions["file"]): Gr
     return file?.format === "dot" ? "dot" : null;
 }
 
+/**
+ * A DOT file that places every node is drawn where it says, and when its edges store no route
+ * Graphviz routes them round those places, as Graphviz draws such a file (`neato -n2`): the fixed
+ * layout with `edgeRoutes: "graphviz"` and the file's graph attributes (its `splines`).
+ * @param advice - the rule table's recommendation
+ * @param options - what the caller said about the file and the Graphviz package
+ * @param statistics - the graph's shape
+ * @returns the recommendation, with the routing options when they apply
+ */
+function withGraphvizRoutes(
+    advice: LayoutRecommendation | undefined,
+    options: LayoutRecommendationOptions,
+    statistics: GraphStatistics,
+): LayoutRecommendation | undefined {
+    const routed =
+        advice?.layout.id === "fixed" &&
+        options.file?.format === "dot" &&
+        options.graphvizAvailable === true &&
+        statistics.edgeCount > 0 &&
+        statistics.nodeCount <= GRAPHVIZ_NODE_BUDGETS.neato;
+    return routed
+        ? Object.freeze({
+              ...advice,
+              options: Object.freeze({
+                  edgeRoutes: "graphviz",
+                  graphvizAttributes: fileAttributes(options.file?.attributes, ROUTE_ATTRIBUTES),
+              }),
+          })
+        : advice;
+}
+
 /** The engine names `graphvizEngineFor` answers. */
 type GraphvizEngineName = Parameters<typeof graphvizLayoutId>[0];
 
 /**
  * The file's graph attributes a Graphviz engine reads, as Graphviz text.
  * @param attributes - the file's graph attributes
+ * @param names - the attributes to pass on
  * @returns the ones passed on
  */
-function fileAttributes(attributes: Readonly<Record<string, unknown>> | undefined): Record<string, string> {
+function fileAttributes(
+    attributes: Readonly<Record<string, unknown>> | undefined,
+    names: readonly string[] = GRAPHVIZ_FILE_ATTRIBUTES,
+): Record<string, string> {
     const out: Record<string, string> = {};
-    for (const name of GRAPHVIZ_FILE_ATTRIBUTES) {
+    for (const name of names) {
         const value = attributes?.[name];
         if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
             out[name] = String(value);

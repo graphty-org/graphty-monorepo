@@ -1781,12 +1781,6 @@ export class UpdateManager implements Manager {
      * @param frameMs - How long the previous frame took; 0 takes one round.
      */
     private updateLayout(frameMs: number): void {
-        // A frame does not step a layout whose pre-steps are on the device, so a round now would
-        // measure no movement and stop it as arrived before they land (issue #3533).
-        if (this.layoutManager.preStepsInFlight) {
-            return;
-        }
-
         this.statsManager.step();
         this.statsManager.graphStep.beginMonitoring();
 

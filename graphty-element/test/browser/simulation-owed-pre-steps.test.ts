@@ -11,7 +11,7 @@
  */
 import "../../src/graphty-element";
 
-import type { Scene } from "@babylonjs/core/scene";
+import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
 import type { GraphSnapshot, NodeMask } from "@graphty/graph-format";
 import type { ForceAtlas2Options, LayoutSimulation } from "@graphty/layout";
 import { afterEach, assert, describe, test } from "vitest";
@@ -43,8 +43,8 @@ const PRE_STEPS = 600;
  */
 const SETTLE_AFTER = 300;
 
-/** Frames drawn while each pre-step chunk is on a slow device. */
-const FRAMES_PER_CHUNK = 3;
+/** Render-loop ticks while each pre-step chunk is on a slow device. */
+const TICKS_PER_CHUNK = 3;
 
 const mounted: Graphty[] = [];
 
@@ -62,8 +62,11 @@ afterEach(() => {
  * does.
  *
  * On a SLOW device a pre-step chunk (any batch other than the frame's `iterationsPerStep`) lands
- * only after `FRAMES_PER_CHUNK` drawn frames, so frames are certain to run while one is in flight;
- * a frame's own batch lands at once. On a fast one every batch lands at once.
+ * only after `TICKS_PER_CHUNK` ticks of the render loop, so frames are certain to run while one is
+ * in flight; a frame's own batch lands at once. On a fast one every batch lands at once. Ticks,
+ * not drawn frames: a device computes whether or not the element draws, and the element rightly
+ * draws nothing while edges built in the defaults wait for a paint queued behind a layout build
+ * that awaits a chunk -- a chunk that waited for a drawn frame would never land.
  */
 class CountingSimulation implements LayoutSimulation {
     readonly #inFlight: Promise<void>[] = [];
@@ -71,9 +74,14 @@ class CountingSimulation implements LayoutSimulation {
     #rows = 0;
     #done = 0;
 
+    /** How many iterations have landed. */
+    get landed(): number {
+        return this.#done;
+    }
+
     constructor(
         private readonly frameIterations: number | undefined,
-        private readonly slow: (() => Scene) | null,
+        private readonly slow: (() => AbstractEngine) | null,
     ) {}
 
     get settled(): boolean {
@@ -83,6 +91,8 @@ class CountingSimulation implements LayoutSimulation {
     load(snapshot: GraphSnapshot, positions: Float32Array): void {
         this.#positions = positions;
         this.#rows = snapshot.nodeCount;
+        // A load starts the simulation over, as a GPU simulation's writes its initial state.
+        this.#done = 0;
     }
 
     step(iterations = this.frameIterations ?? 1): Promise<void> {
@@ -100,7 +110,14 @@ class CountingSimulation implements LayoutSimulation {
 
     async #land(iterations: number): Promise<void> {
         if (this.slow !== null && iterations !== this.frameIterations) {
-            await drawnFrames(this.slow(), FRAMES_PER_CHUNK);
+            const engine = this.slow();
+            for (let tick = 0; tick < TICKS_PER_CHUNK; tick++) {
+                await new Promise<void>((resolve) => {
+                    engine.onEndFrameObservable.addOnce(() => {
+                        resolve();
+                    });
+                });
+            }
         } else {
             await Promise.resolve();
         }
@@ -145,13 +162,27 @@ function positions(element: Graphty): Record<string, number[]> {
     return out;
 }
 
+interface Settled {
+    /** Where each node came to rest. */
+    readonly at: Record<string, number[]>;
+    /** How many iterations the device ran for the layout that settled. */
+    readonly iterations: number;
+}
+
+interface Run {
+    /** Whether each pre-step chunk takes several render-loop ticks to land. */
+    readonly slow: boolean;
+    /** Whether the edges arrive a few frames after the nodes, in a second write. */
+    readonly split?: boolean;
+}
+
 /**
  * Mount a seeded ForceAtlas2 layout on a fake device with no data, then load the data, so the
  * pre-steps are owed and paid by the frames, and wait for it to settle.
- * @param slow - Whether each pre-step chunk takes several drawn frames to land.
- * @returns Where it settled.
+ * @param run - How the device and the data behave.
+ * @returns Where it settled, and how many iterations got it there.
  */
-async function settle(slow: boolean): Promise<Record<string, number[]>> {
+async function settle({ slow, split = false }: Run): Promise<Settled> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = "400px";
@@ -162,29 +193,54 @@ async function settle(slow: boolean): Promise<Record<string, number[]>> {
     document.body.appendChild(element);
     mounted.push(element);
 
+    const simulations: CountingSimulation[] = [];
     const fake = createFakeAccelerator({
         members: {
-            forceAtlas2: (options?: ForceAtlas2Options) =>
-                new CountingSimulation(options?.iterationsPerStep, slow ? () => element.graph.getScene() : null),
+            forceAtlas2: (options?: ForceAtlas2Options) => {
+                const simulation = new CountingSimulation(
+                    options?.iterationsPerStep,
+                    slow ? () => element.graph.getScene().getEngine() : null,
+                );
+                simulations.push(simulation);
+                return simulation;
+            },
         },
     });
     element.session.setAccelerator(fake);
     await element.waitForStableFrame();
 
     element.nodeData = NODES;
+    if (split) {
+        await drawnFrames(element.graph.getScene(), 2);
+    }
+
     element.edgeData = EDGES;
     await element.waitForStableFrame();
 
     const engine = element.graph.getLayoutManager().layoutEngine;
     assert.instanceOf(engine, SimulationLayoutEngine);
     assert.isTrue(engine.isAccelerated, "the layout ran on the fake device");
-    assert.isTrue(engine.isSettled);
-    return positions(element);
+    assert.isTrue(engine.isSettled, "the layout ran until the device settled");
+    const last = simulations.at(-1);
+    assert.isDefined(last);
+    return { at: positions(element), iterations: last.landed };
 }
 
 describe("a seeded GPU simulation layout paying owed pre-steps", () => {
     test("ends in the same arrangement whether frames run while its chunks are computed or not", async () => {
-        const fast = await settle(false);
-        assert.deepEqual(await settle(true), fast, "frames ran while each pre-step chunk was on the device");
+        const fast = await settle({ slow: false });
+        assert.deepEqual(await settle({ slow: true }), fast, "frames ran while each pre-step chunk was on the device");
+        // Two chunks of 256: the device settles inside the second, and no frame's batch ran beside
+        // them, so the two runs above are not both wrong the same way.
+        assert.strictEqual(fast.iterations, 512, "every pre-step chunk landed, and nothing else ran");
+    });
+
+    test("ends in the same arrangement when its edges arrive frames after its nodes", async () => {
+        const fast = await settle({ slow: false, split: true });
+        assert.deepEqual(
+            await settle({ slow: true, split: true }),
+            fast,
+            "frames ran while a pre-step chunk was on the device",
+        );
     });
 });

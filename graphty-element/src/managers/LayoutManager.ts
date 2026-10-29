@@ -653,8 +653,12 @@ export class LayoutManager implements Manager {
      */
     private preStepsOwed = false;
 
-    /** Set while a pre-step chunk is on its way through a simulation; see `preStepsInFlight`. */
-    #chunkInFlight = false;
+    /**
+     * How many pre-step chunks are on their way through a simulation; see `preStepsInFlight`. A
+     * count, not a flag: a stale owed payment and a new build's pre-steps can overlap, and the
+     * first to land must not clear the other.
+     */
+    #chunksInFlight = 0;
 
     /**
      * Set while the running layout's arrangement is the layout's own work: it was built, forward,
@@ -796,7 +800,7 @@ export class LayoutManager implements Manager {
      * @internal
      */
     get preStepsInFlight(): boolean {
-        return this.#chunkInFlight;
+        return this.#chunksInFlight > 0;
     }
 
     /**
@@ -2094,11 +2098,11 @@ export class LayoutManager implements Manager {
         if (engine instanceof SimulationLayoutEngine) {
             for (let remaining = preSteps; remaining > 0 && !engine.isSettled;) {
                 const chunk = Math.min(remaining, MAX_ITERATIONS_PER_STEP_CHUNK);
-                this.#chunkInFlight = true;
+                this.#chunksInFlight++;
                 try {
                     await engine.stepAsync(chunk);
                 } finally {
-                    this.#chunkInFlight = false;
+                    this.#chunksInFlight--;
                 }
 
                 if (!live()) {
@@ -2552,12 +2556,12 @@ export class LayoutManager implements Manager {
         // the next chunk read `settled`, so a slow device -- on which frames fall inside a chunk --
         // ended the same seed somewhere else than a fast one (issue #3533). The frames step again
         // once the pre-steps are paid, as they do after a build's.
-        if (this.#building > 0 || this.#chunkInFlight || this.restoring() || this.replacing()) {
+        if (this.#building > 0 || this.preStepsInFlight || this.restoring() || this.replacing()) {
             return;
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
-        if (this.#chunkInFlight) {
+        if (this.preStepsInFlight) {
             // The payment just started has its first chunk on the device.
             return;
         }

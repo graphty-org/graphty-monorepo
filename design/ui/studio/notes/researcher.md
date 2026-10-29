@@ -10,15 +10,17 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-29) Tier 4 (data management, returning users, one round): criteria line 1 is still the
-  `<sha>`/`<dir>` placeholder and the key holds "(pilot to confirm)" values -- no session before
-  both are filled; preflight must fail on a placeholder.
+- (2026-10-29) Tier 4 key read off 0ffeae2ef5: no "(pilot to confirm)" left, step counts written
+  (T61 6, T62 5, T65 A 12, T67 3). Open blockers for the orchestrator: no `data.json` from `--end`
+  (roles, kinds, cards, fixes graded from screenshots, which see them only if the participant
+  ends there); T65 B's date condition not offered (blocked).
+- (2026-10-29) Build defects that change a reported count get a grading line while they stand:
+  T65 Select counts hidden nodes (5 not 4), T66/T68 Data source card drops every edge of the other
+  file, T61 deliveries-first keeps the repeat (19). Grade the act, not the build's number.
 - (2026-10-29) Tier 4 echoes found by grepping graphty/src strings: "Picked" is the Style card
   kind for hand-picked nodes (T65 "picked" steers to the P route); "farther apart" is the weight
   option's own text (T64 B); "Web address" is the box label (T60). Grep the app's strings for
   every prompt word, not only the avoided list.
-- (2026-10-29) Last-screenshot grading cannot see role settings, card counts or applied fixes
-  unless the participant ends on that screen: grade T63/T64/T65/T66/T67 from recorded end state.
 - (2026-10-29) A task part the program already did (T63's place, auto-designated) and an export
   from an unfiltered network (T68) cannot fail: both are false-pass routes.
 - (2026-10-29) decided.md's fixes R6, R7, R8 (in-project door), R11, R12 have no task route, and
@@ -79,6 +81,17 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-29 (tier 4 key from pilots):** Read every pilot finding into answers.md without
+  changing a bar; the key counts the screen. Removed the T66 id-card route (cannot be built: no
+  negative match, Hide keeps matches) instead of keeping a success no session can reach; kept T62's
+  existing P rule for time-without-kind (pilots confirmed the build does not change kind). Wrote
+  grading lines for count-changing build defects (T65 selected 5) so graders do not fail a person
+  for the build's number. Added the three pilot-written setups to `rounds/tier-4/setups/` since the
+  key names them and they started clean. Changed no prompt: T65 B is blocked by the build, not its
+  words. Reason: the gate needs a key with no placeholders, and every changed line has a pilot
+  screenshot behind it. Evidence: route.jsonl step lists per walk, exported file row counts
+  (A 13/18, B 12/14), work.json holding no role or kind.
+
 - **2026-10-29 (tier 4 criteria review):** Proposed eight changes, applied none (the Director
   freezes): fill the frozen build line and the pilot-to-confirm values; grade from recorded end
   state plus an end-state script (chip counts vs element, export rows); let an expert finding be
@@ -134,6 +147,12 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-29 (tier 4 key from pilots) -- Worked: counting path steps from each walk's
+  `route.jsonl` `steps` lists (skip hovers and inspection clicks); `wc -l` and `grep -c '<node '`
+  on the pilots' downloads to confirm export counts; grepping `work.json` before trusting a
+  "graded from data.json" line. Did not work: pilots' report.md files (the harness refuses
+  subagent report writes), so findings arrive only as returned text and the key is the record.
+
 - 2026-10-29 (tier 4 review) -- Worked: grepping quoted strings in graphty/src for each prompt
   word (found Picked, Farther, Web address); counting the roster per task and half against the
   criteria's plan (found Sam inside the core counts, 26 not 28). Did not work: trusting the
@@ -175,6 +194,10 @@ logged). Their reasons, in short:
 
 ## Thinking
 
+- 2026-10-29 -- A pilot's "mismatch" splits three ways: the key described a door the build lacks
+  (rewrite the path), the build gives a different number for the same act (grading line while the
+  defect stands), or the act cannot be done (blocked; the orchestrator decides). Never fold the
+  second into the first: rewriting the number would grade the defect as right.
 - 2026-10-29 -- For returning users, the false pass hides in the starting state: a setup that
   already holds the answer (an auto-set role, an unfiltered export) passes whoever does nothing.
   Check every task's start for the part of the success definition it already satisfies.

@@ -209,3 +209,47 @@ first two by itself; the dry run owns the rest.
   .worktrees/design-studio-tier4/tmp/study-builds/tier4-r1-7de2dc4e23) to 0ffeae2ef5, the same
   studio work with the current master merged in, so the round does not run on a stale app. No
   criteria changed.
+- 2026-10-29: the answer key read off build 0ffeae2ef5 from the dry run's three-way pilots of
+  every task (success path, detours, keyboard); no bar changed. Each change, with its reason:
+    - Every "(pilot to confirm)" value replaced by what the screen shows, and the build named in
+      the key moved to 0ffeae2ef5. The gate refuses a key that still holds one.
+    - `real.mjs --end` writes no `data.json` on this build, and no record holds a column's kind,
+      a role, a filter card or a fix. The key says to read those from the screenshots and the step
+      log until it does (before-the-first-session item 4 still stands).
+    - T60: the "also success" door is Sources "+" > Network data..., not Server...: no Server kind
+      loads a file address. The address box has no Open button; Enter opens it. Server... and the
+      start screen's Web API card are listed as dead ends.
+    - T61: the repeat shows only on the join screen; the second file's row hides its edge count
+      under the issue chip (tooltip only); opening deliveries.csv first gives 19 edges with the
+      repeat kept, which counts for that route; Replace gives the same counts as a join, so only
+      Sources tells it apart; Quick actions > Add data... is a second door that drops the unknown
+      node (P if nothing that did not fit is named). Path steps: 6.
+    - T62: designating the time does not change the column's kind, so "Set in Data" and Fields
+      "+" > Time are P, as the key already said they would be; the kind is named "Type" in the
+      header menu, the only control that sets it. Path steps: 5.
+    - T63: "Set in Data" sets the time in place without opening Fields; the header menu's Role >
+      Time is a third route.
+    - T64: the visible label is "Higher means" with closer, farther and capacity; A's "stronger" is
+      closer. A weight set from the table header leaves the reading empty, which Analyze reads as
+      farther (P on A). Find works in the Graph place's find box, not the toolbar search. B path
+      steps: 9.
+    - T65: A's controls named (Add filter, Add a condition, Between from 10, Is any of, Select);
+      the screen counts 5 selected because a Select card also selects a hidden node, so a report of
+      5 with the cards right is graded on the cards while that defect stands. B's date condition is
+      not offered, so B's second half is blocked on this build. A path steps: 12.
+    - T66: the Data source card also leaves out every edge from the second file (12 of 13 nodes,
+      0 of 18 edges); an id card cannot leave one node out (no negative match, Hide keeps the
+      matches), so the key's id route is removed and the blank-name route is written as `site` /
+      `station` "Has a value" with Hide.
+    - T67: A's chip holds 2 issues, B's 3 (with telemetry "could be yes/no"); B's "With issues 11"
+      comes from that suggestion; nothing is offered for A's volunteer_run; B's header Type > number
+      also clears the depth issue. Path steps: 3 (B 4 with Read as yes/no).
+    - T68: the start shows 0 edges in the picture, so a "Shown" export writes an empty edge file
+      and the export screen counts nodes only: that is the severity 4 candidate, not the
+      equally-right case. Export opens on Data with CSV; a "Styles lost" step with Save anyway
+      always follows while a node is out of the picture.
+    - The three setups the key names (`gauges-tidy.txt`, `pantries-narrowed.txt`,
+      `gauges-narrowed.txt`) were written by the pilots, started without `SETUP FAILED`, and are
+      now in `rounds/tier-4/setups/`.
+    - tasks.md: the T62 and T63 detour lines name the inspector's button as it reads, "Set in
+      Data". No prompt was wrong on this build; T65 B is blocked by the build, not by its wording.

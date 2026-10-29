@@ -179,8 +179,8 @@ their fixes (T67); export of tables and of a network file (T68).
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | T60  | "Open a file" and pasting the address into the file chooser; the Data place's add menu (Server...) from inside an open project       |
 | T61  | Opening the second file from the start screen or the main menu (a second project, or Replace); Cancel on the join screen, then again |
-| T62  | The table's column header menu; the inspector's "Set as time"; the Data place's Fields                                               |
-| T63  | The inspector's "Set as time"; the table's column menu; the Map layout before anything is designated                                 |
+| T62  | The table's column header menu; the inspector's "Set in Data"; the Data place's Fields                                               |
+| T63  | The inspector's "Set in Data"; the table's column menu; the Map layout before anything is designated                                 |
 | T64  | The Style panel's Text for the name; the Analyze list for a weight; the table's column menu                                          |
 | T65  | The find box (typing a rule); a style layer's Which nodes instead of a filter; the toolbar's filter button                           |
 | T66  | Removing the second source; a card on the id column; a style layer that fades the node                                               |

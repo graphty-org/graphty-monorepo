@@ -4552,3 +4552,46 @@ Only a person can judge whether the drawings got better. These stories of the gr
     judged).
 12. `style-fidelity-graphviz-dot-samples--real-crazy`: the sample the Graphviz label-size decision is about; that
     branch is not in the Storybook, so compare it with the side-by-side image the branch's proof names.
+
+## The full-run gate's drift after round 4, explained (#4270, 2026-10-29)
+
+Before round 5 the full oracle gate (`oracle-known-failures.json`, run by `oracle-report.test.ts` over all 563
+samples) failed 27 samples, and the plain-view total had moved from round 4's 10,359 failing elements to 10,469.
+Nothing in CI ran the full comparison, so nobody saw it move. Measured by full runs of round 4's own measurement
+commit (f0b669df00), round 4's last recording commit (0ba5008d36), master before round 5 (780b7edbe6) and master on
+2026-10-29 (ea5b2c9f29):
+
+- **Not a GPU difference.** Master drawn on the workstation's NVIDIA card and without a GPU (headless Chromium's
+  SwiftShader, which is what CI uses) fails exactly the same elements on all 563 samples, in both views, and the 27
+  samples fail the same way on both paths at 0ba5008d36 and at 780b7edbe6. Only the raster regions differ between
+  the paths, and they are reported, never gated.
+- **26 of the 27 samples were already red at round 4's own measurement**: f0b669df00 fails 30 samples against its
+  own records (309 clean, 10,378 failing elements). Round 4 said so ("not green against its own records") and left
+  the recording pass undone. Their drawings did not change between 0ba5008d36 and 780b7edbe6.
+- **The +110 is two changes that partly cancel.** `dot-real-siblings` went from 225 to 476 failing elements: all
+  284 edges now fail edge.width. The edges are as wide as before. A bisect over the 1,351 commits between
+  f0b669df00 and 0ba5008d36 names f987a1bc9a (2026-10-26, labels drawn and measured unhinted so their pixels do not
+  depend on load order): the unhinted labels measure a little differently, this file's nodes are sized to their
+  labels, so graphty's Graphviz run spaces them 2.7 percent differently (fitted scale 1.047 to 1.075), and on lines
+  0.22 units wide that moves the width ratio from inside [0.9, 1.1] to 1.101. It moved no other sample. The Graphviz label-size branch (#4203, pull request #4410) hands Graphviz the
+  label-sized nodes and takes every one of these edge.width failures away. Against it, eight `gml-specimen-*` pages
+  went from 160 failing elements to none when their oracle became OGDF's own drawing, with the two stand-ins judged
+  beside it (802cb125e1): an oracle change, not a drawing change.
+- **The 11 samples round 5 added** are elements its comparator newly judges on unchanged drawings (listed under
+  "Round 5", "The full-run gate"), and three more (`cx2-wp1449-tlr`, `json-cyjs-perf`, `json-cyjs-tokyo`) fail only
+  since the comparator pairs same-name twin nodes apart (#4265): graphty's drawing of them is identical to round 5's.
+  The four `syn-mappings` copies add one route each since round 5's arrowheads: the sinewave line stops short of its
+  larger half arrow, open as #4253.
+
+What changed:
+
+- The 6-hour full run now runs the whole comparison: four shards, `graphty-element-fidelity-1` to `-4`
+  (`tools/ci-test-matrix.mjs`), each judging every fourth sample (`GRAPHTY_ORACLE_SLICE`), without a GPU, never on a
+  pull request or in the pre-push gate. A sample fails only for an element the known failures do not list. Without a
+  GPU the 563 samples take 807 s of comparison on the workstation, about 200 s a slice.
+- The failures above are recorded with `fidelity:ratchet --add`, one reason per group (the `reasons` at the end of
+  `oracle-known-failures.json`): 95 elements failing since round 4's measurement on real-program oracles, 548 on
+  stand-in drawings, 272 newly judged by round 5's comparator, 76 from the twin pairing and 24 on the `syn-mappings`
+  copies. The same run took 3,360 known failures that pass now off the list and raised 842 floors; none went down.
+- Not recorded: `dot-real-siblings`, whose failures come from the layout change above and which #4410 changes again.
+  Until #4410 lands, the full run's fidelity shard that holds `dot-real-siblings` fails on it.

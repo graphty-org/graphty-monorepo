@@ -121,6 +121,8 @@ export function showNotices(
  */
 export function designate(session: GraphSession, store: WorkspaceStore, field: TimeField | null): void {
     session.time.pause();
+    // A Time window card added for the last field does not come back on its own for this one.
+    store.set({ timeWindowCard: false });
     session.time.setField(field).then(
         (result) => {
             // Setting the field sets only the field: the dock opens from the toolbar's clock button.

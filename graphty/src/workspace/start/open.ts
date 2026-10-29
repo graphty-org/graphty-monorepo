@@ -57,6 +57,7 @@ export function openProject(
         }),
         ends: null,
         pickedSource: null,
+        timeWindowCard: false,
     }));
 }
 

@@ -548,7 +548,7 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
             log(`${tag}: screen change judged intended (${(v.cites || []).join(", ")}): ${d}`);
             continue;
         }
-        const i = idList.findIndex((id) => id === taskOfRoute(v.route));
+        const i = idList.indexOf(taskOfRoute(v.route));
         if (i >= 0 && res[i]) res[i] = { ...res[i], defects: [...(res[i].defects || []), d] };
         // after the retries, so a reviewer's note never stops a failed pilot being run again
         else if (i >= 0) res[i] = { task: idList[i], reached: false, skipped: ["every route"], defects: [d] };

@@ -43,62 +43,50 @@ From the tier 4 dry run (`tier4/dry-run-r1-1.md`).
   `plan()` read the same answer, so the role, its undo and the runs move together. A configured weight
   path naming no column of the data keeps today's behavior (the loaded column).
 
-## 2026-10-29 -- For the owner: tier 4 data management questions (graphty app, graphty-element, compact-mantine)
+## 2026-10-29 -- Decided by the team: tier 4 data management questions (graphty app, graphty-element, compact-mantine)
 
 Raised by the tier 4 expert walkthroughs (`tier4/review/*.md`; screenshots under the main
-checkout's `tmp/design-studio/tier4/review/`). Each reverses an owner choice, changes what an
-existing API does, or changes compact-mantine's words, so none is built. The study runs on today's
-behavior meanwhile.
+checkout's `tmp/design-studio/tier4/review/`). None is a one-way door: each is settled by an
+existing owner statement, the framework docs or an additive change, so nothing waits for the
+owner. Binding entries are in `tier4/decided.md`; the buildable parts are in `tier4/backlog.md`.
 
-1. **What the filter card's "Hide" does** (`design/data/filter-cards.md`, owner decision 1). Built:
-   `Select | Hide`, Hide writes `keep`. Walks read it the other way: "Hide person" leaves only the
-   14 people; a Hide card with no matches blanks the canvas (0 of 12); the table's column "Hide"
-   hides what it names (figma w2/07.png, w1/12.png; content w1-load 33, 36, 55). T66 failed for the
-   same reason: Hide on pantries.csv keeps pantries.csv, which owns no edges, so 0 of 18 edges
-   remain (w2/11.png); an exclude effect on the second file's node answers T66 as asked. Options:
-   (a) relabel the segment "Show only" (or "Keep"); (b) Hide writes `exclude`; (c) a third
-   "Exclude" segment. The team changed only the Hide segment's tooltip and accessible name ("Hide
-   nodes that do not match"). The T65 answer key is unchanged until you rule.
-2. **Where a column's kind is set.** Your rule "the table is view-only; configuration lives in the
-   Data place" and the approved spec `ui/data-prototype/spec.md` 3.3 ("No other fields list. Every
-   other column is in the table"; the header menu holds Type, Role, Rename) pull opposite ways.
-   Four reviews asked for one Fields row per column with a type control; the red team showed that
-   does not scale to a 200-column file. Options: (a) keep kinds in the header menu; (b) a per-source
-   "Columns" list with search, opened from its Sources row, and the header menu's Type becomes a
-   door to it; (c) one Fields row per column.
-3. **A Select card after the reader clears the selection** (graphty-element). Clicking the empty
-   canvas clears the selection, but the card still shows Select, ticked, "5 of 24" (interaction
-   w3 05-06). Having the element turn the condition off on a hand selection changes an existing
-   API's behavior and ties canvas clicks to filter history.
-4. **Role detection on load as a suggestion** (graphty-element default). volunteers.graphml loads
-   with Coordinates set to the phone column. Tightening plus-code and geohash detection so phone
-   numbers are rejected is additive and is in the backlog; turning detected roles into suggestions
-   the reader confirms changes a default.
-5. **CSV writes a date-only value as a timestamp** (graph-io, graphty-element). `2015-03-02`
-   exports as `2015-03-02T00:00:00.000Z`; in a negative UTC offset Excel may show the day before.
-   Keeping date-only values date-only changes an existing exporter's output.
-6. **Glossary renames of approved sections.** "Fields" to "Attributes", "Sources" to "Data
-   sources", "Type" to a measurement-level word, and the edge-end role "Source / Target" to
-   "From / To" (so "source" means only a data file). One batch, because each renames approved UI.
-7. **"Alt+Down" in the column "..." tooltip** (compact-mantine DataTable). The header menu opens on
-   Alt+ArrowDown and Shift+F10 but no control shows the key; showing it changes a locked
-   component's words. The ARIA-only part (`aria-haspopup`, `aria-keyshortcuts`) is in the backlog.
-8. **An Open button beside the web address box** (compact-mantine FileSource). Refinement R8 asks
-   for a visible label and an Open button by Open network data's address box (Enter still opens).
-   The label is built: the dialog draws "Web address" above the box. The button is not: the row
-   form of FileSource draws only the box and its file-chooser icon, and the typed address lives
-   inside it, so a button needs a new FileSource option (for example `openLabel="Open"`), a change
-   to a locked component's look. Options: (a) add the option to FileSource, opt-in, under a
-   `Figma-Approved` trailer; (b) keep Enter as the only way to open an address.
-
-9. **A Select card selects nodes that are out of the picture** (graphty-element, the select effect).
-   Built as the filter-cards design says: Select ignores visibility, so the order of the cards never
-   matters. The T65 pilots read it as wrong: with "trained, 10 hours or more" hiding ten people and
-   "role staff" on Select, the screen says "5 nodes selected" while 4 rings are drawn, because one
-   staff member is out of the picture (T65 A s1-path/17.png; T65 B p3-path/14.png). Options: (a) keep
-   it, and the card's chip says how many of its matches are out of the picture; (b) Select selects only
-   what the other cards leave in the picture, which brings order back in only when a later Hide card
-   changes. The answer key grades the cards meanwhile.
+1. **The filter card's effect words.** Settled by `design/ui/framework/glossary.md` ("Filter to" /
+   "Filter out", line ~235; "Show only" and "Hide" rejected for a filter step, lines ~183, ~421,
+   ~474). Build `Select | Filter to | Filter out`: Filter out writes `exclude`, Filter to writes
+   `keep`. A new card starts on Filter out (T65B-9). The T65 and T66 answer keys follow the new
+   words; T66 is answered with Filter out on the second file's node.
+2. **Where a column's kind is set.** Keep Type and Role in the table header menu (option a). The
+   owner, 2026-10-20 04:36: "we lost the preferred route of how to configure data from the first
+   round -- directly in the header of the table" and "I don't know what value 'other fields'
+   adds"; the approved spec `ui/data-prototype/spec.md` lines 166, 189 and 210 puts Type in the
+   header menu and has no other-fields list. His "view-only" rule is read with that sentence.
+3. **A Select card after a hand selection change.** By `interaction-patterns.md` line 321 (what is
+   ringed and what is described never differ): graphty-element turns a select condition off when
+   the reader changes the selection by hand, so the card never claims a selection that is gone.
+4. **Detected roles on load.** The owner, 2026-10-23: "automatically detected fields should be
+   automatically added to the list". Detected roles stay applied. Ship the phone-number detection
+   fix (`tier4/backlog.md`, role detection row) and draw `ui/data-prototype/spec.md` line 161's
+   warning mark on a detected row (the app reads `LocationColumns.from`).
+5. **CSV writes a date-only value as a timestamp.** Additive: a date-only value is kept date-only
+   through an additive option or value type (graphty-element's `ValueType` is an open union); the
+   app asks for date-only output; the exporter's default output is unchanged.
+6. **Glossary renames.** Per `glossary.md` lines 107 and 415: "Fields" becomes "Attributes" and
+   "Sources" becomes "Data sources". Source / Target stays (`glossary.md` line 75 keeps it and
+   rejects "from/to"). "Type": the defect is the Kind role colliding with the Type control; the
+   next round runs an A/B, "Type" against "Kind of value" with the Kind role renamed, measuring
+   first-try success on T62.
+7. **"Alt+Down" in the column "..." tooltip.** The owner's rule that every hotkey has a visible
+   button showing its key, and `compact-mantine/design/figma-spec.md` section 8.3 (TooltipShortcut):
+   the DataTable header "..." tooltip uses TooltipShortcut with the key. If a Figma test or
+   `tools/check-figma-lock.mjs` fires on it, the build stops and reports it.
+8. **An Open button beside the web address box.** The owner's hotkey rule and `tier4/decided.md`
+   R8; FileSource has no Figma counterpart, so an opt-in `openLabel` prop is additive and changes
+   no existing look. Add it and use it in Open network data.
+9. **A Select card and nodes out of the picture.** By `interaction-patterns.md` line 333 ("A
+   filter step drops from the selection the ids it leaves out") and line 321: the selection is the
+   AND of the on select conditions intersected with what is in the picture, recomputed when a keep
+   or exclude condition changes; it depends only on the set of conditions, never their order.
+   `design/data/filter-cards.md` "Selection" says so.
 
 ## 2026-10-29 -- Decided by the team: the roles a column can take are an element fact (graphty-element, compact-mantine)
 

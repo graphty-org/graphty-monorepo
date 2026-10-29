@@ -9,6 +9,10 @@ the evidence; the old entry stays.
 - **Compact Figma controls; no sentence on screen where a control will do.** (Owner, 2026-10-20.)
 - **The data table is view-only; configuration lives in the Data place.** (Owner, 2026-10-20.)
   Column kinds, roles and fixes are set in the Data place; the table may show them and point there.
+  Read with the owner's 2026-10-20 04:36 statement: "we lost the preferred route of how to configure
+  data from the first round -- directly in the header of the table". A column's Type and Role stay
+  in the table header menu (`ui/data-prototype/spec.md` lines 166, 189, 210; owner-decisions.md
+  2026-10-29, item 2).
 - **Say "edges"** on screen, never "links" or "ties". (Owner, 2026-10-20.)
 - **Export is a common act**, reached as easily as Save. (Owner, 2026-10-20.)
 - **Every hotkey has a visible button that shows its key.** (Owner, 2026-10-25.)
@@ -355,3 +359,40 @@ No earlier entry is reversed.
   either (typing an address into the system file chooser, a clipboard paste, dropping a link), is
   complete for the triage. Why: eleven reports said PASS INCOMPLETE on this pass, and in every one the
   missing part was the harness refusing report files from subagents or a limit of the study tool.
+
+## Tier 4 data management questions, decided by the team (2026-10-29)
+
+Each settled by an existing source; `../owner-decisions.md` "2026-10-29 -- Decided by the team: tier
+4 data management questions" has the full reasoning. Binding from today.
+
+- **A filter card's effects are `Select | Filter to | Filter out`.** Filter out writes `exclude`,
+  Filter to writes `keep`; a new card starts on Filter out. Why: `design/ui/framework/glossary.md`
+  line ~235 names a filter step's outcomes "Filter to" and "Filter out" and rejects "Show only" and
+  "Hide" for them (lines ~183, ~421, ~474); pilots read "Hide person" as hiding the people (T65B-9).
+  The T65 and T66 answer keys follow.
+- **A column's Type and Role stay in the table header menu.** Why: the owner's 2026-10-20 04:36
+  statement above and the approved `ui/data-prototype/spec.md` lines 166, 189, 210 ("No other
+  fields list").
+- **A hand selection change switches select conditions off.** Clicking the canvas, a row or Escape
+  that changes the selection turns every on select condition off (graphty-element). Why:
+  `interaction-patterns.md` line 321, what is ringed and what is described never differ.
+- **A select condition selects only what is in the picture.** The selection is the AND of the on
+  select conditions intersected with what the keep and exclude conditions leave drawn, recomputed
+  when one of those changes; the order of the cards never matters. Why: `interaction-patterns.md`
+  line 333, "A filter step drops from the selection the ids it leaves out"; T65 pilots saw "5 nodes
+  selected" with 4 rings (T65 A s1-path/17.png).
+- **Roles detected on load stay applied, and a detected row is marked.** The Fields row of a role
+  the load detected carries `ui/data-prototype/spec.md` line 161's warning mark (the app reads
+  `LocationColumns.from`); phone numbers are no longer detected as plus codes or geohashes. Why:
+  the owner, 2026-10-23, "automatically detected fields should be automatically added to the list".
+- **A date-only CSV value is written date-only.** Through an additive graphty-element option or
+  value type; the app asks for it; the exporter's default output is unchanged. Why: `2015-03-02`
+  exported as a UTC midnight timestamp shows the day before in a negative offset.
+- **"Fields" reads "Attributes" and "Sources" reads "Data sources"; Source / Target stays.** Why:
+  `glossary.md` lines 107 and 415; line 75 keeps source/target and rejects "from/to". "Type" is
+  decided by the next round's A/B (`backlog.md`).
+- **The column "..." tooltip shows Alt+Down** through compact-mantine's TooltipShortcut. Why: every
+  hotkey has a visible button that shows its key (owner, 2026-10-25); `figma-spec.md` section 8.3.
+- **Open network data has an Open button beside the address box**, through FileSource's opt-in
+  `openLabel`; Enter still opens. Why: the owner's hotkey rule and R8; FileSource has no Figma
+  counterpart, and an opt-in prop changes no existing look.

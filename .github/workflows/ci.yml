@@ -42,6 +42,13 @@ on:
                 default: ""
     workflow_dispatch:
         inputs:
+            # `gh workflow run ci.yml --ref <branch> -f shards='["<shard>"]'` times a full-run-only shard on a runner
+            # before its pull request merges (#4270), without running the whole suite.
+            shards:
+                description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
+                type: string
+                required: false
+                default: ""
             reuse_build_run:
                 description: "the id of a run that built this same commit (the master push run): download its builds instead of building, when they are all still there"
                 type: string
@@ -1512,6 +1519,20 @@ jobs:
             - name: Fetch the style fidelity oracle pictures from Git LFS
               if: startsWith(matrix.shard, 'graphty-element-browser')
               run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+
+            # The full style fidelity gate (the graphty-element-fidelity-<n> shards, full run only) compares every
+            # oracle: all their pictures (about 48 MB), cached apart from the scorecard's.
+            - name: Restore every style fidelity oracle picture
+              if: startsWith(matrix.shard, 'graphty-element-fidelity')
+              uses: actions/cache@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-oracle-all-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-oracle-all-
+
+            - name: Fetch every style fidelity oracle picture from Git LFS
+              if: startsWith(matrix.shard, 'graphty-element-fidelity')
+              run: git lfs pull --include "graph-io/test/fidelity/oracles/*.png"
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser

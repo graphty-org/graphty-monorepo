@@ -448,3 +448,25 @@ export function gateReportText(gates: readonly KeyGate[], gpu: string, baseline:
         "",
     ].join("\n");
 }
+
+/**
+ * The samples one slice of the full oracle run judges, so CI's full run can spread the run over several jobs
+ * (`GRAPHTY_ORACLE_SLICE=<n>/<count>`, `tools/ci-test-matrix.mjs`): every `count`-th sample from the `n`-th, which mixes
+ * the formats (and so the slow samples) over the slices. The slices of one count are disjoint and cover every sample.
+ * @param ids - every sample, in a fixed order
+ * @param spec - `<n>/<count>` with 1 <= n <= count, or empty for every sample
+ * @returns the slice's samples
+ */
+export function oracleSlice(ids: readonly string[], spec: string | undefined): readonly string[] {
+    if (spec === undefined || spec === "") {
+        return ids;
+    }
+    const m = /^(\d+)\/(\d+)$/.exec(spec);
+    const n = Number(m?.[1]);
+    const count = Number(m?.[2]);
+    // a typo must not judge nothing and pass
+    if (m === null || n < 1 || n > count) {
+        throw new Error(`GRAPHTY_ORACLE_SLICE="${spec}" is not <n>/<count> with 1 <= n <= count`);
+    }
+    return ids.filter((_, i) => i % count === n - 1);
+}

@@ -299,6 +299,25 @@ const OFF_SHARDS = [
         // packages a workstation may lack. Run it by hand with tools/run-tests.sh graphty-element-lifecycle.
         local: "never",
     },
+    // The style fidelity gate over every oracle (graphty-element/test/fidelity/oracle-report.test.ts, 563 samples
+    // against the programs' own drawings): a sample fails only when an element fails a property that
+    // oracle-known-failures.json does not list. Pull requests run its 28-sample subset (oracle-scorecard.test.ts, in
+    // the browser shards); the whole set drifted red unseen for a week with nothing running it (issue #4270), so the
+    // 6-hour full run runs it, in slices of every 4th sample (GRAPHTY_ORACLE_SLICE). Timed on ubuntu-24.04 runners
+    // without a GPU (a dispatch of ci.yml with these four shards, run 40890370190, 2026-10-29): 285 to 355 s of
+    // samples a slice, 6 to 8 minutes a job with its setup, against the job's 30; 807 s for all 563 on the
+    // workstation. The gate's elements are the same with and without a GPU, and on the runner and the workstation
+    // (#4270); only the raster regions differ, and they are reported, never gated. No coverage: the fidelity
+    // project measures none.
+    ...[1, 2, 3, 4].map((n) => ({
+        shard: `graphty-element-fidelity-${n}`,
+        package: "graphty-element",
+        "test-command": `cd graphty-element && GRAPHTY_ORACLE_SLICE=${n}/4 pnpm exec vitest run --project=fidelity test/fidelity/oracle-report.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
+        local: "never",
+    })),
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.

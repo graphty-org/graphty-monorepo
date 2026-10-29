@@ -788,6 +788,11 @@ describe("flaky tests from master's records", () => {
         await call("POST", "/v1/invocations", { token, body: { ...failing("4010.1.gpu.1"), ...gpu } });
         const gpuPass = { ...passing("4010.1.gpu.2"), ...gpu };
         assert.deepEqual((await call("POST", "/v1/invocations", { token, body: gpuPass })).body.flaky, []);
+        // nor a style fidelity slice: a sample judged differently on the same inputs is a determinism defect (#4270)
+        const fidelity = { variant: "graphty-element-fidelity|flags=off|whole" };
+        await call("POST", "/v1/invocations", { token, body: { ...failing("4010.1.fid.1"), ...fidelity } });
+        const fidelityPass = { ...passing("4010.1.fid.2"), ...fidelity };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: fidelityPass })).body.flaky, []);
         assert.equal(rows("SELECT * FROM quarantine").length, 0);
     });
 

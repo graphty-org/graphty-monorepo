@@ -31,16 +31,22 @@ export function unmount(): void {
 }
 
 /**
- * Reads a JSON file relative to graphty-element, or null when it does not exist.
+ * Reads a JSON file relative to graphty-element, or null when it does not exist. Any other failure throws: Vitest
+ * refuses a path outside the workspace root, and read as "no file" that once made every baseline silently absent.
  * @param path - the path
  * @returns the parsed value
  */
 export async function readJson<T>(path: string): Promise<T | null> {
+    let text: string;
     try {
-        return JSON.parse(await commands.readFile(path)) as T;
-    } catch {
-        return null;
+        text = await commands.readFile(path);
+    } catch (e) {
+        if (/ENOENT/.test(String(e))) {
+            return null;
+        }
+        throw new Error(`cannot read ${path}: ${String(e)}`, { cause: e });
     }
+    return JSON.parse(text) as T;
 }
 
 /**

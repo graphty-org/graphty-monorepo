@@ -12,7 +12,7 @@ import { HistogramRow, Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, TimeBin, TimeStep, TimeUnit, TimeWindow } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, NumberInput, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { runFailureWords } from "../inspector/words";
@@ -197,6 +197,8 @@ export function TimeDock(): React.JSX.Element | null {
     const open = useWorkspaceState((state) => state.timelineOpen);
     // The brush while it is dragged; written to the element once, on release.
     const [drag, setDrag] = useState<[number, number] | null>(null);
+    // A whole-window drag moves the element's cursor; its release commits it as its own step.
+    const sliding = useRef(false);
     const { ref, width } = useElementSize();
 
     // A run the Re-run setting could not re-run says so.
@@ -377,6 +379,7 @@ export function TimeDock(): React.JSX.Element | null {
                                 // The whole window dragged: the graph follows the drag, row by row,
                                 // and the release records it.
                                 setDrag(null);
+                                sliding.current = true;
                                 time.seek(value[0], { commit: false }).then(() => undefined, reportTimeError(store));
                                 return;
                             }
@@ -385,7 +388,11 @@ export function TimeDock(): React.JSX.Element | null {
                         onChangeEnd: (value) => {
                             // One gesture, one undoable step.
                             time.pause();
-                            time.window({ ...window, from: value[0], to: value[1] }).then(
+                            const moved: PromiseLike<unknown> = sliding.current
+                                ? time.commit()
+                                : time.window({ ...window, from: value[0], to: value[1] });
+                            sliding.current = false;
+                            moved.then(
                                 () => {
                                     setDrag(null);
                                     announceWindow(session, store);

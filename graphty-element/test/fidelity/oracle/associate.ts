@@ -1097,6 +1097,24 @@ function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | un
     return b;
 }
 
+/**
+ * How far a point lies from a line, at its nearest.
+ * @param q - the point
+ * @param pts - the line
+ * @returns the distance
+ */
+function offPath(q: Pt, pts: readonly Pt[]): number {
+    let best = pts.length === 1 ? Math.hypot(q[0] - pts[0][0], q[1] - pts[0][1]) : Number.POSITIVE_INFINITY;
+    for (let i = 1; i < pts.length; i++) {
+        const [a, b] = [pts[i - 1], pts[i]];
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const L2 = dx * dx + dy * dy;
+        const t = L2 < 1e-18 ? 0 : Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / L2));
+        best = Math.min(best, Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy));
+    }
+    return best;
+}
+
 const endOf = (e: PEdge, end: "source" | "target"): Pt =>
     end === "source" ? e.points[0] : (e.points.at(-1) ?? e.points[0]);
 
@@ -1396,8 +1414,31 @@ export function arrowheadEdge(
     // a cap whose point is its line's middle, pointing along the line, is that line's middle arrow however near an end
     // its base reaches (vis-network's arrows.middle with a scaleFactor, on a line under twice the cap's length)
     const pointed = nearestEnd(edges, (e) => (tipsMiddle(p, e) ? 0 : Number.POSITIVE_INFINITY), 1, ["middle"]);
+    // Where lines run on under the nodes, lines leaving a crowded node at nearby angles all touch a head's tip there:
+    // the head is the line's it lies along, its middle on that line, never one it merely touches (json-vis-siblings:
+    // the nearest tip gave 23 heads to a neighbor's line, leaving 20 lines headless); lines it lies on alike (two
+    // edges drawn over one another, a line's two ends) go by the nearest tip
+    const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
+    const onLine = centerLines
+        ? nearestEnd(
+              edges,
+              (e, end) => (tipGap(p, e, end, nodes) <= 3 ? offPath(mid, e.points) : Number.POSITIVE_INFINITY),
+              Number.MAX_VALUE,
+              ["source", "target"],
+          )
+        : null;
     const best =
-        (centerLines ? nearestEnd(edges, (e, end) => tipGap(p, e, end, nodes), 3, ["source", "target"]) : null) ??
+        (onLine === null
+            ? null
+            : nearestEnd(
+                  edges,
+                  (e, end) => {
+                      const tip = tipGap(p, e, end, nodes);
+                      return tip <= 3 && offPath(mid, e.points) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
+                  },
+                  3,
+                  ["source", "target"],
+              )) ??
         pointed ??
         (held || middle === null || (ends !== null && ends.d < middle.d) ? ends : middle);
     if (best === null) {

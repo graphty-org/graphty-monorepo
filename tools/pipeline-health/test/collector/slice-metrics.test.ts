@@ -10,6 +10,7 @@ import {
     contention,
     reviewLags,
     setAge,
+    type StoryCaptures,
     UNIT_GONE_MS,
 } from "../../src/collector/slice-metrics.js";
 import type { SliceConfig } from "../../src/collector/slices.js";
@@ -126,7 +127,55 @@ describe("review lag: first rolling capture of a changed picture to its approval
     });
 });
 
+/** One collector cycle at NOW that sees a screenshot approval pull request merged 2 hours earlier. */
+async function cycleWithApproval(store: MemoryStore, readStore: () => Promise<StoryCaptures>) {
+    const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+    const base = fake.fetch;
+    fake.fetch = async (url, init) => {
+        const res = await base(url, init);
+        const body = init?.body ? String(init.body) : "";
+        if (!url.endsWith("/graphql") || !body.includes("pullRequests")) return res;
+        const data = (await res.json()) as {
+            data: { repository: { recent: { nodes: Record<string, unknown>[] } } };
+        };
+        const recent = data.data.repository.recent.nodes;
+        recent.unshift({
+            ...recent[0],
+            number: 9001,
+            state: "MERGED",
+            headRefName: "visual/approve-rolling-abcdef012345",
+            updatedAt: new Date(NOW - MIN).toISOString(),
+            mergedAt: new Date(NOW - 2 * HOUR).toISOString(),
+        });
+        return Response.json(data);
+    };
+    return collect({
+        store,
+        now: NOW,
+        gh: new GitHub(async () => "ghs_test", fake.fetch),
+        fetch: fake.fetch,
+        awsCosts: async () => [],
+        rates: rates as unknown as Rates,
+        limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
+        org: "graphty-org",
+        repo: "graphty-org/graphty-monorepo",
+        slices: { cfg, readStore },
+    });
+}
+
 describe("the collector cycle's dashboard observations", () => {
+    it("keeps an approval merge seen in a cycle that does not read the store, for the next read's review lag", async () => {
+        const store = new MemoryStore();
+        await setCursor(store, "capture-read", String(NOW - 5 * MIN), NOW - 5 * MIN);
+        let reads = 0;
+        await cycleWithApproval(store, async () => {
+            reads++;
+            return {};
+        });
+        expect(reads).toBe(0);
+        expect(JSON.parse((await getCursor(store, "review-lag")) ?? "{}").approvals).toEqual([NOW - 2 * HOUR]);
+    });
+
     it("writes the set's age, cap shares, slice costs, review lags and a nightly promotion, and marks story-slices", async () => {
         const store = new MemoryStore();
         const tree = "b".repeat(40);
@@ -142,44 +191,10 @@ describe("the collector cycle's dashboard observations", () => {
             JSON.stringify({ canary: [], promotions: {}, refs: { nightly: "c".repeat(40) } }),
             NOW - 5 * MIN,
         );
-        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
-        const base = fake.fetch;
-        fake.fetch = async (url, init) => {
-            const res = await base(url, init);
-            const body = init?.body ? String(init.body) : "";
-            if (!url.endsWith("/graphql") || !body.includes("pullRequests")) return res;
-            const data = (await res.json()) as {
-                data: { repository: { recent: { nodes: Record<string, unknown>[] } } };
-            };
-            const recent = data.data.repository.recent.nodes;
-            recent.unshift({
-                ...recent[0],
-                number: 9001,
-                state: "MERGED",
-                headRefName: "visual/approve-rolling-abcdef012345",
-                updatedAt: new Date(NOW - MIN).toISOString(),
-                mergedAt: new Date(NOW - 2 * HOUR).toISOString(),
-            });
-            return Response.json(data);
-        };
-        const report = await collect({
-            store,
-            now: NOW,
-            gh: new GitHub(async () => "ghs_test", fake.fetch),
-            fetch: fake.fetch,
-            awsCosts: async () => [],
-            rates: rates as unknown as Rates,
-            limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
-            org: "graphty-org",
-            repo: "graphty-org/graphty-monorepo",
-            slices: {
-                cfg,
-                readStore: async () => ({
-                    units: [{ at: NOW - 4 * HOUR }, { at: NOW - 30 * MIN }],
-                    captures: [cap("s", "unchanged", "d".repeat(40), NOW - 10 * MIN)],
-                }),
-            },
-        });
+        const report = await cycleWithApproval(store, async () => ({
+            units: [{ at: NOW - 4 * HOUR }, { at: NOW - 30 * MIN }],
+            captures: [cap("s", "unchanged", "d".repeat(40), NOW - 10 * MIN)],
+        }));
         expect(report.errors).toEqual({});
         // One entry per observation (the store keeps an index copy beside each item).
         const byId = new Map([...store.items.values()].filter((i) => i.kind === "obs").map((i) => [String(i.id), i]));

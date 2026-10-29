@@ -573,7 +573,7 @@ gate step and story-test jobs.
       `story-slices` source, so its members stay "not set up" until the owner puts the store's token in SSM.
     - **Orphan units.** A unit not rendered for 7 days (the store's retention) is treated as gone, which fixes
       the step 5 review's finding that a renamed story file held the set's age, and so idle slices, forever.
-      The count is kept as `slices.units_dropped` so a unit that really stopped rendering is visible. The
+      The count is written as the observation `slices.units_dropped` (not yet a dashboard row), so a unit that really stopped rendering can be found. The
       dispatcher's `storeSummary` uses the same rule.
     - **Review lag** follows each changed picture by its newest capture: it starts at the first newest
       capture seen as changed or new, and ends when the newest capture is unchanged against another

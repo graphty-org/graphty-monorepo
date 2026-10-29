@@ -1102,6 +1102,7 @@ async function slices(c: Cycle, xs: Collected[]) {
     };
     let decision = decideSlice({ ...input, store: null });
     const needed = decision.action === "none" && decision.reason === "store-unavailable";
+    let read = false;
     // The dashboard reads the store every 15 minutes too, so the set's age and the review lag stay current.
     if (s.readStore && (needed || (await c.due("capture-read", 15 * MIN)))) {
         const body = await s.readStore().catch((e: unknown) => {
@@ -1110,6 +1111,12 @@ async function slices(c: Cycle, xs: Collected[]) {
         });
         if (body) await captureMetrics(c, body);
         if (needed) decision = decideSlice({ ...input, store: body && storeSummary(body, c.now) });
+        read = !!body;
+    }
+    // Pull requests are read every cycle and the store every 15 minutes: keep this cycle's approval merges for the next read.
+    if (!read && c.approvalMerges.length) {
+        const prev = await c.json<ReviewState>("review-lag", { pending: {}, approvals: [] });
+        await c.setJson("review-lag", { ...prev, approvals: [...new Set([...prev.approvals, ...c.approvalMerges])] });
     }
     c.slice = { ...decision, dispatched: false };
     const share = budgetShares(state.spent, c.now, s.cfg);

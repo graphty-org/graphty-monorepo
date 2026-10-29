@@ -45,7 +45,7 @@ import {
     oracleMeta,
     oraclePngUrl,
 } from "./oracle-library";
-import { boxOfPoints, type PScene, type Pt } from "./primitives";
+import { boxOfPoints, placeUndrawn, type PScene, type Pt } from "./primitives";
 import { RASTER_REGIONS, rasterCompare } from "./raster";
 
 export { ORACLE_CANVAS, ORACLE_IDS, oracleGraphName, oraclesWithoutMetadata } from "./oracle-library";
@@ -216,12 +216,23 @@ async function matchPositions(element: Graphty, first: OracleComparison, mirror:
                   (bg.y0 + bg.y1) / 2 + (p[1] - (bo.y0 + bo.y1) / 2) * k,
               ]
             : unapply(fit, p);
-    const entries = pairs.flatMap(([o, g]) => {
-        const w = world.get(g.id);
+    const inGraphty = new Map(pairs.map(([o, g]): [string, Pt] => [g.id, intoGraphty([o.cx, o.cy])]));
+    // between unrelated layouts, a node the program's drawing does not show goes among its neighbours, not where
+    // graphty's own layout put it
+    const undrawn =
+        fit === null
+            ? placeUndrawn(
+                  inGraphty,
+                  [...world.keys()],
+                  first.graphty.edges.map((e): [string, string] => [e.source, e.target]),
+              )
+            : new Map<string, Pt>();
+    const entries = [...inGraphty, ...undrawn].flatMap(([id, p]) => {
+        const w = world.get(id);
         if (w === undefined) {
             return [];
         }
-        const [x, y] = unapply(toPx, intoGraphty([o.cx, o.cy]));
+        const [x, y] = unapply(toPx, p);
         // a node either side drew with no center (Graphviz's shape=plain with no label box) stays where it is
         return Number.isFinite(x) && Number.isFinite(y) ? [{ id: w.key, x, y, z: 0 }] : [];
     });

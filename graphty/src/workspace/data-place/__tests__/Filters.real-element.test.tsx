@@ -11,7 +11,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -276,6 +276,54 @@ describe("Filter cards on the real element", () => {
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 0);
         });
+    });
+
+    it("an exclude condition is named Exclude and has no Select / Hide toggle that could turn it into keep", async () => {
+        const { session } = await openWithGraph();
+        // Written by another consumer or a later version: the app has no control that writes exclude.
+        await session.visibility.addCondition({
+            effect: "exclude",
+            rule: { kind: "range", attribute: "data.value", min: 9 },
+        });
+        await waitFor(() => {
+            assert.equal(session.visibility.summary.visibleEdges, 5);
+        });
+        const excluded = within(await within(filters()).findByRole("listitem", { name: /, Exclude$/ }));
+        assert.isNull(excluded.queryByRole("radio", { name: "Select" }));
+        assert.isNull(excluded.queryByRole("radio", { name: "Hide" }));
+        assert.equal(session.visibility.conditions[0]?.effect, "exclude");
+    });
+
+    it("a text edit is written when focus leaves the card for blank space, and an empty new card is dropped", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "text", reads: "data.label", mode: "substring", text: "Ma" },
+        });
+        const box = (await card("label contains Ma")).getByRole("combobox", { name: "label: text to match" });
+        await realInput.click(box);
+        await realInput.keyboard("{End}r");
+        // The bare corner of the list cannot take focus: focus falls to the page.
+        await realInput.click(filters(), { position: { x: 2, y: 2 } });
+        await waitFor(() => {
+            const rule = session.visibility.conditions[0]?.rule;
+            assert.equal(rule?.kind === "text" ? rule.text : "", "Mar");
+        });
+        await within(filters()).findByRole("listitem", { name: "label contains Mar, Hide" });
+
+        // A new card left empty the same way is dropped, unwritten.
+        await realInput.click(screen.getByRole("button", { name: "Add filter" }));
+        await realInput.click(await screen.findByRole("menuitem", { name: "label" }));
+        const drafts = (): number => within(filters()).getAllByRole("listitem").length;
+        await waitFor(() => {
+            assert.equal(drafts(), 2);
+        });
+        await realInput.click(within(filters()).getAllByRole("combobox", { name: "label: text to match" })[1]);
+        await realInput.click(filters(), { position: { x: 2, y: 2 } });
+        await waitFor(() => {
+            assert.equal(drafts(), 1);
+        });
+        assert.lengthOf(session.visibility.conditions, 1);
     });
 
     it("an old Hide step opens as a read-only card that still hides what it hid", async () => {

@@ -85,6 +85,9 @@ const valueFields = (session: GraphSession, side: Side): CardField[] =>
  */
 const hides = (condition: FilterCondition): boolean => condition.effect !== "select";
 
+/** A card's action word for each effect, read in its name: the toggle shows keep and select. */
+const ACTION_WORDS: Record<FilterCondition["effect"], string> = { keep: "Hide", select: "Select", exclude: "Exclude" };
+
 /**
  * The Filters section: one card per condition, in the element's order, a new card while it has no
  * value, then the time window's row. "+" adds a card.
@@ -448,7 +451,10 @@ function FilterCard({
     const name = condition === undefined ? (field?.name ?? "New filter") : conditionWords(session, condition.rule);
     const select = condition?.effect === "select";
     const on = condition?.on ?? true;
-    const action = select ? "Select" : "Hide";
+    // Only keep and select swap with the toggle; any other effect (exclude) is named as it is and
+    // keeps it, since writing keep or select would change what the condition does.
+    const toggles = condition?.effect === "keep" || select;
+    const action = ACTION_WORDS[condition?.effect ?? "keep"];
 
     return (
         <li // NOSONAR(S6847): the card listens for keys its own controls send up (Enter commits, Escape drops a draft)
@@ -475,12 +481,16 @@ function FilterCard({
             }}
             onBlur={(event) => {
                 const to = event.relatedTarget;
-                if (!(to instanceof Element) || box.current?.contains(to) === true) {
+                // No target: focus went to something that cannot take it (blank space, the canvas),
+                // which leaves the card too -- unless the whole window lost focus.
+                const stays =
+                    to === null ? !document.hasFocus() : !(to instanceof Element) || box.current?.contains(to) === true;
+                if (stays) {
                     return;
                 }
                 const written = flush();
                 // A list the card opened (a match menu, Add a condition) is drawn in a portal.
-                if (draft && !written && to.closest("[data-portal]") === null) {
+                if (draft && !written && !(to instanceof Element && to.closest("[data-portal]") !== null)) {
                     onDiscard();
                 }
             }}
@@ -489,7 +499,7 @@ function FilterCard({
                 <Group gap={4} wrap="nowrap" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                     <CountChips count={count} />
                 </Group>
-                {condition !== undefined && (
+                {condition !== undefined && toggles && (
                     <SegmentedControl
                         size="xs"
                         label={`${name} action`}

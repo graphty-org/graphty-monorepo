@@ -104,7 +104,7 @@ function LossSummary({ lead, rows }: Readonly<{ lead?: string; rows: readonly Lo
         <>
             <Group gap={4} wrap="nowrap" align="baseline">
                 <Text size="xs" span>
-                    {lead === undefined ? line : `${lead}: ${line}`}
+                    {lead === undefined ? line.charAt(0).toUpperCase() + line.slice(1) : `${lead}: ${line}`}
                 </Text>
                 <Button
                     size="xs"
@@ -393,6 +393,8 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                         ref={formatField}
                         label="Format"
                         description={noStyles ? "No styles" : undefined}
+                        // The hint under the box, so Format lines up with the field beside it.
+                        inputWrapperOrder={["label", "input", "description", "error"]}
                         data={[
                             { group: "Tables", items: formatItems(true) },
                             { group: "Network files", items: formatItems(false) },

@@ -322,7 +322,7 @@ function lower(text: string): string {
 
 /**
  * What a file loses, as one counted line (tier 4, R14): each loss that is not about styles by its
- * label (with how many columns it is about), then the style losses as one count -- "positions not
+ * label (with how many columns it is about, when it counts no nodes or edges), then the style losses as one count -- "positions not
  * written, 9 style settings" -- the rest counted as "N more". The rows themselves sit behind a
  * Details disclosure.
  * @param rows - the loss rows.
@@ -334,7 +334,8 @@ export function lossSummary(rows: readonly LossRow[]): string {
         .filter((row) => !row.style)
         .map((row) => {
             const { length } = row.columns;
-            if (length === 0) {
+            // A node or edge count already says how much; columns are counted only for the rest.
+            if (length === 0 || row.kind !== null) {
                 return lower(row.what);
             }
             return `${lower(row.what)}: ${String(length)} ${length === 1 ? "column" : "columns"}`;

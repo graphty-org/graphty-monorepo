@@ -152,7 +152,7 @@ describe("Export warns before the graph's styles are lost", () => {
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         const warning = await within(dialog).findByRole("alertdialog", {}, { timeout: TIMEOUT_MS });
         // CSV holds no styles, so its export leaves the layers out and says so in one line.
-        assert.match(warning.textContent, /style layers not written/);
+        assert.match(warning.textContent, /Style layers not written/);
         assert.match(warning.textContent, /Reopened: no styles/);
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 
@@ -231,7 +231,7 @@ describe("Export warns before the graph's styles are lost", () => {
         });
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         const warning = await within(dialog).findByRole("alertdialog", {}, { timeout: TIMEOUT_MS });
-        assert.match(warning.textContent, /node label color not written/);
+        assert.match(warning.textContent, /Node label color not written/);
         assert.match(warning.textContent, /Reopened: layers as layers/);
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 

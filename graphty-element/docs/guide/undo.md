@@ -70,6 +70,28 @@ returns to the baseline, not to an empty element.
 - The first load after that, and everything after it, is a step.
 
 `session.history.clear()` makes the current state the new baseline.
+It also cancels whatever is still pending. To keep that work -- a run a reader started while a
+graph was loading -- pass `{ pending: "keep" }`: each pending item that has changed nothing yet
+finishes and records its step over the new baseline. Work that has already changed something, such
+as a transaction halfway through, is cancelled either way, because undoing its step would go back
+past the baseline.
+
+```typescript
+await session.data.import({ type: "csv", config: { url: "/flights.csv" } });
+session.history.clear({ pending: "keep" });
+```
+
+To open a graph as a new project, pass `history: "start"` to any load: `session.data.import`,
+`generate`, `loadDataset`, `loadSample`, a load draft's `load`, or `session.project.open` for a
+document that is not a project (a project file always starts the history). The loaded graph
+becomes the baseline: Undo and `history.restoreTo` never cancel the load while it is pending,
+and never undo it after. Steps recorded before the call are dropped once the load is in. Work
+done while it loads is kept, and each piece is its own step.
+
+```ts
+await session.data.import({ config: { url: "graph.graphml" } }, { history: "start" });
+session.canUndo; // false
+```
 
 ## Steps
 
@@ -126,6 +148,8 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window`                                            | none                                                       |
 | `visibility.show-context`, `visibility.hide-context`                                                                 | none                                                       |
 | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id` (the filter step's id)                                |
+| `visibility.condition-add`, `visibility.condition-on`, `visibility.condition-off`, `visibility.condition-remove`     | `id`, `effect` (the filter condition's id and effect)      |
+| `visibility.condition-edit`                                                                                          | `id`, `effect`, `previousEffect`                           |
 | `visibility.steps` (several steps changed at once, or a reorder)                                                     | none                                                       |
 | `set.create`                                                                                                         | `name` (or null)                                           |
 | `set.rename`                                                                                                         | `set` (its name before, or its id), `name`                 |
@@ -310,6 +334,10 @@ A host that mirrors graph state in its own UI listens for the change itself, wha
   each with a `cause`: `"command"`, `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A run that an
   undo takes away arrives with the phase `"removed"`, and one a redo brings back with
   `"restored"`.
+- `project:derived` fires with the same `{ slices, cause }` once the picture has caught up with
+  every change made so far, after those per-domain events; a burst of changes shares one. Read derived values --
+  `styles.legend()`, `styles.counts()` -- here: on `project:changed` they still answer for the
+  previous picture.
 - The element's `data-added`, `elements-removed` and `data-loaded` events fire for undo and redo
   too, with the same `cause`. A listener that starts work when data arrives should check that
   `cause` is absent or `"command"`, or it will start that work again on every undo.

@@ -22,14 +22,14 @@
  * always refused. Removing or changing a protected part is refused unless the branch is a
  * check-change branch: every file its commits change is under graphty/dry-run/, and every one of its
  * commits carries a `Dry-run-check-change: <reason>` trailer. Merge commits are not counted, and
- * neither are commits already on origin/master (a landing's sync with master brings those). Such a
+ * neither are commits already on origin/master (a merge of master brings those). Such a
  * branch is made from a different session than the change that made the check fail, and holds only
  * that change.
  *
  *   node tools/dry-run-check-guard.mjs [--base <ref>] [--head <ref>]
  *   node tools/dry-run-check-guard.mjs --self-test
  *
- * --base defaults to the merge base of HEAD with origin/golden. Exit 0: allowed (it prints what it
+ * --base defaults to the merge base of HEAD with origin/master. Exit 0: allowed (it prints what it
  * compared); 1: refused (it names each part removed or changed and how to proceed); 2: usage.
  */
 import { execFileSync } from "node:child_process";
@@ -401,7 +401,7 @@ async function main(argv) {
     }
     if (o["self-test"]) return selfTest();
     const cwd = git(["rev-parse", "--show-toplevel"]).trim();
-    const base = o.base ?? git(["merge-base", o.head, "origin/golden"], cwd).trim();
+    const base = o.base ?? git(["merge-base", o.head, "origin/master"], cwd).trim();
     const before = versionAt(base, cwd);
     const after = versionAt(o.head, cwd);
     if (after.writes.length) {
@@ -530,7 +530,7 @@ function selfTestBranches(assert) {
     assert.equal(checkChangeProblems(["graphty/dry-run/routes.mjs", "graphty/src/App.tsx"], [reason]).length, 1);
     assert.equal(checkChangeProblems(["graphty/dry-run/routes.mjs"], ["fix: no trailer"]).length, 1);
     assert.equal(checkChangeProblems(["graphty/dry-run/routes.mjs"], [`x\n\n${TRAILER}: short`]).length, 1);
-    // A check-change branch that merged golden in: the merge commit has no trailer and is not counted.
+    // A check-change branch that merged master in: the merge commit has no trailer and is not counted.
     const dir = mkdtempSync(join(tmpdir(), "dry-run-guard-"));
     const env = isolatedGitEnv();
     const g = (...args) => git(args, dir, env).trim();
@@ -540,15 +540,15 @@ function selfTestBranches(assert) {
         g("commit", "-q", "-m", message);
     };
     try {
-        g("init", "-q", "-b", "golden");
+        g("init", "-q", "-b", "master");
         commit("base.txt", "base");
         g("checkout", "-q", "-b", "fix");
         commit("routes.mjs", reason);
-        g("checkout", "-q", "golden");
-        commit("other.txt", "feat: something else on golden");
+        g("checkout", "-q", "master");
+        commit("other.txt", "feat: something else on master");
         g("checkout", "-q", "fix");
-        g("merge", "-q", "--no-edit", "golden");
-        const { messages } = branchCommits(dir, g("merge-base", "fix", "golden"), "fix", env);
+        g("merge", "-q", "--no-edit", "master");
+        const { messages } = branchCommits(dir, g("merge-base", "fix", "master"), "fix", env);
         assert.deepEqual(messages, [reason], "a merge commit is not one of the branch's commits");
     } finally {
         rmSync(dir, { recursive: true, force: true });

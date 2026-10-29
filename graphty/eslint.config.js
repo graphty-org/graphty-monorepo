@@ -83,6 +83,9 @@ export default tseslint.config(
     // The rule's test fixtures are code under test, parsed by the test itself.
     { ignores: ["eslint-rules/__tests__/fixtures/**"] },
 
+    // Builds made into a named folder (dist-<name>/) for a preview server: output, not source.
+    { ignores: ["dist-*/**"] },
+
     // The lint rules are Node modules in plain JavaScript, type-checked with checkJs
     // (`tsc -p eslint-rules`), so their JSDoc carries the types.
     {
@@ -184,6 +187,28 @@ export default tseslint.config(
         languageOptions: { globals: { ...globals.node, ...globals.browser } },
         settings: { jsdoc: { mode: "typescript" } },
         rules: { "jsdoc/no-types": "off" },
+    },
+
+    // A real-element test waits for an open on the workspace's `opened` (openBy in
+    // src/test/open.tsx), never by polling the node count, which arrives before the rest of an
+    // open (styles, history, focus), so a test that waits on it acts on a half-opened workspace (#3544).
+    // The start page's own graph (`graphty-element[data-start-page]`) is not an open, so a wait
+    // that names it is left alone.
+    {
+        files: ["src/**/*.real-element.test.tsx"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    // waitFor, vi.waitFor and expect.poll; statistics().nodeCount read or destructured inside
+                    // one. A helper that reads it outside the call is not seen.
+                    selector:
+                        ":matches(CallExpression[callee.name='waitFor'], CallExpression[callee.property.name=/^(waitFor|poll)$/]):not(:has(Literal[value='graphty-element[data-start-page]'])) :matches(MemberExpression[property.name='nodeCount'][object.callee.property.name='statistics'], VariableDeclarator[init.callee.property.name='statistics'] > ObjectPattern > Property[key.name='nodeCount'])",
+                    message:
+                        "Do not wait on the node count: await the open (openBy in src/test/open.tsx) or the load's own promise.",
+                },
+            ],
+        },
     },
 
     // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline

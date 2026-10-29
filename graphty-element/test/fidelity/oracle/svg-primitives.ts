@@ -11,6 +11,7 @@
 import {
     boxOfPoints,
     dashClassOf,
+    isLettering,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
     type PBox,
@@ -639,6 +640,11 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
     // CX2's generic `sans-serif`, which Java has no font of and draws in Dialog: "Mitochondria " starts 73.0 px left
     // of its node's middle at 21.38 px in cx2-u2os-hierarchy, half its DejaVu Sans width (146.0 px)
     "sans-serif": "DejaVu Sans",
+    // Calibri, which the oracles' Java has no font of either: cx-radiation-bibliography's `Calibri-Bold` labels lie
+    // where their DejaVu Sans (regular) width centers them on their nodes (within 0.022 em on 52 centered lines), not
+    // where Carlito's or the browser's stand-in's would; every PostScript style of it (`Calibri-Italic`) is looked up
+    // by its family
+    calibri: "DejaVu Sans",
     times: "DejaVu Serif",
     serif: "DejaVu Serif",
     courier: "DejaVu Sans Mono",
@@ -654,7 +660,8 @@ const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
  */
 function measureInJavaFace(el: SVGTextElement, first: string): () => void {
     const [name, javaStyle = ""] = first.split(".");
-    const face = FREEHEP_JAVA_FACES[name];
+    // a PostScript name's style suffix (`Calibri-Bold`) after the family, where the whole name is not a face itself
+    const face = FREEHEP_JAVA_FACES[name] ?? FREEHEP_JAVA_FACES[name.split("-")[0]];
     const desc = el.ownerSVGElement?.querySelector(":scope > desc")?.textContent ?? "";
     if (face === undefined || !desc.includes("FreeHEP")) {
         return () => undefined;
@@ -670,6 +677,42 @@ function measureInJavaFace(el: SVGTextElement, first: string): () => void {
     return () => {
         Object.assign(el.style, { fontFamily, fontWeight, fontStyle });
     };
+}
+
+/** A text drawn under this many screen pixels is laid out again larger for its line box (`lineBoxOf`). */
+const SMALL_TEXT_PX = 6;
+/** How much larger. */
+const SMALL_TEXT_SCALE = 100;
+
+/**
+ * A text's box in its own user units: its laid-out width, and the line box of its font from its baseline. The browser
+ * lays a text out at the size it is drawn on screen and rounds the font's ascent and descent to whole pixels there, so a
+ * text drawn a pixel high has a line box twice its font size, wholly above its baseline (dot-real-depcruise's 0.8 px
+ * labels: 1.88 em tall, its middle 0.62 em above the words' middle). A text drawn small is laid out again a hundred
+ * times larger, where the rounding is nothing, and its line box taken from there.
+ * @param el - the text
+ * @param size - its font size in user units
+ * @param screenPx - its font size on screen
+ * @returns the box
+ */
+function lineBoxOf(el: SVGTextElement, size: number, screenPx: number): DOMRect {
+    const bb = el.getBBox();
+    // lines placed by their own y or dy do not move with the font size: such a text is measured as it is
+    const placed = [...el.children].some(
+        (c) => c.localName === "tspan" && (c.hasAttribute("y") || c.hasAttribute("dy")),
+    );
+    if (placed || !(screenPx > 0 && screenPx < SMALL_TEXT_PX && bb.height > 0)) {
+        return bb;
+    }
+    const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
+    const before = el.style.fontSize;
+    el.style.fontSize = `${String(size * SMALL_TEXT_SCALE)}px`;
+    const big = el.getBBox();
+    el.style.fontSize = before;
+    if (!(big.height > 0)) {
+        return bb;
+    }
+    return new DOMRect(bb.x, y + (big.y - y) / SMALL_TEXT_SCALE, bb.width, big.height / SMALL_TEXT_SCALE);
 }
 
 function textOf(
@@ -708,8 +751,8 @@ function textOf(
     // A text the browser does not lay out (draw.io's fallback beside a foreignObject) has an empty
     // box: estimate it from its anchor, size and length instead.
     const restore = measureInJavaFace(el, first);
-    const bb = el.getBBox();
     const size = Number.parseFloat(cs.fontSize) || 12;
+    const bb = lineBoxOf(el, size, size * scale);
     const w = 0.55 * size * content.length;
     let x0 = x;
     if (anchor === "middle") {
@@ -883,6 +926,8 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             throw new Error("the oracle SVG has no screen matrix");
         }
         const prims: Prim[] = [];
+        // the `d` of the last filled path read, whose outline a stroke-only twin may draw
+        let lastFilledPath = "";
         const opacities = new Map<Element, number>();
         // the outline of a label stroked as an unfilled text of its own, kept for the filled text drawn over it: right
         // after it (Cytoscape.js) or after every other outline (Gephi writes all its label outlines, then the labels)
@@ -974,7 +1019,14 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             if (fill === null && stroke === null) {
                 continue;
             }
-            const open = fill === null && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
+            // vis-network's canvas2svg writes a shape's fill and its outline as two paths of one geometry, the outline
+            // left open where the canvas path it copies was (its database cylinder): the outline of the filled shape
+            // drawn just before it, closed as that shape is
+            const d = tag === "path" ? (el.getAttribute("d") ?? "") : "";
+            const outlineOfFill = fill === null && d !== "" && d === lastFilledPath;
+            lastFilledPath = fill !== null ? d : lastFilledPath;
+            const open =
+                fill === null && !outlineOfFill && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
             let points = geometryPoints(el as SVGGeometryElement, m, open ? PATH_SAMPLES : SAMPLES);
             const band = fill === null && stroke !== null ? clippedBand(el, root) : null;
             if (band !== null && stroke !== null) {
@@ -996,8 +1048,11 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 continue;
             }
             // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
-            const closed = isClosed(el, points) || fill !== null;
-            const subpaths = fill !== null && stroke === null ? subpathsOf(el, m) : null;
+            const closed = isClosed(el, points) || fill !== null || outlineOfFill;
+            // words drawn as glyph outlines, filled or stroked as a halo, are no line drawn in pieces
+            const pieces = closed && (el.getAttribute("d")?.split("M").length ?? 0) > 3 ? subpathsOf(el, m) : null;
+            const lettering = pieces !== null && isLettering(pieces);
+            const subpaths = fill !== null && stroke === null && !lettering ? (pieces ?? subpathsOf(el, m)) : null;
             const painted = subpaths !== null && subpaths.length >= 2 ? outlinePaintedAsFill(subpaths) : null;
             if (fill !== null && painted !== null) {
                 stroke = {
@@ -1028,6 +1083,7 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 },
                 hint: hintOf(el),
                 ...(subpaths !== null && painted === null ? { subpaths } : {}),
+                ...(lettering ? { lettering: true as const } : {}),
             });
         }
         return { width: r3(rect.width), height: r3(rect.height), prims };

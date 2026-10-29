@@ -80,6 +80,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.sizeMode": "mesh",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
+    // A different tessellation is a different source mesh, so low- and full-detail nodes never share one.
+    "node.meshDetail": "mesh",
     "node.flat": "mesh",
     "node.unlit": "mesh",
     // Width, height, depth and flatness are baked into the source mesh like the size. A border is
@@ -159,6 +161,15 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.chartLineWidth": "mesh",
     "node.chartBorderColor": "mesh",
     "node.chartBorderWidth": "mesh",
+    // How a group is sized round its members: read by the layout each frame, no mesh's identity.
+    "node.groupPadding": "content",
+    "node.groupPaddingRatio": "content",
+    "node.groupPaddingOf": "content",
+    "node.groupMinWidth": "content",
+    "node.groupMinHeight": "content",
+    "node.groupMinWidthBiasLeft": "content",
+    "node.groupMinHeightBiasTop": "content",
+    "node.groupIncludeLabels": "content",
     "node.borderPosition": "mesh",
     "node.borderWaveAmplitude": "mesh",
     "node.borderWavePeriod": "mesh",
@@ -184,6 +195,16 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.gradientColors": "mesh",
     "node.gradientStops": "mesh",
     "node.gradientKind": "mesh",
+    // A model and the options that change its geometry pick the template a node is drawn from.
+    // Tint is keyed too: "replace" swaps the materials, and on or off decides whether the node's
+    // colour is written into the model's instances (Node.applyInstanceColor).
+    "node.model": "mesh",
+    "node.modelSourceUp": "mesh",
+    "node.modelTurn": "mesh",
+    "node.modelTint": "mesh",
+    "node.modelFit": "mesh",
+    "node.modelCenter": "mesh",
+    "node.texture": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source. So two nodes that share a source mesh cannot be given two glow colours --
@@ -368,7 +389,17 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.fanned": "content",
     "edge.bendCurve": "content",
     "edge.arcRadius": "content",
+    "edge.supportModel": "content",
+    "edge.supportSpringLength": "content",
+    "edge.supportSpringConstant": "content",
+    "edge.supportRepulsion": "content",
+    "edge.supportCentralGravity": "content",
+    "edge.supportUnit": "content",
+    "edge.route": "content",
+    "edge.arcHeight": "content",
     "edge.nodeGap": "content",
+    "edge.sourceNodeGap": "content",
+    "edge.targetNodeGap": "content",
     "edge.sourcePort": "content",
     "edge.targetPort": "content",
 
@@ -402,7 +433,6 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailTextRotation": "content",
     "edge.arrowTailTextOffsetX": "content",
     "edge.arrowTailTextOffsetY": "content",
-
     // A text's size, colour and background are fields of the same rich-text block its style
     // writes, rebuilt by the same content sync.
     "node.tooltipSize": "content",
@@ -415,6 +445,18 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // different mesh (`Node.applyInstancePaint`, `Edge.paintMarked`).
     "node.visible": "instance",
     "edge.visible": "instance",
+
+    // Drawn beside the node's own mesh by the shader batches (design/rendering/shader-styles.md
+    // section 5), which read them on every paint, so none of them mints a source mesh: a shader
+    // written to a node already on screen rebuilds nothing, and binding a varying parameter on
+    // 10,000 nodes keeps one source mesh. A mesh-path surface that needs its own program is the
+    // drawing package's to key when it lands.
+    "node.shaders": "content",
+    "edge.shaders": "content",
+    // Per edge by nature, like the bends: a taper is drawn from the line batch's per-slot static
+    // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
+    "edge.taper": "content",
+    "edge.lift": "content",
 });
 
 /**

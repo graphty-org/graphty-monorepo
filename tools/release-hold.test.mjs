@@ -5,7 +5,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { holdAllBut, problems, releaseProjects } from "./release-hold.mjs";
+import {
+    holdAllBut,
+    holdAlso,
+    privateProjects,
+    problems,
+    releaseProjects,
+    unversionable,
+    withDependents,
+} from "./release-hold.mjs";
 
 const PROJECTS = ["graphty-element", "algorithms", "@graphty/remote-logger"];
 const held = (entry) => ({
@@ -94,5 +102,75 @@ describe("holdAllBut", () => {
     it("rejects a name that is not an nx project, and an empty list", () => {
         assert.match(holdAllBut(empty, PROJECTS, ["algorithms", "algorithm"], "x").problems.join(), /algorithm$/);
         assert.equal(holdAllBut(empty, PROJECTS, [], "x").problems.length, 1);
+    });
+});
+
+describe("holdAlso", () => {
+    it("holds the named projects for this run like file entries, each once, keeping the file's holds (#4021)", () => {
+        const { hold } = holdAlso(held(), ["algorithms", "graphty-element", "algorithms"], "2026-10-27");
+        assert.deepEqual(
+            hold.map((h) => h.project),
+            ["graphty-element", "algorithms"],
+        );
+        assert.deepEqual(problems({ hold }, PROJECTS), []);
+        assert.deepEqual(
+            releaseProjects(
+                ["*"],
+                hold.map((h) => h.project),
+            ),
+            ["*", "!graphty-element", "!algorithms"],
+        );
+    });
+
+    it("leaves an unknown name for problems to reject", () => {
+        const { hold } = holdAlso({ hold: [] }, ["algorithm"], "2026-10-27");
+        assert.match(problems({ hold }, PROJECTS).join(), /"algorithm" is not an nx project/);
+    });
+});
+
+describe("withDependents", () => {
+    it("adds every project that depends on a held one, transitively, each once", () => {
+        const deps = {
+            "babylonjs-map": [],
+            "graphty-element": [{ target: "babylonjs-map" }, { target: "npm:lit" }],
+            graphty: [{ target: "graphty-element" }, { target: "babylonjs-map" }],
+            algorithms: [{ target: "graph-format" }],
+        };
+        assert.deepEqual(withDependents(["babylonjs-map"], deps), ["babylonjs-map", "graphty-element", "graphty"]);
+        assert.deepEqual(withDependents(["algorithms"], deps), ["algorithms"]);
+        assert.deepEqual(withDependents([], deps), []);
+    });
+});
+
+describe("unversionable", () => {
+    const project = (entry) => ({ name: "x", version: "1.0.0", tagged: false, ...entry });
+
+    it("accepts a project with a tag, a version on disk, or both", () => {
+        assert.deepEqual(unversionable([project({ tagged: true, version: undefined })]), []);
+        assert.deepEqual(unversionable([project({ version: "0.0.0" })]), []);
+        assert.deepEqual(unversionable([project({ tagged: true })]), []);
+    });
+
+    it("rejects a project with no tag and no version on disk", () => {
+        assert.match(
+            unversionable([project({ version: undefined })]).join(),
+            /x has no x@<version> tag and no version/,
+        );
+        assert.equal(unversionable([project({ version: "" }), project({ name: "y", tagged: true })]).length, 1);
+    });
+});
+
+describe("privateProjects", () => {
+    it("accepts projects that are not private", () => {
+        assert.deepEqual(privateProjects([{ name: "x", isPrivate: false }, { name: "y" }]), []);
+    });
+
+    it("rejects a private project", () => {
+        const found = privateProjects([
+            { name: "x", isPrivate: true },
+            { name: "y", isPrivate: false },
+        ]);
+        assert.equal(found.length, 1);
+        assert.match(found[0], /x is private/);
     });
 });

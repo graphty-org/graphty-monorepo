@@ -49,10 +49,12 @@ import type {
     Path,
     Query,
     ResultItem,
+    RuleSide,
     RuleTree,
     RunId,
     Scope,
     SelectionDirection,
+    SourceKey,
 } from "../../catalog/types";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
@@ -94,8 +96,62 @@ export interface TimeWindow {
     readonly from: number | string;
     /** The first instant past the window, in the same form as `from`. */
     readonly to: number | string;
-    /** How far a caller advancing the window moves it. Carried, not applied. */
+    /** How far a caller advancing the window moves it: what `session.time` steps and plays by. */
     readonly step?: TimeStep;
+    /**
+     * Which nodes the window keeps when its attribute lives on edges. `"all"` (the default): the
+     * window says nothing about nodes. `"ends"`: a node is kept only when an edge inside the
+     * window ends at it, so nodes follow their edges.
+     */
+    readonly nodes?: "all" | "ends";
+    /**
+     * Whether an element of a kind that carries the attribute, but has no usable value for it, is
+     * kept: `"inside"` (the default) or `"outside"`.
+     */
+    readonly missing?: "inside" | "outside";
+    /** How `session.time` plays the window: moving both ends (`"sliding"`, the default) or only the end. */
+    readonly mode?: "sliding" | "cumulative";
+}
+
+/**
+ * What a window move does to finished runs over the visible graph: `"stale"` (the default) marks
+ * them out of date, `"keep"` keeps them current as they are, and `"rerun"` runs them again over the
+ * new window. See {@link TimePlayback.results}.
+ */
+export type TimeResultsPolicy = "keep" | "stale" | "rerun";
+
+/**
+ * How `session.time` moves windows, held with the designated field rather than on one window, so
+ * clearing the window keeps them. Saved in the project as `visibility.playback`. Every member is
+ * optional; one left out reads its default.
+ */
+export interface TimePlayback {
+    /** What a window move does to finished runs over the visible graph; default `"stale"`. */
+    readonly results?: TimeResultsPolicy;
+    /** Sliding (both ends move) or cumulative (from the start of the data); default `"sliding"`. */
+    readonly mode?: "sliding" | "cumulative";
+    /**
+     * How far a step moves, and how wide a sliding window is. `"auto"` (the default) picks the
+     * calendar step closest to a twentieth of the data's span (a 1-2-5 number for ordinal time).
+     */
+    readonly step?: TimeStep | "auto";
+    /** Whether an element with no usable time is kept in every window; default `"inside"`. */
+    readonly missing?: "inside" | "outside";
+    /**
+     * What happens to elements outside the window: `"hide"` (the default) stops drawing them;
+     * `"ghost"` keeps them drawn and in the state `"ghosted"`, which a style layer selects with
+     * `{ match: "state", state: "ghosted" }`. Either way they are not visible: no count, run or
+     * export includes them.
+     */
+    readonly outside?: "hide" | "ghost";
+}
+
+/** One kind's instants for a time column, parsed once: per row, NaN where there is none. */
+export interface TimeInstants {
+    /** One instant per row; NaN for a row with no usable value. */
+    readonly rows: Float64Array;
+    /** How many rows have one. */
+    readonly timed: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -162,6 +218,15 @@ export interface FilterSources {
     /** Where to read attribute values. Absent refuses `range`, `categories` and a time window. */
     readonly values?: FilterValueSource;
     /**
+     * The instants of a designated time column, parsed once. Absent, or null for a path or a
+     * kind, a window parses each element's value itself.
+     * @param path - The window's attribute.
+     * @returns Each kind's instants, or null.
+     */
+    readonly instants?: (
+        path: Path,
+    ) => { readonly node: TimeInstants | null; readonly edge: TimeInstants | null } | null;
+    /**
      * The paths inside a query that nothing in this session answers.
      *
      * A query that parses perfectly and names an attribute or a run that does not exist matches
@@ -193,6 +258,15 @@ export interface FilterSources {
      * @returns Its node bitmap when its field lives on nodes, its edge bitmap when on edges.
      */
     readonly captured?: (item: ResultItem) => CapturedHalves | undefined;
+    /**
+     * The nodes and edges any of these loads supplied. Absent refuses a `source` leaf.
+     * @param keys - The loads' keys.
+     * @returns Their node ids and edge ids; ones the graph no longer holds are ignored.
+     */
+    readonly supplied?: (keys: readonly SourceKey[]) => {
+        readonly nodes: ReadonlySet<NodeId>;
+        readonly edges: ReadonlySet<EdgeId>;
+    };
 }
 
 /** A captured item's members over the snapshot: null for a half the item's field does not live on. */
@@ -278,6 +352,7 @@ const FILTER_KINDS = [
     "isolated",
     "self-loop",
     "repeated-edge",
+    "source",
     "edges",
     "member",
     "item",
@@ -391,6 +466,18 @@ function assertBounds(min: number | undefined, max: number | undefined, kind: st
 }
 
 /**
+ * Check a leaf's side is a side.
+ * @param side - The side the leaf carried.
+ * @param kind - The filter kind, for the message.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` when it is neither "nodes" nor "edges".
+ */
+function assertSide(side: unknown, kind: string): void {
+    if (side !== undefined && side !== "nodes" && side !== "edges") {
+        throw malformed(`A "${kind}" filter's side is "nodes" or "edges".`, { kind, side });
+    }
+}
+
+/**
  * Check a query is not empty.
  *
  * An empty query matches EVERY element, which is the same defect an empty style selector has: the
@@ -456,6 +543,17 @@ function assertNeighborhoodFilter(filter: Extract<RuleTree, { kind: "neighborhoo
 }
 
 /**
+ * Check a "source" filter's load keys.
+ * @param sources - The keys.
+ * @throws A `GraphtyError` when they are not a list of strings.
+ */
+function assertLoadKeys(sources: unknown): void {
+    if (!Array.isArray(sources) || !sources.every((key) => typeof key === "string")) {
+        throw malformed('A "source" filter needs a list of load keys.', { sources });
+    }
+}
+
+/**
  * Check one filter is a filter, all the way down, without touching the graph.
  *
  * Separate from compiling it so that a malformed filter is refused at the call that offered it
@@ -509,6 +607,12 @@ function assertFilter(filter: RuleTree): void {
         case "isolated":
         case "self-loop":
         case "repeated-edge":
+            return;
+        case "source":
+            assertLoadKeys(filter.sources);
+
+            assertSide(filter.side, filter.kind);
+
             return;
         case "member":
             // The filter computes "visible", and "search" will read the filter: either one here is
@@ -620,6 +724,33 @@ function assertTimeWindow(window: TimeWindow): void {
             { step: window.step },
         );
     }
+
+    assertWindowOptions(window);
+}
+
+/** The values each enumerated window option takes. */
+const WINDOW_OPTIONS = {
+    nodes: ["all", "ends"],
+    missing: ["inside", "outside"],
+    mode: ["sliding", "cumulative"],
+} as const;
+
+/**
+ * Check a time window's enumerated options.
+ * @param window - The window.
+ * @throws A `GraphtyError` naming the option and the values it takes.
+ */
+function assertWindowOptions(window: TimeWindow): void {
+    for (const [option, allowed] of Object.entries(WINDOW_OPTIONS)) {
+        const value = (window as unknown as Record<string, unknown>)[option];
+        if (value !== undefined && !(allowed as readonly unknown[]).includes(value)) {
+            throw malformed(`A time window's ${option} is one of ${allowed.join(", ")}.`, {
+                field: option,
+                value,
+                allowed: [...allowed],
+            });
+        }
+    }
 }
 
 /**
@@ -707,6 +838,12 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
 
                 return;
             }
+            case "source":
+                if (sources.supplied === undefined) {
+                    throw unsupported("source", "a record of what each load supplied");
+                }
+
+                return;
             case "all":
             case "any":
                 each.of.forEach(check);
@@ -879,6 +1016,29 @@ function edgeQueryTest(context: CompileContext, where: Query): ElementTest {
     }
 
     return (index) => hit[index] === 1;
+}
+
+/**
+ * The tests over what some loads supplied: a node or an edge passes when one of them supplied it.
+ * @param context - The compile context.
+ * @param keys - The loads' keys.
+ * @param side - The one half to speak, or both when absent.
+ * @returns Both halves, or the one `side` names.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this session records no provenance.
+ */
+function sourceTests(context: CompileContext, keys: readonly SourceKey[], side: RuleSide | undefined): CompiledHalves {
+    const { supplied } = context.sources;
+    if (supplied === undefined) {
+        throw unsupported("source", "a record of what each load supplied");
+    }
+
+    const { nodes, edges } = supplied(keys);
+    const { graph } = context;
+    const space = edgeSpaceOf(graph);
+    return {
+        node: side === "edges" ? null : (index) => nodes.has(graph.ids.idOf(index)),
+        edge: side === "nodes" ? null : (index) => edges.has(space.idOf(index)),
+    };
 }
 
 /**
@@ -1442,6 +1602,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: null, edge: repeatedEdgeTest(context) };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
+        case "source":
+            return sourceTests(context, filter.sources, filter.side);
         case "member": {
             if (context.sources.scope === undefined) {
                 throw unsupported("member", "a scope resolver");
@@ -1512,28 +1674,67 @@ export function compileFilter(graph: GraphSnapshot, filter: RuleTree, sources: F
  */
 function compileWindow(window: TimeWindow, context: CompileContext): CompiledHalves {
     const values = valuesOf(context, "window");
+    const { graph } = context;
     const mark = markFor(context, window.attribute);
     const from = instantOf(window.from) ?? Number.NEGATIVE_INFINITY;
     const to = instantOf(window.to) ?? Number.POSITIVE_INFINITY;
+    const missingInside = window.missing !== "outside";
+    const indexed = context.sources.instants?.(window.attribute) ?? null;
 
     /**
-     * Whether one element's instant falls inside the half-open window.
-     * @param read - Reads the element's value.
-     * @returns The test.
+     * The test of one kind: whether its instant falls inside the half-open window. An element
+     * with no place on the timeline is kept unless the window says `missing: "outside"`.
+     * @param parsed - The kind's instants when the column is designated, else null.
+     * @param count - How many elements of the kind.
+     * @param read - Reads one element's value, for a column that is not designated.
+     * @returns The test, or null when the kind carries no value: the window says nothing of it.
      */
-    const inside = (read: (index: number, path: Path) => unknown): ElementTest => {
-        return (index) => {
-            const instant = instantOf(readValue(read, index, window.attribute, mark));
+    const half = (
+        parsed: TimeInstants | null,
+        count: number,
+        read: (index: number, path: Path) => unknown,
+    ): ElementTest | null => {
+        const inside = (instant: number | null): boolean =>
+            instant === null ? missingInside : instant >= from && instant < to;
 
-            // No place on the timeline means the window has nothing to say about this element.
-            return instant === null || (instant >= from && instant < to);
-        };
+        if (parsed !== null) {
+            if (parsed.timed === 0) {
+                return null;
+            }
+
+            mark.seen = true;
+            const { rows } = parsed;
+
+            return (index) => inside(Number.isNaN(rows[index]) ? null : rows[index]);
+        }
+
+        if (!missingInside && !carries(count, (index) => read(index, window.attribute))) {
+            return null;
+        }
+
+        return (index) => inside(instantOf(readValue(read, index, window.attribute, mark)));
     };
 
-    return {
-        node: inside((index, path) => values.nodeValue(index, path)),
-        edge: inside((index, path) => values.edgeValue(index, path)),
-    };
+    const edge = half(indexed?.edge ?? null, graph.edgeCount, (index, path) => values.edgeValue(index, path));
+    let node = half(indexed?.node ?? null, graph.nodeCount, (index, path) => values.nodeValue(index, path));
+
+    if (window.nodes === "ends" && edge !== null) {
+        // ponytail: counts an edge inside the window, not one that also passes the filter's edge
+        // half, as the `ends` of a range leaf does; the design's rule ANDs both.
+        const list = graph.edgeList();
+        const ends = new Uint8Array(graph.nodeCount);
+        for (let index = 0; index < graph.edgeCount; index++) {
+            if (edge(index)) {
+                ends[list.src[index]] = 1;
+                ends[list.dst[index]] = 1;
+            }
+        }
+
+        const own = node;
+        node = (index) => ends[index] === 1 && (own === null || own(index));
+    }
+
+    return { node, edge };
 }
 
 /**

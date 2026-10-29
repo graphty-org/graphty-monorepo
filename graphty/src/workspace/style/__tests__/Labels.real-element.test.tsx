@@ -603,7 +603,15 @@ describe("a label entry's size, keys, lists and widths", () => {
             within(screen.getByTestId("style-tab")).getByRole("button", { name: "Add to node shape" }),
         );
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
-        // A line "+" adds waits for a value; a picked one is written and stays.
+        // A line "+" adds waits for a value, with focus in its field once the line is drawn; typed
+        // before that, the keys go to the menu's button and no shape is picked.
+        await waitFor(() => {
+            assert.isNotNull(
+                document.activeElement?.closest('[data-line="node.shape"]'),
+                "focus is in the new Shape line",
+            );
+        });
+        // A picked value is written and stays.
         await userEvent.keyboard("Box{Enter}");
         await waitFor(() => {
             assert.isTrue(session.styles.list().some((layer) => layer.set?.["node.shape"] === "box"));

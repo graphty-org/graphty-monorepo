@@ -1,11 +1,20 @@
 {
     "name": "@graphty/graphty",
     "version": "0.8.92",
-    "private": true,
-    "description": "React application for graph visualization built with Mantine and graphty-element",
+    "description": "graphty, the graph visualization web app of graphty.app, as a built static site: open graph files, lay them out, run algorithms and style the result in the browser",
     "author": "Adam Powers <apowers@ato.ms>",
     "license": "MIT",
     "type": "module",
+    "files": [
+        "dist/",
+        "!dist/**/*.map",
+        "README.md",
+        "LICENSE"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
     "scripts": {
         "dev": "vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "build": "tsc && NODE_OPTIONS=--max-old-space-size=8192 vite build",
@@ -21,32 +30,29 @@
         "lint:knip": "cd .. && ./tools/run-knip.sh --workspace graphty",
         "typecheck": "tsc --noEmit",
         "samples:write": "tsx scripts/write-sample-gml.ts",
+        "samples:write-timeline": "tsx scripts/write-timeline-samples.ts",
+        "samples:prototype": "node scripts/make-prototype-data.mjs",
+        "samples:fetch": "tsx scripts/fetch-timeline-samples.ts",
         "storybook": "storybook dev -p ${PORT:?start it through servherd, which sets PORT} ${HOST:+--host $HOST} --no-open --https --ssl-cert ${HTTPS_CERT_PATH:?graphty Storybook needs HTTPS: set HTTPS_CERT_PATH, servherd passes httpsCert} --ssl-key ${HTTPS_KEY_PATH:?graphty Storybook needs HTTPS: set HTTPS_KEY_PATH, servherd passes httpsKey}",
         "build-storybook": "storybook build",
         "husky:prepush": "echo no prepush check",
         "ready:commit": "npm run build && npm run lint && npm run test:run"
     },
-    "dependencies": {
+    "devDependencies": {
         "@babylonjs/core": "^8.36.1",
         "@graphty/compact-mantine": "workspace:*",
+        "@graphty/graph-format": "workspace:*",
+        "@graphty/graph-io": "workspace:*",
+        "@graphty/graph-samples": "workspace:*",
         "@graphty/graphty-element": "workspace:*",
         "@graphty/webgpu-graph-algorithms": "workspace:*",
         "@mantine/core": "^8.1.3",
         "@mantine/hooks": "^8.1.3",
         "@mlc-ai/web-llm": "^0.2.85",
-        "@sentry/react": "^10.30.0",
-        "lit": "^3.3.1",
-        "lucide-react": "^0.525.0",
-        "react": "^19.1.0",
-        "react-dom": "^19.1.0"
-    },
-    "devDependencies": {
-        "@graphty/graph-format": "workspace:*",
-        "@graphty/graph-io": "workspace:*",
-        "@graphty/graph-samples": "workspace:*",
-        "@sentry/vite-plugin": "^4.6.1",
+        "@sentry/cli": "^2.58.6",
+        "@sentry/react": "^11.8.0",
         "@storybook/addon-docs": "^9.0.11",
-        "@storybook/addon-vitest": "^9.0.11",
+        "@storybook/addon-vitest": "^9.1.21",
         "@storybook/react": "^9.0.11",
         "@storybook/react-vite": "^9.0.11",
         "@testing-library/jest-dom": "^6.6.3",
@@ -63,11 +69,15 @@
         "eslint-plugin-react-refresh": "^0.4.16",
         "eslint-plugin-storybook": "^0.11.1",
         "globals": "^15.12.0",
-        "storybook": "^9.1.20",
+        "lit": "^3.3.1",
+        "lucide-react": "^0.525.0",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+        "storybook": "^9.1.21",
         "tsx": "^4.20.3",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.71.1",
-        "vite": "^7.0.0",
+        "vite": "^8.1.6",
         "vitest": "catalog:"
     },
     "overrides": {
@@ -78,7 +88,7 @@
         "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
         "directory": "graphty"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graphty#readme",
+    "homepage": "https://graphty.app/",
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },

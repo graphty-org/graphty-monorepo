@@ -134,6 +134,21 @@ describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
         });
     });
 
+    describe("Vee Arrow notch", () => {
+        test("createVee is notched half its length, as Graphviz, Cytoscape.js and vis-network draw their vee", () => {
+            // Graphviz arrows.c arrow_type_crow0 (vee: the inner corner m at 0.5 of the arrow), Cytoscape.js's vee
+            // (0, -0.15) of a 0.3 arrow, vis-network's Vee (-0.5, 0)
+            const mesh = FilledArrowRenderer.createVee(scene);
+            const positions = mesh.getVerticesData("position");
+            assert.exists(positions);
+            // the notch's corner on the line (z 0) behind the tip at x 0
+            const notch = [0, 3, 6, 9].find((i) => positions[i + 2] === 0 && positions[i] !== 0);
+            assert.isDefined(notch);
+            assert.closeTo(positions[notch], -0.5, 1e-9);
+            mesh.dispose();
+        });
+    });
+
     describe("Tee Arrow", () => {
         test("createTee creates horizontal bar with 4 vertices", () => {
             const mesh = FilledArrowRenderer.createTee(scene);

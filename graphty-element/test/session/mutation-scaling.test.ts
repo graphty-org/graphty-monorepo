@@ -679,6 +679,28 @@ const CASES: readonly Case[] = [
         growth: "linear",
         prepare: (session) => Promise.resolve(() => session.data.setValueLabel("data.group", 1, "First")),
     },
+    // The column commands: each walks the column once, never once per row per row.
+    {
+        method: "SessionDataApi.setRole",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setRole({ kind: "node", name: "group" }, "label")),
+    },
+    {
+        method: "SessionDataApi.setType",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setType({ kind: "node", name: "weight" }, "text")),
+    },
+    {
+        method: "SessionDataApi.renameColumn",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() => session.data.renameColumn({ kind: "node", name: "weight" }, "mass")),
+    },
+    {
+        method: "SessionDataApi.setHidden",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setHidden([{ kind: "node", name: "group" }], true)),
+    },
     // Visibility, scope and settings
     {
         method: "VisibilityApi.set",
@@ -686,10 +708,103 @@ const CASES: readonly Case[] = [
         prepare: (session) => Promise.resolve(() => session.visibility.set({ kind: "degree", min: 2 })),
     },
     {
+        method: "VisibilityApi.setSteps",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.setSteps([{ id: "s", on: true, rule: { kind: "degree", min: 2 } }]),
+            ),
+    },
+    {
+        method: "VisibilityApi.setConditions",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.setConditions([
+                    { effect: "exclude", rule: { kind: "degree", min: 2 } },
+                    { effect: "select", rule: { kind: "degree", max: 1 } },
+                ]),
+            ),
+    },
+    {
+        method: "VisibilityApi.addCondition",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.addCondition({ effect: "select", rule: { kind: "degree", min: 2 } }),
+            ),
+    },
+    {
+        method: "VisibilityApi.updateCondition",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.addCondition({ id: "c", effect: "keep", rule: { kind: "degree", min: 2 } });
+            return () => session.visibility.updateCondition("c", { effect: "select" });
+        },
+    },
+    {
+        method: "VisibilityApi.removeCondition",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.addCondition({ id: "c", effect: "exclude", rule: { kind: "degree", min: 2 } });
+            return () => session.visibility.removeCondition("c");
+        },
+    },
+    {
         method: "VisibilityApi.setWindow",
         growth: "linear",
         prepare: (session, size) =>
             Promise.resolve(() => session.visibility.setWindow({ attribute: "data.weight", from: 0, to: size / 2 })),
+    },
+    {
+        method: "TimeApi.setField",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.time.setField({ edges: { start: "w" } })),
+    },
+    {
+        method: "TimeApi.window",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            return () => session.time.window({ from: 0, to: size / 2 });
+        },
+    },
+    {
+        method: "TimeApi.stepBy",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            return () => session.time.stepBy(1);
+        },
+    },
+    {
+        method: "TimeApi.commit",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            await session.time.seek(size / 2, { commit: false });
+            return () => session.time.commit();
+        },
+    },
+    {
+        method: "TimeApi.seek",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            return () => session.time.seek(size / 2);
+        },
+    },
+    {
+        method: "TimeApi.setSettings",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: size / 2, step: 10 });
+            return () => session.time.setSettings({ step: 5 });
+        },
     },
     {
         method: "ScopeApi.save",

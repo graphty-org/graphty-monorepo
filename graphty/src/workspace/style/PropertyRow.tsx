@@ -14,6 +14,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
 import {
+    carriedOpacity,
     type DataBinding,
     type DataChoice,
     layersBinding,
@@ -46,6 +47,7 @@ import {
     fieldName,
     firstValueWords,
     hexOf,
+    hiddenByWords,
     isPercent,
     LAYER_TOKEN,
     listWords,
@@ -290,6 +292,23 @@ function reachWords(session: GraphSession, id: unknown, channel: Channel, side: 
     return `${words}, on ${count(counts.painted[channel] ?? counts.matched, side)}`;
 }
 
+/** What a field's caption says when the element draws nothing for the value it sets, by the element's code. */
+const UNDRAWN_WORDS: Readonly<Record<string, string>> = { "edge.lift-needs-flat-layout": "Flat in this view" };
+
+/**
+ * The element's code for why a channel a layer sets draws nothing, among the ones a field words.
+ * @param session - the element's session.
+ * @param layer - the layer.
+ * @param channel - the channel.
+ * @returns the code, or undefined when it draws.
+ */
+function undrawnCode(session: GraphSession, layer: LayerId, channel: Channel): string | undefined {
+    if (channel !== "edge.lift") {
+        return undefined;
+    }
+    return session.styles.counts(layer).undrawn.find((fact) => UNDRAWN_WORDS[fact.code] !== undefined)?.code;
+}
+
 /** The most layers a coverage caption names; past it, "and N more", as the line under a field. */
 const COVERED_NAMES = 3;
 
@@ -303,6 +322,21 @@ const COVERED_NAMES = 3;
  * @returns The line; the count is drawn on one line ("on 24 of 24", never "on 2" above "4 of 24")
  */
 function CoveredLine({ session, over }: Readonly<{ session: GraphSession; over: PaintedOver }>): React.JSX.Element {
+    if (over.hiddenBy !== undefined) {
+        // The row's own shader draws instead of the node: the value is kept, and comes back when
+        // the shader moves to another place.
+        return (
+            <Text
+                size="xs"
+                c="var(--cm-text-secondary)"
+                className="ws-field-covered"
+                data-covered-caption
+                data-hidden-by
+            >
+                {hiddenByWords(over.hiddenBy)}
+            </Text>
+        );
+    }
     const rest = over.by.length - COVERED_NAMES;
     const shown = rest > 1 ? COVERED_NAMES : over.by.length;
     const between = (at: number): string => {
@@ -685,9 +719,16 @@ interface FieldControlProps {
     readonly reached: number;
     readonly write: (next: FieldWrite, words?: string) => void;
     readonly writeValue: (value: ChannelValue) => void;
+    /** Writes a picked choice: a shader that joins the list (Shape's sprites) is written as a shader. */
+    readonly pick: (value: ChannelValue) => void;
+    /** The shaders a list offers after its own choices, if any. */
+    readonly extraChoices: ExtraChoices;
     readonly bind: (choice: DataChoice) => void;
     readonly onLayers: () => void;
 }
+
+/** The shaders a list offers after its own choices. */
+type ExtraChoices = React.ComponentProps<typeof ValueField>["extraChoices"];
 
 /**
  * A property row's value control: each layer's value, Mixed, the bound pill, or the field for the
@@ -696,7 +737,7 @@ interface FieldControlProps {
  * @returns the control.
  */
 function fieldControl(props: FieldControlProps): React.ReactNode {
-    const { ctx, descriptor, name, lines, pending, write, writeValue, bind } = props;
+    const { ctx, descriptor, name, lines, pending, write, writeValue, pick, extraChoices, bind } = props;
     const { own, partly, spread } = lines;
     if (spread !== undefined) {
         // Drawn as a field bound to data is, with Layer as its source.
@@ -725,7 +766,8 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
                 }
                 mixed={!fresh}
                 swatches={ctx.documentColors}
-                onChange={writeValue}
+                extraChoices={extraChoices}
+                onChange={pick}
             />
         );
     }
@@ -746,6 +788,8 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
             value={own.value}
             combine={own.combine}
             writeValue={writeValue}
+            pick={pick}
+            extraChoices={extraChoices}
         />
     );
 }
@@ -759,6 +803,8 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
  * @param props.value - the value it sets
  * @param props.combine - how it meets the layers beneath, when not replacing them
  * @param props.writeValue - writes a new value
+ * @param props.pick - writes a picked choice, a shader as a shader
+ * @param props.extraChoices - the shaders a list offers after its own choices
  * @returns The field
  */
 function OneValue({
@@ -768,6 +814,8 @@ function OneValue({
     value,
     combine,
     writeValue,
+    pick,
+    extraChoices,
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
@@ -775,30 +823,23 @@ function OneValue({
     value: Line["value"];
     combine: Line["combine"];
     writeValue: (value: ChannelValue) => void;
+    pick: (value: ChannelValue) => void;
+    extraChoices: ExtraChoices;
 }>): React.JSX.Element {
     if (descriptor.accepts === "color") {
-        const hex = hexOf(value) ?? "#000000";
-        return (
-            <CompactColorInput
-                aria-label={name}
-                // The box is read with the color's word beside its hex: "Color, set, red".
-                valueText={colorName(hex)}
-                width="100%"
-                color={hex}
-                defaultColor={hex}
-                showOpacity={false}
-                showReset={false}
-                swatches={ctx.documentColors}
-                onChangeEnd={(next) => {
-                    if (next !== undefined && next.toUpperCase() !== hex) {
-                        writeValue(next.toUpperCase());
-                    }
-                }}
-            />
-        );
+        return <ColorValue ctx={ctx} descriptor={descriptor} name={name} value={value} writeValue={writeValue} />;
     }
     if (descriptor.accepts === "enum" || descriptor.accepts === "boolean") {
-        return <ValueField descriptor={descriptor} label={name} value={value} shown={value} onChange={writeValue} />;
+        return (
+            <ValueField
+                descriptor={descriptor}
+                label={name}
+                value={value}
+                shown={value}
+                extraChoices={extraChoices}
+                onChange={pick}
+            />
+        );
     }
     if (descriptor.accepts === "number") {
         return (
@@ -806,6 +847,66 @@ function OneValue({
         );
     }
     return <TextValue name={name} value={value} writeValue={writeValue} />;
+}
+
+/**
+ * The color a layer sets, with its opacity box when it carries one: the box reads and writes the
+ * opacity channel as a percent, and the color stays six digits.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.descriptor - the property
+ * @param props.name - the property's name
+ * @param props.value - the color it sets
+ * @param props.writeValue - writes a new color
+ * @returns The field
+ */
+function ColorValue({
+    ctx,
+    descriptor,
+    name,
+    value,
+    writeValue,
+}: Readonly<{
+    ctx: RowContext;
+    descriptor: ChannelDescriptor;
+    name: string;
+    value: Line["value"];
+    writeValue: (value: ChannelValue) => void;
+}>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const hex = hexOf(value) ?? "#000000";
+    const channel = carriedOpacity(ctx, descriptor.channel);
+    const percent = (read: unknown): number | undefined =>
+        typeof read === "number" ? Math.round(read * 10_000) / 100 : undefined;
+    const own = channel === undefined ? undefined : percent(lineIn(ctx, channel)?.value);
+    const beneath = channel === undefined ? undefined : percent(ctx.beneath(channel).value);
+    return (
+        <CompactColorInput
+            aria-label={name}
+            // The box is read with the color's word beside its hex: "Color, set, red".
+            valueText={colorName(hex)}
+            width="100%"
+            color={hex}
+            defaultColor={hex}
+            opacity={own}
+            defaultOpacity={beneath ?? 100}
+            showOpacity={channel !== undefined}
+            showReset={false}
+            swatches={ctx.documentColors}
+            onChangeEnd={(next, opacity) => {
+                if (next !== undefined && next.slice(0, 7).toUpperCase() !== hex) {
+                    writeValue(next.slice(0, 7).toUpperCase());
+                }
+                if (channel !== undefined && opacity !== undefined && opacity !== (own ?? beneath ?? 100)) {
+                    fieldWrite(
+                        ctx,
+                        channel,
+                        store,
+                    )({ value: opacity / 100 }, `${fieldName(channel)} now ${String(opacity)}%`);
+                }
+            }}
+        />
+    );
 }
 
 /**
@@ -840,7 +941,6 @@ function NumberValue({
             label={name}
             width="100%"
             numeric
-            variant="outlined"
             options={[]}
             value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
             suffix={percent ? "%" : undefined}
@@ -876,7 +976,6 @@ function TextValue({
             // Keyed by the value, so Undo, Redo or another edit shows the new text.
             key={text}
             size="xs"
-            variant="outlined"
             aria-label={name}
             defaultValue={text}
             onBlur={(event) => {
@@ -1083,6 +1182,9 @@ export function Field({
             listed ? undefined : `${name} now ${valueWords(descriptor, value)}`,
         );
     };
+    // A property's own list offers only its own choices: shaders are added in the Shaders section.
+    const extraChoices: ExtraChoices = undefined;
+    const pick = writeValue;
     const remove = (): void => {
         removeField({ ctx, channel, name, lines, box, store, onCancel });
     };
@@ -1117,7 +1219,20 @@ export function Field({
     };
     // Every layer a write reaches, those holding no value among them.
     const reached = ctx.many?.inOrder?.(channel).length ?? 0;
-    const control = fieldControl({ ctx, descriptor, name, lines, pending, reached, write, writeValue, bind, onLayers });
+    const control = fieldControl({
+        ctx,
+        descriptor,
+        name,
+        lines,
+        pending,
+        reached,
+        write,
+        writeValue,
+        pick,
+        extraChoices,
+        bind,
+        onLayers,
+    });
     const varySlot = varySlotOf({
         ctx,
         descriptor,
@@ -1139,6 +1254,8 @@ export function Field({
     // picked makes the layer.
     const firstValue =
         pending && own === undefined && ctx.many === undefined && ctx.layers.length === 0 && ctx.fresh !== undefined;
+    // A value the element draws nothing for here (a lift outside a flat layout in 3D).
+    const undrawn = own === undefined ? undefined : undrawnCode(session, own.layer.id, channel);
     return (
         <div
             ref={box}
@@ -1163,7 +1280,7 @@ export function Field({
                 <div className="ws-field-control">{control}</div>
                 <span className="ws-slot ws-vary">{varySlot}</span>
                 <span className="ws-slot">
-                    <Tooltip label={removeName} position="top">
+                    <Tooltip label={removeName}>
                         <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={remove}>
                             <GLYPHS.remove size={14} aria-hidden />
                         </ActionIcon>
@@ -1171,6 +1288,11 @@ export function Field({
                 </span>
             </div>
             {over === undefined ? null : <CoveredLine session={session} over={over} />}
+            {undrawn === undefined ? null : (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-undrawn>
+                    {UNDRAWN_WORDS[undrawn]}
+                </Text>
+            )}
             {firstValue ? (
                 <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-first-value>
                     {firstValueWords(label)}
@@ -1218,12 +1340,23 @@ export function Field({
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
+ * @param props.label - the glyph's name, when the property has no channel word
+ * @param props.onFail - says a refused binding
  * @returns The column, empty when the channel takes no binding
  */
 export function VarySlot({
     ctx,
     descriptor,
-}: Readonly<{ ctx: RowContext; descriptor: ChannelDescriptor }>): React.JSX.Element {
+    label,
+    onFail,
+}: Readonly<{
+    ctx: RowContext;
+    descriptor: ChannelDescriptor;
+    /** The glyph's name, when the property is not a channel of its own (a shader parameter). */
+    label?: string;
+    /** Says a refused binding, when the property has no channel word. */
+    onFail?: (error: unknown) => void;
+}>): React.JSX.Element {
     const { store } = useWorkspace();
     const [open, setOpen] = useState(false);
     const bind = (choice: DataChoice): void => {
@@ -1232,6 +1365,10 @@ export function VarySlot({
             return;
         }
         writeIn(ctx, descriptor.channel, { binding: proposal.binding }).catch((error: unknown) => {
+            if (onFail !== undefined) {
+                onFail(error);
+                return;
+            }
             store.set({
                 notice: { message: failureWords(channelWord(descriptor.channel), "changed", error), error: true },
             });
@@ -1240,7 +1377,14 @@ export function VarySlot({
     return (
         <span className="ws-slot ws-vary">
             {takesBinding(descriptor) && (
-                <VaryButton ctx={ctx} descriptor={descriptor} onPick={bind} open={open} onOpenChange={setOpen} />
+                <VaryButton
+                    ctx={ctx}
+                    descriptor={descriptor}
+                    label={label}
+                    onPick={bind}
+                    open={open}
+                    onOpenChange={setOpen}
+                />
             )}
         </span>
     );
@@ -1251,6 +1395,7 @@ export function VarySlot({
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.descriptor - the property
+ * @param props.label - the button's name, when not the channel's
  * @param props.onPick - binds the property to the picked value
  * @param props.onLayer - several layers: gives each its own value
  * @param props.open - whether the picker is open
@@ -1260,6 +1405,7 @@ export function VarySlot({
 function VaryButton({
     ctx,
     descriptor,
+    label: named,
     onPick,
     onLayer,
     open,
@@ -1267,6 +1413,8 @@ function VaryButton({
 }: Readonly<{
     ctx: RowContext;
     descriptor: ChannelDescriptor;
+    /** The button's name, when not the channel's ("Spin by attribute"). */
+    label?: string;
     onPick: (choice: DataChoice) => void;
     /** Several layers: gives each its own value ("Layer" in the list). */
     onLayer?: () => void;
@@ -1282,15 +1430,14 @@ function VaryButton({
         }
         setOpen(next);
     };
-    const label = bindLabel(descriptor);
+    const label = named ?? bindLabel(descriptor);
     const layers = ctx.many?.inOrder?.(channel).length ?? 0;
     return (
         <Popout opened={open} onOpenChange={openList}>
             <Popout.Trigger>
                 {/* The Tooltip passes the trigger's click and ref to the button, but not its ARIA,
                     so the button states its own. */}
-                {/* Above the row, so it never covers the line under the field. */}
-                <Tooltip label={label} position="top">
+                <Tooltip label={label}>
                     <PopoutButton
                         icon={<GLYPHS.link size={14} aria-hidden />}
                         // One name for the button, its tooltip and the pop-out it opens.
@@ -1326,7 +1473,9 @@ function VaryButton({
                         openList(false);
                         // The field keeps its value; focus goes to it to change it, and the list
                         // closing is said, not silent.
-                        store.set({ announcement: `${fieldName(channel)} stays a fixed value` });
+                        store.set({
+                            announcement: `${named === undefined ? fieldName(channel) : label} stays a fixed value`,
+                        });
                         focusLineNext(channel);
                     }}
                     onPick={(choice) => {

@@ -1,4 +1,4 @@
-import { assert, beforeEach, describe, it } from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
 import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
@@ -244,5 +244,42 @@ describe("OperationQueueManager", () => {
 
         // Should execute in dependency order
         assert.deepEqual(executionOrder, ["style-init-sync", "data-add-async", "layout-set-sync"]);
+    });
+
+    it("lets go of finished operations when disposed, without waiting for their cleanup", async () => {
+        // A finished operation's cleanup runs a second later and holds the manager -- and through
+        // it a whole graph -- until it does. Dispose cancels every one (issue #3413).
+        const cleanups = new Set<ReturnType<typeof setTimeout>>();
+        const cleared = new Set<unknown>();
+        const realSetTimeout = globalThis.setTimeout;
+        const setSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation((handler: () => void, delay?: number) => {
+            const timer = realSetTimeout(handler, delay);
+            if (String(handler).includes("operationProgress")) {
+                cleanups.add(timer);
+            }
+
+            return timer;
+        });
+        const realClearTimeout = globalThis.clearTimeout;
+        const clearSpy = vi.spyOn(globalThis, "clearTimeout").mockImplementation(((
+            timer?: ReturnType<typeof setTimeout>,
+        ) => {
+            cleared.add(timer);
+            realClearTimeout(timer);
+        }) as typeof clearTimeout);
+        try {
+            queueManager.queueOperation("data-add", () => undefined);
+            queueManager.queueOperation("layout-set", () => undefined);
+            await queueManager.waitForCompletion();
+            assert.isAtLeast(cleanups.size, 2, "the finished operations scheduled their cleanups");
+
+            queueManager.dispose();
+            for (const timer of cleanups) {
+                assert.isTrue(cleared.has(timer), "dispose cancelled the cleanup");
+            }
+        } finally {
+            setSpy.mockRestore();
+            clearSpy.mockRestore();
+        }
     });
 });

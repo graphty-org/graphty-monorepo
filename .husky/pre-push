@@ -1,26 +1,14 @@
 #!/bin/sh
-# Pre-push hook.
-#
-# Runs tools/prepush.sh for the packages this push affects: build, lint, knip, the test shards the
-# pull request's CI runs (with CI's commands, from tools/ci-test-matrix.mjs; graphty-element's long
-# browser and storybook shards only when the push changes a file they test), and the screenshots of
-# the affected Storybooks on this commit merged into origin/master (tools/visual-preview.sh --head),
-# which become the pull request's local preview on the owner's review page.
-#
-# It also runs "SonarQube (changed lines)" (tools/sonar-gate.mjs, before the build): a new SonarQube
-# issue or security hotspot on a line this push adds or changes fails the push. Off the owner's network
-# it passes with a warning. For a false positive: `// NOSONAR(<rule>): <reason>` on the line, or a
-# reasoned path entry in sonar-project.properties. Emergencies only: a `Sonar-Bypass: <reason>` trailer
-# on the HEAD commit (it never covers vulnerabilities or security hotspots).
+# Pre-push hook: only the checks that take seconds and protect the repository rather than judge the
+# code (design/ci/channels-pipeline/merging.md, section 6): the Git LFS upload, the secret scan and the
+# committed-images limit. CI's light check judges the code; for an answer before CI, run
+# `pnpm run check:quick` (tools/check-quick.sh) in the background.
 #
 # To skip this hook: git push --no-verify (this skips the Git LFS upload too; after such a push of
 # baseline images, run `git lfs push origin <branch>`)
-# To run manually: pnpm run prepush:fast
 
-# The gate's scripts are the ones beside this hook; the checkout being pushed is the working
-# directory git runs the hook in. They are the same checkout unless the push queue (tools/push-queue.sh)
-# pointed core.hooksPath at the gate's live copy, .worktrees/gate-live, so every branch is checked by
-# the current gate (CLAUDE.md, "Where a change takes effect").
+# The scripts are the ones beside this hook; the checkout being pushed is the working directory git
+# runs the hook in.
 GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # git's ref lines: "<local ref> <local sha> <remote ref> <remote sha>", one per ref pushed.
@@ -30,14 +18,7 @@ PUSH_REFS=$(cat)
 # it is here and not in git-lfs's own hook).
 printf '%s\n' "$PUSH_REFS" | "$GATE_DIR/tools/lfs-pre-push.sh" "$@" || exit 1
 
-# What GitHub has now for the branch this push sends HEAD to (all zeros: a new branch), so the
-# SonarQube step judges complexity on this push's own changes (tools/sonar-gate.mjs, step 4).
-PUSH_REMOTE_SHA=$(printf '%s\n' "$PUSH_REFS" | awk -v head="$(git rev-parse HEAD)" '$2 == head { print $4; exit }')
-export PUSH_REMOTE_SHA
-
-# The branch this push merges into (origin/master, or a stacked pull request's parent branch), asked
-# once and exported, so every step below measures "this push's changes" from the same base without
-# asking again. The push queue has usually asked already.
+# The branch this push merges into (tools/push-base.mjs), asked once for both checks below.
 PUSH_BASE_REF=${PUSH_BASE_REF:-$(node "$GATE_DIR/tools/push-base.mjs")} || exit 1
 export PUSH_BASE_REF
 
@@ -45,5 +26,5 @@ export PUSH_BASE_REF
 # well as in pre-commit because a commit made with a temporary core.hooksPath skips pre-commit.
 PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/scan-secrets.sh" "$(git merge-base "$PUSH_BASE_REF" HEAD)" HEAD || exit 1
 
-# Run the prepush validation script
-PREPUSH_ROOT="$PWD" "$GATE_DIR/tools/prepush.sh"
+# No pile of images added outside the folders that hold them (tools/check-committed-images.mjs).
+node "$GATE_DIR/tools/check-committed-images.mjs" || exit 1

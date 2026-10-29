@@ -1,6 +1,7 @@
 # .github/workflows/work-protection-macos.yml -- graphty-element's autosave on Apple's engines, which no Linux
 # runner has: Playwright's WebKit on macOS, real Safari through safaridriver, and Safari on iOS in the iOS
-# Simulator (design/work-protection/design.md section 9, plan.md step 7). The Linux half of the same checks is
+# Simulator, including a return to a discarded tab that must keep its session storage and its own autosave entry
+# (design/work-protection/design.md section 9, plan.md step 7). The Linux half of the same checks is
 # ci.yml's graphty-element-lifecycle shard, on every pull request that affects graphty-element.
 #
 # Where it runs: the release train calls it on the commit it is about to release, beside hosts.yml, and a red run
@@ -22,11 +23,25 @@ on:
                 description: "the commit to test: the release candidate, already on master"
                 type: string
                 required: true
+            # A bisect point (bisect.yml): its failing graphty-element/test/lifecycle files, space separated; only the
+            # jobs that run one of them run. Empty runs every job.
+            files:
+                description: "a bisect point's failing test files; empty runs the whole lane"
+                type: string
+                default: ""
+            bisect_point:
+                description: "set by bisect.yml: <red sha>-<point sha>, this run's own concurrency group"
+                type: string
+                default: ""
     workflow_dispatch:
 permissions: { contents: read }
 concurrency:
-    group: work-protection-macos-${{ inputs.candidate && format('release-{0}', inputs.candidate) || github.ref }}
+    group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || format('work-protection-macos-{0}', inputs.candidate && format('release-{0}', inputs.candidate) || github.ref) }}
     cancel-in-progress: false
+
+env:
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
 
 jobs:
     bundle:
@@ -34,16 +49,16 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 30
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               env: { HUSKY: "0" }
             - run: pnpm exec nx run graphty-element:build
               env: { NODE_OPTIONS: "--max-old-space-size=8192" }
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: work-protection-bundle
                   path: graphty-element/dist/graphty.bundle.js
@@ -55,20 +70,21 @@ jobs:
     webkit:
         name: WebKit kill and relaunch (macOS)
         needs: bundle
+        if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/engines.test.ts') || contains(inputs.files, 'test/lifecycle/autosave-engines.bench.test.ts') }}
         runs-on: macos-26
         timeout-minutes: 25
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
             - run: pnpm exec playwright install webkit
             - name: Kill and relaunch (Playwright WebKit)
@@ -82,20 +98,21 @@ jobs:
     safari:
         name: Safari (macOS)
         needs: bundle
+        if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/safari.test.ts') }}
         runs-on: macos-26
         timeout-minutes: 20
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
             - name: Allow Safari to be automated
               run: sudo safaridriver --enable
@@ -109,12 +126,13 @@ jobs:
     ios:
         name: Safari on iOS (Simulator)
         needs: bundle
+        if: ${{ !inputs.files || contains(inputs.files, 'test/lifecycle/ios-simulator.test.ts') }}
         runs-on: macos-26
         timeout-minutes: 40
         env: { GRAPHTY_LIFECYCLE_MACOS: "1" }
         defaults: { run: { working-directory: graphty-element } }
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with: { ref: "${{ inputs.candidate }}" }
             - name: Xcode 26
               run: |
@@ -123,24 +141,48 @@ jobs:
                   sudo xcode-select -s "$xcode"
                   xcodebuild -version
                   xcrun simctl list runtimes
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x }
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
-            - name: App switch, memory warning, Safari or its web content process killed
+            - name: App switch, memory warning, Safari or its web content process killed, return to a discarded tab
               timeout-minutes: 30
               # Booting a simulator and Safari's first launch take minutes: the step's limit bounds them (vitest's
               # lifecycle project allows them with GRAPHTY_LIFECYCLE_MACOS set).
               run: pnpm exec vitest run --project=lifecycle test/lifecycle/ios-simulator.test.ts
             - name: Keep the Simulator's screen and Safari's log of a failed scenario
               if: failure()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: ios-diagnostics
                   path: graphty-element/test-results/ios
                   if-no-files-found: ignore
                   retention-days: 7
+
+    # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
+    # Last, whatever happened; never fails. Skipped when another workflow calls this one: the caller's own timings job reports the whole run.
+    timings:
+        name: Timings
+        needs: [bundle, webkit, safari, ios]
+        if: ${{ always() && contains(github.workflow_ref, '/work-protection-macos.yml@') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  sparse-checkout: |
+                      tools
+                      .github/actions
+
+            - uses: ./.github/actions/timings
+              with:
+                  results-url: ${{ vars.RESULTS_URL }}
+                  health-api-url: ${{ vars.HEALTH_API_URL }}

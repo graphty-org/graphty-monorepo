@@ -2,6 +2,8 @@
 
 > Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Its landing model is replaced (the full-gate row of 3.1, sections 4.2, 4.3, 4.7 and 4.8, the landing-failure rows of 4.13, and 4.14's cut selection and one-round grace before a revert); the rest remains in force, and the tools follow this document until the fast pipeline is built.
 
+> Status: Partly superseded again on 2026-10-23 by design/ci/ci-full-testing.md (issue #3316): every push and landing runs a light local gate (lint, build, SonarQube on changed lines, the GPU tests when affected) and the full test suite runs in GitHub CI on golden before a cut. Sections 3.1 (the full-gate row), 3.2 (the first row), 4.2 step 4, 4.5, 4.7, 4.9 (the CI-failure row), 5.2 and 6.1 are marked below.
+
 Status: adopted by the owner on 2026-10-18. Decision record:
 `design/decisions/2026-10-18-golden-local-adopted.md`. This document replaces the merge half of
 `design/ci/ci-cd-plan.md` and the whole of the githerd design (see "Superseded documents" at the
@@ -184,6 +186,8 @@ pull request, not hundreds, the only merge path.
 
 ### 3.1 Hard constraints
 
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): "one full test run before master" is now the full suite in GitHub CI on golden's verified commit (plus the cut pull request's own run), not the full local gate on every landing. The NVIDIA GPU lane stays in the local gate, when webgpu-graph-algorithms is affected.
+
 | Constraint                                                                  | Source and date                         | What it forces                                                                                |
 | --------------------------------------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Nothing merges with known errors: one full test run before master           | owner                                   | The full local gate on every landing; CI's affected suite once on the golden PR (section 4.7) |
@@ -199,6 +203,8 @@ pull request, not hundreds, the only merge path.
 | No paid GPU testing except at release                                       | owner, 2026-10-18                       | The NVIDIA GPU lane runs in the local gate at landing                                         |
 
 ### 3.2 Preferences
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the landing gate no longer runs CI's shard commands; it is a light gate with no tests. CI is the one environment the full suite runs in; `./tools/run-tests.sh <shard>` still runs CI's command here by hand.
 
 | Preference                                        | What it shapes                                                                 |
 | ------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -234,6 +240,8 @@ pull request, not hundreds, the only merge path.
   gate to test; the next landing merges it into `golden`.
 
 ### 4.2 Landing
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): step 4's gate is the light gate: build, lint, knip, SonarQube, the deterministic docs and API checks, the NVIDIA GPU lane when affected, and the LFS upload. It runs no test shards.
 
 ```
 node tools/land.mjs land <branch>
@@ -310,6 +318,8 @@ branch and lands again.
 
 ### 4.5 Shipping
 
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): ship is unchanged, but the cut pull request's CI run is no longer the only clean-machine test: the full suite already ran in CI on the verified commit (`golden-verify.yml`).
+
 ```
 node tools/land.mjs ship
 ```
@@ -333,6 +343,8 @@ audit and the LLM regression tests, and publishes only when all pass. Its versio
 straight to master with the release deploy key; the next `land` merges it into `golden`.
 
 ### 4.7 What CI is for now
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): CI is no longer a double check. It runs the full suite on golden's newest commit after landings (verification) and on the cut pull request; the local gate runs no tests.
 
 - **On the golden pull request:** one run of the affected suite, as a clean-machine double check,
   plus the visual gate against the owner's approvals. `ci.yml` treats it like any ready pull
@@ -365,6 +377,8 @@ with `tools/live.sh land <branch>`, after land's tests pass; without a live copy
 itself and says so.
 
 ### 4.9 Failure handling
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the "CI failure on the golden pull request" row; a test failure is now found by CI verification and handled as in that document's section 3.5.
 
 | Failure                                               | What happens                                                                                                                                                                                                                                      |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -512,6 +526,8 @@ on GitHub, so the grace is measured from GitHub state, not a session's memory.
 
 ### 5.2 Kept
 
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the pre-push gate is kept as the light gate; its test stage and the test slots are no longer used by pushes.
+
 - Protected master and its ruleset.
 - The pre-push gate and `tools/push-queue.sh`, now run by `land`.
 - visual-review with the owner's passkey approvals.
@@ -523,6 +539,8 @@ on GitHub, so the grace is measured from GitHub state, not a session's memory.
 ## 6. Risks, trade-offs and follow-ups
 
 ### 6.1 Risks and trade-offs
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): landing is no longer 20 to 40 minutes of gate (the light gate is about 10), and the local gate no longer has to stay close to CI's tests, because CI runs them.
 
 - **Landing is serial.** Each landing runs about 20 to 40 minutes of gate. When landings back up,
   several branches land in one gate run (section 4.2), and pipeline-round lands every ready branch

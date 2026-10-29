@@ -4,6 +4,10 @@ Status: Built, 2026-10-22: `pnpm run test:changed`, selection in the gate (on by
 misses mutation testing found were fixed; section 5.1) and `tools/test-select-mutate.mjs`. Issue #3276,
 part of the fast pipeline (#3262, `design/ci/fast-pipeline.md`, section 5).
 
+Partly superseded on 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the gate no longer
+runs tests, so selection in the gate (section 1.2) stops applying to pushes, and verification (1.3)
+is a full CI run. Selection stays for `pnpm run test:changed`, hand runs and bisect.
+
 Running tests is the slowest part of getting a change into graphty-monorepo. A golden landing waits
 for every test shard of every package nx calls affected, and graphty-element's ten browser and
 Storybook shards alone take most of an hour. Most of those tests cannot fail because of the change:
@@ -61,6 +65,8 @@ run here does.
 
 ### 1.2 Landing check: selection in the gate
 
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the landing check runs no test shards (the light gate). Selection in the gate applies only with `PREPUSH_LIGHT=0`.
+
 `tools/prepush-tests.mjs` computes the selector's answer for every push and writes it to
 `tmp/test-select/advisory.jsonl` beside what it actually ran. By default (`PREPUSH_SELECT` unset or `1`) it
 asks about every shard of the matrix but the "never" ones -- not only the shards of nx's affected packages
@@ -92,6 +98,8 @@ counts as a pass of the whole shard, so a later full run, or verification, canno
 because a subset of it passed.
 
 ### 1.3 Verification, the cut and the release train stay full
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): verification is a full `ci.yml` run in GitHub CI on golden's newest commit; coverage thresholds are checked there. The cut's gate is light; the cut pull request's CI run and the release train are unchanged.
 
 Verification sets `PREPUSH_ALL=1`, and the gate ignores `PREPUSH_SELECT` whenever `PREPUSH_ALL` is
 set. A push to golden-cut or master (`land.mjs cut` and `cut-fix` set `PREPUSH_SELECT_BASE` to
@@ -176,6 +184,15 @@ by path:
   when that package's build changes; a literal that names nothing tracked stands for the whole package;
 - a read by one of the reader's own build inputs counts as a change to the reader's build, so its
   dependents run whole.
+- a package with no build (`noBuild` in `tools/test-select-rules.json`: visual-review, which its
+  dependents load as source from their vitest configs, story setups and tests) changes no dependent's
+  build: a change to it is only a read, judged as above, so it never runs a package that does not load
+  the changed file (the webgpu-graph-algorithms shards, downstream of algorithms and layout);
+- a file a graph's vitest config imports (graphty-element's `vitest.config.ts` imports visual-review's
+  `story-test.mjs`) selects every test of that graph, which then runs whole; a vitest config is never a
+  build input, so such a read does not run the reader's dependents whole;
+- a literal path into a folder its package does not have (`"../assets/server/..."`, joined at run time
+  onto a directory in `node_modules`) names nothing of that package and is not a read.
 
 A change to a graphty-element test therefore runs graphty's one test that reads graphty-element's
 root (`test/config/element-source.test.ts`), not all of graphty. Section 4 moves the remaining
@@ -316,7 +333,7 @@ at inputs. So the upgrade goes in four steps, each a two-way door.
       tests read the upstream `dist/` that the upstream `build` tasks write.
     - For each relative-path read that is not an nx dependency, a `{workspaceRoot}/<package>/<dir>/**`
       input on the reading project's test targets: graph-io's reads of graphty-element, graphty's of
-      algorithms and layout, visual-review's of layout, fidelity-web-oracles' of graph-io. Inputs,
+      algorithms and layout, visual-review's of layout. Inputs,
       not `implicitDependencies`: graph-io reading graphty-element as an implicit dependency would
       make a cycle with graphty-element's dependency on graph-io, and task-based mode ignores
       implicit dependencies anyway.
@@ -440,6 +457,76 @@ selector and 354 with this one (same shard times). An upstream source file reach
 readers' tests (section 2.6), so the saving is in packages whose tests use little of the upstream
 package (cytoscape-extensions' 20 test files, graphty-element's Node tests for a graph-format types
 module).
+
+### 5.4 The remaining Node packages and two browser projects, 2026-10-25
+
+Each run broke 10 files of one package (seeded, two at a time, `--seed 3` except graph-samples, one
+at a time with `--seed 2`) and ran every plain vitest shard of the package whole. None found a
+miss, so each package joined `fileLevel`, and graph-io and algorithms, whose browser shards ran
+too, joined `fileLevelBrowser`.
+
+| Package              | Shards run                             | Test files one source file selects | Result                                      |
+| -------------------- | -------------------------------------- | ---------------------------------- | ------------------------------------------- |
+| graph-samples        | graph-samples                          | 6 to 19                            | no miss                                     |
+| layout               | layout                                 | 22 to 26                           | no miss (seed 2 broke package.json: no run) |
+| graph-io             | graph-io, graph-io-browser             | 181 to 186; 2                      | no miss                                     |
+| algorithms           | algorithms-default, algorithms-browser | 42 to 46; 1 or 2                   | no miss                                     |
+| cytoscape-extensions | cytoscape-extensions                   | 10 to 19                           | no miss                                     |
+
+webgpu-graph-algorithms has no shard the selector can run file by file: every command goes through
+`scripts/run-node-shard.js` or `scripts/run-browser-project.js` with a lane variable, so its shards
+always run whole and it stays off the lists. cytoscape-extensions-cytoscape-versions runs whole for
+the same reason.
+
+### 5.5 visual-review and githerd, 2026-10-26
+
+The last two packages off `fileLevel` with a plain vitest shard. Each run broke 15 files, five at a
+time (`--batch 5`), and ran the package's shard whole. None found a miss, so both joined
+`fileLevel`.
+
+| Package       | Seeds and files                                       | Test files one file selects        | Result                                     |
+| ------------- | ----------------------------------------------------- | ---------------------------------- | ------------------------------------------ |
+| githerd       | seed 3850                                             | 81 or 82 of 82                     | no miss                                    |
+| visual-review | seed 3850 (10 files), then 15 named files (`--files`) | 25 of 27; all 27 for setup helpers | no miss; 4 batches inconclusive, see below |
+
+A batch that broke a file the suite's setup reaches (`trusted/gate.mjs`, `trusted/lib/compare.mjs`,
+`trusted/lib/config.mjs` or `trusted/vendor/pixelmatch.mjs`, imported by `test/helpers.mjs`, which
+the global setup loads) stopped the whole run before any test reported, so the script called it
+inconclusive. Each such file selects all 27 test files, so it cannot be missed; the 15 named files
+are the rest of the two seeded picks.
+
+Neither package saves much: most of their tests read files or run programs at run time, so almost
+any change selects nearly every test file, and a selected shard runs as a bin job of its own
+(about 0.8 minutes of setup) instead of inside its group job. On the 79 pull request runs of
+2026-10-26 15:59 to 23:00 UTC, visual-review ran whole only because it was off `fileLevel` in 21,
+githerd in 1. The shards that run whole on a pull request for other reasons cost far more: in 19 of
+the same 79 runs a visual-review change ran every package that depends on it whole ("depends on
+visual-review, whose build changed"), the four webgpu-graph-algorithms node shards among them,
+although visual-review has no build and its dependents only load it in test and story configs.
+
+### 5.6 visual-review's dependents, 2026-10-27
+
+visual-review has no build, and its dependents load it only from their vitest configs, story setups and
+a few tests. The selector had treated any change to it as a change to every dependent's build. On
+2026-10-26 that ran every shard of every dependent, the four webgpu-graph-algorithms node shards among
+them, in 19 of 79 pull request runs. Each run below broke the same seven visual-review files at once
+(`story-test.mjs`, `capture.mjs` and `trusted/lib/compare.mjs`, which the vitest configs load; `trusted/cli.mjs`,
+`trusted/lib/accept.mjs`, `trusted/lib/init.mjs` and `test/helpers.mjs`, which no package outside visual-review
+loads except githerd's tests) and ran the reader's plain shards whole.
+
+| Reader          | Shards run                            | Result                                                                                                          |
+| --------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| githerd         | githerd                               | 19 failed, every one selected (they import `test/helpers.mjs`); no miss                                         |
+| layout          | layout                                | 0 failed; no miss                                                                                               |
+| algorithms      | algorithms-default                    | 0 failed; no miss                                                                                               |
+| compact-mantine | compact-mantine                       | 0 failed; no miss                                                                                               |
+| graphty-element | graphty-element-default, -storybook-1 | the config does not load (no test runs): what its config loads selects every test; the 4 others alone: 0 failed |
+| graphty         | graphty-1, graphty-storybook          | the same                                                                                                        |
+
+webgpu-graph-algorithms has no plain shard (section 5.4); none of its files names or imports
+visual-review. Replayed on the 79 runs, the change selects less in the 20 that touch visual-review
+code and in no other run, and the webgpu-graph-algorithms node shards no longer run for a
+visual-review change.
 
 ## 6. Rollout
 

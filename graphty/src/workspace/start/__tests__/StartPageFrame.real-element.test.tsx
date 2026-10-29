@@ -12,9 +12,10 @@ import "@graphty/graphty-element";
 
 import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, onTestFailed } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
@@ -74,16 +75,31 @@ function atSamples(samples: HTMLElement): boolean {
 }
 
 /**
- * Opens the start page and presses Samples, which scrolls the page down to them.
+ * Opens the start page and presses Samples, which scrolls the page down to them, and waits for the
+ * page to come to rest there (its scrollend). Being at the samples is not enough: the smooth scroll
+ * can reach them before its last frame (in 1 of 12 runs on a busy machine it ended after the
+ * position check passed, and a frame on the CI runner's software GPU is long), so the keyboard test
+ * pressed Home while that scroll was still running, and once the page stayed at the samples until
+ * the test timed out (issue #3679). A reader presses the next key on a page that has stopped.
  * @returns the samples section.
  */
 async function showSamples(): Promise<HTMLElement> {
     await startPage();
     const samples = screen.getByRole("region", { name: "Sample library" });
-    await userEvent.click(screen.getByRole("button", { name: "Samples" }));
-    await waitFor(() => {
-        assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
-    }, SCROLL);
+    let ended = false;
+    const onEnd = (): void => {
+        ended = true;
+    };
+    document.addEventListener("scrollend", onEnd);
+    try {
+        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
+        await waitFor(() => {
+            assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
+            assert.isTrue(ended, "the page came to rest");
+        }, SCROLL);
+    } finally {
+        document.removeEventListener("scrollend", onEnd);
+    }
     return samples;
 }
 
@@ -155,16 +171,46 @@ describe("the start page in the app's frame", () => {
     });
 
     it("scrolls back up from the samples, and down again, by keyboard", async () => {
-        await showSamples();
-
-        await userEvent.keyboard("{Home}");
-        await waitFor(() => {
-            assert.equal(scrolled(), 0, "Home scrolled it back up");
-        }, SCROLL);
-        await userEvent.keyboard("{End}");
-        await waitFor(() => {
-            assert.isAbove(scrolled(), 0, "End scrolled it down");
-        }, SCROLL);
+        // This test timed out twice in CI (issues #3679 and #4170) and in no run here, and its waits'
+        // hang guard is longer than the test's limit, so a timeout never says which wait was stuck.
+        // Its trail does: each step and every scroll end and key the page saw, printed on a failure.
+        const trail: string[] = [];
+        const start = performance.now();
+        const note = (what: string): void => {
+            const at = Math.round(performance.now() - start);
+            const focus = document.activeElement;
+            trail.push(`${String(at)} ms ${what}: top ${String(scrolled())}, focus ${focus?.tagName ?? "none"}`);
+        };
+        const onEnd = (): void => {
+            note("scrollend");
+        };
+        const onKey = (event: KeyboardEvent): void => {
+            note(`keydown ${event.key}${event.defaultPrevented ? " (prevented)" : ""}`);
+        };
+        document.addEventListener("scrollend", onEnd);
+        globalThis.addEventListener("keydown", onKey);
+        onTestFailed(() => {
+            note("failed");
+            console.error(`the keyboard scroll test's trail:\n${trail.join("\n")}`);
+        });
+        try {
+            await showSamples();
+            note("at the samples");
+            await userEvent.keyboard("{Home}");
+            note("Home pressed");
+            await waitFor(() => {
+                assert.equal(scrolled(), 0, "Home scrolled it back up");
+            }, SCROLL);
+            note("at the top");
+            await userEvent.keyboard("{End}");
+            note("End pressed");
+            await waitFor(() => {
+                assert.isAbove(scrolled(), 0, "End scrolled it down");
+            }, SCROLL);
+        } finally {
+            document.removeEventListener("scrollend", onEnd);
+            globalThis.removeEventListener("keydown", onKey);
+        }
     });
 
     // Full screen, and under Safari's address and tab bars (upright, and on its side).
@@ -216,7 +262,8 @@ describe("the start page in the app's frame", () => {
         const opens = DATASET_DESCRIPTORS.filter(
             (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
         );
-        assert.lengthOf(offered, opens.length);
+        // Plus the app's four timed samples, which have no graph-samples dataset.
+        assert.lengthOf(offered, opens.length + 4);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",
@@ -225,19 +272,31 @@ describe("the start page in the app's frame", () => {
             assert.include(offered, `Open the ${title} sample`);
         }
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" }));
-        await waitFor(
-            () => {
-                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                );
-                assert.equal(element?.session.data.statistics().nodeCount, 62);
-                assert.equal(element?.session.data.statistics().edgeCount, 159);
-            },
-            { timeout: TIMEOUT_MS },
+        const opened = await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" })),
         );
+        assert.equal(opened.data.statistics().nodeCount, 62);
+        assert.equal(opened.data.statistics().edgeCount, 159);
         assert.equal(store.get().project?.name, "Doubtful Sound dolphins");
         assert.isNull(store.get().notice);
+    });
+
+    it("opens the timed campus contacts sample, every hour two students were close an edge", async () => {
+        const store = await startPage();
+
+        const opened = await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: "Open the Campus contacts sample" })),
+        );
+        assert.equal(opened.data.statistics().nodeCount, 615);
+        assert.equal(opened.data.statistics().edgeCount, 8142);
+        assert.equal(store.get().project?.name, "Campus contacts");
+        assert.isNull(store.get().notice);
+        // Every edge's `time` reads as time, so the timeline can take it.
+        const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        const time = element?.session.time.candidates().find((each) => each.column === "time");
+        assert.deepInclude(time, { kind: "edge", parsed: 8142, total: 8142 });
     });
 
     it("says what a large dataset takes before it downloads, and leaves out one the element does not open", async () => {
@@ -297,19 +356,12 @@ describe("the start page in the app's frame", () => {
         assert.equal((nodes as HTMLInputElement).value, "60");
         await userEvent.tripleClick(nodes);
         await userEvent.keyboard("24");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Generate" }));
-
-        await waitFor(
-            () => {
-                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                );
-                assert.equal(element?.session.data.statistics().nodeCount, 24);
-                // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
-                assert.equal(element?.session.data.statistics().edgeCount, 48);
-            },
-            { timeout: TIMEOUT_MS },
+        const opened = await openBy(store, () =>
+            userEvent.click(within(dialog).getByRole("button", { name: "Generate" })),
         );
+        assert.equal(opened.data.statistics().nodeCount, 24);
+        // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
+        assert.equal(opened.data.statistics().edgeCount, 48);
         assert.equal(store.get().project?.name, "Watts-Strogatz");
         assert.isNull(store.get().notice);
     });

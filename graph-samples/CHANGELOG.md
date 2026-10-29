@@ -1,3 +1,35 @@
+## 0.1.41 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.9
+
+## 0.1.40 (2026-10-28)
+
+### 🚀 Features
+
+- **graphty-element:** read place names as node locations through a hosted gazetteer ([#3299](https://github.com/graphty-org/graphty-monorepo/issues/3299))
+- **graph-samples:** rebuild hosted datasets from a sources release, refreshed by hand ([#3302](https://github.com/graphty-org/graphty-monorepo/issues/3302))
+- **graph-samples:** add venice-transit, a city-scale network with stop coordinates ([b6fba7ab50](https://github.com/graphty-org/graphty-monorepo/commit/b6fba7ab50))
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **graph-samples:** clear the SonarQube findings of the hosted sources scripts ([#3302](https://github.com/graphty-org/graphty-monorepo/issues/3302))
+- **graph-samples:** deploy reuses the published hosted datasets instead of third-party hosts ([#3302](https://github.com/graphty-org/graphty-monorepo/issues/3302))
+- **graph-samples:** draw the Venice sample card with darker edges and outlined nodes ([fae8b93659](https://github.com/graphty-org/graphty-monorepo/commit/fae8b93659))
+- **graph-samples:** read a dataset the server already unzipped ([5433eda0dc](https://github.com/graphty-org/graphty-monorepo/commit/5433eda0dc))
+- **graph-samples:** read a dataset the server already unzipped ([701b618a87](https://github.com/graphty-org/graphty-monorepo/commit/701b618a87))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 0.1.39 (2026-10-21)
 
 ### 🚀 Features

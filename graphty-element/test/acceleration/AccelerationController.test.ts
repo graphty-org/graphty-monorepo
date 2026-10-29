@@ -335,6 +335,105 @@ describe("AccelerationController: publishing", () => {
         controller.dispose();
     });
 
+    it("does not attach a device a probe finds after acceleration was switched off", async () => {
+        const built = deferred<GraphAccelerator>();
+        const disposed = vi.fn();
+        const registry = new AcceleratorRegistry();
+        registry.register({ name: "slow", factory: () => built.promise });
+        const controller = new AccelerationController({ registry });
+        const probe = controller.start();
+
+        controller.setPolicy("off");
+        built.resolve(fakeAccelerator({ onDispose: disposed }));
+        await probe;
+
+        assert.strictEqual(controller.state, "off");
+        assert.isNull(controller.accelerator);
+        assert.strictEqual(disposed.mock.calls.length, 1, "the late device is released, not leaked");
+        controller.dispose();
+    });
+
+    it("keeps one device when off and back on overlap a probe", async () => {
+        const builds: { resolve: (value: GraphAccelerator) => void }[] = [];
+        const disposed: string[] = [];
+        const registry = new AcceleratorRegistry();
+        registry.register({
+            name: "slow",
+            factory: () => {
+                const build = deferred<GraphAccelerator>();
+                builds.push(build);
+                return build.promise;
+            },
+        });
+        const controller = new AccelerationController({ registry });
+        const first = controller.start();
+
+        controller.setPolicy("off");
+        controller.setPolicy("auto");
+        await until(() => builds.length === 2, "the second probe to ask its factory");
+        builds[1].resolve(fakeAccelerator({ name: "second", onDispose: () => disposed.push("second") }));
+        await until(() => controller.state === "idle", "the second probe to attach");
+        builds[0].resolve(fakeAccelerator({ name: "first", onDispose: () => disposed.push("first") }));
+        await first;
+
+        assert.strictEqual(controller.accelerator?.name, "second", "the stale probe does not replace it");
+        assert.deepStrictEqual(disposed, ["first"]);
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
+    /** A registry whose factory hands each build to the test, and a controller over it. */
+    function slowProbes(): {
+        controller: AccelerationController;
+        builds: { resolve: (value: GraphAccelerator) => void }[];
+    } {
+        const builds: { resolve: (value: GraphAccelerator) => void }[] = [];
+        const registry = new AcceleratorRegistry();
+        registry.register({
+            name: "slow",
+            factory: () => {
+                const build = deferred<GraphAccelerator>();
+                builds.push(build);
+                return build.promise;
+            },
+        });
+
+        return { controller: new AccelerationController({ registry }), builds };
+    }
+
+    for (const [label, change] of [
+        ["auto to required", (c: AccelerationController) => c.setPolicy("required")],
+        [
+            "off and back to auto",
+            (c: AccelerationController) => {
+                c.setPolicy("off");
+                c.setPolicy("auto");
+            },
+        ],
+    ] as const) {
+        it(`settles ready() on the new probe when the policy goes ${label} mid-probe`, async () => {
+            const { controller, builds } = slowProbes();
+            let firstReleased = false;
+            const ready = controller.ready().then(
+                (status) => ({ status }),
+                (error: unknown) => ({ error }),
+            );
+
+            change(controller);
+            await until(() => builds.length === 2, "the second probe to ask its factory");
+            builds[0].resolve(fakeAccelerator({ name: "first", onDispose: () => (firstReleased = true) }));
+            // The stale probe has finished once it released what it built.
+            await until(() => firstReleased, "the stale probe to release its device");
+            builds[1].resolve(fakeAccelerator({ name: "second" }));
+            const outcome = await ready;
+
+            assert.notProperty(outcome, "error", "ready() does not answer for the stale probe");
+            assert.strictEqual("status" in outcome ? outcome.status.state : null, "idle");
+            assert.strictEqual(controller.accelerator?.name, "second");
+            controller.dispose();
+        });
+    }
+
     it("publishes the capabilities subset the DOM event carries", async () => {
         const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
 

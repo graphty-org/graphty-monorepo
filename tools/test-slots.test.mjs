@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { acquire, HELD, laneOf, liveGates, liveTickets, markGate, slotCount, workerShare } from "./test-slots.mjs";
+import { acquire, HELD, laneOf, liveTickets, shardCacheDir, slotCount, workerShare } from "./test-slots.mjs";
 
 // The temporary directories this file makes go inside this one, removed when the file finishes.
 const TMP = mkdtempSync(join(tmpdir(), "test-slots-"));
@@ -102,62 +102,10 @@ describe("test-slots", () => {
         assert.equal(await settled(lowAgain), true);
     });
 
-    it("puts a gate's shard (TEST_SLOT_GATE) ahead of every waiting run, but never past a run that holds a slot", async () => {
-        const dir = fresh();
-        const [h, w, g] = [sleeper(), sleeper(), sleeper()];
-        const gate = { ...quiet, env: { TEST_SLOT_GATE: "1" } };
-        const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
-        await tick();
-        const ordinary = acquire({ ...quiet, dir, slots: 1, pid: w.pid, label: "ordinary" });
-        await tick();
-        const shard = acquire({ ...gate, dir, slots: 1, pid: g.pid, label: "gate shard" });
-        assert.equal(await settled(shard), false, "the gate's shard waits for the holder like everyone");
-        releaseH();
-        assert.equal(await settled(shard), true, "then it goes first");
-        assert.equal(await settled(ordinary), false, "the ordinary run that came earlier still waits");
-        (await shard)();
-        assert.equal(await settled(ordinary), true);
-    });
-
-    it("sends every run outside a gate to the low lane while a gate runs its test shards", async () => {
-        const dir = fresh();
-        const [h, x, y, gatePid] = [sleeper(), sleeper(), sleeper(), sleeper()];
-        const releaseH = await acquire({ ...quiet, dir, slots: 1, pid: h.pid, label: "holder" });
-        const unmark = markGate(dir, gatePid.pid);
-        assert.deepEqual(
-            liveGates(dir).map((m) => m.pid),
-            [gatePid.pid],
-        );
-        const early = acquire({ ...quiet, dir, slots: 1, pid: x.pid, label: "agent run during the gate" });
-        await tick();
-        unmark();
-        const late = acquire({ ...quiet, dir, slots: 1, pid: y.pid, label: "agent run after the gate" });
-        await tick(50);
-        assert.match(
-            liveTickets(dir).find((t) => t.label === "agent run during the gate").name,
-            /^~/,
-            "a run that queued while the gate ran is in the low lane",
-        );
-        releaseH();
-        assert.equal(await settled(late), true, "the later ordinary run goes first");
-        assert.equal(await settled(early), false);
-        (await late)();
-        assert.equal(await settled(early), true);
-    });
-
-    it("ignores and removes the mark of a gate that is gone", async () => {
-        const dir = fresh();
-        const gone = spawnSync(process.execPath, ["-e", "0"]).pid;
-        markGate(dir, gone);
-        assert.deepEqual(liveGates(dir), []);
-        assert.deepEqual(
-            readdirSync(dir).filter((f) => f.startsWith(".gate-")),
-            [],
-        );
-        assert.equal(laneOf({}, []), "");
-        assert.equal(laneOf({ GRAPHTY_SLOT_PRIORITY: "low" }, []), "~");
-        assert.equal(laneOf({}, [{ pid: 1 }]), "~");
-        assert.equal(laneOf({ TEST_SLOT_GATE: "1" }, [{ pid: 1 }]), "!");
+    it("names a ticket's lane by GRAPHTY_SLOT_PRIORITY alone", () => {
+        assert.equal(laneOf({}), "");
+        assert.equal(laneOf({ GRAPHTY_SLOT_PRIORITY: "low" }), "~");
+        assert.equal(laneOf({ TEST_SLOT_GATE: "1" }), "", "there is no gate lane");
     });
 
     it("waits out a full file table (ENFILE, EMFILE) while reading the tickets instead of crashing, and gives up after a bound", async () => {
@@ -246,6 +194,14 @@ describe("test-slots", () => {
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32), 1);
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "0" }, 32), undefined);
         assert.equal(workerShare({ GITHUB_ACTIONS: "true" }, 32), undefined);
+    });
+
+    it("gives each gate shard its own Vite cache, and Vite's default outside one", () => {
+        assert.equal(
+            shardCacheDir({ GRAPHTY_TEST_SHARD: "graphty-element-browser-2" }),
+            "node_modules/.vite/shard-graphty-element-browser-2",
+        );
+        assert.equal(shardCacheDir({}), undefined);
     });
 
     it("wraps a command: holds a slot while it runs, marks its environment, passes its exit code", () => {
@@ -375,14 +331,13 @@ describe("test-slots", () => {
                     .map((f) => join(d.name, f)),
             );
         assert.ok(configs.length >= 12, `found ${configs.length} configs`);
-        const missing = configs.filter((f) => !readFileSync(join(ROOT, f), "utf8").includes("../tools/test-slots.mjs"));
-        assert.deepEqual(missing, [], "these vitest configs do not take a test slot");
-        const uncapped = configs.filter(
-            (f) => !/maxWorkers: workerShare\(\)|workerShare\(\) \?\?/.test(readFileSync(join(ROOT, f), "utf8")),
-        );
-        assert.deepEqual(uncapped, [], "these vitest configs do not cap their Node workers at workerShare()");
+        // All three come from baseTest() in vitest.base.mjs (tools/vitest-base.test.mjs checks every config imports it).
+        const base = readFileSync(join(ROOT, "vitest.base.mjs"), "utf8");
+        assert.match(base, /tools\/test-slots\.mjs/, "vitest.base.mjs takes a test slot");
+        assert.match(base, /maxWorkers = workerShare\(\)/, "vitest.base.mjs caps the Node workers at workerShare()");
         // The CI JUnit report and the time-budget check (tools/vitest-time-budget.mjs) come from ciReporters().
-        const unreported = configs.filter((f) => !/\.\.\.ciReporters\(/.test(readFileSync(join(ROOT, f), "utf8")));
-        assert.deepEqual(unreported, [], "these vitest configs do not add ciReporters() to their reporters");
+        assert.match(base, /\.\.\.ciReporters\(/, "vitest.base.mjs adds ciReporters() to the reporters");
+        const missing = configs.filter((f) => !/\.\.\.baseTest\(/.test(readFileSync(join(ROOT, f), "utf8")));
+        assert.deepEqual(missing, [], "these vitest configs do not spread baseTest() into their test block");
     });
 });

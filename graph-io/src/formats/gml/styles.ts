@@ -977,6 +977,11 @@ function readElement(
             "label",
             writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
         );
+        // the GML draft names no place for a node's label; a plain GML file's is centered on its node, as OGDF and
+        // Cytoscape draw it (yEd's GML keeps its own label models, in LabelGraphics)
+        if (target === "node" && writer.tool === null && writer.vocabulary === "graphlet") {
+            put("labelPosition", "center");
+        }
     }
 }
 
@@ -1659,7 +1664,7 @@ function edgeGraphics(get: Get, approximate: Approximate): Rec {
     for (const property of ["sourceArrow", "targetArrow"]) {
         const arrow = get(property);
         if (typeof arrow === "string") {
-            g[property] = yedSpelled(YED_ARROWS, arrow, "standard", property, approximate);
+            g[property] = yedSpelled(YED_ARROWS, arrow, "delta", property, approximate);
         }
     }
     const curved = get("curved");

@@ -280,9 +280,64 @@ function boxInside(inner: ScreenBox, outer: ScreenBox): boolean {
 }
 
 /**
- * For each drawn node, the node that hides it: a visible, opaque node whose screen box holds the
- * whole of its box and whose front is nearer the camera than its own. A group drawn in front of
- * its members hides every one of them this way.
+ * The 2D class of a drawn node's shape, as a reader sees it from above.
+ * @param d - the drawn node
+ * @returns the class
+ */
+const drawnShapeClass = (d: DrawnNode): ShapeClass =>
+    d.shapeType === "polygon"
+        ? polygonClassOf(d.polygon)
+        : shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType);
+
+/**
+ * Points around the ellipse a screen box holds, every 22.5 degrees.
+ * @param b - the box
+ * @returns the points
+ */
+const ellipsePoints = (b: ScreenBox): number[][] =>
+    Array.from({ length: 16 }, (_, k) => [
+        (b.x0 + b.x1) / 2 + ((b.x1 - b.x0) / 2) * Math.cos((k * Math.PI) / 8),
+        (b.y0 + b.y1) / 2 + ((b.y1 - b.y0) / 2) * Math.sin((k * Math.PI) / 8),
+    ]);
+
+/**
+ * Whether one screen box lies wholly under a node's outline: under its box for a shape that fills its box, else
+ * under the ellipse its box holds. A shape with empty corners (a Pajek man's figure, a star) does not hide a node
+ * drawn in a corner of its box (pajek-synth-vertices: man 24 beside man 32's arm, inside his box). ponytail: the
+ * ellipse stands for every shape that is no rectangle; a small node under a diamond's or a triangle's corner of that
+ * ellipse is counted hidden although it shows. A round node is covered when its own outline is, not its box's corners:
+ * a disc drawn just inside a bigger one shows nothing (json-graphology-synth n1 under n11).
+ * @param node - the node that may be covered
+ * @param outer - the covering node
+ * @returns true when the outline covers every corner of the box, or every point of a round node's outline
+ */
+function coveredBy(node: DrawnNode, outer: DrawnNode): boolean {
+    const inner = node.box;
+    if (!boxInside(inner, outer.box)) {
+        return false;
+    }
+    const kind = drawnShapeClass(outer);
+    if (kind === "rect" || kind === "roundrect") {
+        return true;
+    }
+    const { box: b } = outer;
+    const [cx, cy, rx, ry] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2];
+    const corners =
+        drawnShapeClass(node) === "ellipse"
+            ? ellipsePoints(inner)
+            : [
+                  [inner.x0, inner.y0],
+                  [inner.x1, inner.y0],
+                  [inner.x0, inner.y1],
+                  [inner.x1, inner.y1],
+              ];
+    return corners.every(([x, y]) => Math.hypot((x - cx) / (rx + INSIDE_SLACK), (y - cy) / (ry + INSIDE_SLACK)) <= 1);
+}
+
+/**
+ * For each drawn node, the node that hides it: a visible, opaque node whose outline covers the
+ * whole of its box (`coveredBy`) and whose front is nearer the camera than its own. A group drawn
+ * in front of its members hides every one of them this way.
  * @param nodes - what was drawn, by id
  * @returns the hiding node's id, by the hidden node's id; a node nothing hides is absent
  */
@@ -290,7 +345,7 @@ export function occluders(nodes: ReadonlyMap<string, DrawnNode>): Map<string, st
     const out = new Map<string, string>();
     const covers = [...nodes].filter(([, b]) => b.visible && b.fillDrawn !== null && b.fillOpacity >= OPAQUE);
     for (const [id, a] of nodes) {
-        const hit = covers.find(([other, b]) => other !== id && b.box.near < a.box.near && boxInside(a.box, b.box));
+        const hit = covers.find(([other, b]) => other !== id && b.box.near < a.box.near && coveredBy(a, b));
         if (hit !== undefined) {
             out.set(id, hit[0]);
         }
@@ -429,6 +484,9 @@ export function sceneNode(
     const place = label ? labelPlace(label.box, d) : "other";
     const occluded =
         label !== null && place === "inside" && !label.onTop && (label.box.near + label.box.far) / 2 > d.box.near;
+    // a label a reader could see, whether or not it is enabled now
+    const labelShown =
+        label !== null && d.shown && (hiddenBy === null || label.onTop) && !occluded && label.fontPx >= 1;
     const requestedFill = colorOf(channel(merged, "node.color"));
     const opacity = channel(merged, "node.opacity");
     const labelStyle = (merged["node.labelStyle"] ?? {}) as Readonly<Record<string, unknown>>;
@@ -438,10 +496,7 @@ export function sceneNode(
         y: d.y,
         w: w + size,
         h: h + size,
-        shape:
-            d.shapeType === "polygon"
-                ? polygonClassOf(d.polygon)
-                : shapeClassOf(SHAPE_NAMES.has(d.meshName) ? d.meshName : d.shapeType),
+        shape: drawnShapeClass(d),
         fill: visible && !covered && !subPixel && d.fillOpacity > 0 ? d.fillDrawn : null,
         fillOpacity: d.fillOpacity,
         border: drawnBorderOf(d),
@@ -455,12 +510,7 @@ export function sceneNode(
                       position: place,
                       // a label is drawn whatever its node's fill: an unfilled group still shows it, and one drawn on
                       // top of everything shows over the node that hides its own (Gephi's, gexf-cns-wos n5)
-                      visible:
-                          d.shown &&
-                          (hiddenBy === null || label.onTop) &&
-                          label.enabled &&
-                          !occluded &&
-                          label.fontPx >= 1,
+                      visible: labelShown && label.enabled,
                   },
         visible,
         z: -d.box.near,
@@ -485,6 +535,8 @@ export function sceneNode(
             border: d.border ? { ...d.border, widthPx: round(d.border.widthPx) } : null,
             labelFontPx: label ? round(label.fontPx) : null,
             labelOccluded: occluded,
+            // shown but for its node-size rule (`DrawnLabel.nodeSizeRule`), which another framing may meet
+            labelHiddenBySize: labelShown && label?.nodeSizeRule?.hidden === true,
             hiddenBy,
         },
     };
@@ -602,6 +654,9 @@ export function extractScene(element: Graphty, drawn: DrawnGraph, provenance: Gr
             kind: a.kind,
             bbox: { x: a.box.x0, y: a.box.y0, w: a.box.x1 - a.box.x0, h: a.box.y1 - a.box.y0 },
             ...(a.text === undefined ? {} : { text: a.text }),
+            ...(a.heads === undefined
+                ? {}
+                : { heads: a.heads.map((h) => ({ x: h.x0, y: h.y0, w: h.x1 - h.x0, h: h.y1 - h.y0 })) }),
         })),
         background,
         gaps: [...GRAPHTY_GAPS],

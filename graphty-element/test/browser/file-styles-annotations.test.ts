@@ -96,6 +96,15 @@ describe("a file's annotations", () => {
         assert.closeTo(arrow.x1, b.x, 2);
         assert.closeTo(arrow.y1, b.y, 2);
         assert.closeTo(arrow.x0, note.box.x0, 2);
+        // its one head (a triangle at the target, none at the source) is read as a box of its own at the target end
+        const heads = drawn.annotations.find((x) => x.kind === "arrow")?.heads ?? [];
+        assert.lengthOf(heads, 1);
+        const [head] = heads;
+        assert.isTrue(
+            head.x0 <= b.x + 1 && head.x1 >= b.x - 1 && head.y0 <= b.y + 1 && head.y1 >= b.y - 1,
+            "at the tip",
+        );
+        assert.isBelow(head.x1 - head.x0, arrow.x1 - arrow.x0);
     });
 
     test("are not drawn when the file is loaded without its styles", async () => {

@@ -1,3 +1,31 @@
+## 0.6.63 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.9
+- Updated algorithms to 3.4.16
+- Updated layout to 2.5.12
+
+## 0.6.62 (2026-10-28)
+
+### 🚀 Features
+
+- **ci:** pull request rules and quarantine issues from the results store ([#3388](https://github.com/graphty-org/graphty-monorepo/issues/3388))
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.8
+- Updated algorithms to 3.4.15
+- Updated layout to 2.5.11
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.6.61 (2026-10-21)
 
 ### 🧱 Updated Dependencies

@@ -188,6 +188,25 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.apply", mutation: { kind: "remove-edges", ids: ["0"] } },
     },
     {
+        name: "data.issues",
+        tags: BOTH,
+        command: {
+            op: "data.issues",
+            state: {
+                facts: {
+                    s1: {
+                        unknownEnds: ["n9"],
+                        repeatedIds: [],
+                        blankIds: { nodes: 0, edges: 0, examples: [] },
+                        refusedRows: [{ line: 4, issue: "E_CSV_FIELD_COUNT" }],
+                    },
+                },
+                ignored: ["refused-row"],
+                kept: [],
+            },
+        },
+    },
+    {
         name: "data.import replacing the graph",
         variant: "replace",
         tags: BOTH,
@@ -555,6 +574,34 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "visibility.steps", steps: [] },
     },
     {
+        name: "visibility.conditions: add a keep, an exclude and a select condition",
+        tags: BOTH,
+        command: {
+            op: "visibility.conditions",
+            conditions: [
+                { id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } },
+                { id: "c2", on: true, effect: "exclude", rule: { kind: "degree", min: 2 } },
+                { id: "c3", on: true, effect: "select", rule: { kind: "degree", min: 1 } },
+            ],
+        },
+    },
+    {
+        name: "visibility.conditions: change a condition's effect",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setConditions([{ id: "c1", effect: "keep", rule: { kind: "degree", min: 2 } }]);
+        },
+        command: {
+            op: "visibility.conditions",
+            conditions: [{ id: "c1", on: true, effect: "exclude", rule: { kind: "degree", min: 2 } }],
+        },
+    },
+    {
+        name: "visibility.playback",
+        tags: BOTH,
+        command: { op: "visibility.playback", playback: { mode: "cumulative", step: "week", results: "keep" } },
+    },
+    {
         name: "visibility.window",
         tags: BOTH,
         command: { op: "visibility.window", window: { attribute: "data.t", from: 0, to: 10 } },
@@ -729,6 +776,23 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.label", path: "data.name", value: "a", label: "Alpha" },
     },
     {
+        name: "shader.set",
+        tags: BOTH,
+        command: {
+            op: "shader.set",
+            id: "user/fixture",
+            text: "vec4 shade(NodeInput n) { return n.color; }",
+        },
+    },
+    {
+        name: "data.columns",
+        tags: BOTH,
+        command: {
+            op: "data.columns",
+            settings: { hidden: ["node:name"], types: { "node:name": "category" }, renamed: {} },
+        },
+    },
+    {
         name: "data.setFileStyles",
         tags: ["session"],
         command: {
@@ -802,6 +866,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { selectionStyle: { color: "#00ff00", scale: 2 } } },
     },
     {
+        name: "config.set pinnedStyle",
+        variant: "pinnedStyle",
+        tags: BOTH,
+        command: { op: "config.set", values: { pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } } },
+    },
+    {
         name: "config.set startingRows",
         variant: "startingRows",
         tags: BOTH,
@@ -812,6 +882,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "runPlacement",
         tags: BOTH,
         command: { op: "config.set", values: { runPlacement: "top" } },
+    },
+    {
+        name: "config.set layoutTransition",
+        variant: "layoutTransition",
+        tags: BOTH,
+        command: { op: "config.set", values: { layoutTransition: { transition: "fixture/glide", seconds: 0.5 } } },
     },
     {
         name: "config.set author",

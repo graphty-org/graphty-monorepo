@@ -6,7 +6,7 @@
 //   node graphology.mjs               write every sheet, pages.json and graphology-coverage.json
 //   node graphology.mjs --vocabulary  rewrite graphology-vocabulary.json from the live libraries first
 //
-// The vocabulary is what the pinned sigma.js 4 (../../oracles/tools/web) reads and draws of a graphology file: the
+// The vocabulary is what the pinned sigma.js 4 (../../oracles/tools/graphIo) reads and draws of a graphology file: the
 // attributes its DEFAULT_STYLES bind (node x, y, size, color, label; edge size, color, label), its default node
 // shapes and edge paths (DEFAULT_PRIMITIVES), the color syntaxes and the 148 color names of its color parser
 // (sigma/utils parseColor, HTML_COLORS), the settings that change what a default drawing shows, and graphology's
@@ -35,9 +35,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, "../../specimens/graphology");
 const VOCAB = join(here, "graphology-vocabulary.json");
 const COVERAGE = join(here, "graphology-coverage.json");
-const web = resolve(here, "../../oracles/tools/web");
-const req = createRequire(join(web, "package.json"));
-const versionOf = (pkg) => JSON.parse(readFileSync(join(web, "node_modules", pkg, "package.json"), "utf8")).version;
+const graphIo = resolve(here, "../../../.."); // its devDependencies pin the oracle libraries
+const req = createRequire(join(graphIo, "package.json"));
+const versionOf = (pkg) => JSON.parse(readFileSync(join(graphIo, "node_modules", pkg, "package.json"), "utf8")).version;
 const PINNED = { sigma: "4.0.1", graphology: "0.26.0" };
 for (const [pkg, v] of Object.entries(PINNED)) {
     if (versionOf(pkg) !== v)

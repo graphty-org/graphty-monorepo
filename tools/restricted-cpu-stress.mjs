@@ -23,7 +23,7 @@ import { basename, dirname, join } from "node:path";
 export const MARKER = "githerd-flaky-test: ";
 /** The tracker's labels, at the lowest priority: the tracker raises priority, never lowers it. */
 export const LABELS = ["bug", "intermittent", "effort:medium", "priority:low"];
-/** More failing tests than this means the restriction is too tight or the suite is broken: file nothing. */
+/** More failing tests than this in one file means that file is broken, not load-sensitive: report it, file none of its tests. */
 export const MAX_FILED = 25;
 const OUTPUT_MAX = 3000;
 
@@ -120,16 +120,17 @@ export const issueBody = (t, ctx) =>
  * @param failures - the failing tests from junitFailures (duplicates allowed)
  * @param issues - the issues labelled intermittent, as the REST API lists them
  * @param ctx - the run: restriction, runUrl, sha
- * @returns per test, `{create: {title, body, labels}}` or `{issue, reopen, comment}`
+ * @returns per broken file (over MAX_FILED failing tests), `{suiteBroken: {package, file, count}}`; per other
+ *   test, `{create: {title, body, labels}}` or `{issue, reopen, comment}`
  */
 export function plan(failures, issues, ctx) {
-    const tests = [...new Map(failures.map((t) => [t.id, t])).values()];
-    if (tests.length > MAX_FILED) {
-        throw new Error(
-            `${tests.length} tests failed, over ${MAX_FILED}: the restriction is too tight or the suite is broken; nothing filed`,
-        );
-    }
-    return tests.map((t) => {
+    const byFile = Map.groupBy(new Map(failures.map((t) => [t.id, t])).values(), (t) => `${t.package}/${t.file}`);
+    const broken = [...byFile.values()].filter((ts) => ts.length > MAX_FILED);
+    const tests = [...byFile.values()].filter((ts) => ts.length <= MAX_FILED).flat();
+    const suiteBroken = broken.map(([t, ...rest]) => ({
+        suiteBroken: { package: t.package, file: t.file, count: rest.length + 1 },
+    }));
+    const filed = tests.map((t) => {
         const found = issues.find((i) => !i.pull_request && (i.body ?? "").split("\n").includes(`${MARKER}${t.id}`));
         if (!found) return { create: { title: issueTitle(t), body: issueBody(t, ctx), labels: LABELS } };
         return {
@@ -138,6 +139,7 @@ export function plan(failures, issues, ctx) {
             comment: ["Again, load-sensitive under restricted CPU:", "", occurrence(t, ctx)].join("\n"),
         };
     });
+    return [...suiteBroken, ...filed];
 }
 
 /**
@@ -210,7 +212,10 @@ async function main() {
     const actions = plan(failures, issues, ctx);
     const lines = [];
     for (const a of actions) {
-        if (DRY_RUN === "true") {
+        if (a.suiteBroken) {
+            const b = a.suiteBroken;
+            lines.push(`suite broken, nothing filed: ${b.package}/${b.file} (${b.count} tests failed)`);
+        } else if (DRY_RUN === "true") {
             lines.push(a.create ? `would file: ${a.create.title}` : `would comment on #${a.issue}`);
         } else {
             lines.push(await perform(a, request, repo));

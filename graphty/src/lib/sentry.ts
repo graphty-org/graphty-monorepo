@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/react";
 
+import { siteConfig } from "../siteConfig";
 import { privacyFilters } from "./sentryPrivacy";
 
 let initialized = false;
@@ -24,9 +25,12 @@ interface SentryConfig {
  * @returns The default Sentry configuration
  */
 function getDefaultConfig(): SentryConfig {
+    const { site, sentryEnvironment } = siteConfig();
     return {
         dsn: import.meta.env.VITE_SENTRY_DSN,
-        environment: import.meta.env.MODE,
+        // The site's label from its site.json, so canary's errors are not labelled production; a
+        // site that serves none is labelled as the build was before site.json existed.
+        environment: sentryEnvironment ?? (site === "unknown" ? import.meta.env.MODE : site),
         isProd: import.meta.env.PROD,
     };
 }
@@ -60,6 +64,22 @@ export function initSentry(config?: SentryConfig): void {
         integrations: [replay],
         // Every event, transaction and breadcrumb is cut down to an allowlist before it is sent.
         ...privacyFilters,
+        // Spans go out inside their transaction, through beforeSendTransaction above. Sentry 11's
+        // default, streaming each span on its own, skips that hook and would send span attributes
+        // (a request URL with its query, anything a caller set) unfiltered.
+        traceLifecycle: "static",
+        // Sentry 11 collects these by default, and some (the reader's IP address, inferred by Sentry's
+        // server from the request) are added after the event leaves the page, past every hook above.
+        dataCollection: {
+            userInfo: false,
+            cookies: false,
+            // the browser string, which privacyFilters keeps; every other header stays on the page
+            httpHeaders: { allow: ["User-Agent"] },
+            httpBodies: [],
+            urlQueryParams: false,
+            graphQL: { document: false, variables: false },
+            genAI: { inputs: false, outputs: false },
+        },
         transport: effectiveConfig.transport,
     });
     if (restart) {

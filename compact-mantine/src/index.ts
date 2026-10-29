@@ -23,6 +23,7 @@ export { CompactColorInput } from "./components/CompactColorInput";
 export { ControlGroup } from "./components/ControlGroup";
 export { ControlSection } from "./components/ControlSection";
 export { DataTable } from "./components/DataTable";
+export { EntityChip } from "./components/EntityChip";
 export { GradientEditor } from "./components/GradientEditor";
 export { InfoCircle } from "./components/InfoCircle";
 export {
@@ -36,15 +37,18 @@ export {
 export { RampEditor } from "./components/RampEditor";
 export { ScrollArea, type ScrollAreaProps } from "./components/ScrollArea";
 export { SegmentedControl } from "./components/SegmentedControl";
+export { RangeSlider, Slider } from "./components/Slider";
 export { ToggleWithContent } from "./components/ToggleWithContent";
 
 // Buttons: the toggle icon button and the split button (design/figma-spec.md 4.4, 4.5).
 export { SplitButton, ToggleIconButton } from "./components/buttons";
 
-// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), and focus put on
-// a field by program with its ring drawn.
-export { ComboInput, SearchInput, VariablePill } from "./components/inputs";
+// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), the file source
+// with its drop hook and file picker, focus put on a field by program with its ring drawn, and the
+// scrub gesture a number field's handle uses, for a property row whose label scrubs its value.
+export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
 export { focusWithRing } from "./components/inputs/listbox";
+export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
 
 // Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
 // the toast and the tooltip's shortcut label (8.1-8.6).
@@ -90,6 +94,7 @@ export {
     RailButton,
     SecondaryToolbar,
     ShortcutSheet,
+    StatusBar,
     Toolbar,
     ToolButton,
     ToolGroup,
@@ -214,6 +219,8 @@ export type {
     DataTableValue,
     Direction,
     DisclosureProps,
+    EntityChipProps,
+    EntityKind,
     FieldGlyphName,
     FieldGlyphProps,
     FieldLetter,
@@ -224,6 +231,8 @@ export type {
     GestureStartHandler,
     GradientEditorProps,
     HistogramBin,
+    HistogramBrushProps,
+    HistogramOverlay,
     HistogramRowProps,
     InfoCircleProps,
     LabelsProviderProps,
@@ -271,7 +280,12 @@ export type {
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
+    PickFilesOptions,
     SearchInputProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "./types";
 export type {
@@ -323,6 +337,7 @@ export type {
     ShortcutGroup,
     ShortcutSheetProps,
     ShortcutSheetTab,
+    StatusBarProps,
     ToolbarProps,
     ToolButtonProps,
     ToolGroupProps,

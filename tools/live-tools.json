@@ -6,7 +6,7 @@
     },
     "visual-review": {
         "worktree": ".worktrees/visual-review-server-v3",
-        "servers": ["visual-review-v3", "visual-review-notify"],
+        "servers": ["visual-review-v3"],
         "test": "cd visual-review && npm run lint && npx vitest run"
     },
     "gate": {
@@ -17,7 +17,7 @@
     "land": {
         "worktree": ".worktrees/land-live",
         "servers": [],
-        "test": "node tools/land.test.mjs && node tools/verify.test.mjs"
+        "test": "node tools/land.test.mjs && node tools/verify.test.mjs && node tools/branch-tracking.test.mjs"
     },
     "sonar-baseline": {
         "worktree": ".worktrees/sonar-baseline-runner",

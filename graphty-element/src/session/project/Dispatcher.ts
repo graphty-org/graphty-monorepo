@@ -275,6 +275,8 @@ export interface TransactionOptions {
     readonly fact?: CodedFact<HistoryCode>;
     /** Declared at construction: while the baseline window is open it commits into the baseline. */
     readonly setup?: boolean;
+    /** Starts the history: never undone or cancelled by undo, and the steps before it go when it commits. */
+    readonly starts?: boolean;
     /**
      * A batch's transaction: its members are known when it opens and it settles by itself, so a
      * command needing a key it holds waits for it instead of being refused.
@@ -318,6 +320,13 @@ interface DispatcherEvents {
     history?: (reason: HistoryReason) => void;
     /** After the derivation pass: the per-domain events. One per step an undo or restore passes. */
     derived?: (change: ProjectChange) => void;
+    /**
+     * `project:derived`: once the lane is idle -- every pass has run, whatever scheduled it, and
+     * none waits -- after the `derived` events, so a read of any derived value (the legend, the
+     * counts) is current. Carries every slice changed or derived since the last one; changes in
+     * one burst share one.
+     */
+    caughtUp?: (change: ProjectChange) => void;
     /** Every command dispatched, as it arrives, before it runs; the doors test spies here. */
     dispatched?: (command: CommandLike) => void;
     /**
@@ -591,6 +600,12 @@ interface Group {
     view: PendingStep | undefined;
     /** Declared at construction: commits into the baseline while the window is open. */
     readonly setup: boolean;
+    /**
+     * The dispatch order of the load that starts the history (`ImportOptions.history`), when this
+     * group is that load or work it deferred; null otherwise. Undo passes over it, and it commits
+     * into the baseline.
+     */
+    readonly starts: number | null;
     /** A batch's transaction, which a command needing its keys waits for. */
     readonly compound: boolean;
     /** Work to start once it is recorded, by key; see `UndoableContext.after`. */
@@ -607,6 +622,8 @@ interface Group {
 interface DeferredOrigin {
     readonly step: string | null;
     readonly setup: boolean;
+    /** The origin's `Group.starts`: work a start load deferred is part of that load. */
+    readonly starts: number | null;
 }
 
 /** When a step was recorded and undone, and the op-log keys its group held. */
@@ -764,6 +781,15 @@ function isSetup(command: CommandLike): boolean {
 }
 
 /**
+ * Whether a command starts the history: `startsHistory: true` among its arguments.
+ * @param command - The command.
+ * @returns True for a command that starts the history.
+ */
+function startsHistory(command: CommandLike): boolean {
+    return (command as { readonly startsHistory?: unknown }).startsHistory === true;
+}
+
+/**
  * Run `work` now and hand back a promise of its result, rejected when it throws.
  * @param work - The synchronous work.
  * @returns Its result, or its throw as a rejection.
@@ -828,6 +854,8 @@ export class Dispatcher {
     private readonly reasons: HistoryReason[] = [];
     /** What the history's charges were last measured against: the resident token and the retained version. */
     private charged = { token: Number.NaN, retained: -1 };
+    /** What `caughtUp` owes: the slices changed or derived since it last fired, and the cause. */
+    private owed: { slices: Set<string>; cause: HistoryCause } | null = null;
     /** The token of every snapshot id index a charged run result reads through. */
     private readonly indexTokens = new Set<number>();
     /** Above zero while a listener runs: a history call made then waits for a microtask. */
@@ -878,6 +906,14 @@ export class Dispatcher {
             session: true,
         });
         this.events = { ...options.events };
+        // A pass with no commit behind it (a deferred repaint, an import's end) is owed an event
+        // too: its paint is what a reader of the legend waits for.
+        this.lane.drained = (slices) => {
+            this.owe(slices, this.lane.passCause);
+            void Promise.resolve().then(() => {
+                this.catchUp();
+            });
+        };
         this.clock = options.now ?? Date.now;
         this.scheduler = options.scheduler ?? NO_SCHEDULER;
         this.baselineOpen = options.baselineWindow === true;
@@ -1058,7 +1094,7 @@ export class Dispatcher {
                 status: "open",
                 controller,
             },
-            { setup: options.setup === true, compound: options.compound === true },
+            { setup: options.setup === true, compound: options.compound === true, starts: options.starts === true },
         );
         this.enter(group);
         if (options.moves === true) {
@@ -1172,11 +1208,19 @@ export class Dispatcher {
     }
 
     /**
-     * Drop every step, cancelling all pending work and aborting every open transaction: the
-     * current state becomes the baseline.
+     * Drop every step: the current state becomes the baseline. Pending work that has already
+     * changed something (a value, the graph, or the lane it took a before-arrangement of) is
+     * cancelled, open transactions aborted, along with the work queued behind it: its step would
+     * undo to a state older than the baseline. Unless `keepPending`, the rest is cancelled too;
+     * kept, it records its step over the new baseline when it seals.
+     * @param keepPending - Leave pending work that has changed nothing yet to finish.
      */
-    clear(): void {
-        this.cancelAll(this.cascade(this.ordered()), "cancel");
+    clear(keepPending = false): void {
+        const pending = this.ordered();
+        const cancel = keepPending
+            ? pending.filter((group) => group.arrangement !== null || group.draft.written())
+            : pending;
+        this.cancelAll(this.cascade(cancel), "cancel");
         this.arrangement.flush();
         this.history.clear(this.arrangement.capture());
         this.steps.clear();
@@ -1391,18 +1435,57 @@ export class Dispatcher {
 
         const cancelled: PendingStep[] = [];
         if (id === null) {
-            cancelled.push(...this.cancelAll(this.cascade(this.ordered()), "undo"));
-        } else {
-            const direction = target < position ? "undo" : "redo";
-            const passing = target < position ? steps.slice(target, position).reverse() : steps.slice(position, target);
-            for (const step of passing) {
-                for (let plan = this.plan(direction, step); plan !== null && "cancel" in plan;) {
-                    cancelled.push(...this.cancelAll(plan.cancel, direction));
-                    plan = this.plan(direction, step);
-                }
-            }
+            // A load that starts the history is not cancelled, as undo does not cancel it.
+            const pending = this.ordered().filter((group) => group.starts === null);
+            cancelled.push(...this.cancelAll(this.cascade(pending), "undo"));
         }
 
+        const direction = target < position ? "undo" : "redo";
+        const passing = target < position ? steps.slice(target, position).reverse() : steps.slice(position, target);
+        const passed = this.passable(direction, passing, cancelled);
+        // A step a pending start load will drop stops the jump, as it stops undo.
+        const reached = direction === "undo" ? position - passed : position + passed;
+        return this.restoreAt(reached === 0 ? null : steps[reached - 1].id, reached, position, cancelled);
+    }
+
+    /**
+     * How many of the steps a history jump passes it can pass, cancelling for each what undo or
+     * redo would: it stops at a step with nothing to move.
+     * @param direction - Which way the jump goes.
+     * @param passing - The steps, in the order they would be passed.
+     * @param cancelled - Collects what was cancelled.
+     * @returns How many, from the first.
+     */
+    private passable(
+        direction: "undo" | "redo",
+        passing: readonly HistoryStepView[],
+        cancelled: PendingStep[],
+    ): number {
+        let count = 0;
+        for (const step of passing) {
+            let plan = this.plan(direction, step);
+            while (plan !== null && "cancel" in plan) {
+                cancelled.push(...this.cancelAll(plan.cancel, direction));
+                plan = this.plan(direction, step);
+            }
+            if (plan === null) {
+                break;
+            }
+            count++;
+        }
+
+        return count;
+    }
+
+    /**
+     * The jump itself, once what it cancels is cancelled.
+     * @param id - The step it lands just after, or null for the baseline.
+     * @param target - Its index: how many steps are done there.
+     * @param position - How many are done now.
+     * @param cancelled - What it cancelled.
+     * @returns What was done.
+     */
+    private restoreAt(id: string | null, target: number, position: number, cancelled: PendingStep[]): HistoryOutcome {
         if (target === position) {
             return cancelled.length > 0
                 ? { kind: "cancelled", pending: Object.freeze(cancelled) }
@@ -1481,7 +1564,7 @@ export class Dispatcher {
 
     /**
      * Publish a change: `project` and the pending `history` reasons now, the `derived` events
-     * once the pass has run.
+     * once the pass has run, and `caughtUp` once the lane is idle.
      * @param change - What changed, for `project`.
      * @param derived - The per-domain changes, one per step.
      */
@@ -1500,13 +1583,41 @@ export class Dispatcher {
             this.history.recharge((patch, seen) => patchCharge(patch, token, seen, this.indexTokens), full);
         }
 
+        this.owed = { slices: new Set([...(this.owed?.slices ?? []), ...change.slices]), cause: change.cause };
         this.notify(() => this.events.project?.(change));
         this.flushHistory();
         void this.lane.settled().then(() => {
             for (const each of derived) {
                 this.notify(() => this.events.derived?.(each));
             }
+            this.catchUp();
         });
+    }
+
+    /**
+     * Add slices to what `caughtUp` owes.
+     * @param slices - The slices.
+     * @param cause - What moved them; a commit's cause wins over a pass's.
+     */
+    private owe(slices: Iterable<string>, cause: HistoryCause): void {
+        this.owed ??= { slices: new Set(), cause };
+        for (const slice of slices) {
+            this.owed.slices.add(slice);
+        }
+    }
+
+    /**
+     * Fire the owed `caughtUp` once the lane is idle and no repaint is owed; the pass still to
+     * run, or the one that pays the owed repaint (`graphWriteEnded`), fires it when it ends.
+     */
+    private catchUp(): void {
+        const { owed } = this;
+        if (owed === null || this.lane.deriving || this.paintOwed) {
+            return;
+        }
+
+        this.owed = null;
+        this.notify(() => this.events.caughtUp?.({ slices: [...owed.slices], cause: owed.cause }));
     }
 
     /**
@@ -1626,7 +1737,7 @@ export class Dispatcher {
 
         const compound = definition.members?.(concrete);
         if (compound !== undefined) {
-            return this.compound(compound, tx, isSetup(concrete), options.beside === true);
+            return this.compound(compound, tx, isSetup(concrete), options.beside === true, startsHistory(concrete));
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
@@ -1666,7 +1777,11 @@ export class Dispatcher {
                 origin?.step ?? null,
                 this.tick,
                 null,
-                { setup: isSetup(concrete) || origin?.setup === true },
+                {
+                    setup: isSetup(concrete) || origin?.setup === true,
+                    starts: startsHistory(concrete),
+                    startsAt: origin?.starts ?? null,
+                },
             );
         const job = this.job(concrete, keys, undoable, group, queuedKey);
         for (const key of keys) {
@@ -1724,6 +1839,7 @@ export class Dispatcher {
      * @param setup - Whether it was declared at construction.
      * @param beside - Whether its queued members start at once, beside the queue, as a
      *     synchronous door's must.
+     * @param starts - Whether it starts the history.
      * @returns Settles when every member has.
      */
     private compound(
@@ -1731,6 +1847,7 @@ export class Dispatcher {
         tx: Group | null,
         setup: boolean,
         beside: boolean,
+        starts = false,
     ): Promise<unknown> {
         const options = beside ? { beside } : {};
         if (tx !== null) {
@@ -1744,6 +1861,7 @@ export class Dispatcher {
                 setup,
                 compound: true,
                 fact,
+                starts,
             },
         );
         // As a single command's promise is: a batch nobody awaited, cancelled, is not an unhandled
@@ -1842,6 +1960,9 @@ export class Dispatcher {
 
         job.slotContext = context;
         // Waiting on a key, the job gives the slot up; it runs off the queue when the key frees.
+        // Keeping it would hang a batch whose queued member is behind it on the queue while the
+        // batch holds the key. The queue is then idle with the command still owed, so a settle
+        // wait also waits for `waitersSettled`.
         return this.admit(job) === "waiting"
             ? Promise.resolve()
             : job.promise.then(
@@ -2242,7 +2363,7 @@ export class Dispatcher {
      * @param step - The step it recorded, or null when it recorded none.
      */
     private startDeferred(group: Group, step: string | null): void {
-        const origin: DeferredOrigin = { step, setup: group.setup };
+        const origin: DeferredOrigin = { step, setup: group.setup, starts: group.starts };
         const starts = [...group.onSeal.values()];
         group.onSeal.clear();
         for (const start of starts) {
@@ -2267,11 +2388,34 @@ export class Dispatcher {
             this.baselineOpen = false;
         }
 
+        if (group.starts !== null) {
+            if (group.starts === group.seq) {
+                this.dropBefore(group.seq);
+            }
+            return true;
+        }
+
         if (group.setup) {
             return this.history.length === 0;
         }
 
         return open && !graph;
+    }
+
+    /**
+     * The load that starts the history has committed: every step recorded before it was
+     * dispatched goes, published as a clear (the project starts here); work dispatched while it
+     * was pending stays as its own steps.
+     * @param seq - The load's dispatch order.
+     */
+    private dropBefore(seq: number): void {
+        const { steps } = this.history;
+        let before = 0;
+        while (before < steps.length && (this.steps.get(steps[before].id)?.recorded ?? -1) < seq) {
+            this.steps.delete(steps[before].id);
+            before++;
+        }
+        this.history.dropOldest(before);
     }
 
     /**
@@ -2404,6 +2548,30 @@ export class Dispatcher {
     }
 
     /**
+     * Whether a queued command is waiting off the queue for a key; see
+     * {@link Dispatcher.waitersSettled}.
+     * @returns True while one is.
+     */
+    get hasWaiters(): boolean {
+        return this.waiters.size > 0;
+    }
+
+    /**
+     * Settles once no queued command is waiting off the queue for a key: each such command gave
+     * its queue slot up, so an idle queue does not mean it has run.
+     * @returns Whether there was one to wait for; what it ran may have queued more work.
+     */
+    async waitersSettled(): Promise<boolean> {
+        let waited = false;
+        while (this.waiters.size > 0) {
+            waited = true;
+            await Promise.allSettled([...this.waiters].map((job) => job.promise));
+        }
+
+        return waited;
+    }
+
+    /**
      * Whether a dispatched, unfinished command matches.
      * @param match - Tests one command.
      * @returns True while one does.
@@ -2486,12 +2654,14 @@ export class Dispatcher {
         // step touched can be, so only those are looked at, not every pending group.
         if (meta !== undefined && meta.oplog.length > 0) {
             const touchesGraph = meta.oplog.some((key) => sliceOf(key) === "graph");
-            const inWay = this.holdingAny(meta.oplog).filter((group) =>
-                [...group.holds].some(
-                    ([key, at]) =>
-                        meta.oplog.some((touched) => overlaps(key, touched)) ||
-                        (touchesGraph && sliceOf(key) === "graph" && at > since),
-                ),
+            const inWay = this.holdingAny(meta.oplog).filter(
+                (group) =>
+                    group.starts === null &&
+                    [...group.holds].some(
+                        ([key, at]) =>
+                            meta.oplog.some((touched) => overlaps(key, touched)) ||
+                            (touchesGraph && sliceOf(key) === "graph" && at > since),
+                    ),
             );
             if (inWay.length > 0) {
                 return { cancel: this.cascade(inWay) };
@@ -2501,11 +2671,13 @@ export class Dispatcher {
         // Rule 1: pending work newer than the step. None was listed after it, and no pending
         // group amends it: a run of queued commands behind the step is not walked on every read.
         if (this.newestEntered <= since && (direction !== "undo" || this.openAfter === 0)) {
-            return target === undefined ? null : { step: target };
+            return this.movable(target, meta?.recorded);
         }
 
+        // A load that starts the history is never cancelled by undo or redo.
         const newer = this.ordered().filter(
-            (group) => group.seq > since || (direction === "undo" && group.after === target?.id),
+            (group) =>
+                group.starts === null && (group.seq > since || (direction === "undo" && group.after === target?.id)),
         );
         const newest = newer.at(-1);
         if (newest !== undefined) {
@@ -2513,7 +2685,28 @@ export class Dispatcher {
         }
 
         // Rule 2.
-        return target === undefined ? null : { step: target };
+        return this.movable(target, meta?.recorded);
+    }
+
+    /**
+     * The step undo or redo would move, unless a pending load that starts the history was
+     * dispatched after it was recorded: that load drops it, so it is not the reader's to move.
+     * @param target - The step next to the cursor.
+     * @param recorded - When it was recorded.
+     * @returns The step, or null when there is nothing to move.
+     */
+    private movable(target: HistoryStepView | undefined, recorded = -1): { step: HistoryStepView } | null {
+        if (target === undefined) {
+            return null;
+        }
+
+        for (const group of this.open) {
+            if (group.starts !== null && group.starts > recorded) {
+                return null;
+            }
+        }
+
+        return { step: target };
     }
 
     /**
@@ -2656,6 +2849,8 @@ export class Dispatcher {
      * @param flags - What kind of group it is.
      * @param flags.setup - Declared at construction.
      * @param flags.compound - A batch's transaction.
+     * @param flags.starts - It is the load that starts the history.
+     * @param flags.startsAt - For work a start load deferred, that load's `Group.starts`.
      * @returns The group.
      */
     private group(
@@ -2665,7 +2860,17 @@ export class Dispatcher {
         after: string | null,
         seq: number,
         tx: Group["tx"],
-        { setup = false, compound = false }: { readonly setup?: boolean; readonly compound?: boolean } = {},
+        {
+            setup = false,
+            compound = false,
+            starts = false,
+            startsAt = null,
+        }: {
+            readonly setup?: boolean;
+            readonly compound?: boolean;
+            readonly starts?: boolean;
+            readonly startsAt?: number | null;
+        } = {},
     ): Group {
         return {
             seq,
@@ -2686,6 +2891,7 @@ export class Dispatcher {
             view: undefined,
             setup,
             compound,
+            starts: starts ? seq : startsAt,
             onSeal: new Map(),
             executed: [],
             arrangement: null,

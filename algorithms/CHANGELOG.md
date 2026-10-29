@@ -1,3 +1,29 @@
+## 3.4.16 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.41
+- Updated visual-review to 0.2.37
+- Updated graph-format to 1.4.9
+
+## 3.4.15 (2026-10-28)
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **algorithms:** give the Ford-Fulkerson story's last layer every remaining node ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **compact-mantine:** take only the storybook 8.6.19 security fix ([#3492](https://github.com/graphty-org/graphty-monorepo/issues/3492))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.40
+- Updated visual-review to 0.2.36
+- Updated graph-format to 1.4.8
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 3.4.14 (2026-10-21)
 
 ### 🧱 Updated Dependencies

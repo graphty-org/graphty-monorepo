@@ -29,15 +29,18 @@
  * shared cap of four browsers), and at most two shards without a
  * browser run at once. Every shard then takes one machine-wide test slot (tools/test-slots.mjs), which
  * ad-hoc test runs share, so a shard may wait for runs of other sessions. Two things CI's separate runners give each shard are reproduced here:
- *  - The shards of one package share its Vite dependency caches (node_modules/.vite/vitest/<hash>,
- *    one per vitest project, plus Storybook's sb-vitest cache and the root project's). On a cold or
- *    stale cache each vitest optimizes and swaps a cache directory in under the others: four browser
- *    shards started together failed with deps chunks that "point to missing source files". So in each
- *    package one shard of each family (graphty-element-browser-1 to -5 is one family) fills the
- *    caches first, one at a time with nothing else of that package running -- the one with the
- *    shortest command: browser-1 also runs the benchmarks -- and the rest of the package starts once
- *    all of its warm-ups passed. Per package rather than per family, because the families of one
- *    package are not shown never to share a cache (the root project's is used by every one).
+ *  - On CI's runners no two shards share a Vite dependency cache; here every shard of one package
+ *    shares its checkout. On a cold or stale shared cache each vitest optimizes and swaps a cache
+ *    directory in under the others: four browser shards started together failed with deps chunks
+ *    that "point to missing source files", and xr runs side by side lost chunks they were loading
+ *    (issue #3319). So every shard gets its own Vite cache, node_modules/.vite/shard-<shard>
+ *    (GRAPHTY_TEST_SHARD, shardEnv() below; a package's vitest config sets it as cacheDir through
+ *    shardCacheDir() in tools/test-slots.mjs). Storybook's vitest plugin keeps its own sb-vitest
+ *    cache, which a package's config cannot move, so in each package one shard of each family
+ *    (graphty-element-storybook-1 to -5 is one family) still runs first, one at a time with nothing
+ *    else of that package running -- the one with the shortest command -- and the rest of the
+ *    package starts once all of its warm-ups passed. That warm-up only has to fill the caches every
+ *    shard of the family shares, never one a later shard alone uses.
  *  - The packages that run several shards with --coverage (graphty-element, algorithms) write each
  *    shard's report to .coverage-parts/<shard> (COVERAGE_DIR), not into one coverage/ directory each
  *    run would empty under the others. In both packages COVERAGE_DIR otherwise only switches off
@@ -45,9 +48,9 @@
  * A shard passes only when it exits 0 AND its log shows a finished vitest run (tools/shard-verdict.mjs). Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. The failed shard's whole log is also copied to
- * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
- * its wait for a browser or test slot) fails. The stage itself has no time limit: waiting for slots
- * other gates hold is not a failure of this push.
+ * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. Neither a shard nor the
+ * stage has a time limit: a hung test is ended by the one hang guard every vitest config sets (its
+ * testTimeout and hookTimeout), and waiting for slots other gates hold is not a failure of this push.
  */
 
 import { spawn, spawnSync, execFileSync } from "node:child_process";
@@ -61,7 +64,7 @@ import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-
 import { checkShard, expectedRuns } from "./shard-verdict.mjs";
 import { afterShard, closeFinished, quarantineEnabled, shQuote, splitLog } from "./test-quarantine.mjs";
 import { planRuns, selectBaseOf, selectedCommand, startAdvisory } from "./test-select.mjs";
-import { liveTickets, markGate, slotDir } from "./test-slots.mjs";
+import { liveTickets, slotDir } from "./test-slots.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -130,6 +133,49 @@ export function localShards(affected) {
     return [...shards.filter((s) => s["needs-browser"]), ...shards.filter((s) => !s["needs-browser"])];
 }
 
+// Each shard's share of runs that failed (failed or error, of those that passed or failed) in the last 14 days.
+const RATES_SQL = `SELECT shard, 1.0 * SUM(outcome IN ('failed', 'error')) / COUNT(*) AS rate FROM invocation
+  WHERE outcome IN ('passed', 'failed', 'error') AND started_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-14 days')
+  GROUP BY shard`;
+
+/**
+ * Each shard's recent failure rate, from the test ledger. Never throws: without the ledger the map is empty and
+ * the shards keep the order they have.
+ * @param [lib] the test ledger module (tests pass a stand-in)
+ * @param [log] where a line about an unavailable ledger goes
+ * @returns shard name -> failure rate, 0 to 1
+ */
+export function failureRates(lib = ledger, log = console.log) {
+    let db;
+    try {
+        const opened = lib?.openLedger(process.env, ROOT) ?? { why: "the ledger is unavailable" };
+        db = opened.db;
+        if (!db) throw new Error(opened.why);
+        return new Map(
+            db
+                .prepare(RATES_SQL)
+                .all()
+                .map((r) => [r.shard, r.rate]),
+        );
+    } catch (e) {
+        log(`ledger: no failure rates (${e.message.split("\n")[0]}); the shards start in their usual order`);
+        return new Map();
+    } finally {
+        db?.close();
+    }
+}
+
+/**
+ * The shards with the likeliest failures first, so a failing push fails early; a stable sort, so shards with the
+ * same rate (or none) keep their order (localShards': browser shards first).
+ * @param shards the shards to run
+ * @param rates failureRates()
+ * @returns the shards, highest failure rate first
+ */
+export function byFailureRate(shards, rates) {
+    return [...shards].sort((a, b) => (rates.get(b.shard) ?? 0) - (rates.get(a.shard) ?? 0));
+}
+
 /**
  * The shards this push runs, by each one's "local" policy (tools/ci-test-matrix.mjs).
  * @param shards the shards CI would run (localShards)
@@ -193,14 +239,19 @@ async function vitestTriggers(shard) {
 }
 
 /**
- * The environment one shard adds: its own coverage directory where a package runs several shards.
+ * The environment one shard adds: its name, which gives it its own Vite dependency cache
+ * (shardCacheDir() in tools/test-slots.mjs), and its own coverage directory where a package runs
+ * several shards.
  * @param shard a SHARDS entry
  * @returns extra environment variables
  */
 export function shardEnv(shard) {
-    return ["graphty-element", "algorithms"].includes(shard.package)
-        ? { COVERAGE_DIR: `.coverage-parts/${shard.shard}` }
-        : {};
+    return {
+        GRAPHTY_TEST_SHARD: shard.shard,
+        ...(["graphty-element", "algorithms"].includes(shard.package)
+            ? { COVERAGE_DIR: `.coverage-parts/${shard.shard}` }
+            : {}),
+    };
 }
 
 // graphty-element-browser-3 -> graphty-element-browser; a shard without a number is its own family.
@@ -439,20 +490,18 @@ const readJson = (file) => {
 
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
-const TIMEOUT = process.env.PREPUSH_SHARD_TIMEOUT ?? "30m";
 
 /**
  * How one shard runs, from its checkout: through tools/run-tests.sh (with `command` instead of the shard's own when
- * given) under the shard timeout, in a machine-wide test slot (tools/test-slots.mjs) taken outside the timeout so
- * the wait does not count against the shard, and after the browser slot: nothing holding a test slot ever waits
- * for a browser slot, so the two cannot wait on each other.
+ * given), in a machine-wide test slot (tools/test-slots.mjs), and after the browser slot: nothing holding a test
+ * slot ever waits for a browser slot, so the two cannot wait on each other.
  * @param shard a SHARDS entry
  * @param [command] the command to run instead
  * @returns argv
  */
 function shardArgv(shard, command) {
     const what = command ? ["--command", shard.shard, command] : [shard.shard];
-    const cmd = ["timeout", "--kill-after=30s", TIMEOUT, "bash", "tools/run-tests.sh", ...what];
+    const cmd = ["bash", "tools/run-tests.sh", ...what];
     cmd.unshift(process.execPath, join(dirname(fileURLToPath(import.meta.url)), "test-slots.mjs"));
     return shard["needs-browser"] && existsSync(GATE) ? [GATE, ...cmd] : cmd;
 }
@@ -736,7 +785,8 @@ async function main() {
         process.exit(1);
     }
     const passes = passed(planned, main);
-    const shards = passes.run;
+    // The likeliest failures start first (graphty-1 to -3 fail 11-18% of runs, graph-format almost never).
+    const shards = byFailureRate(passes.run, failureRates());
     if (shards.length === 0) {
         console.log(nothingToRun(gated, planned));
         return;
@@ -764,16 +814,15 @@ async function main() {
     const start = (shard) => {
         const log = join(logs, `${shard.shard}.log`);
         const out = createWriteStream(log);
-        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken outside the timeout so the wait
-        // does not count against the shard, and after the browser slot: nothing holding a test slot ever waits for
-        // a browser slot, so the two cannot wait on each other.
+        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken after the browser slot: nothing
+        // holding a test slot ever waits for a browser slot, so the two cannot wait on each other.
         const what = shard.selected ? ["--command", shard.shard, shard["test-command"]] : [shard.shard];
         // Through the quarantine wrapper (tools/test-quarantine.mjs): when only tests failed, it runs the failed
         // files once more, and a flaky or quarantined test does not fail the shard. The gate's own copies of it
-        // and of test-slots.mjs, so a gate fix holds for every branch at once (TEST_SLOT_GATE: the gate lane).
+        // and of test-slots.mjs, so a gate fix holds for every branch at once.
         const shardRun = ["bash", "tools/run-tests.sh", ...what].map(shQuote).join(" ");
         const quarantine = [join(tools, "test-quarantine.mjs"), "run", shard.shard, shardRun, "--via-run-tests"];
-        const cmd = ["timeout", "--kill-after=30s", TIMEOUT, process.execPath, ...quarantine];
+        const cmd = [process.execPath, ...quarantine];
         cmd.unshift(process.execPath, join(tools, "test-slots.mjs"));
         if (shard["needs-browser"] && existsSync(GATE)) {
             cmd.unshift(GATE);
@@ -791,7 +840,6 @@ async function main() {
                 ...shardEnv(shard),
                 ...(runId ? { TEST_LEDGER_RUN: runId } : {}),
                 TEST_QUARANTINE_RESULT: resultFile,
-                TEST_SLOT_GATE: String(process.pid),
             },
         });
         child.stdout.pipe(out);
@@ -809,7 +857,8 @@ async function main() {
                 // The ledger records the first run and the retry as two runs, each with its own exit status.
                 const parts = splitLog(text);
                 const facts = { code: q?.firstCode ?? code, log: parts.first, runId, startedAt: t0, logFile: log };
-                if (q?.retryRunId) {
+                // A retry that ran none of the failed files (test-quarantine's retryRan) is no run of them.
+                if (q?.retryRunId && q.retryRan !== false) {
                     const retried = { ...shard, selected: q.retryFiles };
                     ledgerRecord(retried, main, {
                         code: q.retryCode,
@@ -1030,8 +1079,6 @@ async function main() {
         }
     };
 
-    // While the shards run, every test run and browser command outside a gate waits in the low lane (tools/test-slots.mjs).
-    process.on("exit", markGate());
     // On by default; with GRAPHTY_TEST_QUARANTINE=0 the wrapper writes no result and nothing here runs.
     if (quarantineEnabled()) {
         quarantineLines.push(...closeFinished(main, ROOT).map((left) => `  [QUARANTINE-] ${left}`));

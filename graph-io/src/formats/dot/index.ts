@@ -4,6 +4,8 @@
  * @module @graphty/graph-io/dot
  */
 
+export type { BendPoint } from "../../styles/canon/bends.js";
 export { DOT_LOSS, dotExporter, type DotExportOptions } from "./exporter.js";
 export { DOT_ISSUE, dotImporter, type DotImportOptions } from "./importer.js";
-export { DOT_STYLE_BLOCK_ATTRIBUTE, DOT_STYLE_CAPABILITIES } from "./styles.js";
+export { RANK_COLUMN, RANK_SET_COLUMN } from "./names.js";
+export { DOT_STYLE_BLOCK_ATTRIBUTE, DOT_STYLE_CAPABILITIES, graphvizPosBends } from "./styles.js";

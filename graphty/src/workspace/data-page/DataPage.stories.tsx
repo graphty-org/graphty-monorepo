@@ -4,8 +4,8 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
+import { freshStore, storeOf } from "../../stories/freshStore";
 import { storyWaitOptions } from "../../stories/wait";
-import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import { type DataPageRequest, openDataPage } from "./request";
 
@@ -73,10 +73,11 @@ async function read(canvasElement: HTMLElement): Promise<void> {
  * @returns the story.
  */
 function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof within>) => Promise<void>): Story {
-    const store = createWorkspaceStore(request.intent === "add" ? { project: OPEN_PROJECT } : {});
     return {
-        args: { store },
-        play: async ({ canvasElement }) => {
+        ...freshStore(request.intent === "add" ? { project: OPEN_PROJECT } : {}),
+        play: async (context) => {
+            const { canvasElement } = context;
+            const store = storeOf(context);
             await customElements.whenDefined("graphty-element");
             store.set({ page: "panels" });
             openDataPage(store, request);
@@ -92,7 +93,7 @@ function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof 
  * Reads an address typed into From a URL... under Tables "+".
  * @param canvas - the story's canvas.
  * @param address - the address.
- * @param submit - whether to press Read.
+ * @param submit - whether to press Enter.
  */
 async function enterUrl(canvas: ReturnType<typeof within>, address: string, submit: boolean): Promise<void> {
     await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }, storyWaitOptions(1000)));
@@ -101,11 +102,8 @@ async function enterUrl(canvas: ReturnType<typeof within>, address: string, subm
     );
     await userEvent.type(
         await within(document.body).findByRole("textbox", { name: "Address" }, storyWaitOptions(1000)),
-        address,
+        submit ? `${address}{Enter}` : address,
     );
-    if (submit) {
-        await userEvent.click(within(document.body).getByRole("button", { name: "Read" }));
-    }
 }
 
 /** New from data... with nothing chosen yet: one gray line with the way in (`#/data-page/empty`). */
@@ -174,7 +172,7 @@ export const RefusedParse: Story = pageStory({ intent: "new", files: [new File([
 
 /** An address that cannot be fetched (`#/data-page/refused-fetch`). */
 export const RefusedFetch: Story = pageStory({ intent: "new" }, async (canvas) => {
-    await enterUrl(canvas, "/no-such-file.csv", true);
+    await enterUrl(canvas, "https://example.invalid/no-such-file.csv", true);
     await canvas.findByRole("alert", {}, storyWaitOptions(10_000));
 });
 

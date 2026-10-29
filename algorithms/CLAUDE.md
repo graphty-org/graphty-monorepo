@@ -112,12 +112,37 @@ Key principles:
 - Optional configuration with sensible defaults
 - Results are typed arrays indexed by node (or edge) index, never id-keyed maps
 
+### The pattern as the root CLAUDE.md stated it
+
+```typescript
+// Algorithms in @graphty/algorithms take a frozen @graphty/graph-format snapshot:
+export function algorithmName(snapshot: GraphSnapshot, options?: AlgorithmOptions): AlgorithmResult {
+    // Work over node indices (0..nodeCount-1) and the snapshot's CSR arrays;
+    // return typed arrays indexed by node (or edge) index, plus scalars.
+}
+```
+
+A required per-call input, such as a source node index, sits between the snapshot and the options
+(`dijkstra(snapshot, source, options?)`). Ids appear only at the boundary: `snapshot.ids.requireIndex(id)`
+on the way in, `snapshot.ids.idOf(i)` or `snapshot.ids.toMap(vector)` on the way out.
+
 ## Testing Guidelines
 
 - **Test projects**: `default` (happy-dom) and `browser` (Playwright)
 - `test/types/*.test-d.ts` are compile-only; `npm run lint` checks them (`tsc -p tsconfig.typecheck.json`)
 - A new algorithm's suite checks its results against an independent oracle or hand-computed answers, and calls
   `snapshot.validate({ checksum: true })` after the run so a write into a shared view fails the test
+
+### Test projects
+
+- `default` - Node.js environment
+- `browser` - Playwright browser tests
+
+Run one project:
+
+```bash
+npm test -- --project=browser
+```
 
 ## Design Philosophy
 

@@ -1,7 +1,7 @@
 /**
  * A yes-or-no column on the REAL graphty-element: graphty-element types it `boolean`, and the app
  * writes it one way everywhere -- Yes and No in the node's values, the selection's summary and
- * Find's value rows -- marks it with the yes-or-no icon in Data > Attributes, and a filter step on
+ * Find's value rows -- marks it with the yes-or-no icon in Data > Attributes, and a filter card on
  * it offers Yes and No and keeps the nodes that hold Yes.
  */
 
@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
+import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -66,24 +67,16 @@ describe("A yes-or-no column", () => {
         await page.viewport(1366, 768);
     });
 
-    it("is marked as a yes-or-no in Data > Attributes, and a filter step on it keeps the Yes nodes", async () => {
+    it("is a yes-or-no column, and a filter card on it from the table header keeps the Yes nodes", async () => {
         const { session } = await openWithGraph("data");
         assert.equal(session.data.attributes().find((a) => a.path === "data.trained")?.type, "boolean");
 
-        const row = await screen.findByRole("treeitem", { name: "trained, node attribute" });
-        // The row's type reaches a screen reader through its description, which names the icon's kind
-        // and how many have a value.
-        assert.equal(
-            document.getElementById(row.getAttribute("aria-describedby") ?? "")?.textContent,
-            "Yes or no, all have a value",
-        );
-
-        row.focus();
-        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
-        // The step is the yes-or-no condition card: Yes or No, starting at Yes, then whether it has one.
+        // Filter to... from the column's header in the table (the Data place lists no attributes).
+        await columnVerb("node", "trained", "Filter to...");
+        // A new yes-or-no card shows no choice and no count, and writes nothing, until one is picked.
         const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained: how to match" });
-        assert.equal(is.value, "Yes");
+        assert.equal(is.value, "");
+        assert.lengthOf(session.visibility.conditions, 0);
         await userEvent.click(is);
         const listbox = await screen.findByRole("listbox");
         assert.deepEqual(
@@ -93,12 +86,11 @@ describe("A yes-or-no column", () => {
             ["Yes", "No", "Has a value", "Has no value"],
         );
         await userEvent.click(within(listbox).getByRole("option", { name: "Yes" }));
-        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
 
         await waitFor(() => {
-            assert.equal(session.visibility.steps.length, 1);
+            assert.equal(session.visibility.conditions.length, 1);
         });
-        assert.deepEqual(session.visibility.steps[0].rule, {
+        assert.deepEqual(session.visibility.conditions[0].rule, {
             kind: "text",
             reads: "data.trained",
             mode: "exact",
@@ -106,7 +98,7 @@ describe("A yes-or-no column", () => {
             caseSensitive: true,
         });
         assert.equal(session.visibility.summary.visibleNodes, 3);
-        await screen.findByRole("treeitem", { name: /trained is Yes/ });
+        await screen.findByRole("listitem", { name: /^trained is Yes, Hide/ });
     });
 
     it("reads Yes and No in a node's values, the selection's summary and Find's value rows", async () => {

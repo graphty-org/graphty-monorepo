@@ -171,3 +171,115 @@ describe("autosave off", () => {
         }
     });
 });
+
+describe("the ephemeral fact", () => {
+    /**
+     * The ephemeral fact autosave reports once started on a page.
+     * @param change - What to change on the test's page.
+     * @returns The fact.
+     */
+    async function ephemeral(change: (env: AutosaveEnvironment) => AutosaveEnvironment): Promise<string> {
+        const { autosave } = await started(change(page().env), memoryAutosaveStore());
+        const fact = autosave.api.status.ephemeral;
+        autosave.depart();
+        return fact;
+    }
+
+    it("is unknown on a normal profile whose quota is small, as on a small disk", async () => {
+        const fact = await ephemeral((env) => ({
+            ...env,
+            storage: {
+                ...env.storage,
+                estimate: () => Promise.resolve({ usage: 1000, quota: 50 * 2 ** 20 }),
+                getDirectory: () => Promise.resolve({} as FileSystemDirectoryHandle),
+            },
+        }));
+        assert.strictEqual(fact, "unknown");
+    });
+
+    it("is likely where the origin private file system is refused (Safari's, Firefox's private windows)", async () => {
+        const fact = await ephemeral((env) => ({
+            ...env,
+            storage: {
+                ...env.storage,
+                getDirectory: () => Promise.reject(new DOMException("denied", "SecurityError")),
+            },
+        }));
+        assert.strictEqual(fact, "likely");
+    });
+
+    it("is likely in another site's frame", async () => {
+        assert.strictEqual(await ephemeral((env) => ({ ...env, thirdParty: () => true })), "likely");
+    });
+});
+
+describe("while the page is hidden", () => {
+    it("writes a change made during a write right after it, with no timer (issue #3485)", async () => {
+        const { env } = page();
+        const clock = env.clock as FakeClock;
+        const inner = memoryAutosaveStore();
+        let held = false;
+        let release: (() => void) | null = null;
+        const store: AutosaveStore = {
+            ...inner,
+            commit: async (writes, options) => {
+                if (held) {
+                    held = false;
+                    await new Promise<void>((resolve) => {
+                        release = resolve;
+                    });
+                }
+
+                return inner.commit(writes, options);
+            },
+        };
+        let onSaved: (() => void) | null = null;
+        const session = await baseSession();
+        const autosave = new ElementAutosave((type, detail) => {
+            if (type === "graphty-autosave-status" && (detail as { state: string }).state === "saved") {
+                onSaved?.();
+            }
+        }, env);
+        await autosave.start({
+            session,
+            key: "test.hidden",
+            options: { store },
+            restore: "auto",
+            pageConfig: {},
+            reloadPage: () => Promise.resolve(),
+        });
+        await session.config.set({ name: "Before hiding" });
+        await autosave.api.flush();
+        (env.document as { visibilityState: string }).visibilityState = "hidden";
+        env.document.dispatchEvent(new Event("visibilitychange"));
+        await autosave.api.flush();
+
+        held = true;
+        const firstWrite = new Promise<void>((resolve) => {
+            const look = (): void => {
+                if (release === null) {
+                    queueMicrotask(look);
+                } else {
+                    resolve();
+                }
+            };
+            look();
+        });
+        await session.config.set({ name: "While hidden" });
+        await firstWrite;
+        // A change that leaves the status as it was ("pending", the write in flight).
+        autosave.api.stash("test.note", 1);
+        // The write takes longer than the debounce, as on a loaded machine.
+        const { fired } = clock;
+        clock.advance(2000);
+        assert.strictEqual(clock.fired, fired, "no debounce or maximum-wait timer was armed while hidden");
+        const saved = new Promise<void>((resolve) => {
+            onSaved = resolve;
+        });
+        (release as unknown as () => void)();
+        await saved;
+        assert.strictEqual(autosave.api.status.state, "saved");
+        assert.deepStrictEqual(autosave.api.stashed("test.note"), 1);
+        autosave.depart();
+    });
+});

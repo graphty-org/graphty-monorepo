@@ -34,8 +34,8 @@ It runs only on this machine's GPU. Each browser checks that it draws with the N
 route fails loudly if not: a software renderer is never used. The flags come from the design
 studio's tool (`design/ui/studio/tool/real.mjs`, "Browsers"), with the extracted `libEGL.so.1` in
 the main checkout's `tmp/egl/`. The run holds the machine's one GPU slot for its whole length
-(`tools/test-slots.mjs --gpu`), and each browser takes one of the four browser slots the pre-push
-gate and the screenshot previews share (`design/ui/studio/tool/with-browser.sh`). A run started
+(`tools/test-slots.mjs --gpu`), and each browser takes one of the machine's four shared browser slots
+(`design/ui/studio/tool/with-browser.sh`). A run started
 while those are busy waits for them, and its report says how long.
 
 A route takes 2 to 6 seconds once its browser is up. The routes are spread over the browsers as
@@ -109,16 +109,15 @@ check that would pass whatever the app did is no check.
 The author of a UI change may re-record a route's steps: its `walk`, and any function in
 `routes.mjs` that only walks use. Everything that decides whether a route passes is protected:
 every check, a route's other properties, the imports and every declaration of `routes.mjs` a check
-uses (directly or through another), and all of `readers.mjs` and `run.mjs`. The pre-push gate runs
+uses (directly or through another), and all of `readers.mjs` and `run.mjs`. CI's Checks job runs
 `pnpm run check:dry-run-checks`, which compares them, without comments or layout, with the merge
-base with `origin/golden`, and refuses a branch that removes or changes one. Adding routes, checks,
+base with `origin/master`, and refuses a branch that removes or changes one. Adding routes, checks,
 helpers and readers is free. A walk or a step that writes to something protected (`assert.ok = ...`,
 `this.checks = ...`) is always refused.
 
 When a check is wrong, change it on a branch of its own, from a different session than the change
 it failed on, holding only that change: every file its commits change is under `graphty/dry-run/`,
-and every commit says why in a trailer. Merge commits, such as the merge of `origin/golden` before
-the final tests, need no trailer, and commits already on `origin/master` are not counted.
+and every commit says why in a trailer. Merge commits, such as a merge of `origin/master`, need no trailer, and commits already on `origin/master` are not counted.
 
 ```
 fix(graphty): read a team's name from its label column

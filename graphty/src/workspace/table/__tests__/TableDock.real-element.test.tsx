@@ -12,7 +12,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
 import { storyWaitOptions } from "../../../stories/wait";
@@ -59,6 +59,11 @@ function drawnIds(): string[] {
 }
 
 describe("the table dock", () => {
+    beforeAll(async () => {
+        // Wide enough for the canvas, the dock and both side panels side by side.
+        await page.viewport(1366, 900);
+    });
+
     it("shows the element's records, sorts a result column, narrows to a group and exports", async () => {
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
@@ -74,12 +79,15 @@ describe("the table dock", () => {
         }
         const live = session;
         await live.data.addNodes(NODES);
-        await live.data.addEdges(EDGES);
 
-        // Shift+T opens the dock on Nodes, counted by the element's page.
+        // Shift+T opens the dock on Nodes, counted by the element's page. With no edges yet there
+        // is no Edges tab; it comes with the first edges.
         await userEvent.keyboard("{Shift>}T{/Shift}");
         const dock = await screen.findByRole("region", { name: "Table" });
         await within(dock).findByText("12 nodes");
+        assert.isNull(within(dock).queryByRole("tab", { name: "Edges" }));
+        await live.data.addEdges(EDGES);
+        await within(dock).findByRole("tab", { name: "Edges" });
 
         // In a narrow dock (a tablet held upright) the tabs keep one row; the count and the
         // Columns label give way first, and only then do the tabs scroll sideways.
@@ -97,7 +105,8 @@ describe("the table dock", () => {
         await pagerank;
         const louvainRun = live.runs.start("louvain");
         await louvainRun;
-        const header = await within(dock).findByRole("button", { name: /^PageRank/ });
+        // The sort button reads the header's icons first: its type and its origin.
+        const header = await within(dock).findByRole("button", { name: /^number, computed PageRank/ });
         await userEvent.click(header);
         await within(dock).findByText("Sorted by PageRank, highest first");
         const expected = live.data
@@ -129,12 +138,12 @@ describe("the table dock", () => {
         const columns = within(dock).getByRole("button", { name: /^Columns:/ });
         const [, shown, all] = /^Columns: (\d+) of (\d+)$/.exec(columns.textContent) ?? [];
         assert.equal(shown, all);
-        assert.isNotNull(within(dock).getByRole("button", { name: /^team/ }));
+        assert.isNotNull(within(dock).getByRole("button", { name: /^category team/ }));
         await userEvent.click(columns);
         assert.isNotNull(await screen.findByRole("menuitemcheckbox", { name: "PageRank" }));
         await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "team" }));
         await within(dock).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
-        assert.isNull(within(dock).queryByRole("button", { name: /^team/ }));
+        assert.isNull(within(dock).queryByRole("button", { name: /^category team/ }));
         await userEvent.keyboard("{Escape}");
 
         // A column moves from its header menu (a finger reaches it too); the key stays first.
@@ -145,7 +154,9 @@ describe("the table dock", () => {
                 .map((cell) => cell.textContent ?? "");
         const before = headers();
         assert.isAtLeast(before.length, 3);
-        await userEvent.click(within(grid).getAllByTestId("data-table-header-menu")[0]);
+        // The key's header has a menu of its own too (Role, Type): open the first movable column's.
+        const firstMovable = within(grid).getAllByRole("columnheader")[1];
+        await userEvent.click(within(firstMovable).getByTestId("data-table-header-menu"));
         const left = await screen.findByRole("menuitem", { name: "Move left" });
         assert.isTrue(left.hasAttribute("disabled") || left.getAttribute("data-disabled") === "true");
         await userEvent.click(screen.getByRole("menuitem", { name: "Move right" }));
@@ -191,7 +202,9 @@ describe("the table dock", () => {
         await userEvent.click(within(dock).getByRole("button", { name: "Table options" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Export..." }));
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await within(dialog).findByText(/^One row for every edge/);
+        // The CSV's Table option is on Edges.
+        const edgesTable = await within(dialog).findByLabelText("Table", { selector: "input" });
+        assert.equal((edgesTable as HTMLInputElement).value, "Edges");
         // The file holds every edge: its first line is the header, then one line per edge.
         // The preview is written once exportGraph resolves, which first waits for the element's
         // whole operation queue (layout, styles) to drain: wait on the preview itself, with no
@@ -247,8 +260,8 @@ describe("the table dock", () => {
         await within(dock).findByText("13 edges");
         assert.lengthOf(drawnRows("Edges"), 13);
 
-        // The step turned on from its checkbox: the table lists the 6 edges it keeps.
-        await userEvent.click(await screen.findByRole("checkbox", { name: /^Apply step: / }));
+        // The card turned on from its box: the table lists the 6 edges it keeps.
+        await userEvent.click(await screen.findByRole("checkbox", { name: /^Apply weight is at least 7/ }));
         await within(dock).findByText("6 of 13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 6);
@@ -256,7 +269,7 @@ describe("the table dock", () => {
         assert.equal(live.visibility.summary.visibleEdges, 6);
 
         // Off again: every edge, and the count says only that.
-        await userEvent.click(screen.getByRole("checkbox", { name: /^Apply step: / }));
+        await userEvent.click(screen.getByRole("checkbox", { name: /^Apply weight is at least 7/ }));
         await within(dock).findByText("13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 13);

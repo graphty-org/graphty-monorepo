@@ -56,6 +56,7 @@
  */
 
 import { withLabelLook } from "../../catalog/label-looks";
+import type { ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import { isNotePath } from "../notes/paths";
@@ -68,7 +69,9 @@ import {
     type LabelFieldName,
     labelFieldOf,
     labelPatchOf,
-    mergeLabelStyle,
+    mergeChannelValue,
+    parseShaderParamAddress,
+    placeOfUse,
 } from "./channels";
 import { overflowHalf, prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
@@ -304,6 +307,13 @@ export interface RepaintEngine extends ElementPaint {
     /** What `createStylesApi` takes as its `repaint`. */
     readonly repaint: LayerRepaint;
     /**
+     * Resolve once every pass asked for so far has finished, painted or failed. What
+     * `styles.settled()` waits on for the passes nobody awaits: a selection or pointer change
+     * asks for one and returns, and the pass yields to the event loop when a slice runs out.
+     * @returns A promise that never rejects.
+     */
+    idle(): Promise<void>;
+    /**
      * What one layer was last painted FROM.
      *
      * THE READ THAT MAKES A LEGEND HONEST. `styles.legend()` tells a reader what the picture
@@ -490,7 +500,7 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
         return "number";
     }
 
-    if (accepts === "labelStyle") {
+    if (accepts === "labelStyle" || accepts === "shaderUses") {
         return "merge";
     }
 
@@ -663,14 +673,19 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
     }
 
     // A label style is a bag of fields, and each field takes the value of the highest layer that
-    // wrote it; `mergeLabelStyle` is the one rule, shared with `explain()`. A label field channel
+    // wrote it; a shader parameter map and an effects map merge by id and then by field the same
+    // way. `mergeChannelValue` is the one rule, shared with `explain()`. A label field channel
     // (`node.labelSize`) arrives here as a one-field label style in this same column. A named look
     // is painted as if the layer wrote its fields, beneath the layer's own.
-    const painted =
-        column.kind === "merge" && typeof value === "object" && value !== null ? withLabelLook(value) : value;
-
     if (column.kind === "merge") {
-        column.values[index] = mergeLabelStyle(column.values[index], painted as object);
+        if (typeof value !== "object" || value === null) {
+            column.values[index] = value;
+
+            return;
+        }
+
+        const over = column.channel.endsWith("Style") ? withLabelLook(value) : value;
+        column.values[index] = mergeChannelValue(column.channel, column.values[index], over);
 
         return;
     }
@@ -679,7 +694,7 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
         column.plainText[index] = plainText ? 1 : 0;
     }
 
-    column.values[index] = painted;
+    column.values[index] = value;
 }
 
 /**
@@ -864,6 +879,23 @@ function combined(combine: Combine, beneath: number, painted: number): number {
     const value = combine.mode === "multiply" ? base * painted : base + painted;
 
     return Math.min(combine.max, Math.max(combine.min, value));
+}
+
+/**
+ * A shape painted over a `replace` use: the topmost layer's is drawn, so a `replace` use a lower
+ * layer wrote on this element is taken back. A use at any other place stays.
+ * @param shaders - The `node.shaders` column.
+ * @param index - The element.
+ */
+function dropReplaceUnderShape(shaders: ChannelColumn, index: number): void {
+    const uses = readColumn(shaders, index);
+    if (
+        shaders.kind === "merge" &&
+        Array.isArray(uses) &&
+        (uses as readonly ShaderUse[]).some((use) => placeOfUse(use) === "replace")
+    ) {
+        shaders.values[index] = (uses as readonly ShaderUse[]).filter((use) => placeOfUse(use) !== "replace");
+    }
 }
 
 /**
@@ -1239,6 +1271,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param path - The column path.
      * @returns The values and how many elements in the store carry none.
      */
+    // What each layer's "index" bindings have numbered so far, kept for the life of the layer.
+    const indexOrders = new Map<string, Map<string, number>>();
+    const indexOrder = (layerId: LayerId, name: string): Map<string, number> => {
+        const key = `${layerId}\u0000${name}`;
+        let order = indexOrders.get(key);
+        if (order === undefined) {
+            order = new Map();
+            indexOrders.set(key, order);
+        }
+
+        return order;
+    };
+
     const readWholeColumn = (store: TargetStore, path: Path): { values: unknown[]; unmeasured: number } => {
         const measured = sources.measured?.(path, store.target);
 
@@ -1290,7 +1335,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
          * @param binding - The binding to prepare.
          */
         const add = (name: string, path: Path | null, binding: Binding): void => {
-            const descriptor = channelDescriptor(name);
+            // A shader parameter's address paints into its shader map.
+            const descriptor = channelDescriptor(parseShaderParamAddress(name)?.channel ?? name);
 
             // A channel of the wrong target, a channel the element cannot draw and a name that is
             // not a channel are all refused by the layer check before a layer is accepted. Here
@@ -1313,9 +1359,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 combine: combineOf(descriptor, binding),
                 template: "template" in binding,
                 binding: prepareBinding({
-                    channel,
+                    channel: name as Channel,
                     binding,
                     scales,
+                    order: indexOrder(layer.id, name),
                     columnOf: (read) => readWholeColumn(store, read).values,
                     ...(column === undefined ? {} : { column: column.values, unmeasured: column.unmeasured }),
                 }),
@@ -1585,6 +1632,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         // One reader for the whole pass, pointed at each element in turn, so none is allocated per element.
         let current = 0;
         const readCurrent = (path: Path): unknown => elements.value(current, path);
+        // A `replace` use and a shape follow "the topmost layer wins" (see dropReplaceUnderShape).
+        const shapes = store.columns.get("node.shape");
+        const shaders = store.columns.get("node.shaders");
 
         /**
          * Paint one element: every channel of the layer. Built once per layer, not per element.
@@ -1592,6 +1642,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
          */
         const paintOne = (index: number): void => {
             current = index;
+            let shaderHere = false;
 
             // Indexed rather than `for ... of`, which would allocate an iterator per element
             // for a list whose length was settled when the layer was prepared.
@@ -1616,6 +1667,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 }
 
                 writeChannel(channel, index, painted);
+                if (channel.column === shaders) {
+                    shaderHere = true;
+                } else if (channel.column === shapes && shaders !== undefined && !shaderHere) {
+                    dropReplaceUnderShape(shaders, index);
+                }
             }
         };
 
@@ -2106,6 +2162,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                     null,
                 ),
             );
+        },
+
+        idle(): Promise<void> {
+            return inFlight;
         },
 
         painting(): boolean {

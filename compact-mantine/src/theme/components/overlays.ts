@@ -18,6 +18,7 @@ import {
     returnFocusToMenuOpener,
 } from "../../components/overlays/overlayBehavior";
 import { tooltipFlip } from "../../components/overlays/tooltipPlacement";
+import { installViewportCap } from "../../components/overlays/viewportCap";
 import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../constants/popout";
 import { UiGlyph } from "../../icons";
 import {
@@ -42,6 +43,8 @@ import {
 // Installed when the theme loads, not only when the first tooltip renders: whether a tooltip
 // may open on hover depends on the pointer moves seen before it (see overlayBehavior.ts).
 installOverlayBehavior();
+// The visual viewport's height, which caps every menu, list and popover (viewportCap.ts).
+installViewportCap();
 
 /**
  * Menu.Sub.Item's defaults. A click (a tap on a touch screen, which has no hover) opens the
@@ -136,8 +139,8 @@ export const overlayComponentExtensions: MantineThemeComponents = {
             transitionProps: NO_TRANSITION,
             events: { hover: true, focus: true, touch: false },
             // flip's options derived per side tried (Mantine passes a non-boolean flip straight
-            // to floating-ui): a side where the bubble would cover another control or an error
-            // line is passed over (see tooltipPlacement.ts).
+            // to floating-ui): below by default, the opposite side only when there is no room
+            // (see tooltipPlacement.ts).
             middlewares: { flip: tooltipFlip as unknown as boolean, shift: { padding: VIEWPORT_MARGIN } },
         },
         classNames: compactTooltipClassNames,
@@ -160,6 +163,9 @@ export const overlayComponentExtensions: MantineThemeComponents = {
         defaultProps: {
             zIndex: FLOATING_UI_Z_INDEX,
             transitionProps: NO_TRANSITION,
+            // Shifted on both axes: a dropdown at the viewport cap (viewportCap.ts) that would
+            // pass the bottom edge below its target is pulled back on screen, over the target.
+            middlewares: { flip: true, shift: { crossAxis: true, padding: VIEWPORT_MARGIN } },
         },
         classNames: compactPopoverClassNames,
     }),

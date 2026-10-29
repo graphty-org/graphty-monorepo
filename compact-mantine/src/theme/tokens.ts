@@ -62,9 +62,7 @@ export const CM_COLORS = {
     "bg-mode-switcher-hover": t("#e6e6e6", "#383838", "--color-bgtoolbarmodeswitcher-hover"),
     "bg-info": t("#e5f4ff", "#394360", "--color-bg-info"),
     text: t("#000000e5", "#ffffff", "--color-text"),
-    // Not Figma's: --color-text-secondary is #00000080 in light, 4.0:1 on white; 55% black reads
-    // at 4.5:1 there (WCAG 1.4.3)
-    "text-secondary": t("#0000008c", "#ffffffb2"),
+    "text-secondary": t("#00000080", "#ffffffb2", "--color-text-secondary"),
     "text-tertiary": t("#0000004d", "#ffffff66", "--color-text-tertiary"),
     "text-disabled": t("#0000004d", "#ffffff66", "--color-text-disabled"),
     "text-brand": t("#007be5", "#7cc4f8", "--color-text-brand"),
@@ -74,22 +72,18 @@ export const CM_COLORS = {
     "text-oninverse": t("#ffffffe5", "#000000e5", "--color-text-oninverse"),
     "text-component": t("#8638e5", "#d1a8ff", "--color-text-component"),
     "text-danger": t("#dc3412", "#fca397", "--color-text-danger"),
-    // Warning text. Figma has no warning text variable: these are darkened / lightened from its
-    // warning fill to meet 4.5:1 on the panel and on a field in both schemes.
-    "text-warning": t("#a65900", "#f7d15f"),
-    // Success text and glyphs. The success fill (#14ae5c) is 2.90:1 on the light panel; these meet
-    // 4.5:1 on the panel and on a field in both schemes (Figma's success-pressed fill in light).
-    "text-success": t("#008043", "#79d297"),
+    "text-warning": t("#b86200", "#f7d15f", "--color-text-warning"),
+    "text-success": t("#009951", "#7cd797", "--color-text-success"),
     "text-menu": t("#ffffff", "#ffffff", "--color-text-menu"),
     "text-menu-secondary": t("#ffffffb2", "#ffffffb2", "--color-text-menu-secondary"),
     "text-menu-disabled": t("#ffffff66", "#ffffff66", "--color-text-menu-disabled"),
     // The menu that follows the page's scheme (cm-menu-surface): a light surface with dark ink
     // in the light app, Figma's dark menu in the dark app. The `-menu` tokens above stay the
-    // always-dark values the inverse menu, the tooltip and the toast draw with. The secondary ink
-    // is the AA value (4.74:1 on white; Figma's #00000080 is 3.95:1).
+    // always-dark values the inverse menu, the tooltip and the toast draw with. The light values
+    // are Figma's light ink; the AA option raises the secondary one.
     "bg-menu-page": t("#ffffff", "#1e1e1e"),
     "text-menu-page": t("#000000e5", "#ffffff"),
-    "text-menu-page-secondary": t("#0000008c", "#ffffffb2"),
+    "text-menu-page-secondary": t("#00000080", "#ffffffb2"),
     "text-menu-page-disabled": t("#0000004d", "#ffffff66"),
     "border-menu-page": t("#e6e6e6", "#383838"),
     icon: t("#000000e5", "#ffffff", "--color-icon"),
@@ -122,8 +116,18 @@ export const CM_COLORS = {
     "field-edge-hover": t("#e6e6e6", "#444444"),
     /** the selected segment's inset edge (= border) */
     "segment-edge": t("#e6e6e6", "#444444"),
-    /** the 1px inset ring round a color chit or strip: 3:1 against the panel in both schemes, so a pale or a dark color keeps its edge */
-    "swatch-ring": t("#00000073", "#ffffff80"),
+    /** the 1px inset ring round a color chit or strip: Figma's translucent border; 3:1 against the panel in the AA mode */
+    "swatch-ring": t("#0000001a", "#ffffff1a"),
+    /** the selected pill tab's inset edge: none in Figma, 3:1 in the AA mode */
+    "tab-edge": t("transparent", "transparent"),
+    /** a selected tree parent's pill: Figma's selected tint; the AA mode takes the stronger one */
+    "tree-parent-selected": t("var(--cm-bg-selected)", "var(--cm-bg-selected)"),
+    /** a hovered child of a selected tree parent: Figma's selected hover; the AA mode swaps it with the parent's */
+    "tree-child-hover": t("var(--cm-bg-selected-hover)", "var(--cm-bg-selected-hover)"),
+    /** the ring round a histogram bar painted in a mapping's color: none in Figma, 3:1 on the dark panel in the AA mode */
+    "chart-bar-ring": t("transparent", "transparent"),
+    /** the dimmed label on a highlighted page-following menu row: Figma's, full ink in the AA mode */
+    "menu-onbrand-secondary": t("var(--cm-text-onbrand-secondary)", "var(--cm-text-onbrand-secondary)"),
     /** the white label on a danger, success or inverse fill, which no accent changes */
     "text-onsolid": t("#ffffff", "#ffffff"),
     /** the dimmed white label on those fills (a pressed button, a shortcut) */
@@ -132,6 +136,13 @@ export const CM_COLORS = {
     "text-onselected": t("var(--cm-text-brand)", "var(--cm-text-brand)"),
     /** an accent graphic that must be seen against the panel (a dot, a meter's fill, a stroke) */
     "graphic-brand": t("var(--cm-bg-brand)", "var(--cm-bg-brand)"),
+    // The node and edge chips' fixed colors (EntityChip): the same in every accent and contrast
+    // mode, so a node always reads blue and an edge orange. Each is 3:1 or more on the panel, its
+    // secondary ground and the chip's own tint, in both schemes.
+    /** a node's icon and tint */
+    "entity-node": t("#0a6fd6", "#6cb8f5"),
+    /** an edge's icon and tint */
+    "entity-edge": t("#b84f00", "#f59a4a"),
 } as const satisfies Record<string, CmColorToken>;
 
 /** The name of a color token, without the `--cm-` prefix. */
@@ -235,6 +246,20 @@ export const CM_HIGH_CONTRAST: Partial<Record<CmColorName, { light: string; dark
     "text-danger": { light: "#c4381c", dark: "#fca397" },
     "bg-danger": { light: "#bd2915", dark: "#963323" },
     "bg-success": { light: "#008043", dark: "#0a5c35" },
+    // Figma's warning and success text measure 4.39:1 and 3.7:1 on white.
+    "text-warning": { light: "#a65900", dark: "#f7d15f" },
+    "text-success": { light: "#008043", dark: "#7cd797" },
+    // A color chit's ring and a painted chart bar's ring, 3:1 against the panel (WCAG 1.4.11).
+    "swatch-ring": { light: "#00000073", dark: "#ffffff80" },
+    "chart-bar-ring": { light: "transparent", dark: "#ffffffb2" },
+    // The selected pill tab is not told by its fill alone (about 1.1:1).
+    "tab-edge": { light: "#00000073", dark: "#ffffff73" },
+    // A selected tree parent against its children's band (1.05:1 / 1.2:1 with Figma's tints).
+    "tree-parent-selected": { light: "var(--cm-bg-selected-hover)", dark: "var(--cm-bg-selected-hover)" },
+    "tree-child-hover": { light: "var(--cm-bg-selected)", dark: "var(--cm-bg-selected)" },
+    // The page-following menu: secondary ink at 4.5:1, and full ink on the highlight.
+    "text-menu-page-secondary": { light: "#0000008c", dark: "#ffffffb2" },
+    "menu-onbrand-secondary": { light: "var(--cm-text-onbrand)", dark: "var(--cm-text-onbrand)" },
 };
 
 /**

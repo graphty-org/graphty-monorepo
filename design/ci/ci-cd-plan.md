@@ -353,6 +353,11 @@ paid once.
 | macOS Metal + WebKit, hosts.yml                             | path-matching PRs, advisory                                                                                 | no          | none (no push trigger) | nightly full                                                              | yes, full scope, called on the candidate |
 | Windows D3D12 WARP, hosts.yml                               | the existing 15-minute `windows-scan-questions` scope, advisory                                             | no          | none (no push trigger) | nightly full                                                              | yes, full scope, called on the candidate |
 
+Since 2026-10-23 (`design/ci/ci-full-testing.md`, issue #3316) the full ci.yml suite, the software-GPU lanes
+included, also runs on golden's newest commits as CI verification (`golden-verify.yml`, once `verify.mjs backend
+ci` is set); it uses no T4 and no macOS runner, and its runner use is governed by section 13's 10-minute
+queue threshold.
+
 **The T4 runs only in the pre-push gate (locally) and on the release train (owner decision,
 2026-10-06).** Running it once per GPU-affecting pull request and again per GPU-affecting
 master commit cost a paid run on most merges, and the machine.dev balance ran out twice in the

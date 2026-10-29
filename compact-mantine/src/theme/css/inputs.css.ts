@@ -11,6 +11,7 @@
  * Colors are tokens only. The AA option needs nothing here: `cm-field` reads
  * `--cm-field-shadow` / `--cm-field-border`, which the AA token block switches.
  */
+import { VIEWPORT_CAP } from "../../components/overlays/viewportCap";
 import { cmFont } from "../tokens";
 import { ROW_UNLIT } from "./00-foundation.css";
 
@@ -58,14 +59,6 @@ const css = `
     background-color: transparent;
     color: var(--cm-text-disabled);
     cursor: default;
-}
-/* The field states of StyleSelect and StyleNumberInput, drawn as the paint field draws them
-   (color.css.ts): not set, and Mixed, show what lies beneath in gray italic -- two cues, never the
-   color alone -- whether it stands as the value or as the placeholder; a set value is the body ink. */
-.cm-input-wrapper .cm-input[data-is-default="true"],
-.cm-input-wrapper .cm-input[data-is-default="true"]::placeholder {
-    color: var(--cm-text-secondary);
-    font-style: italic;
 }
 /* Disabled by its own prop, by a disabled fieldset around it (its inputs match :disabled), or by
    aria-disabled on it or around it. */
@@ -206,11 +199,8 @@ const css = `
 .cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-field-caret {
     color: var(--cm-text-disabled);
 }
-/* A select that cannot change opens no list: no caret, and its edge in the disabled ink, so it reads
-   as a value that is fixed, not as a box to open. */
-.cm-select.cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-field-caret {
-    visibility: hidden;
-}
+/* A disabled select keeps its caret, dimmed with its text (Figma, spec 6.4), and draws its edge in
+   the disabled ink like every disabled field. */
 .cm-select.cm-field-outlined.cm-input-wrapper:is([data-disabled], :has(:disabled)),
 .cm-select.cm-field-outlined.cm-input-wrapper:is([data-disabled], :has(:disabled)):hover:not(:focus-within) {
     border-color: var(--cm-border-disabled);
@@ -223,10 +213,10 @@ const css = `
     box-sizing: border-box;
     min-width: 0;
     max-width: calc(100vw - 12px);
-    /* The list scrolls itself (no ScrollArea), clamped to the viewport less 6px each side; the
-       menus' chevron rows (cm-menu) cover 24px at a scrollable end, so keyboard scrolling keeps
-       the highlight clear of them. */
-    max-height: calc(100vh - 12px);
+    /* The list scrolls itself (no ScrollArea), clamped to the viewport less 6px each side and to
+       the visual viewport's cap (viewportCap.ts); the menus' chevron rows (cm-menu) cover 24px at
+       a scrollable end, so keyboard scrolling keeps the highlight clear of them. */
+    max-height: min(calc(100vh - 12px), ${VIEWPORT_CAP});
     overflow-y: auto;
     scrollbar-width: none;
     scroll-padding-block: 24px;
@@ -340,27 +330,6 @@ const css = `
 .cm-listbox .cm-listbox-glyph svg {
     width: 100%;
     height: 100%;
-}
-/* The letters typed into an open list (ensureListboxKeyboard), in a line held at its foot, so
-   the reader sees what the list is matching. It eats the bottom padding; a clamped list's scroll
-   chevron rises above it. */
-.cm-listbox > .cm-listbox-typed {
-    position: sticky;
-    bottom: -8px;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    height: 24px;
-    margin-bottom: -8px;
-    padding: 0 12px;
-    border-top: 1px solid var(--cm-border-menu);
-    background: var(--cm-bg-menu);
-    ${cmFont("body")}
-    color: var(--cm-text-menu-secondary);
-    white-space: pre;
-}
-.cm-menu[data-cm-scroll-down]:has(> .cm-listbox-typed)::after {
-    bottom: 16px;
 }
 .cm-listbox .cm-listbox-label {
     min-width: 0;
@@ -704,6 +673,39 @@ const css = `
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+/* ---- FileSource: a URL field, a drop target or a button ---- */
+.cm-file-source {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+.cm-file-source[data-variant="row"][data-over] .cm-file-url .cm-input-wrapper,
+.cm-file-source[data-variant="row"][data-over] > .mantine-Button-root {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
+}
+.cm-file-drop-target {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 8px;
+    border: 1px dashed var(--cm-border);
+    border-radius: 5px;
+    color: var(--cm-icon-secondary);
+}
+.cm-file-source[data-over] .cm-file-drop-target {
+    border-color: var(--cm-border-selected);
+    background-color: var(--cm-bg-selected);
+}
+.cm-file-source[data-disabled] .cm-file-drop-target {
+    border-color: var(--cm-border-disabled);
+    color: var(--cm-icon-disabled);
+}
+.cm-file-drop-glyph {
+    display: inline-flex;
 }
 `;
 

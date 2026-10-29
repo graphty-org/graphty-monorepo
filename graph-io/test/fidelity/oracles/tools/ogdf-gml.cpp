@@ -10,6 +10,7 @@
 // A file holding a rootcluster is read and written as a cluster graph (ClusterGraphAttributes), any other as a
 // plain graph (GraphAttributes), so a sheet without clusters gains no empty rootcluster.
 #include <ogdf/basic/GraphAttributes.h>
+#include <ogdf/basic/Logger.h>
 #include <ogdf/cluster/ClusterGraph.h>
 #include <ogdf/cluster/ClusterGraphAttributes.h>
 #include <ogdf/fileformats/GraphIO.h>
@@ -30,6 +31,9 @@ int main(int argc, char** argv) {
     if (argc < 4) {
         return fail("usage: ogdf-gml rewrite <in.gml> <out.gml> | draw <in.gml> <out.svg> <margin> <w> <h> <font>");
     }
+    // every message OGDF's reader logs goes to stderr, so a file it cannot read says why
+    Logger::globalLogLevel(Logger::Level::Minor);
+    Logger::setWorldStream(std::cerr);
     const std::string mode = argv[1];
     std::ifstream in(argv[2]);
     std::stringstream text;

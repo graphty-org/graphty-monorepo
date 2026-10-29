@@ -3,9 +3,10 @@
  * and `fidelity-stories/stories/gml/Specimens.stories.ts`. The sheets are written by
  * `../../generators/specimens/gml.py` from `gml-vocabulary.json` beside it (Himsolt's GML draft and Tk for the keys of
  * a file with no Creator line; yEd's own enumerations and files for yEd's keys; Cytoscape's GML reader and CyREST for
- * Cytoscape 2.x's keys; OGDF's headers and writer for OGDF's keys). The oracles of the GML draft's and yEd's keys are
- * stand-ins, since neither program can be automated here: Cytoscape desktop's GML reader or gml2gv | neato -n2,
- * whichever reads the sheet's keys (`oracle-routes.json`).
+ * Cytoscape 2.x's keys; OGDF's headers and writer for OGDF's keys). The GML draft's sheets are drawn by OGDF as written
+ * (`oracles/tools/ogdf.mjs`, route ogdf-draw), except edges-lines, which crashes OGDF's reader and keeps gml2gv as its
+ * stand-in. The oracles of yEd's keys are stand-ins, since yEd cannot be automated here: Cytoscape desktop's GML reader
+ * or gml2gv | neato -n2, whichever reads the sheet's keys (`oracle-routes.json`).
  * Pages: the first page of a category holds the GML draft's keys, p2 and p3 yEd's keys (node-shapes-p3 its flowchart
  * configurations, labels-p3 its label models, arrows-p2 / p3 target and source arrows); arrows-p4 and the p3 / p4
  * pages written under Creator "Cytoscape" (node-shapes-p4, node-fills-borders-p3, node-sizes-opacity-p3, labels-p4,

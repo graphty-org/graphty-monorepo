@@ -212,13 +212,24 @@ describe("RampEditor", () => {
 describe("RampEditor in the dark scheme", () => {
     afterEach(resetHarness);
 
-    it("rings the darkest painted bar at 3:1 or more against the panel", async () => {
+    it("draws no ring round a painted bar by default (Figma)", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <RampEditor label="Node color by degree" bins={BINS} domain={[20, 80]} describe={describeHandle} />
+            </div>,
+            { scheme: "dark" },
+        );
+        const ring = /rgba?\([^)]*\)/.exec(getComputedStyle(screen.getAllByTestId("histogram-bar")[0]).boxShadow)?.[0];
+        expect(ring === undefined || rgba(ring)[3] === 0).toBe(true);
+    });
+
+    it("AA option: rings the darkest painted bar at 3:1 or more against the panel", async () => {
         const dark = BINS.map((bin, i) => ({ ...bin, paint: i === 0 ? "#000000" : bin.paint }));
         await renderThemed(
             <div style={{ width: 240, background: "var(--cm-bg)" }} data-testid="panel">
                 <RampEditor label="Node color by degree" bins={dark} domain={[20, 80]} describe={describeHandle} />
             </div>,
-            { scheme: "dark" },
+            { scheme: "dark", highContrast: true },
         );
         const bar = screen.getAllByTestId("histogram-bar")[0];
         const ring = /rgba?\([^)]*\)/.exec(getComputedStyle(bar).boxShadow)?.[0];

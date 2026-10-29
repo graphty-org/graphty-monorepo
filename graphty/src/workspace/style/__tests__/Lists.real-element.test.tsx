@@ -227,7 +227,7 @@ describe("the app's lists", () => {
         assert.closeTo(filter.getBoundingClientRect().top, top, 1, "the filter box stays where it opened");
     });
 
-    it("a filter step's text box lists every value that holds the typed text", async () => {
+    it("a filter card's text box lists every value that holds the typed text", async () => {
         const names = [
             ...Array.from({ length: 30 }, (_, i) => `Other ${String(i)}`),
             ...Array.from({ length: 12 }, (_, i) => `Mme ${String.fromCharCode(65 + i)}`),
@@ -235,9 +235,8 @@ describe("the app's lists", () => {
         await open({ place: "data" }, (session) =>
             session.data.addNodes(names.map((name, i) => ({ id: `n${String(i)}`, name }))),
         );
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }, { timeout: TIMEOUT_MS }));
-        await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
-        await userEvent.click(await screen.findByRole("option", { name: "name" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "name" }));
         const is = await screen.findByRole("combobox", { name: "name: text to match" });
         await userEvent.type(is, "Mme");
         await waitFor(() => {

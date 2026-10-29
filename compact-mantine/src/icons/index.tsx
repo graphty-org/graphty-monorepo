@@ -67,7 +67,8 @@ export type UiGlyphName =
     | "ellipse"
     | "text"
     | "component"
-    | "group";
+    | "group"
+    | "upload";
 
 /**
  * Every glyph name in the closed field register, in register order.
@@ -136,6 +137,7 @@ export const UI_GLYPH_NAMES: readonly UiGlyphName[] = [
     "text",
     "component",
     "group",
+    "upload",
 ];
 
 /**
@@ -258,9 +260,8 @@ const FIELD_GLYPH_SHAPES: Record<FieldGlyphName, (filled: boolean) => React.JSX.
 //
 // - `chevronLeft` has no snippet of its own inside a row, so it is the exact
 //   mirror of `chevronRight` rather than the larger header chevron of 14.3.
-// - `reset` is the same X as `close`: the vocabulary spells the reset
-//   affordance as the 12px X of the number input, so the two differ by their
-//   title, not by their drawing.
+// - `reset` is the same bar as `minus`, Figma's glyph for removing a value
+//   from a row, so the two differ by their title, not by their drawing.
 // - `minus` is the horizontal bar of `plus`, so that a control which adds and
 //   a control which removes are drawn at one weight.
 //
@@ -491,6 +492,13 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
     text: <path d="M3.5 3.5h9M8 3.5v9" />,
     component: <path d="M8 2l2 2-2 2-2-2zM8 10l2 2-2 2-2-2zM2 8l2-2 2 2-2 2zM10 8l2-2 2 2-2 2z" />,
     group: <rect x="3" y="3" width="10" height="10" strokeDasharray="2 2" />,
+    upload: (
+        <>
+            <line x1="8" y1="10.5" x2="8" y2="2.5" />
+            <polyline points="5,5.5 8,2.5 11,5.5" />
+            <path d="M2.5 10.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2" />
+        </>
+    ),
 };
 
 /**

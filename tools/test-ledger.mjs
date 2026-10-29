@@ -95,6 +95,21 @@ const attr = (tag, name) => {
 };
 
 /**
+ * A test file's ledger name with any absolute path made relative to its package (a classnameTemplate of
+ * `{filepath}` writes `<pkg>/no-subgroups//home/.../<pkg>/test/x.test.ts`), so a test has one history.
+ * @param file `<pkg>/<path>`
+ * @returns `<pkg>/[<prefix>/]<path in the package>`
+ */
+export function relFile(file) {
+    const at = file.indexOf("//");
+    if (at === -1) return file;
+    const pkg = file.slice(0, file.indexOf("/"));
+    const abs = file.slice(at + 1);
+    const inPkg = abs.lastIndexOf(`/${pkg}/`);
+    return inPkg === -1 ? file : file.slice(0, at + 1) + abs.slice(inPkg + pkg.length + 2);
+}
+
+/**
  * Adds one Vitest JUnit file to `into`. Vitest retries are off (design/ci/ci-cd-plan.md 9.1), so a testcase
  * is one verdict; if retries are ever turned on, this must become a Vitest reporter.
  * @param xml the file's text
@@ -106,7 +121,7 @@ export function parseJunit(xml, pkg, into = undefined) {
     into ??= { files: new Map(), failures: [] };
     if (!xml.includes("<testsuites")) throw new Error("not a JUnit report");
     for (const [, tag, , body = ""] of xml.matchAll(/<testcase\b([^>]*?)(\/>|>([\s\S]*?)<\/testcase>)/g)) {
-        const file = `${pkg}/${attr(tag, "classname")}`;
+        const file = relFile(`${pkg}/${attr(tag, "classname")}`);
         const name = attr(tag, "name");
         const f = into.files.get(file) ?? { passed: 0, failed: 0, skipped: 0, ms: 0, dup: 0, names: new Set() };
         into.files.set(file, f);
@@ -127,6 +142,12 @@ export function parseJunit(xml, pkg, into = undefined) {
 const UNINFORMATIVE = /^\w*Error:?$|Click to debug|^Ignored nodes:|^</;
 // A wait that expired: Vitest's and Playwright's timeouts, Testing Library's findBy / waitFor, expect.poll.
 const WAIT_EXPIRED = /timed out|TimeoutError|Timeout -?\d+ms exceeded|Unable to find|expect\.poll/i;
+// A story whose two renders drew different pictures (visual-review's story tests): flaky by definition.
+const UNSTABLE_STORY = /visual-review: \S+ is unstable \(two renders drew different pictures\)/;
+const statusOf = (timeout, first) => {
+    if (timeout) return "timeout";
+    return UNSTABLE_STORY.test(first) ? "unstable" : "fail";
+};
 
 /**
  * A failure's first informative line, its key (the first two informative lines, cleaned, numbers kept) and its
@@ -134,7 +155,7 @@ const WAIT_EXPIRED = /timed out|TimeoutError|Timeout -?\d+ms exceeded|Unable to 
  * @param text the failure message and stack
  * @param file the test file
  * @param main the main checkout, whose path and worktree paths are removed
- * @returns `{ line, key, signature, status }`; status is `timeout` for an expired wait, else `fail`
+ * @returns `{ line, key, signature, status }`; status is `timeout` for an expired wait, `unstable` for an unstable story, else `fail`
  */
 export function failureHashes(text, file, main = "/nonexistent") {
     const esc = main.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
@@ -160,8 +181,10 @@ export function failureHashes(text, file, main = "/nonexistent") {
         .filter((l) => frame(l) && !l.includes("node_modules"))
         .slice(0, 2)
         .map((l) => mask(clean(l)));
-    const signature = timeout ? h16(`timeout\0${file}`) : h16([mask(first), ...frames].join("\n"));
-    return { line: first.slice(0, 300), key: h16(said.join("\n")), signature, status: timeout ? "timeout" : "fail" };
+    const status = statusOf(timeout, first);
+    // a timeout's or an unstable story's text changes from run to run (the wait, the modes that differed): signed by its file
+    const signature = status === "fail" ? h16([mask(first), ...frames].join("\n")) : h16(`${status}\0${file}`);
+    return { line: first.slice(0, 300), key: h16(said.join("\n")), signature, status };
 }
 
 /**
@@ -181,7 +204,9 @@ export function outcomeOf(run) {
     if (!junit) return "unattributed";
     if (junit.bad) return "infra";
     if (code === 0) return "passed";
-    const failed = lines.reduce((n, l) => n + Number(/^Tests +(\d+) failed/.exec(l)?.[1] ?? 0), 0);
+    // A file that fails as a whole (a hook timed out, an import threw) is a "Failed Suites" entry, not a failed test.
+    const count = (re) => lines.reduce((n, l) => n + Number(re.exec(l)?.[1] ?? 0), 0);
+    const failed = count(/^Tests +(\d+) failed/) + count(/^\W*Failed Suites (\d+)\W*$/);
     const errors = lines.some(
         (l) =>
             (l.startsWith("Errors ") && l.includes(" error")) ||
@@ -357,11 +382,12 @@ function insertRecord(db, r) {
     const row = [r.id, r.kind, r.branch, r.commit, r.tree, r.base, r.dirty ? 1 : 0, r.shard, r.family, r.variant];
     const more = [r.selected ? 1 : 0, r.outcome, r.reused_from, r.started_at, r.secs, r.log];
     if (run(q.inv, ...row, ...more).changes === 0) return;
-    for (const [file, ...counts] of r.files) run(q.fileRun, r.id, testId(db, file), ...counts);
+    for (const [file, ...counts] of r.files) run(q.fileRun, r.id, testId(db, relFile(file)), ...counts);
     for (const f of r.failures) {
-        run(q.failure, r.id, testId(db, f.file, f.name), f.status, f.signature, f.key, f.line, f.message);
+        run(q.failure, r.id, testId(db, relFile(f.file), f.name), f.status, f.signature, f.key, f.line, f.message);
     }
-    for (const e of r.exonerations) run(q.exon, r.id, testId(db, e.file, e.name), e.reason, e.evidence, e.issue);
+    for (const e of r.exonerations)
+        run(q.exon, r.id, testId(db, relFile(e.file), e.name), e.reason, e.evidence, e.issue);
 }
 
 // Takes the write lock only when there is something to write, so a reader of an up-to-date index never waits.
@@ -579,7 +605,8 @@ export function goldenTip(root) {
 
 // Whether failure `x` (on golden) is failure `f` (in the land check): the same test failing the same way, or
 // `f` an expired wait, which carries no cause, and golden failing that test at all.
-const sameFailure = (x, f) => x.file === f.file && x.name === f.name && (x.key === f.key || f.status === "timeout");
+const sameFailure = (x, f) =>
+    x.file === f.file && x.name === f.name && (x.key === f.key || f.status === "timeout" || f.status === "unstable");
 
 /**
  * The failures a land check may excuse (design 5.1): every failing test fails on golden's tip too, and the landing

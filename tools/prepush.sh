@@ -9,6 +9,9 @@
 # no package included: they check the whole repository, root files (knip.config.ts, package.json
 # scripts, tools/) too, and CI's Build job always runs them. About 35 seconds (2026-10-06).
 # PREPUSH_ALL=1 runs every package.
+# PREPUSH_LIGHT=1 is the light gate: everything above but the test shards and the screenshots, which CI's
+# verification of golden runs instead (tools/verify.mjs backend ci; design/ci/ci-full-testing.md). The NVIDIA
+# GPU step still runs when webgpu-graph-algorithms is affected. Unset or 0 is the full gate.
 # This script avoids nx to work around git hook issues with nx daemon
 
 # A run_step check that fails ends the run at once (run_step exits), so a formatting or lint slip is
@@ -28,6 +31,7 @@ ROOT_DIR="$(cd "${PREPUSH_ROOT:-$(dirname "$SCRIPT_DIR")}" && pwd)" || exit 1
 unset PREPUSH_ROOT
 
 cd "$ROOT_DIR"
+LIGHT="${PREPUSH_LIGHT:-0}"
 
 # git runs this hook with GIT_DIR and friends exported, pointing at the real repository. Any step
 # that runs git in a temporary directory -- a test building a throwaway repository -- would then act
@@ -61,8 +65,8 @@ if [ -n "$GLOBAL_PNPM" ] && [ "$(printf '%s\n' "$GLOBAL_PNPM" 10.29.1 | sort -V 
     echo "WARNING: the pnpm on PATH is $GLOBAL_PNPM, older than 10.29.1, so a pnpm exec killed by a signal exits 0; run pnpm self-update"
 fi
 
-# The gate runs at normal priority: other work yields to it (tools/low-priority.sh, and the low lanes of the
-# test and browser slots while it runs its shards), never the other way round. A gate started from a niced
+# The gate runs at normal priority: other work yields to it (tools/low-priority.sh), never the other way
+# round. A gate started from a niced
 # shell inherits the niceness and cannot lower it again without privilege, so say so.
 if [ "$(nice)" != 0 ]; then
     echo "WARNING: the gate runs at niceness $(nice), not 0: it was started from a lowered shell (tools/low-priority.sh?), so other work gets the CPU first"
@@ -107,6 +111,7 @@ SCREENSHOTS_PGID=""
 SCREENSHOTS_STAGED=0
 GPU_PGID=""
 cleanup() {
+    bg_kill
     if [ -n "$GPU_PGID" ]; then
         kill -- -"$GPU_PGID" 2>/dev/null
         wait "$GPU_PGID" 2>/dev/null
@@ -145,9 +150,6 @@ affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 # The same packages as directories (nx names remote-logger by its package name).
 DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
 
-# The packages with an API reference in the documentation site (a root `docs:api:<package>` script).
-DOCS_API_PACKAGES=$(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")')
-
 # The documentation site, built as CI's Docs job builds it (npm run docs:build: docs:content, every
 # docs:api, vitepress build docs). TypeDoc writes whatever a doc comment holds, and only VitePress's
 # Vue compiler rejects a page that is not valid template: a code span split across two lines of a
@@ -157,13 +159,7 @@ DOCS_API_PACKAGES=$(node -p 'Object.keys(require("./package.json").scripts).filt
 # assemble the site. It reuses the API pages the "API docs" steps generated and builds only the other
 # packages' ones, so a dead link VitePress finds fails here too. Needs the build. About 3 minutes
 # (2026-10-22, a busy machine): the other API pages 30 seconds, vitepress build 2.5 minutes.
-docs_site_affected() {
-    local p
-    for p in $DOCS_API_PACKAGES; do affected "$p" && return 0; done
-    [ -z "${BASE:-}" ] && return 0
-    ! git diff --quiet "$BASE" HEAD -- docs/ $(sed -nE 's#^ *src: "([^"]+)".*#\1/#p' tools/copy-docs-content.js) \
-        tools/copy-docs-content.js tools/sanitize-api-docs.js
-}
+source "$SCRIPT_DIR/docs-affected.sh"
 docs_site_step() {
     docs_site_affected || return 0
     local cmd="pnpm run docs:content" p
@@ -221,6 +217,74 @@ BUILD_LIST="${BUILD_LIST#,}"
 # build:bundle writes (tsc emits none; the package has no root entry file), so bundle it before Lint
 if affected webgpu-graph-algorithms; then
     run_step "Bundle webgpu-graph-algorithms" "(cd webgpu-graph-algorithms && npm run build:bundle)"
+fi
+
+# Screenshots, in the background while the tests run: tools/visual-preview.sh --head fetches master,
+# then captures the Storybooks this push affects on the commit being pushed merged into origin/master,
+# with the pinned fonts and master's capture code, exactly as CI's visual job will -- in its own
+# worktree (.worktrees/visual-preview), so nothing here touches this checkout. The capture is staged
+# under the commit and promoted to the branch's preview (its open pull request's, which the owner's
+# review page offers for review and Finish before CI's capture exists) only when every check passed,
+# so a refused push never replaces the preview of the head already on GitHub. Changed or new images
+# never block the push (the owner reviews them); a capture that crashes, a story that fails to render,
+# or a capture that works longer than PREPUSH_SCREENSHOTS_TIMEOUT (default 45m) does. The limit counts
+# only work: it starts once the capture holds its lock, and each Storybook's capture starts its share
+# once it holds a browser slot, so a long wait behind the test shards' browsers never fails it (its log
+# says when it waits and when it works). Its own process group, killed by the EXIT trap,
+# so a step that stops the gate stops the capture with it.
+# The light gate (PREPUSH_LIGHT=1) captures nothing: CI's visual job on the cut pull request is the capture.
+if [ "$LIGHT" != 1 ] && [ -n "$PROJECT_LIST" ]; then
+    SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
+    mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
+    echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
+    setsid env VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
+    SCREENSHOTS_PGID=$!
+    SCREENSHOTS_STAGED=1
+    echo ""
+fi
+
+# The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
+# CI's webgpu-graph-algorithms-node shard (below, through run-tests.sh) runs on Mesa lavapipe; this runs
+# the same node projects on this machine's NVIDIA card through the libEGL tree (GRAPHTY_EGL_LIB_DIR, else
+# the main checkout's gitignored tmp/egl/; webgpu-graph-algorithms/CLAUDE.md). GRAPHTY_GPU_REQUIRE=nvidia,
+# not any: a missing EGL tree fails loudly here instead of passing on lavapipe a second time. "Affected"
+# is nx's, so a change to graph-format or the lockfile runs it too. It runs in the background beside the
+# CPU test shards, holding the machine's one GPU slot instead of a CPU test slot (tools/test-slots.mjs
+# --gpu): it waits on the card most of the time and uses under one core. Its own process group, killed
+# by the EXIT trap; its verdict is read after the Tests step.
+if affected webgpu-graph-algorithms; then
+    EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$MAIN_DIR/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
+    GPU_LOG="$MAIN_DIR/tmp/prepush-gpu/$(basename "$ROOT_DIR").log"
+    mkdir -p "$(dirname "$GPU_LOG")"
+    echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU, in the background (log: $GPU_LOG)${NC}"
+    setsid bash -c "cd webgpu-graph-algorithms && LD_LIBRARY_PATH='$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}' GRAPHTY_GPU_REQUIRE=nvidia node '$SCRIPT_DIR/test-slots.mjs' --gpu npm run test:run" >"$GPU_LOG" 2>&1 &
+    GPU_PGID=$!
+    echo ""
+fi
+
+# Tests: the test shards CI's test job runs for this push, with CI's commands and environment, read
+# from tools/ci-test-matrix.mjs (the list ci.yml plans from) by tools/prepush-tests.mjs, so this gate
+# and CI cannot drift -- except the shards whose "local" policy there leaves them to CI: graphty-element's
+# eleven browser and storybook shards (about 15 minutes) run here only when the push changes a file they
+# test, compared with $BASE (PREPUSH_ALL=1 has no base and runs them all). Browser shards share the machine's four-browser cap; the first failing shard
+# stops the rest. Each shard's log is in tmp/prepush-tests/. No shard and no stage has a
+# wall-clock limit: a hung test is ended by the one hang guard every vitest config sets, never by a
+# clock around the shard (owner rule: no arbitrary timeouts). A stage clock counted other gates' work -- on 2026-10-17, with 8 pushes queued, a push whose every shard passed was failed at
+# 90 minutes while its last shards were still waiting for slots. On Ctrl-C (or any SIGTERM)
+# prepush-tests.mjs stops every shard's process group itself.
+# Exit 3: every shard passed but some whose failing tests fail on golden's tip too (tools/test-ledger.mjs); the
+# step passes and the gate's pass is recorded as gate-known, which only the landing's own push accepts.
+# The light gate runs no shard (so it never records gate-known): CI's verification of golden runs them all.
+# The shards start as soon as the build is done, in the background beside the static checks below (Knip, Lint,
+# the docs, the bundle sizes, the public API report: 1-2% of gates fail on each), which held them back about
+# 10 minutes; the first failure of either stops the other (bg_step). Their output is printed when the
+# static checks are done (bg_wait) or as soon as they fail.
+KNOWN_MARK="$ROOT_DIR/tmp/prepush-steps/tests-known"
+rm -f "$KNOWN_MARK"
+if [ "$LIGHT" != 1 ] && [ -n "$PROJECT_LIST" ]; then
+    bg_step "Tests (the CI shards of the affected packages)" \
+        "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'; TESTS_EXIT=\$?; [ \$TESTS_EXIT = 3 ] && touch '$KNOWN_MARK'; [ \$TESTS_EXIT = 0 ] || [ \$TESTS_EXIT = 3 ]" \
+        "$ROOT_DIR/tmp/prepush-steps/tests.log"
 fi
 
 # Knip before Lint: it needs only the dist/ the build above wrote, and it fails a push about three
@@ -284,62 +348,9 @@ if affected cytoscape-extensions; then
     run_step "Bundle size (cytoscape-extensions)" "pnpm --filter @graphty/cytoscape-extensions run size"
 fi
 
-# Screenshots, in the background while the tests run: tools/visual-preview.sh --head fetches master,
-# then captures the Storybooks this push affects on the commit being pushed merged into origin/master,
-# with the pinned fonts and master's capture code, exactly as CI's visual job will -- in its own
-# worktree (.worktrees/visual-preview), so nothing here touches this checkout. The capture is staged
-# under the commit and promoted to the branch's preview (its open pull request's, which the owner's
-# review page offers for review and Finish before CI's capture exists) only when every check passed,
-# so a refused push never replaces the preview of the head already on GitHub. Changed or new images
-# never block the push (the owner reviews them); a capture that crashes, a story that fails to render,
-# or a capture that works longer than PREPUSH_SCREENSHOTS_TIMEOUT (default 45m) does. The limit counts
-# only work: it starts once the capture holds its lock, and each Storybook's capture starts its share
-# once it holds a browser slot, so a long wait behind the test shards' browsers never fails it (its log
-# says when it waits and when it works). Its own process group, killed by the EXIT trap,
-# so a step that stops the gate stops the capture with it. TEST_SLOT_GATE: it is the gate's own work, so it
-# never takes the low lane that every browser command outside a gate takes while a gate runs its shards.
-SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
-mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
-echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
-setsid env TEST_SLOT_GATE="$$" VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
-SCREENSHOTS_PGID=$!
-SCREENSHOTS_STAGED=1
-echo ""
-
-# The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
-# CI's webgpu-graph-algorithms-node shard (below, through run-tests.sh) runs on Mesa lavapipe; this runs
-# the same node projects on this machine's NVIDIA card through the libEGL tree (GRAPHTY_EGL_LIB_DIR, else
-# the main checkout's gitignored tmp/egl/; webgpu-graph-algorithms/CLAUDE.md). GRAPHTY_GPU_REQUIRE=nvidia,
-# not any: a missing EGL tree fails loudly here instead of passing on lavapipe a second time. "Affected"
-# is nx's, so a change to graph-format or the lockfile runs it too. It runs in the background beside the
-# CPU test shards, holding the machine's one GPU slot instead of a CPU test slot (tools/test-slots.mjs
-# --gpu): it waits on the card most of the time and uses under one core. Its own process group, killed
-# by the EXIT trap; its verdict is read after the Tests step.
-if affected webgpu-graph-algorithms; then
-    EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$MAIN_DIR/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
-    GPU_LOG="$MAIN_DIR/tmp/prepush-gpu/$(basename "$ROOT_DIR").log"
-    mkdir -p "$(dirname "$GPU_LOG")"
-    echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU, in the background (log: $GPU_LOG)${NC}"
-    setsid bash -c "cd webgpu-graph-algorithms && LD_LIBRARY_PATH='$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}' GRAPHTY_GPU_REQUIRE=nvidia node '$SCRIPT_DIR/test-slots.mjs' --gpu npm run test:run" >"$GPU_LOG" 2>&1 &
-    GPU_PGID=$!
-    echo ""
-fi
-
-# Tests: the test shards CI's test job runs for this push, with CI's commands and environment, read
-# from tools/ci-test-matrix.mjs (the list ci.yml plans from) by tools/prepush-tests.mjs, so this gate
-# and CI cannot drift -- except the shards whose "local" policy there leaves them to CI: graphty-element's
-# eleven browser and storybook shards (about 15 minutes) run here only when the push changes a file they
-# test, compared with $BASE (PREPUSH_ALL=1 has no base and runs them all). Browser shards share the machine's four-browser cap; the first failing shard
-# stops the rest. Each shard's log is in tmp/prepush-tests/. The hang guard is per shard and counts
-# only the time the shard runs (PREPUSH_SHARD_TIMEOUT in prepush-tests.mjs), never its wait for a
-# browser or test slot: the stage has no wall-clock limit of its own, because one counted other
-# gates' work -- on 2026-10-17, with 8 pushes queued, a push whose every shard passed was failed at
-# 90 minutes while its last shards were still waiting for slots. On Ctrl-C (or any SIGTERM)
-# prepush-tests.mjs stops every shard's process group itself.
-# Exit 3: every shard passed but some whose failing tests fail on golden's tip too (tools/test-ledger.mjs); the
-# step passes and the gate's pass is recorded as gate-known, which only the landing's own push accepts.
-run_step "Tests (the CI shards of the affected packages)" \
-    "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'; TESTS_EXIT=\$?; [ \$TESTS_EXIT = 3 ] && KNOWN_FAILURES=1; [ \$TESTS_EXIT = 0 ] || [ \$TESTS_EXIT = 3 ]"
+# The test shards, started beside the static checks above (bg_step, tools/prepush-source-checks.sh).
+bg_wait
+[ -f "$KNOWN_MARK" ] && KNOWN_FAILURES=1
 
 if [ -n "$GPU_PGID" ]; then
     echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU${NC}"
@@ -355,27 +366,47 @@ if [ -n "$GPU_PGID" ]; then
     GPU_PGID=""
 fi
 
-echo -e "${YELLOW}> Screenshots${NC}"
-if wait "$SCREENSHOTS_PGID"; then
-    cat "$SCREENSHOTS_LOG"
-    echo -e "${GREEN}[PASS] Screenshots captured${NC}"
-else
-    cat "$SCREENSHOTS_LOG"
-    echo -e "${RED}[FAIL] Screenshots: the capture failed or timed out (above; the log is $SCREENSHOTS_LOG)${NC}"
-    FAILED=1
+if [ -n "$SCREENSHOTS_PGID" ]; then
+    echo -e "${YELLOW}> Screenshots${NC}"
+    if wait "$SCREENSHOTS_PGID"; then
+        cat "$SCREENSHOTS_LOG"
+        echo -e "${GREEN}[PASS] Screenshots captured${NC}"
+    else
+        cat "$SCREENSHOTS_LOG"
+        echo -e "${RED}[FAIL] Screenshots: the capture failed or timed out (above; the log is $SCREENSHOTS_LOG)${NC}"
+        FAILED=1
+    fi
+    SCREENSHOTS_PGID=""
+    echo ""
 fi
-SCREENSHOTS_PGID=""
-echo ""
+
+# Whether the branch on the remote moved while the gate ran: git sends the push with the tip it read
+# before the hook (PUSH_REMOTE_SHA, .husky/pre-push), so a newer commit's post-commit push or the nightly
+# sync's merge in the meantime makes git reject a push whose every check passed (18 pushes in the 14 days
+# to 2026-10-24, about 47 minutes each). golden, golden-cut and master are left to git: tools/land.mjs
+# handles golden moving, and reads git's own rejection. A remote that cannot be asked is not "moved".
+remote_moved() {
+    [ -n "${PUSH_REMOTE:-}" ] && [ -n "${PUSH_REMOTE_REF:-}" ] || return 1
+    case "$PUSH_REMOTE_REF" in refs/heads/golden | refs/heads/golden-cut | refs/heads/master) return 1 ;; esac
+    REMOTE_NOW="$(git ls-remote "$PUSH_REMOTE" "$PUSH_REMOTE_REF" 2>/dev/null | cut -f1)"
+    [ -n "$REMOTE_NOW" ] && [ "$REMOTE_NOW" != "${PUSH_REMOTE_SHA:-}" ]
+}
 
 # Summary -- the overall verdict, so this one reads the global FAILED flag on purpose:
 # a knip-only failure must still fail the push.
 echo "========================================"
 sonar_reminder
+[ "$LIGHT" = 1 ] && echo -e "${YELLOW}[LIGHT] tests run in CI verification (tools/verify.mjs); no shard and no screenshot ran here${NC}"
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
     # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).
     [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record "gate${KNOWN_FAILURES:+-known}" "$GATE_KEY"
-    PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
+    if remote_moved; then
+        echo -e "${RED}[STOP] Every check passed, but $PUSH_REMOTE's ${PUSH_REMOTE_REF#refs/heads/} moved while the gate ran (${PUSH_REMOTE_SHA:0:12} -> ${REMOTE_NOW:0:12}), so git would reject this push.${NC}"
+        echo "Run git fetch $PUSH_REMOTE && git merge $PUSH_REMOTE/${PUSH_REMOTE_REF#refs/heads/}, then push again: this gate's passes are recorded, so only what the merge changes runs again."
+        exit 1
+    fi
+    [ "$SCREENSHOTS_STAGED" = 1 ] && PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0
 else

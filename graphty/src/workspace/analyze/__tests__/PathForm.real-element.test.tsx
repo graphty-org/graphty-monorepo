@@ -61,8 +61,8 @@ async function openFriends(
             },
         },
     );
+    assert.equal(session.data.statistics().nodeCount, 6);
     await waitFor(() => {
-        assert.equal(session.data.statistics().nodeCount, 6);
         assert.isFalse(analyzeTool().hasAttribute("aria-disabled"));
     });
     return { store, session, element: el };
@@ -294,17 +294,21 @@ describe("the Path popover, on the real element", () => {
             await userEvent.keyboard("p");
             const form = await pathForm();
             const pickTo = within(form).getByRole("button", { name: "Pick To on the canvas" });
-            // Esc stops a pick before it closes the popover (the first Esc closes the button's
-            // tooltip, the innermost thing open).
+            // Esc stops a pick before it closes the popover. The click hid the button's tooltip,
+            // and a hidden tooltip does not take the Escape (#3380).
             await userEvent.click(pickTo);
             assert.equal(pickTo.getAttribute("aria-pressed"), "true");
-            await userEvent.keyboard("{Escape}{Escape}");
+            await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.equal(pickTo.getAttribute("aria-pressed"), "false");
             });
             assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
             await userEvent.click(pickTo);
 
+            // Aim at Lee only once the picture is final: until the layout converges and the camera
+            // has framed it, Lee moves tens of pixels a frame, and a click aimed where Lee was a
+            // frame ago lands on nothing (#4423).
+            await element.waitForStableFrame();
             let at = element.nodeScreenPosition("Lee");
             await waitFor(() => {
                 at = element.nodeScreenPosition("Lee");

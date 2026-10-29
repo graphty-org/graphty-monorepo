@@ -9,6 +9,9 @@ import { type AddressInfo, createServer as createTcpServer, type Server as TcpSe
 
 import { type TestProject } from "vitest/node";
 
+import { openalexAnswer } from "../rest/openalex-fixture.js";
+import { answer } from "../sparql/fixture.js";
+
 declare module "vitest" {
     interface ProvidedContext {
         /** The CORS test server, http://127.0.0.1:<port>. */
@@ -35,6 +38,8 @@ function listen(server: Server | TcpServer): Promise<number> {
  * @returns the teardown
  */
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
+    /** The api_key and Authorization of every OpenAlex stand-in request, until read. */
+    const openalexSeen: { apiKey: string | null; authorization: string | null }[] = [];
     const server = createServer((req, res) => {
         const cors = req.url?.startsWith("/cors/") === true;
         if (cors) {
@@ -42,10 +47,33 @@ export default async function setup(project: TestProject): Promise<() => Promise
             res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
         }
         if (req.method === "OPTIONS") {
-            res.writeHead(cors ? 204 : 405).end();
+            // the SPARQL endpoint answers no preflight: a SPARQL query must be a simple request
+            res.writeHead(cors && !req.url?.endsWith("/sparql") ? 204 : 405).end();
+            return;
+        }
+        if (req.method === "POST" && req.url?.endsWith("/sparql") === true) {
+            let body = "";
+            req.on("data", (chunk: Buffer) => {
+                body += chunk.toString("utf8");
+            });
+            req.on("end", () => {
+                const { status, body: text } = answer(new URLSearchParams(body).get("query") ?? "");
+                res.writeHead(status, { "Content-Type": "application/n-triples" }).end(text);
+            });
             return;
         }
         const auth = req.headers.authorization ?? null;
+        if (req.url?.startsWith("/cors/openalex/") === true) {
+            // a stand-in for api.openalex.org: /log hands over what the other routes saw
+            const url = new URL(req.url.slice("/cors/openalex".length), "http://stand-in");
+            if (url.pathname === "/log") {
+                res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(openalexSeen.splice(0)));
+                return;
+            }
+            openalexSeen.push({ apiKey: url.searchParams.get("api_key"), authorization: auth });
+            res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(openalexAnswer(url)));
+            return;
+        }
         if (req.url === "/cors/redirect") {
             // a redirect to another origin, which a credentialed request must never follow
             res.writeHead(302, { Location: "http://localhost:9/elsewhere" }).end();

@@ -4,6 +4,34 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-23 -- Owner approval: compact-mantine is locked to its Figma spec (compact-mantine)
+
+Owner approved the 24 departures in figma-spec.md section 14; any other departure, or a change to one
+of these, needs the owner. In the owner's words, on the design of branch
+`fix/compact-mantine-figma-drift`: "I agree with your decisions ... lock in this design so that we
+don't drift from it". compact-mantine draws and behaves exactly as Figma does except for those rows.
+`tools/check-figma-lock.mjs` (pre-push gate and CI's Checks job) fails a push that changes the spec,
+the Figma tests or their harness, or the theme's token values, unless the commit making the change
+carries the owner's `Figma-Approved: <reason>` trailer.
+
+## 2026-10-22 -- Owner rule: compact-mantine is strict Figma (compact-mantine, graphty app)
+
+compact-mantine draws and behaves exactly as Figma does unless there is a good reason to depart,
+and every departure kept is justified to the owner in writing and listed in
+`compact-mantine/design/figma-spec.md` section 14. "The team decided it", "a study participant was
+confused on one screen" or "a test expected it" are not reasons by themselves. A change made for
+contrast belongs in the opt-in AA option (`highContrast`), never in the default theme. The team
+decisions this reverted are marked "Superseded in part" below.
+
+## 2026-10-18 -- Owner ruling: menus follow the page theme (compact-mantine)
+
+The owner chose, for issue #3026, that menus, listboxes and context menus follow the page theme: a
+light surface with dark ink in the light app, Figma's #1e1e1e menu in the dark app. Figma's
+always-dark menu stays one prop away (`variant="inverse"`, or the class `cm-menu-inverse`). The
+highlight, danger fill and secondary ink inside the page-following menu are Figma's in the default
+theme; their darker contrast values belong to the opt-in AA option (`highContrast`), per the
+owner's rule that the default theme looks exactly like Figma (recorded 2026-10-22).
+
 ## 2026-10-20 -- Decided by the team: a row that started empty takes its first rule (graphty-element)
 
 graphty-element, non-breaking, the second half of "a row of one kind may start empty" (2026-10-19).
@@ -59,6 +87,8 @@ Until then a value beyond a written domain is drawn at the domain's end, as it a
 
 ## 2026-10-19 -- Decided by the team: the color picker refuses text out loud, and Tab reaches every control (compact-mantine)
 
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): the refusal line under the value row is gone; refused text goes back to the color in force, as Figma's box does, and the reason is only spoken. The picker no longer opens with focus in its value box.
+
 Additive. `ColorPickerPanelLabels` gains `refused(typed, format)` and
 `refusedKept(typed, kept, format)`, overridable through the existing optional `labels` prop.
 Text in the picker's value box that reads as no color in the chosen format is refused the way the
@@ -75,6 +105,8 @@ opens on its first stop is unchanged. The picker opens in its value box, so the 
 saturation field, the eyedropper, the sliders and the format list were never reached by Tab.
 
 ## 2026-10-19 -- Decided by the team: a list says when typed letters match nothing (compact-mantine)
+
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): the line at the list's foot is gone (Figma draws nothing while typing); the spoken status and "no match highlights nothing" stay. Tab while a list is open now does nothing, as in Figma, instead of closing it.
 
 Additive. compact-mantine's labels gain an optional `listNoMatch(typed)`, default
 `No option starts with "<typed>"`, overridable through `LabelsProvider` like every other string.
@@ -181,6 +213,8 @@ Additive only; nothing existing changes what it returns.
 
 ## 2026-10-18 -- Decided by the team: an unset field takes the value it shows (compact-mantine, graphty app)
 
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): a not-set, Mixed or placeholder value is no longer gray italic: a value is drawn in ink and a placeholder in Figma's placeholder color, upright. The behavior described here stays.
+
 compact-mantine and the graphty app. One addition to the API: `CompactMantineLabels.colorDrawn`
 (optional, defaulted). The rest changes what the shared controls do, as fixes, with no option to
 keep the old behavior, because the old behavior was the defect: a reader could not choose the
@@ -239,6 +273,8 @@ and focuses the element; the next pointer press hides rings again as before. A b
 (`focus({ focusVisible: true })`) would be the natural shape, but Chromium does not support it.
 
 ## 2026-10-18 -- Decided by the team: the color picker holds the color before the edit, and Enter closes it (compact-mantine)
+
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): `CompactColorInput` no longer passes `closeOnEnter` (Enter commits and the picker stays open, as in Figma), and the picker shows exactly the swatches passed in, with no added before-edit swatch, dot or ring. The `closeOnEnter` prop stays.
 
 compact-mantine, additive. `ColorPickerPanel` gains `closeOnEnter?: boolean` (default `false`, so
 today's behavior stays): Enter in the value box applies the color and closes the enclosing
@@ -521,6 +557,8 @@ new field sees today's events. The `Toolbar` `startAt` option recorded below is 
 
 ## 2026-10-17 -- Decided by the team: color words, a box that marks its committed value, swatches that stay (compact-mantine)
 
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): the picker shows exactly the swatches passed in; it no longer keeps ones seen earlier.
+
 All additive, in compact-mantine:
 
 - `colorWord(color)`, a new export: a hex color as a reader says it in English ("dark green",
@@ -623,6 +661,8 @@ the platform's own behavior, not a new choice: no option to turn it off, since a
 not submit on Enter has no submit button.
 
 ## 2026-10-17 -- Decided by the team: a pill's tooltip words, reachable refused rows, a still pointer, a caret target (compact-mantine)
+
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): the pill's tooltip opens below, Figma's default, and the tree caret has no tooltip, as in Figma. The caret's 24px pointer target stays.
 
 Additive, compact-mantine `VariablePill`: `tooltip?: string`, the tooltip's words when they are not
 the name and the value (lines break at "\n"); left out, the tooltip is the name then the value as
@@ -780,6 +820,8 @@ says its state in its name instead ("5 values, hidden" / "5 values, shown").
 
 ## 2026-10-17 -- Decided by the team: a color box says why it refused an entry (compact-mantine)
 
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): the refusal is no longer drawn (no sentence, no red edge); words that name no color go back to the value, as in Figma, and the reason is only spoken. Escape keeping focus in the box stays (figma-spec section 14).
+
 Additive, in compact-mantine's labels (`CompactMantineLabels`, which a consumer overrides in part):
 
 - **`colorRefused(typed)`**: drawn under `CompactColorInput`, and the hex box's accessible
@@ -935,6 +977,8 @@ picked on several layers starts from the element's own proposal, exactly as on o
 
 ## 2026-10-16 -- Decided by the team: a menu opened by a click starts on its first enabled row (compact-mantine)
 
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): a menu opened by the pointer focuses the menu itself with no row highlighted, as Figma does; ArrowDown reaches the first enabled row. A key-opened menu still starts on its first enabled row.
+
 **What.** Every themed menu now opens with focus on its first enabled row, whether a key or the
 pointer opened it; a disabled first row is still skipped (`skipDisabledFirstRow` in
 `compact-mantine/src/components/overlays/overlayBehavior.ts`). This reverses the studio's
@@ -1038,6 +1082,8 @@ Changed behavior, asked for by the tier 3 review (not API shape):
   furthest it can go instead of being refused when the data's end lies past the other handle.
 
 ## 2026-10-13 -- Decided by the team: one look for every style field, a chip-only color, and Escape in a pop-out (compact-mantine)
+
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): the paint field is Figma's gray filled field again, and no field draws gray italic. `ComboInput` `variant="outlined"` stays as an option; the graphty app's Style tab rows use the default filled field.
 
 Additive API in compact-mantine:
 
@@ -1534,6 +1580,8 @@ menu) opens that row; the element still refuses a layer that sets nothing, so th
 its first value, as the draft is.
 
 ## 2026-10-12 -- Decided by the team: a ramp editor in compact-mantine (`RampEditor`), and painted histogram bars
+
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): the ring around a painted histogram bar is drawn only in the AA option.
 
 **What.** A new compact-mantine control, `RampEditor`, with its types (`RampEditorProps`,
 `RampEditorBin`, `RampEditorPalette`, `RampEditorHandle`, `RampEditorLabels`), and an optional
@@ -2219,6 +2267,8 @@ the study tool both found the fold twice, and a panel of folds became a list of 
 expanded button pointing at its content, the only thing of that name").
 
 ## 2026-10-08 -- Decided by the team: a tree can leave a selected parent's children unbanded (`childBand`)
+
+**Superseded in part by the owner's 2026-10-22 strict-Figma rule** (the default draws what Figma draws; contrast values live in the opt-in AA option): a segmented control's chosen label is weight 450 by default, as Figma draws it (600 in the AA option), and unchosen labels are Figma's secondary ink.
 
 **What.** compact-mantine's `Tree` gains an optional `childBand?: boolean`, default `true`. True is
 today's look: a selected, open parent draws a band behind its visible children (Figma's layer

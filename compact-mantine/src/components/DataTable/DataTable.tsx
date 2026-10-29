@@ -84,11 +84,10 @@ const DEFAULT_HEIGHT = 320;
 // not reach the edge of what is drawn.
 const DEFAULT_OVERSCAN = 8;
 
-// Row and header height: Figma's 32px list pitch (layer rows, page rows, property rows, DataRow),
-// not the 40px of its Variables spreadsheet, whose cells hold editable fields. A table of readings
-// in a panel or a drawer reads with the rows around it. Rows and cells are separated by a 1px gap
-// that each cell's 1px outline grid line sits over (design/figma-spec.md 10.6).
-const TABLE_ROW_HEIGHT = PANEL_GRID.ROW_PITCH;
+// Row and header height: Figma's Variables spreadsheet, 40px rows 41 apart (ls/vars-04); a caller
+// that wants the 32px list pitch passes rowHeight and headerHeight. Rows and cells are separated by
+// a 1px gap that each cell's 1px outline grid line sits over (design/figma-spec.md 10.6).
+const TABLE_ROW_HEIGHT = 40;
 const GRID_GAP = 1;
 
 // An empty array that keeps its identity between renders, so that a table given
@@ -104,24 +103,93 @@ const EMPTY_SORT: readonly DataTableSort[] = [];
 const CONTENT_MIN_WIDTH = 48;
 const CONTENT_MAX_WIDTH = 320;
 
-let measureContext: CanvasRenderingContext2D | null | undefined;
+/**
+ * The fonts a content-sized grid draws in, as the page has them once they have loaded, and the
+ * width the page draws each character at in its cells and in its headers, measured as the
+ * characters come up. The page measures them, not a canvas: a canvas cannot set
+ * `font-variant-numeric`, and under the grid's tabular figures a digit, a minus and a brace are
+ * drawn wider, and without the kerning a canvas would put between them.
+ */
+interface GridFonts {
+    readonly cell: Map<string, number>;
+    readonly header: Map<string, number>;
+}
 
 /**
- * How wide a text is drawn in a font.
- * @param text - The text
- * @param font - A CSS font, such as "600 12px Inter"
- * @param spacing - A CSS letter spacing, such as "0.1px"
- * @returns The width in pixels, or 0 where the browser cannot measure
+ * The fonts a grid's cells and headers are drawn in, as CSS fonts for `document.fonts`.
+ * @param grid - The grid
+ * @returns The cell font and the header font
  */
-function textWidth(text: string, font: string, spacing = "0px"): number {
-    measureContext ??= document.createElement("canvas").getContext("2d");
-    if (measureContext === null) {
-        return 0;
-    }
+function gridFontNames(grid: HTMLElement): [string, string] {
+    const style = getComputedStyle(grid);
+    const font = `${style.fontSize} ${style.fontFamily}`;
+    return [`${style.fontWeight} ${font}`, `600 ${font}`];
+}
 
-    measureContext.font = font;
-    measureContext.letterSpacing = spacing;
-    return measureContext.measureText(text).width;
+/**
+ * Measures, in the grid itself so they inherit every font property, the characters of the texts
+ * that are not measured yet: cell characters in the grid's own type, header characters at the
+ * header's weight and spacing (see tree.css.ts).
+ * @param grid - The grid
+ * @param fonts - The grid's fonts, whose maps are filled in
+ * @param cellTexts - The texts drawn in cells
+ * @param headerTexts - The texts drawn in headers
+ * @returns Whether every character is measured: not while the grid is not drawn (inside a hidden
+ * panel), where nothing has a width
+ */
+function measureCharacters(grid: HTMLElement, fonts: GridFonts, cellTexts: string[], headerTexts: string[]): boolean {
+    const box = document.createElement("div");
+    box.style.cssText = "position: absolute; top: 0; left: 0; visibility: hidden; white-space: pre;";
+    const probes: [Map<string, number>, string, HTMLElement][] = [];
+    const add = (widths: Map<string, number>, texts: string[], header: boolean): void => {
+        for (const text of texts) {
+            for (const char of text) {
+                if (!widths.has(char)) {
+                    widths.set(char, 0);
+                    const probe = document.createElement("span");
+                    probe.textContent = char;
+                    if (header) {
+                        probe.style.fontWeight = "600";
+                        probe.style.letterSpacing = "normal";
+                    }
+                    box.append(probe);
+                    probes.push([widths, char, probe]);
+                }
+            }
+        }
+    };
+    add(fonts.cell, cellTexts, false);
+    add(fonts.header, headerTexts, true);
+    if (probes.length === 0) {
+        return true;
+    }
+    if (grid.getClientRects().length === 0) {
+        for (const [widths, char] of probes) {
+            widths.delete(char);
+        }
+        return false;
+    }
+    grid.append(box);
+    for (const [widths, char, probe] of probes) {
+        widths.set(char, probe.getBoundingClientRect().width);
+    }
+    box.remove();
+    return true;
+}
+
+/**
+ * How wide a text is drawn: the sum of its characters' widths. Leaving out the kerning between
+ * them can only make it wider, so the text is never cut.
+ * @param text - The text
+ * @param widths - The widths of its characters, measured
+ * @returns The width in pixels
+ */
+function drawnWidth(text: string, widths: Map<string, number>): number {
+    let width = 0;
+    for (const char of text) {
+        width += widths.get(char) ?? 0;
+    }
+    return width;
 }
 
 /**
@@ -770,29 +838,71 @@ function DataTableInner<TRow extends object>(
         [table, virtualizer, rowCount, setSelection],
     );
 
-    // columnSizing "content": the fonts the grid draws in, read once it is on the page, and each
-    // column's width so far. A column only grows, so it holds still while the reader scrolls.
-    const [fonts, setFonts] = useState<{ cell: string; header: string; spacing: string } | null>(null);
+    // columnSizing "content": the fonts the grid draws in, taken once they have loaded (a width
+    // measured in a fallback family would stick, since a column only grows), and taken afresh
+    // whenever a font finishes loading.
+    const [fonts, setFonts] = useState<GridFonts | null>(null);
     useLayoutEffect(() => {
         const grid = gridRef.current;
-        if (columnSizing !== "content" || fonts !== null || grid === null) {
+        if (columnSizing !== "content" || grid === null) {
+            return undefined;
+        }
+        let live = true;
+        const take = (): void => {
+            if (live) {
+                setFonts({ cell: new Map(), header: new Map() });
+            }
+        };
+        // document.fonts is missing in some test environments; there the fonts are taken at once.
+        const faces = typeof document.fonts === "object" ? document.fonts : undefined;
+        if (faces === undefined) {
+            take();
+            return undefined;
+        }
+        const [cell, header] = gridFontNames(grid);
+        if (faces.check(cell) && faces.check(header)) {
+            take();
+        } else {
+            // A face that fails to load leaves the fallback family, which is then what is drawn.
+            void Promise.all([faces.load(cell), faces.load(header)]).finally(take);
+        }
+        faces.addEventListener("loadingdone", take);
+        return () => {
+            live = false;
+            faces.removeEventListener("loadingdone", take);
+        };
+    }, [columnSizing]);
+    // Each column's width so far, measured in `fonts`. A column only grows, so it holds still
+    // while the reader scrolls; it is measured afresh when the fonts are taken again. Only ever
+    // raised to a width measured from the rows, so writing it while drawing is safe: drawing twice
+    // measures the same widths.
+    const fitted = useRef(new Map<string, number>()).current;
+    /**
+     * Raises each content-sized column to the width its header and its widest value are drawn at.
+     * @param grid - The grid
+     * @param measured - The grid's fonts
+     */
+    const fitColumns = (grid: HTMLElement, measured: GridFonts): void => {
+        const compact = density === "compact";
+        const sized = visibleColumns.flatMap((column, index) => {
+            const config = columnById.get(column.id);
+            return config === undefined || config.width !== undefined
+                ? []
+                : [{ column, config, index, texts: rows.map((row) => cellText(config.value(row.original), format)) }];
+        });
+        const allTexts = sized.flatMap((entry) => entry.texts);
+        if (
+            !measureCharacters(
+                grid,
+                measured,
+                allTexts,
+                sized.map((entry) => entry.config.header),
+            )
+        ) {
+            // Fitted when the grid is next drawn on the page; until then one field per column.
             return;
         }
-        const style = getComputedStyle(grid);
-        const font = `${style.fontSize} ${style.fontFamily}`;
-        const spacing = style.letterSpacing === "normal" ? "0px" : style.letterSpacing;
-        setFonts({ cell: `${style.fontWeight} ${font}`, header: `600 ${font}`, spacing });
-    }, [columnSizing, fonts]);
-    // Only ever raised to a width measured from the rows, so writing it while drawing is safe:
-    // drawing twice measures the same widths.
-    const fitted = useRef(new Map<string, number>()).current;
-    if (fonts !== null) {
-        const compact = density === "compact";
-        visibleColumns.forEach((column, index) => {
-            const config = columnById.get(column.id);
-            if (config === undefined || config.width !== undefined) {
-                return;
-            }
+        for (const { column, config, index, texts } of sized) {
             // The cell's padding (see tree.css.ts); a header also keeps room for its glyph, its
             // sort caret and its menu caret.
             let cellPad = 20;
@@ -807,18 +917,23 @@ function DataTableInner<TRow extends object>(
                 isPresent(config.menu),
                 isPresent(config.icon),
             );
-            let widest = textWidth(config.header, fonts.header) + headerPad;
-            for (const row of rows) {
-                widest = Math.max(
-                    widest,
-                    textWidth(cellText(config.value(row.original), format), fonts.cell, fonts.spacing) + cellPad,
-                );
+            let widest = Math.max(drawnWidth(config.header, measured.header) + headerPad, config.minWidth ?? 0);
+            for (const text of texts) {
+                widest = Math.max(widest, drawnWidth(text, measured.cell) + cellPad);
             }
             const width = clamp(Math.ceil(widest), CONTENT_MIN_WIDTH, CONTENT_MAX_WIDTH);
             if (width > (fitted.get(column.id) ?? 0)) {
                 fitted.set(column.id, width);
             }
-        });
+        }
+    };
+    const fittedFonts = useRef<GridFonts | null>(null);
+    if (fonts !== fittedFonts.current) {
+        fitted.clear();
+        fittedFonts.current = fonts;
+    }
+    if (fonts !== null && gridRef.current !== null) {
+        fitColumns(gridRef.current, fonts);
     }
     /**
      * How wide a column is drawn: its own width, else its content's, else one field.
@@ -848,7 +963,13 @@ function DataTableInner<TRow extends object>(
         return (
             <>
                 {config?.icon !== undefined && config.icon !== null && (
-                    <span className="cm-dt-header-icon" data-testid="data-table-header-icon" aria-hidden="true">
+                    <span
+                        className="cm-dt-header-icon"
+                        data-testid="data-table-header-icon"
+                        {...(config.iconLabel === undefined
+                            ? { "aria-hidden": true }
+                            : { role: "img", "aria-label": config.iconLabel })}
+                    >
                         {config.icon}
                     </span>
                 )}
@@ -912,6 +1033,7 @@ function DataTableInner<TRow extends object>(
      * @param index - The column's position
      * @param rovingTabIndex - The tab index the grid's tab stop gives it
      * @param hasMenu - Whether the header has a menu
+     * @param hasEnd - Whether the header has content at its end
      * @param caption - What the header shows
      * @returns The button
      */
@@ -921,6 +1043,7 @@ function DataTableInner<TRow extends object>(
         index: number,
         rovingTabIndex: number,
         hasMenu: boolean,
+        hasEnd: boolean,
         caption: React.ReactNode,
     ): React.JSX.Element => {
         const sorted = column.getIsSorted();
@@ -953,6 +1076,7 @@ function DataTableInner<TRow extends object>(
                 className="cm-dt-sort"
                 data-align={config?.align === "end" ? "end" : undefined}
                 data-with-menu={hasMenu ? "" : undefined}
+                data-with-end={hasEnd ? "" : undefined}
             >
                 {caption}
             </UnstyledButton>
@@ -1216,6 +1340,7 @@ function DataTableInner<TRow extends object>(
                                 const rovingTabIndex = isFocused ? 0 : -1;
 
                                 const hasMenu = isPresent(config?.menu);
+                                const hasEnd = isPresent(config?.headerEnd);
                                 const caption = headerCaption(column, config, sorted);
 
                                 const header = (
@@ -1248,6 +1373,7 @@ function DataTableInner<TRow extends object>(
                                                   }
                                                 : undefined
                                         }
+                                        data-with-end={hasEnd && !sortable ? "" : undefined}
                                         onFocus={
                                             sortable
                                                 ? undefined
@@ -1264,9 +1390,26 @@ function DataTableInner<TRow extends object>(
                                         {sortable
                                             ? withTooltip(
                                                   config?.headerTooltip,
-                                                  sortButton(column, config, index, rovingTabIndex, hasMenu, caption),
+                                                  sortButton(
+                                                      column,
+                                                      config,
+                                                      index,
+                                                      rovingTabIndex,
+                                                      hasMenu,
+                                                      hasEnd,
+                                                      caption,
+                                                  ),
                                               )
                                             : caption}
+                                        {hasEnd && (
+                                            <span
+                                                className="cm-dt-header-end"
+                                                data-testid="data-table-header-end"
+                                                data-with-menu={hasMenu ? "" : undefined}
+                                            >
+                                                {config?.headerEnd}
+                                            </span>
+                                        )}
                                         {hasMenu && headerMenu(column, config, index)}
                                     </Table.Th>
                                 );
@@ -1356,6 +1499,7 @@ function DataTableInner<TRow extends object>(
                                                 // the cells reads the cell's state, not its row's.
                                                 aria-selected={isSelectable ? isSelected : undefined}
                                                 data-testid="data-table-cell"
+                                                data-tone={config?.cellTone?.(row.original)}
                                                 aria-colindex={index + 1}
                                                 data-grid-row={item.index}
                                                 data-grid-column={index}

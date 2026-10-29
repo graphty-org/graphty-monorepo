@@ -14,6 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openSampleFromStart } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -96,24 +97,6 @@ async function openScene(): Promise<{ store: WorkspaceStore; session: GraphSessi
 }
 
 /**
- * Opens Les Miserables from the start screen, as a reader does, with the starting rows on.
- * @returns the store and the session.
- */
-async function openSample(): Promise<{ store: WorkspaceStore; session: GraphSession }> {
-    const store = createWorkspaceStore();
-    render(<Workspace store={store} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
-    const session = await elementSession();
-    await waitFor(
-        () => {
-            assert.equal(session.data.statistics().nodeCount, 77);
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    return { store, session };
-}
-
-/**
  * Opens a row's menu from the keyboard, as Shift+F10 does on the focused row.
  * @param name - the row's name.
  * @returns the menu.
@@ -130,15 +113,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
     });
 
     it("opens Les Miserables with Everything, Selected and Hovered, and each run lands on top", async () => {
-        render(<Workspace store={createWorkspaceStore()} />);
-        await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
-        const session = await elementSession();
-        await waitFor(
-            () => {
-                assert.equal(session.data.statistics().nodeCount, 77);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const { session } = await openSampleFromStart("Les Miserables");
         for (const name of ["Everything", "Selected", "Hovered"]) {
             assert.isNotNull(await row(name));
         }
@@ -282,7 +257,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
     });
 
     it("lands a new layer directly above the selected row, on both kinds, in one undo step", async () => {
-        const { store, session } = await openSample();
+        const { store, session } = await openSampleFromStart("Les Miserables");
         const degree = await session.runs.start("degree");
         await session.runs.start("louvain");
         await session.styles.settled();
@@ -311,7 +286,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
     });
 
     it("draws the tree, its row menu, a folder's panel and Graph settings at two window sizes", async () => {
-        const { session } = await openSample();
+        const { session } = await openSampleFromStart("Les Miserables");
         const ids = session.data.nodes().map((node) => String(node.id));
         const folder = await session.styles.addFolder("Annotations");
         const key = await session.styles.add({
@@ -344,12 +319,13 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
             await userEvent.click(screen.getByRole("button", { name: "Graph settings" }));
             const settings = await within(inspector).findByRole("tabpanel");
             // Flat titles, as the Style tab's: headings, not buttons that fold.
-            for (const title of ["Canvas", "Labels"]) {
+            // Background is a section of its own: Color, Image and Shader stack under its "+".
+            for (const title of ["Canvas", "Background", "Labels"]) {
                 within(settings).getByRole("heading", { name: title });
             }
             assert.isEmpty(settings.querySelectorAll('[data-collapsible="true"]'), "no section folds");
             const labels = [...settings.querySelectorAll(".cm-field-label, .cm-paint-label")].map((l) => l.textContent);
-            for (const label of ["Background", "Lighting", "Outline width"]) {
+            for (const label of ["Lighting", "Outline width"]) {
                 assert.include(labels, label, `${label} is drawn as a field label`);
             }
             await page.screenshot({ path: `${SHOTS}/graph-settings-${size}.png` });

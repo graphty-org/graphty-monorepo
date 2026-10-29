@@ -26,6 +26,7 @@
 
 import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 
+export type { ShaderParams, ShaderParamValue, ShaderText, ShaderUse } from "./src/catalog/shaders";
 export type {
     Binding,
     BindingNumberFormat,
@@ -69,6 +70,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    ShaderParamAddress,
     StaticStyle,
     StyleDocument,
     ThemeDescriptor,
@@ -93,17 +95,24 @@ export type {
 
 export type {
     AdHocData,
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
     EdgeStyleConfig,
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,
     ImageData,
+    LayoutTransitionConfig,
     Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     ViewMode,
 } from "./src/config/index";
 export {
+    Basemap,
     colorToHex,
     DEFAULT_BACKGROUND_COLOR,
     DEFAULT_LIGHTING,

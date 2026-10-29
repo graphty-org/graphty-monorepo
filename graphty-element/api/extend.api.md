@@ -16,6 +16,7 @@ import { CommonImportOptions } from '@graphty/graph-io';
 import { Credential as Credential_2 } from '@graphty/graph-io';
 import { CredentialKind } from '@graphty/graph-io';
 import { credentials } from '@graphty/graph-io';
+import { credentialSlots } from '@graphty/graph-io';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
 import { CX_LOSS } from '@graphty/graph-io';
@@ -35,6 +36,7 @@ import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
+import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -57,6 +59,7 @@ import { LayoutResult } from '@graphty/layout';
 import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
+import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import { maskTest } from '@graphty/graph-format';
@@ -70,6 +73,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
 import { Ray } from '@babylonjs/core';
@@ -85,6 +89,7 @@ import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
+import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
@@ -459,6 +464,11 @@ export interface CameraViewInput {
     readonly aspect: number;
     readonly bounds: GraphBounds;
     readonly current: CameraState;
+    readonly facing?: {
+        readonly x: number;
+        readonly y: number;
+        readonly z: number;
+    };
     readonly fov?: number;
     readonly insets?: Required<ViewInsets>;
     // (undocumented)
@@ -501,6 +511,7 @@ export interface Caveats {
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
     readonly weightSkipped?: WeightSkip;
+    readonly window?: RunWindow;
     readonly windowScope?: boolean;
 }
 
@@ -527,6 +538,12 @@ export function clearRegisteredLogSinksForTesting(): void;
 
 // @public
 export function clearRegisteredPalettesForTesting(): void;
+
+// @public
+export function clearRegisteredShadersForTesting(): void;
+
+// @public
+export function clearRegisteredTransitionsForTesting(): void;
 
 // @public
 export interface CollapseResult {
@@ -562,6 +579,8 @@ export { Credential_2 as Credential }
 export { CredentialKind }
 
 export { credentials }
+
+export { credentialSlots }
 
 // @public
 export interface DataLoadingError {
@@ -697,6 +716,9 @@ export function defineOptionsSchema<S extends OptionsSchema>(schema: S): S;
 // @public
 export function definePalette(definition: PaletteDefinition, options?: RegisterOptions): void;
 
+// @public
+export function defineShader(definition: ShaderDefinition, options?: RegisterOptions): void;
+
 export { defineSource }
 
 // @public
@@ -749,6 +771,10 @@ export class Edge {
     }[];
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
+    get drawnEffects(): {
+        id: string;
+        points: Vector3[];
+    }[];
     // @internal
     get drawnGradient(): readonly string[];
     get drawnLine(): {
@@ -781,12 +807,18 @@ export class Edge {
     parentGraph: Graph | GraphContext;
     // (undocumented)
     ray: Ray;
+    // @internal
+    refreshShaderPaint(): void;
     setRenderVisible(visible: boolean): boolean;
     setSelected(selected: boolean): boolean;
+    // @internal
+    shaderDataChanged(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
     // (undocumented)
     srcNode: Node_2;
+    // @internal
+    supportEdge(): SupportEdge | null;
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
@@ -805,6 +837,7 @@ export function edgeMetricFields(value: MetricValueName): readonly FieldDescript
 
 // @public (undocumented)
 export interface EdgePosition {
+    bends?: readonly number[];
     // (undocumented)
     dst: Position;
     // (undocumented)
@@ -878,7 +911,10 @@ export { ExpandRequest }
 export { ExportCapabilities }
 
 // @public
-export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions;
+export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions & {
+    readonly scope?: ExportScope;
+    readonly columns?: readonly string[];
+};
 
 // @public
 export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
@@ -895,6 +931,11 @@ export interface ExportResult {
     readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
+
+// @public
+export type ExportScope = RuleTree | "shown" | "selection" | {
+    readonly set: SetId;
+};
 
 // @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
@@ -1111,6 +1152,12 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
+* A timeline call needs a time field and none is designated: `session.time.window`, `play`,
+* `stepBy` or `seek` with no attribute given. The caller designates one with
+* `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+*/
+| "E_NO_TIME_FIELD"
+/**
 * An algorithm key is not registered. `details.available` lists the registered keys. The
 * caller picks a key from the catalogue or registers a plugin that provides it.
 */
@@ -1133,6 +1180,25 @@ export type GraphtyErrorCode =
 * The caller picks a palette from the catalogue or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
+/**
+* A layer names a shader the catalog does not list, in a use on `node.shaders` or
+* `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER"
+/**
+* A layer names a shader where it cannot draw: an edge shader on `node.shaders`
+* (`shader.target-mismatch`), or a use at a place the shader does not allow
+* (`shader.place-unsupported`); the refused problem's `fact` carries the code.
+* @since 3.36.0
+*/
+| "E_SHADER_KIND"
+/**
+* A layer sets or binds a parameter the shader does not declare, or binds one per element
+* that it does not declare `varies`. `details.candidates` lists the declared parameters.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER_PARAM"
 /**
 * A camera view name is not one the element knows. `details.available` lists the registered
 * view ids. The caller picks one of those or registers its own view first.
@@ -1568,6 +1634,18 @@ export type GraphtyErrorCode =
 */
 | "E_SOURCE_UNKNOWN"
 /**
+* A load an opened project holds has not been run since it opened, so nothing may fetch for it
+* yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+* once the reader approved. Nothing was fetched. `details.id`. Experimental.
+*/
+| "E_SOURCE_PENDING"
+/**
+* No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+* `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+* `details.key`, `details.known`. Experimental.
+*/
+| "E_LOAD_UNKNOWN"
+/**
 * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
 */
 | "E_SOURCE_UNSUPPORTED"
@@ -1584,7 +1662,89 @@ export type GraphtyErrorCode =
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
 */
-| "E_INTERNAL";
+/**
+* A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+*/
+| "E_MODEL_FETCH"
+/**
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`; `params.denied` when the reader refused it; `params.part` (the part's name) for a part handed to `assets.supply` by URL. A private, loopback or link-local host is refused for a supplied part whoever asks.
+*/
+| "E_MODEL_URL_BLOCKED"
+/**
+* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+*/
+| "E_MODEL_TOO_LARGE"
+/**
+* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+*/
+| "E_MODEL_STRUCTURE"
+/**
+* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
+*/
+| "E_MODEL_FORMAT_UNSUPPORTED"
+/**
+* No model format matches the bytes or the name. `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNKNOWN"
+/**
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`
+* (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+* `add`'s `main` option.
+*/
+| "E_MODEL_AMBIGUOUS"
+/**
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+* part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+* `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+* part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+* `params.tried` (the addresses tried, without queries, at most 4).
+*/
+| "E_MODEL_MISSING_FILE"
+/**
+* A reference matched more than one file of the set by case or base name, so none was used.
+* `params.name`, `params.referencedBy`, `params.candidates`.
+*/
+| "E_MODEL_PART_AMBIGUOUS"
+/**
+* An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+* `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+* address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+*/
+| "E_MODEL_WEB_PAGE"
+/**
+* A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+*/
+| "E_MODEL_PART_REQUIRED"
+/**
+* A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+*/
+| "E_MODEL_EXTERNAL_URL"
+/**
+* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+*/
+| "E_MODEL_DECODER_UNAVAILABLE"
+/**
+* Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+*/
+| "E_MODEL_PARSE"
+/**
+* A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+*/
+| "E_MODEL_ZIP"
+/**
+* An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+*/
+| "E_MODEL_NAME_TAKEN"
+/**
+* An asset id the session holds no accepted model for. `details.id`.
+*/
+| "E_MODEL_UNKNOWN_ASSET"
+/**
+* A model a project file embeds does not match the digest the file records for it (or its id,
+* for an unnamed asset), so it was not added. `params.id`.
+*/
+| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -1675,7 +1835,7 @@ export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "f
 export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
 
 // @public
-export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random"];
+export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random", "location-map"];
 
 // @public
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];
@@ -1746,6 +1906,7 @@ export abstract class LayoutEngine {
     protected edgeProblems(drawn: ReadonlyMap<string, Edge>): string[];
     // (undocumented)
     abstract get edges(): Iterable<Edge>;
+    protected get followerGroups(): ReadonlyMap<number, readonly number[]>;
     static get(type: string, opts?: object): LayoutEngine | null;
     static getClass(type: string): (LayoutEngineClass & LayoutEngineStatics) | null;
     // (undocumented)
@@ -1788,7 +1949,7 @@ export abstract class LayoutEngine {
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
-    protected setFollowers(rows: ReadonlySet<number> | null): void;
+    protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // (undocumented)
@@ -1875,7 +2036,7 @@ export function metricField(spec: Omit<FieldDescriptor, "path">): FieldDescripto
 export function metricFieldSpecs(kind: "node" | "edge", valueType?: "number" | "integer"): readonly ResultFieldSpec[];
 
 // @public
-class Node_2 {
+class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
@@ -1903,6 +2064,10 @@ class Node_2 {
         z: number;
     };
     getRenderState(): NodeRenderState;
+    // @internal
+    get groupDrawnForAnotherCamera(): boolean;
+    // @internal
+    get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
     // (undocumented)
     readonly id: NodeIdType;
@@ -1915,8 +2080,22 @@ class Node_2 {
     label?: RichTextLabel;
     // (undocumented)
     mesh: AbstractMesh;
+    // @internal
+    modelDrawn(): {
+        readonly template: ModelTemplate | null;
+        readonly tinted: boolean;
+        readonly colored: boolean;
+    };
     // (undocumented)
     opts: NodeOpts;
+    // @internal
+    get outlineHalfExtents(): Readonly<{
+        x: number;
+        y: number;
+        z: number;
+    }>;
+    // @internal
+    get paintedColor(): Rgba | null;
     // (undocumented)
     parentGraph: Graph | GraphContext;
     pin(): void;
@@ -1925,11 +2104,17 @@ class Node_2 {
     // @internal
     refreshScreenBorder(): void;
     refreshSelectionOverlay(): void;
+    // @internal
+    refreshShaderPaint(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
+    // @internal
+    shaderStateBits(): number;
+    // @internal
+    shaderStateChanged(state: NodeShaderState, on: boolean): void;
     shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
@@ -1940,6 +2125,8 @@ class Node_2 {
     unpin(): void;
     update(): void;
     updateStyle(): void;
+    // @internal
+    get wordedLabel(): RichTextLabel | null;
 }
 export { Node_2 as Node }
 
@@ -1966,6 +2153,15 @@ export interface NodeScoreDefinition<O extends OptionsShorthand> extends Algorit
 }
 
 // @public
+export interface NodeSource {
+    readonly canExpand: boolean;
+    readonly expanded: boolean;
+    readonly hiddenNeighbors: number | null;
+    readonly loadKey: string;
+    readonly source: SourceKey | null;
+}
+
+// @public
 export interface NodeView {
     attr(path: string | undefined): unknown;
     readonly degree: number;
@@ -1983,7 +2179,7 @@ export interface NodeView {
 }
 
 // @public
-export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "unknown"];
+export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "unknown"];
 
 // @public
 export interface OptionBound {
@@ -1995,6 +2191,7 @@ export interface OptionBound {
 export interface OptionChoice {
     // (undocumented)
     label: string;
+    refusal?: OptionChoiceRefusal;
     // (undocumented)
     value: string;
 }
@@ -2004,7 +2201,7 @@ export interface OptionContext {
     // (undocumented)
     readonly id: string;
     // (undocumented)
-    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink";
+    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
 }
 
 // @public
@@ -2152,10 +2349,12 @@ export const PATH_FIELD_SPECS: readonly ResultFieldSpec[];
 // @public
 export interface PendingSourceLoad {
     readonly authRequired: "required" | "optional" | "none";
+    readonly credentialSlot?: string;
     readonly endpoint: string | null;
     readonly hasQuery: boolean;
     readonly id: string;
     readonly isLocalNetwork: boolean;
+    readonly params: Readonly<Record<string, unknown>>;
     readonly source: string;
 }
 
@@ -2274,9 +2473,15 @@ export interface RegisterOptions {
 export function registerPalette(descriptor: PaletteRegistration, options?: RegisterOptions): void;
 
 // @public
+export function registerShader(registration: ShaderRegistration, options?: RegisterOptions): void;
+
+// @public
 export function registerSnapshotLayout(registration: SnapshotLayoutRegistration): void;
 
 export { registerSource }
+
+// @public
+export function registerTransition(registration: TransitionRegistration, options?: RegisterOptions): void;
 
 export { ReplayFetch }
 
@@ -2340,7 +2545,118 @@ export type ScopeInputDeclaration = NonNullable<AlgorithmDescriptor["scopeInput"
 export type Score = number | null | undefined;
 
 // @public
+export function setDefaultFeatures(ids: readonly string[]): void;
+
+// @public
 export function setFieldSpecs(kind: "node" | "edge", headline: Omit<ResultFieldSpec, "kind">): readonly ResultFieldSpec[];
+
+// @public
+export type ShaderClock = "since.selected" | "since.deselected" | "since.hovered" | "since.unhovered" | "since.pinned" | "since.unpinned" | "since.added" | "since.changed" | "since.matched" | "since.unmatched";
+
+// @public
+export interface ShaderClockBinding {
+    readonly by: ShaderClock;
+    readonly domain: readonly [number, number];
+    readonly range?: readonly [number, number] | readonly [string, string];
+}
+
+// @public
+export interface ShaderDefinition {
+    readonly blend?: "over" | "add";
+    readonly bloom?: boolean;
+    readonly categories?: readonly string[];
+    readonly cost?: ShaderCost;
+    readonly form?: "field" | "sphere";
+    readonly glsl: ShaderSource;
+    readonly id: string;
+    readonly lowDetail?: ShaderSource;
+    readonly minSize?: number;
+    readonly motion?: ShaderMotionInput;
+    readonly name?: string;
+    readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
+    readonly place?: ShaderPlace;
+    readonly places?: readonly ShaderPlace[];
+    readonly preview?: ShaderPreview;
+    readonly reach?: number;
+    readonly reachParam?: string;
+    readonly reads?: readonly ShaderInput[];
+    readonly requires?: readonly ShaderRequirement[];
+    readonly target?: ShaderTarget;
+    readonly thumbnail?: string;
+    readonly webgpu?: "translate" | "none";
+}
+
+// @public
+export interface ShaderDescriptor {
+    readonly blend?: "over" | "add";
+    readonly bloom?: boolean;
+    readonly categories?: readonly string[];
+    readonly cost: ShaderCost;
+    readonly form?: "field" | "sphere";
+    readonly hash?: string;
+    readonly id: string;
+    readonly minSize?: number;
+    readonly motion: ShaderMotion;
+    readonly origin: ShaderOrigin;
+    readonly params: readonly ShaderParamDescriptor[];
+    readonly place?: ShaderPlace;
+    readonly places?: readonly ShaderPlace[];
+    readonly plainName: string;
+    readonly preview?: ShaderPreview;
+    readonly reach?: number;
+    readonly reachParam?: string;
+    readonly reads: readonly ShaderInput[];
+    readonly requires?: readonly ShaderRequirement[];
+    readonly target: ShaderTarget;
+    readonly thumbnail?: string;
+    readonly webgpu: ShaderWebGpu;
+}
+
+// @public
+export type ShaderParamShorthand = number | boolean | string | ShaderClockBinding | ((Exclude<OptionShorthand, number | string | boolean> | (Readonly<Partial<Omit<OptionDescriptor, "name" | "type" | "on" | "default">>> & {
+    readonly default: number | boolean | string | ShaderClockBinding;
+})) & {
+    readonly varies?: boolean;
+    readonly primary?: boolean;
+});
+
+// @public
+export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along" | "group";
+
+// @public
+export interface ShaderPreview {
+    readonly params?: ShaderParams;
+    readonly time?: number;
+}
+
+// @public
+export interface ShaderRegistration {
+    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash" | "target"> & {
+        readonly target?: ShaderTarget;
+        readonly cost?: ShaderCost;
+        readonly reads?: readonly ShaderInput[];
+        readonly webgpu?: ShaderWebGpu;
+        readonly motion?: ShaderMotionInput;
+    };
+    readonly glsl: ShaderSource;
+    readonly lowDetail?: ShaderSource;
+    readonly wgsl?: string;
+}
+
+// @public
+export type ShaderSource = string | (() => Promise<string>);
+
+// @public
+export type ShaderTarget = "node" | "edge" | "group" | "background";
+
+// @public
+export function shaderTemplate(place: ShaderTemplatePlace): ShaderText;
+
+// @public
+export interface ShaderTemplatePlace {
+    readonly place?: ShaderPlace;
+    readonly target: ShaderTarget;
+}
 
 // @public
 export type ShorthandValue<S> = S extends number ? number : S extends boolean ? boolean : S extends string ? string : S extends {
@@ -2445,17 +2761,36 @@ export { SOURCE_ISSUE }
 // @public
 export const SOURCE_RECORD_MEMBER = "graphty-sources";
 
-// @public
+// @public @deprecated
 export const SOURCE_RECORD_VERSION = 1;
 
+// @public
+export interface SourceCatalogEntry extends SourceInfo {
+    readonly features: SourceFeatures;
+}
+
+// @public
+export interface SourceCheck {
+    readonly changed: boolean | null;
+}
+
 export { SourceContext }
+
+// @public
+export interface SourceCounts {
+    readonly edges: number;
+    readonly nodes: number;
+}
 
 // @public
 export interface SourceCredentialIdentity {
     readonly kind: CredentialKind;
     readonly origin: string;
+    readonly slot?: string;
     readonly username?: string;
 }
+
+export { SourceCredentialSlot }
 
 export { SourceCursor }
 
@@ -2468,6 +2803,9 @@ export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
 // @public
 export type SourceExpandFailed = CodedFact;
+
+// @public
+export type SourceExpandResult = CodedFact<"I_SOURCE_EXPANDED" | "I_SOURCE_NOTHING_NEW">;
 
 // @public
 export interface SourceExpandStart {
@@ -2487,6 +2825,13 @@ export interface SourceExpansionRecord {
 }
 
 export { SourceFeature }
+
+// @public
+export interface SourceFeatures {
+    readonly expand: boolean;
+    readonly more: boolean;
+    readonly refresh: boolean;
+}
 
 export { SourceFile }
 
@@ -2525,6 +2870,7 @@ export interface SourceLoadOptions extends LoadChoices {
     readonly cursor?: SourceCursor;
     readonly endpoint?: string;
     readonly existing?: "keep" | "update";
+    readonly expand?: ExpandBehavior;
     readonly fetch?: typeof fetch;
     readonly limits?: SourceLimitOptions;
     readonly retry?: RetryOptions | false;
@@ -2537,6 +2883,7 @@ export interface SourceLoadRecord {
     readonly config: Readonly<Record<string, unknown>>;
     readonly credential: SourceCredentialIdentity | null;
     readonly endpoint: string | null;
+    readonly expand?: ExpandBehavior;
     readonly expansions: readonly SourceExpansionRecord[];
     readonly key: string;
     readonly loadedAt: string;
@@ -2544,8 +2891,15 @@ export interface SourceLoadRecord {
     readonly options: Readonly<Record<string, unknown>>;
     readonly pages: number;
     readonly source: string;
+    readonly total?: number;
+    readonly totalEdges?: number;
     readonly validators: SourceValidators;
     readonly version: number;
+}
+
+// @public
+export interface SourceMoreOptions extends SourceLoadOptions {
+    readonly load?: string;
 }
 
 export { SourceNodeRecord }
@@ -2554,7 +2908,37 @@ export { SourceParamDescriptor }
 
 export { SourceParamType }
 
+// @public
+export interface SourcePreview {
+    readonly columns: readonly AttributeDescriptor[];
+    readonly edges: readonly Readonly<Record<string, unknown>>[];
+    readonly issues: readonly CodedFact[];
+    readonly more: boolean;
+    readonly nodes: readonly Readonly<Record<string, unknown>>[];
+    readonly rows: readonly SourcePreviewRow[];
+    readonly serverFacts: readonly CodedFact[];
+}
+
+// @public
+export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "cursor"> {
+    readonly maxNodes?: number;
+}
+
+// @public
+export interface SourcePreviewRow {
+    readonly id: NodeId_2;
+    readonly name: string;
+}
+
 export { SourceProbe }
+
+// @public
+export interface SourceRefreshReport {
+    readonly added: SourceCounts;
+    readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
+    readonly removed: SourceCounts;
+    readonly updated: SourceCounts;
+}
 
 export { SourceReportInfo }
 
@@ -2563,6 +2947,9 @@ export { SourceRequestInit }
 export { SourceRuntime }
 
 export { SourceRuntimeReason }
+
+// @public
+export const SOURCES_MEMBER_VERSION = 2;
 
 export { SourceSample }
 
@@ -2574,6 +2961,34 @@ export interface SuggestedName {
     readonly id: string;
     // (undocumented)
     readonly label: string;
+}
+
+// @public
+export interface TransitionDescriptor {
+    readonly drawable?: TransitionDrawable;
+    readonly id: string;
+    readonly params: readonly OptionDescriptor[];
+    readonly plainName: string;
+}
+
+// @public
+export type TransitionDrawable = "particles";
+
+// @public
+export interface TransitionNode {
+    readonly distanceFromCenter: number;
+    readonly hopFromSelection: number | undefined;
+    readonly index: number;
+    readonly seed: number;
+}
+
+// @public
+export interface TransitionRegistration {
+    readonly descriptor: Omit<TransitionDescriptor, "params" | "drawable"> & {
+        readonly params?: readonly OptionDescriptor[];
+    };
+    readonly drawable?: TransitionDrawable;
+    readonly move: (t: number, from: Vec3, to: Vec3, node: TransitionNode, params: Readonly<Record<string, unknown>>) => Vec3;
 }
 
 // @public

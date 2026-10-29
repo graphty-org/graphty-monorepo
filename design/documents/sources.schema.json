@@ -1,0 +1,390 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://graphty.app/schema/documents/graphty-sources/v2.json",
+    "title": "graphty sources member, version 2",
+    "description": "The record of every load still in a project's graph: a file, a URL, a network source or a sample, with its mapping and options, when it loaded and into which graph (sources.md). Normative for what a writer produces. The member, each entry, each kind part, each expansion and the validators are closed: a reader that meets a member this schema does not list keeps the entry and never runs it. options, mapping, params, next, a sample's params, a join's choices and before, and every extensions are open maps. It never holds a credential, a user name or an approval: a load that used a credential names only its credentialSlot. Version 1 was an experimental shape, read and upgraded by sources.md, 'Reading version 1', and never written. String lengths count Unicode code points. The member saved as JSON is at most 16 MiB, and options, mapping, params, next and a sample's params at most 256 KB each (rules this schema cannot express).",
+    "type": "object",
+    "required": ["kind", "version", "loads"],
+    "properties": {
+        "kind": {
+            "const": "graphty-sources"
+        },
+        "version": {
+            "const": 2
+        },
+        "data": {
+            "enum": ["embedded", "steps"],
+            "description": "embedded (the default): the graph is in the file's data member. steps: the file holds no data member for it and the graph is rebuilt by running the loads again; a writer then lists graphty-sources in the document's requires."
+        },
+        "loads": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+                "$ref": "#/$defs/entry"
+            },
+            "description": "Oldest first: the order the loads ran and a rebuild runs them."
+        },
+        "extensions": {
+            "$ref": "#/$defs/extensions"
+        }
+    },
+    "unevaluatedProperties": false,
+    "$defs": {
+        "extensions": {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^([a-z0-9]+(-[a-z0-9]+)*)(\\.[a-z0-9]+(-[a-z0-9]+)*)+$|^graphty$"
+            },
+            "description": "Data for other software, under reverse-domain names. A reader keeps it and never interprets it."
+        },
+        "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "time": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+            "description": "RFC 3339 with an explicit offset; graphty-element writes UTC as Date.prototype.toISOString() does."
+        },
+        "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+        },
+        "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+        },
+        "nodeId": {
+            "type": ["string", "number"]
+        },
+        "openMap": {
+            "type": "object"
+        },
+        "cursor": {
+            "type": ["object", "null"],
+            "description": "A source's cursor: opaque JSON it writes and reads back, never holding a credential; null when the read is complete."
+        },
+        "direction": {
+            "enum": ["out", "in", "both"]
+        },
+        "names": {
+            "type": "array",
+            "maxItems": 256,
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+            }
+        },
+        "validators": {
+            "type": "object",
+            "properties": {
+                "etag": { "type": "string", "maxLength": 1024 },
+                "lastModified": { "type": "string", "maxLength": 1024 },
+                "modified": { "type": "string", "maxLength": 1024 },
+                "serverVersion": { "type": "string", "maxLength": 1024 },
+                "contentHash": { "$ref": "#/$defs/sha256" }
+            },
+            "additionalProperties": false
+        },
+        "expand": {
+            "type": "object",
+            "properties": {
+                "trigger": { "enum": ["none", "click", "double-click"] },
+                "depth": { "type": "integer", "minimum": 1, "maximum": 10 },
+                "direction": { "$ref": "#/$defs/direction" },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
+                "relationshipTypes": { "$ref": "#/$defs/names" },
+                "layout": { "enum": ["continue", "none"] }
+            },
+            "additionalProperties": false
+        },
+        "expansion": {
+            "type": "object",
+            "required": ["id", "ids", "depth", "direction", "at", "next", "validators"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}/x[1-9][0-9]*$",
+                    "description": "The entry's id, /x and the expansion's position counting from 1."
+                },
+                "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "items": { "$ref": "#/$defs/nodeId" }
+                },
+                "depth": { "type": "integer", "minimum": 1, "maximum": 10 },
+                "direction": { "$ref": "#/$defs/direction" },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 10000 },
+                "relationshipTypes": { "$ref": "#/$defs/names" },
+                "at": { "$ref": "#/$defs/time" },
+                "next": { "$ref": "#/$defs/cursor" },
+                "validators": { "$ref": "#/$defs/validators" }
+            },
+            "additionalProperties": false
+        },
+        "file": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 1024 },
+                "size": { "$ref": "#/$defs/count" },
+                "sha256": {
+                    "$ref": "#/$defs/sha256",
+                    "description": "Over the bytes exactly as given. graphty-element writes it for every file it loads; an entry upgraded from version 1 has none."
+                },
+                "mediaType": { "type": "string", "maxLength": 255 }
+            },
+            "additionalProperties": false
+        },
+        "url": {
+            "type": "object",
+            "required": ["address", "fetchedAt"],
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 8192,
+                    "description": "The URL read, without user name, password or fragment, and without the query parameters listed in dropped."
+                },
+                "sha256": {
+                    "$ref": "#/$defs/sha256",
+                    "description": "Over the body after content decoding."
+                },
+                "fetchedAt": { "$ref": "#/$defs/time" },
+                "etag": { "type": "string", "maxLength": 1024 },
+                "lastModified": { "type": "string", "maxLength": 1024 },
+                "dropped": {
+                    "$ref": "#/$defs/names",
+                    "description": "The names of query parameters left out because their names mark a credential (sources.md, URLs rule 2)."
+                }
+            },
+            "additionalProperties": false
+        },
+        "source": {
+            "type": "object",
+            "required": ["id", "sourceVersion", "endpoint", "params", "pages", "next", "validators", "expansions"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "The id the source is registered under in graph-io's registry."
+                },
+                "sourceVersion": { "type": "integer", "minimum": 1 },
+                "endpoint": {
+                    "type": ["string", "null"],
+                    "maxLength": 8192,
+                    "description": "Origin and path only; null: the source's default endpoint."
+                },
+                "params": {
+                    "$ref": "#/$defs/openMap",
+                    "description": "The source's params as given, a REST mapping included. Never a credential."
+                },
+                "credentialSlot": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+                    "description": "The slot of the source's descriptor a credential filled; default for a source that declares none. Absent: no credential was used."
+                },
+                "pages": { "type": "integer", "minimum": 1 },
+                "next": { "$ref": "#/$defs/cursor" },
+                "validators": { "$ref": "#/$defs/validators" },
+                "expand": { "$ref": "#/$defs/expand" },
+                "expansions": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "items": { "$ref": "#/$defs/expansion" }
+                }
+            },
+            "additionalProperties": false
+        },
+        "sample": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["generator", "params"],
+                    "properties": {
+                        "generator": { "type": "string", "minLength": 1, "maxLength": 128 },
+                        "params": { "$ref": "#/$defs/openMap" }
+                    },
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "required": ["dataset"],
+                    "properties": {
+                        "dataset": { "type": "string", "minLength": 1, "maxLength": 128 },
+                        "baseUrl": { "type": "string", "format": "uri", "maxLength": 8192 }
+                    },
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "columns": {
+            "type": "array",
+            "maxItems": 4096,
+            "items": { "type": "string", "maxLength": 1024 }
+        },
+        "join": {
+            "type": "object",
+            "required": ["shape", "choices", "rows", "matched", "columns", "table"],
+            "properties": {
+                "shape": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "What the table's rows were read as: values for nodes, values for edges, or edges between nodes."
+                },
+                "choices": {
+                    "$ref": "#/$defs/openMap",
+                    "description": "The choices the join was made with, as given: the key pairs, ignoreCase, ignoreSpaces, the columns brought, clash, repeated, via. An open map the join feature checks when the join is made again."
+                },
+                "rows": { "$ref": "#/$defs/count" },
+                "matched": { "$ref": "#/$defs/count" },
+                "columns": {
+                    "$ref": "#/$defs/columns",
+                    "description": "The names the join wrote its values under."
+                },
+                "table": {
+                    "type": "object",
+                    "required": ["name", "columns", "rows"],
+                    "properties": {
+                        "name": { "type": "string", "maxLength": 1024 },
+                        "columns": { "$ref": "#/$defs/columns" },
+                        "rows": { "type": "array", "items": { "type": "object" } }
+                    },
+                    "additionalProperties": false,
+                    "description": "The joined table as read, which the join is made again from."
+                },
+                "before": {
+                    "$ref": "#/$defs/openMap",
+                    "description": "For values: each element's values before the join wrote over them, by id, null for one it did not have."
+                }
+            },
+            "additionalProperties": false
+        },
+        "entry": {
+            "type": "object",
+            "required": ["id", "kind", "loadedAt", "mode", "added"],
+            "properties": {
+                "id": { "$ref": "#/$defs/id" },
+                "kind": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "file, url, source or sample; an open list. A reader keeps an entry of a kind it does not know and never runs it."
+                },
+                "name": { "type": "string", "minLength": 1, "maxLength": 1024 },
+                "graph": {
+                    "$ref": "#/$defs/id",
+                    "description": "The id of the data member the load went into; absent: the file's one graph."
+                },
+                "loadedAt": { "$ref": "#/$defs/time" },
+                "mode": { "enum": ["replace", "merge"] },
+                "format": { "type": "string", "minLength": 1, "maxLength": 128 },
+                "options": {
+                    "type": "object",
+                    "not": {
+                        "anyOf": [
+                            { "required": ["data"] },
+                            { "required": ["file"] },
+                            { "required": ["url"] },
+                            { "required": ["credential"] },
+                            { "required": ["write"] },
+                            { "required": ["signal"] },
+                            { "required": ["fetch"] },
+                            { "required": ["cursor"] },
+                            { "required": ["retry"] }
+                        ]
+                    },
+                    "description": "The importer's own options as the load was given them: column roles, delimiter, idPrefix, columnPrefix, joinOn, keep, existing, limits. Never the data, where to read it, a credential, the write flag or per-call state."
+                },
+                "mapping": {
+                    "$ref": "#/$defs/openMap",
+                    "description": "The column roles a table load was given, as given: one table's roles (rowsAre, key, label, source, target, weight, time, edgeId), or each table's by id under tables."
+                },
+                "tables": { "$ref": "#/$defs/names" },
+                "tableRows": {
+                    "type": "array",
+                    "maxItems": 256,
+                    "items": { "enum": ["nodes", "edges"] },
+                    "description": "What each of tables held, in the same order: only with tables, and as long as it (a rule this schema cannot express)."
+                },
+                "joinedOnto": { "$ref": "#/$defs/id" },
+                "join": { "$ref": "#/$defs/join" },
+                "added": {
+                    "type": "object",
+                    "required": ["nodes", "edges"],
+                    "properties": {
+                        "nodes": { "$ref": "#/$defs/count" },
+                        "edges": { "$ref": "#/$defs/count" }
+                    },
+                    "additionalProperties": false
+                },
+                "total": {
+                    "type": "object",
+                    "properties": {
+                        "nodes": { "$ref": "#/$defs/count" },
+                        "edges": { "$ref": "#/$defs/count" }
+                    },
+                    "additionalProperties": false,
+                    "description": "What the source said it holds for this load, when it said."
+                },
+                "file": { "$ref": "#/$defs/file" },
+                "url": { "$ref": "#/$defs/url" },
+                "source": { "$ref": "#/$defs/source" },
+                "sample": { "$ref": "#/$defs/sample" },
+                "extensions": { "$ref": "#/$defs/extensions" }
+            },
+            "allOf": [
+                {
+                    "if": { "properties": { "kind": { "const": "file" } } },
+                    "then": {
+                        "required": ["file"],
+                        "not": {
+                            "anyOf": [{ "required": ["url"] }, { "required": ["source"] }, { "required": ["sample"] }]
+                        }
+                    }
+                },
+                {
+                    "if": { "properties": { "kind": { "const": "url" } } },
+                    "then": {
+                        "required": ["url"],
+                        "not": {
+                            "anyOf": [{ "required": ["file"] }, { "required": ["source"] }, { "required": ["sample"] }]
+                        }
+                    }
+                },
+                {
+                    "if": { "properties": { "kind": { "const": "source" } } },
+                    "then": {
+                        "required": ["source"],
+                        "not": {
+                            "anyOf": [{ "required": ["file"] }, { "required": ["url"] }, { "required": ["sample"] }]
+                        }
+                    }
+                },
+                {
+                    "if": { "properties": { "kind": { "const": "sample" } } },
+                    "then": {
+                        "required": ["sample"],
+                        "not": {
+                            "anyOf": [{ "required": ["file"] }, { "required": ["url"] }, { "required": ["source"] }]
+                        }
+                    }
+                },
+                {
+                    "if": { "properties": { "kind": { "not": { "enum": ["file", "url", "source", "sample"] } } } },
+                    "then": {
+                        "patternProperties": { "": {} },
+                        "description": "A kind of a later version: its part is the member named by its kind, which this version cannot describe; the common members above still hold."
+                    }
+                }
+            ],
+            "dependentRequired": { "tableRows": ["tables"] },
+            "unevaluatedProperties": false
+        }
+    }
+}

@@ -23,26 +23,26 @@ async function withSearch(search: string, assert: () => void | Promise<void>): P
 }
 
 describe("App", () => {
-    it("renders the workspace, on its start screen", () => {
+    it("renders the workspace, on its start screen", async () => {
         render(<App />);
 
-        expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
+        expect(await screen.findByRole("button", { name: /^Open a file/ })).toBeInTheDocument();
     });
 
     it("renders the compact component gallery at ?demo", async () => {
         await withSearch("?demo", () => {
             render(<App />);
 
-            expect(screen.queryByRole("region", { name: "Sample library" })).not.toBeInTheDocument();
+            expect(screen.queryByRole("button", { name: /^Open a file/ })).not.toBeInTheDocument();
         });
     });
 
     for (const search of ["?next", "?legacy"]) {
         it(`still renders the workspace at ${search}, so old links keep working`, async () => {
-            await withSearch(search, () => {
+            await withSearch(search, async () => {
                 render(<App />);
 
-                expect(screen.getByRole("region", { name: "Sample library" })).toBeInTheDocument();
+                expect(await screen.findByRole("button", { name: /^Open a file/ })).toBeInTheDocument();
             });
         });
     }

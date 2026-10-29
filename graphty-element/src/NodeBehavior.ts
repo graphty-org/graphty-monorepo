@@ -23,6 +23,8 @@ import { ON_TOP_RENDERING_GROUP } from "./meshes/RichTextLabel";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
+import { sourceLoadsOf } from "./session/sources/ids";
+import { pickAtLayout } from "./transitions/LayoutTransitionRunner";
 
 /**
  * The mesh a click at a canvas point lands on, as the reader sees the picture.
@@ -37,14 +39,18 @@ import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/p
  * @returns The mesh, or null when the point lands on nothing.
  */
 export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
-    const ray = scene.createPickingRay(x, y, null, null);
-    const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
-    const onTop = scene.pick(
-        x,
-        y,
-        alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
-    );
-    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
+    // While a layout transition moves the nodes, a click reads the layout's answer, not the
+    // moving picture: what is selected is where the node is going.
+    return pickAtLayout(scene, () => {
+        const ray = scene.createPickingRay(x, y, null, null);
+        const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
+        const onTop = scene.pick(
+            x,
+            y,
+            alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
+        );
+        return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
+    });
 }
 
 /**
@@ -464,9 +470,17 @@ function expandNode(node: GraphNode): void {
  */
 function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): void {
     const context: GraphContext = node.parentGraph;
-    const { trigger, ...options } = context.getStyles().config.behavior.expand;
     const session = context.getSession?.();
-    if (trigger !== gesture || session === undefined) {
+    if (session === undefined) {
+        return;
+    }
+
+    // The load that brought the node may carry its own expand behavior, which wins over the config.
+    const keys = sourceLoadsOf(session.data.node(node.id)).map((key) => key.split("/")[0]);
+    // ponytail: loads() walks every node; only a node a source brought pays for it, once per click.
+    const own = keys.length === 0 ? undefined : session.data.loads().find((load) => keys.includes(load.key))?.expand;
+    const { trigger, ...options } = { ...context.getStyles().config.behavior.expand, ...own };
+    if (trigger !== gesture) {
         return;
     }
 
@@ -961,6 +975,7 @@ export class NodeDragHandler {
         if (isOverThisNode && !this.isHovered) {
             this.isHovered = true;
             this.roster.hovered.add(this);
+            this.node.shaderStateChanged("hovered", true);
 
             // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
             // an answer to pointing at something, so no style pass knows when to draw one:
@@ -1008,6 +1023,7 @@ export class NodeDragHandler {
         }
 
         this.isHovered = false;
+        this.node.shaderStateChanged("hovered", false);
         this.node.hideTooltip();
         this.getContext().getSelectionManager?.()?.leave(this.node.id);
     };

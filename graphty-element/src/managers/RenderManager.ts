@@ -15,6 +15,7 @@ import {
     TransformNode,
     Vector3,
     WebGPUEngine,
+    WebXRState,
 } from "@babylonjs/core";
 
 import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
@@ -23,16 +24,29 @@ import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
-import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
+import { shaderDescriptor } from "../catalog/shaderRegistry";
+import type { ShaderParams, ShaderUse } from "../catalog/shaders";
+import type { NodeId } from "../catalog/types";
+import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
 import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
 import { GraphtyLogger } from "../logging";
+import type { BackgroundPass } from "../meshes/BackgroundPass";
+import type { BloomPass } from "../meshes/BloomPass";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
+import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
+import { idsNamedBy, shadersControllerOf } from "../session/shaders";
+import { placeOfUse } from "../session/styles/channels";
+import { groupOutlinesOf } from "../session/styles/StylesApi";
+import type { GraphSession, SessionEventMap } from "../session/types";
+import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
+import { trackOnScene } from "./PendingWork";
+import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
  * Configuration options for RenderManager
@@ -326,20 +340,340 @@ const READER_INPUT_EVENTS = [
  * The lights of each {@link Lighting}: the hemispheric fill's intensity and ground color (its sky
  * is white, toward +x+y), and the key light's intensity and direction in camera space.
  *
- * - studio: fill 0.45 and key 0.55 from above-right of the camera, plus the node rim (NodeLighting).
- *   Measured: no pixel clipped to white, brightest 1.13x the style lightness, median 0.88x, sphere
- *   lightness spread 0.282.
- * - headlight: fill 0.4 with a lighter ground, and a 0.45 light from just beside the camera.
- *   Brightest 0.99x the style lightness, median 0.88x, spread 0.226.
+ * - studio: the headlight's lights (below) plus the node rim (NodeLighting): a 0.45 light from just
+ *   above and left of the camera, a 0.4 fill with ground gray 0.65, no specular, and a rim in the
+ *   node's own color (fresnel bias 0.1, power 2.5, boost 1.8). Because the main light follows the
+ *   camera and the ground is light, no side goes dark: in the lighting experiment the darkest face
+ *   seen from the front, back or below was about 0.51-0.53 of the style lightness, the median
+ *   0.89-0.92, and no pixel clipped to white.
+ * - headlight: the same lights without the rim. Brightest 0.99x the style lightness, median 0.88x,
+ *   spread 0.226.
  * - matte: fill 0.8 alone. Brightest 1.00x, median 0.81x, spread 0.179.
  * - flat: nodes are unlit (NodeLighting); the fill stays for anything else lit in the scene.
  */
 const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
-    studio: { fill: 0.45, ground: 0.35, key: 0.55, keyDirection: new Vector3(0.6, -0.6, 1) },
+    studio: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
     headlight: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
     matte: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
     flat: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
 };
+
+/** What the scene's shader passes read from the graph; see {@link RenderManager.bindShaderScene}. */
+export interface ShaderSceneSources {
+    /** The graph's session: its style stack and its shaders. */
+    readonly session: GraphSession;
+    /** A drawn node's place, size and color; undefined for one not drawn. */
+    readonly member: (id: NodeId) => OutlineMember | undefined;
+}
+
+/** A background shader the graph asks for, with what it is drawn over. */
+interface ShaderBackground {
+    /** The shader's id. */
+    readonly id: string;
+    /** Its parameter values over the defaults. */
+    readonly params: ShaderParams | undefined;
+    /** The background color, hex: drawn beneath, and for a pixel whose result is not a number. */
+    readonly color: string;
+    /** The skybox dome, whose image the shader is drawn over; hidden while the shader draws it. */
+    readonly dome: PhotoDome | null;
+}
+
+/** The session events after which the group outlines may draw other groups or members. */
+const OUTLINE_EVENTS = [
+    "style:changed",
+    "history:changed",
+    "project:changed",
+    "run:changed",
+    "set:changed",
+    "visibility:changed",
+    "selection:changed",
+    "selection:hover-changed",
+] as const satisfies readonly (keyof SessionEventMap)[];
+
+/**
+ * The scene-level shader passes of one graph: the background shader, the group outlines and
+ * the shared bloom. Each is loaded and allocated only while something asks for it, so a graph
+ * that names no shader loads none of them.
+ */
+class ShaderScene {
+    private background: BackgroundPass | null = null;
+    private outline: GroupOutlinePass | null = null;
+    private bloom: BloomPass | null = null;
+    private wanted: ShaderBackground | null = null;
+    /** Counts background requests, so a slow resolution never draws over a newer one. */
+    private backgroundTicket = 0;
+    /** Background loads in flight: the shader, the runtime, the pass module and the compile. */
+    private backgroundLoads = 0;
+    private outlineLoading = false;
+    private readonly budget: RenderTargetBudget;
+    private readonly stops: (() => void)[] = [];
+    private disposed = false;
+
+    /**
+     * Start following a graph's styles and shaders.
+     * @param scene - The scene.
+     * @param guard - The frame guard, for the quality level.
+     * @param sources - The graph.
+     */
+    constructor(
+        private readonly scene: Scene,
+        private readonly guard: ShaderGuard,
+        private readonly sources: ShaderSceneSources,
+    ) {
+        this.budget = new RenderTargetBudget(() => QUALITY_LEVELS[guard.quality.level].targetBudgetBytes);
+        const { session } = sources;
+        for (const event of OUTLINE_EVENTS) {
+            this.stops.push(
+                session.on(event, () => {
+                    this.sync();
+                }),
+            );
+        }
+
+        this.stops.push(
+            session.on("shader:status", ({ id }) => {
+                this.outline?.forget(id);
+                if (this.wanted?.id === id) {
+                    void this.showBackground();
+                }
+
+                this.sync();
+            }),
+        );
+        lendSceneShaders(scene, () => {
+            const background = this.background?.guardedDrawn();
+            const outline = this.outline?.guardedDrawn();
+            return {
+                heavy: background?.heavy === true || outline?.heavy === true,
+                moving: [...(background?.moving ?? []), ...(outline?.moving ?? [])],
+            };
+        });
+        this.sync();
+    }
+
+    /**
+     * Draw a background shader, or stop drawing one.
+     * @param wanted - The background, or null for none.
+     */
+    setBackground(wanted: ShaderBackground | null): void {
+        this.wanted = wanted;
+        void this.showBackground();
+    }
+
+    /**
+     * The group outline under a point.
+     * @param x - CSS pixels from the canvas's left edge.
+     * @param y - CSS pixels from the canvas's top edge.
+     * @returns The layer and group, or null.
+     */
+    groupOutlineAt(x: number, y: number): GroupOutlinePick | null {
+        return this.outline?.pick(x, y) ?? null;
+    }
+
+    /**
+     * The passes allocated now, for tests and tools.
+     * @returns Each pass, or null.
+     */
+    passes(): {
+        readonly background: BackgroundPass | null;
+        readonly outline: GroupOutlinePass | null;
+        readonly bloom: BloomPass | null;
+    } {
+        return { background: this.background, outline: this.outline, bloom: this.bloom };
+    }
+
+    /**
+     * Whether a scene shader's picture is on its way, so the frame on screen does not show it yet:
+     * the background or the group outline pass still loading, an outline's shader still resolving
+     * or compiling, a background that owes a draw with the outlines laid out since, or a background
+     * whose layer the last frame did not draw (its program still compiling, issue #3536). Each of
+     * these ends by asking for a frame (issue #4243).
+     * @returns True while one is on its way.
+     */
+    get picturePending(): boolean {
+        return (
+            this.backgroundLoads > 0 ||
+            this.outlineLoading ||
+            this.outline?.pending === true ||
+            this.background?.owesDraw === true ||
+            this.background?.showPending === true
+        );
+    }
+
+    /** Release every pass and listener. */
+    dispose(): void {
+        this.disposed = true;
+        for (const stop of this.stops.splice(0)) {
+            stop();
+        }
+
+        lendSceneShaders(this.scene, () => ({ heavy: false, moving: [] }));
+        this.background?.dispose();
+        this.background = null;
+        this.outline?.dispose();
+        this.outline = null;
+        this.bloom?.dispose();
+        this.bloom = null;
+    }
+
+    /**
+     * The session's shader host, which loads the shader runtime.
+     * @returns The host, or null when none is attached.
+     */
+    private host(): LazyShaderHost | null {
+        return (shadersControllerOf(this.sources.session)?.host as LazyShaderHost | null | undefined) ?? null;
+    }
+
+    /** Resolve the background shader asked for and draw it, or draw the clear color. */
+    private async showBackground(): Promise<void> {
+        this.backgroundLoads++;
+        try {
+            await this.loadBackground();
+        } finally {
+            this.backgroundLoads--;
+        }
+    }
+
+    /** The body of {@link showBackground}. */
+    private async loadBackground(): Promise<void> {
+        const ticket = ++this.backgroundTicket;
+        const { wanted } = this;
+        const controller = shadersControllerOf(this.sources.session);
+        const host = this.host();
+        if (wanted === null || controller === undefined || host === null) {
+            wanted?.dome?.setEnabled(true);
+            this.background?.dispose();
+            this.background = null;
+            return;
+        }
+
+        const [shader, runtime, module] = await trackOnScene(
+            this.scene,
+            "shader",
+            "a background shader is still loading",
+            Promise.all([controller.drawable(wanted.id), host.runtime(), import("../meshes/BackgroundPass")]),
+        );
+        if (ticket !== this.backgroundTicket || this.disposed) {
+            return;
+        }
+
+        if (shader?.registration.descriptor.target !== "background") {
+            wanted.dome?.setEnabled(true);
+            this.background?.hide();
+            return;
+        }
+
+        this.background ??= new module.BackgroundPass(
+            this.scene,
+            runtime,
+            this.guard,
+            this.budget,
+            (count) => this.outline?.tints(count) ?? [],
+        );
+        const color = Color4.FromHexString(wanted.color);
+        const drawn = await this.background.show(
+            shader,
+            wanted.params,
+            [color.r, color.g, color.b, 1],
+            wanted.dome?.texture ?? null,
+        );
+        // The pass draws the image beneath the shader, so the dome, which would cover it, hides.
+        if (ticket === this.backgroundTicket && !wanted.dome?.isDisposed()) {
+            wanted.dome?.setEnabled(!drawn);
+        }
+    }
+
+    /** Allocate or release the group outline and bloom passes as the style stack now asks. */
+    private sync(): void {
+        const { session } = this.sources;
+        const layers = session.styles.list().filter((layer) => layer.enabled);
+        const wantsOutlines = layers.some(
+            (layer) =>
+                layer.target === "node" &&
+                ((layer.set?.["node.shaders"] ?? []) as readonly ShaderUse[]).some(
+                    (use) => use.off !== true && placeOfUse(use) === "group",
+                ),
+        );
+        if (wantsOutlines) {
+            this.outline?.invalidate();
+            void this.loadOutlines();
+        } else if (this.outline !== null) {
+            this.outline.dispose();
+            this.outline = null;
+        }
+
+        const project = shadersControllerOf(session)?.descriptors() ?? [];
+        const bloomy = (id: string): boolean =>
+            (shaderDescriptor(id) ?? project.find((descriptor) => descriptor.id === id))?.bloom === true;
+        const wantsBloom = layers.some((layer) => [...idsNamedBy(layer)].some(bloomy));
+        if (wantsBloom) {
+            void this.loadBloom();
+        } else if (this.bloom !== null) {
+            this.bloom.dispose();
+            this.bloom = null;
+        }
+    }
+
+    /** Load and allocate the group outline pass, once. */
+    private async loadOutlines(): Promise<void> {
+        const controller = shadersControllerOf(this.sources.session);
+        const host = this.host();
+        if (this.outline !== null || this.outlineLoading || controller === undefined || host === null) {
+            return;
+        }
+
+        this.outlineLoading = true;
+        try {
+            const [runtime, module] = await trackOnScene(
+                this.scene,
+                "shader",
+                "the group outline pass is still loading",
+                Promise.all([host.runtime(), import("../meshes/GroupOutlinePass")]),
+            );
+            if (this.disposed || this.outline !== null) {
+                return;
+            }
+
+            const { session, member } = this.sources;
+            this.outline = new module.GroupOutlinePass(
+                this.scene,
+                {
+                    outlines: () => groupOutlinesOf(session.styles),
+                    member,
+                    shader: (id) => controller.drawable(id),
+                },
+                runtime,
+                this.guard,
+                this.budget,
+            );
+            // Asked again now it exists: the stack may have changed while it loaded.
+            this.sync();
+        } finally {
+            this.outlineLoading = false;
+        }
+    }
+
+    /** Load and allocate the bloom pass, once. */
+    private async loadBloom(): Promise<void> {
+        if (this.bloom !== null) {
+            return;
+        }
+
+        const module = await trackOnScene(
+            this.scene,
+            "shader",
+            "the bloom pass is still loading",
+            import("../meshes/BloomPass"),
+        );
+        if (this.disposed || this.bloom !== null) {
+            return;
+        }
+
+        this.bloom = module.BloomPass.of(this.scene, this.guard.quality.level);
+        // Released at once if the stack stopped naming a bloom shader while it loaded.
+        this.sync();
+    }
+}
 
 /**
  * Manages Babylon.js scene, engine, and render loop
@@ -359,10 +693,36 @@ export class RenderManager implements Manager {
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
     /**
+     * The shader quality levels and the frame guard. It measures only once shaders draw (a host
+     * lent it its sources), so a graph that names no shader draws exactly as before.
+     */
+    readonly shaderGuard = new ShaderGuard();
+    /** When the last frame drawn started, by `performance.now()`; NaN when the tick before did not draw. */
+    private lastDrawAt = Number.NaN;
+    /** Whether a tick waited for the GPU since the last frame drawn. */
+    private waitedForGpu = false;
+    /**
+     * When the loop's own work last ended, by `performance.now()`: the end of the last frame drawn
+     * or of a tick skipped for half rate. The time from it to the next frame drawn is time the
+     * loop only waited for its tick, which in Chromium is the GPU catching up.
+     */
+    private workEndedAt = Number.NaN;
+    /** The flashing check's readback and counter, made when a moving shader first draws. */
+    private flashCheck: { readback: FlashReadback; counter: FlashCounter } | null = null;
+    /** The camera and canvas size of the last frame drawn, for {@link RenderManager.sameViewAsLastFrame}. */
+    private readonly flashView = {
+        camera: -1,
+        width: -1,
+        height: -1,
+        view: new Float32Array(16),
+        projection: new Float32Array(16),
+    };
+    /**
      * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
      * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
      * whoever must tell "it drew nothing" from "it had no chance to" -- a test of drawing on
-     * demand, on a machine whose frame rate it does not control.
+     * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
+     * resize (`drawNow`) counts as drawn.
      */
     readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0 };
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
@@ -395,7 +755,7 @@ export class RenderManager implements Manager {
     private readonly key: DirectionalLight;
     /** The key light's direction in camera space (x right, y up, z forward). */
     private readonly keyInCameraSpace = new Vector3(0, 0, 1);
-    /** Whether the last frame drawn left the camera, size or background other than the one before. */
+    /** Whether drawing the last frame moved the camera, size or background from what it began with. */
     private lastFrameMoved = true;
     private readonly owe = (): void => {
         this.drawOwed = true;
@@ -411,6 +771,8 @@ export class RenderManager implements Manager {
     private readonly dropFence = (event: Event): void => {
         this.lastFrameFence = null;
         this.drawOwed = true;
+        this.shaderGuard.ignore();
+        this.flashCheck = null;
         if (event.type === "webglcontextrestored") {
             batchUploadFrames.contextRestored(this.scene);
         }
@@ -425,6 +787,8 @@ export class RenderManager implements Manager {
     private effectsPending = false;
     /** Scratch for {@link RenderManager.sameContents}. */
     private readonly contentsNow: unknown[] = [];
+    /** What the scene held as the frame being drawn began; see {@link readyToDrawChange}. */
+    private readonly contentsAtDraw: unknown[] = [];
     private readonly oweForEvent = (event: { readonly type: string }): void => {
         if (!EVENTS_THAT_DRAW_NOTHING.has(event.type)) {
             this.drawOwed = true;
@@ -433,6 +797,10 @@ export class RenderManager implements Manager {
     private readonly resizeHandler: () => void;
     /** The one skybox dome, and the image it shows; null while the background is a colour. */
     private dome: { readonly url: string; readonly dome: PhotoDome } | null = null;
+    /** The background shader asked for, kept until {@link bindShaderScene} gives it a graph. */
+    private shaderBackground: ShaderBackground | null = null;
+    /** The scene-level shader passes, once {@link bindShaderScene} gave them a graph. */
+    private shaderScene: ShaderScene | null = null;
 
     /**
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
@@ -495,6 +863,9 @@ export class RenderManager implements Manager {
         this.canvas.addEventListener("webglcontextlost", this.dropFence);
         this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.add(this.oweForEvent);
+        // Assigning the canvas's size clears its drawing, even when a resize ends at the size the
+        // last frame was drawn at, so every resize owes a frame.
+        this.engine.onResizeObservable.add(this.owe);
 
         // Create graph-root transform node for XR gestures
         // All graph nodes will be parented to this, allowing gestures to transform the entire graph
@@ -509,7 +880,8 @@ export class RenderManager implements Manager {
             // The device ratio changes with the browser's zoom and the screen the window is on,
             // and both fire a resize.
             this.applyPixelRatio();
-            this.engine.resize();
+            this.resize();
+            this.shaderGuard.ignore();
         };
         this.pixelRatio = this.config.pixelRatio ?? 1;
         this.applyPixelRatio();
@@ -556,6 +928,7 @@ export class RenderManager implements Manager {
 
             // Start listening for resize events
             window.addEventListener("resize", this.resizeHandler);
+            document.addEventListener("visibilitychange", this.ignoreForGuard);
 
             // Emit success event
             this.eventManager.emit("render-initialized", {
@@ -578,6 +951,9 @@ export class RenderManager implements Manager {
 
         // Remove resize listener
         window.removeEventListener("resize", this.resizeHandler);
+        document.removeEventListener("visibilitychange", this.ignoreForGuard);
+        this.flashCheck?.readback.dispose();
+        this.flashCheck = null;
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
@@ -588,6 +964,10 @@ export class RenderManager implements Manager {
         this.canvas.removeEventListener("webglcontextlost", this.dropFence);
         this.canvas.removeEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
+        this.engine.onResizeObservable.removeCallback(this.owe);
+
+        this.shaderScene?.dispose();
+        this.shaderScene = null;
 
         // Dispose camera system
         this.camera.dispose();
@@ -613,11 +993,13 @@ export class RenderManager implements Manager {
 
         this.updateCallback = updateCallback;
         this.renderLoopActive = true;
+        this.lastDrawAt = Number.NaN;
 
         this.engine.runRenderLoop(() => {
             // A held frame is skipped whole: no update, no draw. The loop itself keeps ticking so
             // nothing has to be restarted, and a tick that does nothing costs nothing.
             if (this.frameHolds > 0) {
+                this.lastDrawAt = Number.NaN;
                 return;
             }
 
@@ -627,11 +1009,25 @@ export class RenderManager implements Manager {
             if (this.gpuBehind()) {
                 this.skippedMs += this.engine.getDeltaTime();
                 this.ticks.gpuBehind++;
+                this.waitedForGpu = true;
+                return;
+            }
+
+            // Loops at half rate (the frame guard): every other tick, skipped as a GPU wait is.
+            if (this.shaderGuard.skipTick()) {
+                this.skippedMs += this.engine.getDeltaTime();
+                this.workEndedAt = performance.now();
                 return;
             }
 
             const frameMs = this.engine.getDeltaTime() + this.skippedMs;
             this.skippedMs = 0;
+            const drawAt = performance.now();
+            const drewBefore = this.lastDrawAt;
+            const gpuWasBehind = this.waitedForGpu;
+            const waitMs = drawAt - this.workEndedAt;
+            this.lastDrawAt = Number.NaN;
+            this.waitedForGpu = false;
 
             try {
                 // Call update callback
@@ -653,25 +1049,218 @@ export class RenderManager implements Manager {
                     return;
                 }
 
-                // Cleared BEFORE the frame, so anything the frame itself announces asks for the
-                // next one.
-                this.drawOwed = false;
-                this.scene.render();
-                this.ticks.drawn++;
-                this.fenceFrame();
-                this.noteDrawnFrom();
+                // The frame before this one, measured now that its GPU wait is known.
+                this.measureFrame(drawAt - drewBefore, waitMs, gpuWasBehind);
+                this.drawFrame(drawAt);
+                this.lastDrawAt = drawAt;
+                this.workEndedAt = performance.now();
             } catch (error) {
-                const err = error instanceof Error ? error : new Error(String(error));
-                this.eventManager.emitGraphError(null, err, "other", {
-                    component: "RenderManager",
-                    phase: "render-loop",
-                });
-
-                // Don't stop render loop on error, but log it
-                console.error("Error in render loop:", error);
-                reportCaught(error);
+                this.reportFrameError(error);
             }
         });
+    }
+
+    /** A visibility change: the next frames say nothing about the shaders drawn. */
+    private readonly ignoreForGuard = (): void => {
+        this.shaderGuard.ignore();
+    };
+
+    /**
+     * Hand the frame guard the frame drawn before this one: the time between the two, how much of
+     * it the loop only waited for its tick, and whether it waited for the frame's fence. Only frames drawn back to back count (a rest, a hold or a
+     * held draw in between makes the interval mean nothing), and only once shaders draw. A frame
+     * that compiled a shader is left out.
+     * @param intervalMs - Milliseconds since the frame before started; NaN when it was not the
+     *     tick before.
+     * @param waitMs - Milliseconds since the loop's own work last ended.
+     * @param gpuBehind - Whether the loop waited for the frame before's fence.
+     */
+    private measureFrame(intervalMs: number, waitMs: number, gpuBehind: boolean): void {
+        if (!this.shaderGuard.watching || Number.isNaN(intervalMs)) {
+            return;
+        }
+
+        if (!this.engine.areAllEffectsReady()) {
+            this.shaderGuard.ignore();
+            return;
+        }
+
+        this.shaderGuard.frame({ intervalMs, waitMs, gpuBehind });
+    }
+
+    /**
+     * The flashing check (WCAG 2.3.1, design section 4.6): while a moving shader of any origin
+     * draws, read a 16 x 16 downsample of every frame drawn back without waiting (sampled any
+     * slower, a strobe near the sampling rate reads as steady), and freeze those shaders' time once
+     * the canvas flashed more than 3 times in a second. WebGL 2 only.
+     * @param at - When the frame was drawn.
+     * @param owed - Whether something other than motion asked for the frame: a graph event or
+     *     the reader's input.
+     */
+    private checkFlashing(at: number, owed: boolean): void {
+        const guard = this.shaderGuard;
+        if (!guard.watching || !(this.engine instanceof Engine) || this.engine.webGLVersion < 2) {
+            return;
+        }
+
+        const sameView = this.sameViewAsLastFrame();
+        const check = this.flashCheck;
+        for (let sample = check?.readback.collect(); check && sample; sample = check.readback.collect()) {
+            if (check.counter.add(sample.rgba, sample.at)) {
+                const moving = guard.movingShaders();
+                if (moving.length > 0) {
+                    guard.flashed(moving);
+                }
+
+                check.counter = new FlashCounter();
+            }
+        }
+
+        if (guard.movingShaders().length === 0) {
+            return;
+        }
+
+        this.flashCheck ??= { readback: new FlashReadback(this.engine._gl), counter: new FlashCounter() };
+        // Only a frame that changed nothing but the shaders' time says anything about them. A
+        // layout moving nodes, the camera framing or turning, a resize, a style or data change and
+        // the reader's input all change the picture too, and counted as the shaders' flashes they
+        // froze every moving shader drawn while a graph laid itself out (issue #3320). Such a frame
+        // breaks the sequence: the captures before it are dropped and the count starts again.
+        if (owed || !sameView || this.pictureIsFinal?.() === false) {
+            this.flashCheck.readback.drop();
+            this.flashCheck.counter = new FlashCounter();
+            return;
+        }
+
+        this.flashCheck.readback.capture(at);
+    }
+
+    /**
+     * Whether the frame just drawn had the same camera, view, projection and canvas size as the
+     * frame drawn before it; records them for the next frame.
+     * @returns True when none changed.
+     */
+    private sameViewAsLastFrame(): boolean {
+        const was = this.flashView;
+        const camera = this.scene.activeCamera;
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        if (camera === null) {
+            was.camera = -1;
+            return false;
+        }
+
+        const view = camera.getViewMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
+        const same =
+            camera.uniqueId === was.camera &&
+            width === was.width &&
+            height === was.height &&
+            RenderManager.sameMatrix(view, was.view) &&
+            RenderManager.sameMatrix(projection, was.projection);
+        was.camera = camera.uniqueId;
+        was.width = width;
+        was.height = height;
+        was.view.set(view);
+        was.projection.set(projection);
+        return same;
+    }
+
+    /**
+     * Draws one frame, for the loop's tick and for {@link drawNow}.
+     * @param at - When the frame was drawn, by `performance.now()`.
+     */
+    private drawFrame(at: number): void {
+        // Cleared BEFORE the frame, so anything the frame itself announces asks for the next one.
+        const owed = this.drawOwed;
+        this.drawOwed = false;
+        const drawnReady = this.readyToDrawChange();
+        // What the frame begins with, so the frame can tell afterwards whether drawing it moved
+        // anything; see noteDrawnFrom.
+        if (this.pictureIsFinal !== null && this.drawsOnDemand()) {
+            this.recordView();
+        }
+
+        this.scene.render();
+        this.ticks.drawn++;
+        this.checkFlashing(at, owed);
+        this.fenceFrame();
+        this.noteDrawnFrom(drawnReady);
+    }
+
+    /**
+     * Reports what a frame threw, without stopping the loop.
+     * @param error - What it threw.
+     */
+    private reportFrameError(error: unknown): void {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.eventManager.emitGraphError(null, err, "other", {
+            component: "RenderManager",
+            phase: "render-loop",
+        });
+
+        // Don't stop render loop on error, but log it
+        console.error("Error in render loop:", error);
+        reportCaught(error);
+    }
+
+    /**
+     * Fits the drawing to the canvas's current size and, when that changed the size, draws it at
+     * once, so the frame the page paints after a resize holds the graph rather than the canvas the
+     * resize cleared. Every resize goes through here: the element's ResizeObserver and the
+     * window's resize event alike, since either one can be the call that assigns the new size.
+     * @internal
+     */
+    resize(): void {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        this.engine.resize();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
+        // Only a canvas whose size changed was cleared; the observer's first delivery or a box
+        // change that keeps the render size are not. An XR session draws in its own frames, so
+        // nothing is drawn outside them.
+        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
+        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
+            this.drawNow();
+        }
+    }
+
+    /**
+     * Draws a frame now, outside the loop, unless the loop is not running or frames are held.
+     *
+     * For the frame a resize is painted in. Assigning the canvas's size clears its drawing, and a
+     * resize found by a ResizeObserver lands after the step's animation frames have run, so
+     * without this the page paints that step with an empty canvas -- and a full-page screenshot,
+     * which resizes the page, captures it (#3373). Drawn even while the GPU is still behind, every
+     * time: a full-page screenshot shrinks the page and restores it in two quick steps, and when
+     * the second resize was skipped to keep {@link gpuBehind}'s pacing, the screenshot caught the
+     * cleared canvas and the graph was missing from it (#3704). A resize is delivered at most once
+     * per rendering step, so this adds at most one frame per step past the pacing.
+     *
+     * Wrapped in the engine's frame, as Babylon's own loop wraps every tick: WebGPU submits what a
+     * frame encoded only when the frame ends, and the frame observers fire as for any other frame.
+     * @internal
+     */
+    drawNow(): void {
+        if (!this.renderLoopActive || this.frameHolds > 0 || this.drawHeld?.() === true) {
+            return;
+        }
+
+        this.engine.beginFrame();
+        // The time since the last frame, which no update was handed; the loop's next update is.
+        this.skippedMs += this.engine.getDeltaTime();
+        // A frame between two of the loop's: the frame guard does not measure the loop's next one.
+        this.lastDrawAt = Number.NaN;
+        try {
+            this.drawFrame(performance.now());
+        } catch (error) {
+            this.drawOwed = true;
+            this.reportFrameError(error);
+        } finally {
+            this.engine.endFrame();
+        }
     }
 
     /**
@@ -709,6 +1298,12 @@ export class RenderManager implements Manager {
         const gl = this.engine instanceof Engine ? (this.engine._gl as WebGL2RenderingContext | undefined) : undefined;
         if (typeof gl?.fenceSync !== "function") {
             return;
+        }
+
+        // A frame drawn by drawNow while the GPU was behind replaces a fence still unsignalled; the
+        // newer one signals after it, so the older is no longer needed.
+        if (this.lastFrameFence !== null) {
+            gl.deleteSync(this.lastFrameFence);
         }
 
         this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -807,9 +1402,10 @@ export class RenderManager implements Manager {
      * arrives unannounced), a mesh, material or texture added and not yet
      * ready to draw, an every-frame animation, the reader's input on
      * the canvas, an event the element announced, a new callback waiting for the next frame, or
-     * anything the last two frames drawn did not agree on -- the camera, the canvas size, the
-     * background colour. The last is what keeps a camera gliding to rest: inertia moves it only
-     * inside a frame, so the loop draws until a frame leaves it where the one before did.
+     * anything the last frame drawn moved while it was drawn -- the camera, the canvas size, the
+     * background colour. The last is what keeps a camera gliding to rest when something moves it
+     * only inside a frame (an onBeforeRender observer), so the loop draws until a frame leaves it
+     * where it began.
      * @returns True when this tick draws nothing.
      */
     private mayRest(): boolean {
@@ -899,17 +1495,65 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Records what the frame just drawn left behind, for {@link RenderManager.sameAsDrawn}, and
-     * whether it differed from what the frame before left.
+     * Asked just before a frame is drawn: whether the scene holds something added or removed since
+     * the last frame drawn (or still unconfirmed from before it), and every part of it is ready, so
+     * this frame draws the change whole.
+     *
+     * Such a frame needs no second one to show the change. The check used to wait for the next
+     * tick instead, which then drew the same picture again only to find the scene ready: on a
+     * software GPU a frame of OpenFlights (3,214 nodes, 36,906 edges) costs the page's main thread
+     * 5 to 6 seconds with two cores free, so one opening paid that once more for nothing (#3317).
+     * @returns True when this frame draws a change to the scene's contents whole.
      */
-    private noteDrawnFrom(): void {
+    private readyToDrawChange(): boolean {
+        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+            return false;
+        }
+
+        this.readSceneContents(this.contentsAtDraw);
+        const changed =
+            this.sceneChanged || !this.contentsAtDraw.every((value, i) => value === this.drawnFrom.contents[i]);
+        // The walk visits every mesh, so it is asked only when the contents changed.
+        return changed && this.scene.isReady();
+    }
+
+    /**
+     * Records what the frame just drawn left behind, for {@link RenderManager.sameAsDrawn}, and
+     * whether drawing it moved the camera, size or background from what it began with.
+     * @param drawnReady - Whether the frame began with a change to the scene's contents all ready
+     *     to draw; see {@link readyToDrawChange}.
+     */
+    private noteDrawnFrom(drawnReady = false): void {
         if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
             // Switched on later, the first frame then is compared with nothing and draws again.
             this.lastFrameMoved = true;
             return;
         }
 
+        // Compared with what the frame began with, not with the frame before it. A change made
+        // outside a frame -- a resize, a camera the update pass moved or framed -- is seen by the
+        // next tick's sameAsDrawn, so the frame that draws it is the only one it needs. Only motion
+        // made while the frame was being drawn (an onBeforeRender observer, the camera's own
+        // update) is invisible to that check, and only that one asks for the next frame. Compared
+        // with the frame before, every resize and every fit drew the same picture once more: on a
+        // software GPU, 200 to 800 ms of the page's main thread each under load (#3537).
         this.lastFrameMoved = !this.sameAsDrawn();
+        this.recordView();
+        // Something added while frames were being drawn may not have been ready to draw in them.
+        if (!this.sameContents()) {
+            this.sceneChanged = true;
+        }
+
+        // Drawn whole, and nothing added while it was drawn: the change is on the canvas.
+        if (drawnReady && this.contentsNow.every((value, i) => value === this.contentsAtDraw[i])) {
+            this.sceneChanged = false;
+        }
+
+        this.readSceneContents(this.drawnFrom.contents);
+    }
+
+    /** Records the camera, size, background and frame observers, for {@link RenderManager.sameAsDrawn}. */
+    private recordView(): void {
         const from = this.drawnFrom;
         const camera = this.scene.activeCamera;
         from.camera = camera?.uniqueId ?? -1;
@@ -926,12 +1570,6 @@ export class RenderManager implements Manager {
         from.clear[2] = clearColor.b;
         from.clear[3] = clearColor.a;
         from.observers = this.newestFrameObservers();
-        // Something added while frames were being drawn may not have been ready to draw in them.
-        if (!this.sameContents()) {
-            this.sceneChanged = true;
-        }
-
-        this.readSceneContents(from.contents);
     }
 
     /**
@@ -996,7 +1634,9 @@ export class RenderManager implements Manager {
     }
 
     /**
-     * Draw the graph against a background: a clear colour, or a photo-dome skybox.
+     * Draw the graph against a background, bottom to top: the clear colour (its own, else the
+     * default), a photo-dome skybox, and a background shader drawn over them once it compiled.
+     * While the shader draws, the shader pass draws the skybox image beneath it and the dome hides.
      *
      * The scene holds at most one dome. A colour disposes it; a different skybox replaces it; the
      * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
@@ -1005,24 +1645,73 @@ export class RenderManager implements Manager {
      * @param onSkyboxLoaded - Called with the image once a new skybox's texture has arrived.
      */
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void {
+        const color = backgroundColorOf(background);
+        this.setBackgroundColor(color);
         if (background.backgroundType === "skybox") {
             const url = background.data;
-            if (this.dome?.url === url) {
-                return;
+            if (this.dome?.url !== url) {
+                this.dome?.dome.dispose();
+                const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
+                dome.texture.onLoadObservable.addOnce(() => {
+                    onSkyboxLoaded(url);
+                });
+                this.dome = { url, dome };
             }
-
+        } else {
             this.dome?.dome.dispose();
-            const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
-            dome.texture.onLoadObservable.addOnce(() => {
-                onSkyboxLoaded(url);
-            });
-            this.dome = { url, dome };
-            return;
+            this.dome = null;
         }
 
-        this.dome?.dome.dispose();
-        this.dome = null;
-        this.setBackgroundColor(background.color ?? DEFAULT_BACKGROUND_COLOR);
+        const dome = this.dome?.dome ?? null;
+        const { shader } = background;
+        if (shader === undefined) {
+            dome?.setEnabled(true);
+        }
+
+        this.shaderBackground = shader === undefined ? null : { id: shader.id, params: shader.params, color, dome };
+        this.shaderScene?.setBackground(this.shaderBackground);
+    }
+
+    /**
+     * Give the scene-level shaders (the background shader, group outlines, the shared bloom)
+     * their graph. Until it is called none of them draws; a background shader asked for before
+     * is drawn then.
+     * @param sources - The graph's session and its nodes' places.
+     * @internal
+     */
+    bindShaderScene(sources: ShaderSceneSources): void {
+        this.shaderScene?.dispose();
+        this.shaderScene = new ShaderScene(this.scene, this.shaderGuard, sources);
+        this.shaderScene.setBackground(this.shaderBackground);
+    }
+
+    /**
+     * The group outline under a point, by its layer and group.
+     * @param x - CSS pixels from the canvas's left edge.
+     * @param y - CSS pixels from the canvas's top edge.
+     * @returns The outline, or null.
+     * @internal
+     */
+    pickGroupOutline(x: number, y: number): GroupOutlinePick | null {
+        return this.shaderScene?.groupOutlineAt(x, y) ?? null;
+    }
+
+    /**
+     * The scene-level shader passes allocated now, for tests and tools.
+     * @returns Each pass, or null.
+     * @internal
+     */
+    shaderPasses(): ReturnType<ShaderScene["passes"]> {
+        return this.shaderScene?.passes() ?? { background: null, outline: null, bloom: null };
+    }
+
+    /**
+     * Whether a scene shader's picture (the background, a group outline) is still on its way.
+     * @returns True while one is.
+     * @internal
+     */
+    shaderPicturePending(): boolean {
+        return this.shaderScene?.picturePending ?? false;
     }
 
     /**

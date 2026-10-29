@@ -145,12 +145,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
     it("T6: the graph's Overview shows the element's counts for karate", async () => {
         const { session } = await openWorkspace();
         await session.data.import({ config: { url: "/samples/karate.gml" } });
-        await waitFor(
-            () => {
-                assert.equal(session.data.statistics().nodeCount, 34);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        assert.equal(session.data.statistics().nodeCount, 34);
         const statistics = session.data.statistics();
 
         await waitFor(() => {
@@ -276,7 +271,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
         });
         // A heading with no focus mark: a box reads as an editable name, an underline as a link.
-        const title = inspector().getByRole("heading", { level: 2, name: "n0" });
+        const title = inspector().getByRole("heading", { level: 2, name: "Node 0" });
         assert.equal(title, document.activeElement);
         assert.equal(getComputedStyle(title).textDecorationLine, "none");
         assert.equal(getComputedStyle(title).outlineStyle, "none");

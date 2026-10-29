@@ -1,5 +1,4 @@
 import cloneDeep from "lodash/cloneDeep.js";
-import defaultsDeep from "lodash/defaultsDeep.js";
 import get from "lodash/get.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
@@ -83,6 +82,77 @@ const NOTHING: readonly number[] = Object.freeze([]);
 
 /** Keys that would write to an object's prototype instead of the object. */
 const UNSAFE_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Whether a value is something {@link fillDefaults} merges into rather than over: what lodash's
+ * `isObject` calls an object, so arrays and functions count.
+ * @param value - Any value.
+ * @returns True for an object or a function.
+ */
+function isMergeable(value: unknown): value is Record<string, unknown> {
+    return value !== null && (typeof value === "object" || typeof value === "function");
+}
+
+/**
+ * A copy of a default the style being built did not hold: plain objects and arrays are copied all
+ * the way down, anything else is shared, as lodash's merge shares it.
+ * @param value - The default.
+ * @returns The copy.
+ */
+function copyDefault(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(copyDefault);
+    }
+
+    if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+        const copy: Record<string, unknown> = {};
+        for (const key of Object.keys(value)) {
+            copy[key] = copyDefault((value as Record<string, unknown>)[key]);
+        }
+
+        return copy;
+    }
+
+    return value;
+}
+
+/**
+ * Fill out a style being built from a base, in place: `defaultsDeep(bag, cloneDeep(base))` in
+ * one pass.
+ *
+ * WHY NOT LODASH. It ran once per element on every repaint, and its general merge (a stack for
+ * cycles, a customizer call per key, a whole clone of the base before it started) cost about
+ * 110 microseconds an edge on a phone-class CPU: all 36,906 edges of the airline-routes dataset
+ * took four seconds in one frame. This copies only what the bag does not already hold.
+ *
+ * The same rules: a value the bag holds (anything but `undefined`) wins, two objects are merged
+ * key by key, and a default the bag lacks is copied in fresh, so no painted style shares an
+ * object with the base or with another element's style.
+ * @param bag - The style being built.
+ * @param base - The defaults.
+ * @returns The bag.
+ */
+export function fillDefaults<T>(bag: Record<string, unknown>, base: T): T {
+    for (const key of Object.keys(base as object)) {
+        // Spelled out rather than UNSAFE_KEYS.has(key), so static analysis sees the guard too.
+        if (key === "__proto__" || key === "constructor" || key === "prototype") {
+            continue;
+        }
+
+        const fallback = (base as Record<string, unknown>)[key];
+        const held = bag[key];
+
+        if (held === undefined) {
+            if (fallback !== undefined || !(key in bag)) {
+                bag[key] = copyDefault(fallback);
+            }
+        } else if (isMergeable(held) && isMergeable(fallback)) {
+            fillDefaults(held, fallback);
+        }
+    }
+
+    return bag as T;
+}
 
 /**
  * Write one value at a dotted path, building the objects on the way.
@@ -482,13 +552,14 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     if (opacity !== undefined) {
         key.push(`o${String(opacity)}`);
     }
+
     if (filled) {
         key.push(`g${hex}`);
     }
 
     return {
         meshKey: key.join(""),
-        style: defaultsDeep(bag, cloneDeep(NODE_BASE)) as NodeStyleConfig,
+        style: fillDefaults(bag, NODE_BASE),
         color: filled ? null : color,
     };
 }
@@ -527,7 +598,7 @@ function edgePaintOf(
 
     return {
         meshKey: identity,
-        style: foldEdgeAlpha(spellEdgeColours(defaultsDeep(bag, cloneDeep(base)) as EdgeStyleConfig)),
+        style: foldEdgeAlpha(spellEdgeColours(fillDefaults(bag, base))),
     };
 }
 
@@ -596,6 +667,41 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
     }
 
     return style;
+}
+
+/**
+ * Take up to `limit` indices out of a pending set, oldest first.
+ * @param pending - The set.
+ * @param limit - The most to take.
+ * @returns The indices taken.
+ */
+function takeFrom(pending: Set<number>, limit: number): readonly number[] {
+    if (pending.size === 0) {
+        return NOTHING;
+    }
+
+    if (pending.size <= limit) {
+        const taken = [...pending];
+        pending.clear();
+
+        return taken;
+    }
+
+    const taken: number[] = [];
+
+    for (const index of pending) {
+        if (taken.length >= limit) {
+            break;
+        }
+
+        taken.push(index);
+    }
+
+    for (const index of taken) {
+        pending.delete(index);
+    }
+
+    return taken;
 }
 
 /**
@@ -822,33 +928,46 @@ export class StylePainter {
     }
 
     /**
-     * Take the nodes waiting to be drawn.
-     * @returns Their dense indices. The set is emptied.
+     * Whether any node is waiting to be drawn.
+     * @returns True when a pass has painted a node the renderer has not applied.
      */
-    takeNodes(): readonly number[] {
-        if (this.pendingNodes.size === 0) {
-            return NOTHING;
-        }
-
-        const taken = [...this.pendingNodes];
-        this.pendingNodes.clear();
-
-        return taken;
+    get hasPendingNodes(): boolean {
+        return this.pendingNodes.size > 0;
     }
 
     /**
-     * Take the edges waiting to be drawn.
-     * @returns Their dense indices. The set is emptied.
+     * Whether any edge is waiting to be drawn.
+     * @returns True when a pass has painted an edge the renderer has not applied.
      */
-    takeEdges(): readonly number[] {
-        if (this.pendingEdges.size === 0) {
-            return NOTHING;
-        }
+    get hasPendingEdges(): boolean {
+        return this.pendingEdges.size > 0;
+    }
 
-        const taken = [...this.pendingEdges];
-        this.pendingEdges.clear();
+    /**
+     * Whether one node is waiting to be drawn.
+     * @param index - Its dense index.
+     * @returns True when its paint has not been applied yet.
+     */
+    isNodePending(index: number): boolean {
+        return this.pendingNodes.has(index);
+    }
 
-        return taken;
+    /**
+     * Take the nodes waiting to be drawn, or as many of them as one batch holds.
+     * @param limit - The most to take; every one when absent.
+     * @returns Their dense indices, which leave the set.
+     */
+    takeNodes(limit = Number.POSITIVE_INFINITY): readonly number[] {
+        return takeFrom(this.pendingNodes, limit);
+    }
+
+    /**
+     * Take the edges waiting to be drawn, or as many of them as one batch holds.
+     * @param limit - The most to take; every one when absent.
+     * @returns Their dense indices, which leave the set.
+     */
+    takeEdges(limit = Number.POSITIVE_INFINITY): readonly number[] {
+        return takeFrom(this.pendingEdges, limit);
     }
 
     /**

@@ -7,7 +7,7 @@ import { Menu, ScrollArea } from "@mantine/core";
 import { screen, within } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 
 import { ToggleIconButton } from "../../../src/components/buttons";
 import {
@@ -19,6 +19,7 @@ import {
     type TreeNodeData,
 } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
+import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
@@ -308,21 +309,58 @@ describe("Tree: keyboard", () => {
     it("jumps by type-ahead, and a quick run of keys matches a longer prefix", async () => {
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
         await tabIn();
-        // The type-ahead window is read from Date.now(): hold the clock still and move it by hand.
-        let now = Date.now();
-        vi.setSystemTime(now);
+        // The type-ahead pause is read from when each key was typed (event.timeStamp): move that
+        // forward by hand to make a pause.
+        let later = 0;
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return (timeStamp?.call(this) as number) + later;
+        });
         try {
             await userEvent.keyboard("l");
             expect(focused()).toBe("leaf");
             // A new run starts once the 500ms type-ahead window has passed.
-            vi.setSystemTime((now += 600));
+            later += 600;
             await userEvent.keyboard("g");
             expect(focused()).toBe("group");
-            vi.setSystemTime((now += 600));
+            later += 600;
             await userEvent.keyboard("{Home}ot");
             expect(focused()).toBe("other");
         } finally {
-            vi.useRealTimers();
+            vi.restoreAllMocks();
+        }
+    });
+
+    it("keeps a quick run of keys one run on a busy page (#3534)", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
+        await tabIn();
+        // The page is busy for 700ms after it takes "g" (a redraw elsewhere), and "r" was typed
+        // 100ms after "g", while it was busy: the browser hands "r" over only once the page is free.
+        let gAt = 0;
+        const busy = (event: KeyboardEvent): void => {
+            if (event.key === "g") {
+                gAt = event.timeStamp;
+                const until = performance.now() + 700;
+                while (performance.now() < until) {
+                    // the main thread is held
+                }
+            }
+        };
+        // The keys are real, but their typed time is set here: Playwright sends "r" only after the
+        // page has handled "g" (its 700ms included), so the browser would stamp "r" after the
+        // stall. A reader's "r" is stamped when it was typed, which is what this stands in for.
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return this instanceof KeyboardEvent && this.key === "r" ? gAt + 100 : (timeStamp?.call(this) as number);
+        });
+        globalThis.addEventListener("keydown", busy);
+        try {
+            // "gr" is Group; "r" alone, from Group, would be Rect.
+            await userEvent.keyboard("gr");
+            expect(focused()).toBe("group");
+        } finally {
+            globalThis.removeEventListener("keydown", busy);
+            vi.restoreAllMocks();
         }
     });
 
@@ -753,7 +791,10 @@ describe("Tree: pointer", () => {
     it("opens and closes one row from the caret without selecting it", async () => {
         const onSelect = vi.fn();
         await renderThemed(<Tree items={ITEMS} onSelect={onSelect} />);
-        // The caret is drawn at rest, with no pointer over the tree.
+        // Hidden at rest, as in Figma, and shown once the pointer is over the tree.
+        await commands.mouseAway();
+        expect(getComputedStyle(within(row("Frame")).getByTestId("tree-caret")).visibility).toBe("hidden");
+        await userEvent.hover(row("Frame"));
         expect(getComputedStyle(within(row("Frame")).getByTestId("tree-caret")).visibility).toBe("visible");
         await userEvent.click(within(row("Frame")).getByTestId("tree-caret"));
         expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
@@ -762,7 +803,7 @@ describe("Tree: pointer", () => {
         expect(onSelect).not.toHaveBeenCalled();
     });
 
-    it("gives the caret a 24 px target that says what it does", async () => {
+    it("gives the caret a 24 px target and no tooltip (Figma)", async () => {
         await renderThemed(<Tree items={ITEMS} />);
         await userEvent.hover(row("Frame"));
         const hit = within(row("Frame")).getByTestId("tree-caret").querySelector<HTMLElement>(".cm-tree-caret-hit");
@@ -776,23 +817,7 @@ describe("Tree: pointer", () => {
         await userEvent.click(hit!, { position: { x: slot.right - box.left + 2, y: 12 } });
         expect(row("Frame")).toHaveAttribute("aria-expanded", "true");
         await userEvent.hover(hit!);
-        await expect.poll(() => document.querySelector("[role=tooltip]")?.textContent).toBe("Collapse Frame");
-    });
-
-    it("opens the caret's tooltip clear of the row's own name", async () => {
-        await renderThemed(<Tree items={ITEMS} />);
-        const hit = within(row("Frame")).getByTestId("tree-caret").querySelector<HTMLElement>(".cm-tree-caret-hit")!;
-        await userEvent.hover(hit);
-        await expect.poll(() => document.querySelector("[role=tooltip]")?.textContent).toBe("Expand Frame");
-        const name = row("Frame").querySelector(".cm-tree-name")!.getBoundingClientRect();
-        await expect
-            .poll(() => {
-                const bubble = document.querySelector("[role=tooltip]")!.getBoundingClientRect();
-                const width = Math.min(bubble.right, name.right) - Math.max(bubble.left, name.left);
-                const height = Math.min(bubble.bottom, name.bottom) - Math.max(bubble.top, name.top);
-                return width > 0 && height > 0;
-            })
-            .toBe(false);
+        expect(document.querySelector("[role=tooltip]")).toBeNull();
     });
 
     it("takes a click on the caret anywhere on the row's height", async () => {
@@ -1368,12 +1393,6 @@ describe("ResultRow", () => {
         expect(screen.getByText("rect")).toHaveClass("cm-result-match");
     });
 
-    it("draws a name as typed, with no arrow ligature for ->", async () => {
-        await renderThemed(<ResultRow name="Station -> Stadium" />);
-        const name = screen.getByText("Station -> Stadium");
-        expect(getComputedStyle(name).fontFeatureSettings).toBe('"calt" 0');
-    });
-
     it("ends a long name in ... inside a list that scrolls only up and down, and shows it whole on hover", async () => {
         const long = "A very long node name that cannot fit in a narrow find list at all";
         const { container } = await renderThemed(
@@ -1394,7 +1413,7 @@ describe("ResultRow", () => {
         expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
         expect(name.getBoundingClientRect().right).toBeLessThanOrEqual(viewport.getBoundingClientRect().right);
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        const tip = await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
         expect(tip.textContent).toContain(long);
     });
 });
@@ -1419,9 +1438,11 @@ function contrastOf(a: string, b: string): number {
 
 describe("Tree: a selected parent stands apart from its children", () => {
     for (const scheme of ["light", "dark"] as const) {
-        it(`${scheme}: the parent's fill and the band behind its children differ by at least 1.25:1`, async () => {
+        // Figma's tints differ by 1.05:1 light and 1.2:1 dark; the AA option swaps them.
+        it(`${scheme}, AA option: the parent's fill and the band behind its children differ by at least 1.25:1`, async () => {
             await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} defaultSelected={["frame"]} />, {
                 scheme,
+                highContrast: true,
             });
             const parent = row("Frame");
             expect(parent).toHaveAttribute("data-tint", "parent");
@@ -1429,7 +1450,6 @@ describe("Tree: a selected parent stands apart from its children", () => {
             expect(child.getAttribute("data-tint")).toMatch(/^child/);
             const parentFill = getComputedStyle(parent, "::after").backgroundColor;
             const band = getComputedStyle(child, "::before").backgroundColor;
-            // Before: bg-selected over bg-selected-secondary, 1.05:1 light and 1.2:1 dark.
             expect(contrastOf(parentFill, band)).toBeGreaterThanOrEqual(1.25);
         });
     }

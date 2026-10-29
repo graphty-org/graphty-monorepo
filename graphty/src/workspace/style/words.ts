@@ -13,6 +13,10 @@ import {
     type GlyphDescriptor,
     type KNOWN_PALETTE_IDS,
     NODE_SHAPE_DESCRIPTORS,
+    type ShaderDescriptor,
+    type ShaderInput,
+    type ShaderPlace,
+    type ShaderProblem,
     toColorValue,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
@@ -21,6 +25,7 @@ import {
     type GraphSession,
     GraphtyError,
     type GraphtyErrorCode,
+    type GraphtyWarningCode,
     type ReadableValue,
 } from "@graphty/graphty-element/session";
 
@@ -46,6 +51,8 @@ export interface SectionSpec {
     readonly title: string;
     /** Its properties, in menu order. */
     readonly channels: readonly Channel[];
+    /** The section is the tab's Shaders list: its rows are the layer's shader uses, its "+" opens the gallery. */
+    readonly shaders?: boolean;
 }
 
 /**
@@ -111,14 +118,14 @@ function textChannels(kind: Kind): Channel[] {
  */
 export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     node: [
-        { id: "shape", title: "Shape", channels: ["node.shape", "node.size"] },
-        { id: "visibility", title: "Visibility", channels: ["node.visible", "node.opacity"] },
-        { id: "text", title: "Text", channels: textChannels("node") },
-        { id: "fill", title: "Fill", channels: ["node.color"] },
         {
-            id: "effects",
-            title: "Effects",
+            id: "shape",
+            title: "Shape",
+            // Wireframe, Outline, Glow and Halo are style options of the shape, never shaders.
             channels: [
+                "node.shape",
+                "node.size",
+                "node.wireframe",
                 "node.outline",
                 "node.glow",
                 "node.glowStrength",
@@ -127,15 +134,32 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "node.haloOpacity",
             ],
         },
-        { id: "rendering", title: "Rendering", channels: ["node.wireframe"] },
+        { id: "visibility", title: "Visibility", channels: ["node.visible"] },
+        { id: "text", title: "Text", channels: textChannels("node") },
+        { id: "fill", title: "Fill", channels: ["node.color", "node.opacity"] },
+        { id: "shaders", title: "Shaders", channels: ["node.shaders"], shaders: true },
     ],
     edge: [
-        { id: "visibility", title: "Visibility", channels: ["edge.visible", "edge.opacity"] },
+        { id: "visibility", title: "Visibility", channels: ["edge.visible"] },
         { id: "text", title: "Text", channels: textChannels("edge") },
         {
             id: "line",
             title: "Line",
-            channels: ["edge.color", "edge.width", "edge.style", "edge.patternCount", "edge.curvature"],
+            // Band is a line option, a flat stripe under the line, never a shader.
+            channels: [
+                "edge.color",
+                "edge.opacity",
+                "edge.width",
+                "edge.style",
+                "edge.patternCount",
+                "edge.animationSpeed",
+                "edge.curvature",
+                "edge.taper",
+                "edge.lift",
+                "edge.bandColor",
+                "edge.bandWidth",
+                "edge.bandOpacity",
+            ],
         },
         {
             id: "ends",
@@ -151,12 +175,17 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "edge.arrowTailOpacity",
             ],
         },
-        {
-            id: "effects",
-            title: "Effects",
-            channels: ["edge.animationSpeed", "edge.bandColor", "edge.bandWidth", "edge.bandOpacity"],
-        },
+        { id: "shaders", title: "Shaders", channels: ["edge.shaders"], shaders: true },
     ],
+};
+
+/**
+ * The opacity a color field carries in its opacity box: Fill's and Line's. Opacity has one source,
+ * the opacity channel, so the color stays six digits and a row that set Opacity keeps it.
+ */
+export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
+    "node.color": "node.opacity",
+    "edge.color": "edge.opacity",
 };
 
 /**
@@ -165,8 +194,8 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
  */
 export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boolean, string])[]>>> = {
     "node.wireframe": [
-        [false, "Solid"],
-        [true, "Wireframe"],
+        [true, "On"],
+        [false, "Off"],
     ],
     "node.visible": [
         [true, "Shown"],
@@ -245,6 +274,13 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.size": "Size",
     "node.sizeMode": "Size mode",
     "node.shape": "Shape",
+    "node.model": "Model",
+    "node.modelSourceUp": "Model up axis",
+    "node.modelTurn": "Model turn",
+    "node.modelTint": "Use node color",
+    "node.modelFit": "Model fit",
+    "node.modelCenter": "Model center",
+    "node.texture": "Texture",
     "node.label": "Label",
     "node.labelStyle": "Label style",
     "node.labelColor": "Label color",
@@ -268,6 +304,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.halo": "Halo",
     "node.haloScale": "Halo size",
     "node.wireframe": "Wireframe",
+    "node.meshDetail": "Mesh detail",
     "node.flat": "Flat shading",
     "node.unlit": "Unlit",
     "node.marker": "Marker",
@@ -308,6 +345,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.style": "Pattern",
     "edge.patternCount": "Pattern count",
     "edge.curvature": "Curved",
+    "edge.bends": "Bends",
     "edge.fanSpacing": "Fan spacing",
     "edge.fanned": "Fanned",
     "edge.sourcePort": "Source port",
@@ -328,7 +366,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowTailOpacity": "Source end opacity",
     "edge.arrowTailText": "Label at source end",
     "edge.arrowTailTextStyle": "Label at source end style",
-    "edge.animationSpeed": "Motion",
+    "edge.animationSpeed": "Dash motion",
     "edge.label": "Label",
     "edge.labelStyle": "Label style",
     "edge.labelSize": "Label size",
@@ -340,10 +378,13 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowTailTextSize": "Label at source end size",
     "edge.arrowTailTextColor": "Label at source end color",
     "edge.arrowTailTextBackground": "Label at source end background",
-    "edge.bends": "Bends",
     "edge.labelFont": "Label font",
     "edge.labelWeight": "Label weight",
     "edge.labelItalic": "Label italic",
+    "node.shaders": "Shaders",
+    "edge.shaders": "Shaders",
+    "edge.taper": "Taper",
+    "edge.lift": "Lift",
     "edge.labelWrapWidth": "Label wrap width",
     "edge.labelLetterSize": "Label letter size",
     "edge.labelWrapTrailingSpace": "Label wraps with a trailing space",
@@ -462,29 +503,31 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.wavePeriod": "Wave period",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
+    "edge.route": "Route",
+    "edge.arcHeight": "Arc height",
     "edge.nodeGap": "Node gap",
-    "edge.arrowHeadSide": "Arrow head side",
-    "edge.arrowHeadGap": "Arrow head gap",
-    "edge.arrowHeadImage": "Arrow head image",
-    "edge.arrowHeadTextLetterSize": "Arrow head caption letter size",
-    "edge.arrowHeadTextFont": "Arrow head caption font",
-    "edge.arrowHeadTextWeight": "Arrow head caption weight",
-    "edge.arrowHeadTextOpacity": "Arrow head caption opacity",
-    "edge.arrowHeadTextDistance": "Arrow head caption distance",
-    "edge.arrowHeadTextRotation": "Arrow head caption rotation",
-    "edge.arrowHeadTextOffsetX": "Arrow head caption offset x",
-    "edge.arrowHeadTextOffsetY": "Arrow head caption offset y",
-    "edge.arrowTailSide": "Arrow tail side",
-    "edge.arrowTailGap": "Arrow tail gap",
-    "edge.arrowTailImage": "Arrow tail image",
-    "edge.arrowTailTextLetterSize": "Arrow tail caption letter size",
-    "edge.arrowTailTextFont": "Arrow tail caption font",
-    "edge.arrowTailTextWeight": "Arrow tail caption weight",
-    "edge.arrowTailTextOpacity": "Arrow tail caption opacity",
-    "edge.arrowTailTextDistance": "Arrow tail caption distance",
-    "edge.arrowTailTextRotation": "Arrow tail caption rotation",
-    "edge.arrowTailTextOffsetX": "Arrow tail caption offset x",
-    "edge.arrowTailTextOffsetY": "Arrow tail caption offset y",
+    "edge.arrowHeadSide": "Target end side",
+    "edge.arrowHeadGap": "Target end gap",
+    "edge.arrowHeadImage": "Target end image",
+    "edge.arrowHeadTextLetterSize": "Label at target end letter size",
+    "edge.arrowHeadTextFont": "Label at target end font",
+    "edge.arrowHeadTextWeight": "Label at target end weight",
+    "edge.arrowHeadTextOpacity": "Label at target end opacity",
+    "edge.arrowHeadTextDistance": "Label at target end distance",
+    "edge.arrowHeadTextRotation": "Label at target end rotation",
+    "edge.arrowHeadTextOffsetX": "Label at target end offset x",
+    "edge.arrowHeadTextOffsetY": "Label at target end offset y",
+    "edge.arrowTailSide": "Source end side",
+    "edge.arrowTailGap": "Source end gap",
+    "edge.arrowTailImage": "Source end image",
+    "edge.arrowTailTextLetterSize": "Label at source end letter size",
+    "edge.arrowTailTextFont": "Label at source end font",
+    "edge.arrowTailTextWeight": "Label at source end weight",
+    "edge.arrowTailTextOpacity": "Label at source end opacity",
+    "edge.arrowTailTextDistance": "Label at source end distance",
+    "edge.arrowTailTextRotation": "Label at source end rotation",
+    "edge.arrowTailTextOffsetX": "Label at source end offset x",
+    "edge.arrowTailTextOffsetY": "Label at source end offset y",
     "edge.arrowMiddleHead": "Arrow middle head",
     "edge.arrowMiddleHeadSize": "Arrow middle head size",
     "edge.arrowMiddleHeadWidth": "Arrow middle head width",
@@ -522,6 +565,22 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOffsetY": "Label offset y",
     "edge.labelShiftX": "Label shift x",
     "edge.labelShiftY": "Label shift y",
+    "node.groupPadding": "Group padding",
+    "node.groupPaddingRatio": "Group padding ratio",
+    "node.groupPaddingOf": "Group padding of",
+    "node.groupMinWidth": "Group min width",
+    "node.groupMinWidthBiasLeft": "Group min width bias left",
+    "node.groupMinHeight": "Group min height",
+    "node.groupMinHeightBiasTop": "Group min height bias top",
+    "node.groupIncludeLabels": "Group includes labels",
+    "edge.sourceNodeGap": "Source node gap",
+    "edge.targetNodeGap": "Target node gap",
+    "edge.supportModel": "Support model",
+    "edge.supportUnit": "Support unit",
+    "edge.supportSpringLength": "Support spring length",
+    "edge.supportSpringConstant": "Support spring constant",
+    "edge.supportRepulsion": "Support repulsion",
+    "edge.supportCentralGravity": "Support central gravity",
 };
 
 /**
@@ -805,6 +864,87 @@ export function matchesWordStart(name: string, query: string): boolean {
     );
 }
 
+/** Every code graphty-element reports about a model. */
+type ModelCode = Extract<GraphtyErrorCode | GraphtyWarningCode, `E_MODEL_${string}` | `W_MODEL_${string}`>;
+
+/**
+ * A param as text, cut short.
+ * @param value - the param.
+ * @returns the text.
+ */
+function said(value: CodedFact["params"][string] | undefined): string {
+    if (Array.isArray(value)) {
+        return value.map(String).join(", ");
+    }
+    return value === undefined || value === null ? "" : String(value);
+}
+
+/**
+ * A number of things as a reader reads it: "4,200,000".
+ * @param value - the param.
+ * @returns the text.
+ */
+function amount(value: CodedFact["params"][string] | undefined): string {
+    return typeof value === "number" ? value.toLocaleString() : said(value);
+}
+
+/** What the app says for each model code. Typed over the element's codes, so a new one fails to compile here. */
+const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string>> = {
+    E_MODEL_FETCH: (p) =>
+        typeof p.status === "number"
+            ? `Could not download ${said(p.url)} (${String(p.status)}).`
+            : "The server did not answer or does not share its files with other sites. Download the model and drop it here.",
+    E_MODEL_URL_BLOCKED: (p) => `This style loads a model from ${said(p.hosts)}, which is not allowed here.`,
+    E_MODEL_TOO_LARGE: (p) =>
+        `This model is too large: ${amount(p.found)} ${said(p.what)}, the limit is ${amount(p.limit)}. Pick a lighter one.`,
+    E_MODEL_STRUCTURE: () => "The model file is damaged.",
+    E_MODEL_FORMAT_UNSUPPORTED: (p) =>
+        `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
+    E_MODEL_FORMAT_UNKNOWN: (p) => `${said(p.fileName) || "This file"} is not a 3D model file graphty knows.`,
+    E_MODEL_AMBIGUOUS: (p) => `Which one is the model? ${said(p.candidates)}. Drop just one of them.`,
+    E_MODEL_MISSING_FILE: (p) =>
+        `${said(p.referencedBy) || "The model"} needs ${said(p.name)}. Drop the whole folder or a .zip, or export as .glb.`,
+    E_MODEL_PART_AMBIGUOUS: (p) =>
+        `More than one file could be ${said(p.name)}: ${said(p.candidates)}. Drop just the one the model uses.`,
+    E_MODEL_WEB_PAGE: (p) =>
+        typeof p.suggested === "string"
+            ? `That address is a web page, not a model. Try ${p.suggested}.`
+            : "That address is a web page, not a model. Use the address of the file itself.",
+    E_MODEL_PART_REQUIRED: (p) => `The model cannot be drawn without ${said(p.name)}.`,
+    E_MODEL_EXTERNAL_URL: () => "This model loads parts from somewhere else, which is not allowed. Export it as .glb.",
+    E_MODEL_DECODER_UNAVAILABLE: () => "This model is compressed in a way this page cannot read yet.",
+    E_MODEL_PARSE: (p) => `The file is damaged or not a valid ${said(p.format).toUpperCase() || "model"}.`,
+    E_MODEL_ZIP: () => "The .zip could not be opened.",
+    E_MODEL_NAME_TAKEN: (p) => `A different model is already called ${said(p.id).replace(/^asset:/, "")}.`,
+    E_MODEL_UNKNOWN_ASSET: () => "This style needs a model that is not here. Add the model file again.",
+    E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
+    W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
+    W_MODEL_HAS_ANIMATIONS: () => "This model has animations; they do not play yet.",
+    W_MODEL_COLOR_IGNORED: () => "The model keeps its own colors. Use node color to paint it.",
+    W_MODEL_HEAVY: (p) => `This model is detailed; with ${amount(p.nodes)} nodes the graph may be slow.`,
+    W_MODEL_BUDGET: (p) => `The graph draws ${amount(p.triangles)} triangles and may be slow.`,
+    W_MODEL_TRANSPARENT: () => "See-through parts may look wrong where models overlap.",
+    W_MODEL_TEXTURES_REDUCED: () => "Some pictures on the model are drawn smaller.",
+    W_MODEL_NOT_EMBEDDED: () => "This project names a model it does not carry; others may not be able to open it.",
+    W_MODEL_CHANGED: (p) => `The file at ${said(p.url)} changed since this project was saved.`,
+    W_MODEL_PART_SUBSTITUTED: (p) => `Used ${said(p.used)} for ${said(p.name)}.`,
+    W_MODEL_PART_SKIPPED: (p) => `The model is drawn without ${said(p.name)}.`,
+    W_MODEL_PART_UNUSED: (p) => `${said(p.fileName) || "A file"} is not part of this model.`,
+    W_MODEL_NOT_KEPT_BY_URL: () => "This model's files came from several places, so the project carries them.",
+};
+
+/**
+ * What the app says about a model, from the element's coded problem.
+ * @param fact - the problem.
+ * @returns one or two short sentences.
+ */
+export function modelWords(fact: CodedFact): string {
+    const words = (MODEL_WORDS as Readonly<Record<string, ((p: CodedFact["params"]) => string) | undefined>>)[
+        fact.code
+    ];
+    return words === undefined ? "The model could not be drawn." : words(fact.params);
+}
+
 /** Compares names as a reader counts: GAL2 before GAL10. */
 export const NATURAL = new Intl.Collator(undefined, { numeric: true });
 
@@ -1081,3 +1221,479 @@ export function firstValueWords(property: string): string {
 export function firstStyleWords(nodes: number, edges: number): string {
     return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
 }
+
+/** Which list a shader gallery opens for: a tab's Shaders, or the graph's Background. */
+export type ShaderTab = "node" | "edge" | "background";
+
+/**
+ * The words the panel shows for a place, by the tab: `paint` and `over` are both "On the node",
+ * since no shader chooses between them (decisions-v2, section 1); an edge's `paint` is "On the line".
+ * @param place - the element's place.
+ * @param tab - the tab the use is on.
+ * @returns the words.
+ */
+export function placeWords(place: ShaderPlace | undefined, tab: ShaderTab = "node"): string {
+    switch (place) {
+        case "replace":
+            return "Instead of the node";
+        case "around":
+            return "Around";
+        case "behind":
+            return "Behind";
+        case "along":
+            return "Along the line";
+        case "group":
+            return "Around the group";
+        case "paint":
+        case "over":
+        case undefined:
+            return tab === "edge" ? "On the line" : "On the node";
+        default:
+            // OPEN UNION: a place a newer element adds is shown by its own name.
+            return String(place);
+    }
+}
+
+/** The gallery's origin filter: every shader, the element's own, or those added to this project. */
+export const ORIGIN_FILTERS = [
+    { key: "all", label: "All" },
+    { key: "builtIn", label: "Built in" },
+    { key: "project", label: "This project" },
+] as const;
+
+/** The place a tab's "New shader..." starts at: the tab's first place. */
+export const FIRST_PLACE: Readonly<Record<ShaderTab, ShaderPlace | undefined>> = {
+    node: "paint",
+    edge: "paint",
+    background: undefined,
+};
+
+/** The places the code dialog's Place field lists on a tab, in its order. */
+export const DIALOG_PLACES: Readonly<Record<ShaderTab, readonly ShaderPlace[]>> = {
+    node: ["paint", "over", "replace", "around", "behind", "group"],
+    edge: ["paint", "along"],
+    background: [],
+};
+
+/**
+ * The dialog's words for a place: "On the node" twice would be two choices with one name, so the
+ * dialog, where an author writes code for one drawing, names `over` by what it adds.
+ * @param place - the place.
+ * @param tab - the tab.
+ * @returns the words.
+ */
+export function dialogPlaceWords(place: ShaderPlace, tab: ShaderTab): string {
+    return place === "over" ? "On the node, over its paint" : placeWords(place, tab);
+}
+
+/**
+ * The target a tab's shaders draw on: a group outline's on the Node tab is the group.
+ * @param tab - the tab.
+ * @param place - the place.
+ * @returns the target.
+ */
+export function targetOfPlace(
+    tab: ShaderTab,
+    place: ShaderPlace | undefined,
+): "node" | "edge" | "group" | "background" {
+    if (tab === "background") {
+        return "background";
+    }
+    return place === "group" ? "group" : tab;
+}
+
+/**
+ * The caption of a shape row a shader hides: "Hidden: Sticker draws instead of the node".
+ * @param shader - the shader's name.
+ * @returns the words.
+ */
+export function hiddenByWords(shader: string): string {
+    return `Hidden: ${shader} draws instead of the node`;
+}
+
+/** The three neutral facts a gallery tile and a settings pop-out show, as their words. */
+export const SHADER_FACT_WORDS = {
+    animates: "Animates",
+    light: "Reacts to light",
+    cost: (cost: string): string => {
+        switch (cost) {
+            case "light":
+                return "Light to draw";
+            case "medium":
+                return "Medium cost to draw";
+            case "heavy":
+                return "Heavy: costly on a slow device";
+            default:
+                return `Cost: ${cost}`;
+        }
+    },
+} as const;
+
+/** What a tile from the tab's own style options says it is: "Shape option", "Line option". */
+export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
+    node: "Shape option",
+    edge: "Line option",
+};
+
+/** The code dialog's link to the published guide to writing a shader. */
+export const PASTE_GUIDE_WORDS = "How to write one";
+
+/** The gallery's words: its search box, the last tile, and an empty result. */
+export const GALLERY_WORDS = {
+    search: (tab: ShaderTab): string => (tab === "background" ? "Find background shader" : `Find ${tab} shader`),
+    tiles: "Shaders",
+    newShader: "New shader...",
+    none: "No match",
+    place: "Place",
+    origin: "Origin",
+    project: "This project",
+    inUse: "In use",
+} as const;
+
+/**
+ * What a shader row's move announces, and its handle's position: "Pearl moved to 2 of 3",
+ * "Pearl is already first", "2 of 3".
+ */
+export const SHADER_MOVE_WORDS = {
+    moved: (shader: string, at: number, count: number): string =>
+        `${shader} moved to ${String(at)} of ${String(count)}`,
+    end: (shader: string, first: boolean): string => `${shader} is already ${first ? "first" : "last"}`,
+    position: (at: number, count: number): string => `${String(at)} of ${String(count)}`,
+    up: "Move up",
+    down: "Move down",
+} as const;
+
+/**
+ * What Undo and Redo call a shader write, by the shader's name and the parameter's: "changing
+ * Reticle spin", "adding Aura", "changing Pearl to Glass marble", "hiding Aura".
+ */
+export const SHADER_STEP_WORDS = {
+    param: (shader: string, param: string): string => `changing ${shader} ${param.toLowerCase()}`,
+    unbind: (shader: string, param: string): string => `fixing ${shader} ${param.toLowerCase()}`,
+    add: (shader: string): string => `adding ${shader}`,
+    swap: (from: string, to: string): string => `changing ${from} to ${to}`,
+    remove: (shader: string): string => `removing ${shader}`,
+    shown: (shader: string, shown: boolean): string => `${shown ? "showing" : "hiding"} ${shader}`,
+    move: (shader: string): string => `moving ${shader}`,
+    wireframe: (on: boolean): string => (on ? "turning wireframe on" : "turning wireframe off"),
+    /** A shader the catalog no longer holds (a pasted one, deleted). */
+    unknown: "a shader",
+} as const;
+
+/**
+ * The words a reader may search the gallery by beside a shader's name, by preset id: glass,
+ * metal, glow, bubble, 3D, shiny. Grouping and searching are the app's; the ids are the catalog's.
+ */
+const SHADER_ALIASES: Readonly<Record<string, readonly string[]>> = {
+    glass: ["bubble", "3D"],
+    "glass-marble": ["glass", "3D", "shiny"],
+    "frosted-glass": ["glass", "3D"],
+    pearl: ["shiny", "3D"],
+    gemstone: ["shiny", "3D", "glass"],
+    "disco-ball": ["shiny", "3D", "metal"],
+    "liquid-metal": ["metal", "shiny", "3D"],
+    "anodized-steel": ["metal", "shiny", "3D"],
+    "matcap-ink": ["3D"],
+    "cel-shade": ["3D"],
+    halftone: ["3D"],
+    lantern: ["3D"],
+    "foil-shimmer": ["shiny"],
+    hologram: ["shiny"],
+    frost: ["glass"],
+    "soap-bubble": ["bubble"],
+};
+
+/**
+ * Whether a gallery search finds a shader: the start of a word of its name or of one of its
+ * aliases.
+ * @param descriptor - the catalog's entry.
+ * @param query - the search text.
+ * @returns true when it matches.
+ */
+export function shaderMatches(descriptor: Pick<ShaderDescriptor, "id" | "plainName">, query: string): boolean {
+    return [descriptor.plainName, ...(SHADER_ALIASES[descriptor.id] ?? [])].some((name) =>
+        matchesWordStart(name, query),
+    );
+}
+
+/** What a shader reads from the layers beneath, as the settings pop-out's Uses row names it. */
+const INPUT_WORDS: Readonly<Record<ShaderInput, string>> = {
+    color: "color",
+    opacity: "opacity",
+    size: "size",
+    shape: "shape",
+    width: "width",
+    selected: "selection",
+    hovered: "hover",
+    pinned: "pin",
+    times: "changes",
+    members: "group members",
+    light: "light",
+};
+
+/**
+ * The Uses row: what the shader reads from the layers beneath, "Color, size", or "Nothing".
+ * @param reads - the catalog's `reads`.
+ * @returns the words.
+ */
+export function usesWords(reads: readonly ShaderInput[]): string {
+    const words = reads.map((input) => (INPUT_WORDS as Readonly<Record<string, string>>)[input] ?? input);
+    const joined = words.length === 0 ? "nothing" : words.join(", ");
+    return joined.charAt(0).toUpperCase() + joined.slice(1);
+}
+
+/**
+ * Why a gallery tile cannot be picked here, from the element's coded answer.
+ * @param problem - the element's problem.
+ * @returns a short reason.
+ */
+export function shaderProblemWords(problem: ShaderProblem): string {
+    switch (problem.code) {
+        case "shader.webgpu-unsupported":
+            return "Not drawn with WebGPU";
+        case "shader.held":
+            return "Held until you run it";
+        case "shader.quarantined":
+            return "Turned off after a crash";
+        case "shader.compile":
+            return "Does not compile here";
+        case "shader.guard-off":
+            return "Off: the graphics card is slow";
+        case "shader.unknown":
+            return "Not in this project";
+        default:
+            return "Cannot be drawn here";
+    }
+}
+
+/**
+ * The item a section's "+" gives for an effect a layer beneath adds: "Aura off".
+ * @param name - the effect's name.
+ * @returns the words.
+ */
+export function effectOffWords(name: string): string {
+    return `${name} off`;
+}
+
+/** The moments a clock counts from, as a bound parameter's value shows them. */
+const CLOCK_WORDS: Readonly<Record<string, string>> = {
+    "since.matched": "When this layer starts applying",
+    "since.unmatched": "When this layer stops applying",
+    "since.selected": "When selected",
+    "since.deselected": "When deselected",
+    "since.hovered": "When hovered",
+    "since.unhovered": "When no longer hovered",
+    "since.pinned": "When pinned",
+    "since.unpinned": "When unpinned",
+    "since.added": "When added",
+    "since.changed": "When its data changes",
+};
+
+/**
+ * A parameter bound to a clock, as its value reads: "Starts: When this layer starts applying, over
+ * 0.3 s".
+ * @param binding - the binding.
+ * @param binding.by - the clock.
+ * @param binding.domain - the seconds it maps.
+ * @returns the words.
+ */
+export function clockWords(binding: { readonly by: string; readonly domain: readonly [number, number] }): string {
+    const span = binding.domain[1] - binding.domain[0];
+    const moment = CLOCK_WORDS[binding.by] ?? binding.by;
+    return `Starts: ${moment}, over ${String(Math.round(span * 100) / 100)} s`;
+}
+
+/**
+ * Where a problem in pasted shader text is: "Line 12:8", or undefined when it has no place.
+ * @param problem - the element's problem.
+ * @returns the words, or undefined.
+ */
+export function shaderPlaceWords(problem: ShaderProblem): string | undefined {
+    const { line, column } = problem.params;
+    if (typeof line !== "number") {
+        return undefined;
+    }
+    return typeof column === "number" ? `Line ${String(line)}:${String(column)}` : `Line ${String(line)}`;
+}
+
+/**
+ * What is wrong with pasted shader text, from the element's code: a short phrase, the parser's or
+ * the driver's own message shown as data after it.
+ * @param problem - the element's problem.
+ * @returns the words.
+ */
+export function pasteProblemWords(problem: ShaderProblem): string {
+    const p = problem.params;
+    const said = typeof p.message === "string" && p.message !== "" ? `: ${p.message}` : "";
+    switch (problem.code) {
+        case "shader.header-missing":
+            return "No header";
+        case "shader.header-json":
+            return `Header is not JSON${said}`;
+        case "shader.header-key":
+            return `Header key "${String(p.key)}"`;
+        case "shader.target-mismatch":
+            return `Written for ${String(p.found)}s`;
+        case "shader.place-unsupported":
+            return `Cannot draw ${placeWords(p.place as ShaderPlace).toLowerCase()}`;
+        case "shader.min-size-place":
+            return "Minimum size needs a place outside the node";
+        case "shader.id-invalid":
+            return `Bad id "${String(p.id)}"`;
+        case "shader.id-taken":
+            return `Id "${String(p.id)}" is taken`;
+        case "shader.param-invalid":
+            return `Parameter ${String(p.param)}: bad ${String(p.field)}`;
+        case "shader.too-many-params":
+            return `Over ${String(p.limit)} parameters`;
+        case "shader.too-large":
+            return "Too long";
+        case "shader.too-many":
+            return `Over ${String(p.limit)} shaders in this project`;
+        case "shader.not-ascii":
+            return "Not plain ASCII";
+        case "shader.preprocessor":
+            return "No # lines";
+        case "shader.reserved":
+            return `"${String(p.name)}" is reserved`;
+        case "shader.loop-unbounded":
+            return "Loop without a fixed count";
+        case "shader.loop-too-long":
+            return `Loop over ${String(p.limit)} steps`;
+        case "shader.too-costly":
+            return "Too costly";
+        case "shader.too-deep":
+            return "Nested too deep";
+        case "shader.texture-unsupported":
+            return "No textures";
+        case "shader.entry-missing":
+            return "No shade function";
+        case "shader.entry-signature":
+            // A kind's own signature ("vec4 shade(NodeInput node)"), or only the function's name.
+            return String(p.expected).includes("(")
+                ? `Write it as ${String(p.expected)}`
+                : "shade has the wrong inputs";
+        case "shader.apply-target":
+            return "Not for this layer's kind";
+        case "shader.compile":
+            return `Does not compile${said}`;
+        case "shader.over-budget":
+            return "Too slow to draw";
+        default:
+            return shaderProblemWords(problem);
+    }
+}
+
+/**
+ * The name Duplicate and edit gives its copy: "Pearl copy".
+ * @param name - the shader's name.
+ * @returns the words.
+ */
+export function copyNameWords(name: string): string {
+    return `${name} copy`;
+}
+
+/** Why the paste dialog's Add cannot be pressed yet. */
+export const PASTE_WAIT_WORDS = { empty: "Nothing to add", checking: "Checking" } as const;
+
+/**
+ * Why Add cannot be pressed: how many problems the text has.
+ * @param count - the problems.
+ * @returns the words.
+ */
+export function pasteProblemsWord(count: number): string {
+    return count === 1 ? "1 problem" : `${String(count)} problems`;
+}
+
+/**
+ * How many layers use a shader, beside Delete from project: "2 layers".
+ * @param count - the layers.
+ * @returns the words.
+ */
+export function layersWord(count: number): string {
+    return count === 1 ? "1 layer" : `${String(count)} layers`;
+}
+
+/** The Background row's paint types, as Figma's fill. */
+export const BACKGROUND_WORDS = { color: "Color", image: "Image", shader: "Shader" } as const;
+
+/**
+ * The Background section's words: its "+" (Color, Image and Shader, one of each), the reason a
+ * kind already there is disabled in its menu, each row's minus, and the caption that names the
+ * color drawn when the background sets none.
+ */
+export const BACKGROUND_SECTION_WORDS = {
+    title: "Background",
+    add: "Add to background",
+    present: (kind: string): string => `${kind} is already in the background`,
+    remove: (kind: string): string => `Remove background ${kind.toLowerCase()}`,
+    drawnIn: (word: string, hex: string): string => {
+        const named = word === "" ? hex : `${word} (${hex})`;
+        return `No color set: drawn in ${named}`;
+    },
+} as const;
+
+/** The Quality row's choices: the reader's `shaderSettings.quality`. */
+export const SHADER_QUALITY_WORDS = { auto: "Auto", low: "Low", medium: "Medium", high: "High" } as const;
+
+/** The Motion row's choices: the reader's `shaderSettings.motion`. */
+export const SHADER_MOTION_WORDS = { system: "System", on: "On", off: "Off" } as const;
+
+/** The canvas menu's two Motion commands: the one shown is the one that changes something. */
+export const MOTION_COMMAND_WORDS = { off: "Motion off", on: "Motion on" } as const;
+
+/**
+ * The graph's Values tab row when the frame guard changed the quality: the level and, after a
+ * dash, what the motion and heavy shaders do when they differ from full.
+ * @param quality - the element's `renderQuality`.
+ * @param quality.level - its level.
+ * @param quality.motion - its motion.
+ * @param quality.heavy - whether heavy shaders draw.
+ * @returns the words, such as "Medium" or "Low, motion paused".
+ */
+export function renderQualityWords(quality: {
+    readonly level: "low" | "medium" | "high";
+    readonly motion: string;
+    readonly heavy: string;
+}): string {
+    const parts: string[] = [SHADER_QUALITY_WORDS[quality.level]];
+    if (quality.motion === "half") {
+        parts.push("motion at half speed");
+    } else if (quality.motion === "paused") {
+        parts.push("motion paused");
+    }
+    if (quality.heavy === "off") {
+        parts.push("heavy shaders off");
+    }
+    return parts.join(", ");
+}
+
+/**
+ * The load report's words for the shaders it held: "Held: Plate" or "Held: 3 shaders".
+ * @param names - the held shaders' names.
+ * @returns the words.
+ */
+export function heldShadersWords(names: readonly string[]): string {
+    return names.length <= 2 ? `Held: ${names.join(", ")}` : `Held: ${String(names.length)} shaders`;
+}
+
+/**
+ * How many layers use a held shader, in the Held shaders list: "Used by 2".
+ * @param count - the layers and settings that name it.
+ * @returns the words.
+ */
+export function usedByWords(count: number): string {
+    return `Used by ${String(count)}`;
+}
+
+/** A group outline's Group by line: "Group by Louvain", or "Group by None" for one outline around all. */
+export const GROUP_BY_WORDS = {
+    title: "Group by",
+    /**
+     * The line under the outline.
+     * @param value - what it groups by.
+     * @returns the words.
+     */
+    line: (value: string): string => `Group by ${value}`,
+    none: "None",
+} as const;

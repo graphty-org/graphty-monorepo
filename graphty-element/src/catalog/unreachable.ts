@@ -106,6 +106,16 @@ export const WAIVER_OWNER_UNASSIGNED = "unassigned -- no person has taken this y
 export const WAIVER_EXPIRY_UNSET = "2026-12-21";
 
 /**
+ * A defect waiver nobody has taken yet: read the reason, decide who owns it, and give it a date
+ * that reflects a real plan instead of the placeholder.
+ * @param reason - What is broken, and what a consumer meets because of it.
+ * @returns The waiver, carrying the placeholder owner and the placeholder expiry.
+ */
+function unownedDefect(reason: string): DefectWaiver {
+    return { kind: "defect", reason, owner: WAIVER_OWNER_UNASSIGNED, expires: WAIVER_EXPIRY_UNSET };
+}
+
+/**
  * How far ahead a defect waiver may be parked, in days.
  *
  * A year and a bit: long enough for a defect that genuinely waits on a release, short enough that
@@ -291,6 +301,18 @@ export type UnpaintedChannel = Waiver & {
     readonly channel: Channel;
 };
 
+/** The channels that size a group round its members, which only a graph holding a group can show. */
+const GROUP_SIZING_CHANNELS: readonly Channel[] = [
+    "node.groupPadding",
+    "node.groupPaddingRatio",
+    "node.groupPaddingOf",
+    "node.groupMinWidth",
+    "node.groupMinHeight",
+    "node.groupMinWidthBiasLeft",
+    "node.groupMinHeightBiasTop",
+    "node.groupIncludeLabels",
+];
+
 /**
  * Every channel published as renderable that `test/browser/channel-paints.test.ts` could not see
  * change the picture.
@@ -336,6 +358,17 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
     },
+    ...GROUP_SIZING_CHANNELS.map((channel): UnpaintedChannel => ({
+        kind: "by-design",
+        channel,
+        reason:
+            "A GROUP IS SIZED BY IT, so this waiver is about the reading and not about the capability. " +
+            "The channel sizes a group drawn round its members -- a node a file names as the parent of " +
+            "others -- and the gate's graph holds no group, so there is nothing for it to resize. " +
+            "`test/browser/groups-follow-members.test.ts` is where it is proved: it reads a Cytoscape.js " +
+            "file whose compound parents set a padding, a minimum width and a bias, and requires each " +
+            "group's box to be the size Cytoscape.js draws.",
+    })),
     ...(["node.tooltipSize", "node.tooltipColor", "node.tooltipBackground"] as const).map(
         (channel): UnpaintedChannel => ({
             kind: "by-design",
@@ -348,6 +381,28 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
                 "these channels write to be the ones drawn.",
         }),
     ),
+    ...(["node.shaders", "edge.shaders"] as const).map((channel): UnpaintedChannel => ({
+        channel,
+        ...unownedDefect(
+            "THE ELEMENT SHIPS NO SHADER PRESET YET, so the only value this gate can write to these " +
+                'channels on every build is `"none"` (or an empty map), which draws the plain look. ' +
+                "A registered or pasted shader draws: node surfaces, sprites and effects " +
+                "(test/browser/shaders/node-drawing.test.ts) and edge surfaces and effects " +
+                "(test/browser/shaders/edge-drawing.test.ts). " +
+                "The presets are later packages of design/rendering/shader-styles.md (section 8, P1 " +
+                "to P6); once one ships, this gate can write it and this waiver goes.",
+        ),
+    })),
+    {
+        channel: "edge.lift",
+        kind: "by-design",
+        reason:
+            "A LIFT RISES OUT OF A FLAT LAYOUT'S PLANE, so it draws only for a flat layout in the 3D " +
+            "view, and this gate's scene is a 3D layout. Anywhere else the edge is drawn flat and " +
+            "`styles.counts(id).undrawn` reports `edge.lift-needs-flat-layout`. " +
+            "`test/browser/shaders/edge-drawing.test.ts` draws and picks a lifted edge on a flat " +
+            "layout in 3D.",
+    },
 ];
 
 /**

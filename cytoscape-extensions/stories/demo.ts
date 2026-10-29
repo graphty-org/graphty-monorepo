@@ -459,7 +459,7 @@ export function retireAll(): void {
  */
 export function markDone(root: HTMLElement, done: () => Promise<void>): void {
     root.dataset.demo = "";
-    Object.assign(root, { whenDone: () => done().then(freeze) });
+    Object.assign(root, { whenDone: () => done().then(() => freeze(root)) });
 }
 
 /**
@@ -475,14 +475,21 @@ export function markDone(root: HTMLElement, done: () => Promise<void>): void {
  * Each core is then destroyed, so only its picture is left. A live core under its picture still redrew every element
  * on the window resizes a full-page screenshot makes: 37,000 edges of openflights and the other tiles held the main
  * thread for seconds, and with four capture browsers on a CI runner the screenshot waited out its 30 s (issue #2311).
+ *
+ * Only the cores inside `root` are touched, and nothing once `root` has left the page. A story's runs can finish after
+ * the next story has rendered (its wait timed out): a freeze over every live core then pictured a detached, zero-size
+ * container (cy.png() returns "data:,", and decode() rejects with EncodingError) or destroyed the next story's cores
+ * mid-run, so that story's wait never ended. Both failed a story that was not at fault (issues #4071, #4072).
+ * @param root - the story root whose cores to picture
  * @returns when the pictures are in place
  */
-async function freeze(): Promise<void> {
-    if (!CAPTURE) {
+async function freeze(root: HTMLElement): Promise<void> {
+    if (!CAPTURE || !root.isConnected) {
         return;
     }
+    const mine = live.filter((cy) => root.contains(cy.container()));
     const pictures = await Promise.all(
-        live.map(async (cy) => {
+        mine.map(async (cy) => {
             const img = new Image();
             img.src = cy.png({ full: false, scale: window.devicePixelRatio, bg: "#ffffff" });
             await img.decode();
@@ -495,7 +502,10 @@ async function freeze(): Promise<void> {
         }),
     );
     // destroying a core empties its container, so the pictures go in after
-    retireAll();
+    for (const cy of mine) {
+        cy.destroy();
+    }
+    live = live.filter((cy) => !mine.includes(cy));
     for (const { box, pic } of pictures) {
         box?.append(pic);
     }

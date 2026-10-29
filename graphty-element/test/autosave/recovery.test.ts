@@ -6,7 +6,7 @@
  * unless the test says two loads are alive at once.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import type { GraphSession } from "../../session";
 import { Autosaver, lockName } from "../../src/autosave/Autosaver";
@@ -19,7 +19,10 @@ import type {
     AutosaveStore,
     AutosaveWrite,
 } from "../../src/autosave/types";
+import { dispatcherOf } from "../../src/session/GraphSession";
+import { loadLineOf } from "../../src/session/loadLine";
 import { faultAutosaveStore } from "../../src/testing/faultAutosaveStore";
+import { sphereGlb, texturedGltfSet } from "../fixtures/models/fixtures";
 import { baseSession, sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 
@@ -114,6 +117,37 @@ function rows(names: string[]): { source: PageSource; apply: (session: GraphSess
 }
 
 describe("choosing what to restore", () => {
+    it("restores the models a layer names, from their own parts", async () => {
+        const store = memoryAutosaveStore();
+        const ids: string[] = [];
+        const { id, session: before } = await earlier(store, async (session) => {
+            for (const files of [new Map([["ball.glb", sphereGlb(8, 4)]]), texturedGltfSet()]) {
+                const asset = await session.assets.add({ files });
+                ids.push(asset.id);
+                await session.styles.add({
+                    name: asset.id,
+                    target: "node",
+                    selector: { match: "ids", nodes: [ids.length === 1 ? "a" : "b"] },
+                    set: { "node.model": asset.id },
+                });
+            }
+        });
+        const parts = Object.keys((await raw(store, id))?.parts ?? {});
+        assert.sameMembers(
+            parts.filter((name) => name.startsWith("asset:")),
+            ids,
+            "one part per model, named by its digest",
+        );
+
+        const page = load(store);
+        const restored = await page.saver.recover();
+        assert.strictEqual(restored?.entry.id, id);
+        assert.deepStrictEqual(await saveOf(page.session), await saveOf(before));
+        for (const asset of ids as `asset:${string}`[]) {
+            assert.strictEqual(page.session.assets.get(asset)?.state, "accepted");
+        }
+    });
+
     it("restores the newest entry into a fresh load, as it was saved", async () => {
         const store = memoryAutosaveStore();
         const { id, session: before } = await earlier(store, async (session) => {
@@ -147,6 +181,40 @@ describe("choosing what to restore", () => {
 
         assert.sameMembers([ra?.entry.id, rb?.entry.id], [first.id, second.id]);
         assert.sameMembers([a.session.project.name, b.session.project.name], ["First", "Second"]);
+    });
+
+    it("of a tab reloaded and a new tab opened at once, the one that loses the claim is told (#4148)", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+
+        // Both list the key before either claims: neither sees the other's lock in the listing.
+        const locks = new FakeLocks();
+        const reloaded = load(store, locks);
+        const opened = load(store, locks);
+        const [ra, rb] = await Promise.all([reloaded.saver.recover({ own: id }), opened.saver.recover()]);
+
+        assert.strictEqual(ra?.entry.id, id, "the reloaded tab restores its own entry");
+        assert.isNull(rb, "the new tab restores nothing");
+        assert.deepStrictEqual(
+            opened.available.map((each) => [each.entry.id, each.reason, each.entry.live]),
+            [[id, "held-by-other-tab", true]],
+            "the new tab is told the entry is open in another tab",
+        );
+    });
+
+    it("a tab whose own entry was claimed first by a new tab copies it, as when the listing shows it held", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+
+        const locks = new FakeLocks();
+        const opened = load(store, locks);
+        const reloaded = load(store, locks);
+        const [rb, ra] = await Promise.all([opened.saver.recover(), reloaded.saver.recover({ own: id })]);
+
+        assert.strictEqual(rb?.entry.id, id, "the new tab claimed it first");
+        assert.strictEqual(ra?.copiedFrom, id, "the reloaded tab copies its own entry, never shares it");
+        assert.notStrictEqual(ra?.entry.id, id);
+        assert.strictEqual(reloaded.session.project.name, "Mine");
     });
 
     it("this tab's own entry wins over a newer one another tab wrote", async () => {
@@ -215,6 +283,83 @@ describe("choosing what to restore", () => {
 });
 
 describe("a restore that does not finish", () => {
+    it("a clear asked for while the restore waits cancels it, reports nothing and takes the attempt back", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Cleared at startup" }));
+        const page = load(store);
+        const line = loadLineOf(dispatcherOf(page.session));
+        // A load the page started, still reading: the restore's open waits behind it.
+        const reading = line.join();
+        const recovering = page.saver.recover();
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        assert.isNull(await recovering);
+        assert.deepStrictEqual(page.available, [], "a clear the reader asked for is no failed restore");
+        assert.strictEqual(
+            Number((await store.read(id))?.meta.restoreAttempts ?? 0),
+            0,
+            "the cancelled attempt was taken back",
+        );
+    });
+
+    it("restore(id) a clear cancels rejects with E_SUPERSEDED and leaves the entry as it was", async () => {
+        const store = memoryAutosaveStore();
+        const { id } = await earlier(store, (session) => session.config.set({ name: "Picked by hand" }));
+        const before = await raw(store, id);
+        const page = load(store);
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const restoring = page.saver.restore(id, true);
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        const code = await restoring.then(
+            () => "restored",
+            (error: unknown) => (error as { code?: string }).code,
+        );
+        assert.strictEqual(code, "E_SUPERSEDED");
+        assert.deepStrictEqual(page.available, [], "a clear the reader asked for is no failed restore");
+        assert.strictEqual(
+            Number((await raw(store, id))?.meta.restoreAttempts ?? 0),
+            Number(before?.meta.restoreAttempts ?? 0),
+        );
+    });
+
+    it("a clear that cancels the restore of a copied entry removes the copy", async () => {
+        const store = memoryAutosaveStore();
+        const own = await earlier(store, (session) => session.config.set({ name: "Mine" }));
+        const before = await raw(store, own.id);
+        const locks = new FakeLocks();
+        locks.holdElsewhere(lockName(KEY, own.id));
+        const page = load(store, locks);
+        const line = loadLineOf(dispatcherOf(page.session));
+        const reading = line.join();
+        const recovering = page.saver.recover({ own: own.id });
+        await vi.waitFor(() => {
+            assert.strictEqual(line.size, 2, "the restore's open took its place in line");
+        });
+
+        await page.session.data.clear();
+        reading.leave();
+
+        assert.isNull(await recovering);
+        assert.deepStrictEqual(
+            (await store.list(KEY)).map((each) => each.id),
+            [own.id],
+            "the cancelled copy was not removed",
+        );
+        assert.deepStrictEqual(await raw(store, own.id), before, "the held entry is untouched");
+    });
+
     it("two restores that never confirm make the third load skip the entry and report restore-failed", async () => {
         const memory = memoryAutosaveStore();
         const { id } = await earlier(memory, (session) => session.config.set({ name: "Heavy" }));

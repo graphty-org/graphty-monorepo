@@ -6,7 +6,7 @@
 //   node cytoscapejs.mjs --vocabulary  rewrite cytoscapejs-vocabulary.json from the live property table first
 //
 // The vocabulary is Cytoscape.js's own style property table (cy.style().properties, the table its parser checks
-// every stylesheet value against), read from the pinned Cytoscape.js 3.34.3 of ../../oracles/tools/web on every run
+// every stylesheet value against), read from the pinned Cytoscape.js 3.34.3 of graph-io's devDependencies on every run
 // and compared with cytoscapejs-vocabulary.json beside this script: a property or enumerated value that appears
 // or disappears in a new version fails the run until --vocabulary rewrites the file. Every property, and every
 // enumerated value, has a specimen or a NOT_DRAWN reason, or the run fails.
@@ -36,7 +36,7 @@ const out = resolve(here, "../../specimens/cytoscapejs");
 const VOCAB = join(here, "cytoscapejs-vocabulary.json");
 const COVERAGE = join(here, "cytoscapejs-coverage.json");
 const PINNED = "3.34.3";
-const req = createRequire(resolve(here, "../../oracles/tools/web/package.json"));
+const req = createRequire(resolve(here, "../../../../package.json"));
 const cytoscape = req("cytoscape");
 const version = cytoscape.version;
 if (version !== PINNED) throw new Error(`cytoscapejs.mjs: Cytoscape.js ${version}, the sheets are made with ${PINNED}`);

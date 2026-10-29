@@ -48,6 +48,11 @@ interface Coords {
 export interface EdgePosition {
     src: Position;
     dst: Position;
+    /**
+     * The route the layout laid the edge along, when it laid one (Graphviz's splines): `along, across`
+     * pairs, flat, as `line.bends` holds them. A route the edge's style stores wins over it.
+     */
+    bends?: readonly number[];
 }
 
 /**
@@ -111,6 +116,7 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "graphviz-twopi",
     "grid",
     "kamada-kawai",
+    "location-map",
     "multipartite",
     "ngraph",
     "planar",
@@ -231,7 +237,11 @@ export const layoutEngineInternals = {} as {
     /** See `LayoutEngine.edgeProblems`. */
     edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
     /** See `LayoutEngine.setFollowers`. */
-    setFollowers(engine: LayoutEngine, rows: ReadonlySet<number> | null): void;
+    setFollowers(
+        engine: LayoutEngine,
+        rows: ReadonlySet<number> | null,
+        members?: ReadonlyMap<number, readonly number[]>,
+    ): void;
 };
 
 /**
@@ -320,8 +330,8 @@ export abstract class LayoutEngine {
         layoutEngineInternals.attachPositions = (engine, positions) => {
             engine.attachPositions(positions);
         };
-        layoutEngineInternals.setFollowers = (engine, rows) => {
-            engine.setFollowers(rows);
+        layoutEngineInternals.setFollowers = (engine, rows, members) => {
+            engine.setFollowers(rows, members);
         };
     }
 
@@ -397,6 +407,9 @@ export abstract class LayoutEngine {
 
     /** The rows the element places itself (group nodes following their members), or null. */
     private followers: ReadonlySet<number> | null = null;
+
+    /** Each follower row's member rows. See {@link LayoutEngine.followerGroups}. */
+    private followerMembers: ReadonlyMap<number, readonly number[]> = new Map();
 
     // basic functionality
     abstract init(): Promise<void>;
@@ -643,9 +656,14 @@ export abstract class LayoutEngine {
      * {@link LayoutEngine.setHoldMask}, so an engine that fixes held nodes in its own state picks
      * the followers up too.
      * @param rows - The follower rows, or null for none.
+     * @param members - Each follower row's member rows, the nodes it holds directly.
      */
-    protected setFollowers(rows: ReadonlySet<number> | null): void {
+    protected setFollowers(
+        rows: ReadonlySet<number> | null,
+        members: ReadonlyMap<number, readonly number[]> = new Map(),
+    ): void {
         this.followers = rows === null || rows.size === 0 ? null : rows;
+        this.followerMembers = members;
         this.setHoldMask(this.hold, this.holdRows);
     }
 
@@ -657,6 +675,16 @@ export abstract class LayoutEngine {
      */
     protected isFollower(index: number): boolean {
         return this.followers?.has(index) === true;
+    }
+
+    /**
+     * The groups the element places round their members (see {@link LayoutEngine.isFollower}),
+     * each with the rows of the members it holds directly: for an engine that keeps a group's
+     * members together itself, as Graphviz does with a cluster.
+     * @returns The groups by row; empty for none.
+     */
+    protected get followerGroups(): ReadonlyMap<number, readonly number[]> {
+        return new Map([...(this.followers ?? [])].map((row) => [row, this.followerMembers.get(row) ?? []]));
     }
 
     /**

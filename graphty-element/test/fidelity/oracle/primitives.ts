@@ -45,11 +45,21 @@ export interface PFill {
 /**
  * Line style classes: from a dash array and its gaps relative to the line width (solid, dotted, dashed, dash-dot), or
  * from the pattern of an outline a program drew as a fill (`outlinePaintedAsFill`, `bandPaintedAsFill`): a double line,
- * a zigzag, a sine wave, slashes across the line, a row of arrows. "other" is a pattern no class names: it matches
+ * a zigzag, a sine wave, slashes across the line, a row of arrows, a line tapering to a point. "other" is a pattern no class names: it matches
  * nothing, not even another "other".
  */
 export type DashClass =
-    "solid" | "dashed" | "dotted" | "dash-dot" | "double" | "zigzag" | "sinewave" | "slashes" | "arrows" | "other";
+    | "solid"
+    | "dashed"
+    | "dotted"
+    | "dash-dot"
+    | "double"
+    | "zigzag"
+    | "sinewave"
+    | "slashes"
+    | "arrows"
+    | "tapered"
+    | "other";
 
 /** The classes a dash array can name; every other class is a pattern drawn as a shape of its own. */
 const DASH_ARRAY_CLASSES: ReadonlySet<DashClass> = new Set(["solid", "dashed", "dotted", "dash-dot"]);
@@ -155,6 +165,11 @@ export interface Prim {
      * edge, a dotted border) is read from. Absent for everything else.
      */
     subpaths?: Pt[][];
+    /**
+     * A closed path that is a row of letters drawn as outlines (`isLettering`): words, filled or stroked as a halo,
+     * that are no arrowhead, band or body. Absent for everything else.
+     */
+    lettering?: true;
     /** What the program's own markup says this belongs to, when it says. */
     hint: {
         role: "node" | "edge" | "group" | "graph";
@@ -189,11 +204,18 @@ export interface PNode {
      */
     ring?: (PStroke & { reach: number }) | null;
     /**
-     * The oracle's side only: the boxes of the pictures drawn as part of the node (an image over or inside its shape,
-     * vis-network's circularImage and image nodes), which graphty draws as pieces over the node's face. Absent for none.
+     * The boxes of the pictures drawn as part of the node: on the oracle's side an image over or inside its shape
+     * (vis-network's circularImage and image nodes), which graphty draws as pieces over the node's face; on graphty's,
+     * only the image a node with no body draws as itself. Absent for none.
      */
     pictures?: PBox[];
     label: PText | null;
+    /**
+     * graphty's side only: a label under a node-size rule (sigma's labelRenderedSizeThreshold), shown or not at
+     * graphty's framing, with its node's size across in render px and the least that shows it. The comparison shows it
+     * where the oracle's framing would (`labelAtScale`).
+     */
+    sizedLabel?: { label: PText; acrossPx: number; min: number };
     /**
      * graphty's side only: whether its border was drawn in from the node's size (a border inside the size or centered
      * on it), so its fill lies inside the outline the program strokes, not on it.
@@ -233,6 +255,8 @@ export type ArrowShape =
     | "image"
     // a delta with a bar across the line behind it (Cytoscape's CROSS_DELTA, CROSS_OPEN_DELTA)
     | "cross-delta"
+    // a disc at the tip with a triangle behind it pointing at it (Cytoscape.js's circle-triangle)
+    | "circle-triangle"
     | "other";
 
 /** Where along its edge an arrowhead sits: at one end, or part-way along the line ("middle"). */
@@ -250,6 +274,15 @@ export interface PArrow {
     shape: ArrowShape;
     /** `#rrggbb`: its fill where it is filled, else its outline's color; null where the drawing does not say. */
     color: string | null;
+    /** Its middle, where its outline says: parts drawn at one place (a fill and its outline) are one part. */
+    at?: Pt;
+    /** graphty's side: how many pixels past the allowance it sits off its line's end (`capPlaceMiss`); absent when on it. */
+    misplaced?: number;
+    /**
+     * graphty's side: an end's arrowhead its style draws part-way along the line (`ArrowStyle.position` between 0 and 1,
+     * Pajek's `arrowPosition`), whose place is judged along the line, never from the line's end.
+     */
+    partWay?: boolean;
 }
 
 /** An edge as drawn. */
@@ -268,6 +301,16 @@ export interface PEdge {
      * none.
      */
     outline?: { color: string; opacity: number; width: number; dashClass?: DashClass } | null;
+    /**
+     * A band drawn over the line along its length (Cytoscape.js `overlay-*`): its paint and its whole width across, in
+     * the side's pixels; absent or null for none.
+     */
+    overlay?: { color: string; opacity: number; width: number } | null;
+    /**
+     * The nodes its file names as its ends, where `source` and `target` are instead the nodes a reader sees it end at:
+     * an end at a node drawn wholly under another at the same place is seen at the node over it. Absent: the same.
+     */
+    ownEnds?: { source: string; target: string };
 }
 
 /** A group box as drawn. */
@@ -290,6 +333,8 @@ export interface PStray {
     fill: string | null;
     stroke: string | null;
     text: string | null;
+    /** Words a program drew as glyph outlines (`isLettering`), whose words it does not say. */
+    lettering?: true;
 }
 
 /** One side's drawing, associated with graph elements. */
@@ -597,8 +642,9 @@ function piecesPattern(
         const thin = median(subpaths.map((q) => (2 * Math.abs(signedArea(q))) / Math.max(lengthOf(q), 1e-9)));
         const reach = median(pieces.map((p) => p.short));
         // a period of a wave (Cytoscape desktop's sine wave is a crest and a trough a piece) or a lobe of one lies off
-        // its own mirror image by more than its thickness; an arrow drawn square on the line is its own mirror image
-        const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > thin;
+        // its own mirror image by half its thickness or more (a wide one's period, cys-syn-mappings 432->450: 1.3 px off
+        // at 1.4 thick); an arrow drawn square on the line is its own mirror image, a fraction of a pixel off
+        const lopsided = median(subpaths.map((q) => mirrorGap(q, run.mirror))) > 0.5 * thin;
         if (covered >= 0.9 * run.length && reach > 4 * thin && lopsided) {
             const straight = subpaths.reduce((sum, q) => sum + straightShare(q), 0) / subpaths.length;
             return { dashClass: straight > 0.5 ? "zigzag" : "sinewave", width: thin };
@@ -698,6 +744,41 @@ const patternResult = (dashClass: DashClass, width: number | null, box: PBox): P
 });
 
 /**
+ * Whether a path's subpaths are a row of letters drawn as outlines (Cytoscape desktop's FreeHEP export draws a
+ * custom graphic's text, stringApp's enhanced label, as glyph paths, its halo stroked and its letters filled): three
+ * pieces or more in a row at least half again as wide as it is tall, set close side by side (the median gap between
+ * one and the next under half the row's height), and unlike one another (their outlines' lengths vary by 0.15 of
+ * their mean or more). A line or a border drawn in pieces repeats one piece, spaced by a dash's gap.
+ * @param subpaths - the subpaths, sampled
+ * @returns whether they are lettering
+ */
+export function isLettering(subpaths: readonly (readonly Pt[])[]): boolean {
+    if (subpaths.length < 3 || subpaths.some((q) => q.length < 2)) {
+        return false;
+    }
+    const boxes = subpaths.map((q) => boxOfPoints(q));
+    const row = boxOfPoints(subpaths.flat());
+    const h = row.y1 - row.y0;
+    if (!(h > 0) || row.x1 - row.x0 < 1.5 * h) {
+        return false;
+    }
+    const lengths = subpaths.map((q) => lengthOf(q));
+    const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+    const spread = Math.sqrt(lengths.reduce((s, l) => s + (l - mean) ** 2, 0) / lengths.length);
+    if (spread < 0.15 * mean) {
+        return false;
+    }
+    const byX = [...boxes].sort((a, b) => a.x0 - b.x0);
+    let reach = byX[0].x1;
+    const gaps = byX.slice(1).map((b) => {
+        const gap = Math.max(0, b.x0 - reach);
+        reach = Math.max(reach, b.x1);
+        return gap;
+    });
+    return median(gaps) <= 0.5 * h;
+}
+
+/**
  * Whether a filled path is an outline stroked into a fill, and what of its line can be read.
  * Cytoscape desktop exports a node border it does not draw solid (dots, zigzag, sine wave, double, slashes) as the
  * stroke's own outline, filled: a ring of two subpaths, or many pieces round the node. Read as a fill, it is larger
@@ -719,8 +800,17 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): Pain
         const r = Math.hypot(x - mx, y - my);
         return { tangent: r > 1e-9 ? [-(y - my) / r, (x - mx) / r] : [1, 0], across: r };
     };
-    // a ring: every other subpath inside the outermost
-    if (subpaths.length === 2 && boxes.every((b) => b === outerBox || holds(outerBox, b))) {
+    // a ring: every other subpath inside the outermost, or as good as: round a small node a zigzag's sharp turns are
+    // drawn through their own corners (Java2D's inner join), and the inner outline's turn there can poke a tenth of a
+    // pixel past the outer one's tip (xgmml-syn-bypass's B61)
+    const slack = 0.05 * Math.min(outerBox.x1 - outerBox.x0, outerBox.y1 - outerBox.y0);
+    const grown = {
+        x0: outerBox.x0 - slack,
+        y0: outerBox.y0 - slack,
+        x1: outerBox.x1 + slack,
+        y1: outerBox.y1 + slack,
+    };
+    if (subpaths.length === 2 && boxes.every((b) => b === outerBox || holds(grown, b))) {
         const band = Math.abs(subpaths.reduce((sum, q) => sum + signedArea(q), 0));
         const width = (2 * band) / subpaths.reduce((sum, q) => sum + lengthOf(q), 0);
         if (!(width > 0)) {
@@ -766,6 +856,14 @@ const BAND_ASPECT = 1.5;
 export interface PaintedBand extends PaintedOutline {
     /** The two ends of the band's axis, along its longest direction. */
     ends: [Pt, Pt];
+    /** How far the band reaches across its axis: a wave's or a zigzag's swing, a double line's two rows. */
+    across: number;
+    /**
+     * The line's route where the band is drawn in pieces (dots, dashes, slashes) and bends: through every piece's
+     * center in order along it, so a curved edge's pieces trace its curve rather than its chord. Absent, the band is
+     * straight and runs between its `ends`.
+     */
+    route?: Pt[];
 }
 
 /**
@@ -812,24 +910,106 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
     });
     if (runs.length === subpaths.length && subpaths.length <= 2) {
         if (subpaths.length === 2) {
-            return { ...patternResult("double", null, box), ends };
+            return { ...patternResult("double", null, box), ends, across: spread };
         }
         const q = subpaths[0];
         const width = (2 * Math.abs(signedArea(q))) / Math.max(lengthOf(q), 1e-9);
-        return { ...patternResult(continuousPattern(q), width, box), ends };
+        return { ...patternResult(continuousPattern(q), width, box), ends, across: spread };
     }
     if (subpaths.length < 3) {
         return null;
     }
+    const alongOf = ([x, y]: Pt): number => (x - mx) * u[0] + (y - my) * u[1];
     const { dashClass, width } = piecesPattern(subpaths, frame, {
         length: a1 - a0,
-        along: ([x, y]) => (x - mx) * u[0] + (y - my) * u[1],
+        along: alongOf,
         mirror: ([x, y]) => {
             const c = -(x - mx) * u[1] + (y - my) * u[0] - mid;
             return [x + 2 * c * u[1], y - 2 * c * u[0]];
         },
     });
-    return { ...patternResult(dashClass, width, box), ends };
+    const result = { ...patternResult(dashClass, width, box), ends, across: spread };
+    // A straight band reaches across its axis as far as one of its pieces does; one that reaches twice as far bends,
+    // and is routed through its pieces' centers, in order along it, its ends the end pieces' centers carried out along
+    // the axis to the band's ends.
+    const acrossOf = ([x, y]: Pt): number => -(x - mx) * u[1] + (y - my) * u[0];
+    const pieceAcross = subpaths.map((q) => {
+        const c = q.map(acrossOf);
+        return Math.max(...c) - Math.min(...c);
+    });
+    const sorted = subpaths
+        .map((q): Pt => [q.reduce((t, p) => t + p[0], 0) / q.length, q.reduce((t, p) => t + p[1], 0) / q.length])
+        .sort((p, q) => alongOf(p) - alongOf(q));
+    // A double line's pieces lie in turn on its two rows, which reach across it as far apart as the rows are: its line
+    // runs midway between neighboring pieces on the two rows (cx-specimen-edges-lines PARALLEL_LINES, read through each
+    // piece's center, zigzagged from one row to the other).
+    const centers = dashClass === "double" ? midline(sorted, acrossOf) : sorted;
+    const reach = (pts: readonly Pt[]): number => Math.max(...pts.map(acrossOf)) - Math.min(...pts.map(acrossOf));
+    if (spread <= 2 * median(pieceAcross) || (dashClass === "double" && reach(centers) <= median(pieceAcross))) {
+        return result;
+    }
+    const out = (c: Pt, a: number): Pt => [c[0] + (a - alongOf(c)) * u[0], c[1] + (a - alongOf(c)) * u[1]];
+    return { ...result, route: [out(centers[0], a0), ...centers, out(centers[centers.length - 1], a1)] };
+}
+
+/**
+ * The line between a double line's two rows of pieces: the middle of each two neighboring pieces that lie on the two
+ * rows, a row apart across the line, and not of two on one row (pieces on the two rows are not drawn strictly in turn).
+ * @param centers - the pieces' centers, in order along the line
+ * @param across - how far across the line a point lies
+ * @returns the line's points
+ */
+function midline(centers: readonly Pt[], across: (p: Pt) => number): Pt[] {
+    const steps = centers.slice(1).map((c, i) => Math.abs(across(c) - across(centers[i])));
+    const rows = [...steps].sort((a, b) => a - b)[Math.floor(0.75 * steps.length)] ?? 0;
+    return centers
+        .slice(1)
+        .flatMap((c, i): Pt[] =>
+            steps[i] >= rows / 2 ? [[(c[0] + centers[i][0]) / 2, (c[1] + centers[i][1]) / 2]] : [],
+        );
+}
+
+/** How many times as long as its base a filled triangle must be to be read as a line tapering to a point. */
+const TAPER_ASPECT = 4;
+
+/**
+ * Whether a filled path is an edge's line drawn as a long thin triangle, as wide as the line at one end and narrowing to
+ * a point at the other (Cytoscape.js's `straight-triangle`), and its axis: from the middle of its base to its point.
+ * @param points - the path's points, in drawing order
+ * @returns the band, its width the base's, or null when the path is no such line
+ */
+export function taperPaintedAsFill(points: readonly Pt[]): PaintedBand | null {
+    // its three corners: a closed outline repeats its first point at its end
+    const last = points.at(-1);
+    const corners =
+        last !== undefined && points.length > 1 && Math.hypot(last[0] - points[0][0], last[1] - points[0][1]) < 1e-6
+            ? points.slice(0, -1)
+            : [...points];
+    if (corners.length !== 3) {
+        return null;
+    }
+    const side = (i: number): number => {
+        const [a, b] = [corners[(i + 1) % 3], corners[(i + 2) % 3]];
+        return Math.hypot(b[0] - a[0], b[1] - a[1]);
+    };
+    // the base is the shortest side, the point the corner across from it
+    const tip = [0, 1, 2].sort((i, j) => side(i) - side(j))[0];
+    const [a, b] = [corners[(tip + 1) % 3], corners[(tip + 2) % 3]];
+    const base: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const width = side(tip);
+    const length = Math.hypot(corners[tip][0] - base[0], corners[tip][1] - base[1]);
+    // both long sides alike: a line's taper, not an arrowhead's barb leaning off the line
+    if (!(width > 0) || length < TAPER_ASPECT * width || Math.abs(side((tip + 1) % 3) - side((tip + 2) % 3)) > width) {
+        return null;
+    }
+    return {
+        width,
+        dashClass: "tapered",
+        patterned: false,
+        box: boxOfPoints(corners),
+        ends: [base, corners[tip]],
+        across: width,
+    };
 }
 
 /**
@@ -857,7 +1037,8 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         const xs: number[] = [];
         for (let i = 0; i < outline.length; i++) {
             const j = (i + 1) % outline.length;
-            if ((a[i] - at) * (a[j] - at) <= 0 && a[i] !== a[j]) {
+            // half open, so a vertex on the line is crossed once, not once by each side meeting there
+            if (a[i] <= at !== a[j] <= at) {
                 xs.push(c[i] + ((at - a[i]) / (a[j] - a[i])) * (c[j] - c[i]));
             }
         }
@@ -896,7 +1077,10 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         return "circle";
     }
     if (back > tip + 0.3) {
-        return cover(0.2) < 0.75 ? "vee" : "triangle";
+        // notched when the back is pressed in more than about a fifth of the length (0.19): draw.io's classic, a
+        // quarter deep, is a vee; Pajek's arrow (a sixth) and vis-network's (a tenth) are triangles. At 0.2 a quarter
+        // notch covers exactly 0.75, so the line is drawn at 0.15.
+        return cover(0.15) < 0.75 ? "vee" : "triangle";
     }
     // a triangle pointing back widens evenly towards the tip; a half circle is most of its width by its middle
     if (tip > back + 0.3 && middle < 0.75) {
@@ -909,6 +1093,28 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         return "half-circle";
     }
     return crossedDelta(outline, a, c, dir) ? "cross-delta" : "other";
+}
+
+/**
+ * The shape class of an arrowhead drawn as separate pieces in one path, where the pieces read as one outline make no
+ * shape (Cytoscape.js's compound arrows): a disc and a triangle are a circle-triangle; a triangle with bars beside it
+ * reads as its triangle, pointing the way it points (a triangle-tee or triangle-cross part-way along a line, pointing
+ * back at its source, is inverted), as graphty's triangle-tee and triangle-cross caps read.
+ * @param pieces - the arrowhead's subpaths
+ * @param dir - the axis, back to tip
+ * @returns the class, or null when the pieces are none of these
+ */
+export function piecedArrowShapeOf(pieces: readonly (readonly Pt[])[], dir: Pt): ArrowShape | null {
+    const shapes = pieces.map((q) => arrowShapeOf(q, dir));
+    const triangles = shapes.filter((x) => x === "triangle" || x === "inverted");
+    const rest = shapes.filter((x) => x !== "triangle" && x !== "inverted");
+    if (triangles.length !== 1 || rest.length === 0) {
+        return null;
+    }
+    if (rest.length === 1 && rest[0] === "circle") {
+        return "circle-triangle";
+    }
+    return rest.every((x) => x === "tee" || x === "box") ? triangles[0] : null;
 }
 
 /**

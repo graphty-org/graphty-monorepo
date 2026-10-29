@@ -186,7 +186,11 @@ export interface AutosaveStatus {
         readonly entries: number;
         readonly bytes: number;
     } | null;
-    /** `"likely"` when the storage is probably deleted with the window (a private window). */
+    /**
+     * `"likely"` when the storage is probably deleted with the window: a Safari or Firefox private
+     * window, or another site's frame. Never inferred from the quota, so Chrome's Incognito is
+     * `"unknown"`.
+     */
     readonly ephemeral: "likely" | "unknown";
     /** Why the state is `"failing"` (or `"off"`), or null. */
     readonly problem: CodedFact<AutosaveCode> | null;
@@ -214,6 +218,12 @@ export interface AutosaveEntry {
     readonly dirty: boolean;
     /** Whether a live tab or element is writing it now. */
     readonly live: boolean;
+    /**
+     * Whether this is the entry this tab was writing and this tab now holds it: true after a reload,
+     * or after the browser discarded the tab and loaded it again; false in a duplicated tab whose
+     * original still writes it, and in any other tab. Filled in by `listAutosaves`.
+     */
+    readonly own?: boolean;
     /** `"replaced"` once its tab moved on to another project; such an entry is never restored automatically. */
     readonly ended?: "replaced";
 }

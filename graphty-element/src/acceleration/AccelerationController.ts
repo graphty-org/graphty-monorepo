@@ -297,6 +297,14 @@ export class AccelerationController {
     #busy = 0;
     #probe: Promise<AccelerationStatus> | null = null;
     #probeSettled = false;
+    /**
+     * Moves on every change a probe in flight must not outlive: a policy change, an injected
+     * accelerator, a dispose. A probe remembers the value it started under and, finding it moved
+     * after an await, releases what it built instead of attaching it -- otherwise switching
+     * acceleration off mid-probe still attached a device, and off then on ran two probes whose
+     * attachments replaced each other.
+     */
+    #generation = 0;
     #recoveryAttempts = 0;
     #disposed = false;
     #status: AccelerationStatus;
@@ -417,6 +425,7 @@ export class AccelerationController {
         }
 
         this.#policy = policy;
+        this.#generation += 1;
 
         if (policy === "off") {
             this.#detach();
@@ -471,6 +480,7 @@ export class AccelerationController {
      */
     setAccelerator(accelerator: GraphAccelerator | null): void {
         this.#assertLive();
+        this.#generation += 1;
 
         if (accelerator === null) {
             this.#detach();
@@ -735,6 +745,7 @@ export class AccelerationController {
         }
 
         this.#disposed = true;
+        this.#generation += 1;
         this.#unsubscribeRegistry();
         this.#detach();
         this.#listeners.clear();
@@ -757,7 +768,16 @@ export class AccelerationController {
         }
 
         this.#transition("probing", undefined, undefined);
+        const generation = this.#generation;
         const attached = await this.#tryFactories();
+
+        if (generation !== this.#generation) {
+            // A policy change or an injection came while it ran; what it says is theirs now. A
+            // policy change that probes again left the state "probing": its probe's answer is the
+            // settled one, so a caller awaiting this probe gets that instead.
+            return this.#state === "probing" && !this.#disposed ? this.start() : this.#status;
+        }
+
         this.#probeSettled = true;
 
         if (!attached) {
@@ -780,6 +800,8 @@ export class AccelerationController {
             return false;
         }
 
+        const generation = this.#generation;
+
         const registrations = this.#registry.list();
 
         if (registrations.length === 0) {
@@ -794,15 +816,15 @@ export class AccelerationController {
         let code: AccelerationErrorCode | undefined;
 
         for (const registration of registrations) {
+            if (this.#stale(generation)) {
+                return false;
+            }
+
             try {
                 const { accelerator, software } = await this.#build(registration.factory);
 
-                if (accelerator !== null) {
-                    await this.#verify(accelerator);
-                }
-
-                if (this.#disposed) {
-                    accelerator?.dispose?.();
+                if (this.#stale(generation)) {
+                    this.#disposeAccelerator(accelerator);
                     return false;
                 }
 
@@ -825,9 +847,22 @@ export class AccelerationController {
             }
         }
 
-        this.#reason = declined.join("; ");
-        this.#code = code;
+        if (!this.#stale(generation)) {
+            this.#reason = declined.join("; ");
+            this.#code = code;
+        }
+
         return false;
+    }
+
+    /**
+     * Whether a probe started under `generation` has been overtaken: by a dispose, a policy
+     * change or an injected accelerator.
+     * @param generation - The value of the generation counter when the probe started.
+     * @returns True when what the probe finds must not be attached.
+     */
+    #stale(generation: number): boolean {
+        return this.#disposed || generation !== this.#generation;
     }
 
     /**
@@ -836,23 +871,31 @@ export class AccelerationController {
      * Under `"required"` a software adapter is acceptable, but the factory is still asked for
      * hardware only first, and asked again accepting software only when it refused with
      * `E_SOFTWARE_ONLY`. That is how the controller learns an attachment is software -- the
-     * factory contract has no other way to say so -- and it costs a hardware host nothing.
+     * factory contract has no other way to say so -- and it costs a hardware host nothing. What
+     * it built has checked itself ({@link AccelerationController.#verify}) before it is returned.
      * @param factory - The registered factory.
      * @returns What it built, and whether that is on a software adapter.
-     * @throws Whatever the factory threw.
+     * @throws Whatever the factory or the self-check threw.
      */
     async #build(factory: AcceleratorFactory): Promise<{ accelerator: GraphAccelerator | null; software: boolean }> {
         const exactMaxNodes = this.#exactMaxNodes;
+        let built: { accelerator: GraphAccelerator | null; software: boolean };
 
         try {
-            return { accelerator: await factory({ exactMaxNodes, acceptSoftware: false }), software: false };
+            built = { accelerator: await factory({ exactMaxNodes, acceptSoftware: false }), software: false };
         } catch (error) {
             if (this.#policy !== "required" || this.#disposed || !isSoftwareOnly(error)) {
                 throw error;
             }
+
+            built = { accelerator: await factory({ exactMaxNodes, acceptSoftware: true }), software: true };
         }
 
-        return { accelerator: await factory({ exactMaxNodes, acceptSoftware: true }), software: true };
+        if (built.accelerator !== null) {
+            await this.#verify(built.accelerator);
+        }
+
+        return built;
     }
 
     /**
@@ -945,11 +988,11 @@ export class AccelerationController {
 
     /**
      * Disposes an accelerator, never letting its cleanup throw into the caller.
-     * @param accelerator - The accelerator to dispose.
+     * @param accelerator - The accelerator to dispose; null disposes nothing.
      */
-    #disposeAccelerator(accelerator: GraphAccelerator): void {
+    #disposeAccelerator(accelerator: GraphAccelerator | null): void {
         try {
-            accelerator.dispose?.();
+            accelerator?.dispose?.();
         } catch (error) {
             console.warn("graphty: an accelerator threw while being disposed", error);
         }
@@ -993,9 +1036,10 @@ export class AccelerationController {
      * @param lossReason - What the backend said about the loss, kept for the failure message.
      */
     async #recover(lossReason: string): Promise<void> {
+        const generation = this.#generation;
         const recovered = await this.#tryFactories();
 
-        if (this.#disposed || recovered) {
+        if (this.#disposed || recovered || generation !== this.#generation) {
             return;
         }
 

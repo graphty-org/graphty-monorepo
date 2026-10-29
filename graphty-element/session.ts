@@ -63,6 +63,8 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import { englishReading, type ReadingOptions, type RunResult } from "./src/session/results";
 import type { SelectionOp } from "./src/session/selection";
 
+export type { FeatureId } from "./src/features/registry";
+export type { EnabledFeatures } from "./src/features/resolve";
 export type {
     ColumnHistogram,
     ColumnRole,
@@ -96,19 +98,35 @@ export type {
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
+    GroupOutlineClick,
     HistoryCause,
+    HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    JoinChoices,
+    JoinKey,
+    JoinRecord,
+    JoinReport,
+    JoinShape,
+    JoinSuggestion,
+    JoinWarning,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
     LoadedSource,
+    LoadedSourceKind,
     LoadedWeight,
     LoadMapping,
     LoadMappingRead,
+    LocationColumns,
+    LocationKind,
+    LocationUnused,
+    LocationUsing,
+    ModelChange,
+    ModelState,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -125,6 +143,10 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemoveSourceResult,
+    ReplaceCounts,
+    ReplaceReport,
+    ReplaceUnboundCode,
     ResultCell,
     ResultColumn,
     ResultColumnDescriptor,
@@ -151,7 +173,9 @@ export type {
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    TypeChangePreview,
     ValueCounts,
+    ValueType,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 
@@ -164,8 +188,50 @@ export { createGraphSession } from "./src/session";
  * Read it at any time from `session.data.lastImport()`, or take it off the detail of
  * `data-loaded` and `data-loading-complete`.
  */
+export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
 export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
+export type {
+    RecipeColumn,
+    RecipeDocument,
+    RecipeIgnoredIssue,
+    RecipeJoin,
+    RecipeLeftOutCode,
+    RecipeSource,
+} from "./src/session/recipe";
+
+// ---------------------------------------------------------------------------------------------
+// 3D model files: session.assets
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The model files a style layer can draw nodes as (`node.model`), the ids that name them, what
+ * `session.assets.add` accepts and returns, and the limits only the page's code may change.
+ */
+export type {
+    AddAssetOptions,
+    AssetId,
+    AssetOffer,
+    AssetRecord,
+    AssetsApi,
+    AssetSource,
+    AssetState,
+    BuiltInModelFormat,
+    ModelFormat,
+    ModelLimits,
+    ModelSummary,
+    NamedBlob,
+    PartAnswer,
+} from "./src/session";
+export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
+
+/**
+ * The fetches the page's code did not ask for -- a model URL from a project file, an AI command or
+ * the data, a reopened project's network-source loads -- waiting for the reader's answer
+ * (`session.network`).
+ */
+export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates
@@ -215,6 +281,7 @@ export type {
 } from "./src/session";
 export { LOAD_ROLES } from "./src/session";
 export {
+    EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
@@ -261,6 +328,7 @@ export type {
     RunSpec,
     RunStatus,
     RunStyle,
+    RunWindow,
     StaleNote,
     StaleReason,
     StartOptions,
@@ -418,18 +486,52 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
-export type { TextMatchMode } from "./src/catalog/types";
+export type { RuleSide, SourceKey, TextMatchMode } from "./src/catalog/types";
 export type {
     AttributeLeafNodes,
+    FilterCondition,
+    FilterConditionCount,
+    FilterConditionInput,
+    FilterConditionMatches,
+    FilterEffect,
     FilterResult,
     FilterStep,
     RuleTree,
+    StepCounts,
+    TimePlayback,
+    TimeResultsPolicy,
     TimeStep,
     TimeWindow,
     VisibilityApi,
     VisibilityChange,
     VisibilitySummary,
 } from "./src/session/visibility";
+
+// ---------------------------------------------------------------------------------------------
+// The timeline: a designated time field and a window that moves along it
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    TimeApi,
+    TimeBin,
+    TimeBinsOptions,
+    TimeCandidate,
+    TimeChanges,
+    TimeCountPair,
+    TimeCounts,
+    TimeExtent,
+    TimeField,
+    TimeFieldResult,
+    TimeIds,
+    TimeNoticeCode,
+    TimePlayMode,
+    TimePlayOptions,
+    TimeSettings,
+    TimeSource,
+    TimeStepEvent,
+    TimeUnit,
+    TimeWindowInput,
+} from "./src/session/time/TimeApi";
 
 // ---------------------------------------------------------------------------------------------
 // Asking what something would do and cost, before doing it
@@ -453,6 +555,7 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 // ---------------------------------------------------------------------------------------------
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
+export type { ShaderParams, ShaderParamValue, ShaderText, ShaderUse } from "./src/catalog/shaders";
 export type {
     AttributeDescriptor,
     AttributeRole,
@@ -504,6 +607,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    ShaderParamAddress,
     StaticStyle,
     StructureValue,
     StyleDocument,
@@ -511,6 +615,19 @@ export type {
     TopTies,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
+export type {
+    ProjectShader,
+    RenderQuality,
+    RenderQualityChange,
+    RenderQualityCode,
+    SessionShaders,
+    ShaderAddOptions,
+    ShaderAddResult,
+    ShaderAvailability,
+    ShaderSettings,
+    ShaderState,
+    ShaderStatus,
+} from "./src/session/shaders";
 
 // ---------------------------------------------------------------------------------------------
 // Style layers: what paints what, in what order, and why one element looks the way it does
@@ -553,6 +670,7 @@ export type {
     LegendSwatch,
     MarkSpec,
     MarkSuggestion,
+    ParamEncodingSpec,
     PreviewDefaultedPart,
     PreviewSpan,
     RepaintReason,
@@ -567,11 +685,13 @@ export type {
     SessionStylesApi,
     StyleAdjustmentCode,
     StyleAgreement,
+    StyleBatchChange,
     StyleChange,
     StyleColor,
     StyleContribution,
     StyleCounts,
     StyleExplanation,
+    StyleFileDocument,
     StyleRow,
     StyleRowId,
     StyleRowPin,

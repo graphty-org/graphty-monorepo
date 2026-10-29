@@ -12,6 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
@@ -430,24 +431,9 @@ describe("the start page's ways in", () => {
             "application/json",
             JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }, { id: "c" }], edges: [{ src: "a", dst: "b" }] }),
         );
-        await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
-        // A data file opens on the Data page as a new graph; Load reads it.
-        await userEvent.click(await screen.findByRole("button", { name: "Load" }, { timeout: TIMEOUT_MS }));
-
-        await waitFor(
-            () => {
-                assert.equal(store.get().project?.name, "triangle");
-                assert.equal(
-                    document
-                        .querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                            "graphty-element:not([data-start-page])",
-                        )
-                        ?.session.data.statistics().nodeCount,
-                    3,
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const opened = await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
+        assert.equal(store.get().project?.name, "triangle");
+        assert.equal(opened.data.statistics().nodeCount, 3);
     });
 
     it("reopens the newest recent project from Resume", async () => {
@@ -477,21 +463,8 @@ describe("the start page's ways in", () => {
         // the file input (the File System Access picker is switched off, as where a browser has none).
         vi.stubGlobal("showOpenFilePicker", undefined);
         await commands.chooseNextFile("study.graphty.json", "application/json", saved.text);
-        await userEvent.click(resume);
-
-        await waitFor(
-            () => {
-                assert.isNotNull(store.get().project);
-                assert.equal(
-                    document
-                        .querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                            "graphty-element:not([data-start-page])",
-                        )
-                        ?.session.data.statistics().nodeCount,
-                    77,
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const opened = await openBy(store, () => userEvent.click(resume));
+        assert.isNotNull(store.get().project);
+        assert.equal(opened.data.statistics().nodeCount, 77);
     });
 });

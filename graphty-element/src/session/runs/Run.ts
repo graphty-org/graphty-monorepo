@@ -48,6 +48,7 @@ import {
     type RunScopeRecord,
     type RunStatus,
     type RunStyle,
+    type RunWindow,
     type StaleNote,
 } from "./types";
 
@@ -588,6 +589,15 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     get dataDigest(): string | undefined {
         return (this.heldRecord()?.scope ?? this.scopeFactsValue)?.dataDigest;
+    }
+
+    /**
+     * The time window the run recorded when it resolved a scope over the visible graph: null for
+     * none, undefined for another scope.
+     * @returns The window.
+     */
+    get scopeWindow(): RunWindow | null | undefined {
+        return (this.heldRecord()?.scope ?? this.scopeFactsValue)?.window;
     }
 
     /**
@@ -1249,7 +1259,14 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     private mergeCaveats(outcome: RunOutcome<T>, partial: boolean, timedOut: boolean): Caveats {
         const reported = outcome.caveats ?? {};
-        const merged: Caveats = { ...this.definition.caveats, ...reported };
+        // The window the scope resolved in travels with the numbers, so a reader can say which
+        // stretch of time a result describes.
+        const window = this.scopeFactsValue?.window;
+        const merged: Caveats = {
+            ...this.definition.caveats,
+            ...(window === undefined || window === null ? {} : { window }),
+            ...reported,
+        };
 
         if (!partial) {
             return Object.freeze(merged);

@@ -1,0 +1,1138 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "6h",
+    "page": "ci",
+    "state": "bad",
+    "setBy": {
+        "member": "ci.runner_wait",
+        "state": "bad",
+        "value": {
+            "n": 31,
+            "unit": "min"
+        }
+    },
+    "others": [
+        {
+            "member": "ci.longest_queued",
+            "state": "bad",
+            "value": {
+                "n": 68,
+                "unit": "min"
+            }
+        },
+        {
+            "member": "ci.saturated",
+            "state": "bad",
+            "value": {
+                "n": 60,
+                "unit": "min"
+            }
+        },
+        {
+            "member": "ci.first_attempt",
+            "state": "bad",
+            "value": {
+                "n": 55,
+                "unit": "pct"
+            }
+        }
+    ],
+    "notes": [
+        {
+            "code": "ci.note.hangs_cleared",
+            "params": {
+                "h6": 6
+            }
+        }
+    ],
+    "members": [
+        {
+            "state": "bad",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 5,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.runner_wait",
+            "value": {
+                "n": 24,
+                "unit": "min"
+            },
+            "value6h": {
+                "n": 24,
+                "unit": "min"
+            },
+            "n": 1008,
+            "minN": 20,
+            "spark": {
+                "step": "15m",
+                "ctx": [1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 2.4, 4.5],
+                "trend": [
+                    5.4, 6.83, 8.27, 9.7, 11.13, 12.57, 14, 15.5, 16.47, 17.44, 18.41, 19.38, 20.34, 21.31, 22.28,
+                    23.25, 24.22, 25.19, 26.16, 27.13, 28.09, 29.06, 30.03, 31
+                ],
+                "breach": [
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 5
+            },
+            "note": {
+                "code": "ci.runner_wait.def"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 5,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.longest_queued",
+            "value": {
+                "n": 68,
+                "unit": "min"
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.8, 4.5],
+                "trend": [
+                    6, 7.33, 8.67, 10, 11.33, 12.67, 14, 16, 19.25, 22.5, 25.75, 29, 32.25, 35.5, 38.75, 42, 45.25,
+                    48.5, 51.75, 55, 58.25, 61.5, 64.75, 68
+                ],
+                "breach": [
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 5
+            },
+            "note": {
+                "code": "ci.longest_queued.note"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 85,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 70,
+                    "unit": "pct"
+                },
+                "needs6h": true
+            },
+            "link": "/ci/causes",
+            "id": "ci.first_attempt",
+            "value": {
+                "n": 63,
+                "unit": "pct"
+            },
+            "value6h": {
+                "n": 63,
+                "unit": "pct"
+            },
+            "n": 66,
+            "minN": 8,
+            "spark": {
+                "step": "15m",
+                "ctx": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    100,
+                    84
+                ],
+                "trend": [
+                    83, 80, 77, 74, 70, 65, 59, 53, 49, 48, 47, 45, 45, 47, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59
+                ],
+                "breach": [
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 85
+            }
+        },
+        {
+            "state": "bad",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.saturated",
+            "value": {
+                "n": 4.2,
+                "unit": "h"
+            },
+            "value6h": {
+                "n": 4.2,
+                "unit": "h"
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                "trend": [0, 0, 0, 0, 0, 0, 0, 9, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 0
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "https://www.githubstatus.com/",
+            "id": "ci.not_assigned",
+            "value": {
+                "n": 0,
+                "unit": "min"
+            }
+        },
+        {
+            "state": "ok",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 2
+                }
+            },
+            "link": "/master/red",
+            "id": "ci.hangs",
+            "value": {
+                "n": 6
+            },
+            "value6h": {
+                "n": 6
+            },
+            "spark": {
+                "step": "15m",
+                "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                "trend": [0, 0, 0, 0, 0.1, 0.3, 0.5, 0.7, 1.2, 2, 2.8, 3.6, 3.5, 2.5, 1.5, 0.5, 0, 0, 0, 0, 0, 0, 0, 0],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "target": 0
+            },
+            "cleared": "2026-10-25T20:42:00Z"
+        },
+        {
+            "state": "ok",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 1,
+                    "unit": "x"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 2,
+                    "unit": "x"
+                },
+                "needs6h": true
+            },
+            "link": "/ci",
+            "id": "ci.pr_duration",
+            "value": {
+                "n": 1,
+                "unit": "x"
+            },
+            "value6h": {
+                "n": 1,
+                "unit": "x"
+            },
+            "n": 36,
+            "minN": 5,
+            "spark": {
+                "step": "15m",
+                "ctx": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    0.85,
+                    0.85
+                ],
+                "trend": [
+                    0.86, 0.88, 0.9, 0.92, 0.93, 0.93, 0.93, 0.93, 0.94, 0.96, 0.98, 1, 1, 0.98, 0.96, 0.94, 0.93, 0.93,
+                    0.93, 0.93, 0.93, 0.93, 0.93, 0.93
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ],
+                "target": 1
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 3
+                }
+            },
+            "link": "/ci/shards",
+            "id": "ci.shards_over",
+            "value": {
+                "n": 1
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 400,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 600,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runner-minutes",
+            "id": "ci.runner_minutes",
+            "value": {
+                "n": 387,
+                "unit": "min"
+            },
+            "n": 146,
+            "minN": 10
+        },
+        {
+            "state": "ok",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 10,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 25,
+                    "unit": "pct"
+                },
+                "needs6h": true
+            },
+            "link": "/ci/shards",
+            "id": "ci.bins_over",
+            "value": {
+                "n": 7,
+                "unit": "pct"
+            },
+            "value6h": {
+                "n": 7,
+                "unit": "pct"
+            },
+            "n": 204,
+            "minN": 10
+        },
+        {
+            "state": "info",
+            "window": "now",
+            "sla": null,
+            "link": "/ci/runners/superseded",
+            "id": "ci.superseded",
+            "value": {
+                "n": 2
+            }
+        },
+        {
+            "state": "ok",
+            "window": "1h6h",
+            "sla": {
+                "target": {
+                    "op": "<",
+                    "n": 5,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "pct"
+                },
+                "needs6h": true
+            },
+            "link": "/ci",
+            "id": "ci.reruns",
+            "value": {
+                "n": 3.8,
+                "unit": "pct"
+            },
+            "value6h": {
+                "n": 3.8,
+                "unit": "pct"
+            },
+            "n": 294,
+            "minN": 10
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 0
+                },
+                "red": {
+                    "code": "sla.any_no_issue"
+                }
+            },
+            "link": "/ci/chronic",
+            "id": "ci.chronic_jobs",
+            "value": {
+                "n": 1
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 0
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 3
+                }
+            },
+            "link": "/ci/benchmarks",
+            "id": "ci.bench_regressions",
+            "value": {
+                "n": 0
+            }
+        }
+    ],
+    "sections": [
+        {
+            "kind": "bars",
+            "id": "causes",
+            "sub": {
+                "code": "ci.causes.sub",
+                "params": {
+                    "suites": 5
+                }
+            },
+            "groups": [
+                {
+                    "items": [
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.shared_check"
+                            },
+                            "n": 3,
+                            "unit": "count",
+                            "tone": "bad"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.shared_aggregator"
+                            },
+                            "n": 0,
+                            "unit": "count",
+                            "tone": "bad"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.change"
+                            },
+                            "n": 1,
+                            "unit": "count"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.flaky"
+                            },
+                            "n": 1,
+                            "unit": "count"
+                        },
+                        {
+                            "label": {
+                                "t": "label",
+                                "code": "cause.infrastructure"
+                            },
+                            "n": 0,
+                            "unit": "count"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "runner-minutes",
+            "sub": {
+                "code": "runner_minutes.sub",
+                "params": {
+                    "day": 83,
+                    "week": 146
+                }
+            },
+            "rows": [
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.pr"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 398,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 291,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 33046,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 42474,
+                            "unit": "min"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.master"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 28,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 20,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 2285,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 2974,
+                            "unit": "min"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.full"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 33,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 33,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 2777,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 4857,
+                            "unit": "min"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.other"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 52,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 39,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 4313,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 5706,
+                            "unit": "min"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "kind": {
+                            "t": "label",
+                            "code": "load.total"
+                        },
+                        "day": {
+                            "t": "num",
+                            "n": 511,
+                            "unit": "min"
+                        },
+                        "week": {
+                            "t": "num",
+                            "n": 387,
+                            "unit": "min"
+                        },
+                        "dayMin": {
+                            "t": "num",
+                            "n": 42421,
+                            "unit": "min"
+                        },
+                        "weekMin": {
+                            "t": "num",
+                            "n": 56546,
+                            "unit": "min"
+                        }
+                    },
+                    "total": true
+                }
+            ]
+        },
+        {
+            "kind": "shards",
+            "id": "shards",
+            "range": "7d",
+            "runKind": "full",
+            "rows": [
+                {
+                    "shard": "graphty-element-browser-3",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 936,
+                    "p90S": 1092,
+                    "budgetS": 900,
+                    "files": [
+                        {
+                            "file": "test/browser/edges/EdgeMesh.test.ts",
+                            "medianS": 186,
+                            "p90S": 216,
+                            "share": 20
+                        },
+                        {
+                            "file": "test/browser/layout/ForceLayout.test.ts",
+                            "medianS": 144,
+                            "p90S": 174,
+                            "share": 15
+                        },
+                        {
+                            "file": "test/browser/xr/XRSession.test.ts",
+                            "medianS": 132,
+                            "p90S": 204,
+                            "share": 14
+                        }
+                    ],
+                    "moreFiles": 31
+                },
+                {
+                    "shard": "graphty-element-storybook-2",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 828,
+                    "p90S": 1014,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "graphty-element-browser-1",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 774,
+                    "p90S": 846,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "graphty-1",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 672,
+                    "p90S": 750,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "graphty-storybook",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 606,
+                    "p90S": 702,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "compact-mantine",
+                    "group": "small-browser",
+                    "runs": 11,
+                    "minRuns": 5,
+                    "medianS": 372,
+                    "p90S": 420,
+                    "budgetS": 900
+                },
+                {
+                    "shard": "graphty-element-lifecycle",
+                    "runs": 4,
+                    "minRuns": 5,
+                    "medianS": 546,
+                    "p90S": 612,
+                    "budgetS": 900
+                }
+            ],
+            "more": {
+                "count": 29,
+                "allWithin": true
+            }
+        },
+        {
+            "kind": "table",
+            "id": "chronic",
+            "rows": [
+                {
+                    "cells": {
+                        "job": {
+                            "t": "sub",
+                            "main": {
+                                "t": "name",
+                                "v": "CI / Performance Benchmarks"
+                            },
+                            "sub": {
+                                "t": "name",
+                                "v": "release.yml"
+                            }
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 7,
+                            "of": 10
+                        },
+                        "rate": {
+                            "t": "num",
+                            "n": 70,
+                            "unit": "pct"
+                        },
+                        "pass": {
+                            "t": "ago",
+                            "at": "2026-10-24T12:31:00Z"
+                        },
+                        "issue": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "ci.no_issue"
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "non-gating",
+            "rows": [
+                {
+                    "cells": {
+                        "job": {
+                            "t": "name",
+                            "v": "Performance Benchmarks"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 14
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 10
+                        },
+                        "rate": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "num",
+                                "n": 29,
+                                "unit": "pct"
+                            }
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "job": {
+                            "t": "name",
+                            "v": "Story tests (${{ matrix.name || matrix.project }})"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 212
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 9
+                        },
+                        "rate": {
+                            "t": "num",
+                            "n": 96,
+                            "unit": "pct"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "job": {
+                            "t": "name",
+                            "v": "Visual report"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 160
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "rate": {
+                            "t": "num",
+                            "n": 100,
+                            "unit": "pct"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "job": {
+                            "t": "name",
+                            "v": "Flaky screenshots"
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "failed": {
+                            "t": "num",
+                            "n": 0
+                        },
+                        "rate": {
+                            "t": "none"
+                        }
+                    },
+                    "past": true
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "benchmarks",
+            "rows": [
+                {
+                    "cells": {
+                        "benchmark": {
+                            "t": "name",
+                            "v": "algorithms: PageRank n=10000"
+                        },
+                        "latest": {
+                            "t": "num",
+                            "n": 51,
+                            "unit": "ms"
+                        },
+                        "ratio": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "num",
+                                "n": 1.27,
+                                "unit": "x"
+                            }
+                        },
+                        "spark": {
+                            "t": "spark",
+                            "spark": {
+                                "step": "1d",
+                                "ctx": [],
+                                "trend": [41, 40, 42, 41, 43, 40, 41, 42, 41, 40, 52, 53, 51],
+                                "breach": [null, null, null, null, null, null, null, null, null, null, null, null, null]
+                            }
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 13
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "benchmark": {
+                            "t": "name",
+                            "v": "algorithms: Dijkstra n=10000"
+                        },
+                        "latest": {
+                            "t": "num",
+                            "n": 18,
+                            "unit": "ms"
+                        },
+                        "ratio": {
+                            "t": "num",
+                            "n": 1,
+                            "unit": "x"
+                        },
+                        "spark": {
+                            "t": "spark",
+                            "spark": {
+                                "step": "1d",
+                                "ctx": [],
+                                "trend": [18, 18, 19, 18, 17, 18, 18, 19, 18, 18, 18, 19, 18],
+                                "breach": [null, null, null, null, null, null, null, null, null, null, null, null, null]
+                            }
+                        },
+                        "runs": {
+                            "t": "num",
+                            "n": 13
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

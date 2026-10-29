@@ -1,5 +1,6 @@
 import {
     AdvancedButton,
+    CompactColorInput,
     DataRow,
     FieldRow,
     PanelField,
@@ -10,11 +11,22 @@ import {
 } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Checkbox, type MantineSpacing, Select, Stack, TextInput, Tooltip } from "@mantine/core";
+import {
+    ActionIcon,
+    Checkbox,
+    Group,
+    type MantineSpacing,
+    Select,
+    Stack,
+    Text,
+    TextInput,
+    Tooltip,
+} from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { type Meaning, weightName, weightRead } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
+import { isPanelEscape } from "../keys/keys";
 
 /** What the app calls one option, and each of its choices. */
 interface OptionLabel {
@@ -54,11 +66,25 @@ interface OptionsFormProps {
      * line with the section chevrons.
      */
     fieldInset?: MantineSpacing;
+    /**
+     * Controls drawn after an option's field, on its line: a shader parameter's vary glyph and its
+     * minus. Left out, the field fills the line.
+     */
+    trailing?: (option: OptionDescriptor) => React.ReactNode;
+    /** A short line under an option's field (a warning about what it read), or null for none. */
+    note?: (option: OptionDescriptor) => string | null;
+    /** Why an option cannot be changed in this view, or null when it can; a disabled field says why. */
+    disabledReason?: (option: OptionDescriptor) => string | null;
+    /** Why a column an option lists does not fit it, for the entries the element refused. */
+    choiceNote?: (option: OptionDescriptor, refusal: { readonly code: string }) => string;
+    /** Options drawn side by side, each group in one row, by name. */
+    rows?: readonly (readonly string[])[];
 }
 
 /** The option types the form draws a control for; the rest keep their defaults. */
 const DRAWN = new Set<OptionDescriptor["type"]>([
     "number",
+    "color",
     "integer",
     "enum",
     "boolean",
@@ -80,7 +106,7 @@ function num(value: unknown): number | undefined {
 /** Props for one field. */
 interface FieldProps extends Omit<
     OptionsFormProps,
-    "options" | "values" | "advanced" | "advancedLabel" | "fieldInset"
+    "options" | "values" | "advanced" | "advancedLabel" | "fieldInset" | "trailing" | "rows"
 > {
     option: OptionDescriptor;
     value: unknown;
@@ -90,13 +116,18 @@ interface FieldProps extends Omit<
  * An attribute or partition option as a choice among the attributes the graph carries on the
  * option's side (nodes unless it says edges). A partition the element has resolved lists the
  * element's choices (its groupable columns, a run's community among them); otherwise it lists
- * attributes that are not plain numbers. An attribute option with no default can be left at None (null).
+ * attributes that are not plain numbers. An attribute option with no default can be left at None (null),
+ * or at the app's word for what empty means there ("Automatic").
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.option - The option descriptor
  * @param props.value - The value set
  * @param props.label - The app's words for it
+ * @param props.empty - What leaving it empty means, when not "None"
  * @param props.onChange - Called with the new value
+ * @param props.note - A short line under the field, or null
+ * @param props.disabled - Whether the field is disabled
+ * @param props.choiceNote - Why a column the element refused does not fit
  * @returns The select
  */
 function AttributeField({
@@ -104,14 +135,35 @@ function AttributeField({
     option,
     value,
     label,
+    empty,
     onChange,
+    note,
+    disabled,
+    choiceNote,
 }: Readonly<
-    Pick<FieldProps, "session" | "option" | "value"> & { label: string; onChange: (v: unknown) => void }
+    Pick<FieldProps, "session" | "option" | "value" | "choiceNote"> & {
+        label: string;
+        empty: string | undefined;
+        onChange: (v: unknown) => void;
+        note?: string | null;
+        disabled?: boolean;
+    }
 >): React.JSX.Element {
     const on = option.on ?? "node";
-    const data =
-        option.type === "partition" && option.values !== undefined
-            ? option.values.map((choice) => ({ value: choice.value, label: choice.label }))
+    // The element's own list, when it resolved one: the columns that fit first, the rest refused.
+    const notes = new Map<string, string>();
+    const data: { value: string; label: string; disabled?: boolean }[] =
+        option.values !== undefined && (option.type === "partition" || option.values.length > 0)
+            ? option.values.map((choice) => {
+                  if (choice.refusal !== undefined && choiceNote !== undefined) {
+                      notes.set(choice.value, choiceNote(option, choice.refusal));
+                  }
+                  return {
+                      value: choice.value,
+                      label: choice.label,
+                      ...(choice.refusal === undefined ? {} : { disabled: true }),
+                  };
+              })
             : session.data
                   .attributes()
                   .filter((a) => a.kind === on && (option.type !== "partition" || a.type !== "number"))
@@ -120,7 +172,7 @@ function AttributeField({
         option.type === "attribute" &&
         (option.default === undefined || option.default === null || option.default === "");
     if (optional) {
-        data.unshift({ value: "", label: "None" });
+        data.unshift({ value: "", label: empty ?? "None" });
     }
     const fallback = typeof option.default === "string" && option.default !== "" ? option.default : null;
     const none = optional ? "" : null;
@@ -130,9 +182,23 @@ function AttributeField({
             label={label}
             value={typeof value === "string" && value !== "" ? value : (fallback ?? none)}
             data={data}
+            description={note ?? undefined}
+            disabled={disabled}
             allowDeselect={false}
             // The list stays inside a popover, so picking from it is not an outside click.
             comboboxProps={{ withinPortal: false }}
+            renderOption={({ option: item }) =>
+                notes.has(item.value) ? (
+                    <Stack gap={0}>
+                        <Text size="xs">{item.label}</Text>
+                        <Text size="xs" c="dimmed">
+                            {notes.get(item.value)}
+                        </Text>
+                    </Stack>
+                ) : (
+                    item.label
+                )
+            }
             onChange={(picked) => {
                 // None is the element's own "unweighted" default.
                 onChange(picked === "" ? null : picked);
@@ -345,6 +411,7 @@ function NumberOption({ option, value, label, empty, onChange }: Readonly<Contro
  * @param props.empty - What an empty box means, when the default is no value
  * @param props.choice - The app's words for a value
  * @param props.onChange - Called with the new value
+ * @param props.disabled - Whether the select is disabled
  * @returns The select
  */
 function EnumOption({
@@ -354,12 +421,14 @@ function EnumOption({
     empty,
     choice,
     onChange,
-}: Readonly<ControlProps & { choice: (value: string) => string }>): React.JSX.Element {
+    disabled,
+}: Readonly<ControlProps & { choice: (value: string) => string; disabled?: boolean }>): React.JSX.Element {
     const fallback = typeof option.default === "string" ? option.default : null;
     return (
         <Select
             size="xs"
             label={label}
+            disabled={disabled}
             value={typeof value === "string" ? value : fallback}
             // A default of no value says what empty means, like a number's empty box.
             placeholder={option.default === null ? (empty ?? "Not set") : undefined}
@@ -439,7 +508,36 @@ function NodeOption({
  * @param props.algorithm - The algorithm the form sets up
  * @returns The control, or nothing for an option the form does not draw
  */
-function OptionField({
+function OptionField(props: Readonly<FieldProps>): React.JSX.Element | null {
+    const reason = props.disabledReason?.(props.option) ?? null;
+    const field = <OptionControl {...props} disabled={reason !== null} />;
+    // A disabled field says why on hover and focus; the wrapper takes the pointer the field ignores.
+    return reason === null ? (
+        field
+    ) : (
+        <Tooltip label={reason} withinPortal={false}>
+            <div aria-description={reason}>{field}</div>
+        </Tooltip>
+    );
+}
+
+/**
+ * The control of one option.
+ * @param props - Component props, as for {@link OptionField}
+ * @param props.disabled - Whether the control is disabled
+ * @param props.session - The element's session
+ * @param props.option - The option descriptor
+ * @param props.value - The value set, or undefined for the default
+ * @param props.onChange - Called with the option's name and new value
+ * @param props.words - The app's words for an option
+ * @param props.canUseSelectedNode - Whether a node option offers "Use selected node"
+ * @param props.weightReads - The meaning of weight the algorithm reads, or null
+ * @param props.algorithm - The algorithm the form sets up
+ * @param props.note - A short line under the field, or null
+ * @param props.choiceNote - Why a column the element refused does not fit
+ * @returns The control, or nothing for an option the form does not draw
+ */
+function OptionControl({
     session,
     option,
     value,
@@ -448,7 +546,10 @@ function OptionField({
     canUseSelectedNode = false,
     weightReads = null,
     algorithm,
-}: Readonly<FieldProps>): React.JSX.Element | null {
+    note,
+    choiceNote,
+    disabled = false,
+}: Readonly<FieldProps & { disabled?: boolean }>): React.JSX.Element | null {
     const { label, choice, empty } = words(option);
     const set = (v: unknown): void => {
         onChange(option.name, v);
@@ -459,8 +560,35 @@ function OptionField({
             return <NumberOption option={option} value={value} label={label} empty={empty} onChange={set} />;
         case "enum":
             return (
-                <EnumOption option={option} value={value} label={label} empty={empty} choice={choice} onChange={set} />
+                <EnumOption
+                    option={option}
+                    value={value}
+                    label={label}
+                    empty={empty}
+                    choice={choice}
+                    onChange={set}
+                    disabled={disabled}
+                />
             );
+        case "color": {
+            const fallback = typeof option.default === "string" ? option.default.toUpperCase() : "#999999";
+            const shown = typeof value === "string" ? value.toUpperCase() : fallback;
+            return (
+                <CompactColorInput
+                    label={label}
+                    width="100%"
+                    color={shown}
+                    defaultColor={fallback}
+                    showOpacity={false}
+                    showReset={false}
+                    onChangeEnd={(next) => {
+                        if (next !== undefined && next.toUpperCase() !== shown) {
+                            set(next.toUpperCase());
+                        }
+                    }}
+                />
+            );
+        }
         case "boolean":
             return (
                 <Checkbox
@@ -502,7 +630,19 @@ function OptionField({
                     />
                 );
             }
-            return <AttributeField session={session} option={option} value={value} label={label} onChange={set} />;
+            return (
+                <AttributeField
+                    session={session}
+                    option={option}
+                    value={value}
+                    label={label}
+                    empty={empty}
+                    onChange={set}
+                    note={note?.(option)}
+                    disabled={disabled}
+                    choiceNote={choiceNote}
+                />
+            );
         case "node-id":
             return (
                 <NodeOption
@@ -534,6 +674,8 @@ function OptionField({
  * @param props.advanced - More controls at the end of the Advanced pop-out
  * @param props.advancedLabel - The Advanced pop-out's name
  * @param props.fieldInset - Insets the fields, not the fold's toggle
+ * @param props.trailing - Controls after an option's field, on its line
+ * @param props.rows - Options drawn side by side, each group in one row
  * @returns The fields
  */
 export function OptionsForm({
@@ -542,21 +684,51 @@ export function OptionsForm({
     advanced: more,
     advancedLabel = "Advanced",
     fieldInset,
+    trailing,
+    rows = [],
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const drawn = options.filter((o) => o.internal !== true && DRAWN.has(o.type));
-    const field = (option: OptionDescriptor): React.JSX.Element => (
-        <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />
-    );
+    const field = (option: OptionDescriptor): React.JSX.Element => {
+        const own = <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />;
+        const after = trailing?.(option);
+        return after === undefined || after === null ? (
+            own
+        ) : (
+            <div key={option.name} className="ws-option-line" data-option={option.name}>
+                <div className="ws-option-field">{own}</div>
+                {after}
+            </div>
+        );
+    };
+    // Options that share a row are drawn side by side where the row's first one stands.
+    const rowOf = (option: OptionDescriptor): readonly string[] | undefined =>
+        rows.find((r) => r.includes(option.name));
+    const placed = (list: readonly OptionDescriptor[]): React.JSX.Element[] =>
+        list.flatMap((option) => {
+            const row = rowOf(option);
+            if (row === undefined) {
+                return [field(option)];
+            }
+            if (row[0] !== option.name) {
+                return [];
+            }
+            const members = row.flatMap((name) => list.filter((o) => o.name === name));
+            return [
+                <Group key={`row-${option.name}`} gap={8} grow wrap="nowrap" align="flex-start">
+                    {members.map(field)}
+                </Group>,
+            ];
+        });
     const advanced = drawn.filter((o) => o.advanced === true);
     const basic = drawn.filter((o) => o.advanced !== true);
     return (
         <>
-            {fieldInset === undefined && basic.map(field)}
+            {fieldInset === undefined && placed(basic)}
             {fieldInset !== undefined && basic.length > 0 && (
                 <Stack gap={8} px={fieldInset}>
-                    {basic.map(field)}
+                    {placed(basic)}
                 </Stack>
             )}
             {advanced.length > 0 || more !== undefined ? (
@@ -564,31 +736,47 @@ export function OptionsForm({
                 // draws no folds inside a panel). The form brings its own floating layer, whose
                 // panels render in place: inside a Mantine popover (Analyze, Layout) a panel in the
                 // page's layer would be a click outside that popover, which closes it under the click.
-                <PopoutManager>
-                    <Popout opened={advancedOpen} onOpenChange={setAdvancedOpen}>
-                        <Popout.Trigger>
-                            <AdvancedButton
-                                label={advancedLabel}
-                                changed={advanced.some((o) => values[o.name] !== undefined)}
-                                aria-haspopup="dialog"
-                                aria-expanded={advancedOpen}
-                            />
-                        </Popout.Trigger>
-                        <Popout.Panel
-                            width={264}
-                            placement="left"
-                            alignment="start"
-                            header={{ variant: "title", title: advancedLabel }}
-                        >
-                            <Popout.Content>
-                                <Stack gap={8}>
-                                    {advanced.map(field)}
-                                    {more}
-                                </Stack>
-                            </Popout.Content>
-                        </Popout.Panel>
-                    </Popout>
-                </PopoutManager>
+                // Escape while the pop-out is open closes it alone: the form around it (a popover's
+                // form steps back to its list on Escape) never sees it. The pop-out renders in place,
+                // so its keys bubble through here.
+                <div // NOSONAR(S6847): catches Escape bubbling from the pop-out's own controls
+                    style={{ display: "contents" }}
+                    onKeyDown={(event) => {
+                        if (advancedOpen && isPanelEscape(event)) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setAdvancedOpen(false);
+                        }
+                    }}
+                >
+                    <PopoutManager>
+                        <Popout opened={advancedOpen} onOpenChange={setAdvancedOpen}>
+                            <Popout.Trigger>
+                                <Tooltip label={advancedLabel}>
+                                    <AdvancedButton
+                                        label={advancedLabel}
+                                        changed={advanced.some((o) => values[o.name] !== undefined)}
+                                        aria-haspopup="dialog"
+                                        aria-expanded={advancedOpen}
+                                    />
+                                </Tooltip>
+                            </Popout.Trigger>
+                            <Popout.Panel
+                                width={264}
+                                placement="left"
+                                alignment="start"
+                                header={{ variant: "title", title: advancedLabel }}
+                            >
+                                <Popout.Content>
+                                    <Stack gap={8}>
+                                        {advanced.map(field)}
+                                        {more}
+                                    </Stack>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </PopoutManager>
+                </div>
             ) : null}
         </>
     );

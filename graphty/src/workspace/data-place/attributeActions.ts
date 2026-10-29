@@ -3,7 +3,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
-import { NEW, openStepEditor } from "./filterSteps";
+import { openFilterDraft } from "./filterCards";
 import { labelRefusalWords } from "./words";
 
 /** One verb on an attribute: its words, why it cannot run now (or null), and what it does. */
@@ -32,7 +32,7 @@ function labelRefusalFor(session: GraphSession, column: ColumnRef): string | nul
 /**
  * The verbs on one attribute, the same wherever it is picked (the Data place's row menu and the
  * attribute inspector's "..."): Add label line on a node attribute, Filter to... on a number or
- * category attribute, and Show in table once the table dock is built.
+ * category attribute, Set as time, and Show in table once the table dock is built.
  * @param column - the attribute.
  * @param session - the element's session, or null.
  * @param store - the chrome store.
@@ -63,7 +63,7 @@ function attributeActions(
             },
         });
     }
-    // A number or a category column can be filtered on; the editor opens with it filled.
+    // A number or a category column can be filtered on: a new filter card opens on it.
     const descriptor = session?.data.attributes().find((a) => a.kind === column.kind && a.name === column.name);
     if (
         descriptor !== undefined &&
@@ -73,7 +73,22 @@ function attributeActions(
             label: "Filter to...",
             disabledReason: null,
             run: () => {
-                openStepEditor(store, `${NEW}:${descriptor.kind}:${descriptor.path}`);
+                openFilterDraft(store, `${descriptor.kind}:${descriptor.path}`);
+            },
+        });
+    }
+    // Any column can be the time field; the Time section sets its unit and how the window moves.
+    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null) {
+        const source = { start: descriptor.name };
+        const isTime =
+            (column.kind === "edge" ? session.time.field?.edges : session.time.field?.nodes)?.start === descriptor.name;
+        actions.push({
+            label: "Set as time",
+            disabledReason: isTime ? "Already the time field" : null,
+            run: () => {
+                session.time.setField(column.kind === "edge" ? { edges: source } : { nodes: source }).catch(() => {
+                    store.set({ notice: { message: `"${column.name}" cannot be the time field.` } });
+                });
             },
         });
     }

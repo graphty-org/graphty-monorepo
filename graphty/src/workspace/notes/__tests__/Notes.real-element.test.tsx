@@ -8,57 +8,17 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent as realInput } from "vitest/browser";
 
-import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { openBy, openSampleFromStart } from "../../../test/open";
+import { screen, waitFor, within } from "../../../test/test-utils";
 import { clearRecent } from "../../project/recent";
-import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
+import { createWorkspaceStore } from "../../state/store";
 
 /** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
-
-/**
- * Waits for an element whose session is not `previous`.
- * @param previous - a session that no longer counts.
- * @returns the session.
- */
-async function elementSession(previous?: GraphSession): Promise<GraphSession> {
-    let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-            assert.notStrictEqual(session, previous);
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    if (session === undefined) {
-        throw new Error("the element never came up");
-    }
-    return session;
-}
-
-/**
- * Opens the Florentine families sample from the empty app.
- * @param store - the workspace store.
- * @returns the session.
- */
-async function openSample(store: WorkspaceStore): Promise<GraphSession> {
-    render(<Workspace store={store} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-    const session = await elementSession();
-    await waitFor(
-        () => {
-            assert.equal(session.data.statistics().nodeCount, 15);
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    return session;
-}
 
 beforeEach(async () => {
     await clearRecent();
@@ -70,7 +30,7 @@ describe("Notes, on the real element", () => {
         "writes a note about the selected node with N and brings it back after save and reopen",
         async () => {
             const store = createWorkspaceStore();
-            const session = await openSample(store);
+            const { session } = await openSampleFromStart("Florentine families", store);
             const [first] = session.data.nodes();
             const name = String(first.id);
             await session.selection.apply({ nodes: [first.id] });
@@ -117,30 +77,12 @@ describe("Notes, on the real element", () => {
             );
             await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
-            await userEvent.click(await screen.findByRole("gridcell", { name: /^With a note/ }));
-            // The reopened project's element: Back to start can put up an element of its own first,
-            // whose session is not the reopened project's.
-            let reopened = await elementSession(session);
-            await waitFor(
-                () => {
-                    const current = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                        "graphty-element:not([data-start-page])",
-                    )?.session;
-                    assert.equal(current?.project.name, "With a note");
-                    if (current !== undefined) {
-                        reopened = current;
-                    }
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            await waitFor(
-                () => {
-                    assert.deepEqual(
-                        reopened.notes.list().map((saved) => ({ text: saved.text, targets: saved.targets })),
-                        [{ text: "Ask about the bank", targets: [{ node: first.id }] }],
-                    );
-                },
-                { timeout: TIMEOUT_MS },
+            const entry = await screen.findByRole("gridcell", { name: /^With a note/ });
+            const reopened = await openBy(store, () => userEvent.click(entry));
+            assert.equal(reopened.project.name, "With a note");
+            assert.deepEqual(
+                reopened.notes.list().map((saved) => ({ text: saved.text, targets: saved.targets })),
+                [{ text: "Ask about the bank", targets: [{ node: first.id }] }],
             );
             await userEvent.click(screen.getByRole("button", { name: "Notes" }));
             const again = await screen.findByRole("list", { name: "Notes" });
@@ -154,7 +96,7 @@ describe("Notes, on the real element", () => {
         "moves focus to the next note after a delete, and to Add note when none is left",
         async () => {
             const store = createWorkspaceStore();
-            const session = await openSample(store);
+            const { session } = await openSampleFromStart("Florentine families", store);
             for (const text of ["one", "two", "three"]) {
                 session.notes.add({ text, targets: [{ graph: true }] });
             }
@@ -211,7 +153,7 @@ describe("Notes, on the real element", () => {
             // Wide enough that the canvas is drawn beside both panels.
             await page.viewport(1366, 768);
             const store = createWorkspaceStore();
-            const session = await openSample(store);
+            const { session } = await openSampleFromStart("Florentine families", store);
             await session.runs.start("pagerank", {});
             await userEvent.click(await screen.findByRole("treeitem", { name: /^Influence, / }));
             await waitFor(() => {

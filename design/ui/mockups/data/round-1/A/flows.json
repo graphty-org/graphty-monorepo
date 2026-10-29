@@ -1,0 +1,124 @@
+[
+    {
+        "flow": "open-file",
+        "title": "Open my own file and get a right drawing",
+        "screens": [
+            {
+                "file": "open-file-1-clean-mapping.html",
+                "caption": "A clean file shows one sentence saying how it will be drawn, with Change beside it, the first rows under it, and focus already on Load."
+            },
+            {
+                "file": "open-file-2-unclear-file.html",
+                "caption": "A file the app is unsure about opens only the two uncertain choices, the name column and the weight column, each with its type and how many values do not fit, and Load works with the guesses as they stand."
+            },
+            {
+                "file": "open-file-3-drawn-named.html",
+                "caption": "Load drops straight into the drawing with each protein labeled by its gene name, and the Data panel says what loaded in one sentence."
+            }
+        ]
+    },
+    {
+        "flow": "check-load",
+        "title": "Check that it loaded right",
+        "screens": [
+            {
+                "file": "check-load-1-load-report.html",
+                "caption": "The load report lists only what was actually found, each line with its count, one real row and its fix already set, and the matching cells are tinted in the rows below."
+            },
+            {
+                "file": "check-load-2-after-load.html",
+                "caption": "After loading, the Data panel opens with one summary sentence and every column with its type in words, how full it is, and whether it came from the file or a run; a click opens a column's details in the inspector."
+            }
+        ]
+    },
+    {
+        "flow": "find-filter",
+        "title": "Find, then show only what matters",
+        "screens": [
+            {
+                "file": "find-filter-1-find-offers-condition.html",
+                "caption": "Typing padj < 0.05 into Find recognizes a condition and offers it with its count, 60 of 318 nodes, above any name matches."
+            },
+            {
+                "file": "find-filter-2-condition-card.html",
+                "caption": "The condition opens as one card from the toolbar's Filter button, counts 60 of 318 nodes while the drawing previews them, and ends in Select or Hide the rest."
+            },
+            {
+                "file": "find-filter-3-filtered-drawing.html",
+                "caption": "With the rest hidden, the header chip reads 60 of 318 nodes, the Filter button stays lit, the step sits in the Data panel, and Find has gone to TP53."
+            }
+        ]
+    },
+    {
+        "flow": "replace",
+        "title": "Bring in a newer copy, keep my work",
+        "screens": [
+            {
+                "file": "replace-1-drop-october.html",
+                "caption": "Dropping October's file on the project reopens the Data page with last month's mapping carried, the renamed column caught, and the Load split button already set to Replace because Add would repeat every link."
+            },
+            {
+                "file": "replace-2-receipt.html",
+                "caption": "After Replace the drawing keeps its layout and a receipt reads +12, -3 and 40 changed, names the one style that no longer binds with a one-click fix, and offers Undo."
+            }
+        ]
+    },
+    {
+        "flow": "second-file",
+        "title": "Add a second file to this graph",
+        "screens": [
+            {
+                "file": "second-file-1-three-choices.html",
+                "caption": "A second file inside the project offers three choices with Add columns to nodes already picked for a table with no links, and its match line counts 312 matched, 28 not in the graph, 6 without a value, and 2 more that match ignoring case with Use."
+            },
+            {
+                "file": "second-file-2-columns-added.html",
+                "caption": "The new columns appear under Nodes with their source, expression.tsv is listed as a source, and the inspector names the 6 nodes that got no value, including the 2 case-only matches left unused."
+            }
+        ]
+    },
+    {
+        "flow": "export",
+        "title": "Take the numbers out",
+        "screens": [
+            {
+                "file": "export-1-from-table.html",
+                "caption": "Export on the table dock opens with the node table as CSV, scoped to what is shown (60 of 318) and the shown columns, and one line naming what CSV leaves out."
+            }
+        ]
+    },
+    {
+        "flow": "fix-column",
+        "title": "Fix a column: its type, its role, its name",
+        "screens": [
+            {
+                "file": "fix-column-1-column-menu.html",
+                "caption": "Right-clicking a column in the Data panel opens its type, role, rename and hide, with 1 blank among 500 in plain view and, before a type change, the count that will not convert."
+            }
+        ]
+    },
+    {
+        "flow": "server",
+        "title": "Load from a server, expand, load more",
+        "screens": [
+            {
+                "file": "server-1-neo4j-form.html",
+                "caption": "Open network data, beside Open, lists the sources; Neo4j's form takes an address and a query, and Test reports the 40,000 matches against the 5,000 limit before Load."
+            },
+            {
+                "file": "server-2-capped-expand.html",
+                "caption": "A capped load says 5,000 of 40,000 with Load more on the canvas and on the source, and right-clicking acct-4471 offers Expand for its 28 links not yet loaded."
+            }
+        ]
+    },
+    {
+        "flow": "cleanup",
+        "title": "Clean up what the load report found",
+        "screens": [
+            {
+                "file": "cleanup-1-offers.html",
+                "caption": "The source's warning opens what the load found in the inspector, and each line carries its own cleanup: combine the 5 repeated pairs, keep or drop the 2 self-loops, fill the 14 missing amounts, each one undo step."
+            }
+        ]
+    }
+]

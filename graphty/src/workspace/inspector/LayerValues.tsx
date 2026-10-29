@@ -56,7 +56,10 @@ function stateWords(run: Run | undefined): string {
         return "Data";
     }
     if (run.status === "succeeded") {
-        return run.stale === null ? "Current" : "Out of date";
+        if (run.stale === null) {
+            return "Current";
+        }
+        return run.stale.reason === "window-moved" ? "Out of date: window moved" : "Out of date";
     }
     const words: Readonly<Record<Exclude<Run["status"], "succeeded">, string>> = {
         queued: "Queued",
@@ -398,6 +401,14 @@ function MemberValues({
     );
 }
 
+/** What a state layer's rule reads, by the state it follows. */
+const STATE_NAMES = {
+    selected: "Is selected",
+    hovered: "Is hovered",
+    ghosted: "Is outside the time window",
+    pinned: "Is pinned",
+} as const;
+
 /**
  * Selected's and Hovered's current elements.
  * @param props - Component props
@@ -597,18 +608,15 @@ export function LayerValues({
                         <DataRow key={read.path} stat name={read.name} value={stateWords(read.run)} />
                     ))}
                     {[...new Set(states)].map((state) => (
-                        <DataRow
-                            key={state}
-                            stat
-                            name={state === "selected" ? "Is selected" : "Is hovered"}
-                            value="This view only"
-                        />
+                        <DataRow key={state} stat name={STATE_NAMES[state]} value="This view only" />
                     ))}
                 </ControlSection>
             )}
-            {[...new Set(states)].map((state) => (
-                <StateValues key={state} session={session} state={state} />
-            ))}
+            {[...new Set(states)].map((state) =>
+                state === "ghosted" || state === "pinned" ? null : (
+                    <StateValues key={state} session={session} state={state} />
+                ),
+            )}
             {reads.map((read) =>
                 read.run?.shape === "path" ? (
                     <PathValues key={read.path} session={session} run={read.run} summaryLabel="Route" />

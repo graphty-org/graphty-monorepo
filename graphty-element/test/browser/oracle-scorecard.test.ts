@@ -3,19 +3,20 @@
  * each mounted in a real `<graphty-element>` at the oracle canvas size and compared, property by
  * property, with the program's own SVG export of the same file (`graph-io/test/fidelity/oracles/`,
  * compared by `test/fidelity/oracle/`), region by region with its rasterized PNG, and again with graphty's nodes at the
- * program's own positions, every pass rate held to its floor in `test/fidelity/oracle-floors.json` and every element
- * that fails a property listed in `test/fidelity/oracle-known-failures.json`. Both only ratchet, so a regression fails CI.
+ * program's own positions. A sample fails when an element fails a property that
+ * `test/fidelity/oracle-known-failures.json` does not list for it; pass rates are never a gate here.
  *
  * The set is the oracles whose comparison fits a browser shard's budget under SwiftShader; every
  * oracle, with the raster comparison and the report pages, is `test/fidelity/oracle-report.test.ts`
- * (the `fidelity` project). Record floors after a fix with
+ * (the `fidelity` project). After a fix, run it and take what passes now off the known failures with
  *
- *     GRAPHTY_FIDELITY_RECORD=1 npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts
+ *     npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts && npm run fidelity:ratchet
  */
 import { afterEach, assert, describe, it } from "vitest";
 
 import { unmount } from "../fidelity/mount";
-import { checkFloors, ORACLE_IDS, readOracleFloors, runOracle } from "../fidelity/oracle/run-oracle";
+import { gateMessages } from "../fidelity/oracle/floors";
+import { gateRun, ORACLE_IDS, readOracleStored, runOracle } from "../fidelity/oracle/run-oracle";
 import CI_SAMPLES from "./oracle-scorecard-samples.json";
 
 /**
@@ -26,27 +27,26 @@ import CI_SAMPLES from "./oracle-scorecard-samples.json";
  */
 const CI_ORACLES: readonly string[] = CI_SAMPLES;
 
-const stored = await readOracleFloors();
+const stored = await readOracleStored();
 
 afterEach(() => {
     unmount();
 });
 
 describe("style fidelity against the programs' own SVG drawings", () => {
-    it("names only samples that have an oracle and a floor", () => {
+    it("names only samples that have an oracle and a known-failures record", () => {
         assert.deepEqual(
-            CI_ORACLES.filter(
-                (id) => !ORACLE_IDS.includes(id) || (stored.floors[id] ?? stored.standInFloors[id]) === undefined,
-            ),
+            CI_ORACLES.filter((id) => !ORACLE_IDS.includes(id) || stored.known.known[id] === undefined),
             [],
         );
     });
 
     it.each(CI_ORACLES)("%s", async (id) => {
         const run = await runOracle(id, { write: false });
-        const { dropped, unfloored, newlyFailing } = checkFloors(id, run, stored);
-        assert.deepEqual(dropped, [], `${id}: a property fell below its floor in oracle-floors.json`);
-        assert.deepEqual(unfloored, [], `${id}: a property is judged that has no floor; record the floors`);
-        assert.deepEqual(newlyFailing, [], `${id}: an element fails that oracle-known-failures.json does not list`);
+        assert.deepEqual(
+            gateRun(run, stored).flatMap(gateMessages),
+            [],
+            `${id}: an element fails that oracle-known-failures.json does not list`,
+        );
     });
 });

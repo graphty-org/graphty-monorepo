@@ -20,6 +20,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
+import { sourceName } from "../data-place/words";
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue } from "../inspector/hooks";
@@ -272,20 +273,37 @@ function useLeafCount(
 }
 
 /**
+ * The leaves some cards make, ANDed: null for none.
+ * @param cards - the cards; unfinished ones make no leaf.
+ * @returns the rule.
+ */
+function allOf(cards: readonly Card[]): RuleTree | null {
+    const leaves = cards.flatMap((card) => leafOf(card) ?? []);
+    if (leaves.length === 0) {
+        return null;
+    }
+    return leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
+}
+
+/**
  * The rows' total as the Which row and the open cards both say it: "11 of 77 nodes", for one layer
- * as for several (the union), as a folder's count says it.
+ * as for several (the union), as a folder's count says it; for held cards, what they keep together.
  * @param session - the element's session.
  * @param rows - the rows.
  * @param side - nodes or edges.
+ * @param held - the cards a caller holds instead of a layer's.
  * @returns the words.
  */
-function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): string {
+function useHead(session: GraphSession, rows: readonly PickRow[], side: Side, held?: readonly Card[]): string {
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
-    const union = unionRule(rows);
-    const unionCount = useLeafCount(session, rows.length > 1 ? union : null, side);
+    const heldRule = held === undefined ? null : allOf(held);
+    const union = held === undefined && rows.length > 1 ? unionRule(rows) : heldRule;
+    const unionCount = useLeafCount(session, union, side);
     let matched: number | undefined;
-    if (rows.length === 1) {
+    if (held !== undefined) {
+        matched = heldRule === null ? total : unionCount;
+    } else if (rows.length === 1) {
         const [{ layer }] = rows;
         ({ matched } = session.styles.counts(layer.id));
     } else if (rows.some((row) => row.cards.length === 0)) {
@@ -310,11 +328,33 @@ const SPEAK_AFTER_MS = 500;
 /** A card's value box: the first text or number box its body draws (not its match menu). */
 const VALUE_BOX = "input:not([type=hidden]):not([type=checkbox]):not([readonly])";
 
+/**
+ * Cards a caller holds instead of a layer's (a filter step's rule): drawn and edited as a layer's
+ * are, and handed back on every change instead of written.
+ */
+export interface HeldCards {
+    readonly cards: readonly Card[];
+    readonly onChange: (cards: readonly Card[]) => void;
+}
+
+/**
+ * Held cards as the picker draws them.
+ * @param cards - the cards.
+ * @returns them, each shared.
+ */
+const heldShown = (cards: readonly Card[]): Shown[] =>
+    cards.map((card) => ({ key: card.key, card, per: [], shared: true }));
+
 /** Props of a picker. */
 interface WhichPickerProps {
     readonly session: GraphSession;
-    /** The tree rows it writes: one layer, or every unlocked layer row of a multi-selection or a folder. */
+    /**
+     * The tree rows it writes: one layer, or every unlocked layer row of a multi-selection or a
+     * folder; none with `held`.
+     */
     readonly rows: readonly string[];
+    /** Cards it edits instead of a layer's. */
+    readonly held?: HeldCards;
     readonly side: Side;
     /** Open on arrival: a new layer, or a kind just turned on with no cards. */
     readonly autoOpen?: boolean;
@@ -344,19 +384,21 @@ interface WhichPickerProps {
  * @param props.base - the base layer, which is never narrowed
  * @param props.adding - a field to open on with a card on it
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
+ * @param props.held - cards it edits instead of a layer's
  * @returns The picker
  */
 export function WhichPicker({
     session,
     rows: ids,
+    held,
     side,
     autoOpen = false,
     base = false,
     adding,
     onElsewhere,
 }: WhichPickerProps): React.JSX.Element | null {
-    const rows = pickRows(session, ids, side);
-    const shown = shownOf(rows);
+    const rows = held === undefined ? pickRows(session, ids, side) : [];
+    const shown = held === undefined ? shownOf(rows) : heldShown(held.cards);
     const [open, setOpen] = useState((autoOpen && !base && shown.length === 0) || (adding !== undefined && !base));
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
     // Node and Edge tabs with the arrow keys: focus stays on the tabs, which the arrows act on.
@@ -369,10 +411,10 @@ export function WhichPicker({
     // number box) closed the cards. The count the picker opens with is not news, nor is a count
     // still being worked out ("of 24 nodes", ""). The screen follows each keystroke; the count is
     // spoken once, when typing pauses.
-    const head = useHead(session, rows, side);
+    const head = useHead(session, rows, side, held?.cards);
     const [settled] = useDebouncedValue(head, SPEAK_AFTER_MS);
     useAnnounceChange(/\d of \d/.test(settled) ? settled : null);
-    if (rows.length === 0) {
+    if (rows.length === 0 && held === undefined) {
         return null;
     }
     if (base && shown.length === 0 && !open) {
@@ -395,6 +437,7 @@ export function WhichPicker({
                 <Cards
                     session={session}
                     rows={rows}
+                    held={held}
                     side={side}
                     initial={shown}
                     focusKey={focusKey}
@@ -411,6 +454,7 @@ export function WhichPicker({
                 <WhichRow
                     session={session}
                     rows={rows}
+                    held={held?.cards}
                     shown={shown}
                     side={side}
                     buttonRef={rowButton}
@@ -433,6 +477,7 @@ export function WhichPicker({
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rows - the rows it writes
+ * @param props.held - the cards a caller holds instead of a layer's
  * @param props.shown - the cards as drawn
  * @param props.side - nodes or edges
  * @param props.buttonRef - the row button, which focus returns to
@@ -443,6 +488,7 @@ export function WhichPicker({
 function WhichRow({
     session,
     rows,
+    held,
     shown,
     side,
     buttonRef,
@@ -451,6 +497,7 @@ function WhichRow({
 }: Readonly<{
     session: GraphSession;
     rows: readonly PickRow[];
+    held?: readonly Card[];
     shown: readonly Shown[];
     side: Side;
     buttonRef: React.RefObject<HTMLButtonElement | null>;
@@ -459,7 +506,7 @@ function WhichRow({
 }>): React.JSX.Element {
     const stats = session.data.statistics();
     const total = side === "node" ? stats.nodeCount : stats.edgeCount;
-    const head = useHead(session, rows, side);
+    const head = useHead(session, rows, side, held);
     const words = shown.map((each) => chipWords(session, each, rows.length));
     // Each chip's own count, as it draws it, so the row's name says it too (after Done as before).
     const [counts, setCounts] = useState<Readonly<Record<string, number | undefined>>>({});
@@ -633,6 +680,7 @@ type OnCard = (next: Card) => void;
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rows - the rows it writes
+ * @param props.held - cards it edits instead of the rows'
  * @param props.side - nodes or edges
  * @param props.initial - the cards when it opened
  * @param props.focusKey - the card (or "add") to focus first
@@ -647,6 +695,7 @@ type OnCard = (next: Card) => void;
 function Cards({
     session,
     rows,
+    held: holder,
     side,
     initial,
     focusKey,
@@ -659,6 +708,7 @@ function Cards({
 }: Readonly<{
     session: GraphSession;
     rows: readonly PickRow[];
+    held?: HeldCards;
     side: Side;
     initial: readonly Shown[];
     focusKey: string | null;
@@ -703,7 +753,12 @@ function Cards({
             }
         }
     });
-    const fields = useMemo(() => cardFields(session, side), [session, side]);
+    // A held rule (a filter step) speaks both kinds at once, so it lists Data source once, with the nodes.
+    const sourceTwice = holder !== undefined && side === "edge";
+    const fields = useMemo(
+        () => cardFields(session, side).filter((field) => !sourceTwice || field.kind !== "source"),
+        [session, side, sourceTwice],
+    );
     const elsewhere = useMemo(() => cardFields(session, side === "node" ? "edge" : "node"), [session, side]);
     const bulk = rows.length > 1;
     const stats = session.data.statistics();
@@ -760,6 +815,10 @@ function Cards({
     const commit = (next: readonly Shown[], names?: ReadonlyMap<string, Pick<Layer, "name" | "userData">>): void => {
         latest.current = next;
         setList(next);
+        if (holder !== undefined) {
+            holder.onChange(next.map((each) => each.card));
+            return;
+        }
         const patches = patchesOf(session, drawn.current, next, side, (row) => endsAt.current.get(row.id)).map(
             (each) => {
                 const was = names?.get(each.id);
@@ -784,7 +843,7 @@ function Cards({
         const narrows = (cards: readonly Shown[]): boolean =>
             cards.some((each) => each.card.type !== "ends" && isFinished(each.card));
         const removed = list[at];
-        if (!bulk && !base && removed !== undefined && narrows(list) && !narrows(next)) {
+        if (holder === undefined && !bulk && !base && removed !== undefined && narrows(list) && !narrows(next)) {
             // Undo gives the layer back its cards and the name it had with them.
             const row = rows[0];
             const names = new Map(
@@ -844,10 +903,11 @@ function Cards({
     }, [fields, initial, base]);
 
     // A card with no value yet is not written: closing the cards (Done, Enter, Escape, a click
-    // elsewhere) drops it, and says so.
+    // elsewhere) drops it, and says so. Held cards stay as the caller holds them.
+    const holding = holder !== undefined;
     useEffect(
         () => () => {
-            const dropped = latest.current.filter((each) => !isFinished(each.card));
+            const dropped = holding ? [] : latest.current.filter((each) => !isFinished(each.card));
             if (dropped.length > 0) {
                 store.set({
                     notice: {
@@ -859,9 +919,9 @@ function Cards({
                 });
             }
         },
-        [store],
+        [store, holding],
     );
-    const head = useHead(session, rows, side);
+    const head = useHead(session, rows, side, holder === undefined ? undefined : list.map((each) => each.card));
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
     let why: string | undefined;
     if (matched === 0 && list.length > 0) {
@@ -906,7 +966,11 @@ function Cards({
                 }
             }}
             onKeyDown={(event) => {
-                if (isPanelEscape(event.nativeEvent) || isDoneKey(event)) {
+                // Held cards leave their Enter to the caller too (a filter step's form adds the
+                // step), closing after it: closed now, the box would be gone before the form saw it.
+                if (holding && isDoneKey(event)) {
+                    requestAnimationFrame(onClose);
+                } else if (isPanelEscape(event.nativeEvent) || isDoneKey(event)) {
                     event.preventDefault();
                     event.stopPropagation();
                     onClose();
@@ -1114,7 +1178,7 @@ async function announceEmpty(
  * @param props.onElsewhere - goes to the other kind's tab with a card on its field
  * @returns The control
  */
-function AddCondition({
+export function AddCondition({
     fields,
     elsewhere = [],
     used,
@@ -1344,7 +1408,7 @@ function AddCondition({
                                     const key = keyOf(field);
                                     const inUse = used.includes(key);
                                     // The icon the Vary by list draws for the same value; the node id reads as text.
-                                    const Glyph = VALUE_GLYPHS[field.kind === "name" ? "text" : field.kind];
+                                    const Glyph = glyphOf(field.kind);
                                     return (
                                         <Combobox.Option
                                             key={key}
@@ -1381,6 +1445,19 @@ function AddCondition({
             </Combobox.Dropdown>
         </Combobox>
     );
+}
+
+/**
+ * The icon a field is listed with: the one the Vary by list draws for the same value, text for the
+ * node id, a file for the Data source.
+ * @param kind - the field's kind.
+ * @returns the icon.
+ */
+function glyphOf(kind: CardField["kind"]): (typeof VALUE_GLYPHS)[keyof typeof VALUE_GLYPHS] {
+    if (kind === "source") {
+        return GLYPHS.file;
+    }
+    return VALUE_GLYPHS[kind === "name" ? "text" : kind];
 }
 
 /** The two choices every value card's Match select ends with. */
@@ -1468,12 +1545,13 @@ function CardEditor({
 }
 
 /**
- * The body of a card, by its type: a layer's card and a filter step's draw the same one.
+ * The body of a card, by its type: a layer's card and a filter card draw the same one.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.card - the card
  * @param props.side - nodes or edges
  * @param props.onChange - takes the card as edited
+ * @param props.blank - a new card with no value picked yet: a yes-or-no card shows no choice
  * @returns The body
  */
 export function CardBody({
@@ -1481,7 +1559,14 @@ export function CardBody({
     card,
     side,
     onChange,
-}: Readonly<{ session: GraphSession; card: Card; side: Side; onChange: OnCard }>): React.JSX.Element | null {
+    blank = false,
+}: Readonly<{
+    session: GraphSession;
+    card: Card;
+    side: Side;
+    onChange: OnCard;
+    blank?: boolean;
+}>): React.JSX.Element | null {
     switch (card.type) {
         case "number":
             return <NumberCard session={session} card={card} side={side} onChange={onChange} />;
@@ -1489,11 +1574,13 @@ export function CardBody({
             return <CategoryCard session={session} card={card} side={side} onChange={onChange} />;
         case "text":
             return <TextCard session={session} card={card} onChange={onChange} />;
+        case "source":
+            return <SourceCard session={session} card={card} side={side} onChange={onChange} />;
         case "yes-no":
             return (
                 <MatchSelect
                     name={card.field.name}
-                    value={card.match}
+                    value={blank ? null : card.match}
                     data={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, ...PRESENCE]}
                     onChange={(match) => {
                         onChange({ ...card, match: match as typeof card.match });
@@ -1544,7 +1631,7 @@ function fixedText(leaf: RuleTree): string {
  * A card's Match select.
  * @param props - Component props
  * @param props.name - the field's name
- * @param props.value - the chosen value
+ * @param props.value - the chosen value, or null while none is
  * @param props.data - the choices
  * @param props.onChange - takes the card as edited
  * @returns The select
@@ -1556,7 +1643,7 @@ function MatchSelect({
     onChange,
 }: Readonly<{
     name: string;
-    value: string;
+    value: string | null;
     data: readonly { value: string; label: string }[];
     onChange: (value: string) => void;
 }>): React.JSX.Element {
@@ -2094,6 +2181,50 @@ function CategoryCard({
                     )}
                 </>
             )}
+        </Stack>
+    );
+}
+
+/**
+ * A Data source card: a checklist of the loads, each with how many elements of the kind it
+ * supplied, ticked ones being alternatives (a `source` leaf).
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.card - the card
+ * @param props.side - nodes or edges
+ * @param props.onChange - takes the card as edited
+ * @returns The body
+ */
+function SourceCard({
+    session,
+    card,
+    side,
+    onChange,
+}: Readonly<{
+    session: GraphSession;
+    card: Extract<Card, { type: "source" }>;
+    side: Side;
+    onChange: OnCard;
+}>): React.JSX.Element {
+    const { name } = card.field;
+    return (
+        <Stack gap={2} role="group" aria-label={`${name} values`}>
+            {session.data.sources().map((load) => (
+                <Checkbox
+                    key={load.key}
+                    size="xs"
+                    label={`${sourceName(load)}, ${many(side === "node" ? load.counts.nodes : load.counts.edges, side)}`}
+                    data-enter-done
+                    checked={card.sources.includes(load.key)}
+                    onChange={(event) => {
+                        const on = event.currentTarget.checked;
+                        const sources = on
+                            ? [...card.sources, load.key]
+                            : card.sources.filter((key) => key !== load.key);
+                        onChange({ ...card, sources });
+                    }}
+                />
+            ))}
         </Stack>
     );
 }

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Rasterizes oracle SVGs to PNGs beside them with resvg (@resvg/resvg-js 2.6.2, pinned in web/package.json):
+// Rasterizes oracle SVGs to PNGs beside them with resvg (@resvg/resvg-js 2.6.2, pinned in graph-io's devDependencies):
 //
 //   node rasterize.mjs <oracle.svg> [...]
 //
 // Deterministic: system fonts are never loaded, only the repository's pinned fonts (visual-fonts/fonts),
 // with the generic families set to the faces fontconfig picks there; white background; 1 SVG px = 1 PNG px.
-// RESVG_DIR names another directory whose node_modules holds @resvg/resvg-js (default: web/).
+// RESVG_DIR names another directory whose node_modules holds @resvg/resvg-js (default: graph-io).
 // RASTER_IMAGE_DIR names the directory an SVG's relative <image> hrefs resolve in (default: the SVG's own
 // directory): Graphviz writes a node's image= path as the DOT file spells it, relative to the sheet file.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../../..");
-const require = createRequire(join(process.env.RESVG_DIR ?? join(here, "web"), "package.json"));
+const require = createRequire(join(process.env.RESVG_DIR ?? resolve(here, "../../../.."), "package.json"));
 const { Resvg } = require("@resvg/resvg-js");
 
 const font = {

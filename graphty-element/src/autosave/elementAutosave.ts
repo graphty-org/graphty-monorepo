@@ -45,6 +45,14 @@ export interface PageLocks extends AutosaveLocks {
      * @param name - The lock.
      */
     wait(name: string): Promise<void>;
+    /**
+     * Whether this page holds a lock, taking it now when nobody does. A lock taken here is kept for
+     * the first claim this page makes of it, so an element mounted later writes under it.
+     * Optional: without it, every lock counts as this page's.
+     * @param name - The lock.
+     * @returns True when this page holds it.
+     */
+    own?(name: string): Promise<boolean>;
 }
 
 /** What autosave needs from the page. `browserEnvironment()` is the real one. */
@@ -104,17 +112,70 @@ function holdLock(resolve: (release: (() => void) | null) => void): (lock: Lock 
  * @returns The locks.
  */
 function webLocks(locks: LockManager): PageLocks {
+    // The locks this page holds, and those `own` took that no claim has picked up yet. A parked lock
+    // is this page's: it counts as held for other tabs, and not for this page's own elements.
+    // ponytail: per module copy; a page loading two copies of graphty-element hands no lock between them.
+    const mine = new Set<string>();
+    const parked = new Map<string, () => void>();
+    const claiming = new Map<string, Promise<boolean>>();
+    const request = (name: string): Promise<(() => void) | null> =>
+        new Promise((resolve, reject) => {
+            locks.request(name, { ifAvailable: true }, holdLock(resolve)).catch(reject);
+        });
+    const claim = async (name: string): Promise<(() => void) | null> => {
+        const kept = parked.get(name);
+        if (kept !== undefined) {
+            parked.delete(name);
+            return kept;
+        }
+
+        const release = await request(name);
+        if (release === null) {
+            return null;
+        }
+
+        mine.add(name);
+        return () => {
+            mine.delete(name);
+            release();
+        };
+    };
     return {
-        claim: (name) =>
-            new Promise((resolve, reject) => {
-                locks.request(name, { ifAvailable: true }, holdLock(resolve)).catch(reject);
-            }),
+        claim,
         held: async () => {
             const { held } = await locks.query();
-            return new Set((held ?? []).map((lock) => lock.name ?? ""));
+            return new Set((held ?? []).map((lock) => lock.name ?? "").filter((name) => !parked.has(name)));
         },
         wait: async (name) => {
-            await locks.request(name, () => undefined);
+            if (!parked.has(name)) {
+                await locks.request(name, () => undefined);
+            }
+        },
+        own: (name) => {
+            if (mine.has(name) || parked.has(name)) {
+                return Promise.resolve(true);
+            }
+
+            // Two lookups at once (a React effect run twice) share one claim: otherwise the second
+            // finds the lock the first is taking, and reports this page's own entry as another's.
+            let owning = claiming.get(name);
+            if (owning === undefined) {
+                owning = claim(name)
+                    .then((release) => {
+                        if (release === null) {
+                            return false;
+                        }
+
+                        parked.set(name, release);
+                        return true;
+                    })
+                    .finally(() => {
+                        claiming.delete(name);
+                    });
+                claiming.set(name, owning);
+            }
+
+            return owning;
         },
     };
 }
@@ -134,7 +195,9 @@ export function browserEnvironment(): AutosaveEnvironment {
     const nav = globalThis.navigator as
         (Navigator & { userActivation?: { hasBeenActive?: boolean }; locks?: LockManager }) | undefined;
     const locks: PageLocks =
-        nav?.locks === undefined ? { ...noLocks, wait: () => Promise.resolve() } : webLocks(nav.locks);
+        nav?.locks === undefined
+            ? { ...noLocks, wait: () => Promise.resolve(), own: () => Promise.resolve(true) }
+            : webLocks(nav.locks);
     browser = {
         window: globalThis as unknown as EventTarget,
         document: globalThis.document,
@@ -174,6 +237,20 @@ const departing = new Map<string, Promise<void>>();
 
 /** The session storage name of this tab's own entry of a key. */
 const OWN_ITEM = "graphty-autosave:own:";
+
+/**
+ * This tab's own entry of a key, as session storage kept it across a reload or a discard.
+ * @param env - The page.
+ * @param key - The key.
+ * @returns The entry id, or null.
+ */
+function readOwnItem(env: AutosaveEnvironment, key: string): string | null {
+    try {
+        return env.sessionStorage()?.getItem(OWN_ITEM + key) ?? null;
+    } catch {
+        return null;
+    }
+}
 
 /** What `start` is told. */
 export interface AutosaveStart {
@@ -430,6 +507,7 @@ export class ElementAutosave {
             ...(options.keep === undefined ? {} : { keep: options.keep }),
             clock: this.#env.clock,
             locks: this.#env.locks,
+            hidden: () => this.#env.document.visibilityState === "hidden",
         });
         this.#saver = saver;
         this.#stops.push(
@@ -535,25 +613,16 @@ export class ElementAutosave {
             ephemeral = "likely";
         } else if (this.#env.storage?.getDirectory !== undefined) {
             try {
-                // Safari's private windows refuse the origin private file system.
+                // Safari's and Firefox's private windows refuse the origin private file system.
                 await this.#env.storage.getDirectory();
             } catch {
                 ephemeral = "likely";
             }
         }
 
-        // ponytail: Chrome sizes an Incognito origin's quota from memory and a normal one from the
-        // disk (60% of it). A quota under twice the JavaScript heap limit is the memory kind: the
-        // test private-window detectors use. A fixed 1 GiB missed Incognito on any machine with
-        // more than about 16 GB of memory (6.5 GB on a 94 GB one, found by the lifecycle tests).
-        // 1 GiB where the engine reports no heap limit.
-        const heapLimit = (globalThis.performance as { memory?: { jsHeapSizeLimit?: number } } | undefined)?.memory
-            ?.jsHeapSizeLimit;
-        const memorySized = typeof heapLimit === "number" && heapLimit > 0 ? heapLimit * 2 : 2 ** 30;
-        if (storage !== null && storage.quota > 0 && storage.quota < memorySized) {
-            ephemeral = "likely";
-        }
-
+        // The quota is never a signal. Chrome sizes an Incognito origin's quota from memory and a
+        // normal one from the disk, so a small quota is also what a normal profile on a small disk
+        // has. Incognito reads "unknown"; its storage is never persisted, so it still warns.
         this.#estimatedAt = this.#env.clock.now();
         return { persisted, ephemeral, storage };
     }
@@ -686,11 +755,7 @@ export class ElementAutosave {
      * @returns The entry id, or null.
      */
     #readOwn(key: string): string | null {
-        try {
-            return this.#env.sessionStorage()?.getItem(OWN_ITEM + key) ?? null;
-        } catch {
-            return null;
-        }
+        return readOwnItem(this.#env, key);
     }
 
     /**
@@ -852,6 +917,12 @@ async function withLookupStore<T>(
  * it shows a graph, such as a start screen. The same list as `autosaver.list()`, oldest first;
  * `live` is true for an entry an element (in any tab) is writing now. Empty where the browser
  * keeps no storage. Open an entry with `autosaver.restore(id)` on an element with the same key.
+ *
+ * `own` is true for the one entry this tab was writing (after a reload, or after the browser
+ * discarded the tab and loaded it again) once this tab holds its lock: the call takes the lock and
+ * keeps it for the element this page mounts next with the same key. A duplicated tab inherits the
+ * session storage naming the entry, but while the original tab holds the lock it gets `own: false`,
+ * and its element writes to a copy.
  * @param key - The autosave key.
  * @param options - Where to look.
  * @returns The entries.
@@ -863,8 +934,16 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
         }
 
         const metas = await store.list(key);
+        const candidate = ownEntries.get(key) ?? readOwnItem(env, key);
+        const owned =
+            candidate !== null &&
+            metas.some((meta) => meta.id === candidate) &&
+            ((await env.locks.own?.(lockName(key, candidate))) ?? true);
         const held = await env.locks.held();
-        return metas.map((meta) => entryOfMeta(meta, held.has(lockName(key, meta.id))));
+        return metas.map((meta) => ({
+            ...entryOfMeta(meta, held.has(lockName(key, meta.id))),
+            own: owned && meta.id === candidate,
+        }));
     });
 }
 

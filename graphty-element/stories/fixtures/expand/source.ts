@@ -14,6 +14,7 @@ import {
     replayFetch,
 } from "@graphty/graph-io";
 
+import type { SourceLoadOptions } from "../../../src/session/sources/types";
 import type { GraphSession } from "../../../src/session/types";
 import people from "./people.json";
 
@@ -86,19 +87,21 @@ export function recordedPeopleSource(transport: "recorded" | "context" = "record
  * @param session - the session
  * @param transport - which variant of the source the load names
  * @param seed - more attributes for the seed node, such as its `position`
+ * @param options - more load options, such as the load's own `expand`
  * @returns the load's key
  */
 export async function loadRecordedSeed(
     session: GraphSession,
     transport: "recorded" | "context" = "recorded",
     seed: Readonly<Record<string, unknown>> = {},
+    options: SourceLoadOptions = {},
 ): Promise<string> {
     const source = recordedPeopleSource(transport);
     if (!listSources().some((info) => info.id === source.id)) {
         registerSource(source);
     }
 
-    await session.data.import({ source: source.id, config: {} }, { mode: "merge" });
+    await session.data.import({ source: source.id, config: {} }, { mode: "merge", ...options });
     if (Object.keys(seed).length > 0) {
         await session.data.updateNodes([{ id: PEOPLE_SEED.id, values: seed }]);
     }

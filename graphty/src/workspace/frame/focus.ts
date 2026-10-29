@@ -57,9 +57,15 @@ export const INSPECTOR_TITLE_ID = "ws-inspector-title";
 /**
  * Puts focus on the graph's heading in the inspector once a graph has opened (a sample, a file,
  * a project, a load from the Data page), so a screen reader starts with which graph it is and
- * how big; else, while the inspector shows something else, on the open place's list.
+ * how big; else, while the inspector shows something else, on the open place's list. A reader
+ * who has already moved into the drawing, or into a dialog, while the graph was still being read
+ * keeps their place.
  */
 export function focusOpenedGraph(): void {
+    const active = document.activeElement;
+    if (active?.tagName === "GRAPHTY-ELEMENT" || (active?.closest('[role="dialog"]') ?? null) !== null) {
+        return;
+    }
     const title = document.querySelector<HTMLElement>(`[data-inspected="graph"] #${INSPECTOR_TITLE_ID}`);
     if (title === null) {
         focusCurrentPlace();
@@ -69,12 +75,62 @@ export function focusOpenedGraph(): void {
 }
 
 /**
+ * For a graph that opens after a wait (a sample read, a file opened): watches, from now, for the
+ * reader's own keys and presses. The function it returns puts focus on the graph's heading
+ * (`focusOpenedGraph`) only when the reader did nothing meanwhile or focus has fallen to the page,
+ * so focus never jumps away from where the reader went while the graph was loading.
+ * @returns Stops watching; with `focus` (the default) it then moves focus as above.
+ */
+export function focusOpenedGraphLater(): (focus?: boolean) => void {
+    let acted = false;
+    const onInput = (event: Event): void => {
+        acted ||= event.isTrusted;
+    };
+    document.addEventListener("keydown", onInput, true);
+    document.addEventListener("pointerdown", onInput, true);
+    return (focus = true) => {
+        document.removeEventListener("keydown", onInput, true);
+        document.removeEventListener("pointerdown", onInput, true);
+        if (focus && (!acted || focusIsLost())) {
+            focusOpenedGraph();
+        }
+    };
+}
+
+/**
  * Puts focus on the inspector's title after an action filled the inspector (a run, a find pick):
  * the ring says "here is what you asked for" without marking a value row as chosen, and the next
  * Enter opens nothing. Single-key shortcuts (n for a note) still work from there.
  */
 export function focusInspectorTitle(): void {
     document.getElementById(INSPECTOR_TITLE_ID)?.focus();
+}
+
+/**
+ * Puts focus on the workspace's main heading, the inspector's title, which names what is open:
+ * where a reopened tab starts, so a screen reader hears where the reader left off. The title is
+ * drawn after the place it names comes back, so focus waits for it, unless the reader has moved
+ * focus somewhere first.
+ */
+export function focusMainHeading(): void {
+    const title = (): HTMLElement | null => document.getElementById(INSPECTOR_TITLE_ID);
+    if (title() !== null) {
+        title()?.focus();
+        return;
+    }
+    const observer = new MutationObserver(() => {
+        const drawn = title();
+        if (drawn !== null) {
+            stop();
+            drawn.focus();
+        }
+    });
+    const stop = (): void => {
+        observer.disconnect();
+        document.removeEventListener("focusin", stop);
+    };
+    document.addEventListener("focusin", stop);
+    observer.observe(document.body, { childList: true, subtree: true });
 }
 
 /** Everything that can take focus, before the checks `canFocus` makes. */
@@ -110,10 +166,19 @@ export function tabStops(root: ParentNode): HTMLElement[] {
 /**
  * The panels F6 and Shift+F6 move between, in order, as a desktop application's do: the left
  * panel, then the inspector that edits what it picks (one press from a layer to its style), the
- * drawing, the canvas toolbar, the table while it is open, and the Data page while it stands in
- * for them. A hidden one is passed over.
+ * drawing, the timeline dock while a time field is designated, the canvas toolbar, the table while
+ * it is open, and the Data page while it stands in for them. A hidden one is passed over.
  */
-const PANELS = [".ws-left", ".ws-right", ".ws-canvas graphty-element", ".ws-toolbar-dock", ".ws-dock", ".ws-page"];
+const PANELS = [
+    ".ws-left",
+    ".ws-right",
+    ".ws-canvas graphty-element",
+    // The timeline dock while a time field is designated: its brush is where focus lands.
+    ".tl-dock",
+    ".ws-toolbar-dock",
+    ".ws-dock",
+    ".ws-page",
+];
 
 /** The control that last had focus in each panel, by its selector: where F6 returns to it. */
 const lastInPanel = new Map<string, HTMLElement>();
@@ -168,7 +233,12 @@ function panelTarget(selector: string, element: HTMLElement): HTMLElement | unde
     if (last !== undefined && element.contains(last) && canFocus(last)) {
         return last;
     }
-    return element.tagName === "GRAPHTY-ELEMENT" ? element : tabStops(element)[0];
+    if (element.tagName === "GRAPHTY-ELEMENT") {
+        return element;
+    }
+    // A panel can name where focus lands first (the timeline dock's brush, not its first button).
+    const start = element.querySelector<HTMLElement>("[data-panel-start]");
+    return (start === null ? undefined : tabStops(start)[0]) ?? tabStops(element)[0];
 }
 
 /** How many focused controls the guard remembers, newest last. */

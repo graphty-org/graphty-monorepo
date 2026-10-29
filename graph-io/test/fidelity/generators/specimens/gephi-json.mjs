@@ -34,13 +34,13 @@ import { ANCHORS, caption, cells, layout } from "../sheet-layout.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, "../../specimens/gephi-json");
 const VOCAB = join(here, "gephi-json-vocabulary.json");
-const web = resolve(here, "../../oracles/tools/web");
+const graphIo = resolve(here, "../../../.."); // its devDependencies pin the oracle libraries
 const vocabulary = JSON.parse(readFileSync(VOCAB, "utf8"));
 
 // ------------------------------------------------------------------ the pinned sigma's settings
 
-const sigmaVersion = JSON.parse(readFileSync(join(web, "node_modules/sigma/package.json"), "utf8")).version;
-const settingsUrl = pathToFileURL(createRequire(join(web, "package.json")).resolve("sigma/settings"));
+const sigmaVersion = JSON.parse(readFileSync(join(graphIo, "node_modules/sigma/package.json"), "utf8")).version;
+const settingsUrl = pathToFileURL(createRequire(join(graphIo, "package.json")).resolve("sigma/settings"));
 const { DEFAULT_SETTINGS } = await import(settingsUrl.href);
 const recorded = vocabulary.sigmaSettings;
 const liveValues = Object.fromEntries(Object.keys(recorded.values).map((k) => [k, DEFAULT_SETTINGS[k]]));

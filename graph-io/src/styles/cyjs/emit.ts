@@ -224,7 +224,41 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "labelBorderWidth":
             return ifNumber(value, (v) => exact({ "text-border-width": v, "text-border-opacity": 1 }));
         default:
-            return propertyToCyjs(property, value, specs);
+            return groupToCyjs(property, value) ?? propertyToCyjs(property, value, specs);
+    }
+}
+
+/**
+ * A compound parent's sizing as Cytoscape.js properties: a bias share as the two sides' percentages.
+ * @param property - the neutral property
+ * @param value - the value
+ * @returns the properties, or null when the property is no group sizing
+ */
+function groupToCyjs(property: string, value: StyleValue): Written | null {
+    const percent = (v: number): string => `${num6(v * 100)}%`;
+    switch (property) {
+        case "groupPadding":
+            return ifNumber(value, (v) => exact({ padding: `${num6(v)}px` }));
+        case "groupPaddingRatio":
+            return ifNumber(value, (v) => exact({ padding: percent(v) }));
+        case "groupPaddingOf":
+            return exact({ "padding-relative-to": String(value) });
+        case "groupMinWidth":
+            return ifNumber(value, (v) => exact({ "min-width": `${num6(v)}px` }));
+        case "groupMinHeight":
+            return ifNumber(value, (v) => exact({ "min-height": `${num6(v)}px` }));
+        case "groupMinWidthBiasLeft":
+            return ifNumber(value, (v) =>
+                exact({ "min-width-bias-left": percent(v), "min-width-bias-right": percent(1 - v) }),
+            );
+        case "groupMinHeightBiasTop":
+            return ifNumber(value, (v) =>
+                exact({ "min-height-bias-top": percent(v), "min-height-bias-bottom": percent(1 - v) }),
+            );
+        case "groupIncludeLabels":
+            return exact({ "compound-sizing-wrt-labels": value === false ? "exclude" : "include" });
+        default:
+            return null;
     }
 }
 

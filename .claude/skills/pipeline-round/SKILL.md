@@ -159,7 +159,9 @@ several:
   its own pull request instead.
 - **Never ask the owner to merge.** A pull request `tools/pr-open.sh` left auto-merge off for because it touches an
   owner-guarded path: once green, arm its auto-merge yourself (`gh pr merge <n> --auto --merge`). Only a breaking
-  change (it needs the label `breaking-go`) is the owner's, in one daily review list. Never merge master into one
+  change (it needs the label `breaking-go`) is the owner's, in one daily review list. Never arm one that writes an
+  approval the owner keeps for himself (`visual-review/passkeys.json`, `release-approvals.json`, a hand-added
+  `tools/test-quarantine.json` entry): agents never write those, so flag it to the owner instead. Never merge master into one
   waiting on the owner unless it conflicts: the push dismisses his approval.
 - **A major or first publish** the verdict names as an owner item (no `release-approvals.json` entry).
 - **The branch ceiling,** in the daily list: every branch with no pull request whose first commit is over 3 days
@@ -213,7 +215,17 @@ git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refn
 minutes, from `.worktrees/worktree-cleanup-live`). Check only that `servherd_list` shows it online, else start it:
 `servherd_start({ name: "worktree-cleanup", cwd: "/home/apowers/Projects/graphty-monorepo/.worktrees/worktree-cleanup-live", command: "node tools/worktree-cleanup.mjs --apply --every 15" })`.
 
-### 12. Nothing to do
+### 12. Dashboard members no step covers
+
+For EVERY member of `health_status` that is not ok (for example `ci.chronic_jobs`, `costs.*`, `ci.runner_wait`,
+`data-sources.*`, `pull-requests.oldest_open`), get its rows from the drill-down tools (or
+`/v1/page/<page>` on the status API for tables such as chronic) and find its owner: an open issue named for it, an
+open pull request, or a claim in `tmp/health-green-owner/journal.md` (the health-to-green workflow's journal). No
+owner: fix it within this round's bounds, or file an issue (priority by impact) and record it on the issue. Red only
+because the dashboard reads wrong: fix `tools/pipeline-health`. Never change an SLA target (owner only): propose it
+in `tmp/health-green-owner/owner-asks.md`.
+
+### 13. Nothing to do
 
 End with one line, for example `pipeline-round: nothing due (3 pull requests open, 1 waiting on the owner).` No
 ACTION NEEDED line unless something in "Escalation" is newly due.

@@ -17,6 +17,10 @@ import { ViewWatch } from "./viewWatch";
  * after the node surfaces (`NodeBillboardBatch`), so a glow along an edge is depth tested against
  * the nodes in front of it and blends over the ones behind it, and before every node shader
  * effect, which keeps the default, so an effect round a node is drawn over the edges that meet it.
+ *
+ * An edge effect draws one step after an edge surface: both batches have the same frozen bounds, so
+ * at one index Babylon kept the order their meshes were made in, and a surface made after the
+ * effect painted over it (issue #4424).
  */
 const EDGE_SHADER_ALPHA_INDEX = 1e9;
 
@@ -80,7 +84,7 @@ export function shadedLineMesh(
         },
         scene,
     );
-    mesh.alphaIndex = EDGE_SHADER_ALPHA_INDEX;
+    mesh.alphaIndex = role === "along" ? EDGE_SHADER_ALPHA_INDEX + 1 : EDGE_SHADER_ALPHA_INDEX;
     const material = mesh.material as ShaderMaterial;
     material.setUniformBuffer(SCENE_BLOCK, runtime.uniforms.buffer);
     material.setTexture(data.paramSampler, data.paramTexture);

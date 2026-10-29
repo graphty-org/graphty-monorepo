@@ -369,7 +369,7 @@ async function reviewScreens(tag, phaseName, n) {
     const tool = `${SD}/tool/dry-run-review.mjs`;
     const out = `${WALKS}/${tag}/script`;
     return agent(
-        `${RULES}\nRun: cd ${ST} && node ${tool} request ${out} --study ${T}. If it exits 0 or 1 it wrote no request: return { "verdicts": [] }. If it exits 3, read ${out}/review-request.md and do exactly what it says (it asks you to look at ${n} routes' screenshots, judge each, write ${out}/verdicts.json and check it with the same tool), then return that verdicts object.`,
+        `${RULES}\nRun: cd ${ST} && node ${tool} request ${out} --study ${T}. If it exits 0 or 1 it wrote no request: return { "verdicts": [] }. If it exits 3, read ${out}/review-request.md and do exactly what it says (it asks you to look at ${n} routes' screenshots, judge each, write ${out}/verdicts.json and check it with the same tool), then return that verdicts object. Any other exit (2: the tool failed; 4: the machine could not run the pass) is a failure, never "nothing to review": return { "verdicts": [], "error": "<the exit code and the tool's last lines>" }.`,
         {
             label: `${tag}: review changed screens (${n})`,
             phase: phaseName,
@@ -390,6 +390,7 @@ async function reviewScreens(tag, phaseName, n) {
                             required: ["route", "verdict", "reason", "cites", "evidence"],
                         },
                     },
+                    error: { type: "string" },
                 },
                 required: ["verdicts"],
             },
@@ -514,13 +515,14 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
         return pilot(id, 0, rw, scriptNote(id), true);
     };
     // Only the screens that changed since the earlier pass (or have no earlier screen) and the walks that
-    // broke before their outcome checks are judged; nothing is reviewed when nothing changed.
+    // broke before their outcome checks are judged; nothing is reviewed when nothing changed. The same
+    // selection as toJudge in tool/dry-run-review.mjs (its test compares them); a route the machine could
+    // not run still starts the reviewer, whose tool then reports the pass as could-not-run.
     const lookAt = (script?.routes || []).filter(
         (r) =>
             r.change !== "unstable" &&
-            (r.change === "changed" ||
-                r.change === "new" ||
-                (r.result !== "pass" && !/^checking "/.test(r.reason || ""))),
+            !(r.result !== "pass" && /^checking "/.test(r.reason || "")) &&
+            (r.result !== "pass" || r.change === "changed" || r.change === "new"),
     );
     const unstable = (script?.routes || []).filter((r) => r.change === "unstable").map((r) => r.id);
     if (unstable.length)
@@ -542,7 +544,17 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
     }
     // The reviewer's bug, usability and cannot-tell verdicts join the task they belong to, for the triage.
     const taskOfRoute = (id) => (script?.routes || []).find((r) => r.id === id)?.task;
-    for (const v of review?.verdicts || []) {
+    // a failed review is never a clean one: each route it should have judged stays cannot-tell
+    if (review?.error) log(`${tag}: SCREEN REVIEW FAILED, the changed screens were not judged: ${review.error}`);
+    const verdicts = review?.error
+        ? lookAt.map((r) => ({
+              route: r.id,
+              verdict: "cannot-tell",
+              reason: `screen review failed: ${review.error}`,
+              evidence: [],
+          }))
+        : review?.verdicts || [];
+    for (const v of verdicts) {
         const d = `${taskOfRoute(v.route)}: route ${v.route}: ${v.verdict}: ${v.reason} -- ${(v.evidence || []).join(" ")}`;
         if (v.verdict === "intended") {
             log(`${tag}: screen change judged intended (${(v.cites || []).join(", ")}): ${d}`);

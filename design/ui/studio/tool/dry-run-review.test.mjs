@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkVerdicts, requestText, SCHEMA, toJudge, VERDICTS } from "./dry-run-review.mjs";
+import { checkVerdicts, citeChecker, MACHINE, requestText, SCHEMA, toJudge, VERDICTS } from "./dry-run-review.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CLI = join(here, "dry-run-review.mjs");
@@ -78,7 +78,8 @@ test("the request names every judged route's evidence and the branch's commits",
 
 test("verdicts: one per judged route, known verdict, evidence, and intended cites what it rests on", () => {
     const ok = { route: "a", verdict: "usability", reason: "r", cites: [], evidence: ["/s/a.png"] };
-    assert.deepEqual(checkVerdicts(["a"], [], [ok]), { problems: [], failing: [] });
+    const files = { a: ["/s/a.png"], b: ["/s/a.png"], c: [] };
+    assert.deepEqual(checkVerdicts(["a"], [], [ok], { files }), { problems: [], failing: [] });
     const bad = checkVerdicts(
         ["a", "b", "c"],
         [],
@@ -87,12 +88,14 @@ test("verdicts: one per judged route, known verdict, evidence, and intended cite
             { ...ok, route: "b", verdict: "intended" },
             { ...ok, route: "x" },
         ],
+        { files },
     );
     assert.equal(bad.problems.length, 4, bad.problems.join("\n")); // a unknown, b no cites, c missing, x unasked
     const fail = checkVerdicts(
         ["a", "b"],
         [{ route: "w", verdict: "bug", reason: "outcome", cites: [], evidence: [] }],
         [ok, { ...ok, route: "b", verdict: "cannot-tell" }],
+        { files },
     );
     assert.deepEqual(
         fail.failing.map((v) => v.route),
@@ -126,11 +129,109 @@ test("the command writes no request and exits 0 when nothing changed, and 3 with
         writeFileSync(
             join(dir, "verdicts.json"),
             JSON.stringify({
-                verdicts: [{ route: "a", verdict, reason: "r", cites: ["abc"], evidence: ["/s/a.png"] }],
+                verdicts: [
+                    {
+                        route: "a",
+                        verdict,
+                        reason: "r",
+                        cites: ["design/ui/studio/tool/README.md:1"],
+                        evidence: ["/s/a.png"],
+                    },
+                ],
             }),
         );
     v("intended");
     assert.equal(run("verdicts", dir).status, 0);
     v("bug");
     assert.equal(run("verdicts", dir).status, 1);
+});
+
+test("a route the machine could not run is never judged", () => {
+    const j = toJudge({
+        routes: [
+            route("gpu", {
+                result: "fail",
+                reason: 'launching the browser: draws with "SwiftShader", not the NVIDIA card',
+            }),
+            route("lost", { result: "not run", reason: "no worker reached it (worker exits: 1)" }),
+            route("moved", { change: "changed" }),
+        ],
+    });
+    assert.deepEqual(
+        j.judge.map((r) => r.id),
+        ["moved"],
+    );
+    assert.deepEqual(j.machine, ["gpu", "lost"]);
+});
+
+test("the workflow selects the same routes as toJudge", () => {
+    const wf = readFileSync(join(here, "../../../../.claude/workflows/design-studio.js"), "utf8");
+    const body = /const lookAt = \(script\?\.routes \|\| \[\]\)\.filter\(([\s\S]*?)\);\n/.exec(wf)[1];
+    const lookAt = new Function(`return ${body.trim().replace(/,$/, "")}`)();
+    const routes = [
+        route("same"),
+        route("moved", { change: "changed" }),
+        route("fresh", { change: "new" }),
+        route("flicker", { change: "unstable" }),
+        route("lost", { result: "fail", reason: 'walking the route: no button "Load"' }),
+        route("wrong", { result: "fail", change: "changed", reason: 'checking "x": no' }),
+        route("gpu", { result: "fail", reason: "launching the browser: no" }),
+    ];
+    // the workflow also starts the reviewer for a machine failure, so its tool reports could-not-run
+    const j = toJudge({ routes });
+    assert.deepEqual(
+        routes.filter(lookAt).map((r) => r.id),
+        [...j.judge.map((r) => r.id), ...j.machine],
+    );
+});
+
+test("evidence must be a path shown for that route, and fields must be lists of strings", () => {
+    const files = { a: ["/s/a.png", "/p/a.png"] };
+    const base = { route: "a", verdict: "bug", reason: "r", cites: [] };
+    const check = (v) => checkVerdicts(["a"], [], [v], { files }).problems;
+    assert.equal(check({ ...base, evidence: ["/p/a.png"] }).length, 0);
+    assert.equal(check({ ...base, evidence: ["none"] }).length, 1);
+    assert.equal(check({ ...base, evidence: ["/made/up.png"] }).length, 1);
+    assert.equal(check({ ...base, evidence: "/s/a.png" }).length, 1);
+    assert.equal(check({ ...base, evidence: ["/s/a.png"], cites: "x" }).length, 1);
+    assert.equal(check({ ...base, evidence: ["/s/a.png"], verdict: "intended", cites: [""] }).length, 1);
+});
+
+test("intended must cite a branch commit, a real commit or an existing file:line", () => {
+    const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: here, encoding: "utf8" }).stdout.trim();
+    const onBranch = citeChecker({ commits: ["abc1234def feat: rename Load"] });
+    assert.ok(onBranch("abc1234def"));
+    assert.ok(onBranch("abc1234"));
+    assert.ok(!onBranch("abc"), "too short to be a sha");
+    assert.ok(!onBranch(head), "a real commit that is not the branch's");
+    const anyCommit = citeChecker({});
+    assert.ok(anyCommit(head));
+    assert.ok(!anyCommit("0123456789abcdef0123"), "a made-up sha");
+    assert.ok(anyCommit("design/ui/studio/tool/README.md:1"));
+    assert.ok(!anyCommit("design/ui/studio/tool/README.md:999999"), "past the end");
+    assert.ok(!anyCommit("design/no/such.md:3"));
+});
+
+test("a crash, a machine failure and a bad base never read as a result", (t) => {
+    const dir = mkdtempSync(join(tmpdir(), "dry-run-review-"));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const run = (...a) => spawnSync(process.execPath, [CLI, ...a], { encoding: "utf8" });
+    writeFileSync(join(dir, "summary.json"), "{ not json");
+    assert.equal(run("request", dir).status, 2, "corrupt summary");
+    writeFileSync(join(dir, "summary.json"), JSON.stringify({ routes: [route("a", { change: "changed" })] }));
+    assert.equal(run("request", dir, "--base", "no-such-ref-3272").status, 2, "unknown base");
+    writeFileSync(
+        join(dir, "summary.json"),
+        JSON.stringify({
+            routes: [
+                route("a", { change: "changed" }),
+                route("b", { result: "not run", reason: "no worker reached it (worker exits: 1)" }),
+            ],
+        }),
+    );
+    const r = run("request", dir);
+    assert.equal(r.status, 4, "could not run");
+    assert.match(r.stderr, /COULD NOT RUN/);
+    assert.ok(!existsSync(join(dir, "review-request.json")));
+    assert.ok(MACHINE.test("launching the browser: x"));
 });

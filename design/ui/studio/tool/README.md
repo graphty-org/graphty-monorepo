@@ -543,15 +543,25 @@ node $T/dry-run-review.mjs verdicts <pass>/script
 outcome checks, and writes `review-request.md` (the reviewer's whole prompt, with each route's new and
 earlier screen, diff image and accessibility tree) beside `summary.json`, exiting 3. With nothing to
 judge it writes nothing and exits 0: no agent is started. A failed outcome check is a bug with no
-judge (exit 1), and an `unstable` screen is not judged. The agent gives each route one verdict --
-`bug`, `intended` (naming the commit or answer-key line that explains it), `usability` or
-`cannot-tell` -- with a reason and the screenshots it rests on, in `verdicts.json`; `verdicts` checks it
-and exits 1 while a bug or cannot-tell remains. The design studio's workflow runs it after the scripted
+judge (exit 1), and an `unstable` screen is not judged. A route the machine stopped (the browser not on
+the NVIDIA card, no worker reached it) has no screen: the pass could not run, exit 4, and nothing is
+judged. The agent gives each route one verdict -- `bug`, `intended` (naming the commit or answer-key
+line that explains it), `usability` or `cannot-tell` -- with a reason and the screenshots it rests on,
+in `verdicts.json`; `verdicts` checks it (evidence only from that route's own files, an `intended` cite
+only a commit of the branch, or with no `--base` any commit, or an existing `file:line`) and exits 1
+while a bug or cannot-tell remains. Exit 2 from either command is a failure of the tool or the answer,
+never a result. The design studio's workflow runs it after the scripted
 pass and adds every verdict but `intended` to its task's defects.
 
 On a long-running branch, its agent runs the same thing itself, never automatically: a pass on a build of
 the branch's base, then one on the branch's head beside it (so the head's earlier pass is the base's), then
 the request with `--base`, which adds the branch's commits and changed files so `intended` can name a commit:
+
+The base build is a worktree at the base with graphty built in it (`git worktree add tmp/<task>/base
+origin/master`, `pnpm install --frozen-lockfile`, then `pnpm exec nx run graphty:build`); its
+`graphty/dist` is `<base build>`. Run the tool from the branch's own worktree: `--base` reads that
+repository's git. For a targeted run, give both passes `--only <route>[,<route>]` with the routes the
+change touches; with no `--only` every route runs twice.
 
 ```bash
 node $T/dry-run-pass.mjs --dist <base build> --out tmp/<task>/acceptance/base/script

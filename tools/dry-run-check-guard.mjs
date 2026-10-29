@@ -454,6 +454,13 @@ function nameFinding(n, { free }) {
 }
 
 /**
+ * Whether a top-level statement is an import or declares nothing (it runs when the file loads).
+ * @param s the statement
+ * @returns whether it is
+ */
+const declaresNothing = (s) => ts.isImportDeclaration(s) || !boundNames(s).length;
+
+/**
  * Add a top-level statement of routes.mjs to its protected units.
  * @param out the units and their nodes
  * @param s the statement
@@ -483,13 +490,13 @@ function routesUnits(text) {
             list.elements.forEach((el, i) => routeUnits(el, i, sf, out));
             continue;
         }
-        for (const n of boundNames(s)) declared.set(n, s);
+        boundNames(s).forEach((n) => declared.set(n, s));
         if (ts.isImportDeclaration(s)) imported.push(...boundNames(s));
-        if (ts.isImportDeclaration(s) || !boundNames(s).length) out.roots.push(addUnit(out, s, sf));
+        if (declaresNothing(s)) out.roots.push(addUnit(out, s, sf));
     }
     const reached = reach(out.roots, declared);
     for (const s of sf.statements) {
-        if (routesArray(s) || ts.isImportDeclaration(s) || !boundNames(s).length) continue;
+        if (routesArray(s) || declaresNothing(s)) continue;
         if (boundNames(s).some((n) => reached.has(n))) addUnit(out, s, sf);
         else out.free.push(s);
     }
@@ -532,7 +539,7 @@ export function riskyAdditions(base, head) {
     const out = [];
     for (const [name, { node, sf }] of head.nodes) {
         if (base.has(name)) continue;
-        const loads = ts.isImportDeclaration(node) || (ts.isStatement(node) && !boundNames(node).length);
+        const loads = ts.isStatement(node) && declaresNothing(node);
         const reach = loads ? [] : scan(node, sf);
         if (loads) out.push(`${name} (runs when the file loads)`);
         else if (reach.length) out.push(`${name} (${reach[0]})`);

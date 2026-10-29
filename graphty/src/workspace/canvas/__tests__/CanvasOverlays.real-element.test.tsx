@@ -69,7 +69,7 @@ describe("the canvas on the real element", () => {
             selector: { match: "everything" },
             encode: { "node.color": { by: "data.kind", scale: "ordinal", palette: "okabe-ito" } },
         });
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
         await within(legend).findByText("beta");
 
         // Data alone: no layer changes, so no style event follows the repaint.

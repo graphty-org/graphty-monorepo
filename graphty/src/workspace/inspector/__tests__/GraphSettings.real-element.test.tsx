@@ -97,7 +97,7 @@ describe("Graph settings", () => {
         const add = screen.getByRole("button", { name: "Add to background" });
         await userEvent.click(add);
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
-        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        const gallery = await screen.findByTestId("shader-gallery", {});
         await userEvent.click(within(gallery).getByRole("button", { name: /^Nebula/ }));
         await waitFor(() => {
             assert.strictEqual(element.session.config.background.shader?.id, "nebula");

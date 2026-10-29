@@ -458,14 +458,11 @@ describe("the canvas key on the real element", () => {
         await page.viewport(1440, 900);
         const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
         render(<Workspace store={store} />);
-        const element = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element");
-                assert.isDefined(found?.session);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
         const session = element?.session;
         if (session === undefined) {
             throw new Error("the element never came up");
@@ -487,7 +484,7 @@ describe("the canvas key on the real element", () => {
 
         // Asked for, the key names the shader, as the catalog does.
         store.set({ legendShown: true, legendAsked: true });
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
         const section = await within(legend).findByRole("group", { name: "Shaders: Glowing" });
         assert.deepEqual(
             [...section.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent),

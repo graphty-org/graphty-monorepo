@@ -705,12 +705,9 @@ describe("the Overview and the import of time", () => {
         });
 
         await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
-        await waitFor(
-            () => {
-                assert.isAtLeast(frames, 12, "frames played");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isAtLeast(frames, 12, "frames played");
+        });
         await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         off();
         attributes.mockRestore();

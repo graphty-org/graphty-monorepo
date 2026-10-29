@@ -434,19 +434,24 @@ export class DerivationLane {
                 this.onError(error);
             }
             pass.resolve();
-            for (const slice of dirty.keys()) {
-                this.sinceIdle.add(slice);
-            }
+            dirty.forEach((_, slice) => this.sinceIdle.add(slice));
         }
 
+        this.idle();
+    }
+
+    /** Tell `drained` the slices derived since the lane last went idle. */
+    private idle(): void {
         const slices = this.sinceIdle;
         this.sinceIdle = new Set();
-        if (!this.closed && slices.size > 0) {
-            try {
-                this.drained?.(slices);
-            } catch (error) {
-                this.onError(error);
-            }
+        if (this.closed || slices.size === 0) {
+            return;
+        }
+
+        try {
+            this.drained?.(slices);
+        } catch (error) {
+            this.onError(error);
         }
     }
 

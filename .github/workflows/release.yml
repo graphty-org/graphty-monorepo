@@ -185,6 +185,11 @@ concurrency:
 env:
     TRIGGER: ${{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' || github.event_name }}
     MODE: ${{ inputs.mode || 'full' }}
+    # A run on channel/full-run is the hand-off of a full, restart or candidate run (the handoff job below), dispatched
+    # with a workflow's GITHUB_TOKEN, which raises no workflow_run event: its last job (watchers) asks
+    # release-rerun.yml and release-watch.yml itself, so its attempt 1 still defers a red verdict to the same-commit
+    # re-run (tools/full-run.mjs actorOf)
+    WATCHED: ${{ github.ref == 'refs/heads/channel/full-run' }}
     DIST_TAG: ${{ inputs.mode == 'legacy' && 'latest' || 'next' }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
@@ -331,7 +336,8 @@ jobs:
         name: Pick the release candidate
         needs: candidate_fix
         # !cancelled(): candidate_fix is skipped in most modes, and its failure only leaves the fixes for the next run
-        if: ${{ !cancelled() && github.ref == 'refs/heads/master' }}
+        # channel/full-run: a candidate tested with its own workflow files (the handoff job)
+        if: ${{ !cancelled() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/channel/full-run') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 60
         # Pushover for a legacy run's announcement; a shadow run announces nothing, so it takes no environment
@@ -345,7 +351,9 @@ jobs:
         env:
             GH_TOKEN: ${{ github.token }}
         outputs:
-            release: ${{ steps.candidate.outputs.run || steps.releasable.outputs.release || 'false' }}
+            # a run that hands its candidate off tests nothing itself (release false): the run on channel/full-run does
+            release: ${{ steps.handoff.outputs.release || steps.candidate.outputs.run || steps.releasable.outputs.release || 'false' }}
+            handoff: ${{ steps.handoff.outputs.handoff }}
             sha: ${{ steps.resume.outputs.sha || steps.candidate.outputs.sha || steps.pending.outputs.sha }}
             good: ${{ steps.candidate.outputs.good }}
             build_run: ${{ steps.candidate.outputs.build_run }}
@@ -446,7 +454,7 @@ jobs:
             # slot first catches up on a held head whose approval merged, and then tests nothing.
             - name: Look for an approved candidate to promote
               id: resume
-              if: ${{ steps.pending.outputs.pending == 'false' && (env.MODE == 'full' || env.MODE == 'promote-nightly') }}
+              if: ${{ steps.pending.outputs.pending == 'false' && (env.MODE == 'full' || env.MODE == 'promote-nightly') && github.ref == 'refs/heads/master' }}
               env:
                   CANDIDATE: ${{ inputs.candidate }}
                   ACCEPT: ${{ inputs.accept }}
@@ -484,12 +492,45 @@ jobs:
                       --json databaseId --jq '.[0].databaseId // empty') || build=""
                   echo "build_run=${build}" >> "$GITHUB_OUTPUT"
 
+            # The lanes run the workflow files of the commit they test. A reusable workflow (`uses: ./.github/...`) comes
+            # from the run's own commit, while its jobs check out the candidate, so a candidate older than the dispatch
+            # commit met steps, script names and tool flags it does not have (run 40926721806: ERR_PNPM_NO_SCRIPT). A
+            # candidate other than this run's commit is handed to a run on channel/full-run at that commit (the handoff
+            # job), and this run tests nothing. A candidate from before the hand-off existed would skip every job there, so
+            # it is still tested here.
+            - name: Hand a candidate other than this commit to its own workflow files
+              id: handoff
+              if: ${{ steps.candidate.outputs.run == 'true' && github.ref == 'refs/heads/master' }}
+              env:
+                  SHA: ${{ steps.candidate.outputs.sha }}
+              run: |
+                  set -euo pipefail
+                  [ "$SHA" = "$GITHUB_SHA" ] && exit 0
+                  # grep -c reads the whole file: grep -q would stop early and pipefail would read git's SIGPIPE as a miss
+                  if ! git show "${SHA}:.github/workflows/release.yml" | grep -c "refs/heads/channel/full-run" > /dev/null; then
+                      echo "::warning::${SHA} predates the hand-off to channel/full-run: tested with ${GITHUB_SHA}'s workflow files"
+                      exit 0
+                  fi
+                  # the run there enters environments release and full-run, whose deployment branches must name
+                  # channel/full-run (an owner setting, with a ruleset that lets only the deploy key move the branch);
+                  # until they do, the candidate is tested here
+                  for env in release full-run; do
+                      allowed=$(gh api "repos/${GITHUB_REPOSITORY}/environments/${env}/deployment-branch-policies" \
+                          --jq '[.branch_policies[].name] | index("channel/full-run") != null' 2> /dev/null || echo false)
+                      if [ "$allowed" != true ]; then
+                          echo "::warning::environment ${env} does not allow channel/full-run: ${SHA} tested with ${GITHUB_SHA}'s workflow files"
+                          exit 0
+                      fi
+                  done
+                  echo "::notice::${SHA} is tested by a run on channel/full-run, with its own workflow files"
+                  { echo "handoff=true"; echo "release=false"; } >> "$GITHUB_OUTPUT"
+
             # what a fix forward's re-test runs: nx's affected projects over the held commit..the head. Only when the
             # repository variable CANDIDATE_RETEST is `affected`; unset (the first version, owner 2026-10-26) this step
             # is skipped, its outputs are empty and the moved head is re-tested whole: every shard, lane and screenshot
             - name: Plan the fix forward's re-test
               id: forward
-              if: ${{ steps.candidate.outputs.run == 'true' && steps.candidate.outputs.forward != '' && vars.CANDIDATE_RETEST == 'affected' }}
+              if: ${{ steps.candidate.outputs.run == 'true' && steps.handoff.outputs.handoff != 'true' && steps.candidate.outputs.forward != '' && vars.CANDIDATE_RETEST == 'affected' }}
               env:
                   BASE: ${{ steps.candidate.outputs.forward }}
                   SHA: ${{ steps.candidate.outputs.sha }}
@@ -543,6 +584,38 @@ jobs:
               run: |
                   node tools/release-status.mjs started --sha "$SHA" --tags "$TAGS" \
                       --attempt "$GITHUB_RUN_ATTEMPT" --run "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+    # The hand-off (the pick's handoff step): channel/full-run moves to the candidate with the deploy key, and release.yml
+    # is dispatched there in the same mode. That run waits for this one (the release-train group), picks the same
+    # commit as its own (restart passes it as sha) and does everything this run would have; this one files nothing.
+    handoff:
+        name: Hand the candidate to its own workflow files
+        needs: pick
+        if: ${{ !cancelled() && needs.pick.outputs.handoff == 'true' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        environment: release # the deploy key
+        permissions:
+            contents: read # the push goes over SSH with the deploy key, not with this token
+            actions: write # dispatch release.yml on channel/full-run
+        env:
+            GH_TOKEN: ${{ github.token }}
+            SHA: ${{ needs.pick.outputs.sha }}
+            SCHEDULED: ${{ inputs.scheduled }}
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  sparse-checkout: tools
+                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+            - name: Move channel/full-run to the candidate and start the run there
+              run: |
+                  set -euo pipefail
+                  git fetch --quiet origin "$SHA"
+                  git push --no-verify --force origin "${SHA}:refs/heads/channel/full-run"
+                  args=(-f "mode=${MODE}" -f "scheduled=${SCHEDULED:-false}")
+                  if [ "$MODE" = restart ]; then args+=(-f "sha=${SHA}"); fi
+                  gh workflow run release.yml --ref channel/full-run "${args[@]}"
 
     # The full CI suite on exactly the candidate: every shard of every package, the links, the cost estimates,
     # the screenshots, and the per-package builds this release ships (no artifact of any other run is used).
@@ -2430,3 +2503,58 @@ jobs:
             tags: ${{ needs.version.outputs.tags }}
             screenshots: ${{ needs.verdict.outputs.screenshots || needs.resume.outputs.screenshots }}
         secrets: inherit
+
+    # A run on channel/full-run was dispatched with a workflow's GITHUB_TOKEN, so GitHub starts no workflow_run
+    # workflow when it ends: its last job dispatches release-rerun.yml and release-watch.yml with its id, and they wait
+    # for it to end and decide as they would on that event (every attempt: a re-run attempt runs this job again).
+    watchers:
+        name: Ask release-rerun and release-watch about this run
+        needs:
+            [
+                timings,
+                candidate_fix,
+                pick,
+                handoff,
+                ci,
+                t4,
+                hosts,
+                autosave_macos,
+                audit,
+                llm,
+                version_dry_run,
+                coverage,
+                ci_red,
+                t4_red,
+                hosts_red,
+                autosave_macos_red,
+                audit_red,
+                llm_red,
+                version_dry_run_red,
+                recapture,
+                recapture_merge,
+                verdict,
+                keep_builds,
+                candidate_site,
+                resume,
+                candidate_branch,
+                held,
+                version,
+                approve,
+                land,
+                unhold,
+                publish,
+                site,
+            ]
+        if: ${{ always() && github.ref == 'refs/heads/channel/full-run' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            actions: write
+        env:
+            GH_TOKEN: ${{ github.token }}
+        steps:
+            - name: Dispatch release-rerun.yml and release-watch.yml for this run
+              run: |
+                  for wf in release-rerun.yml release-watch.yml; do
+                      gh workflow run "$wf" --repo "$GITHUB_REPOSITORY" --ref master -f "run=${GITHUB_RUN_ID}"
+                  done

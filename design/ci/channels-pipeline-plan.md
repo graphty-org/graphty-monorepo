@@ -426,7 +426,7 @@ the five agent rules of budgets section 4.4; merges master after `agent-env-and-
 other sections); `compact-mantine/CLAUDE.md`; the pipeline-round skill in section 12's order, with
 these rules from the design: record skew breaks and propose Mergify after two in 7 days or one that
 kept canary red over 6 hours; the branch-ceiling daily list with answers recorded by
-`branch-note.mjs`; the reminder 14 days before `NPM_DIST_TAG_TOKEN_EXPIRES`; the stall alarm's
+`branch-note.mjs`; the stall alarm's
 48-hour `ACTION NEEDED`; the interim rules paragraph removed. issue-round (subagents end with
 `pr-open.sh`); design-studio (a pass opens its pull request). Also `dependabot.yml` to master,
 `worktree-cleanup.mjs` "merged into master", `VITEST_BUDGET_BASE`; the golden-local, freeze-golden,
@@ -679,8 +679,9 @@ rollback across an autosave or project format change; `config_only` and `channel
 Undo: do not dispatch it.
 
 **owner-dist-tag-token** -- owner, S, CP, just before `promote-workflow`'s first real dispatch.
-`NPM_DIST_TAG_TOKEN` (granular, write on `@graphty`, bypass 2FA) in `production` and
-`NPM_DIST_TAG_TOKEN_EXPIRES`. Done: a no-op `npm dist-tag add` from the workflow succeeds.
+Superseded by trusted publishing for dist-tags (#4409): no token; each package gets a `promote.yml`
+trusted publisher (environment `production`, "Allow npm dist-tag"). Done: a promote.yml dry run passes
+its trust check.
 
 **dataset-overlay-and-site-check** (#3466) -- agent, M. `tools/dataset-overlay.mjs` with its test over two
 real `build-hosted.mjs` outputs, and `tools/check-site.mjs` (file list and hashes, every page and

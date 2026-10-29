@@ -1391,6 +1391,37 @@ function sizeUniformly(layer: Building, scope: Path | null): void {
     }
 }
 
+/**
+ * Make a layer of another program's file that shifts its labels shift their words (`labelShiftOf: "words"`): every
+ * program that pins a label by one of its points (Pajek's `text-anchor: start`, Cytoscape's label justification,
+ * Graphviz's xlabel) pins the text's own box, where the element's own shift moves the label's whole box, margins
+ * round its words and all, a margin further. Set where the layer's shifts paint, so it adds no layer.
+ * @param layer - A layer the translation built.
+ * @param kind - Its elements' kind.
+ */
+function shiftWords(layer: Building, kind: StyleTarget): void {
+    const shifts: Channel[] = [`${kind}.labelShiftX`, `${kind}.labelShiftY`];
+    const { set, encode } = layer.spec;
+    if (!shifts.some((channel) => channel in set || channel in encode)) {
+        return;
+    }
+
+    const words: Channel = `${kind}.labelShiftOf`;
+    set[words] = "words";
+    for (const map of [layer.paint, layer.drawn]) {
+        const columns = shifts.map((channel) => map?.get(channel));
+        const length = columns.find((column) => column !== undefined)?.length;
+        if (map !== null && map !== undefined && length !== undefined) {
+            map.set(
+                words,
+                Array.from({ length }, (_unused, i) =>
+                    columns.some((column) => column?.[i] !== null && column?.[i] !== undefined) ? "words" : null,
+                ),
+            );
+        }
+    }
+}
+
 /** What the file's lengths are multiplied by, per kind of channel, and the scene units one file unit is. */
 interface LengthFactors {
     /** Node sizes, widths, heights and border widths. */
@@ -1569,6 +1600,11 @@ class KindTranslation {
         if (this.#kind === "node" && this.#input.extracted.styles.source.tool !== "graphty") {
             ordered.forEach((layer) => {
                 sizeUniformly(layer, this.#scopePath);
+            });
+        }
+        if (this.#input.extracted.styles.source.tool !== "graphty") {
+            ordered.forEach((layer) => {
+                shiftWords(layer, this.#kind);
             });
         }
 

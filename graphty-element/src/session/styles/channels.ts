@@ -261,6 +261,9 @@ export type LabelWeightValue = "normal" | "bold";
 /** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
 export type LabelRunAlignValue = "baseline" | "hanging" | "middle";
 
+/** What a label's shifts are fractions of (`labelShiftOf`): its whole box, or its words alone. */
+export type LabelShiftOfValue = "box" | "words";
+
 /** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
 export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
 
@@ -375,6 +378,7 @@ export interface ChannelValues {
     "node.labelOffsetY": number;
     "node.labelShiftX": number;
     "node.labelShiftY": number;
+    "node.labelShiftOf": LabelShiftOfValue;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -645,6 +649,7 @@ export interface ChannelValues {
     "edge.labelOffsetY": number;
     "edge.labelShiftX": number;
     "edge.labelShiftY": number;
+    "edge.labelShiftOf": LabelShiftOfValue;
 }
 
 /**
@@ -1387,7 +1392,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY" | "ShiftOf"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1422,6 +1427,7 @@ const LABEL_FIELD_OF_SUFFIX = {
     OffsetY: "offsetY",
     ShiftX: "shiftX",
     ShiftY: "shiftY",
+    ShiftOf: "shiftOf",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
@@ -1681,6 +1687,14 @@ function labelFieldChannels<Target extends "node" | "edge">(
             accepts: "number",
             caveat: "How far the label is moved down again, as a fraction of its own height.",
         }),
+        row("ShiftOf", "Shift Of", {
+            accepts: "enum",
+            values: LABEL_SHIFT_OF_VALUES,
+            caveat:
+                'What Shift X and Shift Y are fractions of: "box", the label\'s whole box with the margins round ' +
+                'its words, or "words", its words alone, as a program that anchors a label\'s text places it. ' +
+                'Unset, "box".',
+        }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -1722,6 +1736,7 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     OffsetY: "offsetY",
     ShiftX: "shiftX",
     ShiftY: "shiftY",
+    ShiftOf: "shiftOf",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -1729,6 +1744,9 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
 
 /** Every place the `labelRunAlign` channels take. */
 const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
+
+/** Every value the `labelShiftOf` channels take. */
+const LABEL_SHIFT_OF_VALUES: readonly LabelShiftOfValue[] = ["box", "words"];
 
 /**
  * A node label field channel: an edge label belongs to no node, so an
@@ -1775,7 +1793,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY|ShiftOf)$/.exec(
             channel,
         );
 

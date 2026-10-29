@@ -1188,6 +1188,7 @@ export const EdgeStyle: z.ZodObject<{
             image: "image";
             dot: "dot";
             normal: "normal";
+            box: "box";
             inverted: "inverted";
             "sphere-dot": "sphere-dot";
             "open-dot": "open-dot";
@@ -1196,7 +1197,6 @@ export const EdgeStyle: z.ZodObject<{
             diamond: "diamond";
             "open-diamond": "open-diamond";
             crow: "crow";
-            box: "box";
             "half-open": "half-open";
             vee: "vee";
             "half-circle": "half-circle";
@@ -1342,6 +1342,10 @@ export const EdgeStyle: z.ZodObject<{
             offsetY: z.ZodOptional<z.ZodNumber>;
             shiftX: z.ZodOptional<z.ZodNumber>;
             shiftY: z.ZodOptional<z.ZodNumber>;
+            shiftOf: z.ZodOptional<z.ZodEnum<{
+                box: "box";
+                words: "words";
+            }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
                 screen: "screen";
@@ -1435,6 +1439,7 @@ export const EdgeStyle: z.ZodObject<{
             image: "image";
             dot: "dot";
             normal: "normal";
+            box: "box";
             inverted: "inverted";
             "sphere-dot": "sphere-dot";
             "open-dot": "open-dot";
@@ -1443,7 +1448,6 @@ export const EdgeStyle: z.ZodObject<{
             diamond: "diamond";
             "open-diamond": "open-diamond";
             crow: "crow";
-            box: "box";
             "half-open": "half-open";
             vee: "vee";
             "half-circle": "half-circle";
@@ -1589,6 +1593,10 @@ export const EdgeStyle: z.ZodObject<{
             offsetY: z.ZodOptional<z.ZodNumber>;
             shiftX: z.ZodOptional<z.ZodNumber>;
             shiftY: z.ZodOptional<z.ZodNumber>;
+            shiftOf: z.ZodOptional<z.ZodEnum<{
+                box: "box";
+                words: "words";
+            }>>;
             sizeMode: z.ZodOptional<z.ZodEnum<{
                 world: "world";
                 screen: "screen";
@@ -1682,6 +1690,7 @@ export const EdgeStyle: z.ZodObject<{
             image: "image";
             dot: "dot";
             normal: "normal";
+            box: "box";
             inverted: "inverted";
             "sphere-dot": "sphere-dot";
             "open-dot": "open-dot";
@@ -1690,7 +1699,6 @@ export const EdgeStyle: z.ZodObject<{
             diamond: "diamond";
             "open-diamond": "open-diamond";
             crow: "crow";
-            box: "box";
             "half-open": "half-open";
             vee: "vee";
             "half-circle": "half-circle";
@@ -1722,6 +1730,7 @@ export const EdgeStyle: z.ZodObject<{
             image: "image";
             dot: "dot";
             normal: "normal";
+            box: "box";
             inverted: "inverted";
             "sphere-dot": "sphere-dot";
             "open-dot": "open-dot";
@@ -1730,7 +1739,6 @@ export const EdgeStyle: z.ZodObject<{
             diamond: "diamond";
             "open-diamond": "open-diamond";
             crow: "crow";
-            box: "box";
             "half-open": "half-open";
             vee: "vee";
             "half-circle": "half-circle";
@@ -1760,8 +1768,8 @@ export const EdgeStyle: z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
             dot: "dot";
-            diamond: "diamond";
             box: "box";
+            diamond: "diamond";
             star: "star";
             dash: "dash";
             "dash-dot": "dash-dot";
@@ -1966,6 +1974,10 @@ export const EdgeStyle: z.ZodObject<{
         offsetY: z.ZodOptional<z.ZodNumber>;
         shiftX: z.ZodOptional<z.ZodNumber>;
         shiftY: z.ZodOptional<z.ZodNumber>;
+        shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -4776,8 +4788,8 @@ export interface NodeScreenPosition {
 // @public
 export const NodeShapes: z.ZodEnum<{
     none: "none";
-    diamond: "diamond";
     box: "box";
+    diamond: "diamond";
     vee: "vee";
     star: "star";
     sphere: "sphere";
@@ -4852,8 +4864,8 @@ export const NodeStyle: z.ZodObject<{
         }>, z.ZodNumber]>>;
         type: z.ZodOptional<z.ZodEnum<{
             none: "none";
-            diamond: "diamond";
             box: "box";
+            diamond: "diamond";
             vee: "vee";
             star: "star";
             sphere: "sphere";
@@ -5036,8 +5048,8 @@ export const NodeStyle: z.ZodObject<{
         padding: z.ZodOptional<z.ZodNumber>;
         shape: z.ZodOptional<z.ZodEnum<{
             none: "none";
-            diamond: "diamond";
             box: "box";
+            diamond: "diamond";
             vee: "vee";
             star: "star";
             sphere: "sphere";
@@ -5095,8 +5107,8 @@ export const NodeStyle: z.ZodObject<{
         padding: z.ZodOptional<z.ZodNumber>;
         shape: z.ZodOptional<z.ZodEnum<{
             none: "none";
-            diamond: "diamond";
             box: "box";
+            diamond: "diamond";
             vee: "vee";
             star: "star";
             sphere: "sphere";
@@ -5365,6 +5377,10 @@ export const NodeStyle: z.ZodObject<{
         offsetY: z.ZodOptional<z.ZodNumber>;
         shiftX: z.ZodOptional<z.ZodNumber>;
         shiftY: z.ZodOptional<z.ZodNumber>;
+        shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -5570,6 +5586,10 @@ export const NodeStyle: z.ZodObject<{
         offsetY: z.ZodOptional<z.ZodNumber>;
         shiftX: z.ZodOptional<z.ZodNumber>;
         shiftY: z.ZodOptional<z.ZodNumber>;
+        shiftOf: z.ZodOptional<z.ZodEnum<{
+            box: "box";
+            words: "words";
+        }>>;
         sizeMode: z.ZodOptional<z.ZodEnum<{
             world: "world";
             screen: "screen";
@@ -6326,6 +6346,10 @@ export const RichTextStyle: z.ZodObject<{
     offsetY: z.ZodOptional<z.ZodNumber>;
     shiftX: z.ZodOptional<z.ZodNumber>;
     shiftY: z.ZodOptional<z.ZodNumber>;
+    shiftOf: z.ZodOptional<z.ZodEnum<{
+        box: "box";
+        words: "words";
+    }>>;
     sizeMode: z.ZodOptional<z.ZodEnum<{
         world: "world";
         screen: "screen";

@@ -219,6 +219,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "offsetY"
     | "shiftX"
     | "shiftY"
+    | "shiftOf"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -1638,7 +1639,13 @@ export class RichTextLabel {
     private offsetAndShift(labelWidth: number, labelHeight: number): { x: number; y: number } {
         const { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 } = this.options;
         const turn = ((this.options.rotation ?? 0) * Math.PI) / 180;
-        const [sx0, sy0] = [shiftX * labelWidth, shiftY * labelHeight];
+        let [sx0, sy0] = [shiftX * labelWidth, shiftY * labelHeight];
+        if (this.options.shiftOf === "words" && (shiftX !== 0 || shiftY !== 0)) {
+            // the words' own box is what moves: its middle off the plane's, and its size, not the margins round it
+            const w = this.textBounds;
+            sx0 = shiftX * (w.right - w.left) * labelWidth - ((w.left + w.right) / 2 - 0.5) * labelWidth;
+            sy0 = shiftY * (w.bottom - w.top) * labelHeight - ((w.top + w.bottom) / 2 - 0.5) * labelHeight;
+        }
         return {
             x: offsetX + sx0 * Math.cos(turn) - sy0 * Math.sin(turn),
             y: offsetY + sx0 * Math.sin(turn) + sy0 * Math.cos(turn),

@@ -268,6 +268,13 @@ export interface LabelStyle {
     /** How far the label is moved down, as a fraction of its own height; see `shiftX`. Unset, 0. */
     shiftY?: number;
     /**
+     * What `shiftX` and `shiftY` are fractions of: `"box"`, the label's whole box, the margins round its words
+     * included, or `"words"`, its words alone, so a shift of 0.5 puts the words' own left edge where their middle
+     * was, as a program that anchors a label's text draws it (Pajek's `text-anchor: start`, Cytoscape's label
+     * justification). Unset, `"box"`.
+     */
+    shiftOf?: "box" | "words";
+    /**
      * Whether the panel is kept inside the canvas. One that would cross an edge first moves to
      * the other side of its node (right to left, top to bottom), then is moved in if it still
      * does not fit. Off by default.
@@ -441,6 +448,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     offsetY: 0,
     shiftX: 0,
     shiftY: 0,
+    shiftOf: 0,
     keepInView: 0,
     marginTop: 0,
     marginBottom: 0,
@@ -531,6 +539,7 @@ export const RICH_TEXT_KEYS = {
     offsetY: "offsetY",
     shiftX: "shiftX",
     shiftY: "shiftY",
+    shiftOf: "shiftOf",
     keepInView: "keepInView",
     marginTop: "marginTop",
     marginBottom: "marginBottom",

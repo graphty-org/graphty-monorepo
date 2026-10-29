@@ -98,9 +98,22 @@ const median = (xs: readonly number[]): number => {
     return v.length === 0 ? 1 : v[Math.floor(v.length / 2)];
 };
 // turned words (a chart's upright category names) stand side by side, each anchored as far down as it is long: read
-// left to right
-const byText = (a: PText, b: PText): number =>
-    (a.rotation !== 0 && b.rotation !== 0 ? a.x - b.x : 0) || a.y - b.y || a.x - b.x;
+// left to right, after the level lines (one key per kind, so the order never depends on the input's)
+const byText = (a: PText, b: PText): number => {
+    const [ta, tb] = [a.rotation !== 0, b.rotation !== 0];
+    if (ta !== tb) {
+        return ta ? 1 : -1;
+    }
+    return ta ? a.x - b.x || a.y - b.y : a.y - b.y || a.x - b.x;
+};
+
+/**
+ * Whether two level texts share one line: each one's middle lies within the other's height.
+ * @param a - one text's box
+ * @param b - the other's
+ * @returns true on one line
+ */
+const sameLine = (a: PBox, b: PBox): boolean => cy(b) >= a.y0 && cy(b) <= a.y1 && cy(a) >= b.y0 && cy(a) <= b.y1;
 
 /**
  * The shape class a primitive draws.
@@ -388,22 +401,24 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
  */
 function joinRuns(texts: readonly PText[]): PText[] {
     const out: PText[] = [];
+    // where each joined line's last run starts: a run joins only the run just before it on its line, never one
+    // across a word drawn between them (a chart's overlapping names "a", "b", "c" are not "ac" and "b")
+    const lastX0 = new Map<PText, number>();
+    // turned words are no line of text (a chart's slanted category names), as the oracle's are not
+    const level = (p: PText): boolean => p.rotation === 0 && (p.lines?.length ?? 1) < 2;
     for (const t of [...texts].sort((a, b) => a.box.x0 - b.box.x0)) {
         const size = (p: PText): number => Math.max(p.sizePx, 1);
-        const before = out.find(
-            (a) =>
-                // turned words are no line of text (a chart's slanted category names), as the oracle's are not
-                a.rotation === 0 &&
-                t.rotation === 0 &&
-                (a.lines?.length ?? 1) < 2 &&
-                (t.lines?.length ?? 1) < 2 &&
-                t.box.x0 - a.box.x1 >= -0.2 * size(a) &&
-                t.box.x0 - a.box.x1 <= 0.5 * size(a) &&
-                cy(t.box) >= a.box.y0 &&
-                cy(t.box) <= a.box.y1 &&
-                cy(a.box) >= t.box.y0 &&
-                cy(a.box) <= t.box.y1,
+        const onLine = level(t) ? out.filter((a) => level(a) && sameLine(a.box, t.box)) : [];
+        const last = onLine.reduce<PText | undefined>(
+            (m, a) => (m === undefined || (lastX0.get(a) ?? a.box.x0) > (lastX0.get(m) ?? m.box.x0) ? a : m),
+            undefined,
         );
+        const before =
+            last !== undefined &&
+            t.box.x0 - last.box.x1 >= -0.2 * size(last) &&
+            t.box.x0 - last.box.x1 <= 0.5 * size(last)
+                ? last
+                : undefined;
         if (before === undefined) {
             out.push(t);
             continue;
@@ -411,13 +426,15 @@ function joinRuns(texts: readonly PText[]): PText[] {
         const apart =
             t.box.x0 - before.box.x1 > size(before) / 6 || before.blank?.after === true || t.blank?.before === true;
         const box = union([before.box, t.box]);
-        out[out.indexOf(before)] = {
+        const joined: PText = {
             ...before,
             content: norm(`${before.content}${apart ? " " : ""}${t.content}`),
             box,
             lines: [box],
             blank: { before: before.blank?.before ?? false, after: t.blank?.after ?? false },
         };
+        out[out.indexOf(before)] = joined;
+        lastX0.set(joined, t.box.x0);
     }
     return out;
 }
@@ -3205,32 +3222,43 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
     return [...texts, ...runs, ...besideTexts(texts)];
 }
 
+/** How far apart, in font sizes, two words side by side may stand to be read as one line of the program's drawing. */
+const BESIDE_GAP = 1;
+
 /**
  * Each run of two to eight texts side by side on one line as one text: a program that draws a label's font changes
  * as texts of their own (vis-network's multi-font blocks, "<b>B</b> <i>I</i>" as "B" and "I") draws one line where
- * graphty's label is one text. A run is a text starting where the one before it ends (within half its font size)
- * whose middle lies within that one's height, as {@link joinRuns} joins a node's lines; the words are joined with a
- * space where the texts are apart by more than a sixth of the font size.
+ * graphty's label is one text. A run is each next text on the line, starting where the one before it ends (within
+ * {@link BESIDE_GAP} font sizes) and never across a text between them, as {@link joinRuns} joins a node's lines; the
+ * words are joined with a space where the texts are apart by more than a sixth of the font size.
  * @param texts - the text primitives
  * @returns the runs (each the first text's primitive with the run's words and box)
  */
 function besideTexts(texts: readonly Prim[]): Prim[] {
     const size = (p: Prim): number => Math.max(p.text?.sizePx ?? 1, 1);
-    const beside = (p: Prim): Prim | undefined =>
-        texts.find(
-            (q) =>
-                q !== p &&
-                q.text !== null &&
-                // turned words are no line of text (a chart's slanted category names), on either side
-                p.text?.rotation === 0 &&
-                q.text.rotation === 0 &&
-                q.box.x0 - p.box.x1 >= -0.2 * size(p) &&
-                q.box.x0 - p.box.x1 <= 0.5 * size(p) &&
-                cy(q.box) >= p.box.y0 &&
-                cy(q.box) <= p.box.y1 &&
-                cy(p.box) >= q.box.y0 &&
-                cy(p.box) <= q.box.y1,
-        );
+    // turned words are no line of text (a chart's slanted category names), on either side
+    const level = texts.filter((q) => q.text?.rotation === 0);
+    const beside = (p: Prim): Prim | undefined => {
+        if (p.text?.rotation !== 0) {
+            return undefined;
+        }
+        // the next word on the line, never one across a word drawn between them (as joinRuns reads a node's lines)
+        const next = level
+            .filter(
+                (q) =>
+                    q !== p &&
+                    sameLine(p.box, q.box) &&
+                    (q.box.x0 > p.box.x0 || (q.box.x0 === p.box.x0 && q.index > p.index)),
+            )
+            .sort((a, b) => a.box.x0 - b.box.x0 || a.index - b.index)[0];
+        // up to a font size apart: the words graphty sets on one line may stand a little wider in the program's
+        // drawing (a chart's category names under narrower bars, xgmml-specimen-images-charts-p7)
+        return next !== undefined &&
+            next.box.x0 - p.box.x1 >= -0.2 * size(p) &&
+            next.box.x0 - p.box.x1 <= BESIDE_GAP * size(p)
+            ? next
+            : undefined;
+    };
     const runs: Prim[] = [];
     for (const first of texts) {
         let run = [first];

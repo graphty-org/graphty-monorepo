@@ -965,6 +965,32 @@ describe("a label drawn as runs side by side", () => {
             ])?.content,
             "a\nb\nc",
         );
+        // overlapping names (xgmml-specimen-images-charts-p7 bar-axis-label-font-size-20): "b" drawn over the ends of
+        // "a" and "c" -- a run never joins across the word between, on either side ("ac" and "b" was graphty's reading)
+        const over = [text("a", 6, 100, {}, 12, 18), text("b", 12, 100, {}, 12, 18), text("c", 18.5, 100, {}, 12, 18)];
+        assert.strictEqual(mergeTexts(over)?.content, "a\nb\nc");
+        const overPrims = over.map((t, i) => ({ ...run(t.content, t.box.x0, 12, 18), index: i, text: t, box: t.box }));
+        assert.notInclude(
+            stackedTexts(overPrims).map((p) => p.text?.content),
+            "ac",
+        );
+        // names a little wider apart than graphty draws them (bar-axis-label-font-size-10: 0.61 of a font size where
+        // graphty's are 0.5): still the line graphty joins, so both sides read "a b"
+        assert.include(
+            stackedTexts([run("a", 100, 5), run("b", 111, 5)]).map((p) => p.text?.content),
+            "a b",
+        );
+        // level and turned lines in one label: one order, whatever order they come in
+        const mixed = [
+            text("10", 100, 90, {}, 10),
+            text("p", 104, 112, { rotation: -90 }, 6),
+            text("q", 98, 108, { rotation: -90 }, 6),
+            text("0", 100, 110, {}, 10),
+        ];
+        const orders = [mixed, [...mixed].reverse(), [mixed[2], mixed[0], mixed[3], mixed[1]]].map(
+            (m) => mergeTexts(m)?.content,
+        );
+        assert.deepEqual(orders, ["10\n0\nq\np", "10\n0\nq\np", "10\n0\nq\np"]);
         // a run whose text keeps its blank before its word (" x" drawn as "x" from where the blank starts)
         const x = run("x", 107, 6);
         x.text = { ...(x.text as PText), blank: { before: true, after: false } };

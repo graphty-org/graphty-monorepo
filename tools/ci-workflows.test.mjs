@@ -7913,6 +7913,19 @@ describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => 
         assert.match(stories, /name: stories-\$\{\{ matrix\.name \}\}-\$\{\{ github\.run_attempt \}\}/);
     });
 
+    it("finds master's newest capture once per run, not once per Stories job (#4318)", () => {
+        // each Stories job walking master's commits itself spent about 20 Actions-token calls a job
+        assert.doesNotMatch(stories, /visual-review reference|GH_TOKEN/);
+        assert.match(stories, /needs: \[packages, build, story-references\]/);
+        assert.match(stories, /name: story-references-\$\{\{ github\.run_attempt \}\}/);
+        const refs = job(ci, "story-references");
+        assert.match(refs, /\n {8}continue-on-error: true\n/, "a reference is an aid: its job never fails the run");
+        assert.match(refs, /for project in \$\(jq -r '\[\.include\[\]\.project\] \| unique\[\]' <<<"\$MATRIX"\)/);
+        assert.match(refs, /node visual-review\/trusted\/cli\.mjs reference --project "\$project"/);
+        assert.match(refs, /VISUAL_REVIEW_API_CACHE: \$\{\{ runner\.temp \}\}\/github-api/);
+        assert.match(refs, /git archive "\$src" visual-review\/capture visual-review\/trusted \| tar -x/);
+    });
+
     it("captures with the old visual-review capture, the base branch's copy, and only the selected stories", () => {
         assert.match(stories, /if \[ "\$GITHUB_EVENT_NAME" = pull_request \]; then src=HEAD\^1\n/);
         assert.match(stories, /git archive "\$src" visual-review\/capture visual-review\/trusted \| tar -x/);

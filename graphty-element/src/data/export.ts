@@ -79,7 +79,7 @@ import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
 import type { EdgeRecord, GraphSession, NodeRecord } from "../session/types";
-import { writtenPositions } from "./filePositions";
+import { positionScaleOf, writtenPositions } from "./filePositions";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
@@ -509,18 +509,23 @@ function writtenRows(rows: readonly number[]): Map<number, number> {
 /**
  * Write each placed node's coordinates into the position column, spelled as the format's writer
  * expects (see `writtenPositions`). A node no layout has placed yet has no coordinates, not the
- * origin. The session holds scene units; a file holds file units, which a load multiplies by
- * positionScale, so divide here.
+ * origin. The session holds scene units; a file holds file units, which a load multiplies by the
+ * position path's scale (`positionScaleOf`), so divide here. Written with the graph's styles, the
+ * coordinates stay in the unit those styles are written in (graphty's), and only `positionScale`
+ * is divided out; written without them, the file scale is divided out too, so a file loaded and
+ * saved keeps its own coordinates (issue #2322).
  * @param builder - The export's builder, its node rows already added.
  * @param session - The session.
  * @param nodeRows - The session row of each node row written.
- * @param format - The format written.
+ * @param options - How it is written.
+ * @param options.format - The format written.
+ * @param options.styles - Whether the graph's styles are written with it.
  */
 function writePositions(
     builder: GraphBuilder,
     session: GraphSession,
     nodeRows: readonly number[],
-    format: string | undefined,
+    options: { readonly format: string | undefined; readonly styles: boolean },
 ): void {
     const { positions } = session;
     if (positions.placedCount === 0) {
@@ -528,7 +533,10 @@ function writePositions(
     }
 
     const count = nodeRows.length;
-    const scale = session.config.data.knownFields.positionScale;
+    const { positionScale } = session.config.data.knownFields;
+    const scale = options.styles
+        ? positionScale
+        : positionScaleOf(positionScale, dispatcherOf(session).state.graph.values);
     const coords = new Float64Array(3 * count).fill(Number.NaN);
     const at = { x: 0, y: 0, z: 0 };
     for (let row = 0; row < count; row++) {
@@ -538,7 +546,7 @@ function writePositions(
         }
     }
 
-    const written = writtenPositions(format, coords);
+    const written = writtenPositions(options.format, coords);
     const column = builder.declareNodeColumn(POSITION);
     for (let row = 0; row < count; row++) {
         if (!Number.isNaN(written[3 * row])) {
@@ -604,7 +612,7 @@ export function buildExportSnapshot(
         });
     }
 
-    writePositions(builder, session, rows.nodes, options.format);
+    writePositions(builder, session, rows.nodes, { format: options.format, styles: options.styles === true });
     writeNodeStyles(builder, rows.nodes, view);
     writeEdgeStyles(builder, rows.edges, view);
 

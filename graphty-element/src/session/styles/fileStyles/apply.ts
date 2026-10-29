@@ -102,6 +102,13 @@ export interface LoadStyleReport {
     readonly layers: readonly LayerId[];
     /** What reading and translating the file's styles met, as codes and facts. */
     readonly notes: readonly FileStyleNote[];
+    /**
+     * The scene units one unit of the file's lengths was drawn as: its node sizes, borders, edge
+     * widths, label sizes and stored positions all took this one factor, so the drawing keeps the
+     * file's proportions. Absent when the load kept the file's lengths and positions as they are.
+     * Writing the graph without its styles divides it back out of the positions.
+     */
+    readonly lengthScale?: number;
 }
 
 /**
@@ -154,10 +161,8 @@ function baseValues(stack: readonly CompiledLayer[]): Record<"node" | "edge", Pa
  * @param command - The import.
  * @param outcome - What the load left.
  * @param ctx - The import's context.
- * @returns The scene units one unit of the file's lengths was drawn as, which the file's stored
- *     positions take too (1 when the load keeps file lengths); null when no file styles were drawn,
- *     the file gives no length to scale by, or the load merged into a graph whose positions are in
- *     another unit.
+ * @returns The file scale a replacing load recorded with its styles (`LoadStyleReport.lengthScale`),
+ *     which a Graphviz layout of the file takes too; null when it recorded none or the load merged.
  */
 export async function applyFileStyles(
     command: DataImportCommand,
@@ -187,20 +192,24 @@ export async function applyFileStyles(
     ctx.signal.throwIfAborted();
     const notes: FileStyleNote[] = [];
     const layers: LayerId[] = [];
-    let sceneScale: number | null = null;
+    let lengthScale: number | undefined;
     if (read !== null) {
         const applied = await applyRead(outcome, read, options, ctx, replacing);
         layers.push(...applied.layers);
         notes.push(...applied.notes);
-        sceneScale = replacing ? applied.sceneScale : null;
+        ({ lengthScale } = applied);
     }
 
     const report: LoadReport = Object.freeze({
         ...outcome.report,
-        styles: Object.freeze({ layers: Object.freeze(layers), notes: Object.freeze(notes) }),
+        styles: Object.freeze({
+            layers: Object.freeze(layers),
+            notes: Object.freeze(notes),
+            ...(lengthScale === undefined ? {} : { lengthScale }),
+        }),
     });
     ctx.services.data?.values?.({ importReport: report }, ctx.draft);
-    return sceneScale;
+    return replacing ? (lengthScale ?? null) : null;
 }
 
 /**
@@ -261,8 +270,10 @@ async function applyRead(
     options: FileStyleOptions,
     ctx: UndoableContext,
     replacing: boolean,
-): Promise<LoadStyleReport & { readonly sceneScale: number | null }> {
+): Promise<LoadStyleReport> {
     const held = replacing ? [] : fileStyleValuesOf(asFileStyleStore(ctx.state.graph.values.get(FILE_STYLES_VALUE)));
+    // A load merged into a graph that holds a file's styles takes that graph's scale (issue #2322).
+    const heldScale = held.find((load) => load.lengthScale !== undefined)?.lengthScale;
     const namespace = fileStyleNamespace(read.format, new Set(held.map((load) => load.namespace)));
     const importId = namespace;
     const viewport = ctx.services.viewport?.() ?? null;
@@ -282,14 +293,25 @@ async function applyRead(
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
         labelPxPerUnit: pxPerUnit,
+        ...(heldScale === undefined ? {} : { sceneScale: heldScale / (read.positionPxPerUnit ?? 1) }),
     });
+    // ponytail: a load merged into a graph that holds no file scale records none, so the positions
+    // already there keep their unit; its own lengths are still scaled. Give it the merged file's
+    // scale if a merge into a plain graph is ever seen drawn out of proportion.
+    const lengthScale = replacing ? fileLengthScaleOf(read, options, translation.sceneScale) : (heldScale ?? null);
     const notes = [...translation.notes];
 
     // The values, keyed by the ids the element holds the elements under.
     const ids = elementIdsOf(read.snapshot, outcome.edgeIds, (id) => outcome.heldNode(id));
     const columns = keptColumns(translation.columns, ids);
 
-    const load = { importId, namespace, format: read.format, columns };
+    const load = {
+        importId,
+        namespace,
+        format: read.format,
+        columns,
+        ...(lengthScale === null ? {} : { lengthScale }),
+    };
     await ctx.inline({ op: "data.setFileStyles", loads: [...held, load] });
 
     const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
@@ -325,25 +347,39 @@ async function applyRead(
             });
     }
 
-    // The stored positions take the styles' unit, so they are drawn at the file's proportions. Where
-    // the lengths are kept as the file has them (it sizes nothing, or the load keeps file lengths),
-    // they are drawn in that unit too; a file graphty wrote holds positions in graphty's own units.
-    // A load that keeps file lengths draws one file unit as one scene unit, which a Graphviz layout
-    // needs to know (a DOT file's point is then a scene unit, 72 to Graphviz's inch).
-    const graphtyWrote = read.extracted.styles.source.tool === "graphty";
-    const fileUnit = options.lengths === "file" ? 1 : null;
-    const keptScale = graphtyWrote ? null : (read.positionPxPerUnit ?? fileUnit);
-    const sceneScale =
-        translation.sceneScale === null ? keptScale : translation.sceneScale * (read.positionPxPerUnit ?? 1);
     // The file's annotations, drawn at the scale of its stored positions so they stay beside the
     // nodes they annotate. ponytail: a merging load keeps the graph's earlier annotations only.
     const annotations = [...readAnnotations(read.snapshot).annotations, ...readImageAnnotations(read.snapshot)];
     if (replacing && annotations.length > 0) {
-        const value: DrawnAnnotations = Object.freeze({ scale: sceneScale ?? 1, annotations });
+        const value: DrawnAnnotations = Object.freeze({ scale: lengthScale ?? 1, annotations });
         ctx.services.data?.values?.({ [ANNOTATIONS_VALUE]: value }, ctx.draft);
     }
 
-    return { layers, notes, sceneScale };
+    return { layers, notes, ...(lengthScale === null ? {} : { lengthScale }) };
+}
+
+/**
+ * The file scale a load records with its styles: the scene units one unit of the file's stored
+ * positions is drawn as, so they keep the proportions of the node sizes the styles draw. Where the
+ * lengths are kept as the file has them (it sizes nothing, or the load keeps file lengths), the
+ * positions are drawn in that unit too; a file graphty wrote holds positions in graphty's own units.
+ * A load that keeps file lengths draws one file unit as one scene unit, which a Graphviz layout
+ * needs to know (a DOT file's point is then a scene unit, 72 to Graphviz's inch).
+ * @param read - The file's styles.
+ * @param options - The load's choices.
+ * @param scene - The scene units one unit of the file's lengths was drawn as; null when kept.
+ * @returns The scale, or null when the positions keep their own unit.
+ */
+function fileLengthScaleOf(read: FileStylesRead, options: FileStyleOptions, scene: number | null): number | null {
+    if (scene !== null) {
+        return scene * (read.positionPxPerUnit ?? 1);
+    }
+
+    if (read.extracted.styles.source.tool === "graphty") {
+        return null;
+    }
+
+    return read.positionPxPerUnit ?? (options.lengths === "file" ? 1 : null);
 }
 
 /**

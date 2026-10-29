@@ -41,6 +41,7 @@ import type {
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
 import { edgeCounterOf, edgeIdOf, pairKey as pairKeyOf } from "../data/edgeIdentity";
+import { positionScaleOf } from "../data/filePositions";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -1493,7 +1494,8 @@ export class SessionData implements SessionDataApi {
                 positions.read(index, at);
                 return { at: positions.isPlaced(index) ? at : null, pinned: positions.isPinned(index) };
             },
-            positionScale: () => this.readConfig().knownFields.positionScale,
+            positionScale: () =>
+                positionScaleOf(this.readConfig().knownFields.positionScale, this.writes.slice().values),
             directed: () => this.current().directed,
             dispatch: (command) =>
                 writes.send === undefined

@@ -148,6 +148,11 @@ interface SnapshotLayoutHost {
     column?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
     /** Draw the style paint that has arrived, so the node sizes read next are the painted ones. */
     drawPaint(): void;
+    /**
+     * The scene units one unit of a node's stored position is drawn as (`data/filePositions.ts`):
+     * `positionScale` times the file scale a load recorded with its styles.
+     */
+    positionScale?(): number;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -191,6 +196,18 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     override scalingFactor = 1;
 
     #host: SnapshotLayoutHost | null = null;
+
+    /**
+     * The scene units one unit of a node's stored position is drawn as: the element's, through
+     * the position path; else, with no element connected, the node's graph's `positionScale`.
+     * @param node - a node of the graph, for the fallback
+     * @returns the scale
+     */
+    protected positionScale(node?: Node): number {
+        return (
+            this.#host?.positionScale?.() ?? node?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ?? 1
+        );
+    }
     /** The answer being computed, and how to call it off. */
     #pending: { readonly controller: AbortController; readonly stored: GraphSnapshot } | null = null;
     /** An asynchronous answer that has arrived and not been published yet. */
@@ -442,7 +459,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 nodes.forEach((node, row) => {
                     const seed = node === undefined ? null : readSeedPosition(node.data as Record<string, unknown>);
                     if (seed !== null) {
-                        const scale = node?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ?? 1;
+                        const scale = this.positionScale(node);
                         for (let k = 0; k < dim; k++) {
                             out[dim * row + k] = seed[k] * scale;
                         }

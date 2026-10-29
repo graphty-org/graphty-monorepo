@@ -8,12 +8,14 @@
  * - a label's `sizePx` (the renderer's `fontSize`): its letters are sizePx^2 / (48 (1.33 sizePx + 10))
  *   scene units tall (RichTextLabel: one line's plane is sizePx / 48 tall, drawn from a canvas of the
  *   line box plus 10 px of margin)
- * - a position: the scene coordinate the session holds
+ * - a position: the scene coordinate the session holds, the file's coordinate times the one file scale
+ *   the load records with its styles (`LoadStyleReport.lengthScale`), read through `data/filePositions.ts`
  */
 
 import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession, type NodeId } from "../../session";
+import { buildExportSnapshot } from "../../src/data/export";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
 /** A Cytoscape.js document: nodes 40 across with a border 2 wide and labels 20 high, edges 2 wide, nodes 400 apart. */
@@ -151,20 +153,79 @@ describe("a file's lengths are drawn in one unit", () => {
 
     it("draws the stored positions in the same unit as the node size", async () => {
         const session = await loaded();
-        // A headless session runs no layout engine: its positions are the data's. The fixed layout
-        // the element runs multiplies them by the `scale` the load chose (FixedLayoutEngine).
+        // A headless session runs no layout engine: its positions are the data's, read through the
+        // position path, as the fixed layout the element runs reads them.
         assert.strictEqual(session.layout.id, "fixed");
-        const { scale } = session.layout.options;
-        assert.isNumber(scale);
+        assert.notProperty(session.layout.options, "scale", "the fixed layout is told no scale");
         const node = number(session, { node: "a" }, "node.size") * 1.5;
-        const snapshot = session.snapshot();
-        const a = { x: 0, y: 0, z: 0 };
-        const b = { x: 0, y: 0, z: 0 };
-        session.positions.read(snapshot.ids.requireIndex("a"), a);
-        session.positions.read(snapshot.ids.requireIndex("b"), b);
+        const b = at(session, "b");
 
-        const drawn = Math.hypot(b.x - a.x, b.y - a.y) * (scale as number);
-        assert.approximately(drawn / node, FILE.ab / FILE.node, 1e-4);
+        assert.approximately((b.x - at(session, "a").x) / node, FILE.ab / FILE.node, 1e-4);
+        session.dispose();
+    });
+
+    it("reports the one file scale the load drew every length and position with", async () => {
+        const session = await loaded();
+        const node = number(session, { node: "a" }, "node.size") * 1.5;
+        const scale = session.data.lastImport()?.styles?.lengthScale;
+
+        assert.isNumber(scale);
+        assert.approximately(scale as number, node / FILE.node, 1e-9, "a file unit of node size");
+        assert.approximately(at(session, "b").x, FILE.ab * (scale as number), 1e-3, "a file unit of position");
+        session.dispose();
+    });
+
+    it("divides the file scale back out of the positions written without styles", async () => {
+        const session = await loaded();
+        const { snapshot } = buildExportSnapshot(session);
+        const column = snapshot.nodes.require("position");
+        const row = snapshot.ids.requireIndex("b");
+
+        assert.deepEqual(
+            Array.from((column as unknown as { data: Float64Array }).data.subarray(3 * row, 3 * row + 2)),
+            [FILE.ab, 0],
+            "a file loaded and saved keeps its own coordinates",
+        );
+        session.dispose();
+    });
+
+    it("draws a file merged into the graph at the graph's scale", async () => {
+        const session = await loaded();
+        const scale = session.data.lastImport()?.styles?.lengthScale as number;
+        // Nodes half as wide as the first file's, 200 units out.
+        const merged = JSON.stringify({
+            elements: {
+                nodes: [{ data: { id: "m" }, position: { x: 200, y: 0 } }],
+                edges: [],
+            },
+            style: [{ selector: "node", style: { width: 20, height: 20 } }],
+        });
+        await session.data.import({ type: "json", config: { data: merged } }, { styles: "file", mode: "merge" });
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+
+        assert.strictEqual(session.data.lastImport()?.styles?.lengthScale, scale);
+        assert.approximately(number(session, { node: "m" }, "node.size") * 1.5, 20 * scale, 1e-6);
+        assert.approximately(at(session, "m").x, 200 * scale, 1e-3);
+        session.dispose();
+    });
+
+    it("keeps the scale with the load's style values through undo and redo", async () => {
+        const session = await loaded();
+        const scale = session.data.lastImport()?.styles?.lengthScale;
+        assert.isNumber(scale);
+        const before = at(session, "b").x;
+        assert.approximately(before, FILE.ab * (scale as number), 1e-3);
+        await session.undo();
+        assert.lengthOf(session.data.nodes(), 0);
+        await session.redo();
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+
+        assert.approximately(at(session, "b").x, before, 1e-3);
+        assert.approximately(buildExportPosition(session, "b"), FILE.ab, 1e-3);
         session.dispose();
     });
 
@@ -185,8 +246,8 @@ describe("a file's lengths are drawn in one unit", () => {
         const snapshot = session.snapshot();
         const b = { x: 0, y: 0, z: 0 };
         session.positions.read(snapshot.ids.requireIndex("b"), b);
-        assert.strictEqual(b.x, FILE.ab);
-        assert.strictEqual(session.layout.options.scale ?? 1, 1, "one file unit is one scene unit");
+        assert.strictEqual(b.x, FILE.ab, "one file unit is one scene unit");
+        assert.strictEqual(session.data.lastImport()?.styles?.lengthScale, 1);
         session.dispose();
     });
 
@@ -201,11 +262,34 @@ describe("a file's lengths are drawn in one unit", () => {
         session.positions.read(snapshot.ids.requireIndex("b"), b);
 
         assert.strictEqual(session.layout.id, "fixed");
-        assert.strictEqual(b.x, FILE.ab);
-        assert.strictEqual(session.layout.options.scale ?? 1, 1, "one file unit is one scene unit");
+        assert.strictEqual(b.x, FILE.ab, "one file unit is one scene unit");
         session.dispose();
     });
 });
+
+/**
+ * Where a node is, in the scene.
+ * @param session - The session.
+ * @param id - The node.
+ * @returns Its coordinates.
+ */
+function at(session: GraphSession, id: NodeId): { x: number; y: number; z: number } {
+    const out = { x: 0, y: 0, z: 0 };
+    session.positions.read(session.snapshot().ids.requireIndex(id), out);
+    return out;
+}
+
+/**
+ * A node's x as an export without styles writes it.
+ * @param session - The session.
+ * @param id - The node.
+ * @returns The coordinate.
+ */
+function buildExportPosition(session: GraphSession, id: NodeId): number {
+    const { snapshot } = buildExportSnapshot(session);
+    const column = snapshot.nodes.require("position") as unknown as { data: Float64Array };
+    return column.data[3 * snapshot.ids.requireIndex(id)];
+}
 
 /** Load a DOT document with its styles, letting the element choose the layout. */
 async function loadedDot(text: string): Promise<GraphSession> {
@@ -224,15 +308,10 @@ async function loadedDot(text: string): Promise<GraphSession> {
  */
 function spacingOverSize(session: GraphSession): number {
     assert.strictEqual(session.layout.id, "fixed");
-    const { scale } = session.layout.options;
-    assert.isNumber(scale);
     const node = number(session, { node: "a" }, "node.size") * 1.5;
-    const snapshot = session.snapshot();
-    const a = { x: 0, y: 0, z: 0 };
-    const b = { x: 0, y: 0, z: 0 };
-    session.positions.read(snapshot.ids.requireIndex("a"), a);
-    session.positions.read(snapshot.ids.requireIndex("b"), b);
-    return (Math.hypot(b.x - a.x, b.y - a.y) * (scale as number)) / node;
+    const a = at(session, "a");
+    const b = at(session, "b");
+    return Math.hypot(b.x - a.x, b.y - a.y) / node;
 }
 
 describe("a file of nodes wider than they are tall", () => {
@@ -324,15 +403,10 @@ async function loadedPajek(
  */
 function spacing(session: GraphSession): number {
     assert.strictEqual(session.layout.id, "fixed");
-    const scale = session.layout.options.scale ?? 1;
-    assert.isNumber(scale);
-    const snapshot = session.snapshot();
-    const a = { x: 0, y: 0, z: 0 };
-    const b = { x: 0, y: 0, z: 0 };
     const [first, second] = session.data.nodes().map((n) => n.id);
-    session.positions.read(snapshot.ids.requireIndex(first), a);
-    session.positions.read(snapshot.ids.requireIndex(second), b);
-    return Math.hypot(b.x - a.x, b.y - a.y) * (scale as number);
+    const a = at(session, first);
+    const b = at(session, second);
+    return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
 describe("a Pajek file's lengths are drawn in one unit", () => {

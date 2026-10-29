@@ -1921,6 +1921,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             undirected: READ,
             positions: LANE,
             seededNodeCount: READ,
+            positionScale: READ,
             directionSettledBy: READ,
             lastImport: READ,
             groups: READ,
@@ -3224,6 +3225,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,
+            // A seed follows the graph: the file scale a load records (issue #2322).
+            reseed: LANE,
         },
     },
     {

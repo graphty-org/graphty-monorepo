@@ -472,6 +472,19 @@ export class ElementPositions {
     }
 
     /**
+     * Seed a row again: write it as {@link ElementPositions.fillUnplaced} does, placed or not. A seed
+     * follows the graph, so the generation does not move.
+     * @param index - the row
+     * @param x - x
+     * @param y - y
+     * @param z - z
+     */
+    reseed(index: number, x: number, y: number, z: number): void {
+        this.write(index, x, y, z);
+        this.moves--;
+    }
+
+    /**
      * Write a row ONLY when it is unplaced. This is how importer-seeded coordinates reach a new
      * node without overwriting anything a layout or a drag already produced.
      *

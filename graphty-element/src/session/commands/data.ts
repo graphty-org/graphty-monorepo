@@ -800,11 +800,12 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
     byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
-        // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
-        // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
-        let sceneScale: number | null = null;
+        // The file scale its styles recorded, once they are drawn: a Graphviz layout of the file
+        // draws its inches in the same unit (issue #2322). Stored positions take it through the
+        // position path (`data/filePositions.ts`), so no layout is told it.
+        let lengthScale: number | null = null;
         if (layoutChoiceOf(command) === "recommended") {
-            adviseLayout(ctx, () => sceneScale);
+            adviseLayout(ctx, () => lengthScale);
         }
 
         const replacing = command.mode !== "merge" && command.measure === undefined;
@@ -815,7 +816,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         }
 
         // The file's styles, and the previous file's layers swept, in this same step.
-        sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
+        lengthScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (layoutChoiceOf(command) === "recommended") {
             // Whether a Graphviz engine can draw the file is a question for a Worker, so it is
             // asked here, before the step seals and the recommendation is read.
@@ -884,10 +885,10 @@ async function repickEdges(picked: readonly PickedEdges[], ctx: UndoableContext)
  * Choose the layout recommended for what an import loads, once it is loaded, merged into the
  * import's step.
  * @param ctx - The import's context.
- * @param sceneScale - The scene units one unit of the file's lengths was drawn as, read once the
- *     import is done: a fixed layout draws the file's stored positions in the same unit.
+ * @param lengthScale - The file scale the import's styles recorded, read once the import is done:
+ *     a Graphviz layout draws the file in the same unit.
  */
-function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): void {
+function adviseLayout(ctx: UndoableContext, lengthScale: () => number | null): void {
     const advise = ctx.services.layoutAdvice;
     ctx.after("layout:recommended", (dispatch) => {
         const advice = advise?.();
@@ -897,18 +898,12 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
 
         const { unplaced, placed = [] } = advice;
         const graphviz = GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === advice.id);
-        const scale = advice.id === "fixed" || graphviz || unplaced !== undefined ? sceneScale() : null;
-        // A file that placed only some nodes: every placed node goes back where the file put it,
-        // in the unit the fixed layout would draw it in (a layout may have moved it since), and
-        // the advised layout runs over the unplaced ones, holding the rest still.
-        const resize = scale ?? 1;
+        const scale = graphviz ? lengthScale() : null;
         // A Graphviz engine lays the file out in inches, and the file's lengths (its node sizes)
         // are points, 72 to the inch: drawn at the scale its styles were, so its nodes keep their
         // size against the spaces Graphviz leaves between them (with `lengths: "file"`, one point is
         // one scene unit, so an inch is 72).
-        const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
-        const options =
-            (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;
+        const options = scale === null ? advice.options : { ...advice.options, scale: POINTS_PER_UNIT * scale };
         const layout = dispatch({
             op: "layout.set",
             id: advice.id,
@@ -916,20 +911,16 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
             ...(unplaced === undefined ? {} : { scope: { nodes: unplaced } }),
             ...(options === undefined ? {} : { options }),
         });
-        // Once the new layout holds the placed nodes, put them back: the layout running before
-        // it may have moved them.
+        // A file that placed only some nodes: once the new layout holds the placed nodes, every one
+        // goes back where the file put it (the store reads it through the position path), as the
+        // layout running before it may have moved them; the advised layout runs over the rest.
         const applied =
             unplaced === undefined
                 ? layout
                 : layout.then(() =>
                       dispatch({
                           op: "positions.set",
-                          entries: placed.map(({ id, x, y, z = 0 }) => ({
-                              id,
-                              x: x * resize,
-                              y: y * resize,
-                              z: z * resize,
-                          })),
+                          entries: placed.map(({ id, x, y, z = 0 }) => ({ id, x, y, z })),
                       }),
                   );
         void applied.catch((error: unknown) => {

@@ -136,6 +136,12 @@ export interface TranslateInput {
      * the unit of its other lengths.
      */
     readonly labelPxPerUnit?: number;
+    /**
+     * The scene units one file unit is to be drawn as, when the graph already chose it: a load
+     * merged into a graph holding a file's styles takes that graph's scale. Absent to choose it
+     * from the file's own lengths.
+     */
+    readonly sceneScale?: number;
 }
 
 /** One layer the translation made. */
@@ -1429,6 +1435,31 @@ function lengthFactors(input: TranslateInput): LengthFactors {
         return KEPT;
     }
 
+    const scene = input.sceneScale ?? fileScene(input);
+    // No length to scale by, or a degenerate median (1e-320, 1e308): the file's units are kept.
+    if (!(Number.isFinite(scene) && scene > 0)) {
+        return KEPT;
+    }
+
+    // Labels in canvas px over fitted positions are that many px per unit of the positions.
+    const perLabelUnit = scene / (input.labelPxPerUnit ?? 1);
+    return {
+        node: scene / SCENE_PER_UNIT.node,
+        edge: scene / SCENE_PER_UNIT.edge,
+        label: (size) => labelSizePx(perLabelUnit * size),
+        letter: perLabelUnit,
+        scene,
+    };
+}
+
+/**
+ * The scene units one file unit is drawn as, chosen from the file's own lengths: its median node,
+ * by its larger side, at the element's node size; else its median label at the element's label
+ * size; else its median edge at the element's edge width.
+ * @param input - The translation's input.
+ * @returns The scale; NaN when the file gives no length to scale by.
+ */
+function fileScene(input: TranslateInput): number {
     const { extracted, snapshot, base } = input;
     const resolved = (kind: StyleTarget, property: StyleProperty): readonly unknown[] =>
         extracted.styles.rules.some(
@@ -1453,28 +1484,15 @@ function lengthFactors(input: TranslateInput): LengthFactors {
     // size of the element's own node with its label, as a file that sizes its nodes does.
     const labelMedian = nodeMedian === null ? median(resolved("node", "labelSize")) : null;
     const labelBase = typeof base.node["node.labelSize"] === "number" ? base.node["node.labelSize"] : DEFAULT_LABEL_PX;
-    let scene: number;
     if (nodeMedian !== null) {
-        scene = (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
-    } else if (labelMedian !== null && sides.includes(0)) {
-        scene = labelLetterHeight(labelBase) / labelMedian;
-    } else {
-        scene = (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN);
-    }
-    // No length to scale by, or a degenerate median (1e-320, 1e308): the file's units are kept.
-    if (!(Number.isFinite(scene) && scene > 0)) {
-        return KEPT;
+        return (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
     }
 
-    // Labels in canvas px over fitted positions are that many px per unit of the positions.
-    const perLabelUnit = scene / (input.labelPxPerUnit ?? 1);
-    return {
-        node: scene / SCENE_PER_UNIT.node,
-        edge: scene / SCENE_PER_UNIT.edge,
-        label: (size) => labelSizePx(perLabelUnit * size),
-        letter: perLabelUnit,
-        scene,
-    };
+    if (labelMedian !== null && sides.includes(0)) {
+        return labelLetterHeight(labelBase) / labelMedian;
+    }
+
+    return (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN);
 }
 
 /** The translation of one kind's rules. */

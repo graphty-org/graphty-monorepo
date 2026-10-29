@@ -48,6 +48,7 @@ import { defaultEdgeStyle } from "../config/EdgeStyle";
 import { backgroundColorOf } from "../config/GraphStyle";
 import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, EDGE_ID_COLUMN, edgeIdOf, pairsOrdered } from "../data/edgeIdentity";
+import { positionScaleOf } from "../data/filePositions";
 import { GraphStore, type Renumbering } from "../data/GraphStore";
 import { GROUPS_VALUE, groupsOf } from "../data/groups";
 import { readonlyPositions } from "../data/lane";
@@ -1723,6 +1724,7 @@ export interface FreezeFollower {
  * `followRenumbering`.
  * @param given - the store a caller handed in, if any
  * @param readData - reads the data configuration a store built here runs under
+ * @param readValues - reads the graph-level values, which hold a load's file scale
  * @param follow - where a freeze of the store is delivered
  * @returns the store, the same object again when this call allocated it, and what stops the
  *     delivery from a store handed in
@@ -1730,6 +1732,7 @@ export interface FreezeFollower {
 function resolveStore(
     given: LaneStore | undefined,
     readData: () => SessionDataConfig,
+    readValues: () => ReadonlyMap<string, unknown>,
     follow: FreezeFollower,
 ): { store: LaneStore; owned: GraphStore | null; unfollow: () => void } {
     if (given !== undefined) {
@@ -1741,7 +1744,7 @@ function resolveStore(
         directed: () => readData().directed,
         // A thunk, not a value: the element mutates `data.knownFields` in place at run time, and a
         // scale captured here would be the one known field that ignored the change.
-        positionScale: () => readData().knownFields.positionScale,
+        positionScale: () => positionScaleOf(readData().knownFields.positionScale, readValues()),
         // The session's own edge counter. A headless session builds one store for its life, so
         // this only matters as the seam `DataManager` uses too: whoever builds stores owns the
         // counter, and no store rewinds it.
@@ -2521,7 +2524,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
 
-    const store = resolveStore(options.store, readData, {
+    const store = resolveStore(options.store, readData, () => dispatcher.state.graph.values, {
         nodes: (remap: U32, count: number) => selection?.remapNodes(remap, count),
         edges: (remap: U32, count: number) => selection?.remapEdges(remap, count),
     });

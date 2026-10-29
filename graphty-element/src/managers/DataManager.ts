@@ -4,6 +4,7 @@ import { type DerivedGraph, type GraphSnapshot, INVALID_INDEX, type U32 } from "
 import type { EdgeId } from "../catalog/types";
 import type { AdHocData } from "../config";
 import { createEdgeCounter, edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
+import { positionScaleOf } from "../data/filePositions";
 import { GraphStore } from "../data/GraphStore";
 import { GROUPS_VALUE, groupsOf, type NodeGroup, RANK_SETS_VALUE, type RankSet, rankSetsOf } from "../data/groups";
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
@@ -1361,6 +1362,15 @@ export class DataManager implements Manager {
     }
 
     /**
+     * The scene units one unit of a node's stored position is drawn as: `positionScale` times the
+     * file scale a load recorded with its styles (`filePositions.ts`).
+     * @returns the scale
+     */
+    positionScale(): number {
+        return positionScaleOf(this.styles.config.data.knownFields.positionScale, this.graph.slice.values);
+    }
+
+    /**
      * Build the store, wiring its three freeze callbacks back into this manager.
      *
      * `positionScale` is passed as a thunk rather than a value because the element mutates
@@ -1372,7 +1382,7 @@ export class DataManager implements Manager {
         return new GraphStore({
             // Read again when the graph is emptied, so a clear takes the setting in force then.
             directed: () => this.styles.config.data.directed,
-            positionScale: () => this.styles.config.data.knownFields.positionScale,
+            positionScale: () => this.positionScale(),
             edgeCounter: this.edgeCounter,
             inputs: this.inputs,
             // The count is read from the store, as the headless session does: a freeze in delivery

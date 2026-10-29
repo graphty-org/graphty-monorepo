@@ -2208,7 +2208,7 @@ export class GraphStore {
 
     /**
      * For data that placed SOME nodes and not others: the ids of the nodes it arrived without a
-     * coordinate for, and where it put each of the others (times `positionScale`, as seeded),
+     * coordinate for, and where it put each of the others (times the store's `positionScale` as it is now),
      * whatever a layout has done to them since. Read off the last freeze, like
      * {@link GraphStore.seededNodeCount}.
      * @returns both, or null when the data placed every node or none
@@ -2223,11 +2223,12 @@ export class GraphStore {
         const unseeded: NodeId[] = [];
         const placed: SeedEntry[] = [];
         const { rows, coords } = partial;
+        const scale = this.options.positionScale();
         for (let i = 0; i < snapshot.nodeCount; i++) {
             const id = snapshot.ids.idOf(i);
             if (rows[i] === 1) {
                 const base = POSITION_COMPONENTS * i;
-                placed.push({ id, x: coords[base], y: coords[base + 1], z: coords[base + 2] });
+                placed.push({ id, x: coords[base] * scale, y: coords[base + 1] * scale, z: coords[base + 2] * scale });
             } else {
                 unseeded.push(id);
             }
@@ -2240,7 +2241,7 @@ export class GraphStore {
     private seeded = 0;
     /**
      * Kept only when the last freeze's data placed some rows and not others: 1 per row it placed,
-     * and its coordinates times `positionScale`.
+     * and its coordinates as the data gives them.
      */
     private partial: { readonly rows: Uint8Array; readonly coords: Float32Array } | null = null;
     /**
@@ -2255,6 +2256,54 @@ export class GraphStore {
      */
     private unconfigured: { readonly directed: boolean; readonly direction: DirectionProvenance } | null = null;
 
+    /**
+     * Seed the rows the last freeze seeded from the data again at the position scale in force now,
+     * when it changed since: a load records its file scale (`data/filePositions.ts`) after its rows
+     * are seeded. A row that has moved since it was seeded stays where it is.
+     */
+    rescaleSeeds(): void {
+        const last = this.lastSeeds;
+        const scale = this.options.positionScale();
+        if (last === null || last.scale === scale) {
+            return;
+        }
+
+        const at = { x: 0, y: 0, z: 0 };
+        const was = new Float32Array(3);
+        for (const row of last.rows) {
+            const base = POSITION_COMPONENTS * row;
+            if (row >= this.positions.count || !this.positions.isPlaced(row)) {
+                continue;
+            }
+
+            this.positions.read(row, at);
+            was.set([
+                last.coords[base] * last.scale,
+                last.coords[base + 1] * last.scale,
+                last.coords[base + 2] * last.scale,
+            ]);
+            if (at.x !== was[0] || at.y !== was[1] || at.z !== was[2]) {
+                continue;
+            }
+
+            const x = last.coords[base] * scale;
+            const y = last.coords[base + 1] * scale;
+            const z = last.coords[base + 2] * scale;
+            if (isStorableCoordinate(x) && isStorableCoordinate(y) && isStorableCoordinate(z)) {
+                this.positions.reseed(row, x, y, z);
+            }
+        }
+
+        this.lastSeeds = { ...last, scale };
+    }
+
+    /** The rows the last seeding freeze placed from the data, the data's own numbers and the scale they took. */
+    private lastSeeds: {
+        readonly scale: number;
+        readonly rows: readonly number[];
+        readonly coords: Float32Array;
+    } | null = null;
+
     private seedUnplaced(snapshot: GraphSnapshot): void {
         // requireTyped, not the `Column | null` from get(): `Column` is a union and DictColumn has
         // no `data`, so reading `.data` off the union does not typecheck. requireTyped narrows to
@@ -2266,6 +2315,7 @@ export class GraphStore {
         const { data } = seed;
         const scale = this.options.positionScale();
         let seeded = 0;
+        const filled: number[] = [];
         const rows = new Uint8Array(snapshot.nodeCount);
         for (let i = 0; i < snapshot.nodeCount; i++) {
             // Counted for EVERY seeded row, including one already placed and skipped below: the
@@ -2308,17 +2358,21 @@ export class GraphStore {
                 continue;
             }
 
-            this.positions.fillUnplaced(i, x, y, z);
+            if (this.positions.fillUnplaced(i, x, y, z)) {
+                filled.push(i);
+            }
+        }
+
+        if (filled.length > 0) {
+            this.lastSeeds = { scale, rows: filled, coords: Float32Array.from(data) };
         }
 
         this.seeded = seeded;
         this.partial = null;
         if (seeded > 0 && seeded < snapshot.nodeCount) {
-            const coords = new Float32Array(data.length);
-            for (let k = 0; k < coords.length; k++) {
-                coords[k] = data[k] * scale;
-            }
-            this.partial = { rows, coords };
+            // The data's own numbers: scaled when read, so a file scale a load records after this
+            // freeze still applies to them.
+            this.partial = { rows, coords: Float32Array.from(data) };
         }
     }
 }

@@ -257,7 +257,8 @@ await graph.addNodes(nodes);
 await graph.setLayout("fixed");
 ```
 
-The coordinates are multiplied by the element's `positionScale` (default 1). A node with no usable
+The coordinates are multiplied by the element's `positionScale` (default 1), and by the file scale
+a load that drew a file's styles reports as `lengthScale`. A node with no usable
 `position` is put at the origin (or stays where an earlier layout put it), and the element emits a
 `layout-warning` event with code `W_NO_POSITION` and `params: { missing, total }`, the number of
 nodes without one and the number placed:

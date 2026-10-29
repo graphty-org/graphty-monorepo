@@ -20,14 +20,6 @@ const fixedLayoutOptionsSchema = defineOptions({
             description: "Layout dimensionality (2D or 3D)",
         },
     },
-    scale: {
-        schema: z.number().positive().default(1),
-        meta: {
-            label: "Scale",
-            description: "What every data position is multiplied by, on top of the element's positionScale",
-            advanced: true,
-        },
-    },
     edgeRoutes: {
         schema: z.enum(["element", "graphviz"]).default("element"),
         meta: {
@@ -49,7 +41,6 @@ const fixedLayoutOptionsSchema = defineOptions({
 const FixedLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     dim: z.number().default(3),
-    scale: z.number().positive().default(1),
     edgeRoutes: z.enum(["element", "graphviz"]).default("element"),
     graphvizAttributes: z.record(z.string(), z.string()).default({}),
 });
@@ -60,17 +51,16 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * The fixed layout: every node goes to its `data.position`, and then stays where it is put.
  *
  * The first time an engine lays out, every node carrying a `data.position` is placed there (scaled
- * by `data.knownFields.positionScale`), whatever an earlier layout left in the element's position
+ * by the position path's scale: `data.knownFields.positionScale` times the file scale a load that
+ * drew the file's styles recorded with them), whatever an earlier layout left in the element's position
  * array -- switching to "fixed" means "put the nodes where the data says". After that the engine
  * keeps what the array holds, so a drag survives a later recompute; a node added later reaches the
  * array from its own `data.position` when the graph is frozen. A node with no coordinates at all
  * is placed at the origin. Either way, nodes whose data gave no position are reported as a
  * `layout-warning` event with code `W_NO_POSITION`, so a misspelled position is never silent.
- * `scale` (1 by default) multiplies every data position on top of `positionScale`: a load that
- * draws a file's styles sets it so the stored drawing is in the same unit as the file's node sizes.
  * `edgeRoutes: "graphviz"` has Graphviz route the edges between the placed nodes (`neato -n2`, how
  * Graphviz draws a file whose nodes carry their place and whose edges do not), reading each data
- * length as a point (`scale` scene units); a route the edge's style stores still wins. When
+ * length as a point; a route the edge's style stores still wins. When
  * Graphviz cannot route them the nodes are placed all the same, the edges are drawn the element's
  * way, and a `layout-warning` with code `W_ROUTES_NOT_LAID` says why.
  */
@@ -89,8 +79,11 @@ export class FixedLayout extends SnapshotLayoutEngine {
      * @param opts - Configuration options including dimensions
      */
     constructor(opts: FixedLayoutOpts = {}) {
-        super(opts);
-        this.config = FixedLayoutConfig.parse(opts);
+        // `scale` was an option until the file scale moved into the position path (issue #2322);
+        // a project saved with it still opens, and the option is ignored.
+        const { scale: _scale, ...rest } = opts as FixedLayoutOpts & { scale?: unknown };
+        super(rest);
+        this.config = FixedLayoutConfig.parse(rest);
     }
 
     /**
@@ -108,7 +101,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
         const position = (n.data as Record<string, unknown>).position as
             { x?: number; y?: number; z?: number } | undefined;
         if (position) {
-            const { scale } = this.config;
+            const scale = this.positionScale(n);
             n.setMeshPosition((position.x ?? 0) * scale, (position.y ?? 0) * scale, (position.z ?? 0) * scale);
         }
     }
@@ -159,7 +152,7 @@ export class FixedLayout extends SnapshotLayoutEngine {
                 this.dimensions,
                 {
                     // a data length is a point: an inch is 72 of them
-                    scale: POINTS_PER_UNIT * this.config.scale,
+                    scale: POINTS_PER_UNIT * this.positionScale(),
                     attributes: this.config.graphvizAttributes,
                     timeoutMs: GRAPHVIZ_TIME_BUDGET_MS,
                 },
@@ -186,11 +179,6 @@ export class FixedLayout extends SnapshotLayoutEngine {
      */
     private place(input: SnapshotLayoutInput): F32 {
         const seeds = input.firstRun ? input.dataPositions() : null;
-        if (seeds !== null && this.config.scale !== 1) {
-            for (let i = 0; i < seeds.length; i++) {
-                seeds[i] *= this.config.scale;
-            }
-        }
 
         const { initial } = input;
         const positions = new Float32Array(initial.length);

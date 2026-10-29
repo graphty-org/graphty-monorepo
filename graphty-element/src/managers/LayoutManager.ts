@@ -1456,6 +1456,7 @@ export class LayoutManager implements Manager {
                 this.reportLayoutFailure(type, error, "stepped");
             },
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
+            positionScale: () => this.dataManager.positionScale(),
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },

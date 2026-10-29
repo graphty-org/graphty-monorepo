@@ -65,6 +65,11 @@ documents carry styles. CSV and OBO files hold none.
   names the `property` (`fill`, `shape`, `borderWidth`, ...), the `target` (`node`, `edge` or
   `graph`), how many elements (`count`, each element counted once) and, for a value left out, up
   to 8 `samples` of the file's values (empty when the note has none to show).
+- `lengthScale`: the scene units one unit of the file's lengths was drawn as. Node sizes, borders,
+  edge widths, label sizes and the file's stored positions all took this one factor, so the drawing
+  keeps the file's proportions. Absent when the load kept the file's own numbers. A file merged into a
+  graph that already holds a file's styles takes that graph's scale, and an export without styles
+  divides it back out of the positions, so a file loaded and saved keeps its own coordinates.
 
 A note never stops the load: every style that can be drawn is drawn. The codes graphty-element adds
 while it turns a file's rules into layers:

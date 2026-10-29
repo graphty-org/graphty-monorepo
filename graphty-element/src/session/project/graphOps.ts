@@ -1260,6 +1260,10 @@ class Writer implements GraphWriter {
             restore(map, name, next);
             this.record({ kind: "value", name, prior, next }, `v:${name}`, null);
         }
+
+        // A load records its file scale among these values after its rows were seeded: the seeds
+        // take it (issue #2322).
+        this.store.rescaleSeeds();
     }
 
     setDirected(directed: boolean, statedBy: string): DirectionOutcome {

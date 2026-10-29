@@ -50,6 +50,12 @@ export interface FileStyleLoadValues {
     readonly format: string;
     /** Its columns. */
     readonly columns: readonly FileStyleColumnValues[];
+    /**
+     * The scene units one unit of the file's lengths was drawn as: node sizes, borders, edge widths,
+     * label sizes and the stored positions all take it (issue #2322). Absent when the load kept the
+     * file's lengths and positions as they are.
+     */
+    readonly lengthScale?: number;
 }
 
 /** One load, held. */
@@ -171,7 +177,7 @@ function holdLoad(load: unknown, at: number): StoredFileStyleLoad {
         throw malformed("load", { load: at });
     }
 
-    const { importId, namespace, format, columns } = load;
+    const { importId, namespace, format, columns, lengthScale } = load;
     if (typeof importId !== "string" || importId === "" || typeof format !== "string") {
         throw malformed("load-id", { load: at });
     }
@@ -196,8 +202,18 @@ function holdLoad(load: unknown, at: number): StoredFileStyleLoad {
         kept.push(held.values);
     });
 
+    // A scale that is no positive number (a hand-edited project file) is dropped, never refused:
+    // the positions are then drawn in the file's own unit.
+    const scale =
+        typeof lengthScale === "number" && Number.isFinite(lengthScale) && lengthScale > 0 ? lengthScale : null;
     return Object.freeze({
-        values: Object.freeze({ importId, namespace, format, columns: Object.freeze(kept) }),
+        values: Object.freeze({
+            importId,
+            namespace,
+            format,
+            columns: Object.freeze(kept),
+            ...(scale === null ? {} : { lengthScale: scale }),
+        }),
         columns: byKey,
     });
 }
@@ -253,6 +269,16 @@ export function asFileStyleStore(value: unknown): FileStyleStore {
  */
 export function fileStyleValuesOf(store: FileStyleStore): readonly FileStyleLoadValues[] {
     return store.loads.map((load) => load.values);
+}
+
+/**
+ * The graph's file scale: the scene units one unit of a loaded file's lengths and stored positions
+ * is drawn as, which the first load that drew its styles chose and every load merged after it takes.
+ * @param store - The store.
+ * @returns The scale, or 1 when no load chose one.
+ */
+export function fileLengthScale(store: FileStyleStore): number {
+    return store.loads.find((load) => load.values.lengthScale !== undefined)?.values.lengthScale ?? 1;
 }
 
 /**

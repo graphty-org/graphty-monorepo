@@ -6,11 +6,17 @@
  * form -- each node's center, y up, in the file's own unit -- and this writes that form onto the
  * node records as `position`, which seeds the layout (and is what the `fixed` layout draws). No
  * reader handles positions on its own.
+ *
+ * Every reader of a stored position also takes its scale from here ({@link positionScaleOf}): the
+ * consumer's `positionScale` times the file scale a load that drew the file's styles recorded with
+ * them (issue #2322), so a file's drawing keeps the proportions of its node sizes.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 import type { GraphImporter, ImportReport } from "@graphty/graph-io";
 import { extractPositions, type FilePositions, writtenPositions as writtenFor } from "@graphty/graph-io/positions";
+
+import { asFileStyleStore, FILE_STYLES_VALUE, fileLengthScale } from "../session/styles/fileStyles/store";
 
 /** What a position read needs: the importer that read the file, its snapshot and its report. */
 export interface PositionSource {
@@ -30,7 +36,7 @@ export function filePositionsOf(imported: PositionSource): FilePositions | null 
 
 /**
  * Write each node's stored position onto its record as `position: { x, y, z }`, in file units
- * (the element applies `data.knownFields.positionScale`). A node the file gave no position keeps
+ * (every reader multiplies them by {@link positionScaleOf}). A node the file gave no position keeps
  * whatever its record already holds; nothing is deleted.
  * @param records - the node records
  * @param positions - the file's positions, or null
@@ -65,4 +71,16 @@ export function applyFilePositions(
  */
 export function writtenPositions(format: string | undefined, coords: Float64Array): Float64Array {
     return format === undefined ? coords : writtenFor(format, coords);
+}
+
+/**
+ * The scene units one unit of a stored position is drawn as: the consumer's
+ * `data.knownFields.positionScale` times the file scale the graph's loads recorded with their
+ * styles. Every reader of a stored position multiplies by this, and a writer divides by it.
+ * @param positionScale - `data.knownFields.positionScale`
+ * @param values - the graph-level values, which hold the file-style store
+ * @returns the scale
+ */
+export function positionScaleOf(positionScale: number, values: ReadonlyMap<string, unknown> | undefined): number {
+    return positionScale * fileLengthScale(asFileStyleStore(values?.get(FILE_STYLES_VALUE)));
 }

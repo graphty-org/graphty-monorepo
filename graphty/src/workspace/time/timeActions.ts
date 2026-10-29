@@ -123,9 +123,7 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
     session.time.pause();
     session.time.setField(field).then(
         (result) => {
-            if (field !== null) {
-                store.set({ timelineOpen: true });
-            }
+            // Setting the field sets only the field: the dock opens from the toolbar's clock button.
             showNotices(session, store, result.notices);
         },
         (error: unknown) => {

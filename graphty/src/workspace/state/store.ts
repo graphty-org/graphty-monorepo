@@ -128,9 +128,14 @@ export interface WorkspaceState {
     readonly pickedSource: SourceKey | null;
     /**
      * Whether the timeline dock is shown under the canvas while a time field is set;
-     * `timeline.toggle` (T) flips it, and designating a field shows it.
+     * `timeline.toggle` (T) flips it. Shut until the reader asks: the canvas keeps its size.
      */
     readonly timelineOpen: boolean;
+    /**
+     * Whether the Filters section holds the Time window card: added from Filters "+", dropped by
+     * its remove button. A window put on from elsewhere (the dock, a key) shows the card too.
+     */
+    readonly timeWindowCard: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -259,7 +264,8 @@ const INITIAL: WorkspaceState = {
     editingJoin: null,
     ends: null,
     pickedSource: null,
-    timelineOpen: true,
+    timelineOpen: false,
+    timeWindowCard: false,
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,

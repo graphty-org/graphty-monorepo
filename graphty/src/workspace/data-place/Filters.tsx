@@ -7,29 +7,31 @@
  */
 
 import { ControlSection, EntityChip, SegmentedControl } from "@graphty/compact-mantine";
-import type { FilterCondition, FilterConditionCount, GraphSession } from "@graphty/graphty-element/session";
+import type { FilterCondition, FilterConditionCount, GraphSession, RuleTree } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Button,
     Checkbox,
     CloseButton,
     Group,
-    Menu,
     Pill,
     Stack,
     Text,
     Tooltip,
+    UnstyledButton,
     VisuallyHidden,
 } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
 import { isPanelEscape, isTypingTarget } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, newCard, type Side, SOURCE_PATH } from "../style/cards";
-import { AddCondition, CardBody } from "../style/WhichPicker";
+import { AddCondition, CardBody, type ExtraItem } from "../style/WhichPicker";
 import { reportTimeError, unitOf } from "../time/timeActions";
 import { windowWords } from "../time/timeWords";
 import {
@@ -47,18 +49,30 @@ import {
 import { chipTip, chipWords, statusWords } from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
-/** Where focus goes once the Filters section draws next: a card's id, or `PLUS` for "+". */
-let pendingFocus: string | null = null;
+/** The name of the time window, in the "+" list, its card and the inspector. */
+const TIME_WINDOW = "Time window";
+
+/** Where focus goes once the Filters section draws next: a card (or its on box), or `PLUS` for "+". */
+let pendingFocus: { readonly target: string; readonly onBox?: boolean } | null = null;
+
+/** A card's on box, inside the card. */
+const ON_BOX = ".dp-filter-switches input[type=checkbox]";
 
 /**
- * Focuses a card in the Filters section, or its "+".
+ * Focuses a card in the Filters section, its on box, or the section's "+".
  * @param target - a card's id, or `PLUS`.
+ * @param onBox - the card's on box rather than the card.
  * @returns whether that control is on the page.
  */
-function focusCard(target: string): boolean {
-    const control = document.querySelector<HTMLElement>(
-        target === PLUS ? "[data-filters-plus]" : `[role=list][aria-label="Filters"] [data-id="${CSS.escape(target)}"]`,
-    );
+function focusCard(target: string, onBox = false): boolean {
+    const card = `[role=list][aria-label="Filters"] [data-id="${CSS.escape(target)}"]`;
+    let selector = card;
+    if (target === PLUS) {
+        selector = "[data-filters-plus] [data-add]";
+    } else if (onBox) {
+        selector = `${card} ${ON_BOX}`;
+    }
+    const control = document.querySelector<HTMLElement>(selector);
     control?.focus();
     return control !== null;
 }
@@ -90,36 +104,45 @@ const hides = (condition: FilterCondition): boolean => condition.effect !== "sel
 const ACTION_WORDS: Record<FilterCondition["effect"], string> = { keep: "Hide", select: "Select", exclude: "Exclude" };
 
 /**
- * The Filters section: one card per condition, in the element's order, a new card while it has no
- * value, then the time window's row. "+" adds a card.
+ * The Filters section: one card per condition, in the element's order, the new cards while they
+ * have no value, then the time window's row. "+" adds a card. One card is open at a time; the rest
+ * rest as their summary.
  * @returns the section.
  */
 export function FiltersSection(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const version = useVisibilityVersion(session);
     const asked = useWorkspaceState((state) => state.filterDraft);
-    const [draft, setDraft] = useState<Draft | null>(null);
+    const [drafts, setDrafts] = useState<readonly Draft[]>([]);
     const [adding, setAdding] = useState(false);
+    const [openId, setOpenId] = useState<string | null>(null);
     const conditions = session?.visibility.conditions ?? [];
-    // Once written, the draft is one of the element's conditions, drawn by the same card, and is
-    // let go: removed later, it must not come back as a draft.
-    const written = draft !== null && conditions.some((c) => c.id === draft.id);
-    const drafting = draft !== null && !written;
+    // Once written, a draft is one of the element's conditions, drawn by the same card, and is let
+    // go: removed later, it must not come back as a draft.
+    const waiting = drafts.filter((each) => !conditions.some((c) => c.id === each.id));
+    const ids = conditions.map((c) => c.id).join("\n");
     useEffect(() => {
-        if (written) {
-            setDraft(null);
-        }
-    }, [written]);
+        const held = new Set(ids.split("\n"));
+        setDrafts((now) => {
+            const left = now.filter((each) => !held.has(each.id));
+            return left.length === now.length ? now : left;
+        });
+    }, [ids]);
     const counts = session?.visibility.conditionCounts() ?? [];
 
     useEffect(() => {
-        if (pendingFocus !== null && focusCard(pendingFocus)) {
+        if (pendingFocus !== null && focusCard(pendingFocus.target, pendingFocus.onBox)) {
             pendingFocus = null;
         }
     }, [version]);
 
     const open = (field: CardField): void => {
-        setDraft({ id: newConditionId(session?.visibility.conditions ?? []), field });
+        const id = newConditionId(
+            session?.visibility.conditions ?? [],
+            drafts.map((each) => each.id),
+        );
+        setDrafts((now) => [...now, { id, field }]);
+        setOpenId(id);
     };
     const openRef = useRef(open);
     openRef.current = open;
@@ -144,21 +167,36 @@ export function FiltersSection(): React.JSX.Element {
         }
     }, [asked, session, store]);
 
-    const timed = session !== null && session.time.field !== null;
+    const timeCardAdded = useWorkspaceState((state) => state.timeWindowCard);
+    // The Time window card: added from "+" (R5), or a window put on from elsewhere (the dock, a key).
+    const timed = session !== null && session.time.field !== null && (timeCardAdded || session.time.current !== null);
     const plus =
         session === null ? null : (
-            <AddMenu
-                session={session}
-                store={store}
-                opened={adding}
-                onOpened={setAdding}
-                onField={open}
-                taken={draft?.id}
-            />
+            <span data-filters-plus="">
+                <AddCondition
+                    fields={[...valueFields(session, "node"), ...valueFields(session, "edge")]}
+                    used={[]}
+                    bySide
+                    plus="Add filter"
+                    opened={adding}
+                    onOpened={setAdding}
+                    onAdd={open}
+                    extra={structureItems(
+                        session,
+                        store,
+                        open,
+                        (id) => {
+                            setOpenId(id);
+                        },
+                        drafts.map((each) => each.id),
+                        timed,
+                    )}
+                />
+            </span>
         );
     const cards = [
         ...conditions.map((condition) => ({ id: condition.id, condition, field: undefined })),
-        ...(drafting ? [{ id: draft.id, condition: undefined, field: draft.field }] : []),
+        ...waiting.map((each) => ({ id: each.id, condition: undefined, field: each.field })),
     ];
     const empty = cards.length === 0 && !timed;
 
@@ -176,13 +214,17 @@ export function FiltersSection(): React.JSX.Element {
                             condition={each.condition}
                             count={counts.find((c) => c.id === each.id)}
                             field={each.field}
+                            open={openId === each.id}
+                            onOpen={(next) => {
+                                setOpenId(next ? each.id : null);
+                            }}
                             onDiscard={() => {
-                                setDraft(null);
+                                setDrafts((now) => now.filter((draft) => draft.id !== each.id));
                                 focusCard(PLUS);
                             }}
                             onRemoved={() => {
                                 const at = conditions.findIndex((c) => c.id === each.id);
-                                pendingFocus = conditions[at + 1]?.id ?? conditions[at - 1]?.id ?? PLUS;
+                                pendingFocus = { target: conditions[at + 1]?.id ?? conditions[at - 1]?.id ?? PLUS };
                             }}
                         />
                     ))}
@@ -194,109 +236,84 @@ export function FiltersSection(): React.JSX.Element {
 }
 
 /**
- * The section's "+": the node and edge fields, then the cards that are not a field's (Data source
- * with two or more loads, Largest component, Neighbors of selection with nodes selected, Time window
- * with a time field and the window off).
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.store - the chrome store
- * @param props.opened - whether the list is open
- * @param props.onOpened - opens or closes it
- * @param props.onField - opens a new card on a field
- * @param props.taken - a draft's id, which a new card must not take
- * @returns the menu
+ * The "+" list's Structure rows: the cards that are not a field's (Data source with two or more
+ * loads, Largest component, Neighbors of selection with nodes selected, Time window with a time
+ * field and no Time window card yet).
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ * @param onField - opens a new card on a field (the Data source).
+ * @param onWritten - opens the card a row wrote.
+ * @param taken - the drafts' ids, which a new card must not take.
+ * @param timeShown - whether the Time window card is already in the list.
+ * @returns the rows.
  */
-function AddMenu({
-    session,
-    store,
-    opened,
-    onOpened,
-    onField,
-    taken,
-}: Readonly<{
-    session: GraphSession;
-    store: WorkspaceStore;
-    opened: boolean;
-    onOpened: (opened: boolean) => void;
-    onField: (field: CardField) => void;
-    taken: string | undefined;
-}>): React.JSX.Element {
+function structureItems(
+    session: GraphSession,
+    store: WorkspaceStore,
+    onField: (field: CardField) => void,
+    onWritten: (id: string) => void,
+    taken: readonly string[],
+    timeShown: boolean,
+): ExtraItem[] {
     const add = (rule: FilterCondition["rule"]): void => {
-        const id = newConditionId(session.visibility.conditions, taken === undefined ? [] : [taken]);
-        pendingFocus = id;
+        const id = newConditionId(session.visibility.conditions, taken);
+        pendingFocus = { target: id };
+        onWritten(id);
         void writeCondition(store, () => session.visibility.addCondition({ id, effect: "keep", rule }));
     };
     const selected = session.selection.nodes;
     const source = cardFields(session, "node").find((field) => field.path === SOURCE_PATH);
-    const fieldItems = (side: Side): React.JSX.Element[] =>
-        valueFields(session, side).map((field) => (
-            <Menu.Item
-                key={`${side}:${field.path}`}
-                onClick={() => {
-                    onField(field);
-                }}
-            >
-                {field.name}
-            </Menu.Item>
-        ));
-    const nodes = fieldItems("node");
-    const edges = fieldItems("edge");
-    return (
-        // Focus goes to the card an item adds, not back to "+".
-        <Menu opened={opened} onChange={onOpened} position="bottom-end" withinPortal returnFocus={false}>
-            <Menu.Target>
-                <Tooltip label="Add filter">
-                    <ActionIcon data-filters-plus="" variant="subtle" aria-label="Add filter">
-                        <GLYPHS.add size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
-            </Menu.Target>
-            <Menu.Dropdown mah={360} style={{ overflowY: "auto" }}>
-                {nodes.length > 0 && <Menu.Label>Nodes</Menu.Label>}
-                {nodes}
-                {edges.length > 0 && <Menu.Label>Edges</Menu.Label>}
-                {edges}
-                <Menu.Divider />
-                {source !== undefined && (
-                    <Menu.Item
-                        onClick={() => {
-                            onField(source);
-                        }}
-                    >
-                        Data source
-                    </Menu.Item>
-                )}
-                <Menu.Item
-                    onClick={() => {
-                        add({ kind: "member", of: "largest-component" });
-                    }}
-                >
-                    Largest component
-                </Menu.Item>
-                {selected.length > 0 && (
-                    <Menu.Item
-                        onClick={() => {
-                            add({ kind: "neighborhood", seeds: selected, depth: 1 });
-                        }}
-                    >
-                        Neighbors of selection
-                    </Menu.Item>
-                )}
-                {session.time.field !== null && session.time.current === null && (
-                    <Menu.Item
-                        onClick={() => {
-                            session.time.pause();
-                            session.time.window({}).then(() => {
-                                openTimeCard(store);
-                            }, reportTimeError(store));
-                        }}
-                    >
-                        Time window
-                    </Menu.Item>
-                )}
-            </Menu.Dropdown>
-        </Menu>
-    );
+    return [
+        ...(source === undefined
+            ? []
+            : [
+                  {
+                      key: "source",
+                      name: "Data source",
+                      glyph: GLYPHS.file,
+                      onPick: () => {
+                          onField(source);
+                      },
+                  },
+              ]),
+        {
+            key: "largest",
+            name: "Largest component",
+            glyph: GLYPHS.graph,
+            onPick: () => {
+                add({ kind: "member", of: "largest-component" });
+            },
+        },
+        ...(selected.length === 0
+            ? []
+            : [
+                  {
+                      key: "neighbors",
+                      name: "Neighbors of selection",
+                      glyph: GLYPHS.neighborhood,
+                      onPick: () => {
+                          add({ kind: "neighborhood", seeds: selected, depth: 1 });
+                      },
+                  },
+              ]),
+        ...(session.time.field !== null && !timeShown
+            ? [
+                  {
+                      key: "time",
+                      name: TIME_WINDOW,
+                      glyph: GLYPHS.time,
+                      onPick: () => {
+                          pendingFocus = { target: TIME_ROW };
+                          store.set({ timeWindowCard: true });
+                          session.time.pause();
+                          session.time.window({}).then(() => {
+                              openTimeCard(store);
+                          }, reportTimeError(store));
+                      },
+                  },
+              ]
+            : []),
+    ];
 }
 
 /**
@@ -337,10 +354,56 @@ function CountChips({ count }: Readonly<{ count: FilterConditionCount | undefine
     );
 }
 
+/** How long typing pauses before the count it changed is spoken, as the Style cards wait. */
+const SPEAK_AFTER_MS = 500;
+
 /**
- * One filter card: its count, Select / Hide, its box and its remove button over its body. A card
- * not yet written (`condition` undefined) is written by its first value; Escape, or leaving it
- * with none, discards it.
+ * What a rule would match on one kind, read from the element without writing it (`scope.count`):
+ * the count a card shows while its text is typed. The last count stays on screen until the next
+ * one settles, so it follows the keys without blinking.
+ * @param session - the element's session.
+ * @param rule - the rule, or null for none.
+ * @param side - nodes or edges.
+ * @returns the count, or undefined for none.
+ */
+function usePreviewCount(session: GraphSession, rule: RuleTree | null, side: Side): FilterConditionCount | undefined {
+    const key = rule === null ? "" : JSON.stringify(rule);
+    const [counted, setCounted] = useState<{ key: string; matched: number } | null>(null);
+    const latest = useRef(rule);
+    latest.current = rule;
+    useEffect(() => {
+        const where = latest.current;
+        if (where === null) {
+            return undefined;
+        }
+        let live = true;
+        session.scope.count({ define: { kind: "rule", where, reading: "clipped" } }).then(
+            (each) => {
+                if (live) {
+                    setCounted({ key, matched: side === "node" ? each.nodes : each.edges });
+                }
+            },
+            () => undefined,
+        );
+        return () => {
+            live = false;
+        };
+    }, [session, key, side]);
+    if (rule === null || counted === null) {
+        return undefined;
+    }
+    const stats = session.data.statistics();
+    const half = { matched: counted.matched, total: side === "node" ? stats.nodeCount : stats.edgeCount };
+    return { id: "", nodes: side === "node" ? half : null, edges: side === "edge" ? half : null, unresolved: [] };
+}
+
+/**
+ * One filter card (design/data/filter-cards.md section 5, tier 4 R3 and R4): a header row with
+ * its field, its count and its remove button; a row with Select / Hide and its on box; then its
+ * body while it is open, else its summary. A card not yet written (`condition` undefined) is
+ * written by its first value. Typed text is written when it is committed (Enter, Tab or a click
+ * out, Escape), its count following each key meanwhile without a write. Only Escape takes a card
+ * back, and only one with no value.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
@@ -348,6 +411,8 @@ function CountChips({ count }: Readonly<{ count: FilterConditionCount | undefine
  * @param props.condition - the condition, or undefined for a draft
  * @param props.count - the element's count of it
  * @param props.field - a draft's field
+ * @param props.open - whether its body is shown
+ * @param props.onOpen - opens or closes it
  * @param props.onDiscard - drops a draft
  * @param props.onRemoved - called as the card is removed, so focus can move on
  * @returns the card
@@ -359,6 +424,8 @@ function FilterCard({
     condition,
     count,
     field,
+    open,
+    onOpen,
     onDiscard,
     onRemoved,
 }: Readonly<{
@@ -368,10 +435,12 @@ function FilterCard({
     condition: FilterCondition | undefined;
     count: FilterConditionCount | undefined;
     field: CardField | undefined;
+    open: boolean;
+    onOpen: (open: boolean) => void;
     onDiscard: () => void;
     onRemoved: () => void;
 }>): React.JSX.Element {
-    const box = useRef<HTMLLIElement>(null);
+    const box = useRef<HTMLDivElement>(null);
     const shape =
         condition === undefined
             ? ({
@@ -395,7 +464,9 @@ function FilterCard({
     }, [ruleKey]);
     // Typing in a text box writes when it is committed (Enter, leaving the box): one undo step.
     const pending = useRef<readonly Card[] | null>(null);
+    const [typing, setTyping] = useState(false);
     const draft = condition === undefined;
+    const side = shape.kind === "fields" ? shape.side : "node";
 
     // A new card puts focus on its first value.
     useEffect(() => {
@@ -407,6 +478,19 @@ function FilterCard({
             target?.focus();
         }
     }, [draft]);
+
+    // While text is typed, the count is the rule's as typed, read without writing it; spoken once
+    // typing pauses. A new card shows none until the reader gives it a value.
+    const preview = usePreviewCount(session, shape.kind === "fields" && typing ? ruleOfCards(cards) : null, side);
+    const shown = preview ?? (typing ? undefined : count);
+    const half = side === "node" ? preview?.nodes : preview?.edges;
+    const [settled] = useDebouncedValue(
+        half === undefined || half === null
+            ? null
+            : `${formatNumber(half.matched)} of ${formatNumber(half.total)} ${side === "node" ? "nodes" : "edges"}`,
+        SPEAK_AFTER_MS,
+    );
+    useAnnounceChange(typing ? settled : null, false);
 
     const save = (next: readonly Card[]): void => {
         const made = ruleOfCards(next);
@@ -428,18 +512,20 @@ function FilterCard({
         const active = document.activeElement;
         if (isTypingTarget(active) && !(active instanceof HTMLInputElement && active.readOnly)) {
             pending.current = next;
+            setTyping(true);
             return;
         }
         pending.current = null;
+        setTyping(false);
         save(next);
     };
-    const flush = (): boolean => {
+    const flush = (): void => {
         const held = pending.current;
         pending.current = null;
+        setTyping(false);
         if (held !== null) {
             save(held);
         }
-        return held !== null && ruleOfCards(held) !== null;
     };
     const remove = (): void => {
         if (draft) {
@@ -457,72 +543,120 @@ function FilterCard({
     // keeps it, since writing keep or select would change what the condition does.
     const toggles = condition?.effect === "keep" || select;
     const action = ACTION_WORDS[condition?.effect ?? "keep"];
+    const hideWords = `Hide ${side === "node" ? "nodes" : "edges"} that do not match`;
+    // The header names the card's field (or its kind); the summary under it says the rule.
+    let title = "Rule";
+    if (shape.kind === "fields") {
+        title = cards.map((each) => ("field" in each ? each.field.name : "Rule")).join(", ") || name;
+    } else if (shape.kind === "largest") {
+        title = "Largest component";
+    } else if (shape.kind === "neighbors") {
+        title = "Neighbors";
+    }
 
     return (
-        <li // NOSONAR(S6847): the card listens for keys its own controls send up (Enter commits, Escape drops a draft)
-            ref={box}
-            data-id={id}
-            tabIndex={-1}
-            aria-label={draft ? name : `${name}, ${action}`}
-            className="ws-card dp-filter"
-            data-off={on ? undefined : ""}
-            // Escape drops a new card wherever focus is in it, before a box takes the key to keep its
-            // text; an open list still takes its own Escape.
-            onKeyDownCapture={(event) => {
-                if (draft && isPanelEscape(event.nativeEvent)) {
+        <li>
+            <div // NOSONAR(S6847): the card listens for keys its own controls send up (Enter commits, Escape commits or drops a draft)
+                ref={box}
+                role="group"
+                data-id={id}
+                tabIndex={-1}
+                aria-label={draft ? name : `${name}, ${action}`}
+                className="ws-card dp-filter"
+                data-off={on ? undefined : ""}
+                // Escape commits what the card holds and puts focus on its on box; a new card with
+                // no value is taken back. Caught before a box takes the key to keep its text; an
+                // open list still takes its own Escape.
+                onKeyDownCapture={(event) => {
+                    if (!isPanelEscape(event.nativeEvent)) {
+                        return;
+                    }
                     event.preventDefault();
                     event.stopPropagation();
-                    pending.current = null;
-                    onDiscard();
-                }
-            }}
-            onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                    // A new card's only values are typed ones: any other first value wrote it.
+                    const held = pending.current;
+                    if (draft) {
+                        pending.current = null;
+                        setTyping(false);
+                        if (held === null || ruleOfCards(held) === null) {
+                            onDiscard();
+                            return;
+                        }
+                        pendingFocus = { target: id, onBox: true };
+                        save(held);
+                        return;
+                    }
                     flush();
-                }
-            }}
-            onBlur={(event) => {
-                const to = event.relatedTarget;
-                // No target: focus went to something that cannot take it (blank space, the canvas),
-                // which leaves the card too -- unless the whole window lost focus.
-                const stays =
-                    to === null ? !document.hasFocus() : !(to instanceof Element) || box.current?.contains(to) === true;
-                if (stays) {
-                    return;
-                }
-                const written = flush();
-                // A list the card opened (a match menu, Add a condition) is drawn in a portal.
-                if (draft && !written && !(to instanceof Element && to.closest("[data-portal]") !== null)) {
-                    onDiscard();
-                }
-            }}
-        >
-            {/* The count is the card's fact and is never cut: when it and the controls do not fit on
-                one line, the controls move to the next, still at the right. */}
-            <Group gap={4}>
-                <Group gap={4} style={{ flex: "1 0 auto" }}>
-                    <CountChips count={count} />
+                    box.current?.querySelector<HTMLElement>(ON_BOX)?.focus();
+                }}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                        flush();
+                    }
+                }}
+                onBlur={(event) => {
+                    const to = event.relatedTarget;
+                    // Focus leaving the box that was typed in (for another control in the card or
+                    // anywhere else) writes what was typed, unless the whole window lost focus or it
+                    // went to a list the box opened (drawn in a portal). A card with no value stays,
+                    // for Escape to take back.
+                    const away = to === null && !document.hasFocus();
+                    if (away || (to instanceof Element && to.closest("[data-portal]") !== null)) {
+                        return;
+                    }
+                    flush();
+                }}
+            >
+                <Group gap={4} wrap="nowrap">
+                    <UnstyledButton
+                        className="dp-filter-name"
+                        aria-expanded={open}
+                        onClick={() => {
+                            onOpen(!open);
+                        }}
+                    >
+                        <Text size="xs" fw={600} truncate span>
+                            {title}
+                        </Text>
+                    </UnstyledButton>
+                    <Group gap={4} wrap="nowrap">
+                        <CountChips count={shown} />
+                    </Group>
+                    <Tooltip label={`Remove ${name}`}>
+                        <CloseButton size="xs" aria-label={`Remove ${name}`} onClick={remove} />
+                    </Tooltip>
                 </Group>
-                <Group gap={4} wrap="nowrap" ml="auto">
-                    {condition !== undefined && toggles && (
-                        <SegmentedControl
-                            size="xs"
-                            label={`${name} action`}
-                            data={[
-                                { value: "select", label: "Select" },
-                                { value: "hide", label: "Hide" },
-                            ]}
-                            value={select ? "select" : "hide"}
-                            onChange={(value) => {
-                                void writeCondition(store, () =>
-                                    session.visibility.updateCondition(id, {
-                                        effect: value === "select" ? "select" : "keep",
-                                    }),
-                                );
-                            }}
-                        />
-                    )}
-                    {condition !== undefined && (
+                {condition !== undefined && (
+                    <Group gap={4} wrap="nowrap" justify="flex-end" className="dp-filter-switches">
+                        {toggles && (
+                            <SegmentedControl
+                                size="xs"
+                                label={`${name} action`}
+                                data={[
+                                    { value: "select", label: "Select" },
+                                    {
+                                        value: "hide",
+                                        // The visible word stays "Hide"; its tooltip and its name say what it does.
+                                        label: (
+                                            <Tooltip label={hideWords}>
+                                                <span>
+                                                    <span aria-hidden>Hide</span>
+                                                    <VisuallyHidden>{hideWords}</VisuallyHidden>
+                                                </span>
+                                            </Tooltip>
+                                        ),
+                                    },
+                                ]}
+                                value={select ? "select" : "hide"}
+                                onChange={(value) => {
+                                    void writeCondition(store, () =>
+                                        session.visibility.updateCondition(id, {
+                                            effect: value === "select" ? "select" : "keep",
+                                        }),
+                                    );
+                                }}
+                            />
+                        )}
                         <Tooltip label={`Apply ${name}`}>
                             <Checkbox
                                 size="xs"
@@ -536,23 +670,39 @@ function FilterCard({
                                 }}
                             />
                         </Tooltip>
-                    )}
-                    <Tooltip label={`Remove ${name}`}>
-                        <CloseButton size="xs" aria-label={`Remove ${name}`} onClick={remove} />
-                    </Tooltip>
-                </Group>
-            </Group>
-            <div className="dp-filter-body">
-                <CardContent
-                    session={session}
-                    store={store}
-                    id={id}
-                    condition={condition}
-                    shape={shape}
-                    cards={cards}
-                    onCards={change}
-                    onRemove={remove}
-                />
+                    </Group>
+                )}
+                {open ? (
+                    <div className="dp-filter-body">
+                        <CardContent
+                            session={session}
+                            store={store}
+                            id={id}
+                            condition={condition}
+                            shape={shape}
+                            cards={cards}
+                            onCards={change}
+                            onRemove={remove}
+                        />
+                    </div>
+                ) : (
+                    condition !== undefined && (
+                        // The resting card's summary, as a Style card's chip says it; a click opens it, as
+                        // its field's name does by keyboard (the one Tab stop for opening).
+                        <UnstyledButton
+                            tabIndex={-1}
+                            aria-hidden
+                            className="dp-filter-summary"
+                            onClick={() => {
+                                onOpen(true);
+                            }}
+                        >
+                            <Text size="xs" c="dimmed" span>
+                                {name}
+                            </Text>
+                        </UnstyledButton>
+                    )
+                )}
             </div>
         </li>
     );
@@ -711,67 +861,109 @@ function FieldRow({
     const name = "field" in card ? card.field.name : "Rule";
     return (
         <Stack gap={2} data-card={card.key}>
-            <Group gap={4} wrap="nowrap">
-                <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
-                    {name}
-                </Text>
-                {removable && (
+            {/* One field is named by the card's header; of several, each is named over its body. */}
+            {removable && (
+                <Group gap={4} wrap="nowrap">
+                    <Text size="xs" fw={600} truncate style={{ flex: 1, minWidth: 0 }}>
+                        {name}
+                    </Text>
                     <Tooltip label={`Remove ${name}`}>
                         <CloseButton size="xs" aria-label={`Remove ${name}`} onClick={onRemove} />
                     </Tooltip>
-                )}
-            </Group>
-            <CardBody session={session} card={card} side={side} blank={blank} onChange={onChange} />
+                </Group>
+            )}
+            <CardBody session={session} card={card} side={side} blank={blank} onChange={onChange} variant="filter" />
         </Stack>
     );
 }
 
 /**
- * The time window's row, while a time field is designated: the same element state the dock moves.
- * Its button opens the window's card; its box turns the window on and off.
+ * The Time window card, once added from "+" or while a window is on: the condition card's header
+ * (its count, an on box, remove) with no Select / Hide, since the window has no effect to choose,
+ * and a button that opens its settings in the inspector. It is the element state the dock moves.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
- * @returns the row
+ * @returns the card
  */
 function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
-    const window = session.time.current;
-    const name = window === null ? "Time" : `Time ${windowWords(window, unitOf(session))}`;
+    const { time } = session;
+    const window = time.current;
+    const words = window === null ? null : windowWords(window, unitOf(session));
+    const side = time.field?.edges === undefined ? "nodes" : "edges";
+    const extent = time.extent();
+    // The element's own counts: the window's one bin, of every timed element on the field's side.
+    const inside =
+        window === null || extent === null
+            ? undefined
+            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to) })?.[0]?.[side];
+    const name = words === null ? TIME_WINDOW : `${TIME_WINDOW} ${words}`;
+    const apply = (on: boolean): void => {
+        time.pause();
+        time.window(on ? {} : null).then(() => undefined, reportTimeError(store));
+    };
+    // The condition card's header and on box, as every Filters card draws them; the title opens
+    // the window's settings in the inspector, and the summary says where the window is.
     return (
-        <li
-            data-id={TIME_ROW}
-            tabIndex={-1}
-            aria-label={name}
-            className="ws-card dp-filter"
-            data-off={window === null ? "" : undefined}
-        >
-            <Group gap={4} wrap="nowrap">
-                <Button
-                    variant="subtle"
-                    size="compact-xs"
-                    leftSection={<GLYPHS.time size={12} aria-hidden />}
-                    style={{ flex: 1, minWidth: 0 }}
-                    justify="flex-start"
-                    onClick={() => {
-                        openTimeCard(store);
-                    }}
-                >
-                    {name}
-                </Button>
-                <Tooltip label={window === null ? "Apply the time window" : "Show all time"}>
-                    <Checkbox
-                        size="xs"
-                        aria-label="Apply the time window"
-                        checked={window !== null}
-                        onChange={(event) => {
-                            session.time.pause();
-                            session.time
-                                .window(event.currentTarget.checked ? {} : null)
-                                .then(() => undefined, reportTimeError(store));
+        <li>
+            <div
+                role="group"
+                data-id={TIME_ROW}
+                tabIndex={-1}
+                aria-label={name}
+                className="ws-card dp-filter"
+                data-off={window === null ? "" : undefined}
+            >
+                <Group gap={4} wrap="nowrap">
+                    <UnstyledButton
+                        className="dp-filter-name"
+                        onClick={() => {
+                            openTimeCard(store);
                         }}
-                    />
-                </Tooltip>
-            </Group>
+                    >
+                        <Text size="xs" fw={600} truncate span>
+                            {TIME_WINDOW}
+                        </Text>
+                    </UnstyledButton>
+                    <Group gap={4} wrap="nowrap">
+                        {inside === undefined || extent === null ? null : (
+                            <EntityChip kind={side === "nodes" ? "node" : "edge"}>
+                                {`${formatNumber(inside)} of ${formatNumber(extent[side].timed)}`}
+                            </EntityChip>
+                        )}
+                    </Group>
+                    <Tooltip label={`Remove ${TIME_WINDOW}`}>
+                        <CloseButton
+                            size="xs"
+                            aria-label={`Remove ${TIME_WINDOW}`}
+                            onClick={() => {
+                                store.set({ timeWindowCard: false });
+                                if (window !== null) {
+                                    apply(false);
+                                }
+                                focusCard(PLUS);
+                            }}
+                        />
+                    </Tooltip>
+                </Group>
+                <Group gap={4} wrap="nowrap" justify="flex-end" className="dp-filter-switches">
+                    <Tooltip label={`Apply ${TIME_WINDOW}`}>
+                        <Checkbox
+                            size="xs"
+                            aria-label={`Apply ${TIME_WINDOW}`}
+                            checked={window !== null}
+                            onChange={(event) => {
+                                apply(event.currentTarget.checked);
+                            }}
+                        />
+                    </Tooltip>
+                </Group>
+                {words === null ? null : (
+                    <Text size="xs" c="dimmed" className="dp-filter-summary">
+                        {words}
+                    </Text>
+                )}
+            </div>
         </li>
     );
 }

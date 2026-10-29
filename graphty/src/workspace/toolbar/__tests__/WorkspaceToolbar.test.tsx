@@ -80,9 +80,9 @@ describe("the canvas toolbar", () => {
         const clock = await within(toolbar).findByRole("button", { name: "Timeline" });
         await userEvent.click(clock);
         assert.equal(runs, 1);
-        // Open by default while a field is set, so the first click hides it.
-        assert.isFalse(store.get().timelineOpen);
-        assert.equal(clock.getAttribute("aria-pressed"), "false");
+        // Shut until the reader asks, so the first click opens it.
+        assert.isTrue(store.get().timelineOpen);
+        assert.equal(clock.getAttribute("aria-pressed"), "true");
     });
 
     it("disables everything but Quick actions with nothing drawn, saying why", () => {

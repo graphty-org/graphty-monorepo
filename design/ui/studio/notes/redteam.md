@@ -16,6 +16,15 @@ served at `/?next`.
 
 ## Top of mind
 
+- (2026-10-29) Tier 4 (data management, one round, returning users) criteria review: nothing is
+  frozen yet (criteria.md's first line is the `<sha>` placeholder) and answers.md paths name
+  e52d7c4f57, before R1-R15. Task prompts echo success-path words: "stronger"/"farther" (the
+  "Higher weight means" options), "at least" (the filter card's own summary words), "web address"
+  (the box's label). T62 passes on the time role alone, so column kinds may go untested.
+- (2026-10-29) Watch in tier 4: success-by-default. T63's place is designated by the program at
+  load; T66/T61 prompts hand over the fact the task should find. A bar that passes when the
+  participant did nothing is not measuring. Each decided fix (R2-R15) names a re-test; most have
+  no task that runs it -- report those "not re-tested", never "passed".
 - (2026-10-23, issue #3315) Attacked the one-per-kind ruling: six location items make the
   nodes' "+" menu ten long, and a reader can list Latitude, Coordinates and City at once. Answers
   adopted: the menu is still one flat list of short nouns with type-ahead; a listed kind the
@@ -38,8 +47,6 @@ served at `/?next`.
   inspector first (9 sessions); a new style line starts at the current value so it looks broken;
   layer membership is checked by eye (ids, no row marking). Fix by moving or defaulting, not by
   hints: a new line should start at a visibly different value.
-- (2026-10-21) Keyboard: F6 stop with no focus ring (WCAG 2.4.7) and "Samples" dropping focus are
-  defects, fix them; the 30-Tab walk is cost, one persona only.
 - (2026-10-21) Avoiding the `<<Layer>>` token was counted as understanding it. A bar that cannot
   tell avoidance from comprehension is not measuring; demand a separating measure.
 - (2026-10-21) Tool artifacts caught by skeptics: one synthetic wheel event read as "barely
@@ -105,6 +112,17 @@ served at `/?next`.
 
 ## Decisions and reasons
 
+- **2026-10-29, tier 4 criteria review (data management):** proposed 8 changes: freeze after the
+  R fixes and rewrite answers.md paths on that build (T67's path is still the table, against
+  "table view-only" and R9); reword T64 (stronger/farther), T65 (at least) and vary T60 B's
+  "web address"; T62 succeeds only on a changed kind, the time role alone is P; T63 needs a half
+  whose place the program does not designate, or grade the place as unverified; a coverage table
+  from every R decision to the task half that re-tests it (R2's re-test quotes "T65 B words" that
+  T65 B does not have; R15 asks "open the longest", T62 asks "most recently"); bar 4/6 audit
+  confirms only what it measures, approved surfaces listed, words at rest a counted bar; T65's
+  two halves are both people networks, move B to the gauges; cost and first-move measures for
+  returning users, T66 detour table lists its own success path, T68 reported per half. Reason:
+  each lets a bar pass while the thing studied was not exercised, or checks a build nobody froze.
 - **2026-10-23, menu sections (issue #3315, director ruled).** I pressed three points. (1)
   "Other" is a junk drawer (Keep positions, Map, Clusters, Treemap); accepted as the honest name
   for the catalog's `special` family and for plugins, since inventing a heading per row is worse.
@@ -167,6 +185,10 @@ served at `/?next`.
 
 ## Tried: worked / did not work
 
+- 2026-10-29 -- Grepping the app source for each prompt's key words (Fields.tsx "Higher weight
+  means" with "farther"; filterWords.ts "is at least") found echoes the task file's own word list
+  missed: the avoided list holds interface nouns, not option values or summary words. Worked:
+  cheap, one command. Owed: wording.mjs must read the frozen build's strings, not a hand list.
 - (2026-10-21) Did not work: a single studio round with frozen grading rules. The cap ended the
   tier with the bars failing on a grading-table artifact (gold vs yellow) and on backlog rows no
   session reached; the round could not distinguish product failure from rule failure. Worked: two
@@ -217,6 +239,9 @@ served at `/?next`.
 
 ## Sources
 
+- tier4/{criteria,tasks,answers,roster,decided}.md (2026-10-29, first line `<sha>`), setups under
+  `rounds/tier-4/setups/`, `graphty/src/workspace/data-place/Fields.tsx:559`, `filterWords.ts:75`,
+  `words.ts:429`, `DataPlace.stories.tsx:153-159` (worktree head 68919794d2) (2026-10-29)
 - criteria.md (first line 3ef9e6c1ec, change log 2026-10-20), decided.md (2026-10-20 golden
   entries), backlog.md, tasks.md, roster.md, answers.md (lines 53, 723-760, 987-989);
   `tool/real.mjs` gateCheck 523-571; `tool/bars.mjs` (no spoken, no "Starts with"); `tool/wording.mjs`

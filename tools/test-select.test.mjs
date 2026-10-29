@@ -39,6 +39,8 @@ import {
     selectStories,
     storyBins,
     STORY_BIN_LIMIT_MS,
+    STORY_BIN_MAX_MS,
+    STORY_JOB_BUDGET,
     STORY_FILE_MS,
     STORY_MS,
     storyCount,
@@ -2258,6 +2260,27 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
                 ids: ["a--one"],
                 ms: STORY_MS["graphty-element"],
             },
+        ]);
+    });
+
+    it("packs a change's stories into at most the job budget, growing every bin's limit only as needed (#3448)", () => {
+        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
+        const bins = storyBins(
+            [
+                entry("graph-io-fidelity", "all", [], ids),
+                entry("layout", "all"),
+                entry("graphty-element", "none", [], ["a--one"]),
+            ],
+            projects,
+            list,
+        );
+        assert.ok(1200 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
+        assert.ok(bins.length <= STORY_JOB_BUDGET, `${bins.length} bins`);
+        for (const b of bins) assert.ok(b.ms <= STORY_BIN_MAX_MS, `${b.name} planned at ${b.ms} ms`);
+        assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids, "a--one"].sort());
+        assert.deepEqual(bins.flatMap((b) => b.files).sort(), [
+            "graph-io/fidelity-stories/F.stories.tsx",
+            "layout/stories/A.stories.ts",
         ]);
     });
 

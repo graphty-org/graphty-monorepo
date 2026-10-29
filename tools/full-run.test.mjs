@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
+    actorOf,
     bestEffort,
     bisectPlan,
     captureLane,
@@ -862,5 +863,13 @@ describe("flaky story issues name their story test", () => {
             flakyStoryBody(s, "on abc", "Fix it."),
             "The story p/a.png matched its baseline on abc.\n\nFix it.",
         );
+    });
+});
+
+describe("actorOf", () => {
+    it("treats a watched channel/full-run run as re-runnable, whoever dispatched it", () => {
+        assert.equal(actorOf({ GITHUB_ACTOR: "github-actions[bot]", WATCHED: "true" }), "");
+        assert.equal(actorOf({ GITHUB_ACTOR: "github-actions[bot]", WATCHED: "false" }), "github-actions[bot]");
+        assert.equal(actorOf({ GITHUB_ACTOR: "someone" }), "someone");
     });
 });

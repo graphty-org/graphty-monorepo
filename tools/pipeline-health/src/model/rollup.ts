@@ -122,7 +122,11 @@ for (const m of METRICS) {
     }
 }
 
-function contribute(out: Buckets, metric: string, c: Contribution | null, at: number): void {
+function contribute(out: Buckets, metric: string, c: Contribution | Contribution[] | null, at: number): void {
+    if (Array.isArray(c)) {
+        for (const one of c) contribute(out, metric, one, at);
+        return;
+    }
     if (!c) {
         return;
     }

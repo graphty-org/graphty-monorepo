@@ -5253,6 +5253,10 @@ export const NodeStyle: z.ZodObject<{
         max: z.ZodOptional<z.ZodNumber>;
         horizontal: z.ZodOptional<z.ZodBoolean>;
         size: z.ZodOptional<z.ZodNumber>;
+        width: z.ZodOptional<z.ZodNumber>;
+        height: z.ZodOptional<z.ZodNumber>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
         margin: z.ZodOptional<z.ZodNumber>;
         gap: z.ZodOptional<z.ZodNumber>;
         lineWidth: z.ZodOptional<z.ZodNumber>;

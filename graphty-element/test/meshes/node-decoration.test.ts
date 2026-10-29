@@ -256,6 +256,28 @@ describe("a chart", () => {
         assert.deepEqual(pieces[1].rgb, [0x2c / 255, 0xa0 / 255, 0x2c / 255]);
     });
 
+    test("draws its plot in a box of its own width, height and place when it has one", () => {
+        // Cytoscape's bar chart with its range and domain axes at label size 10 (xgmml-specimen-images-charts-p7,
+        // bar-axis-label-font-size-10): the axes take 16.7 at the left and 15.6 at the bottom of the 52.1 plot, so
+        // the bars stand in a box 35.4 wide and 36.5 tall, 8.36 right of the node's middle and 7.82 up (y down)
+        const pieces = chartPieces(
+            { ...bars, width: 35.375 / 60, height: 36.46 / 60, offsetX: 8.3625, offsetY: -7.82 },
+            60,
+            60,
+        );
+        const [a, b, c] = pieces.map((p) => boxOf(p.outline));
+        // the left bar from 0.025 of the box in, the bars down on the box's bottom (y up)
+        assert.approximately(a.x0, 8.3625 - 35.375 / 2 + 0.025 * 35.375, 1e-6);
+        assert.approximately(c.x1, 8.3625 + 35.375 / 2 - 0.025 * 35.375, 1e-6);
+        assert.approximately(a.y0, 7.82 - 36.46 / 2, 1e-6);
+        assert.approximately(b.y1 - b.y0, 0.5 * 36.46, 1e-6);
+        // the offset is in the node's lengths: twice the scale moves the plot twice as far
+        const [far] = chartPieces({ ...bars, width: 0.5, height: 0.5, offsetX: 3 }, 60, 60, 2).map((p) =>
+            boxOf(p.outline),
+        );
+        assert.approximately(far.x0, 6 - 15 + 0.025 * 30, 1e-6);
+    });
+
     test("leaves its gap between the bars and lays them across the node when horizontal", () => {
         // cy_separation 0.5: bars 7.82 wide
         const [a, b] = chartPieces({ ...bars, gap: 0.5 }, 60, 60).map((p) => boxOf(p.outline));

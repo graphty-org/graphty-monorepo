@@ -522,10 +522,16 @@ describe("the wait log", () => {
             await waiting;
             release();
             (await taking)();
-            assert.equal(lines.length, 1);
-            assert.equal(lines[0].kind, "test-slot");
-            assert.equal(lines[0].waiter, "the waiter");
-            assert.match(lines[0].heldBy[0], new RegExp(`^pid ${holder.pid} the holder`));
+            // One wait line, for the waiter only; each run's hold is logged when it gives the slot back.
+            assert.deepEqual(
+                lines.map((l) => [l.kind, l.waiter]),
+                [
+                    ["test-slot-held", "the holder"],
+                    ["test-slot", "the waiter"],
+                    ["test-slot-held", "the waiter"],
+                ],
+            );
+            assert.match(lines[1].heldBy[0], new RegExp(`^pid ${holder.pid} the holder`));
         } finally {
             holder.kill();
             waiter.kill();

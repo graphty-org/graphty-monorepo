@@ -97,7 +97,23 @@ const median = (xs: readonly number[]): number => {
     const v = [...xs].sort((a, b) => a - b);
     return v.length === 0 ? 1 : v[Math.floor(v.length / 2)];
 };
-const byText = (a: PText, b: PText): number => a.y - b.y || a.x - b.x;
+// turned words (a chart's upright category names) stand side by side, each anchored as far down as it is long: read
+// left to right, after the level lines (one key per kind, so the order never depends on the input's)
+const byText = (a: PText, b: PText): number => {
+    const [ta, tb] = [a.rotation !== 0, b.rotation !== 0];
+    if (ta !== tb) {
+        return ta ? 1 : -1;
+    }
+    return ta ? a.x - b.x || a.y - b.y : a.y - b.y || a.x - b.x;
+};
+
+/**
+ * Whether two level texts share one line: each one's middle lies within the other's height.
+ * @param a - one text's box
+ * @param b - the other's
+ * @returns true on one line
+ */
+const sameLine = (a: PBox, b: PBox): boolean => cy(b) >= a.y0 && cy(b) <= a.y1 && cy(a) >= b.y0 && cy(a) <= b.y1;
 
 /**
  * The shape class a primitive draws.
@@ -381,23 +397,30 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
  * ends (within half its font size) whose middle lies within that one's height; a space is put between two runs
  * apart by more than a sixth of the font size, or where either keeps a blank at that side.
  * @param texts - the texts
+ * @param keepApart - two texts never joined, whatever their places
  * @returns the texts with each line's runs joined, left to right
  */
-function joinRuns(texts: readonly PText[]): PText[] {
+function joinRuns(texts: readonly PText[], keepApart: (a: PText, b: PText) => boolean = () => false): PText[] {
     const out: PText[] = [];
+    // each joined line's last run: a run joins only the run just before it on its line, never one across a word
+    // drawn between them (a chart's overlapping names "a", "b", "c" are not "ac" and "b")
+    const lastRun = new Map<PText, PText>();
+    // turned words are no line of text (a chart's slanted category names), as the oracle's are not
+    const level = (p: PText): boolean => p.rotation === 0 && (p.lines?.length ?? 1) < 2;
     for (const t of [...texts].sort((a, b) => a.box.x0 - b.box.x0)) {
         const size = (p: PText): number => Math.max(p.sizePx, 1);
-        const before = out.find(
-            (a) =>
-                (a.lines?.length ?? 1) < 2 &&
-                (t.lines?.length ?? 1) < 2 &&
-                t.box.x0 - a.box.x1 >= -0.2 * size(a) &&
-                t.box.x0 - a.box.x1 <= 0.5 * size(a) &&
-                cy(t.box) >= a.box.y0 &&
-                cy(t.box) <= a.box.y1 &&
-                cy(a.box) >= t.box.y0 &&
-                cy(a.box) <= t.box.y1,
+        const onLine = level(t) ? out.filter((a) => level(a) && sameLine(a.box, t.box)) : [];
+        const last = onLine.reduce<PText | undefined>(
+            (m, a) => (m === undefined || (lastRun.get(a) ?? a).box.x0 > (lastRun.get(m) ?? m).box.x0 ? a : m),
+            undefined,
         );
+        const before =
+            last !== undefined &&
+            !keepApart(lastRun.get(last) ?? last, t) &&
+            t.box.x0 - last.box.x1 >= -0.2 * size(last) &&
+            t.box.x0 - last.box.x1 <= 0.5 * size(last)
+                ? last
+                : undefined;
         if (before === undefined) {
             out.push(t);
             continue;
@@ -405,13 +428,15 @@ function joinRuns(texts: readonly PText[]): PText[] {
         const apart =
             t.box.x0 - before.box.x1 > size(before) / 6 || before.blank?.after === true || t.blank?.before === true;
         const box = union([before.box, t.box]);
-        out[out.indexOf(before)] = {
+        const joined: PText = {
             ...before,
             content: norm(`${before.content}${apart ? " " : ""}${t.content}`),
             box,
             lines: [box],
             blank: { before: before.blank?.before ?? false, after: t.blank?.after ?? false },
         };
+        out[out.indexOf(before)] = joined;
+        lastRun.set(joined, t);
     }
     return out;
 }
@@ -419,13 +444,14 @@ function joinRuns(texts: readonly PText[]): PText[] {
 /**
  * Lines of one label, drawn as separate text elements, as one text.
  * @param texts - the lines
+ * @param apart - two texts never joined into one line, whatever their places (see {@link apartAsGraphty})
  * @returns the label, or null when there are none
  */
-export function mergeTexts(texts: readonly PText[]): PText | null {
+export function mergeTexts(texts: readonly PText[], apart?: (a: PText, b: PText) => boolean): PText | null {
     if (texts.length === 0) {
         return null;
     }
-    const lines = joinRuns(texts).sort(byText);
+    const lines = joinRuns(texts, apart).sort(byText);
     const first = lines[0];
     const box = union(lines.map((t) => t.box));
     return {
@@ -437,6 +463,29 @@ export function mergeTexts(texts: readonly PText[]): PText | null {
         lines: lines.flatMap((t) => t.lines ?? [t.box]),
         outline: lines.find((t) => t.outline)?.outline ?? null,
         background: lines.find((t) => t.background)?.background ?? null,
+    };
+}
+
+/**
+ * The program's words graphty draws as separate lines on one row, kept apart: whether words side by side are one
+ * line of text or several is read once, off graphty's drawing, so a glyph box a little wider or narrower on one side
+ * (graphty's DejaVu "a" against the oracle's Tahoma box, xgmml-specimen-images-charts-p7 bar-axis-label-font-size-20)
+ * never groups the same words two ways. Words graphty draws on rows of their own are still joined where the program
+ * runs them together, so a label graphty wraps that the program does not is still told.
+ * @param picked - the program's text for each of graphty's lines, by the line's place in graphty's label
+ * @param label - graphty's label
+ * @returns whether two of the program's texts stay apart
+ */
+function apartAsGraphty(picked: readonly (Prim | undefined)[], label: PText | null): (a: PText, b: PText) => boolean {
+    const rows = label === null ? [] : label.content.split("\n").filter((l) => norm(l) !== "");
+    const boxes = label?.lines ?? [];
+    if (rows.length !== picked.length || boxes.length !== picked.length) {
+        return () => false;
+    }
+    const lineOf = new Map(picked.flatMap((p, i) => (p?.text ? [[p.text, i] as const] : [])));
+    return (a, b) => {
+        const [i, j] = [lineOf.get(a), lineOf.get(b)];
+        return i !== undefined && j !== undefined && i !== j && sameLine(boxes[i], boxes[j]);
     };
 }
 
@@ -2538,6 +2587,11 @@ export function associate(
             return { n, lines, picked: new Array<Prim | undefined>(lines.length) };
         });
     const textPrims = stackedTexts(free().filter((p) => p.text !== null));
+    // a line graphty draws as one may stand a little wider in the program's drawing: matched as that line only
+    const wantedRuns = besideTexts(
+        free().filter((p) => p.text !== null),
+        WANTED_LINE_GAP,
+    );
     const reachOf = (n: PNode): number => 3 * Math.max(n.w, n.h, 20);
     // a label the program wraps at other words than graphty: its stacked lines are wanted as one text
     for (const w of wanting) {
@@ -2578,7 +2632,7 @@ export function associate(
         const reach = reachOf(w.n);
         const own = ownPlace(w.n);
         return w.lines.flatMap((line, li) =>
-            textPrims
+            [...textPrims, ...wantedRuns]
                 .filter((p) => norm(p.text?.content ?? "") === line)
                 .map((p) => {
                     const d = Math.hypot(cx(p.box) - w.n.cx, cy(p.box) - w.n.cy);
@@ -2616,7 +2670,10 @@ export function associate(
                 picked.push(take(hit));
             }
         }
-        w.n.label = mergeTexts(picked.flatMap((p) => (p.text ? [p.text] : [])));
+        w.n.label = mergeTexts(
+            picked.flatMap((p) => (p.text ? [p.text] : [])),
+            apartAsGraphty(w.picked, guideById.get(w.n.id)?.label ?? null),
+        );
     }
     // one guide edge per pair, a labelled one where parallel edges are not all labelled
     const guideEdges = new Map<string, (typeof guide.edges)[number]>();
@@ -3200,28 +3257,45 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
 }
 
 /**
+ * How far apart, in font sizes, two words side by side may stand to be read as one line graphty draws: the words
+ * graphty sets on one line may stand a little wider in the program's drawing (a chart's category names under narrower
+ * bars, xgmml-specimen-images-charts-p7 bar-axis-label-font-size-10, 0.61 of a font size where graphty's are 0.5).
+ * Only for a line graphty draws as one: everywhere else a run is half a font size apart at most, as {@link joinRuns}
+ * reads it.
+ */
+const WANTED_LINE_GAP = 1;
+
+/**
  * Each run of two to eight texts side by side on one line as one text: a program that draws a label's font changes
  * as texts of their own (vis-network's multi-font blocks, "<b>B</b> <i>I</i>" as "B" and "I") draws one line where
- * graphty's label is one text. A run is a text starting where the one before it ends (within half its font size)
- * whose middle lies within that one's height, as {@link joinRuns} joins a node's lines; the words are joined with a
- * space where the texts are apart by more than a sixth of the font size.
+ * graphty's label is one text. A run is each next text on the line, starting where the one before it ends (within
+ * `gap` font sizes) and never across a text between them, as {@link joinRuns} joins a node's lines; the
+ * words are joined with a space where the texts are apart by more than a sixth of the font size.
  * @param texts - the text primitives
+ * @param gap - how far apart, in font sizes, two texts of a run may stand
  * @returns the runs (each the first text's primitive with the run's words and box)
  */
-function besideTexts(texts: readonly Prim[]): Prim[] {
+function besideTexts(texts: readonly Prim[], gap = 0.5): Prim[] {
     const size = (p: Prim): number => Math.max(p.text?.sizePx ?? 1, 1);
-    const beside = (p: Prim): Prim | undefined =>
-        texts.find(
-            (q) =>
-                q !== p &&
-                q.text !== null &&
-                q.box.x0 - p.box.x1 >= -0.2 * size(p) &&
-                q.box.x0 - p.box.x1 <= 0.5 * size(p) &&
-                cy(q.box) >= p.box.y0 &&
-                cy(q.box) <= p.box.y1 &&
-                cy(p.box) >= q.box.y0 &&
-                cy(p.box) <= q.box.y1,
-        );
+    // turned words are no line of text (a chart's slanted category names), on either side
+    const level = texts.filter((q) => q.text?.rotation === 0);
+    const beside = (p: Prim): Prim | undefined => {
+        if (p.text?.rotation !== 0) {
+            return undefined;
+        }
+        // the next word on the line, never one across a word drawn between them (as joinRuns reads a node's lines)
+        const next = level
+            .filter(
+                (q) =>
+                    q !== p &&
+                    sameLine(p.box, q.box) &&
+                    (q.box.x0 > p.box.x0 || (q.box.x0 === p.box.x0 && q.index > p.index)),
+            )
+            .sort((a, b) => a.box.x0 - b.box.x0 || a.index - b.index)[0];
+        return next !== undefined && next.box.x0 - p.box.x1 >= -0.2 * size(p) && next.box.x0 - p.box.x1 <= gap * size(p)
+            ? next
+            : undefined;
+    };
     const runs: Prim[] = [];
     for (const first of texts) {
         let run = [first];

@@ -918,6 +918,29 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     statistics: READ,
 };
 
+/**
+ * A door that changes the one condition `c1` (keep degree at least 1), which it adds first.
+ * @param args - The arguments.
+ * @param conditions - The conditions the call must leave.
+ * @returns The door.
+ */
+function conditionDoor(args: readonly unknown[], conditions: readonly unknown[]): Door {
+    return {
+        kind: "dispatches",
+        op: "visibility.conditions",
+        call: {
+            kind: "call",
+            args,
+            around: async (target) => {
+                const visibility = target as { setConditions(list: unknown[]): Promise<unknown> };
+                await visibility.setConditions([{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }]);
+                return async () => visibility.setConditions([]);
+            },
+        },
+        expect: [{ op: "visibility.conditions", conditions }],
+    };
+}
+
 /** The rows of `VisibilityApi`, shared with the element's wider form of it. */
 const VISIBILITY_API: Readonly<Record<string, Door>> = {
     nodeMask: READ,
@@ -940,6 +963,31 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
         [{ op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] }],
     ),
+    conditions: READ,
+    setConditions: calls(
+        [[{ id: "c1", effect: "exclude", rule: { kind: "degree", min: 1 } }]],
+        [
+            {
+                op: "visibility.conditions",
+                conditions: [{ id: "c1", on: true, effect: "exclude", rule: { kind: "degree", min: 1 } }],
+            },
+        ],
+    ),
+    addCondition: calls(
+        [{ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }],
+        [
+            {
+                op: "visibility.conditions",
+                conditions: [{ id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } }],
+            },
+        ],
+    ),
+    updateCondition: conditionDoor(
+        ["c1", { on: false }],
+        [{ id: "c1", on: false, effect: "keep", rule: { kind: "degree", min: 1 } }],
+    ),
+    removeCondition: conditionDoor(["c1"], []),
+    conditionCounts: READ,
 };
 
 /**
@@ -3259,6 +3307,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            restoreConditions: calls(
+                [[{ id: "c1", on: true, effect: "select", rule: { kind: "degree", min: 1 } }]],
+                [
+                    {
+                        op: "visibility.conditions",
+                        conditions: [{ id: "c1", on: true, effect: "select", rule: { kind: "degree", min: 1 } }],
+                    },
+                ],
+            ),
             drawnMasks: READ,
             ghosting: READ,
             ghosted: READ,

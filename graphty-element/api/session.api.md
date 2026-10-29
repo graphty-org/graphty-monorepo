@@ -602,6 +602,7 @@ export interface CommandOutcomeMap {
     "view.immersive": Promise<void>;
     "view.remove": Promise<void>;
     "view.save": Promise<void>;
+    "visibility.conditions": Promise<void>;
     "visibility.context": Promise<void>;
     "visibility.playback": Promise<void>;
     "visibility.set": Promise<void>;
@@ -1200,8 +1201,39 @@ export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[key
 // @public @deprecated
 export type Filter = RuleTree;
 
+// @public
+export interface FilterCondition {
+    readonly effect: FilterEffect;
+    readonly id: string;
+    readonly on: boolean;
+    readonly rule: RuleTree;
+}
+
+// @public
+export interface FilterConditionCount {
+    readonly edges: FilterConditionMatches | null;
+    readonly id: string;
+    readonly nodes: FilterConditionMatches | null;
+    readonly unresolved: readonly Path[];
+}
+
+// @public
+export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
+    readonly id?: string;
+    readonly on?: boolean;
+};
+
+// @public
+export interface FilterConditionMatches {
+    readonly matched: number;
+    readonly total: number;
+}
+
 // @public @deprecated
 export type FilterDirection = SelectionDirection;
+
+// @public
+export type FilterEffect = "keep" | "exclude" | "select";
 
 // @public
 export interface FilterResult {
@@ -2185,6 +2217,26 @@ export type GraphtyWarningCode =
 | "W_DATA_DIFFERS"
 /** A run was still computing when the project was saved, so the file does not hold it. */
 | "W_RUN_PENDING"
+/**
+* A saved filter condition this reader cannot read (an effect it does not know, or a malformed
+* condition) was skipped; the rest were read, and what the file hides was read from its
+* filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
+* @since 3.32.0
+*/
+| "W_FILTER_CONDITION_SKIPPED"
+/**
+* A project's filter conditions are of a version this reader does not know, or are not a
+* list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
+* `params.version` the version found.
+* @since 3.32.0
+*/
+| "W_FILTER_CONDITIONS_UNREADABLE"
+/**
+* A project's filter steps and the keep and exclude filter conditions it also holds disagree
+* (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
+* @since 3.32.0
+*/
+| "W_FILTER_STEPS_DIFFER"
 /**
 * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
 * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
@@ -3877,6 +3929,7 @@ export interface RecipeDocument {
     readonly filter: {
         readonly rule: RuleTree | null;
         readonly steps: readonly FilterStep[];
+        readonly conditions?: readonly FilterCondition[];
     };
     readonly ignoredIssues: readonly RecipeIgnoredIssue[];
     readonly joins: readonly RecipeJoin[];
@@ -6541,19 +6594,29 @@ export type ValueType = "text" | "number" | "boolean" | "date" | "category";
 
 // @public
 export interface VisibilityApi {
+    addCondition(condition: FilterConditionInput, options?: RunOptions): Run<FilterResult & {
+        readonly id: string;
+    }>;
+    conditionCounts(): readonly FilterConditionCount[];
+    readonly conditions: readonly FilterCondition[];
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
+    removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
+    setConditions(conditions: readonly FilterConditionInput[], options?: RunOptions): Run<FilterResult>;
+    // @deprecated
     setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
+    // @deprecated
     readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
     summaryOf(source: SourceKey): VisibilitySummary;
+    updateCondition(id: string, change: Partial<Omit<FilterCondition, "id">>, options?: RunOptions): Run<FilterResult>;
     readonly window: TimeWindow | null;
 }
 

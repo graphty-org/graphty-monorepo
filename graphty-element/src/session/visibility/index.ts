@@ -14,7 +14,7 @@
  */
 
 export type { AttributeLeafNodes } from "../../catalog/types";
-export type { FilterStep } from "../../catalog/types";
+export type { FilterCondition, FilterConditionInput, FilterEffect, FilterStep } from "../../catalog/types";
 export {
     assertVisibility,
     type CompiledVisibility,
@@ -34,6 +34,8 @@ export {
 } from "./filter";
 export {
     createVisibilityApi,
+    type FilterConditionCount,
+    type FilterConditionMatches,
     type FilterResult,
     type SessionVisibilityApi,
     type StepCounts,

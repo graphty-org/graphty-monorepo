@@ -1,6 +1,6 @@
 /**
  * @file The visibility ops: `visibility.set` (the filter), `visibility.steps` (the filter steps),
- * `visibility.window` (the time window) and `visibility.context` (whether hidden nodes are drawn
+ * `visibility.conditions` (the filter conditions), `visibility.window` (the time window) and `visibility.context` (whether hidden nodes are drawn
  * faintly). Each is one undoable step.
  *
  * All three run on the immediate lane: the value is written to the `visibility` slice when the
@@ -10,13 +10,14 @@
  * design/undo/undo-design.md sections 3.4, 9.2 and 11.3.
  */
 
-import type { FilterStep } from "../../catalog/types";
+import type { FilterCondition, FilterStep } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
+import { assertConditions, conditionsOfSteps, listFact, stepsOf } from "../visibility/conditions";
 import { assertVisibility, type RuleTree, type TimePlayback, type TimeWindow } from "../visibility/filter";
-import { assertSteps, stepsFact } from "../visibility/steps";
+import { assertSteps } from "../visibility/steps";
 
 /** `visibility.set`: apply a filter, or clear it with null. */
 interface VisibilitySetCommand {
@@ -42,6 +43,15 @@ interface VisibilityStepsCommand {
     readonly steps: readonly FilterStep[];
 }
 
+/**
+ * `visibility.conditions`: replace the filter conditions (keep, exclude and select); an empty list
+ * clears them.
+ */
+interface VisibilityConditionsCommand {
+    readonly op: "visibility.conditions";
+    readonly conditions: readonly FilterCondition[];
+}
+
 /** `visibility.playback`: how `session.time` moves windows (results, mode, step, missing), or null for the defaults. */
 interface VisibilityPlaybackCommand {
     readonly op: "visibility.playback";
@@ -54,6 +64,7 @@ export type VisibilityCommand =
     | VisibilityWindowCommand
     | VisibilityContextCommand
     | VisibilityStepsCommand
+    | VisibilityConditionsCommand
     | VisibilityPlaybackCommand;
 
 /** The session's visibility model, as the visibility ops reach it. */
@@ -140,29 +151,68 @@ const visibilityContext: UndoableDefinition<VisibilityContextCommand> = {
     },
 };
 
+/**
+ * Check each rule the way a single filter is checked.
+ * @param rules - The rules.
+ * @param ctx - The command's context.
+ * @param ctx.services - Its services.
+ * @param ctx.services.visibility - The session's visibility model, when there is one.
+ */
+function checkRules(
+    rules: readonly RuleTree[],
+    ctx: { readonly services: { readonly visibility?: VisibilityService } },
+): void {
+    const service = ctx.services.visibility;
+    for (const rule of rules) {
+        if (service === undefined) {
+            assertVisibility(rule, null);
+        } else {
+            service.check(rule, null);
+        }
+    }
+}
+
 const visibilitySteps: UndoableDefinition<VisibilityStepsCommand> = {
     ...COMMON,
     op: "visibility.steps",
-    keys: () => ["visibility/steps"],
+    keys: () => ["visibility/conditions"],
     undo: {
         kind: "undoable",
         label: () => "Changed the filter steps",
-        fact: (command, state) => stepsFact(state.visibility.steps, command.steps),
+        fact: (command, state) => listFact(stepsOf(state.visibility.conditions), command.steps),
         // ponytail: no coalescing, so each add, edit, toggle or delete is its own step; a dragged
         // step's bounds would need a key naming the step if that drag ever records too many.
     },
     execute: (command, ctx) => {
         assertSteps(command.steps);
-        const service = ctx.services.visibility;
-        for (const step of command.steps) {
-            if (service === undefined) {
-                assertVisibility(step.rule, null);
-            } else {
-                service.check(step.rule, null);
-            }
-        }
+        checkRules(
+            command.steps.map((step) => step.rule),
+            ctx,
+        );
+        // The steps replace the keep and exclude conditions; the select conditions stay.
+        ctx.draft.visibility.set("conditions", conditionsOfSteps(command.steps, ctx.state.visibility.conditions));
+    },
+};
 
-        ctx.draft.visibility.set("steps", Object.freeze([...command.steps]));
+const visibilityConditions: UndoableDefinition<VisibilityConditionsCommand> = {
+    ...COMMON,
+    op: "visibility.conditions",
+    keys: () => ["visibility/conditions"],
+    undo: {
+        kind: "undoable",
+        label: () => "Changed the filter conditions",
+        fact: (command, state) => listFact(state.visibility.conditions, command.conditions),
+    },
+    execute: (command, ctx) => {
+        assertConditions(command.conditions);
+        checkRules(
+            command.conditions.map((condition) => condition.rule),
+            ctx,
+        );
+        ctx.draft.visibility.set(
+            "conditions",
+            Object.freeze(command.conditions.map((condition) => Object.freeze({ ...condition }))),
+        );
     },
 };
 
@@ -235,5 +285,6 @@ export const VISIBILITY_DEFINITIONS = [
     visibilityWindow,
     visibilityContext,
     visibilitySteps,
+    visibilityConditions,
     visibilityPlayback,
 ] as const;

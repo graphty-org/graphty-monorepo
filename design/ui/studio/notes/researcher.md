@@ -10,23 +10,25 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-21) Tier 3 closed after round 1 at the 1-round safety cap without meeting the bars.
-  Bar 5 fails only on the two backlog 3s (node Fill "+" one-node layer; folder chain icon, 0
-  sessions reached it); bar 1 fails only on T49 B's "gold" F. Neither is new evidence about the
-  reader: before another round, fix the measures, not the sessions.
+- (2026-10-29) Tier 4 (data management, returning users, one round): criteria line 1 is still the
+  `<sha>`/`<dir>` placeholder and the key holds "(pilot to confirm)" values -- no session before
+  both are filled; preflight must fail on a placeholder.
+- (2026-10-29) Tier 4 echoes found by grepping graphty/src strings: "Picked" is the Style card
+  kind for hand-picked nodes (T65 "picked" steers to the P route); "farther apart" is the weight
+  option's own text (T64 B); "Web address" is the box label (T60). Grep the app's strings for
+  every prompt word, not only the avoided list.
+- (2026-10-29) Last-screenshot grading cannot see role settings, card counts or applied fixes
+  unless the participant ends on that screen: grade T63/T64/T65/T66/T67 from recorded end state.
+- (2026-10-29) A task part the program already did (T63's place, auto-designated) and an export
+  from an unfiltered network (T68) cannot fail: both are false-pass routes.
+- (2026-10-29) decided.md's fixes R6, R7, R8 (in-project door), R11, R12 have no task route, and
+  R4/R6 re-test wordings use "hide"/"show". Every fix needs a route or an "unreached" line.
+
 - (2026-10-21) A round at its ceiling (55 of 56 succeeded) cannot meet "no severity 3" bars on
   backlog items it never reaches. Next tier: tasks that route through every open severity 3, or
   bars that count only what the round can observe.
-- (2026-10-21) Top design insights, all severity 2: Graph inspector looked at first for node color
-  (9 sessions, 5 halves); new style lines start at the current value so adding one looks broken;
-  layer membership checked by eye; keyboard focus lost twice; one color table decides grades and
-  spoken names.
 - (2026-10-21) Graders over-rate on one half: every single-half or single-persona "3" came down to
   2 under skeptic check. Count a 3 only with its behavioral cost (blocked, misread).
-- (2026-10-21) Asked-color rule: `colorWord` returns CSS keyword "gold" for FFD700 before the hue
-  band. Decide between tiers whether a keyword inside the asked hue's band passes; never regrade.
-- (2026-10-21) `score.mjs` bar 4 takes the start page's demo as the start (printed 3, true median
-  6). Start = first steps line after the graph opens. Owed to the tool.
 - (2026-10-21) A grade.md without the three header lines is silently dropped by `score.mjs`: tally
   by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
 - (2026-10-21) `--start` run inside the participant's turn queued for a browser and died with the
@@ -37,8 +39,6 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   it jargon. Question 3 needs a measure that separates the two.
 - (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
   participant is one model. Read tasks and key for leading before spending sessions.
-- (2026-10-21) backlog.md rows carry no severity; bar 5's known 3s are only those criteria
-  preflight 4 names.
 - (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts
   the screen and names the contradiction; never rewrite the key toward decided.md.
 - Expert counts are not user evidence; an expert-only severity 3 needs a repro under `repro/`.
@@ -78,6 +78,15 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-10-29 (tier 4 criteria review):** Proposed eight changes, applied none (the Director
+  freezes): fill the frozen build line and the pilot-to-confirm values; grade from recorded end
+  state plus an end-state script (chip counts vs element, export rows); let an expert finding be
+  confirmed by a scripted repro and bar 6 by repro, not by screenshot; reword T65 "picked", T64
+  "stronger/farther", T60 "web address"; map every decided fix to a route; count Sam apart and add
+  one pointer A session to T62 and T65 (28); move T65 B off a people network; give T63 a place
+  that is not preset and T68 a filtered start. Reason: each is a false pass or an unmeasured bar.
+  Evidence: grep of graphty/src strings, roster counts, answers.md's own "leaving them is right".
 
 - **2026-10-21 (round 1 insights):** Applied the two skeptics mechanically (two drops = dropped,
   one = weakened) and settled the only factual disagreement at its source: r1-s15's grade says she
@@ -125,6 +134,11 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-29 (tier 4 review) -- Worked: grepping quoted strings in graphty/src for each prompt
+  word (found Picked, Farther, Web address); counting the roster per task and half against the
+  criteria's plan (found Sam inside the core counts, 26 not 28). Did not work: trusting the
+  tasks' "avoided words" list as the echo check -- the echoes were words it does not list.
+
 - (2026-10-21) Worked: two independent skeptics per insight -- every single-half 3 came down to 2,
   two build defects were restated or weakened to tool artifacts. Did not work: bars that require
   "no open severity 3" while no task reaches the backlog 3s; a frozen color rule using CSS keywords.
@@ -160,6 +174,10 @@ logged). Their reasons, in short:
   runs; helper files at the scratchpad root; "Priming: none" lines written from prompts alone.
 
 ## Thinking
+
+- 2026-10-29 -- For returning users, the false pass hides in the starting state: a setup that
+  already holds the answer (an auto-set role, an unfiltered export) passes whoever does nothing.
+  Check every task's start for the part of the success definition it already satisfies.
 
 - 2026-10-21 -- A tool that measures "change from the start" must know where the start is: the
   start page's demo, the sample's defaults and the participant's first edit are three different
@@ -204,6 +222,8 @@ logged). Their reasons, in short:
 
 ## Sources
 
+- Tier 4: `tier4/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md` (R1-R15),
+  `design/data/filter-cards.md`, `design/data/data-management-requirements.md`.
 - Tier 3: `tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `design.md` (2026-10-16
   section), `bulk-edit-plan.md`, `pilot-materials/README.md`; tool: `tool/score.mjs`
   (ROUTE_TASKS), `tool/wording.mjs`, `tool/bars.mjs`; vocabulary `tmp/style-study/bars3/`.

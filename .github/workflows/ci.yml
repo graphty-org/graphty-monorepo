@@ -40,6 +40,13 @@ on:
                 type: string
                 required: false
                 default: ""
+        # The caller's needs.<job>.result is cancelled when any job here ended cancelled, an advisory
+        # (continue-on-error) one included: continue-on-error covers a failure, not a cancel. So the release train
+        # judges a cancelled call by this instead (#4556): All Checks Pass needs every job that gates.
+        outputs:
+            checks:
+                description: "All Checks Pass's result: success when every job that gates passed"
+                value: ${{ jobs.all-checks.result }}
     workflow_dispatch:
         inputs:
             reuse_build_run:

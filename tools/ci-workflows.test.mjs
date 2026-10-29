@@ -4285,7 +4285,7 @@ describe("release.yml", () => {
         );
         assert.match(
             verdict,
-            /"ci": "\$\{\{ needs.candidate_site.result == 'failure' && 'failure' \|\| needs.ci.result \}\}"/,
+            /"ci": "\$\{\{ needs.candidate_site.result == 'failure' && 'failure' \|\| needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success' && 'success' \|\| needs.ci.result \}\}"/,
         );
         for (const lane of ["pick", "llm", "t4", "audit"]) {
             assert.match(verdict, new RegExp(`"${lane}": "\\$\\{\\{ needs.${lane}.result \\}\\}"`), lane);
@@ -4456,7 +4456,7 @@ describe("release.yml", () => {
         // shadow and legacy: every lane passed; a nightly promotion: the verdict job decided to promote
         assert.match(
             version,
-            /if: \$\{\{ !cancelled\(\) && \(\(needs.pick.outputs.release == 'true' && \(\(\(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate'\) && needs.verdict.outputs.promote == 'true'\)\)\) \|\| \(needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true'\)\) \}\}/,
+            /if: \$\{\{ !cancelled\(\) && \(\(needs.pick.outputs.release == 'true' && \(\(\(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && \(needs.ci.result == 'success' \|\| \(needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success'\)\) && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate'\) && needs.verdict.outputs.promote == 'true'\)\)\) \|\| \(needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true'\)\) \}\}/,
         );
         // the major-bump dry run is a lane: it versions the candidate and checks release-approvals.json (#3455)
         const dryRun = job(release, "version_dry_run");
@@ -4497,7 +4497,7 @@ describe("release.yml", () => {
         // coverage comes from the same CI call, and never holds the release
         assert.match(
             coverage,
-            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && needs.ci.result == 'success' \}\}/,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && \(needs.ci.result == 'success' \|\| \(needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success'\)\) \}\}/,
         );
         assert.match(coverage, /uses: \.\/\.github\/workflows\/coverage\.yml/);
         assert.doesNotMatch(version + land + publish + held, /coverage/);
@@ -4547,7 +4547,7 @@ describe("release.yml", () => {
     it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
         assert.match(
             llm,
-            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && \(needs.ci.result == 'success' \|\| \(needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success'\)\) \}\}/,
         );
         assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(llm, /run: pnpm exec nx run graphty-element:build/);

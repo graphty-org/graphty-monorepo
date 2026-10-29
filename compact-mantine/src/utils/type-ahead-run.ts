@@ -2,8 +2,9 @@
  * A type-ahead run: letters typed with no pause longer than the window are one search ("Bo"), and
  * a pause, or a letter on another control, starts a new one.
  *
- * The pause runs from when the page finished taking the last letter to when the next one was
- * typed (its `event.timeStamp`), never between the times the page handled them. On a busy page
+ * The pause runs from when the page took the last letter (when it handled it, or later when a
+ * caller marks the work it caused done with `taken()`) to when the next one was typed (its
+ * `event.timeStamp`), never between the times the page handled them. On a busy page
  * each letter is handled late, after the work the one before it caused (a render, a scroll, a list
  * opening), so handling times would split a quick run in two.
  */

@@ -295,3 +295,70 @@ describe("PanelField on a busy page, which handles keys before its next frame (#
         expect(onChange.mock.calls.map(([value]) => value)).toEqual([12, 5]);
     });
 });
+
+describe("PanelField whose owner draws the committed value later (#3545)", () => {
+    /** When the owner draws a committed value: a microtask, a promise or a later task. */
+    const later: Record<string, (draw: () => void) => void> = {
+        "in a microtask": (draw) => {
+            queueMicrotask(draw);
+        },
+        "after a promise": (draw) => {
+            void Promise.resolve().then(draw);
+        },
+        "in a later task": (draw) => {
+            setTimeout(draw, 0);
+        },
+    };
+
+    /**
+     * A field driven by its owner's own state, which it updates only after the change handler
+     * returns, as an app that writes the value through an asynchronous store does.
+     * @param props - when the owner draws, and the spy every committed value goes to
+     * @param props.schedule - runs the owner's redraw later
+     * @param props.onValue - receives each committed value
+     * @returns the field
+     */
+    function LateOwner({
+        schedule,
+        onValue,
+    }: Readonly<{
+        schedule: (draw: () => void) => void;
+        onValue: (value: string | number) => void;
+    }>): React.JSX.Element {
+        const [value, setValue] = React.useState<string | number>(40);
+        return (
+            <PanelField
+                label="X"
+                kind="number"
+                value={value}
+                onChange={(next) => {
+                    onValue(next);
+                    schedule(() => {
+                        setValue(next);
+                    });
+                }}
+            />
+        );
+    }
+
+    for (const [when, schedule] of Object.entries(later)) {
+        it(`a key typed right after a scrub replaces the value when the owner draws it ${when}`, async () => {
+            const onValue = vi.fn();
+            renderField(<LateOwner schedule={schedule} onValue={onValue} />);
+            await userEvent.click(fieldInput());
+            await press(screen.getByTestId("panel-field-slot"));
+            await moveBy(20);
+            await release();
+            await userEvent.keyboard("7{Enter}");
+            expect(onValue.mock.calls.map(([value]) => value)).toEqual([50, 7]);
+        });
+
+        it(`a key typed right after Enter replaces the value when the owner draws it ${when}`, async () => {
+            const onValue = vi.fn();
+            renderField(<LateOwner schedule={schedule} onValue={onValue} />);
+            await userEvent.click(fieldInput());
+            await userEvent.keyboard("{Control>}a{/Control}12{Enter}5{Enter}");
+            expect(onValue.mock.calls.map(([value]) => value)).toEqual([12, 5]);
+        });
+    }
+});

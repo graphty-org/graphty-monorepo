@@ -346,6 +346,9 @@ describe("Tree: keyboard", () => {
                 }
             }
         };
+        // The keys are real, but their typed time is set here: Playwright sends "r" only after the
+        // page has handled "g" (its 700ms included), so the browser would stamp "r" after the
+        // stall. A reader's "r" is stamped when it was typed, which is what this stands in for.
         const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
         vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
             return this instanceof KeyboardEvent && this.key === "r" ? gAt + 100 : (timeStamp?.call(this) as number);

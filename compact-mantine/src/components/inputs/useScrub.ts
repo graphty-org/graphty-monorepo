@@ -1,5 +1,4 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useRef } from "react";
-import { flushSync } from "react-dom";
 
 import { shieldDragSelection } from "../chrome/dragSelectionShield";
 
@@ -78,16 +77,14 @@ export function useScrub(enabled: boolean, rtl: boolean, callbacks: ScrubCallbac
         if (started.current) {
             started.current = false;
             setDragCursor(false);
-            // The commit is drawn now, so the value can be selected now: a redraw of a new value
-            // drops a selection, and a selection left for a later frame came after the next key
-            // on a busy page, which handles input first ("7" typed after a scrub to 50 gave 507).
-            flushSync(() => {
-                latest.current.onEnd?.(event);
-            });
+            latest.current.onEnd?.(event);
             // Focus lands in the field after a scrub (flows.md 6), so the arrow keys then edit it.
             const input = event.currentTarget.closest(".cm-input-wrapper")?.querySelector("input");
             if (input && !input.disabled) {
                 input.focus({ preventScroll: true });
+                // Selected now, not a frame later: a busy page handles the next key before its
+                // frame ("7" typed after a scrub to 50 gave 507). A number field selects again
+                // when the commit is drawn (useNumberField), which drops a selection.
                 input.select();
             }
         }

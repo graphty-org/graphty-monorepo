@@ -4,6 +4,7 @@ import {
     type KeyboardEventHandler,
     type MouseEventHandler,
     type SyntheticEvent,
+    useLayoutEffect,
     useRef,
     useState,
 } from "react";
@@ -95,6 +96,12 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
     const [discarded, setDiscarded] = useState(false);
     const scrubBase = useRef(0);
     const scrubValue = useRef<number | null>(null);
+    // After Enter or a scrub the whole value stays selected, so the next key replaces it. The
+    // owner may draw the committed value later (a microtask, a promise, a session write), and
+    // writing a new value into the input drops a selection: the field selects again after each
+    // render that changes what it shows, until the reader edits, presses another key or leaves.
+    const field = useRef<HTMLInputElement | null>(null);
+    const keepSelected = useRef(false);
 
     const settle = (v: number): number => {
         const clamped = clamp(tidy(v), min, max);
@@ -122,8 +129,16 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         }
     };
 
+    const shown = draft ?? display;
+    useLayoutEffect(() => {
+        const input = field.current;
+        if (keepSelected.current && input && input.ownerDocument.activeElement === input) {
+            input.select();
+        }
+    }, [shown]);
+
     const inputProps: NumberFieldInputProps = {
-        value: draft ?? display,
+        value: shown,
         // A spinbutton always has a value: Chromium reads one with no aria-valuenow as 0. An
         // empty field (not set, Mixed) is a plain text box until it holds a number, so a screen
         // reader hears its words and no number nobody set.
@@ -136,23 +151,24 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
             const text = event.currentTarget.value;
             // A letter is taken as typed and reverts on commit, as in Figma.
             if (!locked) {
+                keepSelected.current = false;
                 setDiscarded(false);
                 setDraft(text);
             }
         },
         onKeyDown: (event) => {
+            keepSelected.current = false;
             options.onKeyDown?.(event);
             if (event.defaultPrevented || locked) {
                 return;
             }
             if (event.key === "Enter") {
                 event.preventDefault();
-                // The commit is drawn now and the whole value re-selected at once, so a key typed
-                // next replaces it even on a busy page, which handles input before its next frame.
-                flushSync(() => {
-                    setDiscarded(false);
-                    commit(event);
-                });
+                // The whole value is selected at once and again when the commit is drawn, so a key
+                // typed next replaces it even on a busy page, which handles input before its frame.
+                keepSelected.current = true;
+                setDiscarded(false);
+                commit(event);
                 const input = event.currentTarget;
                 input.select();
                 // Enter in a form's field submits it, as in any text box: the field's own Enter
@@ -192,6 +208,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
             }
         },
         onFocus: (event) => {
+            field.current = event.currentTarget;
             justFocused.current = true;
             // However focus arrives (a click, Tab, or a control handing it over), the value is
             // selected, so what is typed replaces it rather than joining it ("8" + "24" is never 824).
@@ -199,6 +216,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
             options.onFocus?.(event);
         },
         onBlur: (event) => {
+            keepSelected.current = false;
             justFocused.current = false;
             setDiscarded(false);
             commit(event);
@@ -227,6 +245,7 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
         onEnd: (event) => {
             const next = scrubValue.current;
             scrubValue.current = null;
+            keepSelected.current = true;
             setDraft(null);
             if (next !== null && next !== value) {
                 onCommit(next, event);

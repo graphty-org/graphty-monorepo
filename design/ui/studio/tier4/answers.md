@@ -30,7 +30,7 @@ Values marked "(pilot to confirm)" were worked out from the files, not yet read 
   appears twice.
 
 As loaded on 2026-10-29 (e52d7c4f57): `opened` and `installed` are read as text (the inspector's
-Overview offers "Time: opened -- Set as time"); `lat` and `lon` are designated Latitude and
+Overview offers "Time: opened -- Set as time", "Set in Data" since tier 4 R10); `lat` and `lon` are designated Latitude and
 Longitude by themselves under Fields; no Label is designated (the columns are `site` and
 `station`); `zip` and `code` are read as text and keep their zeros; the table shows warnings on
 `families` / `depth_cm` and `site` / `station`.
@@ -70,8 +70,8 @@ Longitude by themselves under Fields; no Label is designated (the columns are `s
   the calendar glyph, or Fields designates it as the time), and the participant names **Bayview
   Clinic** (opened 2023-03-08; B **Birch Hollow**, put in 2018-06-27).
 - **Path** (pilot to confirm which route the build offers; both count): the table (toolbar Table)
-    > the `opened` header's menu > its kind > date; or the inspector's Overview "Set as time"; or Data >
-    > Fields "+" > Date or time > opened. Then sort by opened, highest first, and read the top row.
+    > the `opened` header's menu > its kind > date; or the inspector's Overview "Set in Data"; or Data >
+    > Fields "+" > Time > opened. Then sort by opened, highest first, and read the top row.
 - **Not success**: the right name read off by eye with the column still read as text.
 
 ## T63. Where and when

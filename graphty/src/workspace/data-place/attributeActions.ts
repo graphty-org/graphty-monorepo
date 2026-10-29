@@ -32,7 +32,7 @@ function labelRefusalFor(session: GraphSession, column: ColumnRef): string | nul
 /**
  * The verbs on one attribute, the same wherever it is picked (the Data place's row menu and the
  * attribute inspector's "..."): Add label line on a node attribute, Filter to... on a number or
- * category attribute, Set as time, and Show in table once the table dock is built.
+ * category attribute, Set in Data (the time), and Show in table once the table dock is built.
  * @param column - the attribute.
  * @param session - the element's session, or null.
  * @param store - the chrome store.
@@ -83,12 +83,19 @@ function attributeActions(
         const isTime =
             (column.kind === "edge" ? session.time.field?.edges : session.time.field?.nodes)?.start === descriptor.name;
         actions.push({
-            label: "Set as time",
+            // A door to the time's home, Data > Fields, with the Time entry set to this column (R10).
+            label: "Set in Data",
             disabledReason: isTime ? "Already the time field" : null,
             run: () => {
-                session.time.setField(column.kind === "edge" ? { edges: source } : { nodes: source }).catch(() => {
-                    store.set({ notice: { message: `"${column.name}" cannot be the time field.` } });
-                });
+                const side = column.kind === "edge" ? "edges" : "nodes";
+                session.time
+                    .setField({ [side]: source })
+                    .then(() => {
+                        store.set({ page: "panels", place: "data", fieldsEntry: `${side}:time` });
+                    })
+                    .catch(() => {
+                        store.set({ notice: { message: `"${column.name}" cannot be the time field.` } });
+                    });
             },
         });
     }

@@ -58,7 +58,9 @@ graphty-element, non-breaking: a new export `COLUMN_ROLES` from `./session` list
 column, the roles `data.setRole` gives a column of loaded rows (`inPlace`) and the roles the rows
 are made from, which take effect only by reading the load again (`atLoad`). Facts only, no order or
 words. The app drew two role lists from its own copies (the table header's Role menu and Data >
-Fields); both now read this, so a role the element adds reaches every list (tier 4, R10).
+Fields); the header's Role menu now reads this, filtered to the app's own role order and
+words, and Fields "+" keeps its entry list in the same order and words (tier 4, R10). A role the
+element adds still needs its words and place in the app before either list shows it.
 compact-mantine, non-breaking: `ListboxCheck` (the themed list's check column) is exported, so a
 list option drawn with a glyph and a detail keeps the list's check. No look, token or Figma test
 changes.

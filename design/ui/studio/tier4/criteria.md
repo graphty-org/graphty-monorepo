@@ -1,4 +1,4 @@
-The study runs on build 0ffeae2ef5 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1-0ffeae2ef5
+The study runs on build 037e96e9bb served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d1-037e96e9bb
 
 Frozen on 2026-10-29 for the tier 4 rounds.
 
@@ -253,3 +253,7 @@ first two by itself; the dry run owns the rest.
       now in `rounds/tier-4/setups/`.
     - tasks.md: the T62 and T63 detour lines name the inspector's button as it reads, "Set in
       Data". No prompt was wrong on this build; T65 B is blocked by the build, not by its wording.
+- 2026-10-29: round 1 dry run 1 build moved from 0ffeae2ef5 (served from
+  .study-builds/tier4-r1-0ffeae2ef5) to 037e96e9bb (served from .study-builds/tier4-r1d1-037e96e9bb),
+  which holds the fix pass's committed changes to the data panel and export with the current master
+  merged in. No criteria changed.

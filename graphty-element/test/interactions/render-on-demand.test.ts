@@ -523,6 +523,45 @@ describe("renderOnDemand", () => {
         assert.isAbove(restyled.count(), 0, "the new selection style was drawn");
     });
 
+    // Each pass over project state asked for a frame, and on a software GPU under load each frame
+    // costs the page 200 to 800 ms of its main thread: designating a time field and picking a step
+    // drew two frames of a picture neither changes (#4196).
+    it("draws no frame for a time field or a playback setting, which change no picture", async () => {
+        const element = await mounted(true);
+        await element.session.data.addNodes([{ id: "d", t: 2, position: { x: 0, y: -3, z: 0 } }]);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        await element.session.time.setField({ nodes: { start: "t" } });
+        await element.session.time.setSettings({ step: 1, mode: "cumulative" });
+        await element.session.styles.settled();
+        await untilResting(element);
+
+        assert.strictEqual(loopTicks(element).drawn - before, 0, "no frame for a setting that draws nothing");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("draws a time window and its ghosts, which a pass asks no frame for", async () => {
+        const element = await mounted(true);
+        await element.session.data.addNodes([
+            { id: "d", t: 1, position: { x: 0, y: -3, z: 0 } },
+            { id: "e", t: 5, position: { x: 3, y: -3, z: 0 } },
+        ]);
+        await element.session.time.setField({ nodes: { start: "t" } });
+        await untilResting(element);
+
+        const windowed = countDraws(element);
+        await element.session.time.window({ from: 0, to: 2 });
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(windowed.count(), 0, "the window was drawn");
+
+        const ghosted = countDraws(element);
+        await element.session.time.setSettings({ outside: "ghost" });
+        await element.session.styles.settled();
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(ghosted.count(), 0, "the ghosts were drawn");
+    });
+
     it("draws a camera moved and animated through the API, then rests", async () => {
         const element = await mounted(true);
         await untilResting(element);

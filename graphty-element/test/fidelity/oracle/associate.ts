@@ -1016,10 +1016,16 @@ export function segmentedLine(part: readonly Prim[]): { line: Prim; pieces: Read
     return { line, pieces: new Set(open) };
 }
 
-const longestPath = (prims: readonly Prim[]): Prim | undefined =>
-    [...prims]
-        .filter((p) => p.kind === "path" || (p.closed && p.fill === null))
+const longestPath = (prims: readonly Prim[]): Prim | undefined => {
+    const lines = prims.filter((p) => p.kind === "path" || (p.closed && p.fill === null));
+    const reach = Math.max(0, ...lines.filter((p) => !p.closed).map((p) => pathLength(p.points)));
+    // a closed outline with no fill is a line drawn as a ring (a route round a node), but one no wider across than an
+    // open line beside it runs is a mark at that line's end: the open dot of a stacked head (Graphviz's normalnoneodot,
+    // whose ring ran longer than its short edge's line and was read as the line), not the line
+    return lines
+        .filter((p) => !p.closed || reach < Math.hypot(bw(p.box), bh(p.box)))
         .sort((a, b) => pathLength(b.points) - pathLength(a.points) || a.index - b.index)[0];
+};
 
 function pathLength(pts: readonly Pt[]): number {
     let s = 0;

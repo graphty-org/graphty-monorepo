@@ -393,6 +393,17 @@ export class UpdateManager implements Manager {
 
     /** Watches the scene for a frame being drawn, so a finished state can be promoted. */
     private drawWatcher: Nullable<Observer<Scene>> = null;
+    private drawPhaseWatcher: Nullable<Observer<Scene>> = null;
+    /**
+     * Whether every drawn mesh had its shader when the frame now being drawn started drawing.
+     *
+     * Asked at the start of the draw, not after it: work done inside the frame before the draw --
+     * a `node.texture` picture landing repaints its nodes with a fresh material from
+     * `onBeforeRenderObservable` -- can hand a mesh a shader that is not compiled yet, so the
+     * frame silently skips it, and by the time the frame has drawn the shader is ready and the
+     * frame without the mesh would be called final (issue #4237).
+     */
+    private drewWithEveryShader = false;
 
     /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
     private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
@@ -491,6 +502,10 @@ export class UpdateManager implements Manager {
         this.drawWatcher = scene.onAfterRenderObservable.add(() => {
             this.noteFrameDrawn();
         });
+        this.drawPhaseWatcher = scene.onBeforeDrawPhaseObservable.add(() => {
+            this.drewWithEveryShader =
+                !this.stateIsFinished || this.drawnFrameIsFinished || this.everyDrawnMeshIsReady();
+        });
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
             this.viewMoved();
         });
@@ -512,6 +527,7 @@ export class UpdateManager implements Manager {
     dispose(): void {
         const scene = this.graphContext.getScene();
         scene.onAfterRenderObservable.remove(this.drawWatcher);
+        scene.onBeforeDrawPhaseObservable.remove(this.drawPhaseWatcher);
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
     }
 
@@ -1221,9 +1237,10 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether a picture the scene draws is still loading, so the frame on screen does not show it yet. Null when
-     * nothing loads that way. Kept for code that set it, and asked as one entry of {@link UpdateManager.pending}; new
-     * work enters that record itself (`begin`, `track` or `watch`).
+     * Whether a picture the scene draws is still loading, so the frame on screen does not show it yet: an image
+     * annotation, painted onto its texture when the image arrives (issue #3383), or a background tinted by group
+     * outlines laid out after it drew (issue #4243). Null when nothing loads that way. Asked as one entry of
+     * {@link UpdateManager.pending}; new work enters that record itself (`begin`, `track` or `watch`).
      */
     picturesLoading: (() => boolean) | null = null;
 
@@ -1341,7 +1358,7 @@ export class UpdateManager implements Manager {
         work.watch(
             "layout",
             "a layout transition is still moving the nodes",
-            () => transitionsOf(this.layoutManager)?.active === true,
+            () => transitionsOf(this.layoutManager)?.moving === true,
         );
         // Paint that has arrived and not been drawn, and paint that has not arrived yet: either
         // one changes the picture. See `willZoomToFit` for the second.
@@ -1490,6 +1507,11 @@ export class UpdateManager implements Manager {
         // `viewMoved()`, drew a frame of unplaced meshes and called it final (issue #3517).
         if (!this.pictureIsFinished()) {
             this.stateIsFinished = false;
+            return;
+        }
+
+        // A mesh this frame skipped for want of a shader: the next frame draws it.
+        if (!this.drewWithEveryShader) {
             return;
         }
 
@@ -1684,7 +1706,7 @@ export class UpdateManager implements Manager {
 
             // Handle zoom to fit if requested; a running transition frames where it lands, once
             // it has landed, rather than the moving picture.
-            if (this.willZoomToFit() && transitionsOf(this.layoutManager)?.active !== true) {
+            if (this.willZoomToFit() && transitionsOf(this.layoutManager)?.moving !== true) {
                 this.updateNodes();
                 this.updateEdges();
 
@@ -1714,7 +1736,7 @@ export class UpdateManager implements Manager {
         this.frameTransition();
 
         // Handle zoom to fit if needed
-        if (framing && transitionsOf(this.layoutManager)?.active !== true) {
+        if (framing && transitionsOf(this.layoutManager)?.moving !== true) {
             this.applyZoomToFit(this.measure());
         }
 
@@ -1929,8 +1951,9 @@ export class UpdateManager implements Manager {
      * same box it ended on, so the camera never jumps when the move ends.
      */
     private frameTransition(): void {
+        // A held move is a still picture, framed as one by the ordinary framing.
         const transitions = transitionsOf(this.layoutManager);
-        if (transitions?.active !== true) {
+        if (transitions?.moving !== true) {
             this.framingTransition = false;
             return;
         }

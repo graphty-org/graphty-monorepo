@@ -146,6 +146,18 @@ describe("snapshot sections", () => {
                     ciFailed: false,
                     ok: true,
                 },
+                // A promotion tests nothing by design: not a train attempt, so no row.
+                "5.1": {
+                    sha: "d6f4798c900",
+                    at: at + 5 * HOUR,
+                    created: at + 5 * HOUR,
+                    mode: "promote-nightly",
+                    tested: false,
+                    red: [],
+                    ciFailed: false,
+                    ok: false,
+                    failedJob: "Promote to nightly",
+                },
             },
             "release-workflows": [
                 { workflow: "release-watch.yml", runs: 0, failed: 0, inRow: 0 },

@@ -362,6 +362,46 @@ function disposeEdgeMeshes(edge: Edge): void {
     }
 }
 
+/**
+ * The project-state keys a pass can write without changing the picture by itself, by slice; null
+ * for every key of the slice.
+ *
+ * - `visibility`: the filter, its steps, the time window, the context and the playback settings
+ *   reach the canvas only as the view masks (ghosts included), which the update loop watches by
+ *   version (`UpdateManager.viewMasksPending`), so the frame a moved mask needs is drawn unasked.
+ * - The time field and its unit: they say which column holds time, and nothing is drawn from
+ *   them; what a window then hides is a mask.
+ */
+const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string> | null>>> = {
+    visibility: null,
+    config: new Set([
+        "data.knownFields.nodeTimePath",
+        "data.knownFields.nodeTimeUnit",
+        "data.knownFields.edgeTimePath",
+        "data.knownFields.edgeTimeUnit",
+    ]),
+};
+
+/**
+ * Whether a derivation pass wrote only keys that draw nothing (see {@link KEYS_THAT_DRAW_NOTHING}).
+ * @param dirty - The keys the pass derived, by slice.
+ * @returns True when the pass needs no frame of its own.
+ */
+function drawsNothing(dirty: ReadonlyMap<string, ReadonlySet<string>>): boolean {
+    if (dirty.size === 0) {
+        return false;
+    }
+
+    for (const [slice, keys] of dirty) {
+        const quiet = KEYS_THAT_DRAW_NOTHING[slice];
+        if (quiet === undefined || (quiet !== null && [...keys].some((key) => !quiet.has(key)))) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
 const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
 
@@ -1224,9 +1264,13 @@ export class Graph implements GraphContext {
         this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesQueued;
 
         // Every change to project state reaches the picture through a pass, so a graph drawn on
-        // demand draws the frame after each one: a style, the data, a setting, an undo.
-        lane.passEnded = () => {
-            this.renderManager.requestFrame();
+        // demand draws the frame after each one: a style, the data, a setting, an undo. Not after
+        // a pass that wrote only keys that draw nothing (see KEYS_THAT_DRAW_NOTHING): on a software
+        // GPU every frame costs the page 200 to 800 ms of its main thread under load (#4196).
+        lane.passEnded = (dirty) => {
+            if (!drawsNothing(dirty)) {
+                this.renderManager.requestFrame();
+            }
         };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
@@ -1323,6 +1367,10 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        // A picture the frame on screen does not show yet: an image annotation still loading, or a
+        // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
+        this.updateManager.picturesLoading = () =>
+            this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };

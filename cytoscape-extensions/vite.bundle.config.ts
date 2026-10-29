@@ -25,17 +25,18 @@ const resolve = { alias: { "#gpu-platform": pkg("src/gpu-platform-browser.ts") }
 
 /**
  * The script-tag build's lazy part: the dynamic import of ./io.js becomes a call to `graphtyLoadLazy("io.js")`
- * (defined in the bundle's intro), which imports that file from dist/cdn/.
+ * (defined in the bundle's intro), which imports that file from dist/cdn/. Rewritten in the source, because Vite 8's
+ * bundler (Rolldown) has no renderDynamicImport hook, and a call to the intro's function also keeps the minifier
+ * from dropping it as unused.
  * @returns the plugin
  */
 function lazyFromCdnBuild(): Plugin {
     return {
         name: "graphty-lazy-from-cdn-build",
-        resolveDynamicImport(specifier) {
-            return specifier === "./io.js" ? { id: "io.js", external: true } : null;
-        },
-        renderDynamicImport({ targetModuleId }) {
-            return targetModuleId === "io.js" ? { left: "graphtyLoadLazy(", right: ")" } : null;
+        transform(code) {
+            return code.includes('import("./io.js")')
+                ? code.replaceAll('import("./io.js")', 'graphtyLoadLazy("io.js")')
+                : null;
         },
     };
 }
@@ -94,7 +95,6 @@ const scriptTag: UserConfig = {
             output: {
                 // the global is the extension function itself, not a module namespace
                 exports: "default",
-                inlineDynamicImports: true,
                 intro,
             },
         },

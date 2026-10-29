@@ -864,7 +864,7 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
     };
 }
 
-/** Paid LLM test steps (as tools/llm-due.mjs counts them) times the per-run cost. */
+/** Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost. */
 export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
     const paid = (j.steps ?? []).filter(
         (s) => s.name === rates.llm.step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),

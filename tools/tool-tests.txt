@@ -34,7 +34,7 @@ tools/land.test.mjs
 tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs
 tools/live.test.mjs
-tools/llm-due.test.mjs
+tools/llm-spend.test.mjs
 tools/nightly-scenarios.test.mjs
 tools/nx-cache-proxy.test.mjs
 tools/nx-cache-worker/test/index.test.mjs

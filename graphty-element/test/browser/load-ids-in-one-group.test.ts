@@ -82,7 +82,7 @@ function assertEachKeptItsOwn(heard: Heard[]): void {
 }
 
 describe("two imports in one group", () => {
-    test("one after the other in a transaction, each keeps its own load id and announcement", async () => {
+    test("started together inside a transaction, each keeps its own load id and announcement", async () => {
         const graph = await emptyGraph();
         const { first, second, heard } = twoLoads(graph);
 
@@ -99,6 +99,14 @@ describe("two imports in one group", () => {
     test("started together in one batch, each keeps its own load id and announcement", async () => {
         const graph = await emptyGraph();
         const { first, second, heard } = twoLoads(graph);
+        const layout = (graph as unknown as { layoutManager: { updatePositions(...args: unknown[]): Promise<void> } })
+            .layoutManager;
+        const updatePositions = layout.updatePositions.bind(layout);
+        let placements = 0;
+        layout.updatePositions = async (...args: unknown[]) => {
+            placements++;
+            await updatePositions(...args);
+        };
 
         await dispatcherOf(graph.getSession()).dispatchNow({
             op: "batch",
@@ -110,5 +118,8 @@ describe("two imports in one group", () => {
         });
 
         assertEachKeptItsOwn(heard);
+        // The second import waits behind the first, and still counts as reading while it waits, so
+        // the whole graph is placed once, after both, not once after each.
+        assert.strictEqual(placements, 1, "the batch placed the whole graph once");
     });
 });

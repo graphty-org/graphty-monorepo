@@ -743,7 +743,11 @@ export class DataManager implements Manager {
                 // ingest's own state, are one import's. An import started while another runs -- two
                 // members of a batch started together, or one dispatched inline into a running group,
                 // which the graph key does not keep apart -- waits for it (issue #3535). Started at
-                // once when none runs, as a synchronous door expects.
+                // once when none runs, as a synchronous door expects. It counts as reading from the
+                // moment it is queued, so the graph does not place and paint the whole graph between
+                // two queued imports. Never await another data.import from inside an import: the
+                // inner one waits behind the outer, and the two wait on each other forever.
+                hooks.loading(true);
                 const run = (): Promise<ImportOutcome | null> => this.importOne(command, draft, signal, after, hooks);
                 const result = this.importing === null ? run() : this.importing.then(run);
                 const settled = result.then(
@@ -770,7 +774,7 @@ export class DataManager implements Manager {
      * @param after - Starts work once the import's step is recorded.
      * @param hooks - What the graph does around a write.
      * @param hooks.rowsAdded - Called once the import added rows.
-     * @param hooks.loading - Called with true when it starts reading and false when it stops.
+     * @param hooks.loading - Called with false when it stops reading; the caller called it with true.
      * @returns What the ingest returned.
      */
     private async importOne(
@@ -780,16 +784,14 @@ export class DataManager implements Manager {
         after: UndoableContext["after"] | undefined,
         hooks: { rowsAdded(after: UndoableContext["after"] | undefined): void; loading(active: boolean): void },
     ): Promise<ImportOutcome | null> {
-        const writer = this.graph.writer(draft, this.store);
         const { cause } = this;
         this.cause = "command";
-        hooks.loading(true);
         this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
         let outcome: ImportOutcome | null;
         this.heldLoadEvents = () => undefined;
         let announce: () => void;
         try {
-            outcome = await this.ingest.importSource(command, writer, signal);
+            outcome = await this.ingest.importSource(command, this.graph.writer(draft, this.store), signal);
         } finally {
             this.cause = cause;
             this.loadId = undefined;

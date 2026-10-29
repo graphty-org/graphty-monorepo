@@ -65,7 +65,7 @@ export const hotspotFamily = (family: string): string => family.split("|")[0];
  * @param file the test file, repository-relative
  */
 export const fileRunKey = (family: string, file: string): string =>
-    createHash("sha1")
+    createHash("sha256")
         .update(`${hotspotFamily(family)}\0${file}`)
         .digest("base64url")
         .slice(0, 8);

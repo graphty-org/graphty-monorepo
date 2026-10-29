@@ -882,12 +882,19 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
     };
 }
 
-/** Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost. */
+/** The step after the LLM tests whose name carries the run's logged cost (release.yml, tools/llm-spend.mjs). */
+const LLM_COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
+
+/**
+ * Paid LLM test steps (as tools/llm-spend.mjs counts them): the job's logged cost when its cost step names one,
+ * else each paid step times the flat per-run cost.
+ */
 export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
     const paid = (j.steps ?? []).filter(
         (s) => s.name === rates.llm.step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
     if (!paid.length) return undefined;
+    const logged = (j.steps ?? []).map((s) => LLM_COST_STEP.exec(s.name)?.[1]).find((v) => v !== undefined);
     const end = Date.parse(paid[paid.length - 1].completed_at ?? j.completed_at ?? j.created_at);
     return {
         kind: "cost",
@@ -896,7 +903,7 @@ export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string)
         line: "llm",
         ...opt("workflow", workflow),
         day: dayOf(end),
-        usd: paid.length * rates.llm.usdPerPaidStep,
+        usd: logged === undefined ? paid.length * rates.llm.usdPerPaidStep : Number(logged),
     };
 }
 

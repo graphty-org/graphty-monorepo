@@ -436,6 +436,7 @@ export type PropertyType = "string" | "number" | "integer" | "boolean" | "array"
 export interface ProviderOptions {
     apiKey?: string;
     baseUrl?: string;
+    fetch?: typeof globalThis.fetch;
     maxTokens?: number;
     model?: string;
     temperature?: number;

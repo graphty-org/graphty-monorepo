@@ -472,6 +472,21 @@ describe("costs", () => {
         ).toMatchObject({ line: "llm", usd: 0.94 });
     });
 
+    it("prices an LLM run at the cost its cost step logged, when it has one", () => {
+        const llm = tested.find((x) => x.name === "LLM regression")!;
+        const logged = {
+            ...llm,
+            steps: [...(llm.steps ?? []), { ...llm.steps![0], name: "LLM regression cost: 0.2871 USD" }],
+        };
+        expect(llmCost(logged, REPO, R)).toMatchObject({ line: "llm", usd: 0.2871 });
+        // a cost step that did not run names no number: the flat rate stands
+        const skipped = {
+            ...llm,
+            steps: [...(llm.steps ?? []), { ...llm.steps![0], name: "LLM regression cost:  USD" }],
+        };
+        expect(llmCost(skipped, REPO, R)).toMatchObject({ usd: 0.94 });
+    });
+
     it("spreads fixed monthly lines over the month", () => {
         const start = Date.UTC(2026, 9, 1);
         const month = Array.from({ length: 31 }, (_, i) => fixedCosts(R, start + i * DAY)).flat();

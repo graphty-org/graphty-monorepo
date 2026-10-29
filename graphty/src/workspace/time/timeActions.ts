@@ -176,26 +176,16 @@ export function reportTimeError(store: WorkspaceStore): (error: unknown) => void
 }
 
 /**
- * A value of the designated time column, or of any column typed date, in the timeline's date
- * words, as the dock writes them; any other value as it is.
- * @param session - the element's session.
- * @param kind - nodes or edges.
- * @param column - the column.
+ * A value of a column typed date in the timeline's date words, written to the day; any other
+ * value as it is. A column's kind alone decides: the Time role on a text or number column leaves
+ * its values as they are, as its header's glyph and sort caption say.
+ * @param session - the element's session, which reads the date.
  * @param value - the value.
- * @param date - whether the column is typed date, whatever its role.
- * @returns "Jan 31, 2025" for a time, else the value.
+ * @param date - whether the column is typed date.
+ * @returns "Jan 31, 2025" for a date, else the value.
  */
-export function timeValue(
-    session: GraphSession,
-    kind: "node" | "edge",
-    column: string,
-    value: unknown,
-    date = false,
-): unknown {
-    const { field } = session.time;
-    const source = kind === "node" ? field?.nodes : field?.edges;
-    const time = source?.start === column;
-    if ((!time && !date) || value === null || value === undefined || value === "") {
+export function timeValue(session: GraphSession, value: unknown, date: boolean): unknown {
+    if (!date || value === null || value === undefined || value === "") {
         return value;
     }
     let at: number | null = null;
@@ -204,9 +194,5 @@ export function timeValue(
     } else if (typeof value === "string" || typeof value === "number") {
         at = session.time.parse(String(value));
     }
-    // A date column that is not the time is written to the day, whatever the timeline's unit.
-    if (at === null) {
-        return value;
-    }
-    return instantWords(at, time ? unitOf(session) : "ms");
+    return at === null ? value : instantWords(at, "ms");
 }

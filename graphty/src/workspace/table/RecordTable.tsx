@@ -32,8 +32,8 @@ interface Row {
 }
 
 /**
- * What a cell shows: an edge's ends by their nodes' names (a node is called by its label), a time
- * field's values and any date column's as dates, anything else as it is.
+ * What a cell shows: an edge's ends by their nodes' names (a node is called by its label), a date
+ * column's values as dates (its kind alone decides, never its role), anything else as it is.
  * @param session - the element's session.
  * @param kind - nodes or edges.
  * @param column - the column.
@@ -52,7 +52,7 @@ function cellValue(
         const id = value as NodeId;
         return session.data.name(id) ?? String(id);
     }
-    return tableValue(timeValue(session, kind, key, value, column.descriptor?.type === "time"));
+    return tableValue(timeValue(session, value, column.descriptor?.type === "time"));
 }
 
 /** Props for RecordTable. */

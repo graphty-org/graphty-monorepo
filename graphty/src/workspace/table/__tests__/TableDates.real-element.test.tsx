@@ -13,6 +13,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { columnGlyph } from "../../data-place/words";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -126,6 +127,61 @@ describe("dates in the table", () => {
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("menu"));
+        });
+    });
+
+    it("draws a text column with the Time role as text, and as dates once typed date", async () => {
+        const store = createWorkspaceStore();
+        render(<Workspace store={store} />);
+        drop(new File([PANTRIES], "pantries.csv", { type: "text/csv" }));
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                    "graphty-element:not([data-start-page])",
+                )?.session;
+                assert.isDefined(session);
+                assert.strictEqual(session?.data.nodes().length, 5);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const live = session;
+        await live.time.setField({ nodes: { start: "opened" } });
+        const grid = await screen.findByRole("grid", { name: "Nodes" }, { timeout: TIMEOUT_MS });
+        // What Fields' column lists and the inspector draw for the column.
+        const fieldsGlyph = (): string => {
+            const column = live.data.attributes().find((each) => each.kind === "node" && each.name === "opened");
+            assert.isDefined(column);
+            return column === undefined ? "" : columnGlyph(live, column);
+        };
+
+        // The Time role leaves a text column text: its cells as written, Aa with the Time chip, A to Z.
+        await waitFor(() => {
+            within(grid).getByText("2015-03-02");
+            assert.notInclude(grid.textContent, "Mar 2, 2015");
+            const icons = headerCell("opened").querySelector<HTMLElement>(".ws-th-icons");
+            assert.strictEqual(icons?.dataset.type, "string");
+            assert.strictEqual(icons?.querySelector<HTMLElement>(".ws-th-role")?.dataset.role, "time");
+        });
+        assert.strictEqual(fieldsGlyph(), "text");
+        await userEvent.click(within(headerCell("opened")).getByTestId("data-table-sort-button"));
+        await waitFor(() => {
+            assert.strictEqual(store.get().announcement, "Sorted by opened, A to Z");
+        });
+
+        // Typed date, every sign says date.
+        await live.data.setType({ kind: "node", name: "opened" }, "date");
+        await waitFor(() => {
+            within(grid).getByText("Mar 2, 2015");
+            assert.strictEqual(headerCell("opened").querySelector<HTMLElement>(".ws-th-icons")?.dataset.type, "time");
+        });
+        assert.strictEqual(fieldsGlyph(), "time");
+        await userEvent.click(within(headerCell("opened")).getByTestId("data-table-sort-button"));
+        await waitFor(() => {
+            assert.strictEqual(store.get().announcement, "Sorted by opened, newest first");
         });
     });
 });

@@ -304,7 +304,9 @@ describe("a column's kind", () => {
         assert.equal(typeOf("categorical", "string", "text").typeWord, "Text");
         assert.equal(typeOf("categorical", "category", "category").typeWord, "Category");
         assert.equal(typeOf("categorical", "string").typeWord, "Category", "with no readable kind, what it measures");
-        assert.equal(typeOf("time", "string", "text").typeWord, "Time", "a designated time field of text dates");
+        assert.equal(typeOf("time", "string", "text").typeWord, "Text", "the Time role leaves text columns text");
+        assert.equal(typeOf("time", "integer", "number").glyph, "number", "and number columns numbers");
+        assert.equal(typeOf("time", "time", "text").glyph, "time", "a column typed date is a time");
     });
 
     it("reads an attribute row's kind from the readable kind it is given", () => {

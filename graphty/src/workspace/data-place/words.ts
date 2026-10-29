@@ -327,12 +327,17 @@ export function typeOf(
     if (type === "boolean") {
         return { glyph: "yes-no", typeWord: YES_NO_WORD };
     }
-    // Free text is a text column whose values are groups only by inference; a column declared to
-    // measure something (a designated time field of text dates) reads as what it measures.
-    if (readable === "text" && measurement === "categorical") {
+    // The glyph follows the column's kind alone: the Time role on a text or number column (its
+    // measurement reads "time") leaves it drawn as text or a number; only a date column is a time.
+    let kind = measurement;
+    if (measurement === "time" && type !== undefined && type !== "time") {
+        kind = type === "number" || type === "integer" ? "quantitative" : "categorical";
+    }
+    // Free text is a text column whose values are groups only by inference.
+    if (readable === "text" && kind === "categorical") {
         return { glyph: "text", typeWord: TEXT_WORD };
     }
-    switch (measurement) {
+    switch (kind) {
         case "categorical":
             return { glyph: "category", typeWord: "Category" };
         case "quantitative":

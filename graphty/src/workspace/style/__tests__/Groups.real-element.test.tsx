@@ -34,8 +34,8 @@ const PRE_STEPS = 1000;
  * Not from the start screen, and not left to settle on screen: these tests are about per-group
  * settings, and both draw a frame after frame (the start screen's turning graph, then the layout,
  * a frame per step). On a software GPU each frame holds the page's main thread until it is read
- * back, hundreds of milliseconds on a busy machine; the layout keeps to the clock, so it drew on
- * through the whole test, and every click waited behind those frames (issue #4239).
+ * back, hundreds of milliseconds on a busy machine, so the clicks made meanwhile wait behind
+ * those frames (issue #4239).
  * @param sample - the sample's name, as the start screen lists it.
  * @param nodes - how many nodes it has.
  * @returns the session and the store.

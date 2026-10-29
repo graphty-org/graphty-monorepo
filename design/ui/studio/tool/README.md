@@ -527,8 +527,40 @@ lands. A screen that changed is run once more, and one that differs between two 
 same build is marked `unstable` instead of `changed`. `summary.json` in `--out` lists each route's
 task, result, reason, screenshots (`<route>.png`, and `<route>.ui.png` with those covered),
 `change` (`same`, `changed`, `new` or `unstable`) and diff image. The design studio's workflow sends
-a pilot agent only to a task whose route failed or has none, and only the `changed` and `new` screens
-to a reviewer. `node --test $T/dry-run-pass.test.mjs` checks how it finds the earlier pass.
+a pilot agent only to a task whose route failed or has none, and the `changed` and `new` screens and the
+broken walks to one reviewer (below). `node --test $T/dry-run-pass.test.mjs` checks how it finds the earlier pass.
+
+### The reviewer
+
+`dry-run-review.mjs` turns a pass into one request for a fresh-context agent, and checks its answer:
+
+```bash
+node $T/dry-run-review.mjs request <pass>/script [--base <ref>] [--study <tier dir>]
+node $T/dry-run-review.mjs verdicts <pass>/script
+```
+
+`request` picks the routes whose end screen changed or is new and those whose walk broke before its
+outcome checks, and writes `review-request.md` (the reviewer's whole prompt, with each route's new and
+earlier screen, diff image and accessibility tree) beside `summary.json`, exiting 3. With nothing to
+judge it writes nothing and exits 0: no agent is started. A failed outcome check is a bug with no
+judge (exit 1), and an `unstable` screen is not judged. The agent gives each route one verdict --
+`bug`, `intended` (naming the commit or answer-key line that explains it), `usability` or
+`cannot-tell` -- with a reason and the screenshots it rests on, in `verdicts.json`; `verdicts` checks it
+and exits 1 while a bug or cannot-tell remains. The design studio's workflow runs it after the scripted
+pass and adds every verdict but `intended` to its task's defects.
+
+On a long-running branch, its agent runs the same thing itself, never automatically: a pass on a build of
+the branch's base, then one on the branch's head beside it (so the head's earlier pass is the base's), then
+the request with `--base`, which adds the branch's commits and changed files so `intended` can name a commit:
+
+```bash
+node $T/dry-run-pass.mjs --dist <base build> --out tmp/<task>/acceptance/base/script
+node $T/dry-run-pass.mjs --dist graphty/dist --out tmp/<task>/acceptance/head/script
+node $T/dry-run-review.mjs request tmp/<task>/acceptance/head/script --base origin/master
+```
+
+Exit 3: give the agent a fresh-context subagent the request file's path; it writes `verdicts.json`.
+`node --test $T/dry-run-review.test.mjs` checks the selection and the answer check.
 
 What a `same` screen does not show: the drawing and the status bar are covered, so a drawing problem
 the outcome checks cannot read (labels gone, nodes off screen, a blank canvas) or an error chip in the

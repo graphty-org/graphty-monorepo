@@ -362,27 +362,36 @@ async function scriptedPass(tag, phaseName) {
     );
     return r?.ran ? r : null;
 }
-// One reviewer looks at the end screens that changed since the earlier pass, and nothing else.
-async function reviewScreens(tag, phaseName, routes) {
-    const earlierOf = (r) => (r.prevShot ? ", earlier " + r.prevShot + ", diff " + r.diffImage : ", no earlier screen");
-    const list = routes
-        .map(
-            (r) =>
-                `- ${r.task}: route ${r.id} (${r.feature}; outcome checks ${r.result}): new ${r.shot}${earlierOf(r)}`,
-        )
-        .join("\n");
+// One fresh-context reviewer judges the routes whose end screen changed since the earlier pass (or has
+// none) and those whose walk broke, each as bug, intended, usability or cannot-tell with its evidence;
+// the prompt and the check of its answer are tool/dry-run-review.mjs's, which agents on long branches use too.
+async function reviewScreens(tag, phaseName, n) {
+    const tool = `${SD}/tool/dry-run-review.mjs`;
+    const out = `${WALKS}/${tag}/script`;
     return agent(
-        `${RULES}\nThe scripted dry run walked each ${NAME} task's success path on the frozen build (first line of ${T}/criteria.md) with no model. These routes' end screens changed since the earlier pass, or have no earlier screen. Look at each with the Read tool (the new screen; the earlier one and the diff image, changed pixels in red, where listed) beside the task in ${T}/tasks.md, its success state in ${T}/answers.md and the binding decisions in ${DECIDED}. The outcome checks already read the drawn styles through graphty-element's API, so judge only what a participant SEES on the screen: an error or blank screen, a panel or control missing, cut off or overlapping, a wrong or misleading label or count, a drawing that does not show what the task asked for. A change that is neutral or an intended improvement is not a defect, and a behavior ${DECIDED} settles is not one. Walk nothing and change nothing. Return looked (every route id you looked at) and defects, each "<task id>: route <route id>: <what is wrong> -- <screenshot path>".\n\n${list}`,
+        `${RULES}\nRun: cd ${ST} && node ${tool} request ${out} --study ${T}. If it exits 0 or 1 it wrote no request: return { "verdicts": [] }. If it exits 3, read ${out}/review-request.md and do exactly what it says (it asks you to look at ${n} routes' screenshots, judge each, write ${out}/verdicts.json and check it with the same tool), then return that verdicts object.`,
         {
-            label: `${tag}: changed screens (${routes.length})`,
+            label: `${tag}: review changed screens (${n})`,
             phase: phaseName,
             schema: {
                 type: "object",
                 properties: {
-                    looked: { type: "array", items: { type: "string" } },
-                    defects: { type: "array", items: { type: "string" } },
+                    verdicts: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                route: { type: "string" },
+                                verdict: { type: "string", enum: ["bug", "intended", "usability", "cannot-tell"] },
+                                reason: { type: "string" },
+                                cites: { type: "array", items: { type: "string" } },
+                                evidence: { type: "array", items: { type: "string" } },
+                            },
+                            required: ["route", "verdict", "reason", "cites", "evidence"],
+                        },
+                    },
                 },
-                required: ["looked", "defects"],
+                required: ["verdicts"],
             },
         },
     );
@@ -504,13 +513,20 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
         }
         return pilot(id, 0, rw, scriptNote(id), true);
     };
-    // Only the screens that changed since the earlier pass (or have no earlier screen) are looked at.
-    const lookAt = (script?.routes || []).filter((r) => r.change === "changed" || r.change === "new");
+    // Only the screens that changed since the earlier pass (or have no earlier screen) and the walks that
+    // broke before their outcome checks are judged; nothing is reviewed when nothing changed.
+    const lookAt = (script?.routes || []).filter(
+        (r) =>
+            r.change !== "unstable" &&
+            (r.change === "changed" ||
+                r.change === "new" ||
+                (r.result !== "pass" && !/^checking "/.test(r.reason || ""))),
+    );
     const unstable = (script?.routes || []).filter((r) => r.change === "unstable").map((r) => r.id);
     if (unstable.length)
         log(`${tag}: scripted screens that differ between two runs of one build, not reviewed: ${unstable.join(", ")}`);
     const [review, ...res] = await parallel([
-        () => (lookAt.length ? reviewScreens(tag, phaseName, lookAt) : null),
+        () => (lookAt.length ? reviewScreens(tag, phaseName, lookAt.length) : null),
         ...idList.map((id) => () => pilotTask(id)),
     ]);
     const incomplete = (i) => !res[i] || (res[i].skipped || []).length > 0;
@@ -524,9 +540,15 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
             if (again[j]) res[i] = again[j];
         });
     }
-    // The reviewer's defects join the task they belong to, for the triage.
-    for (const d of review?.defects || []) {
-        const i = idList.findIndex((id) => d.startsWith(`${id}:`));
+    // The reviewer's bug, usability and cannot-tell verdicts join the task they belong to, for the triage.
+    const taskOfRoute = (id) => (script?.routes || []).find((r) => r.id === id)?.task;
+    for (const v of review?.verdicts || []) {
+        const d = `${taskOfRoute(v.route)}: route ${v.route}: ${v.verdict}: ${v.reason} -- ${(v.evidence || []).join(" ")}`;
+        if (v.verdict === "intended") {
+            log(`${tag}: screen change judged intended (${(v.cites || []).join(", ")}): ${d}`);
+            continue;
+        }
+        const i = idList.findIndex((id) => id === taskOfRoute(v.route));
         if (i >= 0 && res[i]) res[i] = { ...res[i], defects: [...(res[i].defects || []), d] };
         // after the retries, so a reviewer's note never stops a failed pilot being run again
         else if (i >= 0) res[i] = { task: idList[i], reached: false, skipped: ["every route"], defects: [d] };

@@ -51,6 +51,51 @@ export const TRAILER = "Dry-run-check-change";
 const FIRST_ASSIGNMENT = ts.SyntaxKind.FirstAssignment;
 const LAST_ASSIGNMENT = ts.SyntaxKind.LastAssignment;
 const MUTATORS = /^(?:Object\.(?:assign|defineProperty|defineProperties|setPrototypeOf)|Reflect\.\w+)$/;
+// Methods that change the object they are called on: called on a name the code did not declare
+// itself (`routes.splice(0)`), they change what other code reads.
+const MUTATING_METHODS = new Set(["push", "pop", "shift", "unshift", "splice", "sort", "reverse", "fill"]);
+MUTATING_METHODS.add("copyWithin").add("set").add("delete").add("clear").add("add");
+// Ways past every object's own shape.
+const META_PROPS = new Set(["__proto__", "prototype", "constructor", "__defineGetter__", "__defineSetter__"]);
+// Names that reach the whole runtime, or load code the guard never reads.
+const GLOBALS = new Set(["eval", "Function", "globalThis", "global", "require", "module"]);
+// Walks and steps also may not reach the process, the browser's window or the language's reflection.
+const FREE_GLOBALS = new Set([...GLOBALS, "window", "self", "process", "Proxy", "Reflect"]);
+// What a walk or a step may not call on Playwright's page, locators or context: each runs code in the
+// page, goes to a URL, answers the page's requests or reaches past the page, where a user only clicks,
+// types and chooses files.
+const PAGE_ESCAPES = new Set([
+    "evaluate",
+    "evaluateAll",
+    "evaluateHandle",
+    "$eval",
+    "$$eval",
+    "waitForFunction",
+    "goto",
+    "reload",
+    "goBack",
+    "goForward",
+    "setContent",
+    "addInitScript",
+    "addScriptTag",
+    "addStyleTag",
+    "exposeFunction",
+    "exposeBinding",
+    "route",
+    "routeFromHAR",
+    "routeWebSocket",
+    "unroute",
+    "unrouteAll",
+    "context",
+    "dispatchEvent",
+    "setExtraHTTPHeaders",
+    "setInputFiles",
+    "mainFrame",
+    "frames",
+    "frame",
+    "request",
+    "opener",
+]);
 
 const git = (args, cwd, env = process.env) =>
     execFileSync("git", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -134,7 +179,14 @@ function unitOf(s, sf, label) {
  */
 function fileUnits(text, label) {
     const sf = parse(text);
-    return new Map(sf.statements.map((s) => unitOf(s, sf, label)));
+    const units = new Map();
+    const nodes = new Map();
+    for (const s of sf.statements) {
+        const [name, unit] = unitOf(s, sf, label);
+        units.set(name, unit);
+        nodes.set(name, { node: s, sf });
+    }
+    return { units, nodes };
 }
 
 /**
@@ -159,7 +211,9 @@ const propName = (n) => (ts.isIdentifier(n) || ts.isStringLiteral(n) || ts.isNum
  */
 function checkUnits(checks, id, sf, out) {
     for (const c of checks.properties) {
-        out.units.set(`check "${id}: ${c.name ? propName(c.name) : code(c, sf)}"`, code(c, sf));
+        const name = `check "${id}: ${c.name ? propName(c.name) : code(c, sf)}"`;
+        out.units.set(name, code(c, sf));
+        out.nodes.set(name, c);
         out.roots.push(c);
     }
 }
@@ -174,6 +228,7 @@ function checkUnits(checks, id, sf, out) {
 function routeUnits(el, i, sf, out) {
     if (!ts.isObjectLiteralExpression(el)) {
         out.units.set(`routes.mjs route "${code(el, sf)}"`, code(el, sf));
+        out.nodes.set(`routes.mjs route "${code(el, sf)}"`, el);
         out.roots.push(el);
         return;
     }
@@ -187,6 +242,7 @@ function routeUnits(el, i, sf, out) {
             checkUnits(p.initializer, id, sf, out);
         } else {
             out.units.set(`routes.mjs route "${id}" ${key}`, code(p, sf));
+            out.nodes.set(`routes.mjs route "${id}" ${key}`, p);
             out.roots.push(p);
         }
     }
@@ -246,20 +302,112 @@ function writeTarget(n) {
 }
 
 /**
- * Writes from free code (walks, steps) to protected names.
- * @param free the free nodes
- * @param names the protected names
- * @param sf the source file
- * @returns one line per write
+ * The names a piece of code declares itself (its parameters and variables), and which of them
+ * hold an object it made (`const out = {}`): the only ones it may write through.
+ * @param root the code
+ * @returns name to whether it holds an object the code made
  */
-function freeWrites(free, names, sf) {
-    const found = [];
+function localsOf(root) {
+    const locals = new Map();
+    const fresh = (d) =>
+        ts.isVariableDeclarationList(d.parent) &&
+        (d.parent.flags & ts.NodeFlags.Const) !== 0 &&
+        d.initializer !== undefined &&
+        (ts.isObjectLiteralExpression(d.initializer) ||
+            ts.isArrayLiteralExpression(d.initializer) ||
+            ts.isNewExpression(d.initializer));
     const visit = (n) => {
-        const name = rootName(writeTarget(n));
-        if (name && names.has(name)) found.push(`writes to ${name}: ${code(n, sf)}`);
+        if (ts.isVariableDeclaration(n) || ts.isParameter(n) || ts.isBindingElement(n)) {
+            const own = ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && fresh(n);
+            for (const name of identifiers(n.name)) locals.set(name, locals.get(name) || own);
+        } else if (ts.isCatchClause(n) && n.variableDeclaration) {
+            for (const name of identifiers(n.variableDeclaration.name)) locals.set(name, false);
+        }
         ts.forEachChild(n, visit);
     };
-    free.forEach(visit);
+    visit(root);
+    return locals;
+}
+
+/**
+ * Whether code may write to a target: a variable it declared, or a property of an object it made.
+ * @param target the target expression
+ * @param locals the code's own names (localsOf)
+ * @returns whether the write stays inside the code
+ */
+function writable(target, locals) {
+    let t = target;
+    while (ts.isParenthesizedExpression(t)) t = t.expression;
+    if (ts.isIdentifier(t)) return locals.has(t.text);
+    if (!ts.isPropertyAccessExpression(t) && !ts.isElementAccessExpression(t)) return false;
+    const root = rootName(t);
+    return root !== undefined && root !== "this" && locals.get(root) === true;
+}
+
+/**
+ * What a piece of code does outside itself that could change a verdict: a write to anything it did
+ * not declare or make, a mutating call on a name it did not declare, a way past an object's shape,
+ * a name that reaches the whole runtime, or a dynamic import. Free code (walks and steps) also may
+ * not read a protected name (no alias of `assert` or of the routes), compute a property name, or
+ * call one of the page's escapes from the user's hands (PAGE_ESCAPES).
+ * @param root the code
+ * @param sf its source file
+ * @param [free] the protected names, for free code; none for a unit added to a protected file
+ * @returns one line per finding, empty for code that keeps to itself
+ */
+export function scan(root, sf, free = null) {
+    const locals = localsOf(root);
+    const found = [];
+    const say = (why, n) => found.push(`${why}: ${code(n, sf)}`);
+    const nameUse = (name, n) => {
+        if (META_PROPS.has(name)) say(`reaches past an object's shape (${name})`, n);
+        else if (free && PAGE_ESCAPES.has(name)) say(`goes past the user's hands (${name})`, n);
+        else return false;
+        return true;
+    };
+    const visit = (n) => {
+        const target = writeTarget(n);
+        if (target !== undefined && !ts.isCallExpression(n) && !writable(target, locals)) {
+            return say(`writes to ${rootName(target) ?? code(target, sf)}`, n);
+        }
+        if (ts.isCallExpression(n)) {
+            const callee = n.expression;
+            if (callee.kind === ts.SyntaxKind.ImportKeyword) return say("imports code at run time", n);
+            const first = n.arguments[0];
+            if (target !== undefined && !(first && (ts.isObjectLiteralExpression(first) || writable(first, locals))))
+                return say(`writes to ${rootName(first) ?? "an object"}`, n);
+            if (ts.isPropertyAccessExpression(callee) && MUTATING_METHODS.has(callee.name.text)) {
+                const root = rootName(callee.expression);
+                if (root === undefined || root === "this" || !locals.has(root))
+                    return say(`changes ${root ?? "an object"} in place`, n);
+            }
+        }
+        if (ts.isPropertyAccessExpression(n)) {
+            if (nameUse(n.name.text, n)) return undefined;
+            return visit(n.expression);
+        }
+        if (ts.isElementAccessExpression(n)) {
+            const key = n.argumentExpression;
+            if (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) {
+                if (nameUse(key.text, n)) return undefined;
+            } else if (free && !ts.isNumericLiteral(key) && !ts.isPrefixUnaryExpression(key)) {
+                return say("computes a property name", n);
+            }
+        }
+        if (ts.isPropertyAssignment(n) || ts.isMethodDeclaration(n) || ts.isFunctionDeclaration(n)) {
+            if (n.name && ts.isComputedPropertyName(n.name)) visit(n.name);
+            return n.forEachChild((k) => {
+                if (k !== n.name) visit(k);
+            });
+        }
+        if (n.kind === ts.SyntaxKind.ThisKeyword && free) return say("reads this", n);
+        if (ts.isIdentifier(n)) {
+            if ((free ? FREE_GLOBALS : GLOBALS).has(n.text)) return say(`reaches ${n.text}`, n);
+            if (free?.has(n.text)) return say(`reads ${n.text}, which the checks rely on`, n);
+        }
+        return n.forEachChild(visit);
+    };
+    visit(root);
     return found;
 }
 
@@ -270,7 +418,7 @@ function freeWrites(free, names, sf) {
  */
 function routesUnits(text) {
     const sf = parse(text);
-    const out = { units: new Map(), roots: [], free: [] };
+    const out = { units: new Map(), roots: [], free: [], nodes: new Map() };
     const declared = new Map();
     const imported = [];
     for (const s of sf.statements) {
@@ -282,18 +430,24 @@ function routesUnits(text) {
         for (const n of boundNames(s)) declared.set(n, s);
         if (ts.isImportDeclaration(s)) imported.push(...boundNames(s));
         if (ts.isImportDeclaration(s) || !boundNames(s).length) {
-            out.units.set(...unitOf(s, sf, "routes.mjs"));
+            const [name, text] = unitOf(s, sf, "routes.mjs");
+            out.units.set(name, text);
+            out.nodes.set(name, s);
             out.roots.push(s);
         }
     }
     const reached = reach(out.roots, declared);
     for (const s of sf.statements) {
         if (routesArray(s) || ts.isImportDeclaration(s) || !boundNames(s).length) continue;
-        if (boundNames(s).some((n) => reached.has(n))) out.units.set(...unitOf(s, sf, "routes.mjs"));
-        else out.free.push(s);
+        if (boundNames(s).some((n) => reached.has(n))) {
+            const [name, text] = unitOf(s, sf, "routes.mjs");
+            out.units.set(name, text);
+            out.nodes.set(name, s);
+        } else out.free.push(s);
     }
     const names = new Set([...reached, ...imported, "routes", "this", "globalThis"]);
-    return { units: out.units, writes: freeWrites(out.free, names, sf) };
+    for (const [name, node] of out.nodes) out.nodes.set(name, { node, sf });
+    return { units: out.units, nodes: out.nodes, writes: out.free.flatMap((n) => scan(n, sf, names)) };
 }
 
 /**
@@ -305,13 +459,37 @@ function routesUnits(text) {
  * @returns the units (unit name to code) and the writes free code makes to protected names
  */
 export function protectedUnits({ routes = null, readers = null, runner = null }) {
-    const r = routes === null ? { units: new Map(), writes: [] } : routesUnits(routes);
-    const units = new Map([
-        ...r.units,
-        ...(readers === null ? [] : fileUnits(readers, "readers.mjs")),
-        ...(runner === null ? [] : fileUnits(runner, "run.mjs")),
-    ]);
-    return { units, writes: r.writes };
+    const none = { units: new Map(), nodes: new Map(), writes: [] };
+    const parts = [
+        routes === null ? none : routesUnits(routes),
+        readers === null ? none : fileUnits(readers, "readers.mjs"),
+        runner === null ? none : fileUnits(runner, "run.mjs"),
+    ];
+    return {
+        units: new Map(parts.flatMap((p) => [...p.units])),
+        nodes: new Map(parts.flatMap((p) => [...p.nodes])),
+        writes: parts[0].writes,
+    };
+}
+
+/**
+ * The parts a branch adds to the protected files that act outside themselves: an import, a
+ * statement that runs on load, or code that scan() finds reaching out. Each counts as a change to
+ * what decides a verdict, since it runs beside the protected parts and can change them.
+ * @param base the units at the base
+ * @param head protectedUnits() at the head
+ * @returns one line per such part
+ */
+export function riskyAdditions(base, head) {
+    const out = [];
+    for (const [name, { node, sf }] of head.nodes) {
+        if (base.has(name)) continue;
+        const loads = ts.isImportDeclaration(node) || (ts.isStatement(node) && !boundNames(node).length);
+        const reach = loads ? [] : scan(node, sf);
+        if (loads) out.push(`${name} (runs when the file loads)`);
+        else if (reach.length) out.push(`${name} (${reach[0]})`);
+    }
+    return out;
 }
 
 /**
@@ -406,16 +584,19 @@ async function main(argv) {
     const after = versionAt(o.head, cwd);
     if (after.writes.length) {
         console.error(
-            `REFUSED: a walk or a step of the dry run writes to something the checks rely on:\n` +
+            `REFUSED: a walk or a step of the dry run reaches past the user's hands, or into what the checks rely on:\n` +
                 after.writes.map((w) => "  " + w).join("\n") +
                 "\n" +
-                `Steps may only drive the page through the user's hands (graphty/dry-run/README.md).`,
+                `Steps may only click, type and choose files through the user's hands (graphty/dry-run/README.md).`,
         );
         return 1;
     }
     const { removed, changed } = compare(before.units, after.units);
+    // A first version (nothing at the base) is reviewed as a whole; after that, an addition that
+    // acts outside itself counts as a change.
+    const risky = before.units.size ? riskyAdditions(before.units, after) : [];
     const added = [...after.units.keys()].filter((k) => !before.units.has(k)).length;
-    if (!removed.length && !changed.length) {
+    if (!removed.length && !changed.length && !risky.length) {
         console.log(
             `dry-run checks: ${before.units.size} kept, ${added} added, none removed or changed (base ${base.slice(0, 10)})`,
         );
@@ -423,7 +604,11 @@ async function main(argv) {
     }
     const { files, messages } = branchCommits(cwd, base, o.head);
     const problems = checkChangeProblems(files, messages);
-    const list = [...removed.map((k) => `  removed: ${k}`), ...changed.map((k) => `  changed: ${k}`)].join("\n");
+    const list = [
+        ...removed.map((k) => `  removed: ${k}`),
+        ...changed.map((k) => `  changed: ${k}`),
+        ...risky.map((k) => `  added, acting outside itself: ${k}`),
+    ].join("\n");
     if (!problems.length) {
         console.log(`dry-run checks: a check-change branch, allowed:\n${list}`);
         return 0;
@@ -524,6 +709,46 @@ function selfTestUnits(assert) {
     assert.deepEqual(compare(new Map(), units({}).units), nothing, "a first version protects nothing yet");
 }
 
+function selfTestReach(assert) {
+    const base = protectedUnits({ routes: ROUTES_FIXTURE, readers: READERS_FIXTURE, runner: RUNNER_FIXTURE });
+    const head = ({ routes = ROUTES_FIXTURE, readers = READERS_FIXTURE, runner = RUNNER_FIXTURE }) =>
+        protectedUnits({ routes, readers, runner });
+    const risky = (files) => riskyAdditions(base.units, head(files));
+    const neuter = "Object.assign(assert, { equal() {}, ok() {} });\n";
+    const top = (text) => ROUTES_FIXTURE.replace("export const routes = [", `${text}export const routes = [`);
+    assert.equal(risky({ routes: top(neuter) }).length, 1, "a new top-level statement in routes.mjs is caught");
+    const side = 'import assert from "node:assert/strict";\nimport "./patch.mjs";';
+    const sideImport = ROUTES_FIXTURE.replace('import assert from "node:assert/strict";', side);
+    assert.equal(risky({ routes: sideImport }).length, 1, "a new side-effect import is caught");
+    assert.equal(risky({ readers: READERS_FIXTURE + neuter }).length, 1, "a new statement in readers.mjs is caught");
+    assert.equal(risky({ runner: RUNNER_FIXTURE + neuter }).length, 1, "a new statement in run.mjs is caught");
+    const viaConst = `${READERS_FIXTURE}export const x = ${neuter}`;
+    assert.equal(risky({ readers: viaConst }).length, 1, "a new reader that rewrites assert is caught");
+    const check = (body) =>
+        ROUTES_FIXTURE.replace("        checks: {", `        checks: {\n            z: () => ${body},`);
+    assert.equal(risky({ routes: check("routes.splice(1)") }).length, 1, "a new check that drops routes is caught");
+    assert.deepEqual(risky({ routes: check("assert.ok(g)") }), [], "an honest new check is free");
+    const honest = `${READERS_FIXTURE}export const ids = (page) => page.evaluate(() => { const out = {}; out.a = 1; return out; });\n`;
+    assert.deepEqual(risky({ readers: honest }), [], "an honest new reader is free");
+    const walk = (line) =>
+        head({ routes: ROUTES_FIXTURE.replace("await openIt(u);", `await openIt(u);\n            ${line}`) });
+    for (const line of [
+        "const a = assert; a.ok = () => {};",
+        "for (const r of routes) for (const k in r.checks) r.checks[k] = () => {};",
+        "await u.page.evaluate(() => 1);",
+        'await u.page.goto("/?sample=x");',
+        "await u.page.context().addInitScript(() => 1);",
+        'await u.page.route("**", (r) => r.abort());',
+        'await u.page["evaluate"](() => 1);',
+        "await u.page[name](() => 1);",
+        "Array.prototype.includes = () => true;",
+        'await import("node:assert/strict");',
+        "u.page.x = 1;",
+    ])
+        assert.ok(walk(line).writes.length, `a walk that runs ${line} is caught`);
+    assert.deepEqual(walk('await u.click("Open file");').writes, [], "a walk that clicks is free");
+}
+
 function selfTestBranches(assert) {
     const reason = `fix(graphty): the check read the wrong column\n\n${TRAILER}: names live in label on this file`;
     assert.deepEqual(checkChangeProblems(["graphty/dry-run/routes.mjs"], [reason]), [], "a check-change branch");
@@ -558,6 +783,7 @@ function selfTestBranches(assert) {
 async function selfTest() {
     const assert = (await import("node:assert/strict")).default;
     selfTestUnits(assert);
+    selfTestReach(assert);
     selfTestBranches(assert);
     console.log("dry-run-check-guard self-test: ok");
     return 0;

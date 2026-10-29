@@ -69,7 +69,10 @@ defect the design studio finds becomes one.
 ### The user's hands: `u`
 
 A walk does only what a user can do, from the start page: never a URL of its own, never a call
-into the app or the element.
+into the app or the element. The guard (below) holds walks and steps to that: it refuses one that
+calls `evaluate`, `goto`, `route`, `addInitScript`, `exposeFunction`, `setContent`, `context` or
+another way past the page's controls, computes a property name, reads `assert`, `routes` or
+anything else a check uses, or writes to anything it did not declare itself.
 
 | `u.`                     | What it does                                                                |
 | ------------------------ | --------------------------------------------------------------------------- |
@@ -84,12 +87,18 @@ Name controls the way a screen reader hears them: `page.getByRole("treeitem", { 
 /^Everything,/ })`, `page.getByRole("option", { name: /^hours(,|$)/ })`. `routes.mjs` has steps many
 routes share (`openSample`, `openFile`, `newLayer`, `addCondition`, `match`, `fill`, `analyze`,
 `line`); use them, and add one when a second route needs the same steps. A step waits for its
-control to appear (up to 20 seconds), so a walk never waits on a clock.
+control to appear (up to 20 seconds), so a walk never waits on a clock. `openSample` and `openFile`
+wait until the Everything layer counts the graph's nodes: the layer shows "0 nodes" before the data
+arrives, and a walk that went on then acted on an empty graph.
 
 ### Reading the outcome: `g`
 
 A check is a function of `g` that throws (with `assert`) when the outcome is wrong. It is retried
-until it passes or 15 seconds pass, because the app reaches its state on its own time.
+every 250 ms until it passes or 15 seconds pass, because the app reaches its state on its own time.
+
+The looks the checks read are the style graphty-element resolved for each node and edge
+(`session.styles.explain()`), not the pixels on the canvas. A defect where the style resolves
+correctly and the drawing is still wrong is outside what the dry run can see.
 
 | `g.`                 | What it reads                                                                                        |
 | -------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -108,12 +117,16 @@ check that would pass whatever the app did is no check.
 
 The author of a UI change may re-record a route's steps: its `walk`, and any function in
 `routes.mjs` that only walks use. Everything that decides whether a route passes is protected:
-every check, a route's other properties, the imports and every declaration of `routes.mjs` a check
-uses (directly or through another), and all of `readers.mjs` and `run.mjs`. CI's Checks job runs
+every check, a route's other properties, the imports, top-level statements and every declaration of
+`routes.mjs` a check uses (directly or through another), and all of `readers.mjs` and `run.mjs`. An
+addition to any of the three files counts as a change when it runs on its own or reaches outside
+itself: a new import, a new top-level statement, or new code that writes to something it did not
+declare (`Object.assign(assert, ...)`, `routes.splice(1)`) or reaches `eval`, `globalThis` or a
+dynamic `import()`. CI's Checks job runs
 `pnpm run check:dry-run-checks`, which compares them, without comments or layout, with the merge
 base with `origin/master`, and refuses a branch that removes or changes one. Adding routes, checks,
-helpers and readers is free. A walk or a step that writes to something protected (`assert.ok = ...`,
-`this.checks = ...`) is always refused.
+helpers and readers that keep to themselves is free. A walk or a step that goes past the user's
+hands (above) is always refused.
 
 When a check is wrong, change it on a branch of its own, from a different session than the change
 it failed on, holding only that change: every file its commits change is under `graphty/dry-run/`,

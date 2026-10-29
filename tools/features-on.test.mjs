@@ -231,7 +231,7 @@ describe("the On screenshot capture", () => {
     it("runs in a job of its own with the On query, under an artifact name the gate never reads", () => {
         const ci = parseYaml(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"));
         const on = ci.jobs["features-on-visual"];
-        assert.match(on.if, /needs\.build\.outputs\.visual-on/);
+        assert.match(on.if, /needs\.packages\.outputs\.visual-on/);
         const capture = on.steps.find((s) => s.name === "Capture the On configuration");
         assert.equal(capture.env.VISUAL_REVIEW_STORY_QUERY, ON_CAPTURE_QUERY);
         assert.match(on.steps.find((s) => s.name === "Upload the On captures").with.name, /^features-on-visual-/);

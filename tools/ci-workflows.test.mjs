@@ -1677,7 +1677,7 @@ describe("ci.yml", () => {
         for (const name of ["links"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?(?: && github.event_name != 'pull_request')?\n/,
+                /\n {8}if: (?:needs.packages.outputs.full == 'true' && )?needs.packages.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?(?: && github.event_name != 'pull_request')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -1692,7 +1692,8 @@ describe("ci.yml", () => {
         );
         assert.match(job(ci, "docs"), /name: build-docs\n/);
         assert.match(job(ci, "build"), /name: build-storybook-element\n/);
-        for (const name of ["build", "lint", "checks", "docs"]) {
+        assert.match(job(ci, "build"), /\n {8}needs: run-cap\n {8}runs-on:/, "build runs on master too");
+        for (const name of ["lint", "checks", "docs"]) {
             assert.match(
                 job(ci, name),
                 /\n {8}needs: packages\n(?: {8}if: needs.packages.outputs.reuse-run == ''(?: && needs.packages.outputs.docs == 'true')?\n)? {8}runs-on:/,
@@ -2977,8 +2978,10 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         assert.match(build, /LABELS: \$\{\{ toJSON\(github\.event\.pull_request\.labels\.\*\.name\) \}\}/);
         assert.match(build, /node tools\/visual-capture-plan\.mjs "\$all" "\$affected" \| tee -a "\$GITHUB_OUTPUT"/);
         assert.match(build, /visual-skip: \$\{\{ steps\.plan\.outputs\.visual-skip \}\}/);
-        // the visual job needs build (the Storybooks), which hands the plan on
-        assert.match(job(ci, "build"), /visual-skip: \$\{\{ needs\.packages\.outputs\.visual-skip \}\}/);
+        // the Storybooks job starts beside the packages job (#3448), so it hands on no plan: a job that needs
+        // both reads the plan from the packages job
+        assert.match(job(ci, "build"), /\n {8}needs: run-cap\n/);
+        assert.doesNotMatch(ci, /needs\.build\.outputs\./);
     });
 
     it("uploads the not-affected marker as the capture of a project the story tests skip", () => {
@@ -7041,8 +7044,14 @@ describe("a run reuses an earlier run's results when only screenshot records cha
             "no step builds the Storybooks",
         );
         for (const step of building) {
-            assert.match(step, /\n {14}if: needs.packages.outputs.artifacts-run == ''\n/, step);
+            assert.match(step, /\n {14}if: steps.reuse-build.outputs.artifacts-run == ''\n/, step);
         }
+        // it decides that itself, with the packages job's check, since it does not wait for that job
+        assert.match(build, /id: reuse-build\n {14}if: inputs.reuse_build_run != ''\n {14}continue-on-error: true\n/);
+        assert.match(build, /node tools\/ci-reuse-plan.mjs --build-run "\$RUN"/);
+        // nx builds the packages the Storybooks import, so nothing waits for the packages job's artifact
+        assert.match(build, /nx run-many -t build-storybook --parallel=3/);
+        assert.doesNotMatch(build, /--exclude-task-dependencies|name: build-packages\n/);
     });
 
     it("passes All Checks Pass with skipped check jobs only when the run reused a passing run", () => {

@@ -409,10 +409,11 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
             ? `walk exactly the detours ${T}/rounds/${sameAs}/pilot/${id}/report.md walked (the detour set is held fixed across passes so their counts compare; walk a new one only where that report has none)`
             : `${pastTurns}what a person would try first if they did not know the success path (another panel, the search box, a right-click, a menu, the toolbar, styling from where they are, opening a file from the start screen)`;
     // scripted: the scripted dry run walked this task's success path and it passed, so no pilot walks it.
-    const walks = (scripted) =>
-        touched
-            ? ` THIS IS A TARGETED RE-PILOT after a fix pass. Instead of the walks below, walk ONLY ${scripted ? "" : "(1) the success path by pointer and (2) "}each of these routes the fixes touched that belongs to this task, each its own session: ${JSON.stringify(touched)}. Report only what crashes, blocks the task, or gives a wrong result that would spoil its grading.`
-            : "";
+    const walks = (scripted) => {
+        if (!touched) return "";
+        const success = scripted ? "" : "(1) the success path by pointer and (2) ";
+        return ` THIS IS A TARGETED RE-PILOT after a fix pass. Instead of the walks below, walk ONLY ${success}each of these routes the fixes touched that belongs to this task, each its own session: ${JSON.stringify(touched)}. Report only what crashes, blocks the task, or gives a wrong result that would spoil its grading.`;
+    };
     const ways = (id, scripted) =>
         scripted
             ? `Walk it TWO ways, each its own session: (1) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${detours(id)}; (2) the success path by KEYBOARD only`

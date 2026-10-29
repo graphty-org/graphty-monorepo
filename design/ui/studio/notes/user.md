@@ -12,36 +12,32 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-21) Tier 3 round 1 closed at the one-round cap, bars unmet, studio stopped. 55 of 56
-  succeeded: the round is at its ceiling. The signal is in cost, routes and confusion, not in
-  success; future rounds measure steps over the key and first door, and read tasks for leading.
-- (2026-10-21) First door for node color is wrong: 9 sessions on 5 halves opened the Graph
-  inspector's Style tab (canvas settings only) and recovered by matching the Everything count to
-  the node count. Fix by making that tab point at the layer that paints nodes, not by a hint.
-- (2026-10-21) A new style line that starts at the current value (Fill 6366F1, Width 8 with no
-  unit) reads as "it did nothing". A new line must start at a visibly different value or show
-  that it is now the source.
-- (2026-10-21) Checking a layer's members is by eye: Values lists ids, the table does not mark or
-  filter painted rows. A layer should be able to show its members in the table, by name.
-- (2026-10-21) The color-name table speaks "gold" for a plainly yellow fill and gives two groups
-  one spoken name. Spoken names are what screen-reader users get: they must follow hue first, and
-  graders must not grade with the same table the app speaks with.
-- (2026-10-21) Keyboard: inspector F6 stop shows no focus (WCAG 2.4.7); both "Samples" controls
-  drop focus; 30+ Tabs to a sample card. One persona, all succeeded; fix in compact-mantine and
-  the app shell, they are cheap and serve everyone.
-- (2026-10-21) Color entry accepts words but says nothing; picker swatches hold no common hues.
-- (2026-10-21) Avoiding the <<Layer>> token counted as understanding it. A bar must separate the
-  two before the token is called learnable.
+- (2026-10-29) Tier 4 (data management, one round): grading from the last screenshot cannot see
+  roles, kinds or filter effects. Ask for an end-of-session data-state capture (like the style
+  tree) as a refusal in `real.mjs --end`, owned by the design engineer, before any session.
+- (2026-10-29) Tier 4 has no scripted walk of its data screens (bars.mjs stops at WALKS3), so the
+  wording check is blind. Two prompts already echo their control: T60 "web address" (the box reads
+  "Web address of a graph file"), T64 "stronger" / "farther" (the "Higher weight means" options).
+- (2026-10-29) "Returning" in tier 4 means "knows the shell"; every history makes the data features
+  new. Nothing measures second-time cost. Say so in the report rather than claim a repeat result.
+- (2026-10-29) A number column with one bad value ("n/a", "-") is offered only text operators on a
+  filter card. Real files look like that; check whether it blocks T65 once a half uses gauges.
+- (2026-10-21) At the ceiling (tier 3: 55 of 56) success says little; score cost (steps over the
+  key) and first door, and read tasks for leading.
+- (2026-10-21) Avoiding a token or control counted as understanding it. A bar must separate them.
 - (2026-10-21) Same-model participants cap what a round can find and the answer key may lead
-  graders. Before more sessions: blind the graders to the key's problem list.
-- Top risk, every tier: a picture that looks right and answers wrong. Any such screen is severity 3.
-- Grade the user's goal from what ended on screen and in the style tree, not the key's route or a
+  graders: blind graders to the key's problem list.
+- (2026-10-21) Spoken color names must follow hue first; graders never grade with the app's own
+  naming table.
+- Top risk, every tier: a picture (or a count) that looks right and answers wrong. Severity 3+.
+- Grade the user's goal from what ended on screen and in saved state, not the key's route or a
   participant's rating. Simulated passes are weak; failures and scripted repros count.
 - A new task brings its route's screens into the scripted walk in the same change; task wording
   never reuses the target's screen words.
 - Criteria prose asking for tool changes does not get built; ask for a gate refusal with an owner.
 - No tours, hint panels or first-run aids; the same screens for everyone.
-- No product concept built around one task's wording ("cube" for Box) or one domain.
+- No product concept built around one task's wording or one domain; every wording on two domains,
+  and "two domains" means two kinds of data, not two people-networks.
 
 ## Priorities and values
 
@@ -100,6 +96,20 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- **2026-10-29 (me, review of tier 4 criteria and tasks; build not yet named, no session run):**
+  Eight changes: grade from a saved data state (sources, roles, kinds, filter cards with effect,
+  order and counts, visible and selected counts) with `real.mjs --end` refusing without it; a tier
+  4 scripted walk of the data screens and a passing wording check before sessions; T60 drops "web
+  address"; T64 asks for the outcome, not "stronger" / "farther"; T65 B moves to river data (both
+  halves were people networks); T63's place half needs no action (lat/lon detected at load), so
+  make it need one on B or stop claiming it is measured; answer key ambiguities (T61 "did not fit"
+  covers P13 only; every "pilot to confirm" value and criteria line one filled before the gate);
+  a cost bar (median steps at most 1.5x the key on core tasks), a scripted axe check in bar 5, and
+  Sam on a new surface (join screen) instead of T62. Reason: bars that cannot be read, prompts that
+  name their control, a "two domains" claim that is one domain. Evidence: `NetworkDataDialog.tsx:75`
+  placeholder, `Fields.tsx:560` "Higher weight means" (options stronger, farther),
+  `tool/bars.mjs` (WALKS, WALKS3 only), `tool/real.mjs` (styleTree capture only), `tier4/answers.md`
+  T63 note (lat/lon designated at load), `tier4/backlog.md` (families: only text operators).
 - **2026-10-20 (me, fifth review of tier 3 criteria and tasks; named build 3ef9e6c1ec, no
   session run):** Eight changes: refreeze on the post-golden commit and re-read every reference
   value; define "grading-spoiling" as a screen that disagrees with the style tree, and count a
@@ -215,6 +225,10 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-29 -- WORKED: searching the app's source for each prompt's key words before any
+  session; it found two echoes (T60, T64) in a minute with no wording tool for tier 4. DID NOT (in
+  the materials): a "two domains" rule met by task letter rather than by kind of data.
+
 - 2026-10-21 -- TIER 3 ROUND 1 (frozen 758b8e8081). WORKED: Node | Edge layer list as the door
   (every session found it), Box via the Everything layer or a folder, Louvain grouping, the
   "Picked by hand" label. DID NOT: Graph inspector as first door for node color (9 sessions);
@@ -291,36 +305,16 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Sources
 
-- `tier3/dry-run-r1-4.md`; `tmp/tier3-dryrun-analysis/` (main checkout); `tool/bars.mjs`
-  WALKS3; `.claude/skills/design-studio/SKILL.md` on `chore/studio-convergence-rules` (2026-10-18).
-- `design/ui/studio/tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`; `../tool/bars.mjs`
-  (WALKS3); `graphty/src/components/shell/panel/AnalyzePanel.tsx` (SUGGESTED_CARDS);
-  `graphty/src/workspace/style/words.ts` (LAYER_TOKEN, bindingTitle); `P/recipe-recipient.md`
-  (2026-10-17).
-
-- `design/ui/studio/tier3/decide/user.md`; mock design `design/ui/style-panel-organization.md`
-  (branch `mock/style-panel`); `tmp/style-catalog/catalog.md`; element `catalog/types.ts`
-  (Selector, RuleTree, AttributeDescriptor), `session/styles/StylesApi.ts` (agreement, counts)
-  (2026-10-12).
-- `design/ui/studio/tier2/rounds/round-4/insights.md`, `scores.md`, `expert/*.md`; screenshots
-  `expert/figma/find/08.png`, `sessions/r4-s27/09.png`, `sessions/r4-s08/02.png`; code
-  `graphty/src/workspace/graph-place/FindBox.tsx` (ruleFromText, backtickSuggestion),
-  `graphty/src/workspace/table/TableDock.tsx:349`, `graphty-element/src/session/query.ts` (atLeastOf),
-  `graphty/src/workspace/canvas/legendWords.ts:336` (2026-10-11).
-- `design/ui/studio/tier2/rounds/round-3/decisions.md` (2026-10-11).
-
-- `design/ui/studio/tier2/rounds/round-1/` and `round-3/` insights, scores and expert walks
-  (2026-10-09, 2026-10-10).
-- `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,
-  `tier1.md` (this worktree, 2026-10-06).
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/decision-log.md`, "Round 8"
-  (targets, decisions, considered and rejected).
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536.jsonl`, 2026-09-26 16:01 (the studio's
-  User Advocate role defined) and 18:45 (Figma expert added).
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/wf_5285cd13-42b/` and
-  `wf_f793f987-53f/`, the User Advocate's own outputs, 2026-09-26 to 2026-09-28: top tasks
-  (agent-afe62ddf...), principles and "how novices are served" (agent-a0722d7f...), framework
-  revision, flows and journeys (agent-a7b8bc16...), styling and options (agent-a988315e...).
-  Extraction scripts: `design/ui/studio/tmp/user-notes/`.
-- `design/ui/studio/tmp/explore2-01.png` (real app, Florentine sample, 2026-10-06 smoke run).
+- 2026-10-29: `tier4/criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `decided.md` (R1-R15),
+  `backlog.md`; `design/data/filter-cards.md`, `data-management-requirements.md`;
+  `graphty/src/workspace/start/NetworkDataDialog.tsx`, `data-place/Fields.tsx`, `data-place/words.ts`.
+- 2026-10-17 to 2026-10-21: `tier3/report.md`, `criteria.md`, `tasks.md`, `answers.md`,
+  `dry-run-r1-4.md`; `tool/bars.mjs` (WALKS3), `tool/real.mjs` (gateCheck, styleTree),
+  `tool/wording.mjs`; `tmp/tier3-dryrun-analysis/` (main checkout).
+- 2026-10-08 to 2026-10-12: `tier2/rounds/round-1..4/` insights, scores, expert walks;
+  `tier3/decide/user.md`; `graphty/src/workspace/graph-place/FindBox.tsx`, `canvas/legendWords.ts`.
+- 2026-09-26 to 2026-10-07: `digests/` (decisions, framework, owner-voice, study-rounds, tier1);
+  the storyboards worktree's `prototype/study/decision-log.md` "Round 8"; the User Advocate's own
+  outputs under `.claudehistory/3a19ea55-.../subagents/workflows/` (extraction scripts in
+  `design/ui/studio/tmp/user-notes/`).
 - `CLAUDE.md` (Architectural Principles; graphty-element is neutral about presentation).

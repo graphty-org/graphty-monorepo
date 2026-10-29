@@ -2214,6 +2214,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSelectionManager: READ,
             getEventManager: READ,
             getAcceleration: READ,
+            getUpdateManager: READ,
             onNodeLabelCounts: READ,
         },
     },

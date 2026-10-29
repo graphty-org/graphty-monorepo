@@ -2677,6 +2677,7 @@ export interface GraphContext {
     getStatsManager(): StatsManager;
     getStylePainter?(): StylePainter | undefined;
     getStyles(): Styles;
+    getUpdateManager?(): UpdateManager;
     getXRConfig?(): XRConfig | undefined;
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;

@@ -567,6 +567,80 @@ describe("what the association reads as a label's own and a node's own", () => {
         Object.fromEntries(GRID.map(([id, x, y]) => [id, text(id.toUpperCase(), x, y)])),
     );
 
+    it("groups a node's words side by side into lines the same way on both sides", () => {
+        // xgmml-specimen-images-charts-p7: a chart's category names under its node. At size 20 (node a) "b" overlaps
+        // "a" and "c" a little in the oracle's Tahoma boxes and more in graphty's DejaVu ones; at size 10 (node b) the
+        // oracle's "a" and "b" stand 0.61 of a font size apart where graphty's stand 0.5 and graphty reads "a b"
+        const words: Record<string, [string, number, number][]> = {
+            a: [
+                ["a", 104, 9],
+                ["b", 111.5, 10],
+                ["c", 119, 9],
+            ],
+            b: [
+                ["a", 302.5, 5],
+                ["b", 313.7, 5],
+                ["c", 325.5, 5],
+            ],
+        };
+        const graphtyWords: Record<string, [string, number, number][]> = {
+            a: [
+                ["a", 104, 11],
+                ["b", 110, 11],
+                ["c", 116, 11],
+            ],
+            b: [
+                ["a", 303, 6],
+                ["b", 313.25, 5.5],
+                ["c", 324, 5],
+            ],
+        };
+        const sizeOf = (id: string): number => (id === "a" ? 20 : 10);
+        const prims = drawing((id) =>
+            (words[id] ?? []).map(([w, x, width]) => {
+                const t = text(w, x, 120, { anchor: "start" }, width, sizeOf(id));
+                return prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t });
+            }),
+        );
+        const labelOf = (id: string, x: number, y: number): PText | undefined =>
+            mergeTexts([
+                text(id.toUpperCase(), x, y),
+                ...(graphtyWords[id] ?? []).map(([w, wx, width]) => text(w, wx, 120, {}, width, sizeOf(id))),
+            ]) ?? undefined;
+        const g = scene("graphty", {}, Object.fromEntries(GRID.map(([id, x, y]) => [id, labelOf(id, x, y)])));
+        assert.strictEqual(g.nodes[0].label?.content, "A\na\nb\nc");
+        assert.strictEqual(g.nodes[1].label?.content, "B\na b\nc");
+        const { scene: o } = associate(prims, 600, 400, g);
+        assert.strictEqual(o.nodes.find((n) => n.id === "a")?.label?.content, "A\na\nb\nc");
+        assert.strictEqual(o.nodes.find((n) => n.id === "b")?.label?.content, "B\na b\nc");
+        // words graphty draws on rows of their own are still joined where the oracle runs them together
+        const stacked = scene(
+            "graphty",
+            {},
+            {
+                ...Object.fromEntries(GRID.map(([id, x, y]) => [id, text(id.toUpperCase(), x, y)])),
+                a:
+                    mergeTexts([text("A", 100, 100), text("a", 104, 120, {}, 9, 20), text("b", 104, 140, {}, 9, 20)]) ??
+                    undefined,
+            },
+        );
+        const ab = drawing((id) =>
+            id === "a"
+                ? [
+                      ["a", 104, 9],
+                      ["b", 112, 9],
+                  ].map(([w, x, width]) => {
+                      const t = text(String(w), Number(x), 120, { anchor: "start" }, Number(width), 20);
+                      return prim({ tag: "text", kind: "text", points: [], closed: false, box: t.box, text: t });
+                  })
+                : [],
+        );
+        assert.strictEqual(
+            associate(ab, 600, 400, stacked).scene.nodes.find((n) => n.id === "a")?.label?.content,
+            "A\nab",
+        );
+    });
+
     it("reads a box drawn tight behind a label's words as its background, not a stray", () => {
         const prims = drawing(() => []);
         // a yellow box behind a's words, drawn just before them
@@ -973,12 +1047,6 @@ describe("a label drawn as runs side by side", () => {
         assert.notInclude(
             stackedTexts(overPrims).map((p) => p.text?.content),
             "ac",
-        );
-        // names a little wider apart than graphty draws them (bar-axis-label-font-size-10: 0.61 of a font size where
-        // graphty's are 0.5): still the line graphty joins, so both sides read "a b"
-        assert.include(
-            stackedTexts([run("a", 100, 5), run("b", 111, 5)]).map((p) => p.text?.content),
-            "a b",
         );
         // level and turned lines in one label: one order, whatever order they come in
         const mixed = [

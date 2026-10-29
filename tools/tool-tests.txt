@@ -11,6 +11,7 @@ tools/channel/promote.test.mjs
 tools/channel/recapture.test.mjs
 tools/channel/rehearse.test.mjs
 tools/channel/resume.test.mjs
+tools/channel/rolling.test.mjs
 tools/channel/site-deploy.test.mjs
 tools/channel/story-slices.test.mjs
 tools/check-committed-images.test.mjs

@@ -481,6 +481,9 @@ jobs:
                   HEAD_SHA: ${{ inputs.mode == 'restart' && inputs.sha || github.sha }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  # "rolling" lets the ordering-only pick rule choose (design/visual-testing/early-capture.md 4e);
+                  # unset, the rule is only logged beside today's choice
+                  PICK_RULE: ${{ vars.FULL_RUN_PICK_RULE }}
               run: |
                   set -euo pipefail
                   # the pick compares the candidate with channel/nightly (tools/full-run.mjs onNightly, hasNightly)

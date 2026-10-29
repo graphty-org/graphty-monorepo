@@ -7,7 +7,9 @@
 #
 # Dispatch only: the pipeline-health collector starts it when the runners are quiet (plan step 5), or a person by
 # hand: gh workflow run story-slices.yml --ref master -f mode=base -f post=false
-# A slice never cancels another (one concurrency group, queued), never saves a cache entry (it only restores the
+# One concurrency group without cancel-in-progress: a running slice is never cancelled, but a dispatch while one runs
+# replaces a waiting one (GitHub keeps one pending run per group), which is why the dispatcher never dispatches while
+# a slice is in flight. A slice never saves a cache entry (it only restores the
 # LFS baselines) and uses only the Storybook artifacts of exactly X's green ci.yml push build: when they are gone,
 # its bins fail.
 name: Story slices
@@ -236,9 +238,11 @@ jobs:
                   if-no-files-found: ignore
 
             # The bin's rows: every render's status and hashes against X's baselines tree, and the units it rendered
-            # whole (only when the capture finished, so a broken bin's units stay oldest for the next slice).
+            # whole (only when the capture finished, so a broken bin's units stay oldest for the next slice). Units
+            # with no story in X's Storybook (pick found none) are recorded as rendered with no renders, so they do
+            # not stay oldest and take a bin of every later slice for nothing.
             - name: Record the renders in the results store
-              if: always() && inputs.post && steps.capture.outcome != 'skipped'
+              if: always() && inputs.post && (steps.capture.outcome != 'skipped' || (steps.pick.outcome == 'success' && steps.pick.outputs.stories == ''))
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
@@ -246,8 +250,15 @@ jobs:
                   FILES: ${{ toJSON(matrix.files) }}
                   SHA: ${{ needs.plan.outputs.sha }}
                   ARTIFACT: visual-slice-${{ matrix.name }}-${{ github.run_attempt }}
+                  STORIES: ${{ steps.pick.outputs.stories }}
+                  CAPTURED: ${{ steps.capture.outcome }}
               run: |
                   f="$RUNNER_TEMP/visual/results.json"
+                  if [[ -z "$STORIES" && "$CAPTURED" == skipped ]]; then
+                      echo "::warning::no story of $FILES is in the built Storybook; recorded as rendered with none"
+                      f="$RUNNER_TEMP/empty-results.json"
+                      echo '{"complete":true,"items":[]}' > "$f"
+                  fi
                   [[ -f "$f" ]] || { echo "::error::the capture wrote no results.json"; exit 1; }
                   node tools/channel/story-slices.mjs post --project "$PROJECT" --results "$f" --files "$FILES" \
                       --sha "$SHA" --tree "$(git rev-parse HEAD:visual-baselines)" --artifact "$ARTIFACT"

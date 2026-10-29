@@ -245,6 +245,12 @@ describe("story-slices.yml", () => {
         assert.match(post.if, /inputs\.post/);
         assert.ok(!/git (add|commit|push)|rm -rf visual-baselines|> *visual-baselines/.test(text));
     });
+
+    it("records a bin whose units have no story in the built Storybook, so they do not stay oldest forever", () => {
+        const post = steps("capture").find((s) => /story-slices\.mjs post/.test(String(s.run ?? "")));
+        assert.match(post.if, /steps\.pick\.outputs\.stories == ''/);
+        assert.match(post.run, /\{"complete":true,"items":\[\]\}/);
+    });
 });
 
 describe("ci.yml's reach rows (4a)", () => {

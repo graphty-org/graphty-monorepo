@@ -7,8 +7,8 @@
 // - A GitHub Actions OIDC token (audience graphty-results) from this repository: a pull_request run writes `pr`
 //   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
 //   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
-//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, deploy-pages.yml `site` (the site-<sha> it
-//   kept), each only on refs/heads/master.
+//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, story-slices.yml `slice` (story captures),
+//   deploy-pages.yml `site` (the site-<sha> it kept), each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
 import {
@@ -40,12 +40,15 @@ const MASTER_KINDS = {
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
     "deploy-pages.yml": "site",
+    // the rolling screenshot slices (design/visual-testing/early-capture.md): story captures only
+    "story-slices.yml": "slice",
 };
 // Kinds that write no test records, and why.
 const NO_TESTS = {
     deploy: "a site repository writes only durations",
     site: "deploy-pages.yml writes only its site and durations",
     master: "a push to master runs ci.yml as a build only, with no tests",
+    slice: "story-slices.yml writes only story captures",
 };
 const MASTER = "refs/heads/master";
 const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
@@ -556,6 +559,133 @@ async function postHold(body, who, db, nowMs) {
     return { held: true };
 }
 
+// The rolling screenshot slices (design/visual-testing/early-capture.md, 4c). Only master's story-slices.yml writes
+// captures, each row under its own run; only ci.yml's push build of a master commit writes that commit's reach.
+// Every read answers only a story's newest capture; rows older than 7 days that are not a story's newest are pruned
+// on each write (no cron here).
+const CAPTURE_STATUSES = new Set(["unchanged", "changed", "new", "unseeded", "unstable", "failed"]);
+// what the owner's rolling queue can hold, before the tree and reach checks its consumers apply (4d)
+const QUEUE_STATUSES = new Set(["changed", "new", "unseeded"]);
+const NOTIFY_KINDS = new Set(["queue", "slot"]);
+const STORY_ROWS_MAX = 2000;
+const STORY_KEEP_MS = 7 * 86_400_000;
+
+function text(value, name, { optional = false } = {}) {
+    if (optional && value == null) return null;
+    if (typeof value !== "string" || !value || value.length > 300)
+        refuse(400, `${name} must be a string of 1 to 300 characters`);
+    return value;
+}
+
+function storyRows(captures) {
+    if (!Array.isArray(captures) || captures.length > STORY_ROWS_MAX)
+        refuse(400, `captures must be a list of at most ${STORY_ROWS_MAX}`);
+    return captures.map((c) => {
+        if (!CAPTURE_STATUSES.has(c?.status)) refuse(400, `status must be one of ${[...CAPTURE_STATUSES].join(", ")}`);
+        return [
+            text(c.project, "project"),
+            text(c.story, "story"),
+            c.mode == null ? "" : text(c.mode, "mode"),
+            c.status,
+            text(c.hash, "hash", { optional: true }),
+            text(c.baselineHash, "baselineHash", { optional: true }),
+        ];
+    });
+}
+
+async function postStoryCaptures(body, who, db, nowMs) {
+    if (who.kind !== "slice") refuse(403, "only master's own story-slices.yml records story captures");
+    if (!SHA.test(body?.sha ?? "")) refuse(400, "sha must be a full commit id");
+    if (!SHA.test(body.baselinesTree ?? "")) refuse(400, "baselinesTree must be a full tree id");
+    const artifact = text(body.artifact, "artifact");
+    const notified = body.notified ?? [];
+    if (!Array.isArray(notified) || !notified.every((k) => NOTIFY_KINDS.has(k)))
+        refuse(400, `notified must list some of ${[...NOTIFY_KINDS].join(", ")}`);
+    const run = [Number(who.claims.run_id), Number(who.claims.run_attempt)];
+    const rows = storyRows(body.captures).map(([project, story, mode, status, hash, baselineHash]) => [
+        project,
+        story,
+        mode,
+        body.sha,
+        body.baselinesTree,
+        ...run,
+        artifact,
+        status,
+        hash,
+        baselineHash,
+        nowMs,
+    ]);
+    const columns = ["project", "story", "mode", "sha", "baselines_tree", "run_id", "attempt", "artifact"];
+    const results = await db.batch([
+        ...inserts(db, "story_capture", [...columns, "status", "hash", "baseline_hash", "at"], rows),
+        ...notified.map((kind) =>
+            db.prepare("INSERT OR REPLACE INTO story_notify (kind, at) VALUES (?, ?)").bind(kind, nowMs),
+        ),
+        db
+            .prepare(
+                `DELETE FROM story_capture WHERE at < ? AND EXISTS (SELECT 1 FROM story_capture n WHERE n.project = story_capture.project
+                 AND n.story = story_capture.story AND n.mode = story_capture.mode AND n.at > story_capture.at)`,
+            )
+            .bind(nowMs - STORY_KEEP_MS),
+        db.prepare("DELETE FROM story_reach WHERE at < ?").bind(nowMs - STORY_KEEP_MS),
+    ]);
+    const stored = results.slice(0, results.length - notified.length - 2).reduce((n, r) => n + r.meta.changes, 0);
+    return { stored };
+}
+
+async function postStoryReach(body, who, db, nowMs) {
+    if (who.kind !== "master") refuse(403, "only ci.yml's own push build of master records story reach");
+    if (body?.sha !== who.claims.sha) refuse(403, "a master build records only its own commit's reach");
+    const units = body.units;
+    if (!Array.isArray(units) || units.length > STORY_ROWS_MAX)
+        refuse(400, `units must be a list of at most ${STORY_ROWS_MAX}`);
+    const rows = units.map((u) => [body.sha, text(u, "unit"), nowMs]);
+    if (!rows.length) return { stored: 0 };
+    const results = await db.batch(inserts(db, "story_reach", ["sha", "unit", "at"], rows));
+    return { stored: results.reduce((n, r) => n + r.meta.changes, 0) };
+}
+
+async function getStoryCaptures(_query, _who, db) {
+    const [{ results: newest }, last, { results: notified }] = await Promise.all([
+        db
+            .prepare(
+                `SELECT project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, hash, baseline_hash, at
+                 FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, story, mode ORDER BY at DESC, run_id DESC, attempt DESC) AS rn
+                 FROM story_capture) WHERE rn = 1 ORDER BY project, story, mode`,
+            )
+            .all(),
+        db.prepare("SELECT sha, at FROM story_capture ORDER BY at DESC, run_id DESC LIMIT 1").first(),
+        db.prepare("SELECT kind, at FROM story_notify").all(),
+    ]);
+    const statuses = {};
+    for (const c of newest) statuses[c.status] = (statuses[c.status] ?? 0) + 1;
+    const when = Object.fromEntries(notified.map((n) => [n.kind, n.at]));
+    return {
+        captures: newest.map((c) => ({
+            project: c.project,
+            story: c.story,
+            mode: c.mode,
+            sha: c.sha,
+            baselinesTree: c.baselines_tree,
+            runId: c.run_id,
+            attempt: c.attempt,
+            artifact: c.artifact,
+            status: c.status,
+            hash: c.hash,
+            baselineHash: c.baseline_hash,
+            at: c.at,
+        })),
+        summary: {
+            stories: newest.length,
+            lastSliced: last ? { sha: last.sha, at: last.at } : null,
+            oldestNewestAt: newest.length ? Math.min(...newest.map((c) => c.at)) : null,
+            statuses,
+            queue: newest.filter((c) => QUEUE_STATUSES.has(c.status)).length,
+        },
+        notified: Object.fromEntries([...NOTIFY_KINDS].map((k) => [k, when[k] ?? null])),
+    };
+}
+
 const ROUTES = {
     "POST /v1/hold": postHold,
     "POST /v1/verdicts": postVerdict,
@@ -566,12 +696,15 @@ const ROUTES = {
     "POST /v1/sites": postSite,
     "POST /v1/base-checks": postBaseCheck,
     "POST /v1/channel-moves": postChannelMove,
+    "POST /v1/story-captures": postStoryCaptures,
+    "POST /v1/story-reach": postStoryReach,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
     "GET /v1/candidate": getCandidate,
     "GET /v1/release-state": getReleaseState,
     "GET /v1/failures": getFailures,
     "GET /v1/durations/medians": getMedians,
+    "GET /v1/story-captures": getStoryCaptures,
     [`GET ${TESTS_PATH}:name`]: getTestDurations,
     [`PUT ${TESTS_PATH}:name`]: putTestDurations,
 };

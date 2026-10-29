@@ -310,8 +310,8 @@ Ruleset "Protect master" (id 23973898), read on 2026-10-24:
 - pull request required, merge commits only, 0 approvals, `require_code_owner_review: false`;
 - required checks `All Checks Pass` and `Lint PR Title`.
 
-The one deploy key is "release deploy key 2026-10-25" (id 167635448), used by release.yml and
-promote.yml as environment `release`'s `RELEASE_DEPLOY_KEY`. It replaced "release workflow push
+The one deploy key is "release deploy key 2026-10-25" (id 167635448), used by release.yml,
+promote.yml and nightly-abandon.yml as environment `release`'s `RELEASE_DEPLOY_KEY`. It replaced "release workflow push
 (version commit and tags)" (id 164375816), whose repository-level secret no job reads.
 
 ### 3.2 Target

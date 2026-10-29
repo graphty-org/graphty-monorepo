@@ -32,8 +32,12 @@ export const PAID = ["success", "failure", "cancelled"];
  * @returns USD, or null
  */
 export function logCost(log) {
-    const costs = [...log.matchAll(/\[llm-regression\] API calls: \d+[^\n]*?, cost \$(\d+(?:\.\d+)?)/g)];
-    return costs.length ? costs.reduce((sum, m) => sum + Number(m[1]), 0) : null;
+    const costs = log
+        .split("\n")
+        .filter((line) => line.includes("[llm-regression] API calls: "))
+        .map((line) => line.slice(line.lastIndexOf(", cost $") + ", cost $".length))
+        .filter((usd) => /^\d+(\.\d+)?$/.test(usd.trim()));
+    return costs.length ? costs.reduce((sum, usd) => sum + Number(usd), 0) : null;
 }
 
 /**

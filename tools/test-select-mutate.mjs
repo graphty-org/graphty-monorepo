@@ -109,6 +109,21 @@ export function mutant(path, text) {
 }
 
 /**
+ * A broken copy of a file for --stories: a code file throws on import only on a story's page (its URL has an
+ * `id`), so the capture's preview.extract() (iframe.html, no id), which loads every story file, still lists the
+ * stories and only the stories whose page loads the file fail to render; a data file breaks as in mutant().
+ * @param path repo-relative path
+ * @param text its contents
+ * @returns the broken contents
+ */
+export function storyMutantText(path, text) {
+    if (CODE.test(path)) {
+        return `${text}\nif (new URLSearchParams(globalThis.location?.search ?? "").has("id")) {\n    throw new Error("select-mutant");\n}\n`;
+    }
+    return mutant(path, text);
+}
+
+/**
  * The failing test files a batch of broken files must be checked for, grouped by the broken files that did
  * NOT select them (a file selected by every broken file, or by one that runs the whole shard, is explained).
  * @param failing repo-relative test files that failed with the batch broken
@@ -516,7 +531,7 @@ async function storyMutant(c, n, f) {
         return { misses: 0, inconclusive: 0, checked: 0 };
     }
     const original = readFileSync(join(c.wt, f));
-    writeFileSync(join(c.wt, f), mutant(f, original.toString("utf8")));
+    writeFileSync(join(c.wt, f), storyMutantText(f, original.toString("utf8")));
     let broken;
     try {
         // a second try, so a browser that failed to start is not taken for an unloadable Storybook

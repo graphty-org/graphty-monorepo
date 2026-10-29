@@ -37,7 +37,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
 import { pushBaseRef } from "./push-base.mjs";
-import { buildInput, loadRules, sourceOf } from "./test-select.mjs";
+import { buildInput, loadRules } from "./test-select.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SUITE = "graphty/acceptance/";
@@ -151,8 +151,9 @@ export function appInputs(root, dist) {
 const mapSources = (mapFile, from) => JSON.parse(readFileSync(mapFile, "utf8")).sources.map((s) => resolve(from, s));
 
 /**
- * The source files of the package a build output was built from: its own source map's, or
- * tools/test-select.mjs's mapping to its source.
+ * The source files of the package a build output was built from, read from its own source map. An
+ * output with no map is not known: a bundled entry (compact-mantine/dist/index.js) would otherwise
+ * trace to its one entry source and miss every file it bundles.
  * @param root the checkout
  * @param abs a build output's absolute path
  * @param pkg its package directory
@@ -160,8 +161,10 @@ const mapSources = (mapFile, from) => JSON.parse(readFileSync(mapFile, "utf8")).
  */
 function builtFrom(root, abs, pkg) {
     const own = `${abs}.map`;
-    const srcs = existsSync(own) ? mapSources(own, dirname(abs)) : [sourceOf(root, abs)].filter(Boolean);
-    return srcs.map((s) => relative(root, s)).filter((s) => s.startsWith(`${pkg}/`));
+    if (!existsSync(own)) return [];
+    return mapSources(own, dirname(abs))
+        .map((s) => relative(root, s))
+        .filter((s) => s.startsWith(`${pkg}/`));
 }
 
 /**
@@ -217,8 +220,10 @@ function usage(message) {
  * The run folder in the main checkout, and the removal of runs older than KEEP_DAYS.
  * @returns a new, empty folder
  */
+const gitCommonDir = () => git(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+
 function runFolder() {
-    const main = dirname(git(["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    const main = dirname(gitCommonDir());
     const runs = join(main, "tmp/acceptance/runs");
     mkdirSync(runs, { recursive: true });
     const old = Date.now() - KEEP_DAYS * 86_400_000;
@@ -247,6 +252,7 @@ function options(argv) {
     if (!["run", "select"].includes(command) || o.positionals.length > 1) throw new Error("one command: run or select");
     if (o.values.all && (o.values.base || o.values.changed))
         throw new Error("--all runs every route; --changed and --base measure a change: use one");
+    if (!/^[1-4]$/u.test(o.values.workers)) throw new Error("--workers is 1 to 4");
     return { command, ...o.values };
 }
 
@@ -303,19 +309,38 @@ function choose(v, dist, suite) {
  * @returns the exit status: 0 passed, 1 failed, 4 could not run
  */
 function walk(ids, dist, workers, folder) {
+    const egl = process.env.DRY_RUN_EGL_DIR || join(dirname(gitCommonDir()), "tmp/egl/root/usr/lib/x86_64-linux-gnu");
+    if (!existsSync(join(egl, "libEGL.so.1"))) {
+        console.error(
+            `acceptance: could not run: the GPU browser needs libEGL.so.1 in ${egl} (see graphty/acceptance/README.md)`,
+        );
+        return 4;
+    }
+    const out = join(ROOT, "tmp/dry-run");
+    // an earlier run's report must not be kept under this run's name when run.mjs stops before it clears it
+    rmSync(out, { recursive: true, force: true });
     const args = [join(ROOT, SUITE, "run.mjs"), "--only", ids.join(","), "--dist", dist, "--workers", workers];
     const run = spawnSync(process.execPath, args, { cwd: ROOT, stdio: "inherit" });
-    const out = join(ROOT, "tmp/dry-run");
     if (existsSync(out)) cpSync(out, folder, { recursive: true });
     console.log(`acceptance: results and end screens in ${folder}`);
     if (run.status === 0) return 0;
     if (run.status !== 1) return 4;
-    // every route failed for want of the GPU: the lane could not run, not a failed route
     const report = join(folder, "report.json");
     const results = existsSync(report) ? JSON.parse(readFileSync(report, "utf8")).results : [];
+    return couldNotRun(results, ids.length) ? 4 : 1;
+}
+
+/**
+ * Whether a failed run could not run at all (exit 4) rather than had a route fail (exit 1): every route
+ * failed for want of the GPU, or no route was reached (every browser failed to start).
+ * @param results report.json's results
+ * @param count the routes asked for
+ * @returns true when no route was walked
+ */
+export function couldNotRun(results, count) {
     const failed = results.filter((r) => r.result !== "pass");
-    const noGpu = failed.length === ids.length && failed.every((r) => /NVIDIA card|libEGL/u.test(r.reason ?? ""));
-    return noGpu ? 4 : 1;
+    if (failed.length !== count || !count) return false;
+    return failed.every((r) => r.result === "not run" || /NVIDIA card|libEGL/u.test(r.reason ?? ""));
 }
 
 async function main(argv) {

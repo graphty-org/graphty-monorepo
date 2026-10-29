@@ -846,7 +846,7 @@ function selfTestBranches(assert) {
     }
 }
 
-// The routes moved from graphty/acceptance/ to graphty/acceptance/: a base from before the move is read
+// The routes moved from graphty/dry-run/ to graphty/acceptance/: a base from before the move is read
 // at the old place, so the move itself changes nothing and a check dropped on the way is still caught.
 function selfTestMove(assert) {
     const reason = `fix(graphty): the check read the wrong column\n\n${TRAILER}: names live in label on this file`;

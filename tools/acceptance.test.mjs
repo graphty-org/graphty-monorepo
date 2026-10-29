@@ -3,9 +3,12 @@
 //
 //   node --test tools/acceptance.test.mjs
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 
-import { selectRoutes } from "./acceptance.mjs";
+import { appInputs, couldNotRun, selectRoutes } from "./acceptance.mjs";
 
 const routes = [
     { id: "t38a-volunteers", text: 'async walk(u) { await openFile(u, "volunteers.graphml"); }' },
@@ -79,5 +82,58 @@ describe("selectRoutes", () => {
             everything,
         });
         assert.deepEqual(ids(s), ALL);
+    });
+});
+
+describe("appInputs", () => {
+    it("traces a package through its build's own map, and a map-less build output to the whole package", () => {
+        const root = mkdtempSync(join(tmpdir(), "acceptance-app-"));
+        const put = (f, text) => {
+            mkdirSync(dirname(join(root, f)), { recursive: true });
+            writeFileSync(join(root, f), text);
+        };
+        const map = (sources) => JSON.stringify({ version: 3, sources, mappings: "" });
+        try {
+            put("graphty/package.json", JSON.stringify({ name: "app", dependencies: { ui: "workspace:*" } }));
+            put(
+                "compact-mantine/package.json",
+                JSON.stringify({ name: "ui", exports: { ".": { import: "./dist/index.js" } } }),
+            );
+            put("layout/package.json", JSON.stringify({ name: "lay" }));
+            put("compact-mantine/src/index.ts", "");
+            put("compact-mantine/vite.config.ts", 'build: { lib: { entry: "src/index.ts" } }');
+            put("compact-mantine/dist/index.js", "");
+            put("layout/dist/index.js", "");
+            put("layout/dist/index.js.map", map(["../src/a.ts"]));
+            put(
+                "graphty/dist/assets/index.js.map",
+                map(["../../src/App.tsx", "../../../compact-mantine/dist/index.js", "../../../layout/dist/index.js"]),
+            );
+            const app = appInputs(root, join(root, "graphty/dist"));
+            assert.deepEqual([...app.files].sort(), ["graphty/src/App.tsx", "layout/src/a.ts"]);
+            assert.deepEqual([...app.whole], ["compact-mantine"]);
+            const s = selectRoutes({
+                changed: ["compact-mantine/src/theme/index.ts"],
+                app,
+                routes,
+                routesText,
+                everything,
+            });
+            assert.deepEqual(ids(s), ALL, "a theme change of a map-less package runs every route");
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("couldNotRun", () => {
+    const notRun = { result: "not run", reason: "no worker reached it (worker exits: 1)" };
+    it("is true when no route was walked, or every route failed for want of the GPU", () => {
+        assert.equal(couldNotRun([notRun, notRun], 2), true);
+        assert.equal(couldNotRun([{ result: "fail", reason: "draws with SwiftShader, not the NVIDIA card" }], 1), true);
+    });
+    it("is false when a route was walked and failed", () => {
+        assert.equal(couldNotRun([notRun, { result: "fail", reason: "expected 3 nodes" }], 2), false);
+        assert.equal(couldNotRun([notRun, { result: "pass" }], 2), false);
     });
 });

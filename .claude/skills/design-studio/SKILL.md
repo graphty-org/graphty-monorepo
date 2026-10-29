@@ -268,7 +268,8 @@ Each rule below exists because breaking it cost a run.
   change from run to run on one build; the outcome checks read what the drawing shows), and only changed screens go to one reviewer
   agent. A defect a pilot finds on a success path becomes a route (`graphty/acceptance/README.md`,
   "Adding a route"). Nothing runs it automatically on a branch: an agent with a long-running
-  branch that touches the app runs `node graphty/acceptance/run.mjs` itself before landing.
+  branch that touches the app runs `node tools/acceptance.mjs run` itself before landing (only the
+  routes its change can affect; `--all` for every route).
 - **Always `--end` a session, including after a failed attempt.** A stopped agent that never ended
   its session kept its browser slot until the idle timeout.
 - **Step notes are one or two sentences, in character.** Full think-aloud in long, screenshot-heavy

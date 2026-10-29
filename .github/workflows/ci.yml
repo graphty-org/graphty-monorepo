@@ -1212,8 +1212,8 @@ jobs:
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
-            # No pull request removes or changes an outcome check of the dry run (graphty/dry-run/), or
-            # the code that decides one passes, except a check-change branch (graphty/dry-run/README.md).
+            # No pull request removes or changes an outcome check of the dry run (graphty/acceptance/), or
+            # the code that decides one passes, except a check-change branch (graphty/acceptance/README.md).
             - name: Dry-run outcome checks kept
               run: pnpm run check:dry-run-checks
 

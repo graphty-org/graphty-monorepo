@@ -5,11 +5,11 @@
  * uploads a user makes from the start page; its outcome checks read what the user would see through
  * graphty-element's public API or the accessibility tree. No pixels are compared here.
  *
- *   node graphty/dry-run/run.mjs                    every route, on up to 4 browsers
- *   node graphty/dry-run/run.mjs --only t39a,t46    routes whose id starts with one of these
- *   node graphty/dry-run/run.mjs --workers 1        one browser
- *   node graphty/dry-run/run.mjs --list             the routes, nothing run
- *   node graphty/dry-run/run.mjs --dist <dir>       another build (default graphty/dist)
+ *   node graphty/acceptance/run.mjs                    every route, on up to 4 browsers
+ *   node graphty/acceptance/run.mjs --only t39a,t46    routes whose id starts with one of these
+ *   node graphty/acceptance/run.mjs --workers 1        one browser
+ *   node graphty/acceptance/run.mjs --list             the routes, nothing run
+ *   node graphty/acceptance/run.mjs --dist <dir>       another build (default graphty/dist)
  *
  * Writes tmp/dry-run/report.json (each route's result, time and reason) and, for a failed route,
  * tmp/dry-run/<route>.aria.txt: what the page offered a user when it failed, and tmp/dry-run/<route>.png

@@ -8,8 +8,8 @@ Which filter API to use:
 
 - **Conditions** (this page) for filters a reader switches on and off, each with its own count.
 - `visibility.set(rule)` for one filter your code sets. It combines with the conditions by AND.
-- `visibility.steps` and `setSteps` are older and deprecated: they are a view of the keep and
-  exclude conditions. Use conditions instead.
+- `visibility.steps` and `setSteps` are the older, ordered form: a view of the keep and exclude
+  conditions. Prefer conditions in new code.
 
 ## Quick start
 
@@ -94,8 +94,8 @@ other. Read them again on `visibility:changed` or `history:changed`.
 | `setConditions(list)`                   | Replaces every condition; `[]` clears them          |
 
 Each call is one undoable step, and each refuses a malformed condition or a repeated id with
-`E_BAD_COMMAND`. History facts name the condition: `visibility.step-add`, `-edit`, `-on`, `-off`
-and `-remove`, each with `{ id }`.
+`E_BAD_COMMAND`. History facts name the condition: `visibility.condition-add`, `-edit`, `-on`,
+`-off` and `-remove`, each with `{ id, effect }`; an edit also carries `previousEffect`.
 
 To switch every keep and exclude condition off in one undo step, use a transaction:
 

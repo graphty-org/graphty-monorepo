@@ -266,23 +266,54 @@ type Entry = Pick<FilterCondition, "id" | "on" | "rule"> & { readonly effect?: F
 
 /**
  * What one conditions or steps edit did, as a history fact: one added, edited, switched on or
- * off, or removed, naming its id; `visibility.steps` for anything else.
+ * off, or removed; `visibility.steps` for anything else. A steps edit names the step's id
+ * (`visibility.step-*`); a conditions edit names the condition's id and effect, and an edit its
+ * effect before (`visibility.condition-*`), so a removed condition can still be described.
  * @param before - The list before.
  * @param after - The list after.
+ * @param kind - Which API made the edit.
  * @returns The fact.
  */
-export function listFact(before: readonly Entry[], after: readonly Entry[]): CodedFact<HistoryCode> {
+export function listFact(
+    before: readonly Entry[],
+    after: readonly Entry[],
+    kind: "step" | "condition" = "step",
+): CodedFact<HistoryCode> {
+    const fact = (
+        verb: "add" | "edit" | "on" | "off" | "remove",
+        entry: Entry,
+        old?: Entry,
+    ): CodedFact<HistoryCode> => {
+        if (kind === "step") {
+            return { code: `visibility.step-${verb}`, params: { id: entry.id } };
+        }
+
+        const params: Record<string, string> = { id: entry.id, effect: entry.effect ?? "keep" };
+        if (old !== undefined) {
+            params.previousEffect = old.effect ?? "keep";
+        }
+
+        return { code: `visibility.condition-${verb}`, params };
+    };
+
     const added = after.length === before.length + 1 ? onlyIn(after, before) : undefined;
     if (added !== undefined) {
-        return { code: "visibility.step-add", params: { id: added.id } };
+        return fact("add", added);
     }
 
     const removed = after.length === before.length - 1 ? onlyIn(before, after) : undefined;
     if (removed !== undefined) {
-        return { code: "visibility.step-remove", params: { id: removed.id } };
+        return fact("remove", removed);
     }
 
-    return oneChanged(before, after) ?? { code: "visibility.steps", params: {} };
+    const changed = oneChanged(before, after);
+    if (changed === undefined) {
+        return { code: "visibility.steps", params: {} };
+    }
+
+    const [old, entry, verb] = changed;
+
+    return verb === "edit" ? fact("edit", entry, old) : fact(verb, entry);
 }
 
 /**
@@ -316,13 +347,16 @@ function onlyIn(longer: readonly Entry[], shorter: readonly Entry[]): Entry | un
 }
 
 /**
- * The fact for an edit of exactly one entry in an unchanged order: switched on or off, or edited
- * (its rule or its effect).
+ * The edit of exactly one entry in an unchanged order: switched on or off, or edited (its rule or
+ * its effect).
  * @param before - The list before.
  * @param after - The list after.
- * @returns The fact, or undefined for anything else.
+ * @returns The entry before, after, and what was done to it; undefined for anything else.
  */
-function oneChanged(before: readonly Entry[], after: readonly Entry[]): CodedFact<HistoryCode> | undefined {
+function oneChanged(
+    before: readonly Entry[],
+    after: readonly Entry[],
+): readonly [Entry, Entry, "edit" | "on" | "off"] | undefined {
     if (!sameIds(before, after)) {
         return undefined;
     }
@@ -338,10 +372,10 @@ function oneChanged(before: readonly Entry[], after: readonly Entry[]): CodedFac
     const [entry] = changed;
     const old = before[after.indexOf(entry)];
     if (sameBody(old, entry)) {
-        return { code: entry.on ? "visibility.step-on" : "visibility.step-off", params: { id: entry.id } };
+        return [old, entry, entry.on ? "on" : "off"];
     }
 
-    return { code: "visibility.step-edit", params: { id: entry.id } };
+    return [old, entry, "edit"];
 }
 
 /** The version of the `conditions` field a project file's `visibility` member writes. */

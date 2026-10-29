@@ -12,7 +12,9 @@ import {
     type FilterConditionInput,
     type GraphSession,
     type RuleTree,
+    type TransactionScope,
 } from "../../../session";
+import { dispatcherOf } from "../../../src/session/GraphSession";
 
 /** Hosts and services with a score, and weighted edges; edge ids are "0" to "4" in this order. */
 const DATA = JSON.stringify({
@@ -254,11 +256,11 @@ describe("filter conditions", () => {
         assert.deepStrictEqual(
             session.history.steps.slice(-5).map((step) => step.fact),
             [
-                { code: "visibility.step-add", params: { id } },
-                { code: "visibility.step-off", params: { id } },
-                { code: "visibility.step-on", params: { id } },
-                { code: "visibility.step-edit", params: { id } },
-                { code: "visibility.step-remove", params: { id } },
+                { code: "visibility.condition-add", params: { id, effect: "keep" } },
+                { code: "visibility.condition-off", params: { id, effect: "keep" } },
+                { code: "visibility.condition-on", params: { id, effect: "keep" } },
+                { code: "visibility.condition-edit", params: { id, effect: "exclude", previousEffect: "keep" } },
+                { code: "visibility.condition-remove", params: { id, effect: "exclude" } },
             ],
         );
         await session.undo();
@@ -292,6 +294,66 @@ describe("filter conditions", () => {
         assert.deepStrictEqual(visible(session).nodes, NODES);
         await session.undo();
         assert.deepStrictEqual(visible(session).nodes, ["b", "e"]);
+        session.dispose();
+    });
+
+    it("announces a transaction's visibility change whatever order its keep and select edits come in", async () => {
+        const orders: [string, (tx: TransactionScope) => PromiseLike<unknown>][][] = [
+            [
+                ["keep", (tx) => tx.visibility.addCondition({ effect: "keep", rule: HOSTS })],
+                ["select", (tx) => tx.visibility.addCondition({ effect: "select", rule: HIGH })],
+            ],
+        ];
+        orders.push([...orders[0]].reverse());
+        for (const order of orders) {
+            const session = await graph();
+            let shows = 0;
+            session.on("visibility:changed", () => shows++);
+            await session.transaction("Both", async (tx) => {
+                for (const [, edit] of order) {
+                    await edit(tx);
+                }
+            });
+            assert.deepStrictEqual(visible(session).nodes, ["a", "b", "e"]);
+            assert.strictEqual(shows, 1, order.map(([name]) => name).join(" then "));
+            session.dispose();
+        }
+
+        // Switching a keep condition off and then a select condition off.
+        const session = await graph();
+        await session.visibility.setConditions([
+            { id: "k", effect: "keep", rule: HOSTS },
+            { id: "s", effect: "select", rule: HIGH },
+        ]);
+        let shows = 0;
+        session.on("visibility:changed", () => shows++);
+        await session.transaction("Both off", async (tx) => {
+            await tx.visibility.updateCondition("k", { on: false });
+            await tx.visibility.updateCondition("s", { on: false });
+        });
+        assert.deepStrictEqual(visible(session).nodes, NODES);
+        assert.strictEqual(shows, 1);
+        session.dispose();
+    });
+
+    it("puts the reader's selection back when a transaction that added a select condition rolls back", async () => {
+        const session = await graph();
+        await session.selection.apply({ nodes: ["b"] });
+        const failure = new Error("stop");
+        let thrown: unknown;
+        try {
+            await session.transaction("Fails", async (tx) => {
+                await tx.visibility.addCondition({ effect: "select", rule: HIGH });
+                throw failure;
+            });
+        } catch (error) {
+            thrown = error;
+        }
+
+        assert.strictEqual(thrown, failure);
+        await dispatcherOf(session).lane.settled();
+        assert.deepStrictEqual(session.visibility.conditions, []);
+        assert.deepStrictEqual(selected(session).nodes, ["b"]);
         session.dispose();
     });
 

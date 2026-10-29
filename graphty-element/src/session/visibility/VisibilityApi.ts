@@ -840,8 +840,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     let unresolvedValue: readonly Path[] = NO_PATHS;
     /** What the last pass changed, and how long its walk took: what an announcement reports. */
     let lastKind = "none";
-    /** Whether the pass under way changed nothing visible, so it is not announced. */
-    let quiet = false;
+    /**
+     * Whether every pass since the last announcement changed nothing visible, so it is not
+     * announced; undefined before the first such pass. A transaction runs several passes and is
+     * announced once, so one pass that changed something visible makes the whole change loud.
+     */
+    let quiet: boolean | undefined;
     /** Which API the last conditions edit came through, until its pass announces it. */
     let editedBy: "steps" | "conditions" | null = null;
     let lastDurationMs = 0;
@@ -1293,6 +1297,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         // A change only to select conditions (or to conditions that are off) shows and hides
         // nothing, so it is not announced as a visibility change.
         quiet =
+            (quiet ?? true) &&
             was.conditions !== now.conditions &&
             was.filter === now.filter &&
             was.window === now.window &&
@@ -1335,11 +1340,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const previousDerived = dispatcher.events.derived;
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
-        if (change.slices.includes("visibility") && !quiet) {
+        if (change.slices.includes("visibility") && quiet !== true) {
             sources.onChange?.({ ...resultOf(), filterKind: lastKind, cause: change.cause });
         }
 
-        quiet = false;
+        quiet = undefined;
     };
 
     /**
@@ -1489,19 +1494,43 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         readonly FilterCondition[],
         { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
     >();
+    /** The selection before each select change, by the conditions list it replaced: what a rollback puts back. */
+    const selectionWhile = new WeakMap<
+        readonly FilterCondition[],
+        { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
+    >();
+    /** The conditions whose select conditions the selection last followed, or null when none did. */
+    let selectFollowed: readonly FilterCondition[] | null = null;
 
     /**
      * After an undo or a redo that changed the select conditions, put the selection that goes
      * with the conditions it reached back: the reader's selection from before the change for an
-     * undo, what the select conditions match for a redo. An edit applies its own; opening a
-     * project, a restore and a rollback apply none.
+     * undo, what the select conditions match for a redo. A rollback puts back the selection from
+     * before the rolled-back select change, so a rolled-back transaction leaves nothing behind;
+     * it is judged against the conditions the selection last followed, because a transaction that
+     * threw may never have been shown. An edit applies its own; opening a project and a restore
+     * apply none.
      * @param was - The conditions shown before.
      * @param now - The conditions shown after.
      */
     const followSelectHistory = (was: readonly FilterCondition[], now: readonly FilterCondition[]): void => {
         const cause = dispatcher.lane.passCause;
         const { selection } = sources;
-        if (selection === undefined || (cause !== "undo" && cause !== "redo") || selectKey(was) === selectKey(now)) {
+        if (selection === undefined) {
+            return;
+        }
+
+        if (cause === "rollback") {
+            const back = selectionWhile.get(now);
+            if (selectFollowed !== null && back !== undefined && selectKey(selectFollowed) !== selectKey(now)) {
+                selection.replace(back, "history");
+                selectFollowed = now;
+            }
+
+            return;
+        }
+
+        if ((cause !== "undo" && cause !== "redo") || selectKey(was) === selectKey(now)) {
             return;
         }
 
@@ -1509,6 +1538,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             cause === "undo" ? (selectionBefore.get(was) ?? selectedBy(now)) : selectedBy(now),
             "history",
         );
+        selectFollowed = now;
     };
 
     /**
@@ -1528,6 +1558,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const { selection } = sources;
         const selects = selection !== undefined && selectKey(conditionsNow()) !== selectKey(conditions);
         const before = selects ? selection.current() : null;
+        const base = conditionsNow();
         editedBy = "conditions";
 
         return edit(
@@ -1544,6 +1575,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
                     const recorded = conditionsNow();
                     selectionBefore.set(recorded, before);
+                    selectionWhile.set(base, before);
+                    selectFollowed = recorded;
                     selection.replace(selectedBy(recorded), "command");
                 },
             },

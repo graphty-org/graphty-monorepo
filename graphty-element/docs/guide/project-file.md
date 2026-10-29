@@ -230,20 +230,23 @@ Opening never fails half way through. A part that cannot be restored is left out
 skipped, not that the open failed; the open failed only if `open` threw. `slice` is the slice of
 the project the problem is about, one of the `report.restored` values below:
 
-| Code                     | Params                            | What happened                                                                            |
-| ------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------- |
-| `E_UNKNOWN_ALGORITHM`    | `slice`, `id`                     | A run's algorithm is not registered here; the run is left out                            |
-| `E_UNKNOWN_LAYOUT`       | `slice`                           | The layout is not registered here; the positions still come back                         |
-| `E_UNKNOWN_ATTRIBUTE`    | `slice`, `id`, `needs`            | A style layer reads something nothing answers; it is added switched off                  |
-| `W_DATA_DIFFERS`         | `slice`, `id`                     | The data was edited by hand; the run's per-edge values are left out                      |
-| `W_UNKNOWN_KIND`         | `index`, `kind`                   | A member this release does not read; skipped                                             |
-| `E_UNSUPPORTED_VERSION`  | `index`, `kind`, `found`          | A member written by a newer release; skipped                                             |
-| `E_UNSUPPORTED`          | `kind` (and `index`)              | A member this kind of open does not apply; skipped                                       |
-| `E_BAD_DOCUMENT`         | `index`                           | A malformed member; skipped                                                              |
-| `W_VERSION_UPGRADED`     | `kind`, `found`, `version`        | A member of an older version, read and upgraded; a save writes the new one               |
-| `W_SOURCE_STEPS_IGNORED` | `kind`, `pointer`, `graph`        | The loads member says to rebuild the graph, but the file holds it; the held graph opened |
-| `W_SOURCE_UNREGISTERED`  | `kind`, `pointer`, `id`, `source` | A load from a network source this release lacks: its nodes are there, it cannot run      |
-| `W_UNKNOWN_KIND`         | `kind`, `pointer`, `found`        | A load of a kind this release does not know: kept, never run                             |
+| Code                             | Params                            | What happened                                                                                                                              |
+| -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `E_UNKNOWN_ALGORITHM`            | `slice`, `id`                     | A run's algorithm is not registered here; the run is left out                                                                              |
+| `E_UNKNOWN_LAYOUT`               | `slice`                           | The layout is not registered here; the positions still come back                                                                           |
+| `E_UNKNOWN_ATTRIBUTE`            | `slice`, `id`, `needs`            | A style layer reads something nothing answers; it is added switched off                                                                    |
+| `W_DATA_DIFFERS`                 | `slice`, `id`                     | The data was edited by hand; the run's per-edge values are left out                                                                        |
+| `W_FILTER_CONDITION_SKIPPED`     | `slice`, `id`                     | A saved filter condition this release cannot read; the filter is read from the file's steps instead                                        |
+| `W_FILTER_CONDITIONS_UNREADABLE` | `slice`, `version`                | The saved filter conditions are of a version this release cannot read; the filter is read from the file's steps instead                    |
+| `W_FILTER_STEPS_DIFFER`          | `slice`                           | The file's steps and conditions disagree, as when a tool that knows only steps edited it; the conditions win and the steps edit is dropped |
+| `W_UNKNOWN_KIND`                 | `index`, `kind`                   | A member this release does not read; skipped                                                                                               |
+| `E_UNSUPPORTED_VERSION`          | `index`, `kind`, `found`          | A member written by a newer release; skipped                                                                                               |
+| `E_UNSUPPORTED`                  | `kind` (and `index`)              | A member this kind of open does not apply; skipped                                                                                         |
+| `E_BAD_DOCUMENT`                 | `index`                           | A malformed member; skipped                                                                                                                |
+| `W_VERSION_UPGRADED`             | `kind`, `found`, `version`        | A member of an older version, read and upgraded; a save writes the new one                                                                 |
+| `W_SOURCE_STEPS_IGNORED`         | `kind`, `pointer`, `graph`        | The loads member says to rebuild the graph, but the file holds it; the held graph opened                                                   |
+| `W_SOURCE_UNREGISTERED`          | `kind`, `pointer`, `id`, `source` | A load from a network source this release lacks: its nodes are there, it cannot run                                                        |
+| `W_UNKNOWN_KIND`                 | `kind`, `pointer`, `found`        | A load of a kind this release does not know: kept, never run                                                                               |
 
 Any other code (such as `E_BAD_SELECTOR` for a style layer) means a slice could not be
 restored for that reason, with `slice`, and `id` when it is about one item; a note that was

@@ -201,7 +201,7 @@ const visibilityConditions: UndoableDefinition<VisibilityConditionsCommand> = {
     undo: {
         kind: "undoable",
         label: () => "Changed the filter conditions",
-        fact: (command, state) => listFact(state.visibility.conditions, command.conditions),
+        fact: (command, state) => listFact(state.visibility.conditions, command.conditions, "condition"),
     },
     execute: (command, ctx) => {
         assertConditions(command.conditions);

@@ -2009,6 +2009,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dispose: LIFECYCLE,
             isCurrent: READ,
             building: READ,
+            preStepsInFlight: READ,
             loadArrangement: DERIVED,
             dimension: READ,
             step: TRANSPORT,

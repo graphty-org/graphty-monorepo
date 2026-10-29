@@ -4380,6 +4380,8 @@ export class LayoutManager implements Manager {
     onRest: (() => void) | null;
     placeGroups(): void;
     // @internal
+    get preStepsInFlight(): boolean;
+    // @internal
     releaseDetachedScope(): void;
     replacing: () => boolean;
     restoring: () => boolean;

@@ -29,6 +29,7 @@ import {
 import type { FreezeFollower, LaneStore } from "../session/GraphSession";
 import { supersededError } from "../session/loadLine";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
+import type { Draft } from "../session/project/draft";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
     type AddEdgesOptions,
@@ -558,6 +559,9 @@ export class DataManager implements Manager {
     /** Numbers each held announcement, so two imports in one step each keep theirs. */
     private heldLoadSeq = 0;
 
+    /** Settles once the import running now, and every import waiting behind it, has; null when none runs. */
+    private importing: Promise<void> | null = null;
+
     /**
      * Creates an instance of DataManager
      * @param eventManager - Event manager for emitting data events
@@ -734,35 +738,73 @@ export class DataManager implements Manager {
             values: (values, draft) => {
                 this.graph.writer(draft, this.store).setGraphValues(values);
             },
-            import: async (command, draft, signal, after) => {
-                const writer = this.graph.writer(draft, this.store);
-                const { cause } = this;
-                this.cause = "command";
-                hooks.loading(true);
-                // Imports hold the whole graph, so one runs at a time and one field is enough.
-                this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
-                let outcome: ImportOutcome | null;
-                this.heldLoadEvents = () => undefined;
-                let announce: () => void;
-                try {
-                    outcome = await this.ingest.importSource(command, writer, signal);
-                } finally {
-                    this.cause = cause;
-                    this.loadId = undefined;
-                    announce = this.heldLoadEvents;
-                    this.heldLoadEvents = null;
-                    hooks.loading(false);
-                }
-
-                this.announceOnCommit(announce, after);
-
-                if (addsRows(command)) {
-                    hooks.rowsAdded(after);
-                }
-
-                return outcome;
+            import: (command, draft, signal, after) => {
+                // One import at a time: this manager's load id, held announcement and cause, and the
+                // ingest's own state, are one import's. An import started while another runs -- two
+                // members of a batch started together, or one dispatched inline into a running group,
+                // which the graph key does not keep apart -- waits for it (issue #3535). Started at
+                // once when none runs, as a synchronous door expects.
+                const run = (): Promise<ImportOutcome | null> => this.importOne(command, draft, signal, after, hooks);
+                const result = this.importing === null ? run() : this.importing.then(run);
+                const settled = result.then(
+                    () => undefined,
+                    () => undefined,
+                );
+                this.importing = settled;
+                void settled.then(() => {
+                    if (this.importing === settled) {
+                        this.importing = null;
+                    }
+                });
+                return result;
             },
         };
+    }
+
+    /**
+     * Carry out one import through the ingest, with the load id, the held announcement and the
+     * cause its own while it runs.
+     * @param command - The import.
+     * @param draft - The command's draft.
+     * @param signal - Fires when the import is cancelled.
+     * @param after - Starts work once the import's step is recorded.
+     * @param hooks - What the graph does around a write.
+     * @param hooks.rowsAdded - Called once the import added rows.
+     * @param hooks.loading - Called with true when it starts reading and false when it stops.
+     * @returns What the ingest returned.
+     */
+    private async importOne(
+        command: DataImportCommand,
+        draft: Draft,
+        signal: AbortSignal | undefined,
+        after: UndoableContext["after"] | undefined,
+        hooks: { rowsAdded(after: UndoableContext["after"] | undefined): void; loading(active: boolean): void },
+    ): Promise<ImportOutcome | null> {
+        const writer = this.graph.writer(draft, this.store);
+        const { cause } = this;
+        this.cause = "command";
+        hooks.loading(true);
+        this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
+        let outcome: ImportOutcome | null;
+        this.heldLoadEvents = () => undefined;
+        let announce: () => void;
+        try {
+            outcome = await this.ingest.importSource(command, writer, signal);
+        } finally {
+            this.cause = cause;
+            this.loadId = undefined;
+            announce = this.heldLoadEvents;
+            this.heldLoadEvents = null;
+            hooks.loading(false);
+        }
+
+        this.announceOnCommit(announce, after);
+
+        if (addsRows(command)) {
+            hooks.rowsAdded(after);
+        }
+
+        return outcome;
     }
 
     /**

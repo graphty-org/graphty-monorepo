@@ -9,7 +9,9 @@ const FULL_RUN_SLOT = DAY / 4;
 const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may count (never local)
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
-const NEVER_QUARANTINED = /^webgpu-graph-algorithms/;
+// GPU tests, and the style fidelity slices: a sample judged differently on the same inputs is a determinism
+// defect in the drawing or the comparator (#4270)
+const NEVER_QUARANTINED = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
 
 const list = (value) => (value ?? "").split(",").filter(Boolean);
 const placeholders = (values) => values.map(() => "?").join(",");

@@ -1693,10 +1693,11 @@ async function opening(s, out) {
         .catch(() => out.push("the app did not finish loading in 60 s"));
     await s.page
         .waitForFunction(
-            // the workspace, or the start page a first visit with no project open lands on
+            // the workspace, or the landing page a first visit with no project open lands on (.ws-land;
+            // [data-start-door] was the start page before it)
             () =>
                 document.querySelector("#root")?.children.length > 0 &&
-                document.querySelector("main, [role=main], [data-start-door]"),
+                document.querySelector("main, [role=main], .ws-land, [data-start-door]"),
             null,
             { timeout: 30000 },
         )
@@ -3593,7 +3594,7 @@ async function prove() {
     await writeFile(
         srSetup,
         // the last click is on a control that stays, so Tab would start after it if the setup left it there
-        "--click Open a file\n--upload florentine.gml\n--click Load\n--click role=button:Graph\n",
+        "--click Open a file\n--upload florentine.gml\n--click role=button:Graph\n",
     );
     r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(

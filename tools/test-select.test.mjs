@@ -61,6 +61,7 @@ import {
     mutant,
     storyMutantText,
     runPaths,
+    selectsEveryStory,
     seededPick,
     storiesMissed,
     storyCandidates,
@@ -826,6 +827,13 @@ describe("mutation testing of the selection", () => {
         assert.doesNotThrow(() => run(""));
         assert.throws(() => run("?id=x--y&viewMode=story"), /select-mutant/u);
         assert.equal(storyMutantText("p/data/x.json", '{"a":1}'), "{}\n");
+    });
+
+    it("counts a selection of every story file as all-selected, so it is not built or captured", () => {
+        const all = new Set(["p/a.stories.ts", "p/b.stories.ts"]);
+        assert.equal(selectsEveryStory({ mode: "all" }, all), true);
+        assert.equal(selectsEveryStory({ mode: "files", files: ["p/b.stories.ts", "p/a.stories.ts"] }, all), true);
+        assert.equal(selectsEveryStory({ mode: "files", files: ["p/a.stories.ts"] }, all), false);
     });
 
     it("checks each failing test against the broken files that did not select it, grouped", () => {

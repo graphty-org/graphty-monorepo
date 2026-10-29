@@ -177,21 +177,27 @@ function exportColumns(session: GraphSession, kinds: readonly ("node" | "edge")[
     return [...columns.values()];
 }
 
-/** One scope the reader can pick, with how many nodes it writes. */
+/** How many nodes and edges a scope covers. */
+interface Rows {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/** One scope the reader can pick, with how many nodes and edges it covers. */
 interface ScopeOption {
     readonly value: DataScope;
-    readonly label: string;
-    readonly nodes: number;
+    readonly name: string;
+    readonly rows: Rows;
 }
 
 /**
- * The scopes on offer and their node counts: All, Shown, Selection (when something is selected),
- * each kept set that holds a node and, with two or more sources loaded, each source.
+ * The scopes on offer and their counts: All, Shown, Selection (when something is selected), each
+ * kept set that holds a node or an edge and, with two or more sources loaded, each source.
  * @param session - the element's session.
- * @returns the options.
+ * @returns the options; All first.
  */
 async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
-    const total = session.data.statistics().nodeCount;
+    const { nodeCount, edgeCount } = session.data.statistics();
     const loads = session.data.sources();
     const [shown, selected, bySource, ...sets] = await Promise.all([
         session.scope.count("visible"),
@@ -206,35 +212,46 @@ async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
         ),
         ...session.sets.list().map(async (set) => ({ set, count: await session.scope.count({ set: set.id }) })),
     ]);
+    const holds = (rows: Rows): boolean => rows.nodes + rows.edges > 0;
     return [
-        { value: "all", label: `All ${formatNumber(total)}`, nodes: total },
-        {
-            value: "shown",
-            label: `Shown ${formatNumber(shown.nodes)} of ${formatNumber(total)}`,
-            nodes: shown.nodes,
-        },
-        ...(selected.nodes > 0
-            ? [
-                  {
-                      value: "selection" as const,
-                      label: `Selection ${formatNumber(selected.nodes)}`,
-                      nodes: selected.nodes,
-                  },
-              ]
-            : []),
+        { value: "all", name: "All", rows: { nodes: nodeCount, edges: edgeCount } },
+        { value: "shown", name: "Shown", rows: shown },
+        ...(holds(selected) ? [{ value: "selection" as const, name: "Selection", rows: selected }] : []),
         ...sets
-            .filter(({ count }) => count.nodes > 0)
-            .map(({ set, count }) => ({
-                value: `set:${set.id}` as const,
-                label: `${set.name} ${formatNumber(count.nodes)}`,
-                nodes: count.nodes,
-            })),
+            .filter(({ count }) => holds(count))
+            .map(({ set, count }) => ({ value: `set:${set.id}` as const, name: set.name, rows: count })),
         ...bySource.map(({ load, count }) => ({
             value: `source:${load.key}` as const,
-            label: `${sourceName(load)} ${formatNumber(count.nodes)}`,
-            nodes: count.nodes,
+            name: sourceName(load),
+            rows: count,
         })),
     ];
+}
+
+/**
+ * How many of a kind a scope writes, against the whole graph's: "18", or "17 of 18".
+ * @param part - the scope's count.
+ * @param whole - the whole graph's count.
+ * @returns the words.
+ */
+function ofWhole(part: number, whole: number): string {
+    return part === whole ? formatNumber(whole) : `${formatNumber(part)} of ${formatNumber(whole)}`;
+}
+
+/**
+ * A scope's entry in the Scope list, counting the rows the file holds: the chosen table's (nodes or
+ * edges), or nodes and edges for a network file.
+ * @param option - the scope.
+ * @param all - the whole graph's counts.
+ * @param kinds - what the file holds.
+ * @returns the label, "Shown 17 of 18" or "All 12 nodes, 14 edges".
+ */
+function scopeLabel(option: ScopeOption, all: Rows, kinds: readonly ("node" | "edge")[]): string {
+    if (kinds.length === 1) {
+        const kind = kinds[0] === "edge" ? "edges" : "nodes";
+        return `${option.name} ${ofWhole(option.rows[kind], all[kind])}`;
+    }
+    return `${option.name} ${ofWhole(option.rows.nodes, all.nodes)} nodes, ${ofWhole(option.rows.edges, all.edges)} edges`;
 }
 
 /**
@@ -313,7 +330,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const written = chosen.length === columns.length ? undefined : chosen;
     const scopes = useAsyncValue(() => (session === null ? null : scopeOptions(session)), session === null ? 0 : 1);
     const scope = scopes?.find((option) => option.value === choices.scope);
-    const total = scopes?.[0]?.nodes;
+    const all = scopes?.[0]?.rows;
     const options = row === undefined ? {} : dataExportOptions(row, choices, written);
     const optionsKey = JSON.stringify(options);
 
@@ -428,7 +445,10 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     )}
                     <Select
                         label="Scope"
-                        data={(scopes ?? []).map(({ value, label }) => ({ value, label }))}
+                        data={(scopes ?? []).map((option) => ({
+                            value: option.value,
+                            label: all === undefined ? option.name : scopeLabel(option, all, kinds),
+                        }))}
                         value={scope === undefined ? null : choices.scope}
                         placeholder="--"
                         allowDeselect={false}
@@ -463,13 +483,16 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                                     ))}
                                 </Menu.Dropdown>
                             </Menu>
-                            {scope === undefined || total === undefined ? null : (
-                                <EntityChip kind="node">
-                                    {scope.nodes === total
-                                        ? formatNumber(total)
-                                        : `${formatNumber(scope.nodes)} of ${formatNumber(total)}`}
-                                </EntityChip>
-                            )}
+                            {scope === undefined || all === undefined
+                                ? null
+                                : kinds.map((kind) => {
+                                      const part = kind === "edge" ? "edges" : "nodes";
+                                      return (
+                                          <EntityChip key={kind} kind={kind}>
+                                              {ofWhole(scope.rows[part], all[part])}
+                                          </EntityChip>
+                                      );
+                                  })}
                         </Group>
                     </Input.Wrapper>
                 </div>

@@ -17,7 +17,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0.  (2026-10-29) A Filters Data source card writes `{ kind: "source", sources, side: "nodes" }`
+0.  (2026-10-29) Export opens on the whole graph every time (`ExportDialog`'s open effect sets
+    `scope` on EVERY opening, Image openings too: "all", or `source:<key>` only for a source row's own
+    Export... with two or more loads). Before, a source row's scope stuck in the Data choices and
+    Control+E wrote 11 nodes, 0 edges. The Scope list and its chips count the rows of what the file
+    holds (`scopeLabel` in `DataOutput.tsx`): edges for CSV Edges ("Shown 17 of 18"), nodes for
+    CSV Nodes, "All 12 nodes, 14 edges" and two chips for a network format; `session.scope.count`
+    already gave both halves, so no element change. Tests: `export-doors.real-element.test.tsx`
+    "Export's scope says what it writes..." (both fail without the fix). Re-walk:
+    `design/ui/studio/tmp/r1-dry1-U7/` (T68B 06-08: GraphML 12 nodes, 14 edges; T68A 04-07: All 18,
+    Shown 17 of 18, 17 edge rows written). A source scope for GraphML now reads
+    "gauges.csv 11 of 12 nodes, 0 of 14 edges" -- the zero is said, but the label truncates in the
+    select at 1440 wide.
+1.  (2026-10-29) A Filters Data source card writes `{ kind: "source", sources, side: "nodes" }`
     (`filterLeaf` in `data-place/filterCards.ts`, used by `ruleOfCards`): it keeps the nodes the
     ticked loads supplied and every edge between them, whichever load supplied the edge. The Style
     Data source card (`leafOf` in `style/cards.ts`) is untouched and still speaks both halves. With
@@ -26,25 +38,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     (`summary.visibleEdges < totalEdges`), not only when a card speaks of edges. Test:
     `SourceCondition.real-element.test.tsx` "keeps the edges between the kept nodes". Re-walk:
     `design/ui/studio/tmp/r1-dry1-U6/` (T66 A 12/13 + 17/18, B 11/12 + 13/14; T68 starts same).
-1.  (2026-10-29) A column's kind alone draws it: cells (`timeValue` in `time/timeActions.ts` formats
+2.  (2026-10-29) A column's kind alone draws it: cells (`timeValue` in `time/timeActions.ts` formats
     only a column typed date, to the day), the sort caption (`sortCaption`, by `descriptor.type`) and
     every glyph (`typeOf` in `data-place/words.ts` maps a non-date column whose measurement is "time"
     -- the Time role -- back to number or text). The Time role shows only as the header's Time chip.
     Test: `table/__tests__/TableDates.real-element.test.tsx` "draws a text column with the Time role".
     STILL OPEN: a mixed column (families, depth_cm) draws the mixed glyph in the table header but Aa in
     Fields' lists; `TypeGlyph` has no "mixed".
-2.  (2026-10-29) Every door that adds a data file to an open project goes through
+3.  (2026-10-29) Every door that adds a data file to an open project goes through
     `addSource` in `start/open.ts` (join screen onto a graph with data): Sources + File..., Open
     project or file..., a window or canvas drop, Quick actions > Add data... (now
     `chooseAndOpenFile`), and a Recent entry that is a data file (`openedData` in
     `project/actions.ts`). The older "Add to <project>" Data page is reachable from no door; only
     New from data... (a new graph) and Replace still open the Data page. Test:
     `join/__tests__/JoinScreen.real-element.test.tsx` "opens from Quick actions > Add data...".
-3.  (2026-10-29) A re-walk after a rebuild must run with `REAL_WARM_POOL=0`: a warm browser of the
+4.  (2026-10-29) A re-walk after a rebuild must run with `REAL_WARM_POOL=0`: a warm browser of the
     same build stamp (the stamp is HEAD, not the dist's content) keeps the app it loaded BEFORE the
     rebuild, so the replay shows the old code pixel for pixel. `session.log` says "took over warm
     browser"; pixel-diff an old and new screenshot to catch it.
-4.  (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
+5.  (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
     match (Before -> After, Between -> Before) clears the box but the filter keeps the old bounds,
     so the card reads "After [empty]" while its count and the marks still show Before 2005
     (re-walk T65B-path/17.png, 24.png). Fix: a date card with no bound must write no condition (or

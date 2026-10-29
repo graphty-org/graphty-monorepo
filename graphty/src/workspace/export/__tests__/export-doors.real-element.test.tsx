@@ -101,6 +101,56 @@ describe("Export opens on Data where a table is showing (R14)", () => {
     });
 });
 
+describe("Export's scope says what it writes and starts on the whole graph", () => {
+    it("counts the edge table's edges in the Scope list and its chip", async () => {
+        const session = await open({ dockOpen: true, dockTab: "edges" });
+        await session.data.addNodes(NODES);
+        await session.data.addEdges([...EDGES, { source: "n0", target: "n2" }]);
+
+        await userEvent.keyboard("{Control>}e{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        await waitFor(() => {
+            assert.strictEqual(
+                within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Scope" }).value,
+                "All 5",
+            );
+        });
+    });
+
+    it("opens a source row's Export... on that source for that opening only; Ctrl+E then writes the whole graph", async () => {
+        const session = await open({ place: "data" });
+        await session.data.import({ config: { file: new File(["id,os\nweb9,linux\n"], "more-hosts.csv") } });
+        await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
+        const placeRegion = within(screen.getByRole("region", { name: "Data place" }));
+        const row = await placeRegion.findByRole("listitem", { name: "hosts.csv" }, { timeout: TIMEOUT_MS });
+
+        await userEvent.hover(row);
+        await userEvent.click(within(row).getByRole("button", { name: "hosts.csv menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Export..." }));
+        let dialog = await screen.findByRole("dialog", { name: "Export" });
+        await waitFor(() => {
+            assert.match(
+                within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Scope" }).value,
+                /^hosts\.csv /,
+            );
+        });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Export" }));
+        });
+
+        await userEvent.keyboard("{Control>}e{/Control}");
+        dialog = await screen.findByRole("dialog", { name: "Export" });
+        await userEvent.click(within(within(dialog).getByRole("grid", { name: "What to export" })).getByText("Data"));
+        await waitFor(() => {
+            assert.strictEqual(
+                within(dialog).getByRole<HTMLInputElement>("combobox", { name: "Scope" }).value,
+                "All 3",
+            );
+        });
+    });
+});
+
 describe("the Data output's format list and losses (R14)", () => {
     it("groups formats into Tables and Network files, with no style suffix, and offers Include styles only where a format keeps styles", async () => {
         const session = await open({ dockOpen: true, dockTab: "nodes" });

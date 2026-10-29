@@ -39,8 +39,8 @@ const RECENT_MAX = 5;
  * (`session.recipe`) and Project (`downloadProject`), with the files exported in this visit under
  * Recent, each opening its output again with the choices it was made with. Open while the
  * workspace dialog is "export"; it opens on Image, or on Data with CSV and the table the store's
- * `exportOn` names (whenever a table is showing), scoped to the source `exportSource` names (a
- * Sources row's Export...), and keeps each output's choices while the workspace is mounted.
+ * `exportOn` names (whenever a table is showing), scoped to the whole graph, or to the source `exportSource`
+ * names for a Sources row's Export... (that opening only), and keeps each output's choices while the workspace is mounted.
  * @returns The dialog
  */
 export function ExportDialog(): React.JSX.Element {
@@ -58,19 +58,22 @@ export function ExportDialog(): React.JSX.Element {
         if (!opened) {
             return;
         }
+        // Every opening writes the whole graph, but a source row's own Export..., which writes
+        // that source's records for this opening only (when there is more than one to tell apart).
+        const several = (session?.data.sources().length ?? 0) > 1;
+        const scope: DataChoices["scope"] = exportSource !== null && several ? `source:${exportSource}` : "all";
         if (exportOn === "image") {
             setOutput("image");
+            setData((choices) => ({ ...choices, scope }));
         } else {
             setOutput("data");
-            // A table is showing, or a source row asked: the plain CSV of the table, and of only
-            // that source's records when there is more than one source to tell apart.
-            const several = (session?.data.sources().length ?? 0) > 1;
+            // A table is showing, or a source row asked: the plain CSV of the table.
             setData((choices) => ({
                 ...choices,
                 format: "csv",
                 variant: "csv",
                 values: { ...choices.values, table: exportOn },
-                ...(exportSource === null ? {} : { scope: several ? `source:${exportSource}` : "all" }),
+                scope,
             }));
         }
     }, [opened, exportOn, exportSource, session]);

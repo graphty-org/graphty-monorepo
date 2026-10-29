@@ -120,7 +120,7 @@ export function reviewLags(
         const was = old[key];
         if (WAITING.has(c.status)) pending[key] = was ?? { since: c.at, tree: c.baselinesTree };
         else if (was && c.status === "unchanged" && c.baselinesTree !== was.tree) {
-            const end = approvals.filter((t) => t > was.since && t <= c.at).at(-1) ?? c.at;
+            const end = approvals.findLast((t) => t > was.since && t <= c.at) ?? c.at;
             lags.push(end - was.since);
         } else if (was && c.status !== "unchanged") pending[key] = was; // failed or unstable: still waiting
     }

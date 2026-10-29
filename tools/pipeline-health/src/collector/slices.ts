@@ -120,6 +120,17 @@ export function isQuiet(samples: RunnerSample[], now: number, cfg: SliceConfig):
     return samples.filter((s) => s.at > now - HOUR).every((s) => s.longestQueuedMs <= cfg.maxWaitMinutes * MIN);
 }
 
+/** Whether each share has room for one more slice of its planned size. */
+function capsLeft(spent: SliceSpend[], now: number, cfg: SliceConfig) {
+    const used = spentMinutes(spent, now);
+    return {
+        idleCap:
+            used.idleToday + cfg.estimateMin.idle <= cfg.idleDailyMin &&
+            used.idleLastHour + cfg.estimateMin.idle <= cfg.idleHourlyMin,
+        baseCap: used.baseToday + cfg.estimateMin.base <= cfg.baseDailyMin,
+    };
+}
+
 /**
  * Whether to start a slice now, and which (design 4b). Never while one is in flight, without this cycle's runner
  * data, unless the pool has been quiet, or past a share's cap. An idle slice when at most `idleRunning` jobs run and
@@ -135,11 +146,7 @@ export function decideSlice(i: SliceInput): SliceDecision {
     if (!latest || latest.at < now - 6 * MIN) return none("no-runner-data");
     if (!isQuiet(state.samples, now, cfg)) return none("not-quiet");
     if (!i.newestGreen) return none("no-green-build");
-    const used = spentMinutes(state.spent, now);
-    const idleCap =
-        used.idleToday + cfg.estimateMin.idle <= cfg.idleDailyMin &&
-        used.idleLastHour + cfg.estimateMin.idle <= cfg.idleHourlyMin;
-    const baseCap = used.baseToday + cfg.estimateMin.base <= cfg.baseDailyMin;
+    const { idleCap, baseCap } = capsLeft(state.spent, now, cfg);
     if (!idleCap && !baseCap) return none("caps-used");
     const idleOk = idleCap && latest.running <= cfg.idleRunning;
     const baseOk = baseCap && latest.running <= cfg.baseRunning;

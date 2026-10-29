@@ -337,7 +337,7 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 | `ci-test-matrix.mjs` | The CI test shards, their commands, groups and measured durations; ci.yml and `run-tests.sh` both read it |
 | `test-select.mjs` | The file-level test selector (design/ci/minimal-tests.md): for a change, per shard all, none or which test files and why, from nx's graph, Vite's import graph and `test-select-rules.json`. A pull request's CI runs by it |
 | `test-changed.mjs` | `pnpm run test:changed [--dry-run] [--base <ref>]`: runs only the tests this worktree's change can affect, as `test-select.mjs` decides, building what they need first |
-| `check-quick.sh` | `pnpm run check:quick [--base <ref>]`: prettier on the changed files, `nx affected -t build lint typecheck`, the selected tests, SonarQube on the changed lines and, when webgpu-graph-algorithms is affected, its tests on the local NVIDIA card. Run it in the background before opening a pull request |
+| `check-quick.sh` | `pnpm run check:quick [--base <ref>] [--with-dry-run]`: prettier on the changed files, `nx affected -t build lint typecheck`, the selected tests, SonarQube on the changed lines and, when webgpu-graph-algorithms is affected, its tests on the local NVIDIA card; `--with-dry-run` also builds the graphty app and runs its dry run (`graphty/dry-run/run.mjs`), for a long-lived branch (see "Shipping a change", step 2). Run it in the background before opening a pull request |
 | `test-quarantine.mjs` | Runs every CI shard: retries failed test files once and quarantines a test that failed and then passed. See "Quarantined tests" |
 | `test-quarantine.json` | The committed quarantine list. Entries come only from the tooling, never by hand |
 | `results/` | The results store's clients: `run-group.mjs` runs one test group and posts its record and each failure to the store (`RESULTS_URL`); `cli.mjs` queries and imports. The store itself is `results-service/` (a Cloudflare Worker with D1) |
@@ -947,7 +947,13 @@ Design: `design/ci/channels-pipeline.md`.
    `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
 2. Before opening it, run what CI would: the affected packages' lint, build and tests
    (`pnpm run check:quick`, or `pnpm run test:changed --base origin/master`, through `tools/low-priority.sh`),
-   and `node tools/sonar-gate.mjs`. Long runs go in the background.
+   and `node tools/sonar-gate.mjs`. Long runs go in the background. A long-lived branch -- open more than about
+   two days, holding more than a day of work, or after a merge of master that brought app or graphty-element
+   changes or needed conflicts resolved -- whose change reaches the graphty app also runs the app's dry run
+   (`graphty/dry-run/`: every route walked in a real browser on this machine's NVIDIA card, about a minute after
+   the build): `pnpm run check:quick --with-dry-run`, or `node graphty/dry-run/run.mjs` after
+   `pnpm exec nx run graphty:build`. Fix every failed route before opening the pull request. Nothing runs it
+   automatically, in CI or in a hook: the branch's owner decides (design/ci/ai-checked-acceptance-tests.md, 10.4).
 3. When the work is finished -- never earlier, because auto-merge merges the first green commit -- write
    a Proof file (the commands you ran and what they showed) under `tmp/<task>/` and run
    `tools/pr-open.sh --proof tmp/<task>/proof.md` (`--refs` for `Refs #N` instead of `Fixes #N`; `--title`

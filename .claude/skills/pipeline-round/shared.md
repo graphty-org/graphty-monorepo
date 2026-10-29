@@ -125,7 +125,10 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > nothing, comment the question on the issue with the `needs-decision` label, and stop. Before your final tests:
 > `git fetch origin`, `git merge origin/master` (never rebase), `pnpm install --frozen-lockfile`, resolve any conflict
 > keeping both intents, then run the affected lint, build and tests (`pnpm run test:changed --base origin/master`)
-> and `node tools/sonar-gate.mjs` on the merged code and commit. Run long commands through `tools/low-priority.sh`;
+> and `node tools/sonar-gate.mjs` on the merged code and commit. A long-lived branch (open more than about two days,
+> more than a day of work, or a merge of master that brought app or graphty-element changes or conflicts) whose
+> change reaches the graphty app also runs `pnpm run check:quick --with-dry-run` (the app's dry run on the NVIDIA
+> card) and fixes every failed route before opening its pull request. Run long commands through `tools/low-priority.sh`;
 > start each long run once and end your turn; do not re-check it again and again. When you stop, done or not, write
 > where the work stands on the branch's issue:
 > `node tools/branch-note.mjs update --done "<what is done>" --left "<what is left>" --next "<the next step>"`.

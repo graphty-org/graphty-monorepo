@@ -23,7 +23,7 @@ const envDump = (file, rcVar) =>
     `writeFileSync(${JSON.stringify(file)}, JSON.stringify({ env: process.env, argv: process.argv.slice(2), cwd: process.cwd() }));\n` +
     `process.exit(Number(process.env.${rcVar} ?? 0));\n`;
 
-function sandbox({ affected = "graph-format", env = {} } = {}) {
+function sandbox({ affected = "graph-format", env = {}, args = [] } = {}) {
     const dir = mkdtempSync(join(tmpdir(), "check-quick-"));
     const repo = join(dir, "repo");
     const out = (n) => join(dir, n);
@@ -35,13 +35,15 @@ function sandbox({ affected = "graph-format", env = {} } = {}) {
     writeFileSync(join(repo, "tools/sonar-gate.mjs"), envDump(out("sonar.json"), "STUB_RC_SONAR"));
     writeFileSync(join(repo, "tools/test-slots.mjs"), envDump(out("gpu.json"), "STUB_RC_GPU"));
     writeFileSync(join(repo, "tools/pr-integrity.mjs"), envDump(out("integrity.json"), "STUB_RC_INTEGRITY"));
+    mkdirSync(join(repo, "graphty/dry-run"), { recursive: true });
+    writeFileSync(join(repo, "graphty/dry-run/run.mjs"), envDump(out("dryrun.json"), "STUB_RC_DRYRUN"));
     copyFileSync(new URL("./docs-affected.sh", import.meta.url).pathname, join(repo, "tools/docs-affected.sh"));
     writeFileSync(join(repo, "tools/copy-docs-content.js"), "");
     writeFileSync(join(repo, "package.json"), JSON.stringify({ scripts: { "docs:api:graph-io": "x" } }));
     writeFileSync(
         join(dir, "bin/pnpm"),
         `#!/bin/sh\necho "$*" >> ${out("pnpm")}\n` +
-            `case "$*" in "exec nx show projects"*) printf "%s\\n" ${affected}; exit \${STUB_RC_SHOW:-0} ;; "exec nx affected"*) exit \${STUB_RC_NX:-0} ;; esac\n`,
+            `case "$*" in "exec nx show projects"*) printf "%s\\n" ${affected}; exit \${STUB_RC_SHOW:-0} ;; "exec nx affected"*) exit \${STUB_RC_NX:-0} ;; "exec nx run graphty:build") exit \${STUB_RC_APP:-0} ;; esac\n`,
         { mode: 0o755 },
     );
     const git = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8", env: isolatedGitEnv() });
@@ -49,7 +51,7 @@ function sandbox({ affected = "graph-format", env = {} } = {}) {
     git("add", ".");
     git("commit", "-q", "-m", "a");
     writeFileSync(join(repo, "changed.ts"), "x\n");
-    const r = spawnSync("bash", [join(repo, "tools/check-quick.sh"), "--base", "main"], {
+    const r = spawnSync("bash", [join(repo, "tools/check-quick.sh"), "--base", "main", ...args], {
         cwd: repo,
         encoding: "utf8",
         env: {
@@ -79,6 +81,7 @@ function sandbox({ affected = "graph-format", env = {} } = {}) {
         sonar: read("sonar.json"),
         gpu: read("gpu.json"),
         integrity: read("integrity.json"),
+        dryRun: read("dryrun.json"),
     };
     rmSync(dir, { recursive: true, force: true });
     return result;
@@ -151,9 +154,34 @@ describe("tools/check-quick.sh", () => {
         assert.match(r.stdout, /\[FAIL\] quick check: Affected projects \(nx show projects\)/);
     });
 
+    it("never runs the dry run unless asked", () => {
+        const { r, pnpm, dryRun } = sandbox({ affected: "graphty graphty-element" });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(dryRun, undefined, "no dry run without --with-dry-run");
+        assert.doesNotMatch(pnpm, /nx run graphty:build/);
+    });
+
+    it("with --with-dry-run, builds the app and walks every route of the dry run", () => {
+        const { r, pnpm, dryRun } = sandbox({ args: ["--with-dry-run"] });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.match(pnpm, /^exec nx run graphty:build$/m);
+        assert.ok(dryRun, "the dry run ran");
+        assert.deepEqual(dryRun.argv, []);
+        assert.match(r.stdout, /\[PASS\] Dry run of the graphty app/);
+    });
+
+    it("names a failed dry run, and never walks a stale build when the app build fails", () => {
+        const failed = sandbox({ args: ["--with-dry-run"], env: { STUB_RC_DRYRUN: "1" } });
+        assert.equal(failed.r.status, 1);
+        assert.match(failed.r.stdout, /\[FAIL\] quick check: Dry run of the graphty app/);
+        const unbuilt = sandbox({ args: ["--with-dry-run"], env: { STUB_RC_APP: "1" } });
+        assert.equal(unbuilt.r.status, 1);
+        assert.equal(unbuilt.dryRun, undefined, "no walk of an old build");
+    });
+
     it("refuses an unknown argument", () => {
         const r = spawnSync("bash", [SCRIPT, "--nope"], { encoding: "utf8" });
         assert.equal(r.status, 2);
-        assert.match(r.stderr, /usage: tools\/check-quick\.sh \[--base <ref>\]/);
+        assert.match(r.stderr, /usage: tools\/check-quick\.sh \[--base <ref>\] \[--with-dry-run\]/);
     });
 });

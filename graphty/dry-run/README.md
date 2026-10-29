@@ -23,6 +23,10 @@ node graphty/dry-run/run.mjs --list                    # the routes and their ch
 node graphty/dry-run/run.mjs --dist <dir>              # another build of the app
 ```
 
+`pnpm run check:quick --with-dry-run` runs the quick check, then builds the app and runs every route.
+Nothing runs the dry run automatically: the agent that owns a long-lived branch runs it before opening
+the pull request (the root CLAUDE.md, "Shipping a change", step 2, says when).
+
 It prints one line per route as it finishes, then a table of every route's result and time, the
 whole run's time and how much of it went to waiting for a browser. It exits 0 when every route
 passed and 1 when one failed. `tmp/dry-run/report.json` holds the same results. For each failed

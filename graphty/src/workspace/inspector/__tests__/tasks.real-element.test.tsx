@@ -145,12 +145,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
     it("T6: the graph's Overview shows the element's counts for karate", async () => {
         const { session } = await openWorkspace();
         await session.data.import({ config: { url: "/samples/karate.gml" } });
-        await waitFor(
-            () => {
-                assert.equal(session.data.statistics().nodeCount, 34);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        assert.equal(session.data.statistics().nodeCount, 34);
         const statistics = session.data.statistics();
 
         await waitFor(() => {

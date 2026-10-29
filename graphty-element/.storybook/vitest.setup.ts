@@ -76,6 +76,9 @@ const capture = /[?&]chromatic=true/.test(location.search);
 // capture: the built Storybook draws every frame, and a play that watches frames go by (a label's
 // animation, switched off for the capture) waits for frames a resting graph never draws.
 (globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = !capture;
+// A runner, not a reader, runs these stories, so a story's endless demo cycle stays off
+// (`isUnderRunner` in stories/helpers.ts).
+(globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ = true;
 // Its full sweep after each test: no typed array state kept was written in place.
 afterEach(() => {
     (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();

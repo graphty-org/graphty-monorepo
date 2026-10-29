@@ -277,6 +277,18 @@ export function isVisualCapture(): boolean {
 }
 
 /**
+ * True when something other than a reader runs this story: the Storybook test project
+ * (`.storybook/vitest.setup.ts` sets `__GRAPHTY_STORY_RUNNER__`) or a visual capture. A story's
+ * endless demo cycle runs only for a reader.
+ * @returns Whether a runner, not a reader, runs this story.
+ */
+export function isUnderRunner(): boolean {
+    return (
+        (globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ === true || isVisualCapture()
+    );
+}
+
+/**
  * How many layout steps to run before the first frame, given what a story asks for under capture.
  *
  * PRE-STEPS ARE FOR THE VISUAL CAPTURE ONLY. They are what makes a snapshot the same picture twice: a

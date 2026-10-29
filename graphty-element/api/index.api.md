@@ -7046,6 +7046,7 @@ export class UpdateManager implements Manager {
     nothingIsOwed(): boolean;
     onceNothingIsOwed(callback: () => void): () => void;
     operationsPending: (() => boolean) | null;
+    readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;

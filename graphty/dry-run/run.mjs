@@ -24,7 +24,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, 
 import { createServer } from "node:http";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, extname, join, normalize, resolve } from "node:path";
+import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -92,6 +92,12 @@ function options(argv) {
         console.error("--workers must be 1 to 4 (the machine's shared browser cap)");
         process.exit(2);
     }
+    try {
+        select(o.only);
+    } catch (err) {
+        console.error(err.message);
+        process.exit(2);
+    }
     return o;
 }
 
@@ -109,6 +115,37 @@ export function select(only) {
 }
 
 const fmt = (ms) => `${(ms / 1000).toFixed(1)} s`;
+
+// The stops an agent or a terminal sends. Each child runs in its own process group (spawned
+// detached), so a stop here reaches the whole tree under it: the slot holders, with-browser.sh, the
+// workers and their browsers.
+const STOPS = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 };
+
+/**
+ * Stop a child and everything it started.
+ * @param child a child spawned detached
+ * @param signal the signal
+ */
+function stopTree(child, signal = "SIGTERM") {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    try {
+        process.kill(-child.pid, signal);
+    } catch {
+        // its group is gone already
+    }
+}
+
+/**
+ * On a stop, pass it on to every child's process group, then stop.
+ * @param children the children, spawned detached
+ */
+function passStopsOn(children) {
+    for (const [signal, number] of Object.entries(STOPS))
+        process.on(signal, () => {
+            for (const c of children) stopTree(c, signal);
+            process.exit(128 + number);
+        });
+}
 
 // ---------------------------------------------------------------- the run (the parent process)
 
@@ -143,14 +180,16 @@ async function runAll(o) {
             {
                 stdio: "inherit",
                 env: { ...process.env, BROWSER_SLOTS: "4", BROWSER_GPU: "", DRY_RUN_STARTED: String(started) },
+                detached: true,
             },
         ),
     );
+    passStopsOn(children);
     // Once every route has its result, a browser still waiting for a slot has nothing left to walk:
     // stop it rather than wait for a slot it would give straight back.
     const done = setInterval(() => {
         if (readdirSync(join(OUT, "results")).length < picked.length) return;
-        for (const c of children) if (c.exitCode === null) c.kill("SIGTERM");
+        for (const c of children) stopTree(c);
     }, 1000);
     const codes = await Promise.all(children.map((c) => new Promise((ok) => c.on("exit", (code) => ok(code)))));
     clearInterval(done);
@@ -201,7 +240,7 @@ function serve(dist) {
         const url = new URL(req.url, "http://x"); // NOSONAR(S5332): parses the request's path; the server is loopback only
         const path = normalize(decodeURIComponent(url.pathname)).replace(/^[/\\]+/, "");
         const f = join(dist, path);
-        if (!f.startsWith(dist)) return res.writeHead(403).end();
+        if (f !== dist && !f.startsWith(dist + sep)) return res.writeHead(403).end();
         // any path that is not a file is the app's own page
         const body = await readFile(f).catch(() => null);
         if (body)
@@ -211,6 +250,9 @@ function serve(dist) {
     });
     return new Promise((ok) => http.listen(0, "127.0.0.1", () => ok(http)));
 }
+
+// The browser profiles this worker made and has not removed: a stopped worker removes them as it exits.
+const profiles = new Set();
 
 /**
  * A browser on the GPU, or a loud failure: a software renderer is never used.
@@ -223,8 +265,13 @@ async function launch(chromium) {
             `the GPU flags need libEGL.so.1 in ${EGL} (without it they hang the first page): in the main checkout, mkdir -p tmp/egl && cd tmp/egl && apt-get download libegl1 libglvnd0 && dpkg -x libegl1_*.deb root && dpkg -x libglvnd0_*.deb root`,
         );
     const profile = await mkdtemp(join(tmpdir(), "graphty-dry-run-"));
+    profiles.add(profile);
     const context = await chromium.launchPersistentContext(profile, {
         headless: true,
+        // a stop ends the worker, whose exit closes the browser (passStopsOn, runWorker)
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false,
         args: GPU_ARGS,
         ignoreDefaultArgs: ["--hide-scrollbars"],
         env: { ...process.env, LD_LIBRARY_PATH: [EGL, process.env.LD_LIBRARY_PATH].filter(Boolean).join(":") },
@@ -237,7 +284,11 @@ async function launch(chromium) {
         const e = g?.getExtension("WEBGL_debug_renderer_info");
         return e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : "no WebGL";
     });
-    const close = () => context.close().finally(() => rm(profile, { recursive: true, force: true }));
+    const close = () =>
+        context.close().finally(async () => {
+            await rm(profile, { recursive: true, force: true });
+            profiles.delete(profile);
+        });
     if (!/NVIDIA/i.test(renderer)) {
         await close();
         throw new Error(
@@ -293,6 +344,12 @@ function hands(page) {
 }
 
 async function runWorker(o) {
+    // Stopped, the worker exits at once; Playwright kills its browser on exit, and this removes the
+    // profiles left behind.
+    process.on("exit", () => {
+        for (const p of profiles) rmSync(p, { recursive: true, force: true, maxRetries: 3 });
+    });
+    for (const [signal, number] of Object.entries(STOPS)) process.on(signal, () => process.exit(128 + number));
     const { chromium } = await import(join(repo, "node_modules/playwright/index.mjs"));
     const picked = select(o.only);
     // how long this worker waited for its browser slot before it started
@@ -397,8 +454,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
                 fileURLToPath(import.meta.url),
                 ...process.argv.slice(2),
             ],
-            { stdio: "inherit", env: { ...process.env, DRY_RUN_GPU_HELD: "1" } },
+            { stdio: "inherit", env: { ...process.env, DRY_RUN_GPU_HELD: "1" }, detached: true },
         );
+        passStopsOn([child]);
         child.on("exit", (code) => process.exit(code ?? 1));
     } else {
         await runAll(o);

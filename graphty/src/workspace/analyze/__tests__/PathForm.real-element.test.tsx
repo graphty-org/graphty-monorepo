@@ -305,6 +305,10 @@ describe("the Path popover, on the real element", () => {
             assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
             await userEvent.click(pickTo);
 
+            // Aim at Lee only once the picture is final: until the layout converges and the camera
+            // has framed it, Lee moves tens of pixels a frame, and a click aimed where Lee was a
+            // frame ago lands on nothing (#4423).
+            await element.waitForStableFrame();
             let at = element.nodeScreenPosition("Lee");
             await waitFor(() => {
                 at = element.nodeScreenPosition("Lee");

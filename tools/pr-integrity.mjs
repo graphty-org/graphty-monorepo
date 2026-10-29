@@ -6,7 +6,8 @@
  *
  *   - test integrity (tools/check-test-integrity.mjs): no test, assertion, timeout, retry or threshold
  *     weakened; a code owner's approval of the head clears it;
- *   - owned closure (tools/check-owned-closure.mjs): every file an owned file reaches is owned;
+ *   - owned closure (tools/check-owned-closure.mjs): every file an owned file reaches is owned, judged on
+ *     the merge result with master (`ownedClosure` below), not on the head;
  *   - no breaking change: a `!` in the title or a commit subject, or a `BREAKING CHANGE:` footer, fails
  *     unless a code owner approved the head;
  *   - baselines signed: a change to a PNG or story settings file under visual-baselines/ (review
@@ -33,9 +34,9 @@
  * exit 1 with one `::error` line per problem.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { parseCodeowners, unownedClosure } from "./check-owned-closure.mjs";
@@ -217,6 +218,48 @@ function agentProblems(cwd, pr) {
 }
 
 /**
+ * The owned closure of what would land: the merge result with master. A branch behind master is judged on
+ * a temporary worktree of `git merge-tree` of the two, with the merged CODEOWNERS, so a gap master already
+ * closed does not fail it (an approval branch built on an older candidate, #4404) and one master opened
+ * after it branched is named. A branch that has master, or that conflicts with it, is judged on its head.
+ * @param cwd the repository, checked out at the head
+ * @param pr `{ base, head, codeowners }`, codeowners the head's
+ * @returns unownedClosure()'s map
+ */
+export function ownedClosure(cwd, pr) {
+    const behind = tryGit(cwd, ["merge-base", "--is-ancestor", pr.base, pr.head]) === null;
+    const tree = behind ? tryGit(cwd, ["merge-tree", "--write-tree", pr.base, pr.head]) : null;
+    if (!tree) return unownedClosure(cwd, parseCodeowners(pr.codeowners));
+    const env = {
+        ...process.env,
+        GIT_LFS_SKIP_SMUDGE: "1",
+        ...Object.fromEntries(
+            ["AUTHOR", "COMMITTER"].flatMap((w) => [
+                [`GIT_${w}_NAME`, "pr-integrity"],
+                [`GIT_${w}_EMAIL`, "pr-integrity@localhost"],
+            ]),
+        ),
+    };
+    const run = (args) =>
+        execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+            cwd,
+            env,
+            encoding: "utf8",
+            stdio: "pipe",
+        }).trim();
+    const commit = run(["commit-tree", "--no-gpg-sign", tree, "-p", pr.base, "-p", pr.head, "-m", "merge result"]);
+    const dir = join(mkdtempSync(join(tmpdir(), "pr-integrity-merge-")), "tree");
+    run(["worktree", "add", "--detach", "--quiet", dir, commit]);
+    try {
+        const codeowners = tryGit(dir, ["show", "HEAD:.github/CODEOWNERS"]) ?? "";
+        return unownedClosure(dir, parseCodeowners(codeowners));
+    } finally {
+        run(["worktree", "remove", "--force", dir]);
+        rmSync(dirname(dir), { recursive: true, force: true });
+    }
+}
+
+/**
  * Every problem PR Integrity finds.
  * @param cwd the repository, checked out at the head
  * @param pr `{ base, head, title, body, author, reviews, owners, codeowners, baselineProblems }`;
@@ -242,7 +285,7 @@ export function prIntegrity(cwd, pr) {
             ),
         );
     }
-    for (const [file, { from }] of unownedClosure(cwd, parseCodeowners(pr.codeowners))) {
+    for (const [file, { from }] of ownedClosure(cwd, pr)) {
         problems.push(`Owned closure: ${file} is reached from the owned ${from} but is not in .github/CODEOWNERS`);
     }
     if (!approved && [pr.title, ...messages].some(isBreaking)) {

@@ -2952,7 +2952,11 @@ export class SessionData implements SessionDataApi {
                 }
             }
 
-            if (reads(visibility.filter, name) || reads(visibility.steps, name) || reads(visibility.window, name)) {
+            if (
+                reads(visibility.filter, name) ||
+                reads(visibility.conditions, name) ||
+                reads(visibility.window, name)
+            ) {
                 facts.push({ code: "filter", params: { kind, column: name } });
             }
 
@@ -4249,9 +4253,10 @@ export class SessionData implements SessionDataApi {
             steps.push({ op: "visibility.set", filter });
         }
 
-        const filterSteps = renameColumnIn(visibility.steps, from, name, ruleScope(kind), kind === "node");
-        if (filterSteps !== visibility.steps) {
-            steps.push({ op: "visibility.steps", steps: filterSteps });
+        // Every condition, whatever its effect, keeps its effect through the rename.
+        const conditions = renameColumnIn(visibility.conditions, from, name, ruleScope(kind), kind === "node");
+        if (conditions !== visibility.conditions) {
+            steps.push({ op: "visibility.conditions", conditions });
         }
 
         const window = renameColumnIn(visibility.window, from, name);

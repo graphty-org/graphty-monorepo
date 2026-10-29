@@ -24,6 +24,7 @@ import {
     loadKind,
     masterState,
     npmName,
+    offMaster,
     ownerWaitOf,
     prOfRun,
     prRunOf,
@@ -400,7 +401,9 @@ async function writeRuns(
         c.items.push(item);
         if (workflow === "ci.yml" && run.run_attempt > 1 && run.conclusion === "success") await flaky(c, run, repo);
         for (const j of jobs ?? []) {
-            c.items.push(toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false, loadKind(run)));
+            c.items.push(
+                toJobItem(j, repo, workflow, cancel?.hung.has(j.name) ?? false, loadKind(run), offMaster(run)),
+            );
             if (STEP_WORKFLOWS.has(workflow) && j.status === "completed")
                 c.items.push(...toStepItems(j, repo, workflow));
             if (j.status === "completed") {

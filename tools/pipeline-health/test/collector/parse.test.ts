@@ -14,6 +14,7 @@ import {
     masterState,
     NOT_ON_NPM,
     npmName,
+    offMaster,
     oldestUntested,
     OWNER_LOGIN,
     pool,
@@ -114,6 +115,14 @@ describe("runs and jobs", () => {
         const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
         expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
         expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");
+        // A run on another branch is marked, so the job history can leave its failures out.
+        expect(offMaster({ head_branch: "master" })).toBe(false);
+        expect(offMaster({ head_branch: "refs/heads/master" })).toBe(false);
+        expect(offMaster({ head_branch: "ci/4237-probe-2" })).toBe(true);
+        expect(offMaster({ head_branch: "refs/pull/4096/head" })).toBe(true);
+        expect(offMaster({ head_branch: null })).toBe(true);
+        expect(toJobItem(lint, REPO, "ci.yml", false, "other", true).offMaster).toBe(true);
+        expect(toJobItem(lint, REPO, "ci.yml", false, "master")).not.toHaveProperty("offMaster");
     });
 
     it("folds bins into families and sorts jobs into runner pools", () => {

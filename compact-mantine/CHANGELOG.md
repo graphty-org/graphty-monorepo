@@ -1,3 +1,9 @@
+## 0.9.35 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.37
+
 ## 0.9.34 (2026-10-28)
 
 ### 🚀 Features

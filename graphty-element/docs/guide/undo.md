@@ -148,6 +148,8 @@ Every step's `fact.code` is one of the `HistoryCode` values, each documenting it
 | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window`                                            | none                                                       |
 | `visibility.show-context`, `visibility.hide-context`                                                                 | none                                                       |
 | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id` (the filter step's id)                                |
+| `visibility.condition-add`, `visibility.condition-on`, `visibility.condition-off`, `visibility.condition-remove`     | `id`, `effect` (the filter condition's id and effect)      |
+| `visibility.condition-edit`                                                                                          | `id`, `effect`, `previousEffect`                           |
 | `visibility.steps` (several steps changed at once, or a reorder)                                                     | none                                                       |
 | `set.create`                                                                                                         | `name` (or null)                                           |
 | `set.rename`                                                                                                         | `set` (its name before, or its id), `name`                 |

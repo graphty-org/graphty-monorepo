@@ -461,26 +461,26 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(screen.queryByRole("menuitem", { name: /Grow by one hop/ }));
         await userEvent.keyboard("{Escape}");
 
-        // Filter to neighbors adds one step keeping the same two hops.
+        // Filter to neighbors adds one card keeping the same two hops.
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.steps.map((step) => step.rule),
+                session.visibility.conditions.map((c) => c.rule),
                 [{ kind: "neighborhood", seeds: [node], depth: 2 }],
             );
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
         });
-        // A command, not a toggle: pressed again it leaves the one step, on.
+        // A command, not a toggle: pressed again it leaves the one card, on.
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }), { force: true });
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.steps.map((step) => [step.on, step.rule]),
+                session.visibility.conditions.map((c) => [c.on, c.rule]),
                 [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
             );
         });
     });
 
-    it("Filter to neighbors pressed twice keeps one step on; its checkbox in Filters turns it off and keeps it listed", async () => {
+    it("Filter to neighbors pressed twice keeps one card on; its box in Filters turns it off and keeps it listed", async () => {
         const session = await openKarate("data");
         const node = session.data.nodes()[0].id;
         const name = session.data.name(node) ?? String(node);
@@ -507,18 +507,18 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
         });
-        // Its step is on at this reach, so a second press would change nothing: the command is
+        // Its card is on at this reach, so a second press would change nothing: the command is
         // drawn disabled, and its tooltip, still shown on hover, says why.
         await waitFor(() => {
             assert.equal(command.getAttribute("data-disabled"), "true");
             assert.equal(command.getAttribute("aria-disabled"), "true");
         });
         await userEvent.hover(command);
-        await screen.findByText("The drawing already shows only this neighborhood. Its step in Filters turns it off");
+        await screen.findByText("The drawing already shows only this neighborhood. Its card in Filters turns it off");
         await userEvent.click(command, { force: true });
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.steps.map((step) => [step.on, step.rule]),
+                session.visibility.conditions.map((c) => [c.on, c.rule]),
                 [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
             );
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
@@ -543,37 +543,37 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(heading?.scrollWidth, heading?.clientWidth);
         assert.isAtMost(heading?.scrollHeight ?? 0, heading?.clientHeight ?? 0);
 
-        // The step's checkbox in Filters turns it off: every node is drawn again, and the step
-        // stays listed.
-        const filters = within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", {
+        // The card's box in Filters turns it off: every node is drawn again, and the card stays
+        // listed.
+        const filters = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", {
             name: "Filters",
         });
-        const stepWords = `within 2 hops of ${name}`;
-        await userEvent.click(within(filters).getByRole("checkbox", { name: `Apply step: ${stepWords}` }));
+        const cardWords = `within 2 hops of ${name}`;
+        await userEvent.click(within(filters).getByRole("checkbox", { name: `Apply ${cardWords}` }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 34);
             assert.deepEqual(
-                session.visibility.steps.map((step) => step.on),
+                session.visibility.conditions.map((c) => c.on),
                 [false],
             );
         });
-        assert.isNotNull(within(filters).getByRole("treeitem", { name: stepWords }));
-        // With the step off, the command is enabled again.
+        assert.isNotNull(within(filters).getByRole("listitem", { name: `${cardWords}, Hide` }));
+        // With the card off, the command is enabled again.
         await waitFor(() => {
             assert.isNull(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"));
         });
 
-        // Pressed again, the command turns that same step back on.
+        // Pressed again, the command turns that same card back on.
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.steps.map((step) => [step.on, step.rule]),
+                session.visibility.conditions.map((c) => [c.on, c.rule]),
                 [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
             );
         });
     });
 
-    it("opens Filters from the Graph place with the toolbar's Filters, focus on a new step's Add a condition", async () => {
+    it("opens Filters from the Graph place with the toolbar's Filters, its + list open", async () => {
         await openKarate();
         assert.isNull(screen.queryByRole("region", { name: "Data place" }));
         const filters = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
@@ -582,11 +582,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         await userEvent.click(filters);
         await screen.findByRole("region", { name: "Data place" });
-        const add = await screen.findByRole("button", { name: "Add a condition" });
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, add);
-        });
-        assert.isNotNull(screen.getByRole("button", { name: "Add step" }));
+        await screen.findByRole("menuitem", { name: "Largest component" });
     });
 });
 it("shows and hides the legend and the table from their own toolbar buttons, pressed while showing", async () => {

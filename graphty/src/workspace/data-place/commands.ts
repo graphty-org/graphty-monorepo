@@ -8,7 +8,7 @@ import {
     type SourceRowCommand,
 } from "../commands/registry";
 import type { WorkspaceStore } from "../state/store";
-import { NEW, openStepEditor, selectRule } from "./filterSteps";
+import { openFilterDraft, selectRule } from "./filterCards";
 import { remap } from "./words";
 
 /** One network load, as `data.loads()` records it. */
@@ -199,7 +199,7 @@ const COLUMN_HEADER_COMMANDS: readonly ColumnHeaderCommand[] = [
         run: (ctx, column) => {
             const attribute = attributeOf(ctx, column);
             if (attribute !== undefined) {
-                openStepEditor(ctx.workspace, `${NEW}:${attribute.kind}:${attribute.path}`);
+                openFilterDraft(ctx.workspace, `${attribute.kind}:${attribute.path}`);
             }
         },
     },

@@ -2025,7 +2025,8 @@
             "raster.edge": 0.93,
             "raster.label": 0.95,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "cx-specimen-mappings-bypass-p10": {
             "node.present": 1,
@@ -3340,7 +3341,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "cx-specimen-node-fills-borders": {
             "node.present": 1,
@@ -3572,9 +3574,9 @@
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
-            "edge.arrowLength": 0.977,
-            "edge.arrowWidth": 0.977,
-            "edge.arrowToSpacing": 0.977,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
@@ -3589,7 +3591,8 @@
             "raster.edge": 0.92,
             "raster.label": 0.92,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.87
+            "raster.nodeOutline": 0.87,
+            "edge.wiggle": 1
         },
         "cx-syn-bypass@matched": {
             "node.present": 1,
@@ -3639,9 +3642,9 @@
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
-            "edge.arrowLength": 0.977,
-            "edge.arrowWidth": 0.977,
-            "edge.arrowToSpacing": 0.977,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
@@ -3650,7 +3653,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "cx-syn-mappings": {
             "node.present": 1,
@@ -5379,7 +5383,8 @@
             "raster.edge": 0.93,
             "raster.label": 0.95,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "cx2-specimen-mappings-bypass-p10": {
             "node.present": 1,
@@ -6609,7 +6614,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "cx2-specimen-node-fills-borders": {
             "node.present": 1,
@@ -6841,9 +6847,9 @@
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
-            "edge.arrowLength": 0.977,
-            "edge.arrowWidth": 0.977,
-            "edge.arrowToSpacing": 0.977,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
@@ -6858,7 +6864,8 @@
             "raster.edge": 0.92,
             "raster.label": 0.92,
             "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.86
+            "raster.nodeOutline": 0.86,
+            "edge.wiggle": 1
         },
         "cx2-syn-bypass@matched": {
             "node.present": 1,
@@ -6908,9 +6915,9 @@
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
             "edge.arrowColor": 1,
-            "edge.arrowLength": 0.977,
-            "edge.arrowWidth": 0.977,
-            "edge.arrowToSpacing": 0.977,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
+            "edge.arrowToSpacing": 1,
             "edge.label": 1,
             "group.present": 1,
             "group.box": 1,
@@ -6919,7 +6926,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "cx2-syn-mappings": {
             "node.present": 1,
@@ -9406,7 +9414,8 @@
             "raster.edge": 0.93,
             "raster.label": 0.95,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "edge.wiggle": 1
         },
         "cys-specimen-mappings-bypass-p10": {
             "node.present": 1,
@@ -10721,7 +10730,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "cys-specimen-node-fills-borders": {
             "node.present": 1,
@@ -10970,7 +10980,8 @@
             "raster.edge": 0.92,
             "raster.label": 0.92,
             "raster.nodeBody": 0.93,
-            "raster.nodeOutline": 0.87
+            "raster.nodeOutline": 0.87,
+            "edge.wiggle": 1
         },
         "cys-syn-bypass@matched": {
             "node.present": 1,
@@ -11031,7 +11042,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "cys-syn-mappings": {
             "node.present": 1,
@@ -15785,7 +15797,8 @@
             "raster.canvas": 0.99,
             "raster.label": 0.85,
             "raster.nodeBody": 0.88,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.95,
+            "stray.present": 0
         },
         "dot-specimen-images-charts@matched": {
             "node.present": 1,
@@ -15821,7 +15834,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "stray.present": 0
         },
         "dot-specimen-labels": {
             "node.present": 1,
@@ -17707,7 +17721,10 @@
             "edge.arrowWidth": 1,
             "stray.present": 0,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "node.sizeToSpacing": 0,
+            "edge.curve": 1,
+            "edge.wiggle": 1
         },
         "gexf-hsk-chars@matched": {
             "node.present": 1,
@@ -27197,17 +27214,20 @@
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.951,
-            "edge.arrowShape": 0.996,
+            "edge.arrow": 0.992,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.996,
-            "edge.arrowLength": 0.996,
-            "edge.arrowWidth": 0.996,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "stray.present": 0,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "node.sizeToSpacing": 1,
+            "edge.curve": 0,
+            "edge.wiggle": 1
         },
         "json-vis-siblings@matched": {
             "node.present": 1,
@@ -27227,27 +27247,28 @@
             "label.present": 1,
             "edge.present": 1,
             "edge.extra": 1,
-            "edge.route": 0.968,
+            "edge.route": 0.972,
             "edge.curve": 0.986,
             "edge.color": 1,
             "edge.width": 0,
             "edge.opacity": 1,
             "edge.dash": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.951,
-            "edge.arrowShape": 0.996,
+            "edge.arrow": 0.992,
+            "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
             "edge.arrowFill": 1,
-            "edge.arrowColor": 0.996,
-            "edge.arrowLength": 0.996,
-            "edge.arrowWidth": 0.996,
+            "edge.arrowColor": 1,
+            "edge.arrowLength": 1,
+            "edge.arrowWidth": 1,
             "edge.arrowToSpacing": 1,
             "stray.present": 0,
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "json-vis-synth": {
             "node.present": 1,
@@ -33577,7 +33598,8 @@
             "raster.edge": 0.89,
             "raster.label": 0.92,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.94,
+            "edge.wiggle": 1
         },
         "xgmml-specimen-mappings-bypass-p10": {
             "node.present": 1,
@@ -34892,7 +34914,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "xgmml-specimen-node-fills-borders": {
             "node.present": 1,
@@ -35141,7 +35164,8 @@
             "raster.edge": 0.92,
             "raster.label": 0.92,
             "raster.nodeBody": 0.94,
-            "raster.nodeOutline": 0.87
+            "raster.nodeOutline": 0.87,
+            "edge.wiggle": 1
         },
         "xgmml-syn-bypass@matched": {
             "node.present": 1,
@@ -35202,7 +35226,8 @@
             "frame.mirror": 1,
             "frame.rotation": 1,
             "frame.zoom": 1,
-            "background": 1
+            "background": 1,
+            "edge.wiggle": 1
         },
         "xgmml-syn-mappings": {
             "node.present": 1,

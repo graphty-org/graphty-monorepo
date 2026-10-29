@@ -6,7 +6,7 @@ import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { PanelField } from "../../../src/components/rows/PanelField";
@@ -242,5 +242,56 @@ describe("PanelField scrubbing with the real mouse", () => {
         await release();
         expect(onScrub).toHaveBeenCalledWith(20, expect.anything());
         expect(onChange).not.toHaveBeenCalled();
+    });
+});
+
+describe("PanelField on a busy page, which handles keys before its next frame (#3545)", () => {
+    /**
+     * Holds the page's animation frames until the returned function runs them, as a busy page
+     * does: the keys typed meanwhile are handled first.
+     * @returns runs the held frames and lets new ones through again
+     */
+    function holdFrames(): () => void {
+        const held: FrameRequestCallback[] = [];
+        vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => {
+            held.push(callback);
+            return held.length;
+        });
+        return () => {
+            vi.mocked(globalThis.requestAnimationFrame).mockRestore();
+            for (const callback of held) {
+                callback(performance.now());
+            }
+        };
+    }
+
+    it("a key typed right after a scrub replaces the scrubbed value", async () => {
+        const onChange = vi.fn();
+        renderField(<PanelField label="X" kind="number" defaultValue={40} onChange={onChange} />);
+        // The reader is in the field already, then scrubs it and types a new value.
+        await userEvent.click(fieldInput());
+        const runFrames = holdFrames();
+        try {
+            await press(screen.getByTestId("panel-field-slot"));
+            await moveBy(20);
+            await release();
+            await userEvent.keyboard("7{Enter}");
+        } finally {
+            runFrames();
+        }
+        expect(onChange.mock.calls.map(([value]) => value)).toEqual([50, 7]);
+    });
+
+    it("a key typed right after Enter replaces the value Enter committed", async () => {
+        const onChange = vi.fn();
+        renderField(<PanelField label="X" kind="number" defaultValue={40} onChange={onChange} />);
+        await userEvent.click(fieldInput());
+        const runFrames = holdFrames();
+        try {
+            await userEvent.keyboard("{Control>}a{/Control}12{Enter}5{Enter}");
+        } finally {
+            runFrames();
+        }
+        expect(onChange.mock.calls.map(([value]) => value)).toEqual([12, 5]);
     });
 });

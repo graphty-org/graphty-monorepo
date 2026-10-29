@@ -147,9 +147,14 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
             }
             if (event.key === "Enter") {
                 event.preventDefault();
-                setDiscarded(false);
-                commit(event);
+                // The commit is drawn now and the whole value re-selected at once, so a key typed
+                // next replaces it even on a busy page, which handles input before its next frame.
+                flushSync(() => {
+                    setDiscarded(false);
+                    commit(event);
+                });
                 const input = event.currentTarget;
+                input.select();
                 // Enter in a form's field submits it, as in any text box: the field's own Enter
                 // is held back so the commit lands first, and the form is submitted a frame later
                 // with the committed value, through its submit button unless that is disabled.
@@ -157,7 +162,6 @@ export function useNumberField(options: NumberFieldOptions): NumberField {
                     'button[type="submit"], input[type="submit"]',
                 );
                 requestAnimationFrame(() => {
-                    input.select();
                     if (submit?.disabled === false && submit.isConnected) {
                         input.form?.requestSubmit(submit);
                     }

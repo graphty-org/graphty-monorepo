@@ -309,21 +309,55 @@ describe("Tree: keyboard", () => {
     it("jumps by type-ahead, and a quick run of keys matches a longer prefix", async () => {
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
         await tabIn();
-        // The type-ahead window is read from Date.now(): hold the clock still and move it by hand.
-        let now = Date.now();
-        vi.setSystemTime(now);
+        // The type-ahead pause is read from when each key was typed (event.timeStamp): move that
+        // forward by hand to make a pause.
+        let later = 0;
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return (timeStamp?.call(this) as number) + later;
+        });
         try {
             await userEvent.keyboard("l");
             expect(focused()).toBe("leaf");
             // A new run starts once the 500ms type-ahead window has passed.
-            vi.setSystemTime((now += 600));
+            later += 600;
             await userEvent.keyboard("g");
             expect(focused()).toBe("group");
-            vi.setSystemTime((now += 600));
+            later += 600;
             await userEvent.keyboard("{Home}ot");
             expect(focused()).toBe("other");
         } finally {
-            vi.useRealTimers();
+            vi.restoreAllMocks();
+        }
+    });
+
+    it("keeps a quick run of keys one run on a busy page (#3534)", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
+        await tabIn();
+        // The page is busy for 700ms after it takes "g" (a redraw elsewhere), and "r" was typed
+        // 100ms after "g", while it was busy: the browser hands "r" over only once the page is free.
+        let gAt = 0;
+        const busy = (event: KeyboardEvent): void => {
+            if (event.key === "g") {
+                gAt = event.timeStamp;
+                const until = performance.now() + 700;
+                while (performance.now() < until) {
+                    // the main thread is held
+                }
+            }
+        };
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return this instanceof KeyboardEvent && this.key === "r" ? gAt + 100 : (timeStamp?.call(this) as number);
+        });
+        globalThis.addEventListener("keydown", busy);
+        try {
+            // "gr" is Group; "r" alone, from Group, would be Rect.
+            await userEvent.keyboard("gr");
+            expect(focused()).toBe("group");
+        } finally {
+            globalThis.removeEventListener("keydown", busy);
+            vi.restoreAllMocks();
         }
     });
 

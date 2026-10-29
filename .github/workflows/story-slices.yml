@@ -238,7 +238,8 @@ jobs:
                   if-no-files-found: ignore
 
             # The bin's rows: every render's status and hashes against X's baselines tree, and the units it rendered
-            # whole (only when the capture finished, so a broken bin's units stay oldest for the next slice). Units
+            # whole (only when the capture finished, so a broken bin's units stay oldest for the next slice), then tells
+            # the owner's phone when the rolling review queue went from empty to non-empty or a slot is near. Units
             # with no story in X's Storybook (pick found none) are recorded as rendered with no renders, so they do
             # not stay oldest and take a bin of every later slice for nothing.
             - name: Record the renders in the results store
@@ -252,6 +253,11 @@ jobs:
                   ARTIFACT: visual-slice-${{ matrix.name }}-${{ github.run_attempt }}
                   STORIES: ${{ steps.pick.outputs.stories }}
                   CAPTURED: ${{ steps.capture.outcome }}
+                  # the owner's phone, when the rolling review queue fills and before each full-run slot (4d)
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+                  REVIEW_URL: ${{ vars.VISUAL_REVIEW_URL }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |
                   f="$RUNNER_TEMP/visual/results.json"
                   if [[ -z "$STORIES" && "$CAPTURED" == skipped ]]; then

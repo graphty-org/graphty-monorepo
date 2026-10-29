@@ -10,7 +10,10 @@
 //       tools/test-select.mjs --plan for HEAD^1..HEAD.
 //   node tools/channel/story-slices.mjs post --project <p> --results <results.json>
 //       --files <json> --sha <X> --tree <visual-baselines tree> --artifact <name>
-//       Posts one bin's renders and, when the capture finished, the units it captured whole.
+//       Posts one bin's renders and, when the capture finished, the units it captured whole. Then tells the owner's
+//       phone (Pushover, PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY) when the rolling review queue went from empty to
+//       non-empty, at most every 2 hours, and once before each full-run slot while it is not empty; the store keeps
+//       when each was last sent (4d). REVIEW_URL, when set, is the link it opens.
 //
 // Reach only ORDERS the work: every story is rendered by the rotation whatever changed, and nothing here ever
 // reuses a render or skips one (the owner's rule, early-capture.md section 2, option d). Node built-ins only, so
@@ -22,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { STORYBOOKS } from "../ci-reuse-plan.mjs";
+import { push } from "../release-status.mjs";
 import { call, config } from "../results/client.mjs";
 import { packBins, packStoryBins, STORY_BIN_LIMIT_MS, storyCount, storyUnitPlans } from "../test-select.mjs";
 
@@ -165,6 +169,55 @@ export function captureRows(project, results, files) {
     return { captures, units };
 }
 
+// The full-run slots (tools/release-scheduler), in UTC hours, and when the owner is told about a waiting queue before
+// one: once, between SLOT_EARLY and SLOT_LATE before it.
+const SLOT_HOURS = [0, 6, 12, 18];
+const SLOT_EARLY = 90 * 60_000;
+const SLOT_LATE = 30 * 60_000;
+const QUEUE_EVERY = 2 * 3_600_000;
+
+/**
+ * The next full-run slot after `now`.
+ * @param now ms
+ * @returns ms
+ */
+export function nextSlot(now) {
+    const day = new Date(now);
+    day.setUTCHours(0, 0, 0, 0);
+    for (let d = 0; d < 2; d++) {
+        for (const h of SLOT_HOURS) {
+            const at = day.getTime() + d * 86_400_000 + h * 3_600_000;
+            if (at > now) return at;
+        }
+    }
+    throw new Error("unreachable");
+}
+
+/**
+ * What to tell the owner after a bin posted its renders.
+ * @param o the facts
+ * @param o.before the rolling queue's size before this bin posted
+ * @param o.after its size after
+ * @param o.notified `{ queue, slot }`: when each was last sent (ms or null), from the store
+ * @param o.now ms
+ * @returns `[{ kind, outcome, what }]`: kind is the store's notify kind, outcome release-status.mjs's
+ */
+export function notices({ before, after, notified, now }) {
+    const out = [];
+    const n = `${after} ${after === 1 ? "picture" : "pictures"}`;
+    if (before === 0 && after > 0 && !(now - (notified.queue ?? -Infinity) < QUEUE_EVERY)) {
+        out.push({ kind: "queue", outcome: "rolling-queue", what: `${n} changed on master` });
+    }
+    const slot = nextSlot(now);
+    const due =
+        slot - now <= SLOT_EARLY && slot - now >= SLOT_LATE && !((notified.slot ?? -Infinity) >= slot - SLOT_EARLY);
+    if (after > 0 && due) {
+        const hhmm = new Date(slot).toISOString().slice(11, 16);
+        out.push({ kind: "slot", outcome: "rolling-slot", what: `The ${hhmm} UTC slot holds nightly for ${n}` });
+    }
+    return out;
+}
+
 const git = (args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
 
 async function plan({ sha, bins }, cfg) {
@@ -234,9 +287,40 @@ async function main(argv, env) {
     } else {
         throw new Error("usage: story-slices.mjs plan|reach|post (see the file's header)");
     }
+    const queue = async () => {
+        const g = command === "post" ? await call(cfg, "GET", "/v1/story-captures") : null;
+        return g?.ok ? g.data : null;
+    };
+    const before = await queue();
     const r = await call(cfg, "POST", path, body);
     if (!r.ok) throw new Error(`POST ${path}: ${r.why}`);
     console.error(`story-slices ${command}: ${JSON.stringify(r.data)} (${body.units.length} units)`);
+    const after = before && (await queue());
+    if (!after) return; // never a notice on a guess
+    // ponytail: bins finishing together can each send the same notice once; the store's times stop a second round
+    const sent = [];
+    for (const n of notices({
+        before: before.summary.queue,
+        after: after.summary.queue,
+        notified: after.notified,
+        now: Date.now(),
+    })) {
+        const url = env.REVIEW_URL || env.RUN_URL;
+        if (
+            await push(
+                n.outcome,
+                { what: n.what, run: url, sha: o.sha, urlTitle: env.REVIEW_URL ? "Review" : "Open run" },
+                env,
+                fetch,
+                (l) => console.error(l),
+            )
+        )
+            sent.push(n.kind);
+    }
+    if (sent.length) {
+        const told = await call(cfg, "POST", path, { ...body, captures: [], units: [], notified: sent });
+        if (!told.ok) console.error(`::warning::story-slices: the notice times were not kept (${told.why})`);
+    }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

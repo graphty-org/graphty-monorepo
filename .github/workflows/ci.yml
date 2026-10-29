@@ -744,12 +744,14 @@ jobs:
                   advisory: ${{ steps.advisory.outputs.checks }}
 
     # The six Storybooks (deploy-pages.yml publishes them, the Links job checks them, the Stories job
-    # screenshots their stories). This job keeps the id "build": jobs that need the Storybooks read its outputs,
-    # so the job that uploads the Storybooks is the one called build, and it hands on the packages job's
-    # plan unchanged.
+    # screenshots their stories). It starts beside the packages job, not after it (#3448): nx builds the
+    # packages the Storybooks import itself (from the remote cache, or by building them), so its checkout,
+    # install and Storybook builds no longer wait for the packages job's builds and test plan, which were
+    # about 2 to 3 minutes of every pull request's path to its first Stories job. Jobs that need its plan read
+    # the packages job's outputs.
     build:
         name: Storybooks
-        needs: packages
+        needs: run-cap
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         # build-storybook is an nx-cached target (nx.json), so a Storybook whose inputs the pull request leaves
@@ -761,15 +763,6 @@ jobs:
             contents: read
             actions: read
             checks: write
-        outputs:
-            full: ${{ needs.packages.outputs.full }}
-            light: ${{ needs.packages.outputs.light }}
-            affected: ${{ needs.packages.outputs.affected }}
-            test-matrix: ${{ needs.packages.outputs.test-matrix }}
-            test-count: ${{ needs.packages.outputs.test-count }}
-            advisory-checks: ${{ needs.packages.outputs.advisory-checks }}
-            visual-skip: ${{ needs.packages.outputs.visual-skip }}
-            visual-on: ${{ needs.packages.outputs.visual-on }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -787,35 +780,39 @@ jobs:
                   rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
+            # The same check as the packages job's step of this name: the run reuse_build_run names built this
+            # commit and its Storybooks are all still there. Anything unknown is a build.
+            - name: Reuse the builds of the run named by reuse_build_run
+              id: reuse-build
+              if: inputs.reuse_build_run != ''
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ inputs.reuse_build_run }}
+              run: node tools/ci-reuse-plan.mjs --build-run "$RUN" | tee -a "$GITHUB_OUTPUT"
+
             - uses: pnpm/action-setup@v6
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
 
             - name: Setup Node.js
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
-            - name: Download all package builds
-              if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/download-artifact@v8
-              with:
-                  name: build-packages
-                  path: .
-
             # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               uses: actions/cache@v6
               with:
                   path: .git/lfs/objects
@@ -823,7 +820,7 @@ jobs:
                   restore-keys: lfs-fidelity-references-
 
             - name: Probe the nx remote cache
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               env:
                   NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
                   NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
@@ -855,25 +852,25 @@ jobs:
             # the package builds downloaded above, so none waits on another. A Storybook whose nx inputs
             # (nx.json targetDefaults) match a master build is restored from the remote cache instead.
             - name: Build the Storybooks
-              if: needs.packages.outputs.artifacts-run == ''
+              if: steps.reuse-build.outputs.artifacts-run == ''
               run: >-
-                  pnpm exec nx run-many -t build-storybook --exclude-task-dependencies --parallel=3
+                  pnpm exec nx run-many -t build-storybook --parallel=3
                   --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the Stories job
             # downloads them from this run as always.
             - name: Download the Storybooks of the run whose results are reused
-              if: needs.packages.outputs.artifacts-run != ''
+              if: steps.reuse-build.outputs.artifacts-run != ''
               uses: actions/download-artifact@v8
               with:
                   pattern: build-storybook-*
                   path: ${{ runner.temp }}/storybooks
-                  run-id: ${{ needs.packages.outputs.artifacts-run }}
+                  run-id: ${{ steps.reuse-build.outputs.artifacts-run }}
                   github-token: ${{ github.token }}
 
             - name: Put the reused Storybooks where this job's uploads read them
-              if: needs.packages.outputs.artifacts-run != ''
+              if: steps.reuse-build.outputs.artifacts-run != ''
               run: |
                   while read -r name dir; do
                       mkdir -p "$(dirname "$dir")"
@@ -937,7 +934,6 @@ jobs:
               uses: ./.github/actions/early-verdict
               with:
                   job: build
-                  advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # Lint every package (every affected one on a pull request), beside the tests.
     lint:
@@ -1743,7 +1739,7 @@ jobs:
     links:
         name: Links
         needs: [packages, build, docs]
-        if: needs.packages.outputs.full == 'true' && needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
+        if: needs.packages.outputs.full == 'true' && needs.packages.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
@@ -3078,8 +3074,8 @@ jobs:
     # flaky-screenshot job never read it and pull request captures and their baselines are unchanged.
     features-on-visual:
         name: visual (graphty-element, features on)
-        needs: build
-        if: contains(fromJSON(needs.build.outputs.visual-on || '[]'), 'graphty-element')
+        needs: [packages, build]
+        if: contains(fromJSON(needs.packages.outputs.visual-on || '[]'), 'graphty-element')
         runs-on: ubuntu-24.04
         permissions:
             contents: read

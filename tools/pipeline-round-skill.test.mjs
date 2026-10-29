@@ -175,3 +175,30 @@ describe("pipeline-round skill in the channels order", () => {
         }
     });
 });
+
+// Issue #3269: the dry run of the graphty app (graphty/dry-run/run.mjs) is run by the agent that owns a long-lived
+// branch, before it opens the pull request -- never automatically. CLAUDE.md step 2 and the subagent rules both
+// skills append to every prompt name the command and when to run it.
+describe("the dry run before a long-lived branch's pull request", () => {
+    const flatClaude = claude.replace(/\s*\n\s*/g, " ");
+    const shipping = flatClaude.slice(flatClaude.indexOf("## Shipping a change"));
+    const step2 = shipping.slice(shipping.indexOf(" 2. "), shipping.indexOf(" 3. "));
+    const rules = flatShared.slice(flatShared.indexOf("## Subagent rules"));
+
+    for (const [name, text] of [
+        ["CLAUDE.md, Shipping a change, step 2", step2],
+        ["shared.md, Subagent rules", rules],
+    ]) {
+        it(`${name} names check:quick --with-dry-run for a long-lived branch that reaches the app`, () => {
+            assert.match(text, /pnpm run check:quick --with-dry-run/);
+            assert.match(text, /long-lived/);
+            assert.match(text, /graphty app/);
+            assert.match(text, /node graphty\/dry-run\/run\.mjs/);
+            assert.match(text, /shared component/);
+        });
+    }
+
+    it("the issue-round prompt appends the shared subagent rules", () => {
+        assert.match(issueRound.replace(/\s*\n\s*/g, " "), /"Subagent rules" paragraph from the shared file verbatim/);
+    });
+});

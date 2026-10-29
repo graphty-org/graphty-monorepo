@@ -9,6 +9,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
+import { shaderTemplate } from "@graphty/graphty-element/catalog";
 import { createGraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
@@ -216,8 +217,14 @@ describe("the graph's shader settings", () => {
 
     it("the Background shader gallery starts with New shader..., whose Add sets the background as one step", async () => {
         const element = await openGraphSettings();
-        // A copy whose body differs from the preset's by a comment, so it is added as a new shader.
-        const text = `${await element.session.shaders.source("nebula", { duplicate: true })}\n// pasted\n`;
+        // The background template under an id only the pasted text names, so the id read back proves the paste
+        // reached the dialog (it opens on the template itself). Not a copy of Nebula: Add waits for the element's
+        // test frame, which refuses a shader over its time budget, and Nebula is near that budget on a busy
+        // machine (#4301).
+        const text = shaderTemplate({ target: "background" }).replace(
+            '"user/my-background"',
+            '"user/pasted-background"',
+        );
         await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
         const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
@@ -237,7 +244,7 @@ describe("the graph's shader settings", () => {
         await waitFor(
             () => {
                 const { background } = element.session.config;
-                assert.strictEqual(background.shader?.id, "user/nebula");
+                assert.strictEqual(background.shader?.id, "user/pasted-background");
             },
             { timeout: TIMEOUT_MS },
         );

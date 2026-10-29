@@ -448,6 +448,20 @@ export class GroupOutlinePass {
         this.renderer.dispose();
     }
 
+    /**
+     * Whether an outline is on its way: the outlines are to be read again, or a shader they use is
+     * still resolving or compiling. Until then no group is laid out, so the frame on screen has
+     * neither the outline nor a background tinted by it.
+     * @returns True while one is on its way.
+     */
+    get pending(): boolean {
+        return (
+            this.stale ||
+            [...this.shaders.values()].includes("resolving") ||
+            [...this.effects.values()].some((entry) => entry.ready === undefined)
+        );
+    }
+
     /** Ask a graph drawn on demand for one frame. */
     private requestFrame(): void {
         const release = animatesEveryFrame(this.scene);

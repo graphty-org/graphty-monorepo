@@ -45,6 +45,7 @@ import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
+import { trackOnScene } from "./PendingWork";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -401,6 +402,8 @@ class ShaderScene {
     private wanted: ShaderBackground | null = null;
     /** Counts background requests, so a slow resolution never draws over a newer one. */
     private backgroundTicket = 0;
+    /** Background loads in flight: the shader, the runtime, the pass module and the compile. */
+    private backgroundLoads = 0;
     private outlineLoading = false;
     private readonly budget: RenderTargetBudget;
     private readonly stops: (() => void)[] = [];
@@ -479,6 +482,22 @@ class ShaderScene {
         return { background: this.background, outline: this.outline, bloom: this.bloom };
     }
 
+    /**
+     * Whether a scene shader's picture is on its way, so the frame on screen does not show it yet:
+     * the background or the group outline pass still loading, an outline's shader still resolving
+     * or compiling, or a background that owes a draw with the outlines laid out since. Each of
+     * these ends by asking for a frame (issue #4243).
+     * @returns True while one is on its way.
+     */
+    get picturePending(): boolean {
+        return (
+            this.backgroundLoads > 0 ||
+            this.outlineLoading ||
+            this.outline?.pending === true ||
+            this.background?.owesDraw === true
+        );
+    }
+
     /** Release every pass and listener. */
     dispose(): void {
         this.disposed = true;
@@ -505,6 +524,16 @@ class ShaderScene {
 
     /** Resolve the background shader asked for and draw it, or draw the clear color. */
     private async showBackground(): Promise<void> {
+        this.backgroundLoads++;
+        try {
+            await this.loadBackground();
+        } finally {
+            this.backgroundLoads--;
+        }
+    }
+
+    /** The body of {@link showBackground}. */
+    private async loadBackground(): Promise<void> {
         const ticket = ++this.backgroundTicket;
         const { wanted } = this;
         const controller = shadersControllerOf(this.sources.session);
@@ -516,11 +545,12 @@ class ShaderScene {
             return;
         }
 
-        const [shader, runtime, module] = await Promise.all([
-            controller.drawable(wanted.id),
-            host.runtime(),
-            import("../meshes/BackgroundPass"),
-        ]);
+        const [shader, runtime, module] = await trackOnScene(
+            this.scene,
+            "shader",
+            "a background shader is still loading",
+            Promise.all([controller.drawable(wanted.id), host.runtime(), import("../meshes/BackgroundPass")]),
+        );
         if (ticket !== this.backgroundTicket || this.disposed) {
             return;
         }
@@ -592,7 +622,12 @@ class ShaderScene {
 
         this.outlineLoading = true;
         try {
-            const [runtime, module] = await Promise.all([host.runtime(), import("../meshes/GroupOutlinePass")]);
+            const [runtime, module] = await trackOnScene(
+                this.scene,
+                "shader",
+                "the group outline pass is still loading",
+                Promise.all([host.runtime(), import("../meshes/GroupOutlinePass")]),
+            );
             if (this.disposed || this.outline !== null) {
                 return;
             }
@@ -622,7 +657,12 @@ class ShaderScene {
             return;
         }
 
-        const module = await import("../meshes/BloomPass");
+        const module = await trackOnScene(
+            this.scene,
+            "shader",
+            "the bloom pass is still loading",
+            import("../meshes/BloomPass"),
+        );
         if (this.disposed || this.bloom !== null) {
             return;
         }
@@ -713,7 +753,7 @@ export class RenderManager implements Manager {
     private readonly key: DirectionalLight;
     /** The key light's direction in camera space (x right, y up, z forward). */
     private readonly keyInCameraSpace = new Vector3(0, 0, 1);
-    /** Whether the last frame drawn left the camera, size or background other than the one before. */
+    /** Whether drawing the last frame moved the camera, size or background from what it began with. */
     private lastFrameMoved = true;
     private readonly owe = (): void => {
         this.drawOwed = true;
@@ -1133,6 +1173,12 @@ export class RenderManager implements Manager {
         const owed = this.drawOwed;
         this.drawOwed = false;
         const drawnReady = this.readyToDrawChange();
+        // What the frame begins with, so the frame can tell afterwards whether drawing it moved
+        // anything; see noteDrawnFrom.
+        if (this.pictureIsFinal !== null && this.drawsOnDemand()) {
+            this.recordView();
+        }
+
         this.scene.render();
         this.ticks.drawn++;
         this.checkFlashing(at, owed);
@@ -1354,9 +1400,10 @@ export class RenderManager implements Manager {
      * arrives unannounced), a mesh, material or texture added and not yet
      * ready to draw, an every-frame animation, the reader's input on
      * the canvas, an event the element announced, a new callback waiting for the next frame, or
-     * anything the last two frames drawn did not agree on -- the camera, the canvas size, the
-     * background colour. The last is what keeps a camera gliding to rest: inertia moves it only
-     * inside a frame, so the loop draws until a frame leaves it where the one before did.
+     * anything the last frame drawn moved while it was drawn -- the camera, the canvas size, the
+     * background colour. The last is what keeps a camera gliding to rest when something moves it
+     * only inside a frame (an onBeforeRender observer), so the loop draws until a frame leaves it
+     * where it began.
      * @returns True when this tick draws nothing.
      */
     private mayRest(): boolean {
@@ -1470,7 +1517,7 @@ export class RenderManager implements Manager {
 
     /**
      * Records what the frame just drawn left behind, for {@link RenderManager.sameAsDrawn}, and
-     * whether it differed from what the frame before left.
+     * whether drawing it moved the camera, size or background from what it began with.
      * @param drawnReady - Whether the frame began with a change to the scene's contents all ready
      *     to draw; see {@link readyToDrawChange}.
      */
@@ -1481,7 +1528,30 @@ export class RenderManager implements Manager {
             return;
         }
 
+        // Compared with what the frame began with, not with the frame before it. A change made
+        // outside a frame -- a resize, a camera the update pass moved or framed -- is seen by the
+        // next tick's sameAsDrawn, so the frame that draws it is the only one it needs. Only motion
+        // made while the frame was being drawn (an onBeforeRender observer, the camera's own
+        // update) is invisible to that check, and only that one asks for the next frame. Compared
+        // with the frame before, every resize and every fit drew the same picture once more: on a
+        // software GPU, 200 to 800 ms of the page's main thread each under load (#3537).
         this.lastFrameMoved = !this.sameAsDrawn();
+        this.recordView();
+        // Something added while frames were being drawn may not have been ready to draw in them.
+        if (!this.sameContents()) {
+            this.sceneChanged = true;
+        }
+
+        // Drawn whole, and nothing added while it was drawn: the change is on the canvas.
+        if (drawnReady && this.contentsNow.every((value, i) => value === this.contentsAtDraw[i])) {
+            this.sceneChanged = false;
+        }
+
+        this.readSceneContents(this.drawnFrom.contents);
+    }
+
+    /** Records the camera, size, background and frame observers, for {@link RenderManager.sameAsDrawn}. */
+    private recordView(): void {
         const from = this.drawnFrom;
         const camera = this.scene.activeCamera;
         from.camera = camera?.uniqueId ?? -1;
@@ -1498,17 +1568,6 @@ export class RenderManager implements Manager {
         from.clear[2] = clearColor.b;
         from.clear[3] = clearColor.a;
         from.observers = this.newestFrameObservers();
-        // Something added while frames were being drawn may not have been ready to draw in them.
-        if (!this.sameContents()) {
-            this.sceneChanged = true;
-        }
-
-        // Drawn whole, and nothing added while it was drawn: the change is on the canvas.
-        if (drawnReady && this.contentsNow.every((value, i) => value === this.contentsAtDraw[i])) {
-            this.sceneChanged = false;
-        }
-
-        this.readSceneContents(from.contents);
     }
 
     /**
@@ -1642,6 +1701,15 @@ export class RenderManager implements Manager {
      */
     shaderPasses(): ReturnType<ShaderScene["passes"]> {
         return this.shaderScene?.passes() ?? { background: null, outline: null, bloom: null };
+    }
+
+    /**
+     * Whether a scene shader's picture (the background, a group outline) is still on its way.
+     * @returns True while one is.
+     * @internal
+     */
+    shaderPicturePending(): boolean {
+        return this.shaderScene?.picturePending ?? false;
     }
 
     /**

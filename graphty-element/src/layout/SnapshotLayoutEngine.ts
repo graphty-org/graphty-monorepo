@@ -4,10 +4,18 @@ import type { LayoutResult } from "@graphty/layout";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { ElementPositions } from "../data/positions";
 import { readSeedPosition } from "../data/seedPosition";
+import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyWarningCode } from "../errors/codes";
 import type { Node } from "../Node";
-import { layoutDim, LayoutEngine, simpleLayoutInternals, StaticLayoutEngine } from "./LayoutEngine";
+import {
+    type EdgePosition,
+    layoutDim,
+    LayoutEngine,
+    type Position,
+    simpleLayoutInternals,
+    StaticLayoutEngine,
+} from "./LayoutEngine";
 
 /** How far an arrangement has got, as a layout reports it. */
 export interface SnapshotLayoutProgress {
@@ -273,6 +281,47 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         }
 
         super.refresh();
+    }
+
+    /**
+     * A node's coordinates, for the frame drawing it; see {@link SnapshotLayoutEngine.refreshForFrame}.
+     * @param n - The node.
+     * @returns Its coordinates.
+     */
+    override getNodePosition(n: Node): Position {
+        this.refreshForFrame();
+        return super.getNodePosition(n);
+    }
+
+    /**
+     * An edge's endpoints, for the frame drawing it; see {@link SnapshotLayoutEngine.refreshForFrame}.
+     * @param e - The edge.
+     * @returns Its endpoints' coordinates.
+     */
+    override getEdgePosition(e: Edge): EdgePosition {
+        this.refreshForFrame();
+        return super.getEdgePosition(e);
+    }
+
+    /**
+     * Recompute a stale layout for a frame's node or edge update, reporting a refusal instead of
+     * throwing it. A frame that reads a node or an edge of a graph the layout refuses (planar over
+     * an edge that made it K5) would otherwise abort its whole update pass with the layout
+     * package's uncoded error, which never reached the error event. Reported through the layout
+     * manager, it arrives as the coded refusal; the refused run places nothing, so every node is
+     * then read where it already was. An engine nobody connected throws, as before.
+     */
+    private refreshForFrame(): void {
+        const host = this.#host;
+        if (host === null || !this.stale) {
+            return;
+        }
+
+        try {
+            this.refresh();
+        } catch (error) {
+            host.fail(error);
+        }
     }
 
     /** Call off an answer still being computed, which aborts its signal. */

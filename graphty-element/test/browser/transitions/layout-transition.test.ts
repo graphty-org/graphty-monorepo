@@ -233,6 +233,24 @@ describe("layout transitions", () => {
         assert.closeTo(a.mesh.position.y, target.y, 1e-6);
     });
 
+    it("holds the move part way as a final picture, and runs it on once the hold is cleared", async () => {
+        const element = await mounted();
+        const a = nodeOf(element, "a");
+        // Held: the 30-second move must not keep the picture from being final for 30 seconds, nor
+        // keep the camera's framing owed until it ends.
+        await element.session.config.set({ layoutTransition: { transition: "e7/linear", seconds: 30, hold: 0.5 } });
+        await element.graph.setLayout("e7-row");
+        await element.waitForStableFrame();
+
+        assert.isTrue(transitionsOf(element.graph.getLayoutManager())?.active, "the move is under way");
+        assert.isTrue(element.isFrameStable, "a held move is a final picture");
+        assert.closeTo(a.mesh.position.x, -3, 1e-6, "node a is drawn half way from x = -4 to x = -2");
+        assert.closeTo(a.mesh.position.y, 0, 1e-6, "node a is drawn half way from y = -1 to y = 1");
+
+        await element.session.config.set({ layoutTransition: { transition: "e7/linear", seconds: 30 } });
+        await until(element, "node a moves on once the hold is cleared", () => a.mesh.position.y > 0.01);
+    });
+
     it("draws the particle cloud only while a particles transition runs", async () => {
         registerTransition({
             descriptor: {

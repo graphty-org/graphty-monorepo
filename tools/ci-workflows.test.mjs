@@ -1284,9 +1284,7 @@ describe("ci.yml", () => {
 
     it("fails, never skips, the summary checks when Build did not run", () => {
         // A skipped required check counts as passing.
-        for (const name of ["all-checks", "queue-checks"]) {
-            assert.match(job(ci, name), /\n {8}if: always\(\)\n/, `${name} always runs`);
-        }
+        assert.match(job(ci, "all-checks"), /\n {8}if: always\(\)\n/, "all-checks always runs");
         assert.match(
             job(ci, "all-checks"),
             /if \[\[ "\$BUILD" == "skipped" \]\]; then\n.*Build did not run.*\n\s+exit 1/,
@@ -1311,10 +1309,15 @@ describe("ci.yml", () => {
             job(ci, "all-checks"),
             /\[\[ "\$FULL" == "false" \|\| "\$LIGHT" == "true" \]\] && ok='\["success","skipped"\]'/,
         );
-        const queue = job(ci, "queue-checks");
-        assert.match(queue, /name: Queue Checks Pass/);
-        assert.match(queue, /"\$ALL_CHECKS" != "success"/);
-        assert.match(queue, /"\$MERGE_QUEUE" == "true" && "\$FULL" != "true"/);
+    });
+
+    it("has no retired Queue Checks Pass anywhere a check is defined or read (#3477)", () => {
+        assert.equal(parseJobs(ci)["queue-checks"], undefined, "no queue-checks job");
+        assert.ok(!/Queue Checks Pass/.test(ci), "ci.yml never names Queue Checks Pass");
+        const action = readFileSync(new URL("../.github/actions/early-verdict/action.yml", import.meta.url), "utf8");
+        assert.ok(!/Queue Checks Pass/.test(action), "early-verdict never reads Queue Checks Pass");
+        const advisory = readFileSync(new URL("./ci-advisory-checks.json", import.meta.url), "utf8");
+        assert.ok(!/Queue Checks Pass/.test(advisory), "no advisory entry for Queue Checks Pass");
     });
 
     it("gates every pull request that affects graphty-element on the cost estimates", () => {
@@ -1331,7 +1334,7 @@ describe("ci.yml", () => {
         assert.equal(jobs["visual-flaky"].coe, "true");
         assert.match(job(ci, "visual-flaky"), /pattern: visual-\*\n/);
         assert.match(job(ci, "visual-flaky"), /node tools\/visual-flaky-report\.mjs "\$RUNNER_TEMP\/visual"/);
-        for (const name of ["all-checks", "queue-checks"]) assert.ok(!jobs[name].needs.includes("visual-flaky"), name);
+        assert.ok(!jobs["all-checks"].needs.includes("visual-flaky"));
     });
 
     it("runs no security audit on pull requests or merge-queue runs", () => {
@@ -1700,7 +1703,6 @@ describe("ci.yml", () => {
         // jobs must succeed
         assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.packages.outputs.light \}\}/);
         assert.match(job(ci, "all-checks"), /strict='\["packages","build","lint","checks","docs"\]'\n/);
-        assert.match(job(ci, "queue-checks"), /"\$ALL_CHECKS" != "success"/);
     });
 
     it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
@@ -1903,7 +1905,9 @@ describe("verification runs of ci.yml", () => {
     it("keeps the screenshot report out of All Checks Pass, so a pull request never waits on captures (#3443)", () => {
         const jobs = parseJobs(ci);
         assert.ok(!jobs["all-checks"].needs.includes("visual"), "All Checks Pass must not need the visual job");
-        assert.ok(!/visual/.test(job(ci, "all-checks")), "All Checks Pass reads nothing of the screenshots");
+        // comments dropped: the next job's leading comment ends the all-checks slice
+        const allChecks = job(ci, "all-checks").replace(/^ *#.*$/gm, "");
+        assert.ok(!/visual/.test(allChecks), "All Checks Pass reads nothing of the screenshots");
         const report = job(ci, "visual-report");
         assert.deepEqual(jobs["visual-report"].needs, ["packages", "story-tests", "story-tests-merge"]);
         assert.match(report, /\n {8}name: Visual report\n/);
@@ -2108,8 +2112,8 @@ const parseJobs = (text) => {
     return jobs;
 };
 
-// The (job, step) pairs that can fail "All Checks Pass" or "Queue Checks Pass": every step of every job
-// in their `needs` closure, less a job or step marked `continue-on-error: true`, as { job: [step names] }.
+// The (job, step) pairs that can fail "All Checks Pass": every step of every job
+// in its `needs` closure, less a job or step marked `continue-on-error: true`, as { job: [step names] }.
 const requiredChecks = (jobs) => {
     const closure = new Set();
     const visit = (name) => {
@@ -2118,7 +2122,6 @@ const requiredChecks = (jobs) => {
         for (const need of jobs[name].needs) visit(need);
     };
     visit("all-checks");
-    visit("queue-checks");
     return Object.fromEntries(
         [...closure]
             .filter((name) => jobs[name].coe !== "true")
@@ -2652,10 +2655,13 @@ jobs:
         }).listen(0, "127.0.0.1");
         await new Promise((resolve) => server.once("listening", resolve));
         const dir = mkdtempSync(join(tmpdir(), "nx-probe-"));
+        const groups = [];
         const probe = (url, token) =>
             new Promise((resolve) => {
                 writeFileSync(join(dir, "env"), "");
                 const child = spawn("bash", ["-e", "-c", run], {
+                    cwd: new URL("../", import.meta.url),
+                    detached: true,
                     env: {
                         ...process.env,
                         NX_CACHE_URL: url,
@@ -2663,19 +2669,25 @@ jobs:
                         WRITES: "false",
                         GITHUB_ENV: join(dir, "env"),
                         GITHUB_STEP_SUMMARY: join(dir, "summary"),
+                        RUNNER_TEMP: dir,
                     },
                     stdio: "ignore",
                 });
+                groups.push(child.pid);
                 child.on("close", (code) => resolve({ code, env: readFileSync(join(dir, "env"), "utf8") }));
             });
         try {
             const url = `http://127.0.0.1:${server.address().port}`;
             const on = await probe(url, "good");
             assert.equal(on.code, 0);
-            assert.match(
-                on.env,
-                /^NX_SELF_HOSTED_REMOTE_CACHE_SERVER=.+\nNX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=good\n$/,
-            );
+            // nx is pointed at the timeout proxy (tools/nx-cache-proxy.mjs, #4193), which reaches the Worker.
+            const proxy = /^NX_SELF_HOSTED_REMOTE_CACHE_SERVER=(http:\/\/127\.0\.0\.1:\d+)\n/.exec(on.env)?.[1];
+            assert.ok(proxy, on.env);
+            assert.match(on.env, /\nNX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=good\n$/);
+            const miss = await fetch(`${proxy}/v1/cache/abc`, { headers: { authorization: "Bearer good" } });
+            assert.equal(miss.status, 404);
+            const refused = await fetch(`${proxy}/v1/cache/abc`, { headers: { authorization: "Bearer wrong" } });
+            assert.equal(refused.status, 401);
             for (const [u, token] of [
                 [url, "wrong"],
                 [url, ""],
@@ -2687,6 +2699,13 @@ jobs:
                 assert.equal(off.env, "", `${u} ${token}: the cache stays off`);
             }
         } finally {
+            for (const pid of groups) {
+                try {
+                    process.kill(-pid);
+                } catch {
+                    // the group already ended
+                }
+            }
             server.close();
             rmSync(dir, { recursive: true, force: true });
         }
@@ -2749,7 +2768,7 @@ describe("the summary checks fail as soon as a required job fails", () => {
 
     it("only ever reports a failure, and never for a job in its warning period", () => {
         const action = readFileSync(new URL("../.github/actions/early-verdict/action.yml", import.meta.url), "utf8");
-        assert.match(action, /for check in "All Checks Pass" "Queue Checks Pass"; do/);
+        assert.match(action, /for check in "All Checks Pass"; do/);
         assert.equal(action.match(/conclusion=/g).length, 1);
         assert.match(action, /-f status=completed -f conclusion=failure/);
         const program = /if jq -e --arg job "\$JOB" '([^']+)'/.exec(action)[1];
@@ -2767,11 +2786,8 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
     const ci = workflow("ci.yml");
     const jobs = parseJobs(ci);
 
-    it("ends both summary jobs with the clearing step, on a passing pull request run only", () => {
-        for (const [name, check] of [
-            ["all-checks", "All Checks Pass"],
-            ["queue-checks", "Queue Checks Pass"],
-        ]) {
+    it("ends the summary job with the clearing step, on a passing pull request run only", () => {
+        for (const [name, check] of [["all-checks", "All Checks Pass"]]) {
             const last = jobs[name].steps.at(-1);
             assert.equal(last.name, "Clear this check's early verdicts", name);
             assert.equal(last.if, "success() && github.event_name == 'pull_request'", name);
@@ -2823,7 +2839,7 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
     };
 
     it("waits for an exhausted API limit to reset and then clears, on any attempt (#3857)", () => {
-        for (const name of ["all-checks", "queue-checks"]) {
+        for (const name of ["all-checks"]) {
             const { status, stdout, log } = runClear(name, { failList: 1, resetIn: 30 });
             assert.equal(status, 0, name);
             assert.match(stdout, /cleared early verdict 1/, name);
@@ -2842,7 +2858,7 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
     });
 
     it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
-        const program = /--jq '([^']+)'\) \|\| return 1/.exec(job(ci, "queue-checks"))[1];
+        const program = /--jq '([^']+)'\) \|\| return 1/.exec(job(ci, "all-checks"))[1];
         const page = {
             check_runs: [
                 { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
@@ -2853,7 +2869,7 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
                     details_url: "https://x/actions/runs/7/job/9",
                 },
                 { id: 3, name: "All Checks Pass", conclusion: "success", details_url: "https://x/actions/runs/8" },
-                { id: 4, name: "Queue Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
+                { id: 4, name: "Lint PR Title", conclusion: "failure", details_url: "https://x/actions/runs/7" },
             ],
         };
         const ids = spawnSync("jq", [program], {

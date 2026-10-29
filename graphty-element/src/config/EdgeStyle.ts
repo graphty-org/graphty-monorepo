@@ -84,7 +84,8 @@ const ArrowStyle = z.strictObject({
      * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
      * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
      * `width`): `"dot normal"`, `"open-diamond:left*1.2x0.7"`. A word that is not a cap type draws nothing. Unset,
-     * this cap alone. A cap drawn part-way along (`position`) draws its row there too.
+     * this cap alone. At most 8 are drawn; later ones are left out. A cap drawn part-way along (`position`) draws its
+     * row there too.
      */
     stack: z.string().optional(),
     /**

@@ -154,6 +154,16 @@ describe("DOT styles: edges", () => {
         expect((await edges(doc, "sourceArrowParts"))[3]).toBe("circle-open");
     });
 
+    it("reads at most four shapes of an arrow name, a none among them, as Graphviz does", async () => {
+        const doc = `digraph { a -> b [arrowhead=normalnormalnormalnormalnormal]; b -> c [arrowhead=boxboxboxboxbox]; c -> d [arrowhead=nonenormalnormalnormalnormal]; d -> e [arrowhead="${"dot".repeat(20000)}"] }`;
+        expect(await edges(doc, "targetArrowParts")).toEqual([
+            "triangle triangle triangle",
+            "square square square",
+            "triangle triangle",
+            "circle circle circle",
+        ]);
+    });
+
     it("draws a color list with fractions as segments along the line, each a band with a hard switch", async () => {
         const doc = `digraph { a -> b [color="red;0.2:green;0.3:blue"]; b -> c [color="red:blue"] }`;
         expect(await edges(doc, "gradientColors")).toEqual(["#ff0000 #ff0000 #008000 #008000 #0000ff #0000ff", null]);

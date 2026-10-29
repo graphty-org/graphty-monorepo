@@ -2237,7 +2237,8 @@ function graphvizArrows(raw: string): GraphvizArrowShape[] | null {
         rest = "oinv";
     }
     const shapes: GraphvizArrowShape[] = [];
-    while (rest.length > 0) {
+    // arrows.c reads at most NUMB_OF_ARROWHEADS (4) shapes, a `none` among them, and ignores the rest
+    for (let slot = 0; rest.length > 0 && slot < 4; slot++) {
         const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
         if (m === null) {
             return shapes.length === 0 ? null : shapes;

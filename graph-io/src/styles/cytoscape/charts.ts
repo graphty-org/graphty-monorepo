@@ -775,7 +775,7 @@ const TICK_STEPS = [1, 2.5, 5];
  */
 function tickUnit(span: number, length: number, label: number): number {
     const per = length / span;
-    if (!(per > 0) || !Number.isFinite(per)) {
+    if (per <= 0 || !Number.isFinite(per)) {
         return Number.NaN;
     }
     const units = (from: number): number[] => {
@@ -860,42 +860,10 @@ function chartAxes(
         plot.x0 += Math.max(width(endText(lo)), width(endText(hi))) + AXIS_ROOM;
     }
     const [pw, ph] = [plot.x1 - plot.x0, plot.y1 - plot.y0];
-    const texts: ChartText[] = [];
-    if (range && pw > 0 && ph > 0 && hi > lo) {
-        const unit = tickUnit(hi - lo, ph, line + 2 * TICK_LABEL_INSETS);
-        for (let k = Math.ceil(lo / unit - 1e-9); Number.isFinite(unit) && k * unit <= hi + 1e-9 * unit; k++) {
-            // never "-0"
-            const tick = k * unit || 0;
-            const text = tickText(tick, unit);
-            const y = plot.y1 - ((tick - lo) / (hi - lo)) * ph;
-            texts.push(put(plot.x0 - AXIS_LABEL_GAP - width(text) / 2, y, text));
-        }
-    }
-    if (domain && pw > 0) {
-        const margin = Number(plotted.chartMargin ?? 0);
-        const gap = Number(plotted.chartGap ?? 0);
-        const n = values.length;
-        const band = Math.max(0, 1 - 2 * margin - gap) / n;
-        const step = band + (n > 1 ? gap / (n - 1) : 0);
-        const r = (position.turn * Math.PI) / 180;
-        names.forEach((text, k) => {
-            if (text === "") {
-                return;
-            }
-            // from the pinned point to the box's middle, turned with the box
-            const [dx, dy] = [-position.pin[0] * width(text), -position.pin[1] * line];
-            const x = plot.x0 + (margin + k * step + band / 2) * pw;
-            const y = plot.y1 + AXIS_LABEL_GAP;
-            texts.push(
-                put(
-                    x + Math.cos(r) * dx - Math.sin(r) * dy,
-                    y + Math.sin(r) * dx + Math.cos(r) * dy,
-                    text,
-                    position.turn,
-                ),
-            );
-        });
-    }
+    const texts: ChartText[] = [
+        ...(range && pw > 0 && ph > 0 && hi > lo ? rangeTicks(plot, [lo, hi], line, width) : []),
+        ...(domain && pw > 0 ? categoryNames(plot, plotted, names, position, { line, width }) : []),
+    ].map(([x, y, text, turn]) => put(x, y, text, turn));
     return {
         plot: {
             chartWidth: num6(Math.max(0, pw) / w),
@@ -905,4 +873,82 @@ function chartAxes(
         },
         texts,
     };
+}
+
+/** A plot's box in the node's lengths, y down. */
+interface PlotBox {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+}
+
+/**
+ * The range axis' tick numbers: every tick of JFreeChart's unit in the range, each right-aligned
+ * {@link AXIS_LABEL_GAP} left of the plot, its middle on its tick.
+ * @param plot - the plot's box
+ * @param range - the axis' low and high values
+ * @param line - a label's line height
+ * @param width - a label's width
+ * @returns each number's middle (x, y down), text and turn
+ */
+function rangeTicks(
+    plot: PlotBox,
+    range: readonly [number, number],
+    line: number,
+    width: (text: string) => number,
+): [number, number, string, number][] {
+    const [lo, hi] = range;
+    const ph = plot.y1 - plot.y0;
+    const unit = tickUnit(hi - lo, ph, line + 2 * TICK_LABEL_INSETS);
+    const out: [number, number, string, number][] = [];
+    for (let k = Math.ceil(lo / unit - 1e-9); Number.isFinite(unit) && k * unit <= hi + 1e-9 * unit; k++) {
+        // never "-0"
+        const tick = k * unit || 0;
+        const text = tickText(tick, unit);
+        out.push([plot.x0 - AXIS_LABEL_GAP - width(text) / 2, plot.y1 - ((tick - lo) / (hi - lo)) * ph, text, 0]);
+    }
+    return out;
+}
+
+/**
+ * The categories' names under the plot, each pinned by its position's point to its category's middle,
+ * {@link AXIS_LABEL_GAP} below the plot, and turned with its box.
+ * @param plot - the plot's box
+ * @param plotted - the chart's properties (its margin and gap)
+ * @param names - each category's name, empty for none
+ * @param position - the names' turn and pinned point
+ * @param position.turn - the turn, degrees clockwise on screen
+ * @param position.pin - the pinned point, from the box's middle as fractions of its width and height
+ * @param measure - a label's line height and width
+ * @param measure.line - the line height
+ * @param measure.width - a text's width
+ * @returns each name's middle (x, y down), text and turn
+ */
+function categoryNames(
+    plot: PlotBox,
+    plotted: Record<string, StyleValue>,
+    names: readonly string[],
+    position: { turn: number; pin: readonly [number, number] },
+    measure: { line: number; width: (text: string) => number },
+): [number, number, string, number][] {
+    const pw = plot.x1 - plot.x0;
+    const margin = Number(plotted.chartMargin ?? 0);
+    const gap = Number(plotted.chartGap ?? 0);
+    const n = names.length;
+    const band = Math.max(0, 1 - 2 * margin - gap) / n;
+    const step = band + (n > 1 ? gap / (n - 1) : 0);
+    const r = (position.turn * Math.PI) / 180;
+    return names.flatMap((text, k): [number, number, string, number][] => {
+        if (text === "") {
+            return [];
+        }
+        // from the pinned point to the box's middle, turned with the box
+        const [dx, dy] = [-position.pin[0] * measure.width(text), -position.pin[1] * measure.line];
+        const x = plot.x0 + (margin + k * step + band / 2) * pw;
+        const y = plot.y1 + AXIS_LABEL_GAP;
+        return [
+            [x + Math.cos(r) * dx - Math.sin(r) * dy, y + Math.sin(r) * dx + Math.cos(r) * dy, text, position.turn],
+        ];
+    });
 }

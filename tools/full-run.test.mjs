@@ -16,6 +16,8 @@ import {
     duplicateOf,
     fixedRecently,
     flakyLanes,
+    flakyStories,
+    flakyStoryBody,
     greenCloses,
     heldLine,
     holdAction,
@@ -835,5 +837,30 @@ describe("file-deferred", () => {
         assert.equal(r.status, 0, r.stderr);
         assert.match(r.stdout, /^fixed=77$/m);
         assert.doesNotMatch(readFileSync(log, "utf8"), /issue create|workflow run bisect/);
+    });
+});
+
+describe("flaky story issues name their story test", () => {
+    it("names the story's file and name, so the health dashboard matches the issue to the test", () => {
+        const dir = mkdtempSync(join(tmpdir(), "full-run-flaky-"));
+        const cap = join(dir, "visual-graphty-element-2");
+        mkdirSync(cap);
+        const file = "styles-node-models--model-per-category.png";
+        const test = { file: "graphty-element/stories/NodeModels.stories.ts", name: "Model Per Category" };
+        writeFileSync(join(cap, "results.json"), JSON.stringify({ items: [{ file, test }, { file: "x.png" }] }));
+        writeFileSync(join(cap, "flaky.json"), JSON.stringify([{ file, why: "drew a different picture" }]));
+        const [s] = flakyStories(dir);
+        assert.deepEqual(s, { name: `graphty-element/${file}`, why: "drew a different picture", test });
+        const body = flakyStoryBody(s, "on abc", "Fix it.");
+        // the form the dashboard's namesTest matches: the file's name and the story's name in words (#4243, #4392)
+        assert.ok(body.startsWith("Flaky test: graphty-element/stories/NodeModels.stories.ts > Model Per Category\n"));
+    });
+
+    it("files a story with no test on record as before", () => {
+        const s = { name: "p/a.png", why: "matched its baseline", test: undefined };
+        assert.equal(
+            flakyStoryBody(s, "on abc", "Fix it."),
+            "The story p/a.png matched its baseline on abc.\n\nFix it.",
+        );
     });
 });

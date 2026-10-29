@@ -4,6 +4,47 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-29 -- For the owner: tier 4 data management questions (graphty app, graphty-element, compact-mantine)
+
+Raised by the tier 4 expert walkthroughs (`tier4/review/*.md`; screenshots under the main
+checkout's `tmp/design-studio/tier4/review/`). Each reverses an owner choice, changes what an
+existing API does, or changes compact-mantine's words, so none is built. The study runs on today's
+behavior meanwhile.
+
+1. **What the filter card's "Hide" does** (`design/data/filter-cards.md`, owner decision 1). Built:
+   `Select | Hide`, Hide writes `keep`. Walks read it the other way: "Hide person" leaves only the
+   14 people; a Hide card with no matches blanks the canvas (0 of 12); the table's column "Hide"
+   hides what it names (figma w2/07.png, w1/12.png; content w1-load 33, 36, 55). T66 failed for the
+   same reason: Hide on pantries.csv keeps pantries.csv, which owns no edges, so 0 of 18 edges
+   remain (w2/11.png); an exclude effect on the second file's node answers T66 as asked. Options:
+   (a) relabel the segment "Show only" (or "Keep"); (b) Hide writes `exclude`; (c) a third
+   "Exclude" segment. The team changed only the Hide segment's tooltip and accessible name ("Hide
+   nodes that do not match"). The T65 answer key is unchanged until you rule.
+2. **Where a column's kind is set.** Your rule "the table is view-only; configuration lives in the
+   Data place" and the approved spec `ui/data-prototype/spec.md` 3.3 ("No other fields list. Every
+   other column is in the table"; the header menu holds Type, Role, Rename) pull opposite ways.
+   Four reviews asked for one Fields row per column with a type control; the red team showed that
+   does not scale to a 200-column file. Options: (a) keep kinds in the header menu; (b) a per-source
+   "Columns" list with search, opened from its Sources row, and the header menu's Type becomes a
+   door to it; (c) one Fields row per column.
+3. **A Select card after the reader clears the selection** (graphty-element). Clicking the empty
+   canvas clears the selection, but the card still shows Select, ticked, "5 of 24" (interaction
+   w3 05-06). Having the element turn the condition off on a hand selection changes an existing
+   API's behavior and ties canvas clicks to filter history.
+4. **Role detection on load as a suggestion** (graphty-element default). volunteers.graphml loads
+   with Coordinates set to the phone column. Tightening plus-code and geohash detection so phone
+   numbers are rejected is additive and is in the backlog; turning detected roles into suggestions
+   the reader confirms changes a default.
+5. **CSV writes a date-only value as a timestamp** (graph-io, graphty-element). `2015-03-02`
+   exports as `2015-03-02T00:00:00.000Z`; in a negative UTC offset Excel may show the day before.
+   Keeping date-only values date-only changes an existing exporter's output.
+6. **Glossary renames of approved sections.** "Fields" to "Attributes", "Sources" to "Data
+   sources", "Type" to a measurement-level word, and the edge-end role "Source / Target" to
+   "From / To" (so "source" means only a data file). One batch, because each renames approved UI.
+7. **"Alt+Down" in the column "..." tooltip** (compact-mantine DataTable). The header menu opens on
+   Alt+ArrowDown and Shift+F10 but no control shows the key; showing it changes a locked
+   component's words. The ARIA-only part (`aria-haspopup`, `aria-keyshortcuts`) is in the backlog.
+
 ## 2026-10-23 -- Owner approval: compact-mantine is locked to its Figma spec (compact-mantine)
 
 Owner approved the 24 departures in figma-spec.md section 14; any other departure, or a change to one

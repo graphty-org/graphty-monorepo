@@ -124,3 +124,161 @@ row, else its selected row, else its resting row; the toolbar and a grid at thei
   8 to 20 stop walks are not defects. **F6 cycles five regions**: the top bar, the left panel (at
   its first control), the canvas, the canvas toolbar, the inspector. A resize handle is never a
   region. (2026-10-19.) Whether a keyboard participant finds F6 is for the sessions.
+
+## Tier 4 review decisions (director, 2026-10-29)
+
+The expert walkthroughs (`review/*.md`; screenshots under the main checkout's
+`tmp/design-studio/tier4/review/<role>/`) and the red team's objections, decided. Fifteen changes,
+most impactful first, grouped by the shared part that owns them. Each is fixed once in that part,
+with a real-input test, and re-tested by a participant briefed in words the change does not put on
+screen. Items the red team showed to be owner calls are under "for the owner" in
+`../owner-decisions.md` (2026-10-29) and are NOT built; the rest are in `backlog.md`.
+
+### Study tool
+
+- **R1. A study build serves `site.json`** (studio tool, `tool/real.mjs`; done in this commit).
+  Severity 4: the frozen `graphty/dist` has no `site.json` (the deploy writes it from
+  `graphty/sites/<channel>.json`), so every setup start got a 404 and `real.mjs` ended it with
+  SETUP FAILED, voiding every session that starts from a setup file. The tool's server now answers
+  `/site.json` from `graphty/sites/production.json` when the build has none, so every build, frozen
+  or not, starts cleanly. Re-test: the next `real.mjs --prove` and one setup start of each tier 4
+  setup end without SETUP FAILED.
+
+### Filters cards (`data-place/Filters.tsx`; the Style card is approved and does not change)
+
+- **R2. Filters "+" opens the Style panel's attribute picker** (`AddCondition`,
+  `style/WhichPicker.tsx`): search shown and focused, kind glyphs, value summaries, Nodes and Edges
+  sections, and a last Structure group holding Data source, Largest component, Neighbors of
+  selection and Time window. Each group is `role=group` named by its heading. Why: three reviews
+  (Figma, IA, visual) found the same act drawn by two pickers; decided.md says the filters ARE the
+  Style cards. Pattern reused: `AddCondition` (arrows, Enter, Escape as decided). Re-test: "narrow
+  the picture to people who put in a lot of time" (T65 B words), with no field name given.
+- **R3. A text card previews its count while typing and writes on commit** (Filters.tsx). The count
+  follows each keystroke as a preview that writes nothing, as the Style card does; the condition is
+  written on blur, Enter, Tab out, and Escape when the card holds a value (Escape then keeps the
+  card and puts focus on its on box). Only Escape takes back a card, and only an empty one (with its
+  notice). Tab never discards a card: an empty card stays and Tab moves on. Why: interaction and
+  a11y walks lost typed values ("Pan") and empty cards on Tab, against decided.md's count rule and
+  "Escape keeps edits in a card". The red team's objection holds: writing on every pause would make
+  one undo step per pause (filter-cards.md section 5), so commit still writes once. Re-test: a
+  keyboard participant narrows to "sites whose name starts like Pan" and reads the count aloud
+  before leaving the box.
+- **R4. A filter card's header is one row at the section edge, and a written card rests as a
+  summary** (Filters.tsx filter variant and `data-place.css`; `CardBody` keeps the Style card's
+  look). Row 1: the field name, the count chip, remove; row 2: Select / Hide and the on box, right
+  aligned; the 16 px list indent goes. A written card collapses to its header plus the summary line
+  Style shows; click or Enter opens it, one card open at a time. Category value rows read box, name,
+  dimmed count right aligned (filter variant only). The card is `role=group` named by its
+  condition. The Hide segment's tooltip and accessible name say "Hide nodes that do not match"
+  (words only; the visible label is the owner's question). Why: visual and Figma walks: three cards
+  fill the 240 px panel, the field name sits on a third line at 9 px, values read as sentences.
+  Pattern reused: the Style Which nodes held-card header and summary row. Re-test: T65 with two
+  cards, then "which of your two rules marks people without hiding anyone?" answered from the panel.
+
+### Time role (`data-place/Fields.tsx`, `data-place/TimeCard.tsx`)
+
+- **R5. Choosing the time sets only the time.** Setting a Time role no longer adds a Time card or
+  opens the timeline dock; the toolbar's clock button opens the dock, and the time window card
+  appears only when the reader adds "Time window" from Filters "+" (R2). The time window row gets
+  the condition card's header: left aligned, its own count, an on box named "Apply Time window" and
+  remove; no Select / Hide (filter-cards.md section 7: the window is separate element state with no
+  effect). One name, "Time window", in the menu, the card and the inspector ("Filter step" leaves
+  `inspector/words.ts`). Why: four reviews; the canvas shrank and the drawing went under the toolbar
+  unasked, against decided.md's "the drawing moves only when the reader asks". Re-test: T63 "say
+  which site opened first" -- the canvas keeps its size until the reader asks for the timeline.
+
+### Canvas (graphty-element)
+
+- **R6. Turning a filter card on or off keeps the camera** (graphty-element). Find first whether the
+  ~70 px shift is a re-frame or a layout re-run on the visible nodes, and fix it at that cause; the
+  view moves only on Frame (f), Reset view or opening a graph (decided.md, 2026-10-19). Why:
+  interaction walk w3 03-05. Re-test: a participant hides and shows a group twice and is asked
+  whether anything moved; the script compares node screen positions before and after.
+
+### Data place menus (`data-place/MenuItems.tsx`, `AddSourceMenu.tsx`, `SourceRow.tsx`)
+
+- **R7. Every Data menu uses the Style "+" menu item grammar**: glyph on the left, key on the right
+  (File... Ctrl+O, Paste Ctrl+V, Rename F2, Export... Ctrl+E), headings as `role=group` with their
+  label, and the add buttons report `aria-haspopup=menu` and expanded. Double-click on a source row
+  starts Rename, as in the layer tree. Why: owner rule "every hotkey has a visible button showing
+  its key"; three reviews. Pattern reused: Style layers "+" ("Analyze... Shift+A"). Re-test: a
+  participant asked to "give the second file a shorter name" without the word rename.
+- **R8. One door to network data, the same component in both places.** Sources "+" gains
+  "Network data..." (added after Server..., which stays: it is approved), opening the start
+  screen's `NetworkDataDialog` with its web address box; each of its cards passes its kind to the
+  Server form, so "Web API" opens on Web API; the Server form's "REST API" reads "Web API". The
+  address box gets a visible label and an Open button beside it (Enter still opens). Why: T60
+  detour and door fidelity: the Web API card opened Neo4j, and inside a project no door took a web
+  address (four reviews). Pattern: one home per capability, the start dialog as that home.
+  Re-test: from an open project, "bring in the volunteer list that lives online at this address".
+
+### Data issues (`table/IssuesList.tsx` as the one issue list)
+
+- **R9. A source row shows its issues; the issue list has one component and the Data place is its
+  home.** Each Sources row with issues gets a warning chip with the count; it opens the source's
+  issue list (`IssuesList.tsx`, the same component the table popover draws, with Trim, Make blank,
+  Ignore) in a popover anchored to the row. The table popover stays as a second door. Issue text at
+  body size; "Ignore all" reads "Ignore in all columns"; "1 value with padded spaces". Each fix
+  makes one polite announcement ("families: 1 value made blank"). Why: T67's fixes lived only in
+  the table, against "configuration lives in the Data place"; three reviews proposed three homes and
+  the red team asked for one. The row chip is the one home because the row already carries the
+  source's counts. Re-test: T67 with the table closed -- "anything in this file that looks wrong?"
+
+### Roles (`Fields.tsx`, `table/HeaderMenu.tsx`, the inspector)
+
+- **R10. One role list, one home, every door in the home's words.** Fields "+" and the header
+  menu's Role submenu draw the same list in the same words and sentence case (None, Id, Label, Kind,
+  Weight, Time, Coordinates, Country, Region, City for nodes; Source and Target only on an edge
+  table), read from graphty-element's role facts (additive there where a role is missing). The
+  current Type and Role carry a check mark. The inspector's "Set as time" becomes a door, "Set in
+  Data", that opens Fields with the Time row added and its column chosen. Role column choices list
+  fitting columns first with the kind glyph (the Type submenu's "N will not convert" detail on the
+  rest). The header menu keeps its approved items (Type, Role, Rename, Hide...): moving column kinds
+  out of the table is the owner's call (`owner-decisions.md`). Why: IA and content walks found two
+  role lists and three homes. Update `answers.md` T63's path ("Set as time" > "Set in Data").
+  Re-test: T63 B, "the program should know when each gauge was put in".
+
+### Source rows (`data-place/SourceRow.tsx`, CountChips)
+
+- **R11. A source row keeps its facts under the pointer and its name gets the room.** The count
+  chips stay on hover and selection, with "..." in a trailing slot after them; the file name
+  truncates last, with its full name in a tooltip; the approved ratio stays but reads with its unit
+  in the tooltip and name ("17 of 19 rows joined") and shows only when some rows did not join;
+  the inset focus ring clears the text. Count chips' names and tooltips read "13 nodes, 18 edges"
+  and "4 of 12 nodes" (the dot may stay). Why: five reviews (visual, Figma, content, a11y, IA).
+  Pattern: Style layer rows. Re-test: "how many routes came in from the second file?"
+- **R12. Fields shows every source, one group each, and the selected source survives a place
+  switch.** Fields draws one collapsible group per source (ControlSection, the Style panel's kind
+  groups), the selected source's open and first; selecting a Sources row opens and scrolls to its
+  group. The selected source lives in the workspace store, so Graph and back keeps it. Why: after a
+  join the first file's Time and location rows vanished (hidden mode; IA, Figma). Re-test: after
+  T61, "where did you say the sites are on the map?"
+
+### Join screen (`join/MatchChips.tsx`, `join/JoinScreen.tsx`)
+
+- **R13. Every join count is a chip that narrows the table to what it counts.** "18 edges added",
+  "1 new node", "1 not in graph", "1 repeated ..." become EntityChip toggles styled like "With
+  issues"; the separate Show button goes. Sentence case ("Ignore case", "Ignore spaces"); the
+  section and the button get distinct names. The chips row is the screen's `aria-describedby`.
+  Why: four wordings for one act; criterion 10 (a count is a link that selects what it counts).
+  Re-test: T61, "which of the delivery rows did not match a site?"
+
+### Export (`export/ExportDialog.tsx`, `DataOutput.tsx`, `lossWords.ts`)
+
+- **R14. Export opens on Data wherever a table is showing, and says what it loses in one line.**
+  Apply tier 1's rule (not focus): Ctrl+E and every Export item open on Data when a table is
+  showing, and from a source row's new "Export..." item on that source. The loss list becomes one
+  counted line ("Not written: positions, 9 style settings") with a details disclosure; the Format
+  list is grouped Tables / Network files without the "(keeps style layers)" suffix (one "no styles"
+  hint where styles are lost); sentence case ("Include styles"). Whether "Include styles" turns off
+  for CSV is decided after the engineer records what CSV writes with it on. Why: owner rule "export
+  is common"; three reviews. Re-test: T68 A, "send the treasurer the list of sites as a
+  spreadsheet".
+
+### Table (`table/RecordTable.tsx`, `HeaderCell.tsx`)
+
+- **R15. A date column reads as a date whatever its role.** Every date-kind cell is drawn the way
+  the time role draws it ("Mar 2, 2015"); the sort caption follows the kind (oldest first, lowest
+  first, A to Z); the first header click sorts A to Z; "Make blank" lines up with its siblings.
+  Why: T62's answer had to be read from cut ISO text (content, visual). Re-test: T62, "which site
+  has been open the longest?"

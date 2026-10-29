@@ -1049,6 +1049,11 @@ async function serve(dir, sr) {
         try {
             body = await readFile(f);
         } catch {
+            // the deploy writes site.json beside the app (graphty/sites/<channel>.json); a local
+            // build has none, and the app's 404 for it ended every setup with SETUP FAILED (tier 4)
+            if (f === join(dist, "site.json"))
+                body = await readFile(join(repo, "graphty/sites/production.json")).catch(() => null);
+            if (body) return res.writeHead(200, { "content-type": "application/json" }).end(body);
             if (extname(f)) return res.writeHead(404).end();
             // a rebuild in progress removes the page for a moment; that must not kill the session
             body = await readFile(join(dist, "index.html")).catch(() => null);

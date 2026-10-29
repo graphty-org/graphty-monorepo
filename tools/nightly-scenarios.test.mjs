@@ -730,6 +730,25 @@ describe("the nightly path's scenario matrix", () => {
         );
     });
 
+    it("(8b) a candidate older than master: handed to channel/full-run, tested there with its own workflow files", () => {
+        // run 40926721806: ci.yml from the dispatch commit called a script the candidate did not have
+        const parent = fullRun({ pick: { release: "false", handoff: "true" } });
+        ran(parent, "pick", "handoff");
+        skipped(parent, ...LANE_JOBS, ...RED_EARLY, "recapture", "verdict", "held", "version", "watchers");
+        assert.equal(parent.conclusion, "success", "the hand-off files nothing and announces nothing");
+        const child = simulate("release.yml", {
+            github: github({ ref: "refs/heads/channel/full-run", sha: H, run_id: "4001" }),
+            inputs: { mode: "full", scheduled: true },
+            results: {},
+            outputs: { pick: pickOutputs(), "ci/packages": ciPackages, "ci/build": ciPackages },
+            steps: { verdict: verdictSteps({ held: "" }), ...promoted },
+        });
+        ran(child, "pick", ...LANE_JOBS, "recapture", "verdict", "watchers");
+        skipped(child, "candidate_fix", "handoff", "resume");
+        assert.equal(child.conclusion, "success");
+        assert.deepEqual(child.reads, []);
+    });
+
     it("(9) mode promote-nightly: no lane runs; the approved candidate's kept builds are versioned, landed, published", () => {
         // the run that judged H green-images and held it: keep_builds keeps H's builds under H's name
         const judging = simulate("release.yml", {

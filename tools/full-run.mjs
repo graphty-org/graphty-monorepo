@@ -64,6 +64,13 @@ export const DEFERRED = "deferred";
  * attempt 1 must decide at once, or a red one files nothing (#4359).
  */
 export const WORKFLOW_TOKEN_ACTOR = "github-actions[bot]";
+/**
+ * The actor that decides whether a run is re-run: a run on channel/full-run (env WATCHED true) is dispatched with
+ * a workflow's GITHUB_TOKEN too, but its last job asks release-rerun.yml itself, so it is re-run like any other.
+ * @param env the environment
+ * @returns GITHUB_ACTOR, or empty for a watched run
+ */
+export const actorOf = (env) => (env.WATCHED === "true" ? "" : env.GITHUB_ACTOR);
 const PASSING_IMAGES = new Set(["unchanged", "excluded"]);
 
 /** The lanes in the order a red names them, each with its reader-facing name and its bisect.yml lane. */
@@ -876,7 +883,7 @@ async function verdictMain(env) {
     const { state, red } = verdictOf(lanes, changed.length, env.LLM_OWNER_ITEM, env.VERSION_HELD);
     // unset (a run by hand): no attempt to wait for, so it decides at once
     const attempt = Number(env.RUN_ATTEMPT || 0);
-    const wait = deferred({ attempt, mode: env.MODE, state, red, lanes, actor: env.GITHUB_ACTOR });
+    const wait = deferred({ attempt, mode: env.MODE, state, red, lanes, actor: actorOf(env) });
     let issue = null;
     let bisect = "";
     const what = whatOf({ state, red, lanes, changed, env });
@@ -962,7 +969,7 @@ export function fixedRecently(closed, sha, now = Date.now()) {
 }
 
 function laneRedMain(env) {
-    const rerun = RERUN_MODES.has(env.MODE) && env.GITHUB_ACTOR !== WORKFLOW_TOKEN_ACTOR;
+    const rerun = RERUN_MODES.has(env.MODE) && actorOf(env) !== WORKFLOW_TOKEN_ACTOR;
     if ((env.RUN_ATTEMPT || env.GITHUB_RUN_ATTEMPT) === "1" && rerun) {
         console.log(`::notice::attempt 1: the verdict decides after the one same-commit re-run`);
         return;

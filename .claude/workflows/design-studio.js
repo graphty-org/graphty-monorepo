@@ -661,7 +661,7 @@ const pre = await agent(
 1. ${ST} exists, is a git worktree on branch ${BRANCH}, and has no merge in progress.
 2. ${T}/criteria.md, ${T}/tasks.md, ${T}/answers.md and ${T}/roster.md exist and are non-empty; criteria.md has bars that decide "done", a stop rule and a change log; every task in tasks.md has a success definition in answers.md; every persona in roster.md points to persona files that exist; every session start (setup file or saved project) the roster or tasks name exists.
 3. ${SD}/tool/real.mjs, ${SD}/tool/README.md and ${SD}/tool/with-browser.sh exist; ${SD}/notes/ exists.
-4. ${SKIP_PREPARE ? `The first line of ${T}/criteria.md names a frozen build directory that exists, and criteria.md says it is frozen.` : `No frozen-criteria line blocks a review (if criteria.md already says "Frozen", say so: the review will only check it).`}
+4. ${SKIP_PREPARE ? `The first line of ${T}/criteria.md names a frozen build directory that exists, and criteria.md says it is frozen.` : `No frozen-criteria line blocks a review (if criteria.md already says "Frozen", say so: the review will only check it). A first line that still reads "The study runs on build <sha> served from <dir>" is CORRECT here, not a problem: Prepare freezes the build and fills it in.`}
 5. ${T}/rounds/round-${START_ROUND}/sessions/ does not exist or is empty, so no earlier session's raw data is overwritten.
 6. The machine has at most ${SLOTS} studio browsers alive (pgrep -fc chrom; list what holds them).
 7. Every bar in ${T}/criteria.md that is scored by a script (or a check, count or lister) names a script that exists (in round 1 of tier 2 the scripts for four bars were never built, so those bars could not be scored).

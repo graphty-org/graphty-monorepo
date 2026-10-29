@@ -471,7 +471,7 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) 
     const earlier = (id) => (prevPilots || []).find((p) => p && p.task === id);
     // A touched route this task may own (one naming it, or one naming no task) is walked by a pilot.
     const touchesTask = (id) =>
-        (touched || []).some((t) => !/\bT\d+/.test(t) || String(t).includes(id.replace(/[A-Z]+$/, "")));
+        (touched || []).some((t) => !/\bT\d+/.test(t) || String(t).includes((/^T\d+/.exec(id) || [id])[0]));
     // The scripted dry run walks every task's success path first, with no model (scriptedPass).
     const script = await scriptedPass(tag, phaseName);
     const routesOf = (id) => (script?.routes || []).filter((r) => r.task === id);

@@ -1389,7 +1389,11 @@ export class UpdateManager implements Manager {
                 this.screenSizingScale() !== this.screenScaled,
         );
         // An edge on screen not yet cut back to the nodes at the scale the zoom stopped at.
-        work.watch("sizing", "an edge has not been trimmed to its nodes at the new scale yet", () => this.retrimPending);
+        work.watch(
+            "sizing",
+            "an edge has not been trimmed to its nodes at the new scale yet",
+            () => this.retrimPending,
+        );
         work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
         work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
         work.watch(

@@ -4,6 +4,19 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-29 -- Decided by the team: an import error that dropped only a value says so (graph-io, graphty-element)
+
+- **graph-io, non-breaking.** An `ImportIssue` of severity "error" that dropped one value while its
+  node or edge was kept now carries `params: { skipped: "value" }`; the new export `SKIPPED_VALUE`
+  is that object, and `ImportReportBuilder.recordError` takes it as an optional third argument. The
+  GraphML `<data>` reader and the GEXF `<attvalue>` reader set it. Every other field of the issue is
+  as before. Why: graphty-element counted every error with a line as a refused row, so a GraphML
+  file whose number columns hold "null" on two nodes reported "6 rows refused" while every node and
+  all 361 edges were loaded. Nothing in the issue said whether the row survived; a flag on the
+  issue is the smallest fact that does, and a consumer that ignores `params` sees no change.
+- **graphty-element, defect fix.** The `refused-row` data issue counts only reader errors whose row
+  the graph does not hold; a dropped value is no longer reported as a refused row.
+
 ## 2026-10-29 -- Decided by the team: a range over dates, and a weight given after the load (graphty-element)
 
 From the tier 4 dry run (`tier4/dry-run-r1-1.md`).

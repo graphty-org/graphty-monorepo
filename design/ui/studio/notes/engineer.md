@@ -17,98 +17,46 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars
-   (`tier3/rounds/round-1/insights.md`). What it taught me, most important first:
-   a. No new severity 3. Bar 5 fails only on two backlog items: the node's own Fill "+" that makes
-   a one-node layer, and the folder chain icon that paints every cluster one color (0 sessions
-   reached it, so its severity is unknown). Next build work starts with these two.
-   b. Newcomers look for node color in the Graph inspector first; with nothing picked it shows only
-   canvas settings. A pointer from there to the layer list (app words, no element change) is
-   the cheapest fix for the most common wrong turn.
-   c. A new style line starts at the value every node already has (Fill "+" = 6366F1), so adding
-   one looks broken. Start it at a visibly different value; the choice is the app's.
-   d. Checking which nodes a layer paints is done by eye: nothing names or reports a pointed-at
-   node. Hover facts belong to the element (neutral `{ code, params }`), words to the app.
-   e. Keyboard: F6 stop draws no focus ring (WCAG 2.4.7) and focus is lost a second time on the
-   way to a styled graph; both have repros under `repro/r1-s18/`. Fix in compact-mantine or the
-   app shell, never per control.
-   f. One color table drives both the grade and the spoken name; "gold" for FFD700 made the only F.
-   Color words are a shared table: fix it in compact-mantine `colorWord`, with the pink E68FAC
-   case (item 3) in the same test.
-   g. Color entry is hex first and does not say it takes color words. Say so in the placeholder.
-   h. The round is at its ceiling: one model plays every persona, so passes are weak evidence;
-   a failure is strong. Weigh repros over session counts.
-1. (2026-10-21) Screenshot audit of round 1 on the frozen build 758b8e8081, every bar 6 screen
-   at 1200 x 900 and 900 x 700 (`tier3/rounds/round-1/expert/engineer.md`, screenshots under
-   `expert/engineer/`). Worst: at 900 x 700 the private-window notice is wider than the 363 px
-   canvas and its first words, Save and close are clipped (compact-mantine `.cm-toast-message`
-   nowrap, no max width); a saved project reopened in a smaller window draws its graph off-center,
-   partly under the toolbar (camera restored, not fitted; element likely, not traced). Then the
-   key covering top-left nodes, grey filled vs white outlined value fields side by side (the app's
-   `variant="outlined"` overrides), two unrelated attribute pickers, two chip shapes, the find
-   results squeezing the layer list to 1.5 rows, help text at 9 px and 12 px, "Layer / 1" broken
-   across lines, the bracketed "«Layer»" token. Bar 10 found no cut text at either size.
-   0a. (2026-10-21) Tool facts from the last week, in full in `git show 0664a753fd:design/ui/studio/notes/engineer.md`
-   (Top of mind 0 to 0y-0v): bars.mjs --tier 3 walks bar 6 (`BAR6` in measure.mjs) and writes
-   spoken.json; the gate keys walks by folder name and refuses MISS lines; `--start` with `--sr`
-   refuses every click; real bar 8 failures on the frozen build (badge 2.17:1, target sizes,
-   scroll regions); undo across a replacing load and empty layers with conditions re-walked fine;
-   open: drawing jumps right on the first key after a find pick, "Which nodes" on an empty layer
-   leaves the list closed.
+Summarized 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
+audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
 
-2. Older Top-of-mind entries, in full: 2026-10-20 0s-0u (renamed channel in a saved document, replace keeps
-   hand-picked edge layers, their re-walk; `git show 4a008f063f:design/ui/studio/notes/engineer.md`); 2026-10-19 two dry-run re-walks (`6f9784441b:`, entries 0r
-   and 0; still open from them: Tree folder "Select layers" box, discard note wrap, run fields
-   in a rule); 2026-10-19 re-walks and fixes (`git show fd71d1807:`, `393580a87:`,
-   `e0482cf5e:`, `1c6a68ee4:`, `d60b1956b:` + `design/ui/studio/notes/engineer.md`); 2026-10-18 (`e247f1900:`).
-3. NOT SEEN on 2026-10-20 (build f261bbb157, t46a-header-escape 04-05; keep checking): Escape on a focused sortable table header
-   with a selection clears the selection and keeps focus on the header; decided.md says it moves
-   focus to the toolbar's Table button. Mechanism: the header's sort-hint Tooltip opens on focus,
-   floating-ui's dismiss handler stops Escape in React, TableDock's `leaveGrid` (React onKeyDown)
-   never sees it, and `useCommandKeys`'s tooltip re-read runs Clear selection. Fix idea:
-   `onKeyDownCapture` for `leaveGrid`, or skip the re-read for a target inside `[role="grid"]`.
-   Also seen: a layer made from a `=degree > 11` find is named "Rule: graphty.degree > 11".
-   Full entry and screens: `git show 393580a87:design/ui/studio/notes/engineer.md`, Top of mind 0.
-4. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
-   Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
-   `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-5. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
-   reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
-   default label size; Kelly's palette for 10 to 19 groups.
-6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
-   the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
-   `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
-   `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
-   (`workspace` for studio notes, not `design`).
-7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-8. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
-   graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-   unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
-   refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
-   is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-10. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
-    `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
-    round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
-    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
-    BoundValue for one layer and for several (owner 2026-10-16).
-11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
-    expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
-    `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
-    run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
-    in the same stack (`writeRank` in `StylePainter.ts`).
-12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
-    `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
-    (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
-    option click can fail on `cm-pointer-still` (list opened under a still pointer): use
-    `--key ArrowUp --key Enter`. Compare drawings with PIL `ImageChops.difference(...).getbbox()`
-    on the canvas crop `(300,120,1195,835)` at 1440 x 900.
+1. (2026-10-29) An issue the element raises must name what happened to the file. A graph-io error
+   with a line is NOT a refused row: GraphML `<data>` and GEXF `<attvalue>` readers drop only the
+   value and keep the node or edge. Those now carry `params: { skipped: "value" }` (graph-io
+   `SKIPPED_VALUE`), and the element's `refused-row` issue skips them (`loadFactsOf` in
+   `session/issues.ts`). Yeast from its address: 331 / 361, no chip. Before trusting any issue
+   count, compare it to `report.counts.skippedNodes/skippedEdges`.
+2. When a load has no issue the app does not open the table dock (`drawFirst` in `start/open.ts`):
+   an old route that opened with the table diverges at that step after an issue fix. Expected.
+3. graphty-element tests resolve graph-io through its `dist`; `npm run build` in graph-io writes
+   only `dist/src` (tsc) and breaks resolution: build it with `pnpm exec nx run graph-io:build`.
+4. graph-io's `test/styles/no-styles-baseline.json` hashes each conformance fixture's import
+   report; any new issue field changes those hashes. Update only the lines the change explains.
+5. STILL OPEN (2026-10-20): Escape on a focused sortable table header clears the selection instead
+   of moving focus to the Table button (floating-ui dismiss stops Escape before `leaveGrid`).
+   Fix idea: `onKeyDownCapture` for `leaveGrid`.
+6. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls pink E68FAC "red".
+7. Open owner questions live in `owner-decisions.md` ("For the owner").
+8. Shared worktree: stage only my files; never `git stash`; commit headers <= 100 characters,
+   scope from commitlint's list (`workspace` for studio notes).
+9. Prove a test fails without the change: either run it on HEAD's file copy, or show the probe's
+   output on the unfixed build (as for the yeast issue: 6 `E_COLUMN_TYPE` rows before, none after).
+10. Rebuild before a walk: `pnpm exec nx run-many -t build -p graph-io graphty-element graphty`
+    (low-priority), then `real.mjs --replay <old walk> <new folder> --keep`, `--step`, `--end`.
+11. API changes: additive ones go in `owner-decisions.md` under "decided by the team"; a changed
+    default or a renamed or removed member goes "for the owner". A new element member needs
+    `doors.ts`, `test/cost-coverage/method-classes.ts` and `npm run api:report`.
+12. Element facts worth citing: layers paint one kind; `styles.addRow` takes an empty row;
+    `data.histogram` takes data columns only; a bound label size wins over a label style's size.
+13. Study tool: `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name
+    will not match; step N lands in screenshot N+1; always `--end`.
 
 ## Decisions and reasons
+
+- 2026-10-29: A dropped value is marked in graph-io, not guessed in the element. Why: the element
+  saw only "error, line 179, element gal1RGexp"; nothing said whether the node survived, and
+  checking ids against the graph fails when the issue names a key, not a node. A flag on the issue
+  is the smallest fact, additive (`params` was already optional), and serves every consumer.
 
 - (2026-10-21) **A screenshot audit runs as `bars.mjs --tier 3 --size <WxH> --dist <frozen>`,
   one size per run, into the auditor's own folder.** Its walks are real.mjs sessions that reach
@@ -183,6 +131,11 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-29 worked: a node vitest probe loading the studio file through `{ url }` (fetch stubbed)
+  and `{ file }` reproduced "6 rows refused" in both, so the bug was never the address path or a
+  second read. The 6 were `E_COLUMN_TYPE` on lines 179 and 329 ("null" in three double columns).
+- 2026-10-29 did not work: `npm run build` in graph-io for the element's tests (writes `dist/src`).
 
 - (2026-10-21) Worked: `bars.mjs --size 1200x900` then `--size 900x700` in one background command
   (about 25 minutes for both, one browser at a time), reading screenshots as each walk finished.

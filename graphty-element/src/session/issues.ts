@@ -230,7 +230,7 @@ export function loadFactsOf(tally: ImportTally, leftOut: boolean): LoadFacts | n
             examples: blank.slice(0, EXAMPLES).map((row) => row.record),
         },
         refusedRows: tally.errors.flatMap((error) =>
-            error.code !== "refused-row" && typeof error.line === "number"
+            error.code !== "refused-row" && typeof error.line === "number" && error.params.skipped !== "value"
                 ? [
                       {
                           line: error.line,

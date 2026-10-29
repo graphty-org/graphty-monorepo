@@ -417,6 +417,7 @@ export {
     keptForStyles,
     type MutableCounts,
     PARSE_ERROR_CODE,
+    SKIPPED_VALUE,
 } from "./common/report.js";
 export {
     inferTextDtype,

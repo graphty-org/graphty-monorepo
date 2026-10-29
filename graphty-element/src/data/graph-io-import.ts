@@ -473,7 +473,12 @@ export function aggregateErrors(report: ImportReport, errors: ErrorAggregator, s
             category: issue.category,
             ...(issue.line === null ? {} : { line: issue.line }),
             ...(issue.element === null ? {} : { field: issue.element }),
-            params: { issue: issue.code, ...(issue.element === null ? {} : { element: issue.element }) },
+            params: {
+                issue: issue.code,
+                ...(issue.element === null ? {} : { element: issue.element }),
+                // a dropped value, not a refused row: the node or edge it belongs to was kept
+                ...(issue.params?.skipped === "value" ? { skipped: "value" } : {}),
+            },
         });
 
         if (stopAtLimit && !canContinue) {

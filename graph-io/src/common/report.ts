@@ -86,6 +86,12 @@ const CATEGORY_BY_CODE: Readonly<Partial<Record<GraphFormatErrorCode, IssueCateg
 };
 
 /**
+ * The params of an error that dropped one value while its node or edge was kept.
+ * @category Issue and loss codes
+ */
+export const SKIPPED_VALUE: Readonly<{ skipped: "value" }> = Object.freeze({ skipped: "value" });
+
+/**
  * No longer recorded; kept so code that switches on older reports still compiles.
  * @category Issue and loss codes
  */
@@ -296,16 +302,18 @@ export class ImportReportBuilder {
      * the input, so it must surface as an exception rather than as an issue blamed on the file).
      * @param err - the thrown value
      * @param where - the line and element, when known
+     * @param params - the issue's machine-readable values, when it has any (`{ skipped: "value" }`
+     *     for a value that was dropped while its node or edge was kept)
      * @returns the recorded issue
      */
-    recordError(err: unknown, where?: IssueLocation): ImportIssue {
+    recordError(err: unknown, where?: IssueLocation, params?: Readonly<Record<string, unknown>>): ImportIssue {
         if (err instanceof GraphFormatError && !(err instanceof ImportError)) {
             const category = CATEGORY_BY_CODE[err.code] ?? "validation-error";
             if (err.code === "E_TOO_LARGE") {
                 // the sink is full: every later element would fail the same way, so the import stops
                 return this.failWith(category, err.code, err.message, where);
             }
-            return this.error(category, err.code, err.message, where);
+            return this.error(category, err.code, err.message, where, params);
         }
         throw err;
     }

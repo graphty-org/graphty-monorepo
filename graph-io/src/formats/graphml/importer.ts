@@ -51,7 +51,7 @@ import {
     resolveImportOptions,
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
-import { ImportReportBuilder } from "../../common/report.js";
+import { ImportReportBuilder, SKIPPED_VALUE } from "../../common/report.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
 import {
     isWhitespace,
@@ -1989,7 +1989,8 @@ class GraphmlReader implements XmlHandler {
             this.checkOverflow(value, parsed, target.name, where);
             return parsed;
         } catch (err) {
-            this.report.recordError(err, where);
+            // only the value is dropped: its node or edge is kept
+            this.report.recordError(err, where, SKIPPED_VALUE);
             return undefined;
         }
     }

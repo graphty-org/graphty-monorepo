@@ -172,6 +172,12 @@ export const ORACLE_TOLERANCES = {
      * this share of its font size.
      */
     labelAnchorOfSize: 0.25,
+    /**
+     * How far graphty's label may sit from the oracle's side of a place boundary, as a share of its font size, and
+     * still count as on it: both labels within a pixel of the same boundary land on its two sides by chance
+     * (pajek-synth-vertices 57: Pajek 0.26 px past it, graphty 0.08 px short).
+     */
+    labelAnchorSlackOfSize: 0.05,
     /** A label's lines told apart as aligned left, centered or right when their widths differ by this share of the font size. */
     lineAlignOfSize: 0.5,
     /**
@@ -3046,6 +3052,33 @@ function sideOn(l0: number, l1: number, b0: number, b1: number, tol: number): Si
     return dl < dr ? "start" : "end";
 }
 
+const SIDES: readonly Side[] = ["before", "start", "center", "end", "after"];
+
+/**
+ * Whether graphty's label is in the oracle's place against its box: on each axis its side, or one it reaches by
+ * moving at most a small slack along that axis (a side only changes in order, before to after, as a label moves).
+ * @param o - the oracle's label
+ * @param ob - the oracle's box
+ * @param g - graphty's label
+ * @param gb - graphty's box
+ * @returns whether they are in the same place
+ */
+export function sameAnchor(o: PText, ob: PBox, g: PText, gb: PBox): boolean {
+    const otol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * o.sizePx, 0.5);
+    const gtol = Math.max(ORACLE_TOLERANCES.labelAnchorOfSize * g.sizePx, 0.5);
+    const slack = ORACLE_TOLERANCES.labelAnchorSlackOfSize * g.sizePx;
+    const axis = (o0: number, o1: number, b0: number, b1: number, g0: number, g1: number, c0: number, c1: number) => {
+        const want = SIDES.indexOf(sideOn(o0, o1, b0, b1, otol));
+        const lo = SIDES.indexOf(sideOn(g0 - slack, g1 - slack, c0, c1, gtol));
+        const hi = SIDES.indexOf(sideOn(g0 + slack, g1 + slack, c0, c1, gtol));
+        return want >= lo && want <= hi;
+    };
+    return (
+        axis(o.box.x0, o.box.x1, ob.x0, ob.x1, g.box.x0, g.box.x1, gb.x0, gb.x1) &&
+        axis(o.box.y0, o.box.y1, ob.y0, ob.y1, g.box.y0, g.box.y1, gb.y0, gb.y1)
+    );
+}
+
 /**
  * A label's place against a box, per axis.
  * @param t - the label
@@ -3257,7 +3290,7 @@ function judgeLabel(
         const near = Math.max(T.labelOffsetOfSize * o.sizePx, place.pixel);
         j.add("label.offset", kind, id, Math.max(0, d / near - 1), oc, gc);
         const [oa, ga] = [labelAnchor(o, place.o), labelAnchor(g, place.g)];
-        j.add("label.anchor", kind, id, oa === ga ? 0 : 1, oa, ga);
+        j.add("label.anchor", kind, id, sameAnchor(o, place.o, g, place.g) ? 0 : 1, oa, ga);
     } else if (place?.kind === "line" && place.o.length >= 2 && place.g.length >= 2) {
         // the label's middle, not its anchor point (an SVG text's start or baseline)
         const op = placeOnLine(place.o, [(o.box.x0 + o.box.x1) / 2, (o.box.y0 + o.box.y1) / 2]);

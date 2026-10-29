@@ -230,6 +230,18 @@ describe("label checks", () => {
         assert.strictEqual(labelAnchor(text("A", 94, 100, {}, 90), box), "center/center");
     });
 
+    it("passes labels a fraction of a pixel either side of one place boundary, and fails one a few pixels inside", () => {
+        // pajek-synth-vertices 57: Pajek's label starts 0.26 px past the line between inside-at-the-end and after its
+        // node, graphty's 0.08 px short of it -- the same drawing on two sides of a line
+        const at = (x0: number): PText => text("A", x0 + 15, 100);
+        assert.strictEqual(labelAnchor(at(117.6), { x0: 80, y0: 80, x1: 120, y1: 120 }), "after/center");
+        assert.strictEqual(labelAnchor(at(117.3), { x0: 80, y0: 80, x1: 120, y1: 120 }), "end/center");
+        const pair = (g: number): Record<string, string[]> =>
+            failures(scene("oracle", {}, { a: at(117.6) }), scene("graphty", {}, { a: at(g) }));
+        assert.deepEqual(pair(117.3), {});
+        assert.deepEqual(pair(114)["label.anchor"], ["a"]);
+    });
+
     it("fails a halo graphty does not draw round the letters, and one of another color or width", () => {
         const halo = { color: "#ff0000", opacity: 1, width: 2 };
         assert.deepEqual(labelPair({ outline: null }, { outline: halo }), { "label.outline": ["a"] });

@@ -270,8 +270,8 @@ export interface LabelStyle {
     /**
      * What `shiftX` and `shiftY` are fractions of: `"box"`, the label's whole box, the margins round its words
      * included, or `"words"`, its words alone, so a shift of 0.5 puts the words' own left edge where their middle
-     * was, as a program that anchors a label's text draws it (Pajek's `text-anchor: start`, Cytoscape's label
-     * justification). Unset, `"box"`.
+     * was, as a program that anchors a label's text draws it (Pajek's `text-anchor: start`). Unset, `"box"`. A label style merges field by field, so a layer that sets only `shiftX` over
+     * one that set `shiftOf` (a file's style layer does, for Pajek) keeps that layer's `shiftOf`.
      */
     shiftOf?: "box" | "words";
     /**

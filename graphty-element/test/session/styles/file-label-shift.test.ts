@@ -31,6 +31,17 @@ describe("a file's label shifts", () => {
         }
     });
 
+    it("shift a Graphviz xlabel's whole box, which Graphviz pins by its corner, padding and all", async () => {
+        const session = createGraphSession();
+        const dot = 'graph { layout=neato; a -- b [label="ab"] }';
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [ab] = session.data.edges();
+        const edge = session.styles.explain({ edge: ab.id }).merged as Record<string, unknown>;
+        const style = (edge["edge.labelStyle"] ?? {}) as Record<string, unknown>;
+        assert.strictEqual(style.shiftX, -0.5);
+        assert.isUndefined(style.shiftOf);
+    });
+
     it("leave a label no file shifts as the element places it", async () => {
         const session = createGraphSession();
         const doc = { nodes: [{ id: "a", x: 0, y: 0, label: "a" }], edges: [], options: { physics: false } };

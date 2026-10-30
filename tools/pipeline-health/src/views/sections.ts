@@ -338,7 +338,8 @@ export function sourcesTable(reads: Reads): Section {
         .filter((s) => s.state !== "not set up")
         .map((s) => {
             const cfg = reads.cfg.sources[s.id];
-            const state: Cell = s.state === "ok" ? none : { t: "state", state: sourceState(s) };
+            // OK is said, not left blank, so a judged source reads apart from one with no state.
+            const state: Cell = { t: "state", state: sourceState(s) };
             const reason = reasonFact(s.reason, reads);
             return {
                 ...(s.state === "idle" ? { past: true } : {}),
@@ -442,7 +443,8 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
                 projected: { t: "num", n: round(projected), unit: "usd", bold: true },
                 sofar: { t: "budget", so: round(soFar), budget, unit: "usd" },
                 spark: line === undefined ? none : { t: "spark", spark },
-                state: st === "warn" || st === "bad" ? { t: "state", state: st } : none,
+                // A line its member judges says its state, OK included; a line no member judges has none.
+                state: st === "ok" || st === "warn" || st === "bad" ? { t: "state", state: st } : none,
             },
         };
     };

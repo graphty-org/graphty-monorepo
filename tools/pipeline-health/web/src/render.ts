@@ -250,12 +250,7 @@ export function cellHtml(c: Cell): string {
         case "mark":
             return `<span class="mk ${c.state}">${cellHtml(c.cell)}</span>`;
         case "state": {
-            const chip =
-                c.state === "idle"
-                    ? `<span class="sw low">idle</span>`
-                    : c.state === "ok"
-                      ? `<span class="sw ok">OK</span>`
-                      : stateChip({ state: c.state });
+            const chip = c.state === "idle" ? `<span class="sw low">idle</span>` : stateChip({ state: c.state });
             return c.link ? `<a class="sw low ln" href="${href(c.link)}">${chip.replace(/<[^>]+>/g, "")}</a>` : chip;
         }
         case "spark":

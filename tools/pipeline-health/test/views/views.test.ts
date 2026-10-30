@@ -345,6 +345,15 @@ describe("views", () => {
         expect(costs.members.find((m) => m.id === "costs.aws")!.sla?.target).toMatchObject({ op: "<=" });
     });
 
+    it("a source that writes on time says OK in its state cell, never a blank", async () => {
+        const vs = await views(await world([job(1)]));
+        const ds = pages(vs).find((p) => p.page === "data-sources" && p.range === "1h")!;
+        const sources = ds.sections.find((x) => x.id === "sources");
+        if (sources?.kind !== "table") throw new Error(String(sources?.kind));
+        const collector = sources.rows.find((r) => JSON.stringify(r.cells.source).includes("source.collector"));
+        expect(collector?.cells.state).toEqual({ t: "state", state: "ok" });
+    });
+
     it("a rolling screenshot cap is read now, not over 7 days", async () => {
         const store = new MemoryStore();
         const ev = await evaluate(store, T0);

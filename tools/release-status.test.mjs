@@ -75,13 +75,27 @@ describe("statusComment", () => {
         assert.equal(pushMessage("red", { run: RUN, sha: "abcdef123", what: "CI", issue: "41" }).title, "Full run RED");
         assert.equal(pushMessage("owner-item", { run: RUN, sha: "abcdef123" }).priority, "0");
         const what = "10 screenshots differ from master's baselines: graphty 10";
-        const images = statusComment("green-images", { run: RUN, sha: "abcdef123", what });
+        const images = statusComment("green-images", { run: RUN, sha: "abcdef123", what, hold: "start" });
         assert.match(
             images,
             /^\*\*Screenshots changed\*\*: the full run on abcdef1 passed every lane, but 10 screenshots/,
         );
-        assert.match(images, /\nACTION NEEDED: review the changed screenshots of the full run on abcdef1\n/);
+        assert.match(images, /\nACTION NEEDED: review the changed screenshots of the held candidate abcdef1\n/);
+        assert.match(images, /serve --candidate next/, "with the review page");
+        assert.match(images, /&target=master/);
         assert.equal(reportsFailure(images, RUN, "1"), false, "changed screenshots are not a failed run");
+        assert.match(
+            pushMessage("green-images", { run: RUN, sha: "abcdef123", what, hold: "update" }).message,
+            /waits for your review/,
+        );
+        // 2026-10-30, 6ee5bc7 (#5052): a run that held nothing never says nightly waits for a review
+        for (const hold of ["none", "", undefined]) {
+            const idle = statusComment("green-images", { run: RUN, sha: "abcdef123", what, hold });
+            assert.doesNotMatch(idle, /ACTION NEEDED|waits for your review/, String(hold));
+            assert.match(idle, /It is not held/);
+            const m = pushMessage("green-images", { run: RUN, sha: "abcdef123", what, hold }).message;
+            assert.doesNotMatch(m, /waits for your review/);
+        }
         assert.equal(
             pushMessage("green-images", { run: RUN, sha: "abcdef123", what }).title,
             "Full run SCREENSHOTS CHANGED",

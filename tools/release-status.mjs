@@ -36,6 +36,13 @@ import { parseArgs } from "node:util";
 
 export const LABEL = "release-status";
 export const TITLE = "Release status";
+/** Where the owner reviews a held candidate's changed screenshots (CLAUDE.md, "Visual review"). Here, not in
+ * channel/nightly.mjs: release.yml's held job checks out this file alone. */
+export const REVIEW_PAGE =
+    "the review page (servherd `visual-review-v3`, `node visual-review/trusted/cli.mjs serve --candidate next`): the tokenized URL its log prints, plus `&target=master`";
+
+/** Whether a green-images run held its commit for the owner's review (the hold step's action, #5052). */
+const heldForReview = (f) => f.hold === "start" || f.hold === "update";
 
 const ref = (issue) => (/^\d+$/.test(issue ?? "") ? `#${issue}` : issue || 'the "Release held" issue');
 const list = (tags) => (tags ?? "").split(",").filter(Boolean).join(", ");
@@ -70,8 +77,11 @@ export function statusComment(outcome, f, notify = "") {
             text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
             break;
         case "green-images":
-            // a green-images candidate waits for the owner's review, and the run ends green: he must hear of it
-            text = `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}, so nightly.graphty.app does not move. Review them on the review page (\`visual-review serve --candidate next\`), whose Finish opens the pull request that approves them, or fix forward.\n\nACTION NEEDED: review the changed screenshots of the full run on ${sha}`;
+            // a held green-images candidate waits for the owner's review, and the run ends green: he must hear of it.
+            // One that held nothing (another candidate is held) has nothing to review, so it never asks (#5052)
+            text = heldForReview(f)
+                ? `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}, so nightly.graphty.app waits for your review of ${sha}, which is now the held candidate. Review it on ${REVIEW_PAGE}; its Finish opens the pull request that approves them. Or fix forward.\n\nACTION NEEDED: review the changed screenshots of the held candidate ${sha}`
+                : `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}. It is not held (another candidate is), so there is nothing new to review; nightly.graphty.app does not move.`;
             break;
         case "nightly":
             text = `**Nightly promoted**${rerun}: ${sha} is on nightly.graphty.app${list(f.tags) ? " and npm `next` holds " + list(f.tags) : " (no package changed, so npm `next` did not move)"}.`;
@@ -248,7 +258,10 @@ export function pushMessage(outcome, f) {
         },
         "green-images": {
             title: "Full run SCREENSHOTS CHANGED",
-            lines: [`${f.what || "Screenshots differ"} (${sha})`, "Nightly waits for your review"],
+            lines: [
+                `${f.what || "Screenshots differ"} (${sha})`,
+                heldForReview(f) ? "Nightly waits for your review on the review page" : "Not held: nothing to review",
+            ],
             priority: 0,
             sound: "pushover",
         },

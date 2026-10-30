@@ -1993,10 +1993,13 @@ async function buildGraph(root, pkg, config) {
  * @param ctx shared state of the run
  */
 async function walkFile(project, file, ctx) {
-    if (ctx.walked.has(file)) {
+    // per project: a project's plugins can transform a file differently (graphty's test stand-ins empty
+    // src/elementLoader.ts for its unit projects but not for its storybook project), so each project's edges count
+    const key = `${project.name}\0${file}`;
+    if (ctx.walked.has(key)) {
         return;
     }
-    ctx.walked.add(file);
+    ctx.walked.add(key);
     let deps = new Set();
     if (CODE.test(file)) {
         deps = await edgesOf(project, file, ctx);
@@ -2004,14 +2007,15 @@ async function walkFile(project, file, ctx) {
         deps = styleEdges(file);
     }
     deps = new Set([...deps].map((d) => throughSource(d, file, ctx)));
-    ctx.imports[ctx.rel(file)] = [...deps].map(ctx.rel);
+    ctx.imports[ctx.rel(file)] = [...new Set([...(ctx.imports[ctx.rel(file)] ?? []), ...[...deps].map(ctx.rel)])];
     for (const d of deps) {
         await walkFile(project, d, ctx);
     }
 }
 
 /**
- * Another package's build output, as the source file it was built from, when that is known: the selection
+ * A package's build output (another package's, or its own), as the source file it was built from, when that is
+ * known: the selection
  * graph then follows a change to that package's source to exactly the tests that load it (design/ci/
  * minimal-tests.md section 2.2). Only the graph is changed; the tests themselves still run the build. A file
  * reached this way, and what it reaches outside the package under test, is kept in `viaAlias`: it is the
@@ -2023,10 +2027,14 @@ async function walkFile(project, file, ctx) {
  */
 function throughSource(dep, from, ctx) {
     const own = (f) => f.startsWith(join(ctx.root, ctx.pkg) + "/");
-    const src = own(dep) ? null : sourceOf(ctx.root, dep);
+    // the package's own build too: algorithms' stories import @graphty/algorithms, its own dist/, and a walk
+    // of dist/ would never match a changed source file
+    const src = sourceOf(ctx.root, dep);
     if (src) {
         ctx.aliases[ctx.rel(dep)] = ctx.rel(src);
-        ctx.viaAlias.add(src);
+        if (!own(dep)) {
+            ctx.viaAlias.add(src);
+        }
         return src;
     }
     if (ctx.viaAlias.has(from) && !own(dep)) {
@@ -2558,7 +2566,7 @@ export function graphCacheKey(root, dirs) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 6;
+const GRAPH_VERSION = 8;
 
 const fileHash = (root, f) => {
     try {

@@ -624,9 +624,10 @@ describe("the pre-push gate matches CI", () => {
             "graphty-element-default",
             "graphty-element-storybook-1",
             "layout",
+            "layout-storybook",
         ]);
         // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
-        assert.deepEqual(startable([pick("graphty-element-browser-1")], []), ["layout"]);
+        assert.deepEqual(startable([pick("graphty-element-browser-1")], []).sort(), ["layout", "layout-storybook"]);
         // A warmed family's siblings still wait for the package's other families.
         const afterBrowser = startable([], ["graphty-element-browser"]);
         assert.ok(!afterBrowser.includes("graphty-element-browser-3"));

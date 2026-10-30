@@ -1,5 +1,114 @@
 # T65 A pilot, round 1 dry run 2: only the trained volunteers with 10 hours or more in the picture, staff marked
 
+## Targeted re-pilot on the frozen build a53beb7179: every route on the fix list
+
+Build: a53beb7179 (frozen, `.study-builds/tier4-r1d3-a53beb7179`, the first line of `criteria.md`). Every
+route on this pass's fix list was walked, each in its own session from that route's own real start, by
+replaying the newest walk of the same route (b01 to b17, on bccf8fe47f) into new folders (c and d) under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T65A/. Every session was
+ended. The data stayed each task's own on every walk (volunteers.graphml 24 nodes and 63 edges; gauges +
+flows 12 and 14; pantries + deliveries 13 and 18). No script error was printed on any walk.
+
+| Route | Walk | Replayed from | Result |
+| ----- | ---- | ------------- | ------ |
+| T65A success path | c01-T65A-path | b01-T65A-path | 24 of 24 steps matched |
+| T65A, the other card order (follow-up) | c02-T65A-order | b02-T65A-order | 11 of 11 |
+| T65A keyboard walk (the chip's spoken count) | d03-T65A-keys | b03-T65A-keys | 127 of 127 |
+| T65B success path | c04-T65B-path | b04-T65B-path | 15 of 15 |
+| T65B, the other card order (follow-up) | c05-T65B-order | b05-T65B-order | 7 of 7 |
+| T65B detour: a style layer's Which nodes | c06-T65B-whichnodes | b06-T65B-whichnodes | 7 of 7 |
+| T66A/T66B: the Data source card's count | c07-T66A-sourcecard, d08-T66B-sourcecard | b07, b08 | 15 of 15, 17 of 17 |
+| T68A/T68B starts: the narrowed Hide card's count | c09-T68A-start, d10-T68B-start | b09, b10 | 4 of 4, 3 of 3 |
+| T61A success path (Edges > With issues 1) | d11-T61A-path, d17-T61A-path-issues | b11, b17 | 18 of 18, 18 of 18 |
+| T61B success path (Edges > With issues) | d12-T61B-path | b12-T61B-path | 23 of 23 |
+| T61A detour: deliveries.csv first, then pantries.csv | d13-T61A-delivfirst | b13-T61A-delivfirst | 7 of 7 |
+| T61A keyboard walk (the Edges header's spoken issue) | d14-T61A-keys | b14-T61A-keys | 112 of 115 matched, then by hand to the end |
+| T67A/T67B: column issue marks in the table header | d15-T67A-header, d16-T67B-header | b15, b16 | 5 of 5, 13 of 13 |
+| T66A/T66B: the source row's issue chip after the Data source card | c07, d08 (their last steps) | as above | matched |
+
+A replay that matches every check point means the screen at each step is the one the earlier walk
+recorded, so the earlier findings for those routes stand; the key screens were looked at again.
+
+### What the screens show
+
+- **T65A success path** (c01): "14 of 24 nodes, 22 of 63 edges", "4 nodes selected", 4 rings; the
+  inspector's Summary reads role staff (4), trained Yes (4), hours 40 to 52 (c01-T65A-path/17.png). The
+  role card's chip reads "5 of 24" while on Select. The table on Shown lists 14 of 24 with the 4 staff
+  rows highlighted (25.png). Keep card off: all 24 drawn, "5 nodes selected", trained Yes (4), No (1)
+  (24.png).
+- **T65A, other order** (c02): role on Select first, then trained Yes and hours from 10: 14 of 24 and
+  "4 nodes selected"; role chip "5 of 24" (c02-T65A-order/08.png). The order makes no difference.
+- **T65A keyboard** (d03, screen-reader mode): ArrowLeft onto Select announces "Filter on: 14 of 24
+  nodes, 22 edges" and "4 nodes selected" (step 110, d03-T65A-keys/111.png). The role card's count chip
+  is not in the focus order and no focus line names it. Focus never fell to the page body after the
+  first step (the start has nothing focused, as every setup ends).
+- **T65B success path** (c04): "5 of 12 nodes, 2 of 14 edges", "3 nodes selected", G01, G02 and G09
+  highlighted; the installed card's chip reads "5 of 12" (c04-T65B-path/09.png, 14.png). Collapsed, the
+  installed card reads "installed is at most 1104537599999" (14.png), as the key records.
+- **T65B, other order** (c05): installed on Select first, then telemetry yes and depth_cm from 70: 5 of
+  12 and "3 nodes selected" (c05-T65B-order/06.png); chip "5 of 12".
+- **T65B style layer detour** (c06): Which nodes "installed before 2005, 5 nodes", "5 of 12 nodes",
+  every gauge stays drawn (c06-T65B-whichnodes/06.png). Unchanged.
+- **T66A Data source card** (c07): "12 of 13 nodes, 17 of 18 edges", card chip "12 of 13", inspector 12
+  of 13 and 17 of 18 (c07-T66A-sourcecard/09.png); the source row's issue chip "1" is drawn whole after
+  13 and 18 (16.png). **T66B** (d08): "11 of 12 nodes, 13 of 14 edges", chip "11 of 12"
+  (d08-T66B-sourcecard/07.png, 17.png).
+- **T68A start** (c09): "12 of 13 nodes, 17 of 18 edges", Data source card on Hide, chip "12 of 13"
+  (c09-T68A-start/05.png). **T68B start** (d10): "11 of 12 nodes, 13 of 14 edges", chip "11 of 12"
+  (d10-T68B-start/02.png).
+- **T61A success path** (d11, d17): Overview 13 nodes and 18 edges, "From 2 files"; the deliveries.csv
+  row reads 13 and 18 with the issue chip "1" (d11-T61A-path/12.png). Edges > With issues 1 leaves one
+  row, P05 -> P13, 4 trips, with the warning mark on Target and P13 in the warning color
+  (d17-T61A-path-issues/17.png).
+- **T61B success path** (d12): Overview 12 nodes, 14 edges; Edges > With issues 1 leaves G09 -> G12 and
+  the mark opens "1 unknown end" with Add nodes, Leave out, Ignore, Show rows, Ignore all
+  (d12-T61B-path/24.png).
+- **T61A, deliveries.csv first** (d13): 13 nodes, 19 edges, "1 repeated edge"; Edges > With issues 1
+  shows P03 -> P10 with the mark on "from", which opens "1 repeated edge" with Keep, Merge, Ignore, Show
+  rows, Ignore all (d13-T61A-delivfirst/06.png). The counts are that network's own, as the key says.
+- **T61A keyboard** (d14): screen-reader mode, steps 1 to 112 matched (join by keyboard, the issue
+  chip's list, undo and redo of the join, With issues 1, the Target header's menu). Step 113, a
+  browse-mode read with the menu open, differed only because the "Redid joining deliveries.csv." notice
+  and its Dismiss button had already gone; the menu read the same: "1 unknown end", Add nodes (checked),
+  Leave out, Ignore, Show rows, Hide, Hide others. Carried on by hand: Escape returns focus to "Target,
+  sorted ascending", ArrowDown to rowheader "P13" (d14-T61A-keys/115.png, 116.png). Focus on the Target
+  header has an empty description (`--expect described=issue` fails, step 109, 110.png). Focus never
+  fell to the page body.
+- **T67A header marks** (d15): after Trim the site column's mark is gone and the source chip reads 1
+  (d15-T67A-header/04.png). **T67B** (d16): depth_cm's mark opens "1 not a number" with Make blank,
+  Ignore, Show rows, Ignore all (d16-T67B-header/03.png).
+
+### Mismatches between the answer key and the screen
+
+None on this build. The key's "Card counts" now records what the screen shows: the Select card's chip
+reads "5 of 24" (A) and "5 of 12" (B) while 4 (B 3) are selected. `decided.md` ("A Select card's count
+counts what it marks") still asks for "4 of 14" and "3 of 5"; the build does not do that (defect 1).
+
+### Defects
+
+1. The Select card's chip counts over the whole graph, not what it marks: "5 of 24" with "4 nodes
+   selected" (A), "5 of 12" with "3 nodes selected" (B), in either order. A participant who reads the
+   marked count off the card answers 5. The key grades the cards and the selection, so it does not spoil
+   grading, but it contradicts `decided.md` (c01-T65A-path/17.png, c02-T65A-order/08.png,
+   c04-T65B-path/09.png, c05-T65B-order/06.png).
+2. The Select card's count chip has no accessible name and is not in the focus order, so a
+   screen-reader user hears 4 only from the live status and the inspector heading
+   (d03-T65A-keys/111.png).
+3. Focus on the Edges table's Target header does not speak its issue: its name is "Target, sorted
+   ascending" and its description is empty, so a screen-reader user hears "1 unknown end" only from the
+   header's menu (Shift+F10) or a browse-mode read of the row. Does not block T61: the source row's
+   issue chip names "1 issue in deliveries.csv" by keyboard (d14-T61A-keys/110.png, 111.png).
+
+Known and unchanged, not new: Control+A pressed on the hours range slider selects every node in the
+picture ("15 nodes, 25 edges selected", d03-T65A-keys/73.png), and the inspector keeps that 15-node
+selection while the picture narrows to 4 (104.png) until the role card's Select replaces it; the
+collapsed date card reads a raw number (c04-T65B-path/14.png).
+
+Nothing crashed or blocked on any route. Every route gives the answer key's counts.
+
+Skipped: nothing on the list.
+
+
 ## Targeted re-pilot, second walk of every fix-list route on build bccf8fe47f
 
 Build: bccf8fe47f (frozen, `.study-builds/tier4-r1d2-bccf8fe47f`), the same build as the section below. Every

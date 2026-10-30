@@ -21,9 +21,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { addLabelLine, labelRow, writeLine } from "../../style/row";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** Numeric ids, as karate's are, with names that differ from them. */
 const NAMES = ["Mr Hi", "Officer", "Ada", "Bea", "Cy", "Dot", "Eve", "Flo", "Gus", "Hal"];
 const NODES = NAMES.map((name, i) => ({ id: i + 1, name, club: i < 5 ? "Mr Hi" : "Officer" }));
@@ -42,13 +39,10 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -208,13 +202,10 @@ describe("the Graph place on the real element", () => {
             return undefined;
         };
         let point: { x: number; y: number } | undefined;
-        await waitFor(
-            () => {
-                point = nameAt();
-                assert.isDefined(point, "a point above Officer's sphere answers Officer");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            point = nameAt();
+            assert.isDefined(point, "a point above Officer's sphere answers Officer");
+        });
 
         await userEvent.click(element, { position: point });
         await waitFor(() => {
@@ -232,12 +223,9 @@ describe("the Graph place on the real element", () => {
         if (element === null) {
             return;
         }
-        await waitFor(
-            () => {
-                assert.isTrue(element.nodeScreenPosition(7)?.visible === true);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isTrue(element.nodeScreenPosition(7)?.visible === true);
+        });
         await element.waitForStableFrame();
         const centered = (id: number): void => {
             const { target } = element.getCameraState();

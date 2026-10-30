@@ -26,9 +26,6 @@ declare module "vitest/browser" {
     }
 }
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** How the table dock stands after a load. */
 type Dock = "closed" | "docked" | "maximized";
 
@@ -96,16 +93,13 @@ function drop(...files: File[]): void {
  */
 async function elementSession(): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            // The start screen draws a graph of its own; the project's element is the other one.
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        // The start screen draws a graph of its own; the project's element is the other one.
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -119,13 +113,10 @@ async function elementSession(): Promise<GraphSession> {
  * @param edges - the edges.
  */
 async function holds(session: GraphSession, nodes: number, edges: number): Promise<void> {
-    await waitFor(
-        () => {
-            assert.strictEqual(session.data.nodes().length, nodes);
-            assert.strictEqual(session.data.edges().length, edges);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.strictEqual(session.data.nodes().length, nodes);
+        assert.strictEqual(session.data.edges().length, edges);
+    });
 }
 
 /**
@@ -143,7 +134,7 @@ async function emptyProject(): Promise<{ store: WorkspaceStore; session: GraphSe
  * @param name - the fixture's file name.
  */
 async function chooseSample(name: string): Promise<void> {
-    await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
     const dialog = await screen.findByRole("dialog", { name: "Samples" });
     const row = [...dialog.querySelectorAll("button")].find((button) => button.textContent.startsWith(name));
@@ -203,18 +194,15 @@ describe("the loading doors on the real element", () => {
         render(<Workspace store={store} />);
         drop(await fixture("accounts.csv"), await fixture("transfers.csv"));
         const session = await elementSession();
-        await waitFor(
-            () => {
-                const counts = Object.fromEntries(session.data.issues().map((issue) => [issue.id, issue.count]));
-                assert.deepInclude(counts, {
-                    "unknown-end:edge": 18,
-                    "repeated-edge:edge": 5,
-                    "repeated-id:node": 2,
-                    "refused-row": 1,
-                });
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const counts = Object.fromEntries(session.data.issues().map((issue) => [issue.id, issue.count]));
+            assert.deepInclude(counts, {
+                "unknown-end:edge": 18,
+                "repeated-edge:edge": 5,
+                "repeated-id:node": 2,
+                "refused-row": 1,
+            });
+        });
         // The files drew: their problems open the table docked, not over the drawing. The issues are
         // readable while the element is still settling the load, before draft.load() resolves and
         // the app opens the dock, so wait for the dock as the single-file tests do.
@@ -228,12 +216,9 @@ describe("the loading doors on the real element", () => {
         await chooseSample("tp53-interactions.tsv");
         await holds(session, 60, 120);
         drop(await fixture("tumor-expression.tsv"));
-        await waitFor(
-            () => {
-                assert.isNotNull(store.get().joining);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotNull(store.get().joining);
+        });
         const { joining } = store.get();
         assert.strictEqual(joining?.name, "tumor-expression.tsv");
         const suggestion = joining?.draft.suggestJoin();
@@ -254,12 +239,9 @@ describe("the loading doors on the real element", () => {
         await chooseSample("suppliers.csv");
         await holds(session, 40, 0);
         drop(await fixture("ships-to-2024-09.csv"));
-        await waitFor(
-            () => {
-                assert.isNotNull(store.get().joining);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotNull(store.get().joining);
+        });
         const draft = store.get().joining?.draft;
         const suggestion = draft?.suggestJoin();
         assert.strictEqual(suggestion?.shape, "edges");
@@ -270,14 +252,14 @@ describe("the loading doors on the real element", () => {
         const { session } = await emptyProject();
         const file = await fixture("tp53-interactions.tsv");
         await commands.chooseNextFile(file.name, "text/tab-separated-values", await file.text());
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "File..." }));
         await holds(session, 60, 120);
     });
 
     it("adds the clipboard's text as a source with Paste", async () => {
         const { session } = await emptyProject();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await navigator.clipboard.writeText("source,target\na,b\nb,c\n");
         await userEvent.click(await screen.findByRole("menuitem", { name: "Paste" }));
         await holds(session, 3, 2);
@@ -292,11 +274,7 @@ describe("the loading doors on the real element", () => {
         await chooseSample("ships-to-2024-09.csv");
         await holds(session, 40, 150);
         drop(await fixture("ships-to-2024-10.csv"));
-        const receipt = await screen.findByText(
-            "Replaced ships-to-2024-09.csv with ships-to-2024-10.csv",
-            {},
-            { timeout: TIMEOUT_MS },
-        );
+        const receipt = await screen.findByText("Replaced ships-to-2024-09.csv with ships-to-2024-10.csv", {});
         await holds(session, 40, 159);
         // The receipt's own Undo, not the header's.
         const toast = receipt.closest<HTMLElement>('[role="group"]');

@@ -572,6 +572,15 @@ const addSpec = (result, spec, why) => result.mode !== "all" && !result.specs.ha
 let grepRoot = join(HERE, "..");
 const namesCache = new Map();
 const namesByGraphs = new WeakMap();
+
+/**
+ * Points the search for root-file names (namedBy) at a checkout: selectChange's, or a test's fixture.
+ * @param root the checkout
+ */
+export function useNamesRoot(root) {
+    grepRoot = root;
+    namesCache.clear();
+}
 /**
  * Whether a package's tests name a root file: a string literal in the test-side files of its import graphs
  * or its test and lint configs (in any of its files when it has no graph) holds the file's path, a folder
@@ -1769,10 +1778,13 @@ export const STORY_BIN_LIMIT_MS = 3 * 60_000;
 
 /**
  * The most Stories jobs a pull request's light check plans: past it, every bin's limit grows (in steps of 30 s, up to
- * STORY_BIN_MAX_MS) until the bins fit. 37 bins of 3 min for a change that runs every story queued for runners
- * beside the test jobs and spanned 9 to 19 minutes, the pull request's critical path, while each ran 1 to 5 (#3448).
+ * STORY_BIN_MAX_MS) until the bins fit. It was 9 after 37 bins of 3 min queued for runners (2026-10-29), but the
+ * organization runs up to 500 Linux jobs at once: in PR runs 41061566840, 41067254808 and 41073371165 (2026-10-30)
+ * every job started 2 to 3 s after it was created at up to 66 jobs at once, while the budget stretched bins to 9 to
+ * 12 minutes of capture (graphty-2: 718 s planned, 662 s captured), the pull request's last job. At 36 a change
+ * that runs every story keeps its bins at about 3 minutes (#3448).
  */
-export const STORY_JOB_BUDGET = 9;
+export const STORY_JOB_BUDGET = 36;
 /** The longest a Stories bin's capture may be planned when the job budget packs it: under the job's 20-minute limit. */
 export const STORY_BIN_MAX_MS = 12 * 60_000;
 
@@ -2956,8 +2968,7 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     if (!graph) {
         throw new Error("nx's project graph could not be read");
     }
-    grepRoot = root;
-    namesCache.clear();
+    useNamesRoot(root);
     const packages = new Map([...graph.roots].filter(([, d]) => shards.some((s) => s.package === d)));
     const all = graphs ?? buildGraphs(root, [...packages.values()], shards);
     const rules = loadRules(root);

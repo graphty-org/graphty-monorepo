@@ -62,13 +62,10 @@ async function declared(declare: (element: Graphty) => void): Promise<Graphty> {
  * @param element - The element.
  */
 async function settled(element: Graphty): Promise<void> {
-    await vi.waitFor(
-        async () => {
-            await operationQueueOf(element.graph).waitForCompletion();
-            assert.lengthOf(element.session.history.pending, 0);
-        },
-        { timeout: 10_000 },
-    );
+    await vi.waitFor(async () => {
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.lengthOf(element.session.history.pending, 0);
+    });
 }
 
 /**

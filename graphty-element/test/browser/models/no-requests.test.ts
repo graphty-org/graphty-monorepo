@@ -28,9 +28,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { operationQueueOf } from "../../../src/Graph";
 import { useBundledStandardShaders } from "../../../src/meshes/bundledStandardShaders";
 
-/** How long the element and a load may take. */
-const TIMEOUT_MS = 20000;
-
 const cleanups: (() => void)[] = [];
 
 afterEach(() => {
@@ -247,7 +244,7 @@ describe("the model chunk", () => {
         await element.addNodes([{ id: "a" }, { id: "b" }]);
         await element.addEdges([{ src: "a", dst: "b" }]);
         await operationQueueOf(element.graph).waitForCompletion();
-        await element.waitForStableFrame({ timeoutMs: TIMEOUT_MS });
+        await element.waitForStableFrame();
         const drawn = recording.stop();
 
         const chunkUrls = (urls: string[]): string[] =>
@@ -276,12 +273,9 @@ describe("the model chunk", () => {
         const materials = scene.materials.filter((material) => material instanceof PBRMaterial);
         assert.lengthOf(materials, 1, "the glTF material loads as PBR");
         materials[0].reflectionTexture = neutralEnvironment(scene);
-        await vi.waitFor(
-            () => {
-                assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its textures");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its textures");
+        });
         scene.render();
         const urls = recording.stop();
 
@@ -311,12 +305,9 @@ describe("the model chunk", () => {
         const recording = recordRequests();
         const container = await loadModelContainer(scene, new TextEncoder().encode(obj), ".obj");
         container.addAllToScene();
-        await vi.waitFor(
-            () => {
-                assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its texture");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its texture");
+        });
         scene.render();
         const urls = recording.stop();
 
@@ -334,12 +325,9 @@ describe("the model chunk", () => {
         const recording = recordRequests();
         const container = await loadModelContainer(scene, stlBytes(), ".stl");
         container.addAllToScene();
-        await vi.waitFor(
-            () => {
-                assert.isTrue(scene.isReady(), "the scene compiled its shaders");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(scene.isReady(), "the scene compiled its shaders");
+        });
         scene.render();
         const urls = recording.stop();
 

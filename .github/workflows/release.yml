@@ -18,7 +18,7 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   publish job publishes npm `next`, and the site job (environment `nightly`) hangs the commit's built site on the
 #   site-<sha> prerelease, pushes deployed.json to graphty-org/graphty-nightly and ends on that deploy. A candidate
 #   with nothing to version still moves the site and channel/nightly; npm `next` stays. green-images holds the
-#   candidate for the owner's screenshot review (promote after approval, below) and is announced like a red run, once a week per set of changed screenshots. Every run's timings job also raises the age:nightly stall alarm.
+#   candidate for the owner's screenshot review (promote after approval, below) and is announced like a red run, once a week per set of changed screenshots. The slot job files the missed-slot alarm when a run ends without moving nightly; every run's timings job raises the age:nightly stall alarm, the fallback for a slot with no run.
 # - restart: dispatched by ci.yml's release-due job when a green master build references the open red issue
 #   (tools/release-due.mjs); the same run on the commit it was dispatched on.
 #
@@ -31,8 +31,9 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #     on the re-run is filed "Flaky in full run" and does not block;
 #   - a deciding verdict that is not green-clean holds its commit while nothing is held: branch channel/candidate,
 #     the results store's hold and a "Nightly held on <sha12>" issue. While a hold stands, a slot first tests the held
-#     head if no run judged it, else master's newest commit, whose verdict files red issues but never promotes or
-#     replaces the hold. The held candidate promoting ends the hold (land), and so does an abandon: anyone's
+#     head if no run judged it, else master's newest commit, whose verdict files red issues but never promotes past
+#     the hold -- except that its green-clean or green-images verdict replaces a held head judged red, owner-item or
+#     rejected (hold=replace, #5052), never one awaiting the owner's review. The held candidate promoting ends the hold (land), and so does an abandon: anyone's
 #     nightly-abandon.yml, or candidate_fix's automatic abandon before a full or restart pick (tools/channel/hold.mjs
 #     autoAbandon; owner, 2026-10-27).
 #   - fix forward (tools/channel/candidate-fix.mjs): a held candidate is fixed on branches made from its head, named
@@ -253,9 +254,11 @@ jobs:
                   kind: full
 
             # The stall alarm (design/ci/channels-pipeline.md section 7): age:nightly, the time since channel/nightly
-            # last moved while canary holds an unpromoted commit (the store's GET /v1/release-state). Over 24 hours it
-            # files or updates one priority:critical "Nightly stalled since <date>" issue naming what blocks it, over
-            # 48 hours with an ACTION NEEDED line; it closes the issue once nightly moves. Fails open.
+            # last moved while canary holds an unpromoted commit (the store's GET /v1/release-state). Only the fallback
+            # for a slot that produced no run (the slot job reports every run that ends without moving nightly): over
+            # 8 hours (a slot and a run) with no "Nightly missed slot" issue open, it files or updates one
+            # priority:critical "Nightly stalled since <date>" issue naming what blocks it, over 48 hours with an
+            # ACTION NEEDED line; it closes the issue once nightly moves. Fails open.
             - name: Check that nightly is not stalled (age:nightly)
               if: ${{ github.ref == 'refs/heads/master' }}
               continue-on-error: true
@@ -356,6 +359,8 @@ jobs:
             handoff: ${{ steps.handoff.outputs.handoff }}
             sha: ${{ steps.resume.outputs.sha || steps.handoff.outputs.sha || steps.candidate.outputs.sha || steps.pending.outputs.sha }}
             good: ${{ steps.candidate.outputs.good }}
+            # why the slot tests that commit, or nothing (the missed-slot alarm's "no new candidate")
+            why: ${{ steps.candidate.outputs.why }}
             # none when the handoff step tests this run's own commit instead (its master build may still be running)
             build_run: ${{ steps.handoff.outputs.sha == '' && steps.candidate.outputs.build_run || '' }}
             # the held candidate's head (tools/full-run.mjs pick): "" none, "unknown" when the store did not answer
@@ -1495,7 +1500,15 @@ jobs:
             # what the hold step did, not what the pick's view of the hold asked for: another run may have held its
             # commit since, and then this one is not held (channel/candidate and the kept builds stay put)
             hold: ${{ steps.hold.outputs.action || steps.verdict.outputs.hold }}
+            # the red held head a newer green run replaced (#5052), whose channel/candidate candidate_branch deletes
+            replaced: ${{ steps.hold.outputs.replaced }}
             owner: ${{ steps.verdict.outputs.owner }}
+            # for the missed-slot alarm (the slot job): what the verdict found, its red issue, the held head's own
+            # verdict, and why the candidate did not promote
+            what: ${{ steps.verdict.outputs.what }}
+            issue: ${{ steps.verdict.outputs.issue }}
+            held_state: ${{ steps.verdict.outputs.held_state }}
+            why: ${{ steps.promote.outputs.why }}
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha || github.sha }}
@@ -1578,12 +1591,15 @@ jobs:
             # A deciding run that is not green-clean holds its commit while nothing is held (channels-pipeline.md
             # section 3): the results store's hold and the "Nightly held on <sha12>" issue here, branch
             # channel/candidate in the candidate_branch job (the deploy key). A verdict on the held head comments on
-            # that issue. The store is what the next slot reads, so a failed store write fails the job.
+            # that issue. A newer commit's green-clean or green-images verdict replaces a held head judged red,
+            # owner-item or rejected (replace, #5052): the red hold ends, and green-images holds this commit instead.
+            # The store is what the next slot reads, so a failed store write fails the job.
             - name: Hold the candidate
               id: hold
-              if: ${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' }}
+              if: ${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' || steps.verdict.outputs.hold == 'replace' }}
               env:
                   HOLD: ${{ steps.verdict.outputs.hold }}
+                  HELD: ${{ steps.verdict.outputs.held }}
                   STATE: ${{ steps.verdict.outputs.state }}
                   WHAT: ${{ steps.verdict.outputs.what }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
@@ -1611,8 +1627,9 @@ jobs:
                   STATE: ${{ steps.verdict.outputs.state }}
                   GATE: ${{ steps.gate.outputs.outcome }}
                   FIRST: ${{ steps.gate.outputs.first }}
-                  # the hold as the store had it at the verdict, not the pick's (a re-run keeps attempt 1's pick)
-                  HELD: ${{ steps.verdict.outputs.held }}
+                  # the hold as the store had it at the verdict, not the pick's (a re-run keeps attempt 1's pick);
+                  # nothing once this run replaced it
+                  HELD: ${{ steps.hold.outputs.replaced == '' && steps.verdict.outputs.held || '' }}
               run: node tools/channel/nightly.mjs decide
 
             # green-images too: it waits for the owner's screenshot review, and without this the run ends green
@@ -1779,13 +1796,14 @@ jobs:
 
     # Branch channel/candidate (design/ci/channels-pipeline.md section 3), with the deploy key: pushed at the commit a
     # deciding verdict holds, deleted when the hold is abandoned (nightly-abandon.yml, or candidate_fix's automatic
-    # abandon; land deletes it in its own push when the held candidate promotes). It runs git only. The results store's
+    # abandon) or replaced by a newer green run (the verdict's replace, #5052; by lease, at the replaced head); land
+    # deletes it in its own push when the held candidate promotes. It runs git only. The results store's
     # hold is what the slots read, so a refused push (the deploy-key ruleset does not cover channel/candidate yet: an
     # owner item) only warns.
     candidate_branch:
         name: Move branch channel/candidate
         needs: [pick, verdict]
-        if: ${{ !cancelled() && needs.verdict.outputs.hold == 'start' }}
+        if: ${{ !cancelled() && (needs.verdict.outputs.hold == 'start' || needs.verdict.outputs.replaced != '') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         environment: release # the deploy key
@@ -1793,6 +1811,8 @@ jobs:
             contents: read # the push goes over SSH with the deploy key, not with this token
         env:
             SHA: ${{ needs.pick.outputs.sha }}
+            HOLD: ${{ needs.verdict.outputs.hold }}
+            REPLACED: ${{ needs.verdict.outputs.replaced }}
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1801,6 +1821,12 @@ jobs:
 
             - name: Push channel/candidate
               run: |
+                  if [ -n "$REPLACED" ]; then
+                      # only the branch at the head the replace ended: a newer hold's branch is never deleted
+                      git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$REPLACED" origin :refs/heads/channel/candidate ||
+                          echo "::warning::could not delete channel/candidate at ${REPLACED}; the hold ended in the results store"
+                  fi
+                  [ "$HOLD" = start ] || exit 0
                   git fetch --quiet origin "$SHA"
                   ref="${SHA}:refs/heads/channel/candidate"
                   git push --no-verify origin "$ref" ||
@@ -2271,6 +2297,55 @@ jobs:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/channel/resume.mjs record
 
+    # The missed-slot alarm (#5052; owner, 2026-10-30: a successful nightly every 6-hour slot, and a slot that does not
+    # promote is an incident with a named cause): a full, restart or candidate run that ends without moving nightly
+    # files or updates one priority:critical "Nightly missed slot <date hh:mm> UTC: <cause>" issue (a red lane and its
+    # issue, the owner's screenshot review and the review page, a hold nobody can review, no new candidate); one that
+    # moved it closes the issue (tools/channel/nightly.mjs slot). Not a run that handed its candidate to
+    # channel/full-run (that run reports), and not an attempt 1 that waits for its re-run. Fails open.
+    slot:
+        name: Report a missed nightly slot
+        needs: [pick, verdict, land]
+        if: ${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') && needs.pick.outputs.handoff != 'true' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/channel/full-run') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        continue-on-error: true
+        permissions:
+            actions: read # when the run started: its slot
+            contents: read
+            issues: write # the missed-slot issue
+            id-token: write # the results store's release state
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  sparse-checkout: tools
+
+            # the runner's own Node: nightly.mjs imports nothing installed
+            - name: File or close the missed-slot issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+                  RUN_ID: ${{ github.run_id }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  MODE: ${{ inputs.mode }}
+                  PUSHED: ${{ needs.land.outputs.pushed }}
+                  PICK_RESULT: ${{ needs.pick.result }}
+                  RELEASE: ${{ needs.pick.outputs.release }}
+                  PICK_WHY: ${{ needs.pick.outputs.why }}
+                  RESUME: ${{ needs.pick.outputs.resume }}
+                  SHA: ${{ needs.pick.outputs.sha }}
+                  STATE: ${{ needs.verdict.outputs.state }}
+                  DEFERRED: ${{ needs.verdict.outputs.deferred }}
+                  HOLD: ${{ needs.verdict.outputs.hold }}
+                  HELD: ${{ needs.verdict.outputs.held }}
+                  HELD_STATE: ${{ needs.verdict.outputs.held_state }}
+                  WHAT: ${{ needs.verdict.outputs.what }}
+                  ISSUE: ${{ needs.verdict.outputs.issue }}
+                  PROMOTE: ${{ needs.verdict.outputs.promote }}
+                  WHY: ${{ needs.verdict.outputs.why }}
+              run: node tools/channel/nightly.mjs slot
+
     # Publishes what the land job put on master, from the builds of this run's CI call. always(): a land job that
     # pushed and then failed a bookkeeping step still publishes. A re-run of the run's failed jobs re-runs only this
     # job when it is the one that failed.
@@ -2578,6 +2653,7 @@ jobs:
                 approve,
                 land,
                 unhold,
+                slot,
                 publish,
                 site,
             ]

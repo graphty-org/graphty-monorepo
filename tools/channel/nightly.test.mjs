@@ -17,6 +17,8 @@ import {
     channelRecord,
     deployedRecord,
     deployState,
+    missedSlot,
+    MISSED_TITLE,
     promotion,
     siteReleasePlan,
     stall,
@@ -214,8 +216,9 @@ describe("the stall alarm", () => {
         canary: { sha: "c".repeat(40) },
         ...extra,
     });
-    it("stays quiet up to 24 hours", () => {
-        assert.equal(stall({ state: state(24 * HOUR, "unjudged"), publishHold: "", now: NOW }), null);
+    it("stays quiet up to one slot and a run (8 hours), the fallback for a slot with no run (#5052)", () => {
+        assert.equal(stall({ state: state(8 * HOUR, "unjudged"), publishHold: "", now: NOW }), null);
+        assert.match(stall({ state: state(9 * HOUR, "unjudged"), publishHold: "", now: NOW }).body, /no run at all/);
         assert.equal(stall({ state: null, publishHold: "", now: NOW }), null);
         const never = { ...state(0, "unjudged"), nightly: null, ageNightlyMs: null };
         assert.equal(stall({ state: never, publishHold: "", now: NOW }), null, "nightly never moved: no alarm");
@@ -256,6 +259,49 @@ describe("the stall alarm", () => {
         assert.equal(a.urgent, true);
         assert.match(a.body, /- publish hold #3500 is open/);
         assert.match(a.body, /\nACTION NEEDED: nightly stalled 49 h; publish hold #3500/);
+    });
+});
+
+describe("the missed-slot alarm (#5052)", () => {
+    const STARTED = Date.UTC(2026, 9, 30, 6, 4); // the 06:00 slot's run
+    const ran = (over) => ({ moved: false, pickResult: "success", release: "true", sha: SHA, ...over });
+    it("is quiet when nightly moved, and while attempt 1 waits for its re-run", () => {
+        assert.equal(missedSlot(ran({ moved: true, state: "red" }), STARTED), null);
+        assert.equal(missedSlot(ran({ state: "red", deferred: "true" }), STARTED), null);
+    });
+    it("names the slot by its UTC time and the cause: a red lane with its issue", () => {
+        const a = missedSlot(ran({ state: "red", what: "T4 GPU", issue: "4600" }), STARTED);
+        assert.equal(a.title, `${MISSED_TITLE} 2026-10-30 06:00 UTC: red lane on aaaaaaa: T4 GPU (#4600)`);
+    });
+    it("a candidate held for review names the review page", () => {
+        const a = missedSlot(ran({ state: "green-images", hold: "start" }), STARTED);
+        assert.match(a.cause, /^waiting on the owner's screenshot review of aaaaaaa$/);
+        assert.match(a.detail, /serve --candidate next/);
+        assert.match(a.detail, /&target=master/);
+    });
+    it("a green-images run behind a held candidate awaiting review, and one behind a hold nobody can review", () => {
+        const H = "e87f65b".padEnd(40, "0");
+        const review = missedSlot(
+            ran({ state: "green-images", hold: "none", held: H, heldState: "green-images" }),
+            STARTED,
+        );
+        assert.match(review.cause, /review of the held e87f65b/);
+        const stuck = missedSlot(ran({ state: "green-images", hold: "none", held: H, heldState: "red" }), STARTED);
+        assert.match(stuck.cause, /hold on e87f65b is not reviewable \(red\)/);
+        assert.match(stuck.detail, /nightly-abandon\.yml/);
+    });
+    it("no new candidate, a failed pick, and a green-clean run that did not promote say so", () => {
+        assert.match(
+            missedSlot(ran({ release: "false", pickWhy: "c3 is judged" }), STARTED).cause,
+            /^no new candidate: c3/,
+        );
+        assert.match(missedSlot(ran({ pickResult: "failure" }), STARTED).cause, /the pick failed/);
+        const gc = missedSlot(ran({ state: "green-clean", promote: "false", why: "publish hold #9 is open" }), STARTED);
+        assert.match(gc.cause, /did not promote: publish hold #9/);
+        assert.match(
+            missedSlot(ran({ state: "green-clean", promote: "true" }), STARTED).cause,
+            /failed before it landed/,
+        );
     });
 });
 

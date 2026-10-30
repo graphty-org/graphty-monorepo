@@ -20,23 +20,17 @@ import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * The workspace with the element up.
  * @returns the session.
  */
 async function openWorkspace(): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -80,13 +74,7 @@ describe("counts that say only what a layer paints", () => {
         await session.styles.settled();
 
         // The row's name counts its nodes and never the edges it does not style.
-        const row = await within(tree()).findByRole(
-            "treeitem",
-            { name: /^Painted, / },
-            {
-                timeout: TIMEOUT_MS,
-            },
-        );
+        const row = await within(tree()).findByRole("treeitem", { name: /^Painted, / });
         assert.equal(row.getAttribute("aria-label"), "Painted, node layer, 4 nodes");
 
         // Its Values tab lists the nodes it matches, not the edges.
@@ -119,12 +107,9 @@ describe("counts that say only what a layer paints", () => {
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
         await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
-        await waitFor(
-            () => {
-                assert.equal(session.runs.list().find((r) => r.algorithm === "louvain")?.status, "succeeded");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(session.runs.list().find((r) => r.algorithm === "louvain")?.status, "succeeded");
+        });
         await session.styles.settled();
 
         // Every group's condition removed: each layer matches every node, and the top one wins.

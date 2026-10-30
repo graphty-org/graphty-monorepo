@@ -7,16 +7,18 @@ import {
     dirtyKey,
     floorTo,
     HOUR,
+    type JobItem,
     rollKey,
     type Step,
     STEP_MS,
+    type TestItem,
 } from "../../src/model/items.js";
 import { FULL_SHARD_BUDGET_MS } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
 import { LEASE_KEY, LEASE_MS, loadSeries, recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { refold } from "../../src/recompute.js";
-import { job, MIN, obs, T0 } from "./helpers.js";
+import { job, MIN, obs, run, T0 } from "./helpers.js";
 
 const rand = (seed: number) => () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
 const dayStart = floorTo(T0, "1d");
@@ -181,5 +183,49 @@ describe("refold", () => {
         expect(await refold(store, T0)).toBe(0);
         await recompute(store, T0);
         expect((await sums(store, "ci.full_shard_time", "5m", at - HOUR, T0, T0)).sum).toBe(FULL_SHARD_BUDGET_MS);
+    });
+});
+
+describe("folds by the stored run (#5053)", () => {
+    // Items stored before the collector stamped a field are folded by what their stored run says, so a filter
+    // added later holds for them too, without waiting for them to age out.
+    it("gives a job stored before it carried its run's load that load", async () => {
+        const store = new MemoryStore();
+        const r = run(7, { event: "push", branch: "master" });
+        const { load: _load, ...noLoad } = job(70, { runId: 7, startedAt: T0 - 30 * MIN, completedAt: T0 - 20 * MIN });
+        await putRaw(store, [r, noLoad as JobItem], T0);
+        await recompute(store, T0);
+        const [b] = (await loadSeries(store, "ci.runner_minutes", "1d", floorTo(T0, "1d"), T0, T0)).values();
+        expect(b?.dims?.master?.sum).toBe(10);
+    });
+
+    it("leaves out a flaky test of a dependency bump stored before tests carried bump", async () => {
+        const store = new MemoryStore();
+        const test = (n: number, runId: number): TestItem => ({
+            kind: "test",
+            id: `t${n}`,
+            attempt: 1,
+            source: "ci",
+            invocation: `${runId}.1.graphty-1`,
+            family: "graphty",
+            file: "src/a.test.ts",
+            name: "draws",
+            outcome: "flaky",
+            status: "fail",
+            signature: "x",
+            seenAt: T0 - 20 * MIN,
+        });
+        await putRaw(
+            store,
+            [
+                run(8, { branch: "dependabot/npm_and_yarn/vite-7.1.0" }),
+                run(9, { branch: "fix/1234-topic" }),
+                test(1, 8),
+                test(2, 9),
+            ],
+            T0,
+        );
+        await recompute(store, T0);
+        expect((await sums(store, "flaky.tests", "5m", T0 - HOUR, T0, T0)).sum).toBe(1);
     });
 });

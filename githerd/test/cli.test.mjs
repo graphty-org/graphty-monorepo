@@ -249,7 +249,7 @@ afterEach(async () => {
         }
     }
     const all = [...pids, ...strays];
-    await vi.waitFor(() => expect(all.filter(alive)).toEqual([]), { timeout: 5000, interval: 50 });
+    await vi.waitFor(() => expect(all.filter(alive)).toEqual([]));
     rmSync(dir, { recursive: true, force: true });
 });
 
@@ -1161,7 +1161,7 @@ describe("doctor", () => {
         expect(c.supervision).toBe(`FAIL supervision: no pm2 process servherd-${daemonName()}; run githerd ensure`);
         expect(c.state).toMatch(/^warn state: no /);
         const pid = Number(readFileSync(pidFile, "utf8"));
-        await vi.waitFor(() => expect(alive(pid)).toBe(false), { timeout: 5000, interval: 50 });
+        await vi.waitFor(() => expect(alive(pid)).toBe(false));
     });
 
     it("reports a missing notify command and a deploy key's private half in ~/.ssh", async () => {

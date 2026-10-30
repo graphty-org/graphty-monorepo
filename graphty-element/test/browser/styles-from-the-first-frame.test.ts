@@ -95,8 +95,6 @@ interface Frame {
     readonly bootstrapped: readonly string[];
 }
 
-const MOUNT_TIMEOUT_MS = 10000;
-
 /** Where each element is mounted, kept so the test can take them down again. */
 const containers: HTMLDivElement[] = [];
 
@@ -112,12 +110,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.height = "100%";
     mounted.style.display = "block";
     container.appendChild(mounted);
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
     return mounted;
 }
 
@@ -173,12 +168,9 @@ async function framesPerPage(element: Graphty): Promise<Frame[]> {
     releasePage = null;
     const loading = element.session.data.import({ type: PAGED_FORMAT, config: {} });
     for (let page = 1; page <= PAGES; page++) {
-        await vi.waitFor(
-            () => {
-                assert.lengthOf(frames, page, `a frame was drawn with page ${String(page)} in it`);
-            },
-            { timeout: MOUNT_TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.lengthOf(frames, page, `a frame was drawn with page ${String(page)} in it`);
+        });
         if (page < PAGES) {
             await vi.waitFor(() => {
                 assert.isNotNull(releasePage, "the source is waiting for its next page");

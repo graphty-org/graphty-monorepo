@@ -155,7 +155,7 @@ describe("Edge Performance Tests", () => {
 
         // Wait for layout to settle (physics only)
         if (layoutType === "ngraph") {
-            await waitForLayoutSettle(graph, TEST_CONFIG.PHYSICS_SETTLE_TIMEOUT_MS);
+            await waitForLayoutSettle(graph);
         }
 
         // End layout session

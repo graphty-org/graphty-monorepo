@@ -760,8 +760,8 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 | Benchmark results (CI's benchmark jobs)                | each full run        | 2 d; idle until set |
 | Local writer (slot holds and waits, test ledger)       | each local run       | idle, not judged    |
 
-Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
-results, rows per local run that happened for the local writer, so a quiet week or a retired local
+Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI test job for CI
+results (a Test job posts one row; master builds run none), rows per local run that happened for the local writer, so a quiet week or a retired local
 gate is not a false alarm, while a writer that posts 31% of its usual rows per run is. A
 source that fails while its last good write is within its yellow age keeps its members' values,
 marked stale with that write's time; past the yellow age an unreachable source is NO DATA, hatched,

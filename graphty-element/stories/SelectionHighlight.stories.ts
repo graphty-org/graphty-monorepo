@@ -17,7 +17,7 @@ import type { GraphSelectionStyleInput } from "../src/config";
 import type { Graphty } from "../src/graphty-element";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
-import { assertGraphLoaded, type Drawn, drawn, holds, renderedElement } from "./assertions";
+import { assertGraphLoaded, type Drawn, drawn, eventually, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Five nodes, far enough apart that a halo around one is a halo around one. */
@@ -33,9 +33,6 @@ const EDGES = [
 
 /** The node every story selects, so the pictures differ only in the halo. */
 const SELECTED = "gamma";
-
-/** How long to leave for the halo to reach the frame after a selection or a restyle. */
-const SETTLE_MS = 400;
 
 /** What a story's args carry: the element's properties plus the highlight to set. */
 interface HighlightArgs {
@@ -115,7 +112,8 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
     await assertGraphLoaded(scene, { nodes: 5, edges: 4 });
 
     scene.graph.selectNode(SELECTED);
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    // The halo reaches the frame: the picture once the selection has been drawn.
+    await scene.element.waitForStableFrame();
 
     return scene;
 }
@@ -236,7 +234,12 @@ export const RestyledWhileSelected: Story = {
 
         const element = await renderedElement(canvasElement, "RestyledWhileSelected: no <graphty-element> rendered");
         element.selectionStyle = { color: "#7CB342", scale: 2, opacity: 0.7 };
-        await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+        // The new style reaches the halo on a later pass, and waitForStableFrame does not wait for
+        // it (the frame is called final while the old halo is still drawn), so wait for the halo.
+        await eventually(
+            () => Math.abs((haloOnScreen(scene)?.clearance ?? 0) - 2) < 0.001,
+            "RestyledWhileSelected: the halo never took the new style",
+        );
 
         await assertHalo(scene, { color: "#7CB342", alpha: 0.7, clearance: 2 });
     },
@@ -267,7 +270,9 @@ export const SelectedEdge: Story = {
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
         const element = await renderedElement(canvasElement, "SelectedEdge: no <graphty-element> rendered");
-        await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+        // The render function selects the edge once the graph has settled.
+        await eventually(() => element.session.selection.edges.length > 0, "SelectedEdge: the edge was never selected");
+        await element.waitForStableFrame();
 
         const { selection } = element.session;
         await holds(

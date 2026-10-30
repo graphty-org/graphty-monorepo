@@ -33,7 +33,6 @@ import { assertCheckPasses } from "../helpers/sabotage.js";
 import { SE_BASE_OPTIONS, SE_TUNING, withSeSim } from "../helpers/se-parity.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const TIER_GRAPHS: readonly ParityGraph[] = ["hub10k", "rmat14"];
 
 /** The `fa2-attraction` pipeline keys the context created, as their (TIER, USE_PERM) pairs sorted by TIER. */
@@ -71,52 +70,47 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
     for (const graph of TIER_GRAPHS) {
         for (const weighted of [false, true]) {
             const label = `${graph}${weighted ? "-w" : ""}`;
-            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 51 s on the T4 lane, 43 s on the dev box's RTX 4070 SUPER under load, 19 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
-            it(
-                `${label}: every stage bitwise twice, K2 within deg_i x 2^-22 of the f64 oracle, the tier pipelines the degrees populate`,
-                async (t) => {
-                    const ctx = await fresh(t, `tiers-inspect/${label}`);
-                    const s = paritySnapshot(graph, gpuScale(), weighted);
-                    try {
-                        const so = Array.from(s.degreeOrder().segmentOffsets);
-                        expect(so[2], `${label}: a row of degree >= 32 exists`).toBeGreaterThan(0);
-                        const options = weighted ? { ...BASE_OPTIONS, weight: true } : BASE_OPTIONS;
-                        const start = startPositions(s, options, false);
-                        const a = await captureAllStages(ctx, s, start, options, PAPER, null);
-                        const b = await captureAllStages(ctx, s, start, options, PAPER, null);
-                        for (const key of STAGE_KEYS) {
-                            expectBitwiseEqual(a[key].values, b[key].values, `${label}/${key}: run 1 vs run 2`);
-                        }
-                        const report = attractionReport(
-                            a.attraction.values,
-                            a.attraction.expected,
-                            attractionBounds(s),
-                            `${label}/attraction`,
-                        );
-                        console.warn(
-                            `[tiers-inspect] ${label}/attraction: error ${a.attraction.error.toExponential(3)}, ratio over the analytic bound ${report.worst.toExponential(3)}`,
-                        );
-                        assertCheckPasses(report);
-                        expect(a.attraction.values.every((v) => Number.isFinite(v))).toBe(true);
-                        const keys = k2KeysOf(ctx);
-                        expect(keys.map((k) => k.tier)).toEqual(expectedTiers(so));
-                        expect(keys.every((k) => k.usePerm)).toBe(true);
-                        if (graph === "rmat14") {
-                            expect(keys.map((k) => k.tier)).toEqual([0, 1, 2]);
-                        } else if (so[1] > 0) {
-                            // the hub alone reaches 1024 leaves; no leaf reaches 32
-                            expect(keys.map((k) => k.tier)).toEqual([0, 2]);
-                        } else {
-                            // a software adapter's scaled star of ~200 leaves puts the hub in the mid tier
-                            expect(keys.map((k) => k.tier)).toEqual([0, 1]);
-                        }
-                    } finally {
-                        ctx.release(s);
-                        ctx.dispose();
+            it(`${label}: every stage bitwise twice, K2 within deg_i x 2^-22 of the f64 oracle, the tier pipelines the degrees populate`, async (t) => {
+                const ctx = await fresh(t, `tiers-inspect/${label}`);
+                const s = paritySnapshot(graph, gpuScale(), weighted);
+                try {
+                    const so = Array.from(s.degreeOrder().segmentOffsets);
+                    expect(so[2], `${label}: a row of degree >= 32 exists`).toBeGreaterThan(0);
+                    const options = weighted ? { ...BASE_OPTIONS, weight: true } : BASE_OPTIONS;
+                    const start = startPositions(s, options, false);
+                    const a = await captureAllStages(ctx, s, start, options, PAPER, null);
+                    const b = await captureAllStages(ctx, s, start, options, PAPER, null);
+                    for (const key of STAGE_KEYS) {
+                        expectBitwiseEqual(a[key].values, b[key].values, `${label}/${key}: run 1 vs run 2`);
                     }
-                },
-                CASE_TIMEOUT,
-            );
+                    const report = attractionReport(
+                        a.attraction.values,
+                        a.attraction.expected,
+                        attractionBounds(s),
+                        `${label}/attraction`,
+                    );
+                    console.warn(
+                        `[tiers-inspect] ${label}/attraction: error ${a.attraction.error.toExponential(3)}, ratio over the analytic bound ${report.worst.toExponential(3)}`,
+                    );
+                    assertCheckPasses(report);
+                    expect(a.attraction.values.every((v) => Number.isFinite(v))).toBe(true);
+                    const keys = k2KeysOf(ctx);
+                    expect(keys.map((k) => k.tier)).toEqual(expectedTiers(so));
+                    expect(keys.every((k) => k.usePerm)).toBe(true);
+                    if (graph === "rmat14") {
+                        expect(keys.map((k) => k.tier)).toEqual([0, 1, 2]);
+                    } else if (so[1] > 0) {
+                        // the hub alone reaches 1024 leaves; no leaf reaches 32
+                        expect(keys.map((k) => k.tier)).toEqual([0, 2]);
+                    } else {
+                        // a software adapter's scaled star of ~200 leaves puts the hub in the mid tier
+                        expect(keys.map((k) => k.tier)).toEqual([0, 1]);
+                    }
+                } finally {
+                    ctx.release(s);
+                    ctx.dispose();
+                }
+            });
         }
     }
 
@@ -162,56 +156,51 @@ describe("the K2 degree tiers inside the layout (P4-T6, PD-7)", () => {
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 14 s on the dev box's RTX 4070 SUPER under load, 12 s on the T4 lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "hub10k with the hub pinned: its attraction is computed through its tier, the free count excludes it, K5 leaves it in place",
-        async (t) => {
-            const ctx = await fresh(t, "tiers-inspect/pinned-hub");
-            const s = paritySnapshot("hub10k", gpuScale(), false);
-            try {
-                const hub = 0;
-                const mask = pinMask(s.nodeCount, hub);
-                const start = startPositions(s, BASE_OPTIONS, false);
-                const a = await captureAllStages(ctx, s, start, BASE_OPTIONS, PAPER, mask);
-                // the stages after K2 are NOT held to the fa2-inspect.* tolerances here: those were recorded on
-                // random1k, and the exact repulsion's 10k-term sums of the unscaled hub10k put the K5 positions at
-                // 2x that floor on NVIDIA whether or not the hub is pinned (measured at P4-T6; the hub10k stage
-                // tolerances are P4-T11's). Every stage is finite; K2 is held to its analytic bound below.
-                for (const key of STAGE_KEYS) {
-                    expect(
-                        a[key].values.every((v) => Number.isFinite(v)),
-                        `${key}: finite`,
-                    ).toBe(true);
-                }
-                assertCheckPasses(
-                    attractionReport(
-                        a.attraction.values,
-                        a.attraction.expected,
-                        attractionBounds(s),
-                        "hub10k-pinned/attraction",
-                    ),
-                );
-                expect(a.partials.values[12], "free count").toBe(s.nodeCount - 1);
+    it("hub10k with the hub pinned: its attraction is computed through its tier, the free count excludes it, K5 leaves it in place", async (t) => {
+        const ctx = await fresh(t, "tiers-inspect/pinned-hub");
+        const s = paritySnapshot("hub10k", gpuScale(), false);
+        try {
+            const hub = 0;
+            const mask = pinMask(s.nodeCount, hub);
+            const start = startPositions(s, BASE_OPTIONS, false);
+            const a = await captureAllStages(ctx, s, start, BASE_OPTIONS, PAPER, mask);
+            // the stages after K2 are NOT held to the fa2-inspect.* tolerances here: those were recorded on
+            // random1k, and the exact repulsion's 10k-term sums of the unscaled hub10k put the K5 positions at
+            // 2x that floor on NVIDIA whether or not the hub is pinned (measured at P4-T6; the hub10k stage
+            // tolerances are P4-T11's). Every stage is finite; K2 is held to its analytic bound below.
+            for (const key of STAGE_KEYS) {
                 expect(
-                    Math.hypot(
-                        a.attraction.values[3 * hub],
-                        a.attraction.values[3 * hub + 1],
-                        a.attraction.values[3 * hub + 2],
-                    ),
-                    "the pinned hub's attraction",
-                ).toBeGreaterThan(0);
-                for (let k = 0; k < 3; k++) {
-                    expect(a.positions.values[3 * hub + k], `pinned position component ${k}`).toBe(
-                        k === 2 ? 0 : start[3 * hub + k],
-                    );
-                }
-            } finally {
-                ctx.release(s);
-                ctx.dispose();
+                    a[key].values.every((v) => Number.isFinite(v)),
+                    `${key}: finite`,
+                ).toBe(true);
             }
-        },
-        CASE_TIMEOUT,
-    );
+            assertCheckPasses(
+                attractionReport(
+                    a.attraction.values,
+                    a.attraction.expected,
+                    attractionBounds(s),
+                    "hub10k-pinned/attraction",
+                ),
+            );
+            expect(a.partials.values[12], "free count").toBe(s.nodeCount - 1);
+            expect(
+                Math.hypot(
+                    a.attraction.values[3 * hub],
+                    a.attraction.values[3 * hub + 1],
+                    a.attraction.values[3 * hub + 2],
+                ),
+                "the pinned hub's attraction",
+            ).toBeGreaterThan(0);
+            for (let k = 0; k < 3; k++) {
+                expect(a.positions.values[3 * hub + k], `pinned position component ${k}`).toBe(
+                    k === 2 ? 0 : start[3 * hub + k],
+                );
+            }
+        } finally {
+            ctx.release(s);
+            ctx.dispose();
+        }
+    });
 
     it("writes this adapter's K2 output of the UNSCALED hub10k and the f64 reference as the hub10k-K2-tiers noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
         const ctx = await fresh(t, "tiers-inspect/noise");

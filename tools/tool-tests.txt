@@ -34,6 +34,7 @@ tools/features-on.test.mjs
 tools/dependency-refresh.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
+tools/health-owner-sweep.test.mjs
 tools/land.test.mjs
 tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs
@@ -68,6 +69,7 @@ tools/test-ledger.test.mjs
 tools/test-quarantine.test.mjs
 tools/test-select.test.mjs
 tools/test-slots.test.mjs
+tools/test-wait-guard.test.mjs
 tools/verify.test.mjs
 tools/visual-flaky-report.test.mjs
 tools/vitest-base.test.mjs

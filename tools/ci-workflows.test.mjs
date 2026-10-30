@@ -433,8 +433,6 @@ describe("the pre-push gate matches CI", () => {
             return spawnSync(process.execPath, ["tools/prepush-tests.mjs", packages], {
                 cwd: dir,
                 encoding: "utf8",
-                timeout: 60_000,
-                // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
                 env: {
                     ...withoutPrepushSettings(),
                     // bin/ holds a fake gh when a test needs one
@@ -573,7 +571,6 @@ describe("the pre-push gate matches CI", () => {
             const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["killed"]'], {
                 cwd: dir,
                 encoding: "utf8",
-                timeout: 60_000,
                 env: {
                     ...withoutPrepushSettings(),
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
@@ -775,15 +772,13 @@ describe("the pre-push gate matches CI", () => {
                 mode: 0o755,
             });
             const script = `cd ${dir}\nSCRIPT_DIR=${dir}/tools\nROOT_DIR=${dir}\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid bash -c 'timeout 300 sleep 300 & echo $! > ${dir}/inner; wait' &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ] && [ -s ${dir}/inner ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
-            const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20_000 });
+            const r = spawnSync("bash", ["-c", script], { encoding: "utf8" });
             assert.equal(r.status, 1);
             const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
             assert.throws(() => process.kill(pid, 0), "the capture's process group was killed");
             // timeout runs its command in a process group of its own; the session kill reaches it.
             const inner = readFileSync(join(dir, "inner"), "utf8").trim();
-            const gone = spawnSync("bash", ["-c", `while kill -0 ${inner} 2>/dev/null; do sleep 0.05; done`], {
-                timeout: 20_000,
-            });
+            const gone = spawnSync("bash", ["-c", `while kill -0 ${inner} 2>/dev/null; do sleep 0.05; done`]);
             assert.equal(gone.status, 0, "the capture's time-limited step was killed too");
             assert.equal(readFileSync(join(dir, "called"), "utf8"), "--discard abc\n");
         } finally {
@@ -892,7 +887,6 @@ exec ${realGit} "$@"
                         cwd: main,
                         env: { ...env, ...extra },
                         encoding: "utf8",
-                        timeout: 60_000,
                     });
                 // Master moves on the remote (pushed by URL, so origin/master here is not updated), so
                 // the next fetch must lock and write refs/remotes/origin/master.
@@ -3650,6 +3644,9 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             "handoff",
             // runs again in every attempt anyway: it needs every job, with always()
             "watchers",
+            // the missed-slot alarm reports; it never fails the run (continue-on-error) and a re-run of the
+            // verdict runs it again as a dependent
+            "slot",
         ];
         for (const [id, j] of Object.entries(jobs)) {
             const name = j.name.replace(/\$\{\{ matrix.project \}\}/, "graphty");
@@ -3764,9 +3761,16 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         const release = workflow("release.yml");
         const jobs = parseYaml(release).jobs;
         const hold = jobs.verdict.steps.find((st) => st.id === "hold");
-        assert.equal(hold.if, "${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' }}");
+        assert.equal(
+            hold.if,
+            "${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' || steps.verdict.outputs.hold == 'replace' }}",
+        );
         assert.equal(hold.run, 'node tools/channel/hold.mjs "$HOLD"');
-        assert.equal(jobs.candidate_branch.if, "${{ !cancelled() && needs.verdict.outputs.hold == 'start' }}");
+        // a red hold a newer green run replaced (#5052) loses its channel/candidate here too
+        assert.equal(
+            jobs.candidate_branch.if,
+            "${{ !cancelled() && (needs.verdict.outputs.hold == 'start' || needs.verdict.outputs.replaced != '') }}",
+        );
         // abandoning is its own workflow, needing no approval (owner, 2026-10-27; it blocked nightly for 6 hours
         // waiting in production): no abandon mode or job is left here
         assert.ok(!Object.keys(jobs).some((id) => id.startsWith("abandon")));
@@ -4226,6 +4230,8 @@ describe("release.yml", () => {
             'git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$head" origin :refs/heads/channel/candidate ||',
             // channel/full-run, moved to a candidate tested with its own workflow files (handoff)
             'git push --no-verify --force origin "${SHA}:refs/heads/channel/full-run"',
+            // channel/candidate deleted when a newer green run replaced its red hold (candidate_branch, #5052)
+            'git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$REPLACED" origin :refs/heads/channel/candidate ||',
             // channel/candidate, pushed at a held commit (candidate_branch)
             'git push --no-verify origin "$ref" ||',
         ]);
@@ -6322,7 +6328,7 @@ describe("the commit and push hooks", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
         for (const step of [...steps, "SonarQube (changed lines)"]) {
-            assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[()]/g, "\\$&")}"`), step);
+            assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[\\()]/g, "\\$&")}"`), step);
         }
         // The two commonest failures start first, in the background, before any other check.
         const firstRun = checks.indexOf('    run_step "');
@@ -6385,7 +6391,7 @@ bg_step slow "sleep 30; echo SLOW-DONE" "${dir}/slow.log"
 bg_step fails "echo FAILED-OUTPUT; exit 1" "${dir}/fails.log"
 until [ -s "${dir}/fails.log" ] && ! kill -0 "\${BG_PIDS[1]}" 2>/dev/null; do sleep 0.05; done
 run_step after "echo AFTER-RAN"`;
-            const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20000 });
+            const r = spawnSync("bash", ["-c", script], { encoding: "utf8" });
             assert.equal(r.status, 1, r.stdout + r.stderr);
             assert.match(r.stdout, /FAILED-OUTPUT[\s\S]*\[FAIL\] fails failed/);
             assert.match(r.stdout, /stopped at the first failure: fails/);
@@ -6393,7 +6399,7 @@ run_step after "echo AFTER-RAN"`;
             const passing = spawnSync(
                 "bash",
                 ["-c", `${steps}\nbg_step ok "echo OK-OUTPUT" "${dir}/ok.log"\nrun_step next "echo NEXT"\nbg_wait`],
-                { encoding: "utf8", timeout: 20000 },
+                { encoding: "utf8" },
             );
             assert.equal(passing.status, 0, passing.stdout + passing.stderr);
             assert.match(passing.stdout, /OK-OUTPUT[\s\S]*\[PASS\] ok passed/);
@@ -6488,7 +6494,6 @@ describe("a failed pre-push test shard (#1562)", () => {
                 return spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["fake"]'], {
                     cwd: dir,
                     encoding: "utf8",
-                    timeout: 60_000,
                 });
             };
 
@@ -6847,7 +6852,7 @@ describe("pnpm-lock.yaml", () => {
         // every browser shard then fails to find its browser. pnpm-workspace.yaml's overrides pin it.
         const lock = readFileSync(new URL("../pnpm-lock.yaml", import.meta.url), "utf8");
         for (const name of ["playwright", "playwright-core", "@playwright/test"]) {
-            const escaped = name.replace(/[/@]/g, "\\$&");
+            const escaped = name.replace(/[\\/@]/g, "\\$&");
             const versions = new Set(
                 [...lock.matchAll(new RegExp(`^  '?${escaped}@(\\d[^:'(]*)'?:`, "gm"))].map((m) => m[1]),
             );
@@ -6940,7 +6945,7 @@ describe("a run reuses an earlier run's results when only screenshot records cha
             });
             const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
             assert.equal(r.reuse, null, `${name} ${conclusion}`);
-            assert.match(r.skipped[0], new RegExp(`${name.replace(/[()]/g, "\\$&")} `));
+            assert.match(r.skipped[0], new RegExp(`${name.replace(/[\\()]/g, "\\$&")} `));
         }
     });
 
@@ -7342,7 +7347,8 @@ describe("release.yml's nightly promotion (#1020)", () => {
             FIRST: "${{ steps.gate.outputs.first }}",
             // while a candidate is held, only it promotes (channels-pipeline.md section 3): the hold as the store had it
             // at the verdict, not the pick's, which a re-run attempt keeps from attempt 1
-            HELD: "${{ steps.verdict.outputs.held }}",
+            // nothing is held once this run replaced a red hold (#5052)
+            HELD: "${{ steps.hold.outputs.replaced == '' && steps.verdict.outputs.held || '' }}",
         });
         const order = steps.verdict.steps.map((st) => st.id ?? st.name);
         assert.ok(order.indexOf("verdict") < order.indexOf("gate") && order.indexOf("gate") < order.indexOf("promote"));

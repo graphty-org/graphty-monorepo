@@ -37,7 +37,6 @@ import { adapterClass, LANE_RESIDUES, sampleStrided, writeNoiseFixture } from ".
 import { assertCheckPasses, ratioOf } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const WRITER_TIMEOUT = 1_200_000;
 /** The fixtures of the stage comparison; the two one-cell fixtures run at nearMax 8 (the sampling path). */
 const FIXTURES: readonly string[] = [
     "random20k",
@@ -276,73 +275,58 @@ describe("grid tier inspect(): every stage against the oracle's (spec 11.9 item 
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "writes this adapter's grid stage outputs of the UNSCALED random20k, isolated and clumpy100 and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            requireGpu(t);
-            const cls = adapterClass(ctx.caps);
-            const { snapshot: s, start } = gridFixture("random20k", 1, GRID_BASE_OPTIONS);
-            try {
-                const n = s.nodeCount;
-                const capture = await captureGridStages(ctx, s, start, GRID_BASE_OPTIONS, null);
-                // the raw outputs are written BEFORE the checks (a floor above the cap surfaces through the
-                // noise-floor validation, never through a missing fixture)
-                const write = (
-                    name: keyof typeof GRID_NOISE_FIXTURES,
-                    values: ArrayLike<number>,
-                    expected: ArrayLike<number>,
-                ): void => {
-                    const { kernel, fixture } = GRID_NOISE_FIXTURES[name];
-                    writeNoiseFixture(kernel, fixture, cls, values, "f32");
-                    writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, expected, "f32");
-                };
-                const { stages, spec } = capture;
-                write(
-                    "pyramid",
-                    samplePyramid(stages.pyramid.values, spec),
-                    samplePyramid(stages.pyramid.expected, spec),
-                );
-                write("farField", sampleNodes(stages.farField.values, n), sampleNodes(stages.farField.expected, n));
-                write("nearField", sampleNodes(stages.nearField.values, n), sampleNodes(stages.nearField.expected, n));
-                write("positions", sampleNodes(stages.positions.values, n), sampleNodes(stages.positions.expected, n));
-                write("k1", stages.k1.values, stages.k1.expected);
-                assertCapture(capture, "noise/random20k/2d");
-            } finally {
-                ctx.release(s);
-            }
-            // the widening member: the K1 grid block of the UNSCALED isolated fixture (the module comment of grid-parity.ts)
-            const isolated = gridFixture("isolated", 1, GRID_BASE_OPTIONS);
-            try {
-                const capture = await captureGridStages(
-                    ctx,
-                    isolated.snapshot,
-                    isolated.start,
-                    GRID_BASE_OPTIONS,
-                    null,
-                );
-                const { kernel, fixture } = GRID_NOISE_FIXTURES.k1Isolated;
-                writeNoiseFixture(kernel, fixture, cls, capture.stages.k1.values, "f32");
-                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, capture.stages.k1.expected, "f32");
-                assertCapture(capture, "noise/isolated/2d");
-            } finally {
-                ctx.release(isolated.snapshot);
-            }
-            // the widening member of the K5 row: the positions on the UNSCALED clumpy100 fixture (the module comment
-            // of grid-parity.ts)
-            const clumpy = gridFixture("clumpy100", 1, GRID_BASE_OPTIONS);
-            try {
-                const n = clumpy.snapshot.nodeCount;
-                const capture = await captureGridStages(ctx, clumpy.snapshot, clumpy.start, GRID_BASE_OPTIONS, null);
-                const { kernel, fixture } = GRID_NOISE_FIXTURES.positionsClumpy;
-                const { positions } = capture.stages;
-                writeNoiseFixture(kernel, fixture, cls, sampleNodes(positions.values, n), "f32");
-                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, sampleNodes(positions.expected, n), "f32");
-                assertCapture(capture, "noise/clumpy100/2d");
-            } finally {
-                ctx.release(clumpy.snapshot);
-            }
-        },
-        WRITER_TIMEOUT,
-    );
+    it("writes this adapter's grid stage outputs of the UNSCALED random20k, isolated and clumpy100 and the f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        requireGpu(t);
+        const cls = adapterClass(ctx.caps);
+        const { snapshot: s, start } = gridFixture("random20k", 1, GRID_BASE_OPTIONS);
+        try {
+            const n = s.nodeCount;
+            const capture = await captureGridStages(ctx, s, start, GRID_BASE_OPTIONS, null);
+            // the raw outputs are written BEFORE the checks (a floor above the cap surfaces through the
+            // noise-floor validation, never through a missing fixture)
+            const write = (
+                name: keyof typeof GRID_NOISE_FIXTURES,
+                values: ArrayLike<number>,
+                expected: ArrayLike<number>,
+            ): void => {
+                const { kernel, fixture } = GRID_NOISE_FIXTURES[name];
+                writeNoiseFixture(kernel, fixture, cls, values, "f32");
+                writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, expected, "f32");
+            };
+            const { stages, spec } = capture;
+            write("pyramid", samplePyramid(stages.pyramid.values, spec), samplePyramid(stages.pyramid.expected, spec));
+            write("farField", sampleNodes(stages.farField.values, n), sampleNodes(stages.farField.expected, n));
+            write("nearField", sampleNodes(stages.nearField.values, n), sampleNodes(stages.nearField.expected, n));
+            write("positions", sampleNodes(stages.positions.values, n), sampleNodes(stages.positions.expected, n));
+            write("k1", stages.k1.values, stages.k1.expected);
+            assertCapture(capture, "noise/random20k/2d");
+        } finally {
+            ctx.release(s);
+        }
+        // the widening member: the K1 grid block of the UNSCALED isolated fixture (the module comment of grid-parity.ts)
+        const isolated = gridFixture("isolated", 1, GRID_BASE_OPTIONS);
+        try {
+            const capture = await captureGridStages(ctx, isolated.snapshot, isolated.start, GRID_BASE_OPTIONS, null);
+            const { kernel, fixture } = GRID_NOISE_FIXTURES.k1Isolated;
+            writeNoiseFixture(kernel, fixture, cls, capture.stages.k1.values, "f32");
+            writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, capture.stages.k1.expected, "f32");
+            assertCapture(capture, "noise/isolated/2d");
+        } finally {
+            ctx.release(isolated.snapshot);
+        }
+        // the widening member of the K5 row: the positions on the UNSCALED clumpy100 fixture (the module comment
+        // of grid-parity.ts)
+        const clumpy = gridFixture("clumpy100", 1, GRID_BASE_OPTIONS);
+        try {
+            const n = clumpy.snapshot.nodeCount;
+            const capture = await captureGridStages(ctx, clumpy.snapshot, clumpy.start, GRID_BASE_OPTIONS, null);
+            const { kernel, fixture } = GRID_NOISE_FIXTURES.positionsClumpy;
+            const { positions } = capture.stages;
+            writeNoiseFixture(kernel, fixture, cls, sampleNodes(positions.values, n), "f32");
+            writeNoiseFixture(kernel, fixture, ORACLE_F64_CLASS, sampleNodes(positions.expected, n), "f32");
+            assertCapture(capture, "noise/clumpy100/2d");
+        } finally {
+            ctx.release(clumpy.snapshot);
+        }
+    });
 });

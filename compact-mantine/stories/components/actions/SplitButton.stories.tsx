@@ -6,7 +6,7 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 import { SplitButton, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
-import { settleFocusTooltip, storyWaitOptions } from "../../helpers/settled";
+import { settleFocusTooltip } from "../../helpers/settled";
 
 /**
  * Two icon buttons joined into one control: a main action, and a chevron that opens a menu of
@@ -184,13 +184,13 @@ export const Keyboard: Story = {
         await expect(chevron).toHaveAttribute("aria-expanded", "true");
         await userEvent.keyboard("{Escape}");
         await expect(chevron).toHaveAttribute("aria-expanded", "false");
-        await waitFor(() => expect(chevron).toHaveFocus(), storyWaitOptions(1000));
+        await waitFor(() => expect(chevron).toHaveFocus());
         await userEvent.keyboard("{Enter}");
         await expect(chevron).toHaveAttribute("aria-expanded", "true");
         await userEvent.keyboard("{Escape}");
         await expect(chevron).toHaveAttribute("aria-expanded", "false");
         // Focus is back on the chevron, whose tooltip opens after the cold delay; end once it has.
-        await waitFor(() => expect(chevron).toHaveFocus(), storyWaitOptions(1000));
+        await waitFor(() => expect(chevron).toHaveFocus());
         await settleFocusTooltip(canvasElement);
     },
 };

@@ -51,15 +51,12 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
     element.nodeData = NODES;
     element.edgeData = EDGES;
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(
-                element.session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
-                "the PageRank run named in the load-time list succeeded",
-            );
-        },
-        { timeout: 10_000 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(
+            element.session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
+            "the PageRank run named in the load-time list succeeded",
+        );
+    });
 
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.styles.settled();

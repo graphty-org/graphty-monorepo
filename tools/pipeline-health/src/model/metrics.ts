@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 
 import budgets from "../../../../ci-budgets.json" with { type: "json" };
-import { MIN, type RawItem, type RawKind } from "./items.js";
+import { type JobItem, MIN, type RawItem, type RawKind } from "./items.js";
 
 export interface Contribution {
     n?: number; // default 1
@@ -49,7 +49,18 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs`;
+
+/**
+ * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
+ * took it (runner_id 0, no steps) a started_at equal to its created_at, so its queue time until the cancel would
+ * otherwise read as runner time, and its wait as zero. A job a runner took starts at least a second after it was
+ * created: of 27,000 pull request jobs over 10-27..10-30, none that succeeded started in the second it was created.
+ * @param j a stored job
+ * @returns its start, epoch ms, or undefined for a job no runner ran
+ */
+export const ranAt = (j: Pick<JobItem, "conclusion" | "createdAt" | "startedAt">): number | undefined =>
+    j.conclusion === "cancelled" && j.startedAt === j.createdAt ? undefined : j.startedAt;
 
 /**
  * A flake hotspot family (design section 5): a shard run's variant `<family>|flags=..|<shape>` and a flaky test's
@@ -75,6 +86,8 @@ const isMaster = (base: string) => base === "master" || base === "main";
 /** A finished job's own verdict: cancelled and skipped jobs say nothing about the job. */
 const JOB_PASS = new Set(["success"]);
 const JOB_FAIL = new Set(["failure", "timed_out", "startup_failure"]);
+/** A test job that ran its tests: cancelled, skipped and startup failures post no shard run. */
+const JOB_POSTS = new Set(["success", "failure", "timed_out"]);
 
 /**
  * A job's name with its bin or shard number folded, as checks are grouped by family (section 4):
@@ -123,9 +136,10 @@ export const METRICS: MetricDef[] = [
     {
         id: "ci.runner_wait",
         from: [
-            src("job", "startedAt", (j) =>
-                j.startedAt === undefined ? null : { value: Math.max(0, j.startedAt - j.createdAt), dim: j.repo },
-            ),
+            src("job", "startedAt", (j) => {
+                const at = ranAt(j);
+                return at === undefined ? null : { value: Math.max(0, at - j.createdAt), dim: j.repo };
+            }),
         ],
     },
     {
@@ -307,11 +321,12 @@ export const METRICS: MetricDef[] = [
     {
         id: "ci.job_minutes",
         from: [
-            src("job", "completedAt", (j) =>
-                j.os && j.startedAt !== undefined && j.completedAt !== undefined
-                    ? { sum: Math.ceil((j.completedAt - j.startedAt) / MIN), dim: JSON.stringify([j.workflow, j.os]) }
-                    : null,
-            ),
+            src("job", "completedAt", (j) => {
+                const at = ranAt(j);
+                return j.os && at !== undefined && j.completedAt !== undefined
+                    ? { sum: Math.ceil((j.completedAt - at) / MIN), dim: JSON.stringify([j.workflow, j.os]) }
+                    : null;
+            }),
         ],
     },
     // 4.3 Runner-minutes per merge: job minutes (unrounded) by the kind of run that spent them, over the pull
@@ -319,11 +334,12 @@ export const METRICS: MetricDef[] = [
     {
         id: "ci.runner_minutes",
         from: [
-            src("job", "completedAt", (j) =>
-                j.load && j.startedAt !== undefined && j.completedAt !== undefined
-                    ? { n: 0, sum: (j.completedAt - j.startedAt) / MIN, dim: j.load }
-                    : null,
-            ),
+            src("job", "completedAt", (j) => {
+                const at = ranAt(j);
+                return j.load && at !== undefined && j.completedAt !== undefined
+                    ? { n: 0, sum: (j.completedAt - at) / MIN, dim: j.load }
+                    : null;
+            }),
             src("pr", "mergedAt", (p) => (p.mergedAt !== undefined && isMaster(p.base) ? { n: 1 } : null)),
         ],
     },
@@ -332,12 +348,19 @@ export const METRICS: MetricDef[] = [
         id: "release.trains",
         from: [src("run", "completedAt", (r) => (r.workflow === "release.yml" && r.tested ? { n: 1 } : null))],
     },
-    // 4.7 Data sources: rows of CI results per CI run, for "thin for its activity" (section 9).
+    // 4.7 Data sources: rows of CI results per CI test job, for "thin for its activity" (section 9). Each Test (...)
+    // job (ci.yml, or "CI / Test (...)" in a release.yml or bisect.yml full run) posts one shard run, its invocation
+    // id `<run>.<attempt>.test.<shard>` (tools/results/run-group.mjs baseId()), so a healthy feed reads about 1 and
+    // only lost posts lower it. Counting ci.yml runs instead swung with the hour's master builds, which run no tests.
     {
         id: "source.ci_results_per_run",
         from: [
-            src("shard_run", "endedAt", (s) => (s.source === "ci" ? { n: 0, sum: 1 } : null)),
-            src("run", "completedAt", (r) => (r.workflow === "ci.yml" && r.conclusion !== "skipped" ? { n: 1 } : null)),
+            src("shard_run", "endedAt", (s) =>
+                s.source === "ci" && s.id.split(".")[2] === "test" ? { n: 0, sum: 1 } : null,
+            ),
+            src("job", "completedAt", (j) =>
+                j.family !== undefined && JOB_POSTS.has(j.conclusion ?? "") ? { n: 1 } : null,
+            ),
         ],
     },
     // Local runs page.

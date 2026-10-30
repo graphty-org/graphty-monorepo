@@ -14,9 +14,6 @@ import { render, screen, waitFor } from "../test/test-utils";
 import { createWorkspaceStore } from "../workspace/state/store";
 import { Workspace } from "../workspace/Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * A site.json served as a data: address.
  * @param config - the file's contents.
@@ -32,15 +29,12 @@ function siteFile(config: unknown): string {
  */
 async function mountElement(): Promise<HTMLElementTagNameMap["graphty-element"]> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Site", id: 1 } })} />);
-    return waitFor(
-        () => {
-            const element = document.querySelector("graphty-element");
-            assert.isNotNull(element);
-            assert.isDefined(element.session);
-            return element;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor(() => {
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        assert.isDefined(element.session);
+        return element;
+    });
 }
 
 describe("site.json", () => {

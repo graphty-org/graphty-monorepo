@@ -12,7 +12,7 @@ import type {
     StepItem,
     TestItem,
 } from "../model/items.js";
-import { DAY, MIN } from "../model/items.js";
+import { DAY, isOffMaster, loadOf, MIN } from "../model/items.js";
 import {
     type ChannelAttempt,
     type LaneJob,
@@ -140,27 +140,16 @@ export function runnerOs(labels: string[]): JobItem["os"] {
 const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 
 /**
- * The kind of load a run puts on the runners (4.3, runner-minutes per merge).
+ * The kind of load a run puts on the runners (4.3, runner-minutes per merge): model/items.ts loadOf.
  * @param run the run
- * @returns full for release.yml (whose called workflows run inside it), pr (a pull request's, including CodeQL's
- *     default setup scanning one: event `dynamic` on `refs/pull/<n>/head`), master for a push to master, else other
  */
 export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
-    if (workflowFile(run.path) === "release.yml") return "full";
-    if (run.event === "pull_request" || run.event === "pull_request_target") return "pr";
-    if (run.event === "dynamic" && run.head_branch?.startsWith("refs/pull/")) return "pr";
-    if (run.event === "push" && run.head_branch === "master") return "master";
-    return "other";
+    return loadOf(workflowFile(run.path), run.event, run.head_branch);
 }
 
-/**
- * Whether a run is on a branch other than its repository's default one (a dispatch on a work branch, a probe, a
- * bisect point, a pull request's CodeQL scan), whose failures may be the branch's own.
- * ponytail: takes master or main as the default branch; read the repository's default_branch if one ever differs.
- */
+/** Whether a run is on a branch other than master (model/items.ts isOffMaster). */
 export function offMaster(run: Pick<GhRun, "head_branch">): boolean {
-    const branch = run.head_branch?.replace(/^refs\/heads\//, "");
-    return branch !== "master" && branch !== "main";
+    return isOffMaster(run.head_branch);
 }
 
 export function toJobItem(

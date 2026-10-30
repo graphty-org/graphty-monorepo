@@ -598,8 +598,12 @@ describe("planRead", () => {
         });
         assert.equal(seen.length, 1);
         const q = new URL(seen[0].url, url).searchParams;
-        assert.equal(q.get("variants"), "layout|flags=off|whole,layout|flags=off|selected");
-        assert.equal(q.get("inputs"), "-,-");
+        assert.equal(
+            q.get("variants"),
+            "layout|flags=off|whole,layout|flags=off|selected,layout-storybook|flags=off|whole," +
+                "layout-storybook|flags=off|selected,layout-storybook-shots|flags=off|shots",
+        );
+        assert.equal(q.get("inputs"), "-,-,-,-,-");
         assert.equal(q.get("files"), "layout/src/x.ts");
     });
 });

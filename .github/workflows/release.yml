@@ -2395,6 +2395,12 @@ jobs:
                       cp -a "${dir}/." "${pkg}/dist/"
                   done
 
+            # Every published package's exports, main, types, bin and files must name files its pack holds: a build
+            # missing from PACKAGE_BUILDS publishes a package with no dist/ (#3275). npm pack --dry-run reads only
+            # the files, so this runs before anything is installed or published.
+            - name: Check every export is in its pack
+              run: node tools/check-packed-exports.mjs
+
             - uses: pnpm/action-setup@v6
 
             # Note: Do NOT set registry-url - it interferes with OIDC trusted publishing

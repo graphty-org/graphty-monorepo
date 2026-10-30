@@ -487,3 +487,20 @@ entry; the third pass's triage of that name is at cc562d52cd). Screenshots are u
   "An issue's mark is on what has the problem" (dry run pass 4) applies, and for a repeated edge the
   problem is the pair. It does not spoil grading (the row shows both ends and Overview reads 1 repeated
   edge), so it waits in `backlog.md` (dry run pass 5, T61A-2).
+
+## Dry run pass 6 (director, 2026-10-30)
+
+Settled by the triage of the re-pilot walks on build a53beb7179 (`dry-run-r1-4.md`, which names each defect by
+its row). Screenshots are under the main checkout's `tmp/design-studio/tier4/r1d3/pilot/`. No earlier entry is
+reversed.
+
+- **A fix-now unit is taken back only for a regression its re-walk shows.** A fix whose re-walk is cut off
+  before every route has a verdict stays in: the re-walk is finished on the next attempt, one browser at a
+  time, and the study build is not frozen until it is. A route that diverged is judged from its stop
+  screenshot; only a wrong result that the fix caused takes the fix back, and the revert names that route and
+  screenshot. Why: the Select card's count ("A Select card's count counts what it marks", dry run pass 3) was
+  fixed twice (42ce7201c7, 355022569a) and reverted twice (5b25463780, 0b1175dabc) as "incomplete -- not a
+  regression", so two frozen builds shipped without it and four passes found the same row again; on this
+  build four pilots read 5 of 24 with 4 selected and 5 of 12 with 3 selected
+  (`T65A/q1-T65A-path/17.png`, `T65B/g1-path/14.png`). No replay of either attempt that finished disagreed
+  with the fix.

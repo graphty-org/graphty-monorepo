@@ -22,3 +22,7 @@ Unit: a within-picture Select card's chip counts what it would select, by the sa
 - Sessions may still be open from the pilot replays writing under design/ui/studio/tmp/r1-dry3-recheck-U1/p/; each uses --end-on-diverge and an idle session closes itself after 15 minutes.
 - The engineer notes (design/ui/studio/notes/engineer.md) were not updated.
 - To finish next time, one browser at a time: REAL_DIST=<worktree>/graphty/dist node design/ui/studio/tool/real.mjs --replay <route> <session folder> for each pilot route; then --rewalk design/ui/studio/tmp/r1-dry3-U1/a with REAL_REWALK_PARALLEL=1; then look at each card chip screenshot (A 4 of 14, keep card off 5 of 24; B 3 of 5, after Undo of the depth edit 3 of 6; screen reader 'Node 3 of 5') and press the keys on the changed cards.
+- 2026-10-30, dry run pass 6 (`dry-run-r1-4.md`, unit U1): sent again as `git revert 0b1175dabc`, which restores
+  355022569a unchanged (nothing under it has changed since). Under the new decided entry "A fix-now unit is taken
+  back only for a regression its re-walk shows", an unfinished re-walk is finished, not reverted; close both
+  entries above when it is.

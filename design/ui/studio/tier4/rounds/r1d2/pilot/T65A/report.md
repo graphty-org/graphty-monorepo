@@ -1,5 +1,57 @@
 # T65 A pilot, round 1 dry run 2: only the trained volunteers with 10 hours or more in the picture, staff marked
 
+## Targeted re-pilot, second walk of every fix-list route on build bccf8fe47f
+
+Build: bccf8fe47f (frozen, `.study-builds/tier4-r1d2-bccf8fe47f`), the same build as the section below. Every
+route on the fix list was walked again, each in its own session from its own real start, by replaying the
+walk of the same route below (z01 to z17) into new folders b01 to b17 under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T65A/. Every session was ended. The
+data stayed each task's own on every walk (volunteers.graphml 24 nodes, 63 edges; gauges + flows 12 and 14;
+pantries + deliveries 13 and 18). No script error was printed on any walk.
+
+| Route | Walk | Result |
+| ----- | ---- | ------ |
+| T65A success path | b01-T65A-path | 24 of 24 steps matched |
+| T65A, the other card order | b02-T65A-order | 11 of 11 |
+| T65A keyboard walk (the chip's spoken count) | b03-T65A-keys | 127 of 127 |
+| T65B success path | b04-T65B-path | 15 of 15 |
+| T65B, the other card order | b05-T65B-order | 7 of 7 |
+| T65B detour: a style layer's Which nodes | b06-T65B-whichnodes | 7 of 7 |
+| T66A/T66B: the Data source card's count, and the source row's issue chip after it | b07-T66A-sourcecard, b08-T66B-sourcecard | 15 of 15, 17 of 17 |
+| T68A/T68B starts: the narrowed Hide card's count | b09-T68A-start, b10-T68B-start | 4 of 4, 3 of 3 |
+| T61A success path (Edges > With issues 1) | b11-T61A-path, b17-T61A-path-issues | 18 of 18, 18 of 18 |
+| T61B success path (Edges > With issues) | b12-T61B-path | 23 of 23 |
+| T61A detour: deliveries.csv first | b13-T61A-delivfirst | 7 of 7 |
+| T61A keyboard walk (the Edges header's spoken issue) | b14-T61A-keys | 112 of 115, then by hand to the end |
+| T67A/T67B: column issue marks in the table header | b15-T67A-header, b16-T67B-header | 5 of 5, 13 of 13 |
+
+Every matched route shows what the walk it replayed showed, so the findings below stand unchanged. The
+key screens were looked at again:
+
+- T65A success path: "14 of 24 nodes, 22 of 63 edges", "4 nodes selected", 4 rings, the 4 staff rows
+  highlighted; the role card's chip reads "5 of 24" (b01-T65A-path/25.png).
+- T65A keyboard: ArrowLeft onto Select announces "Filter on: 14 of 24 nodes, 22 edges" and "4 nodes
+  selected" (b03-T65A-keys/111.png); no focus line names the role card's own count. Focus never fell to the
+  page body.
+- T65B success path: "5 of 12 nodes, 2 of 14 edges", "3 nodes selected" (G01, G02, G09); the installed card's
+  chip reads "5 of 12" (b04-T65B-path/09.png).
+- T61A keyboard: the walk differed only at step 113, where browse mode still read the "Redid joining
+  deliveries.csv." notice and its Dismiss button (the notice had not yet gone); the screen and focus were
+  otherwise the same. Carried on by hand: Escape returns focus to "Target, sorted ascending", ArrowDown to
+  rowheader "P13" (b14-T61A-keys/114.png to 116.png).
+
+Mismatch between the answer key and the screen: T65 "Card counts" says A's role card reads "4 of 14" and B's
+installed card "3 of 5" while on Select; the build reads "5 of 24" and "5 of 12" (b01-T65A-path/25.png,
+b02-T65A-order/08.png, b04-T65B-path/09.png, b05-T65B-order/06.png).
+
+Defects (unchanged): 1. the Select card's chip counts over the whole graph, not what it marks (would spoil
+grading for a participant who reads the count off the card); 2. that chip has no accessible name and is not
+in the focus order (b03-T65A-keys/111.png); 3. focus on the Edges table's Target header does not speak its
+issue (b14-T61A-keys/111.png).
+
+Skipped: nothing on the list.
+
+
 ## Targeted re-pilot: every route on the fix list, build bccf8fe47f
 
 Build: bccf8fe47f (frozen, `.study-builds/tier4-r1d2-bccf8fe47f`). Every route on this pass's fix list was

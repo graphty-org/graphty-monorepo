@@ -411,7 +411,10 @@ describe("tables", () => {
         } as never);
         expect(html.split("<details")[0]).toContain("slow one");
         expect(html.split("<details")[0]).not.toContain("steady");
-        expect(html).toContain("2 more: 1 within 1.2x, 1 with fewer than 13 runs, not judged yet");
+        expect(html).toContain("1 more within 1.2x; 1 with fewer than 13 runs are not judged yet and not listed");
+        // The fold lists the judged ones only; a benchmark with too few runs is counted, never a row of its own.
+        expect(html.split("<details")[1]).toContain("steady");
+        expect(html).not.toContain(">new<");
         expect(html).toContain("2 of 3 have the 13 runs detection needs");
     });
 });

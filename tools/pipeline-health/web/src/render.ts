@@ -36,6 +36,7 @@ import {
     channelSince,
     LABEL,
     MEMBER,
+    REPO,
     STATE_WORD,
     bigValue,
     capital,
@@ -178,13 +179,15 @@ export function nav(status: StatusResponse | null, fixture: boolean): string {
 
 function rangePicker(slow: boolean): string {
     const opts: (Range | SlowRange)[] = slow ? ["7d", "28d"] : ["1h", "6h", "24h"];
+    // Costs charts days while its money is always this month; a test's history only lists days.
+    const label = here.page === "costs" ? "days in the charts (the money is always this month)" : "history";
     const links = opts
         .map(
             (r) =>
                 `<a href="${hereWith({ range: r })}"${r === here.range ? ' class="on" aria-current="true"' : ""}>${rangeLabel(r)}</a>`,
         )
         .join("");
-    return `<div class="range" role="group" aria-label="${slow ? "History" : "Range"}">${slow ? `<span class="rlab">days in the charts (the money is always this month)</span>` : ""}${links}</div>`;
+    return `<div class="range" role="group" aria-label="${slow ? "History" : "Range"}">${slow ? `<span class="rlab">${label}</span>` : ""}${links}</div>`;
 }
 
 function updated(generated: string): string {
@@ -405,6 +408,8 @@ interface TableDef {
     foldText?: (folded: TableSection["rows"]) => string;
     /** What a table with no ongoing row says above its folded, ended rows. */
     noneNow?: string;
+    /** Folded rows worth listing; the rest are only counted in the fold's words (benchmarks with too few runs). */
+    listFolded?: (r: TableSection["rows"][number]) => boolean;
 }
 
 const isMark = (c: Cell | undefined) => c?.t === "mark";
@@ -488,8 +493,9 @@ export const TABLES: Record<string, TableDef> = {
         foldText: (rows) => {
             const judged = rows.filter((r) => filled(r.cells.ratio)).length;
             const few = rows.length - judged;
-            return `${fmtN(rows.length)} more: ${fmtN(judged)} within 1.2x, ${fmtN(few)} with fewer than 13 runs, not judged yet`;
+            return `${fmtN(judged)} more within 1.2x; ${fmtN(few)} with fewer than 13 runs are not judged yet and not listed`;
         },
+        listFolded: (r) => filled(r.cells.ratio),
         noneNow: "No benchmark regressed.",
     },
     lanes: {
@@ -578,6 +584,10 @@ export const TABLES: Record<string, TableDef> = {
     },
 };
 
+/** A table cell: the column's name rides along for a phone, which stacks the row (style.css); the value is wrapped
+ * so the name and the value are two grid columns there. */
+const cellSpan = (h: string, html: string): string => `<span data-h="${esc(h)}"><span class="cv">${html}</span></span>`;
+
 /** Rows a table shows before the rest folds away, unless its entry in TABLES says otherwise. */
 const TABLE_CAP = 10;
 
@@ -603,10 +613,7 @@ function table(s: TableSection): string {
     const row = (r: TableSection["rows"][number]) => {
         const cls = `tr${r.past ? " past" : ""}${r.total ? " tot" : ""}`;
         const cells = cols
-            .map(
-                ([k, h]) =>
-                    `<span data-h="${esc(h)}">${filled(r.cells[k]) ? cellHtml(r.cells[k]) : `<span class="muted">--</span>`}</span>`,
-            )
+            .map(([k, h]) => cellSpan(h, filled(r.cells[k]) ? cellHtml(r.cells[k]) : `<span class="muted">--</span>`))
             .join("");
         return r.link ? `<a class="${cls}" href="${href(r.link)}">${cells}</a>` : `<div class="${cls}">${cells}</div>`;
     };
@@ -630,7 +637,7 @@ function table(s: TableSection): string {
     // With no row open, the header goes inside the fold, over the rows it names.
     const headOpen = shown.length > 0 || totals.length > 0;
     const fold = folded.length
-        ? `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${endedNote}${chev()}</summary>${headOpen ? "" : head}${folded.map(row).join("")}</details>`
+        ? `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${endedNote}${chev()}</summary>${headOpen ? "" : head}${(def.listFolded ? folded.filter(def.listFolded) : folded).map(row).join("")}</details>`
         : "";
     // Nothing live: say so in words above the fold, so a table never reads as a header with no rows.
     const none =
@@ -647,10 +654,12 @@ const BARS_SHOWN = 8;
 /** Sorted bars, the longest first, past BARS_SHOWN folded. */
 function barList(items: BarsSection["groups"][number]["items"], caption: string): string {
     const rest = items.slice(BARS_SHOWN);
+    // One scale for the whole list, so a folded bar is never longer than a larger one above it.
+    const max = Math.max(1, ...items.map((i) => i.n));
     const more = rest.length
-        ? `<details class="epm tfold"><summary>${fmtN(rest.length)} more${chev()}</summary>${sortedBars(rest, cellHtml, caption)}</details>`
+        ? `<details class="epm tfold"><summary>${fmtN(rest.length)} more${chev()}</summary>${sortedBars(rest, cellHtml, caption, max)}</details>`
         : "";
-    return sortedBars(items.slice(0, BARS_SHOWN), cellHtml, caption) + more;
+    return sortedBars(items.slice(0, BARS_SHOWN), cellHtml, caption, max) + more;
 }
 
 /** "CI, pull_request" as "CI, pull request": the event of a runner holder's name in words. */
@@ -693,7 +702,7 @@ function shards(s: ShardsSection): string {
     const maxS = Math.max(1200, ...s.rows.map((r) => r.p90S));
     const mins = (x: number) => fmtN(Math.round((x / 60) * 10) / 10);
     const head =
-        `<div class="srow thead"><span>${s.runKind === "full" ? "shard" : "family"}</span><span class="num">runs</span><span class="num">median</span><span class="num">p90</span>` +
+        `<div class="srow thead"><span class="nm">${s.runKind === "full" ? "shard" : "family"}</span><span class="num">runs</span><span class="num">median</span><span class="num">p90</span>` +
         `<span>0 to ${fmtN(Math.round(maxS / 60))} min; line = budget</span><span></span><span></span></div>`;
     const rows = s.rows
         .map((r) => {
@@ -728,7 +737,7 @@ function shards(s: ShardsSection): string {
 
 function tree(s: TreeSection): string {
     const head =
-        `<div class="hrow thead"><span>group or family &gt; file &gt; test</span><span>distinct flaky tests</span><span class="num">events</span>` +
+        `<div class="hrow thead"><span class="nm">group or family &gt; file &gt; test</span><span>distinct flaky tests</span><span class="num">events</span>` +
         `<span class="num">flaky per 1,000 runs of this file</span><span class="num">quarantined</span><span class="num">PRs held</span><span></span></div>`;
     const note =
         `<p class="note">Pull request runs pack test files into bins per pull request, so the tree is family &gt; file &gt; test; full runs add the shard level. ` +
@@ -775,7 +784,7 @@ function sectionHead(s: Section): string {
         case "owner":
             return h("Waiting on the owner", "auto-merge is off by rule");
         case "causes":
-            return h("Why first attempts failed", `${subText}, ${last}`);
+            return h("Why first attempts failed", [subText, last].filter(Boolean).join(", "));
         case "shards": {
             const sh = s as ShardsSection;
             return h(
@@ -1082,17 +1091,39 @@ export function overviewView(o: OverviewResponse): string {
     );
 }
 
+/** A new-issue link with the test's facts filled in; GitHub opens it as a draft the reader submits or drops. */
+function draftIssue(h: TestHistoryResponse): string {
+    const name = h.test ?? h.file;
+    const newest = h.events[0];
+    const body = [
+        `Flaky test: \`${h.file}\`${h.test ? ` > ${h.test}` : ""}`,
+        `${h.events.length} flaky or failed results in the last ${h.range.replace("d", " days")}.`,
+        newest?.signature ? `Newest failure (${newest.at}): ${newest.signature}` : "",
+        `History: https://health.graphty.app/#/flaky/test?${new URLSearchParams({ file: h.file, ...(h.test ? { test: h.test } : {}) }).toString()}`,
+    ]
+        .filter(Boolean)
+        .join("\n\n");
+    const q = new URLSearchParams({
+        title: `Flaky test: ${name}`.slice(0, 200),
+        labels: "bug,priority:critical,effort:medium",
+        body,
+    });
+    return `${REPO}/issues/new?${q.toString()}`;
+}
+
 export function testView(h: TestHistoryResponse): string {
     const title = h.test ?? h.file;
     const outcome = (o: TestHistoryResponse["events"][number]["outcome"]) =>
         o === "passed"
             ? "passed"
             : `<span class="mk ${o === "flaky" ? "warn" : "bad"}">${o === "failed-rerun" ? "failed rerun" : o}</span>`;
+    const where = (e: TestHistoryResponse["events"][number]) =>
+        e.pr ? prLink(e.pr) : e.kind === "full" ? "full run" : e.kind === "pr" ? "pull request" : "local";
     const rows = h.events
         .map(
             (e) =>
-                `<div class="tr${e.outcome === "passed" ? " past" : ""}"><span data-h="when">${fmtTime(e.at)}</span><span data-h="where">${e.pr ? prLink(e.pr) : e.kind === "full" ? "full run" : "local"}</span>` +
-                `<span data-h="commit">${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small></span><span data-h="result">${outcome(e.outcome)}</span><span data-h="signature">${esc(e.signature ?? "")}</span><span data-h="run">${runLink(e.run)}</span></div>`,
+                `<div class="tr${e.outcome === "passed" ? " past" : ""}">${cellSpan("when", fmtTime(e.at))}${cellSpan("where", where(e))}` +
+                `${cellSpan("commit", `${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small>`)}${cellSpan("result", outcome(e.outcome))}${cellSpan("message", esc(e.signature ?? ""))}${cellSpan("run", runLink(e.run))}</div>`,
         )
         .join("");
     return (
@@ -1105,8 +1136,9 @@ export function testView(h: TestHistoryResponse): string {
             h.generated,
             true,
         ) +
-        `<p class="pstate"><span>${esc(h.file)}, ${esc(h.family)}${h.issue ? `; ${issueLink(h.issue)}` : ""}. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a PR, a full run or locally.</span></p>` +
-        `<div class="tbl t-hist" role="table"><div class="thead"><span>when</span><span>where</span><span>commit</span><span>result</span><span>signature</span><span>run</span></div>${rows}</div>`
+        `<p class="pstate"><span>${esc(h.file)}, in the ${esc(h.family.split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
+        `<p class="note">${h.issue ? `Tracked by ${issueLink(h.issue)}.` : `No open issue tracks this test. <a class="ln" href="${esc(draftIssue(h))}" target="_blank" rel="noopener">Draft the issue on GitHub</a>`}</p>` +
+        `<div class="tbl t-hist" role="table"><div class="thead"><span>when</span><span>where</span><span>commit</span><span>result</span><span>message</span><span>run</span></div>${rows}</div>`
     );
 }
 

@@ -128,13 +128,13 @@ export function budgetBar(r: ShardRow, maxS: number): { svg: string; note: strin
     return { svg, note };
 }
 
-/** Sorted bars: one row per item, its bar scaled to the group's largest. */
+/** Sorted bars: one row per item, its bar scaled to the group's largest (`max`, when the list is drawn in parts). */
 export function sortedBars(
     items: BarsSection["groups"][number]["items"],
     cellHtml: (c: Cell) => string,
     caption: string,
+    max = Math.max(1, ...items.map((i) => i.n)),
 ): string {
-    const max = Math.max(1, ...items.map((i) => i.n));
     const rows = items
         .map((i) => {
             const w = r1((i.n / max) * 100);
@@ -257,7 +257,7 @@ export function treeRows(nodes: TreeNode[], href: (route: string) => string, dep
             const key = `${path}/${i}`;
             const tags = nd.tags?.length ? ` <small>${nd.tags.map(sentence).join("; ")}</small>` : "";
             const cols =
-                `<span class="nm d${Math.min(depth, 2)}">${esc(nd.name.replace(/__tests__\//g, ""))}${tags}</span>` +
+                `<span class="nm d${Math.min(depth, 2)}">${esc(nd.name.replace(/__tests__\//g, "")).replaceAll("/", "/<wbr>")}${tags}</span>` +
                 `<span class="dbar"><span style="width: ${Math.round((Math.min(nd.distinct, maxDistinct * 2) / maxDistinct) * 36)}px"></span>${fmtN(nd.distinct)}</span>` +
                 `<span class="num">${fmtN(nd.events)}</span><span class="num">${nd.per1000 === null ? "--" : nd.per1000 > 10 ? `<span class="mk bad">${fmtN(nd.per1000)}</span>` : fmtN(nd.per1000)}</span>` +
                 `<span class="num">${nd.quarantined === null ? "--" : fmtN(nd.quarantined)}</span><span class="num">${nd.prsHeld === null ? "--" : fmtN(nd.prsHeld)}</span>${CHEV}`;

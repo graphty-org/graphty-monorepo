@@ -449,7 +449,7 @@ h3 {
 }
 .ep {
     display: grid;
-    grid-template-columns: 4px 150px 92px minmax(0, 1fr) 118px 10px;
+    grid-template-columns: 4px 184px 92px minmax(0, 1fr) 118px 10px;
     gap: 14px;
     align-items: center;
     padding: 6px 10px 6px 0;
@@ -936,11 +936,18 @@ a.more:hover {
     align-items: center;
     gap: 8px;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 .dbar span {
     display: inline-block;
+    flex: 0 1 auto;
+    min-width: 2px;
     height: 10px;
     background: var(--data);
+}
+/* A file path breaks after a slash (render.ts adds the break points), never inside a name. */
+.hott .hrow > .nm {
+    overflow-wrap: break-word;
 }
 @media (max-width: 1280px) {
     main {
@@ -995,11 +1002,6 @@ a.more:hover {
     .t-src .thead,
     .t-src .tr {
         grid-template-columns: minmax(0, 1.5fr) 70px 80px minmax(0, 1fr) minmax(0, 1fr) 70px;
-        gap: 10px;
-    }
-    .t-hist .thead,
-    .t-hist .tr {
-        grid-template-columns: 90px 80px minmax(0, 110px) 90px minmax(0, 1fr) minmax(0, 100px);
         gap: 10px;
     }
 }
@@ -1085,7 +1087,28 @@ p.more {
 }
 .t-hist .thead,
 .t-hist .tr {
-    grid-template-columns: 100px 90px minmax(0, 130px) 110px minmax(0, 1fr) 110px;
+    grid-template-columns: 100px 90px minmax(0, 130px) 110px minmax(12ch, 1fr) 110px;
+}
+/* Narrower, the failure message takes a line of its own under the other cells, never a column a letter wide. */
+@media (max-width: 1100px) and (min-width: 701px) {
+    .t-hist .thead,
+    .t-hist .tr {
+        grid-auto-flow: row;
+        grid-template-columns: 90px 80px minmax(0, 1fr) 90px minmax(0, 110px);
+    }
+    .t-hist .thead > :nth-child(5),
+    .t-hist .tr > :nth-child(5) {
+        grid-row: 2;
+        grid-column: 1 / -1;
+    }
+    .t-hist .tr {
+        border-top: 1px solid var(--faint);
+    }
+}
+/* A word value ("passed", "found nothing") is set smaller than a number and never breaks inside a word. */
+.vw {
+    font-size: 16px;
+    overflow-wrap: normal;
 }
 .hott .nm small {
     display: inline;
@@ -1265,23 +1288,21 @@ h2.top {
         padding: 8px 0;
         border-top: 1px solid var(--faint);
     }
+    /* The column name and the value are two grid columns, so a label that wraps makes its line taller. */
     .tbl .tr > span {
-        display: block;
-        position: relative;
-        padding-left: 42%;
-        min-height: 1.4em;
+        display: grid;
+        grid-template-columns: 40% minmax(0, 1fr);
+        column-gap: 2%;
+        align-items: baseline;
     }
     .tbl .tr > span::before {
         content: attr(data-h);
-        position: absolute;
-        left: 0;
-        width: 40%;
         color: var(--muted);
         font-size: 12px;
         line-height: 1.6;
     }
     .tbl .tr > span:first-child {
-        padding-left: 0;
+        display: block;
         font-weight: 600;
     }
     .tbl .tr > span:first-child::before {
@@ -1305,8 +1326,14 @@ h2.top {
         grid-column: 1 / -1;
     }
     .hott .hrow {
-        grid-template-columns: minmax(0, 1fr) 40px 52px 44px 40px 10px;
-        row-gap: 2px;
+        grid-template-columns: minmax(0, 1fr) 44px 58px 72px 44px 10px;
+        gap: 2px 8px;
+    }
+    /* A heading over a narrow number column wraps between words and never inside one. */
+    .hott .thead > span,
+    .shards .thead > span {
+        overflow-wrap: normal;
+        font-size: 11px;
     }
     .ep {
         display: block;

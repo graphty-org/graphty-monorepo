@@ -94,7 +94,7 @@ export function fmtValue(v: Value): string {
 /** A value as a big number with its unit small after it (the mockup's `40<small> %</small>`). */
 export function bigValue(v: Value): string {
     if (v === null) return "--";
-    if ("word" in v) return esc(WORD[v.word]) + (v.n === undefined ? "" : ` ${fmtN(v.n)}`);
+    if ("word" in v) return `<span class="vw">${esc(WORD[v.word]) + (v.n === undefined ? "" : ` ${fmtN(v.n)}`)}</span>`;
     if (isSeconds(v)) return `${Math.round(v.n * 60)}<small> s ago</small>`;
     const sign = v.signed && v.n > 0 ? "+" : "";
     const n = v.unit === "x" ? v.n.toFixed(1) : fmtN(v.n);
@@ -537,7 +537,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Flaky tests with no issue",
         short: "flaky tests with no issue",
         def: "Tests seen flaky in CI in the last 7 days that have no open issue.",
-        red: "3 or more: flakes go untracked. Open the test from Hotspots to draft the issue.",
+        red: "3 or more: flakes go untracked. Open the test from Hotspots below; its page drafts the issue on GitHub.",
     },
     "flaky.flake_rate": {
         name: "Flake rate",

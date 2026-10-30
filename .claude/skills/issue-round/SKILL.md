@@ -116,6 +116,12 @@ Each: signal, meaning, action. Add to this list (see the next section).
   progress note, the branch's last commit time, the session's journal in `.claudehistory/`, and `ListAgents`. Take
   it only when the owner has been inactive for 6 hours or more, and say so on the issue
   (`pipeline-round: taken by session ... -- previous owner <session>, inactive since <time>`).
+- **An old issue about an intermittent test** (`intermittent`, or a `Flaky test:` title, filed by githerd or
+  the quarantine tooling). Many were already fixed by a later commit that did not name the issue (#2149, #2477,
+  2026-10-30). Before marking it, read the test's history with the `pipeline-health` MCP tool `test_history`
+  (file, and test). When the last failure is older than a commit on master that changed that test or the code
+  it covers, and nothing has failed since, close it with that evidence in a `pipeline-round:` comment instead of
+  starting a job, and pick the next issue in the same round.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, the Release status
   issue, `Release held:` issues and `lane red on master` issues.
 

@@ -56,26 +56,39 @@ async function passesSince(db, q, before = Number.MAX_SAFE_INTEGER) {
  * The quarantine as it stands now: entries not left, not expired, without 20 passes since their last
  * failure, and never a GPU family.
  * @param db the D1 database
- * @param families shard families
+ * @param families shard families, or null for every family
  * @param now milliseconds
- * @returns the entries, each with family, file, name, issue, expires and passes
+ * @returns the entries, each with family, file, name, issue, since, expires and passes
  */
 async function activeQuarantine(db, families, now) {
-    const wanted = families.filter((f) => !NEVER_QUARANTINED.test(f));
-    if (!wanted.length) return [];
+    const wanted = families?.filter((f) => !NEVER_QUARANTINED.test(f));
+    if (wanted?.length === 0) return [];
     const rows = await all(
         db,
         `SELECT family, file, name, issue, since, expires FROM quarantine
-         WHERE left_at IS NULL AND expires > ? AND family IN (${placeholders(wanted)})`,
+         WHERE left_at IS NULL AND expires > ?${wanted ? ` AND family IN (${placeholders(wanted)})` : ""}`,
         now,
-        ...wanted,
+        ...(wanted ?? []),
     );
     const out = [];
     for (const q of rows) {
+        if (NEVER_QUARANTINED.test(q.family)) continue;
         const passes = await passesSince(db, q);
-        if (passes < QUARANTINE_PASSES) out.push({ ...q, since: undefined, passes });
+        if (passes < QUARANTINE_PASSES) out.push({ ...q, passes });
     }
     return out;
+}
+
+/**
+ * GET /v1/quarantine : every entry in force, of every family, for the health dashboard's quarantine list.
+ * @param _q the query (unused)
+ * @param _who the caller
+ * @param db the D1 database
+ * @param now milliseconds
+ * @returns quarantine: family, file, name, issue, since, expires (milliseconds) and passes
+ */
+export async function getQuarantine(_q, _who, db, now) {
+    return { quarantine: await activeQuarantine(db, null, now) };
 }
 
 /**
@@ -205,7 +218,7 @@ export async function getPlan(q, who, db, now) {
     );
     const files = list(q.get("files"));
     return {
-        quarantine: await activeQuarantine(db, families, now),
+        quarantine: (await activeQuarantine(db, families, now)).map((q) => ({ ...q, since: undefined })),
         failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(files)),
         variants: facts,
         ...(pairs.length === 0 && files.length ? await fileFacts(db, files, now) : {}),

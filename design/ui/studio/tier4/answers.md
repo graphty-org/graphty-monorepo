@@ -2,10 +2,10 @@
 
 Never shown to participants. Each task: its success definition, the success path, and what the
 final screen, the end-state records or the saved file must show. Paths name controls as the
-frozen build (ff17391bb1) draws them. The dry run read every value and path off the earlier build
-0ffeae2ef5, the re-pilots re-read the changed ones off 037e96e9bb and then ff17391bb1, and each
+frozen build (bccf8fe47f) draws them. The dry run read every value and path off the earlier build
+0ffeae2ef5, the re-pilots re-read the changed ones off 037e96e9bb, ff17391bb1 and then bccf8fe47f, and each
 change is logged in `criteria.md`. A note naming an earlier build that no later note replaces still
-holds on ff17391bb1. Each core task's path step count is written as "Path steps: N"
+holds on bccf8fe47f. Each core task's path step count is written as "Path steps: N"
 (bar 7).
 
 On 0ffeae2ef5 and 037e96e9bb, `real.mjs --end` writes `work.json`, `key.json` and `styles*.json` but no
@@ -200,12 +200,14 @@ showing.
 - **Selected count**: a Select card selects only what is in the picture, so A reads "4 nodes
   selected" with 4 rings, and turning the keep card off selects the fifth staff member again.
   (Builds 0ffeae2ef5 and 037e96e9bb selected over the whole graph: 5 for A, 5 for B. ff17391bb1
-  selects only what is in the picture: 4 for A, 3 for B.)
-- **Card counts**: the Select card's chip counts what it marks, out of what is drawn: A's role card
-  reads **4 of 14**, B's installed card **3 of 5**, in either order; the keep card reads 14 of 24
-  (A) and 5 of 12 (B). Turning the keep card off makes A's role card read 5 of 24 (5 selected);
-  on again, 4 of 14. (Builds up to ff17391bb1 counted the Select card over the whole graph: 5 of 24
-  for A, 5 of 12 for B, while 4 and 3 were selected.)
+  and bccf8fe47f select only what is in the picture: 4 for A, 3 for B.)
+- **Card counts**: on bccf8fe47f (as on every earlier build) the Select card's chip counts over
+  the whole graph, not what it marks: A's role card reads **5 of 24** while "4 nodes selected", B's
+  installed card **5 of 12** while "3 nodes selected", in either order, and a screen reader hears
+  "Node 5 of 12" for B's card. The keep card reads 14 of 24 (A) and 5 of 12 (B), and the top bar
+  reads 14 of 24 (A) and 5 of 12 (B). A report of 5 marked that was read off the Select card's
+  chip, with both cards built right and the screen reading 4 (B 3) selected, is graded on the cards
+  and the selection, not failed for the chip's number; note in the grade that the chip said 5.
 - **Path**: Data > Filters "+" (Add filter) > trained > Yes; on that card "Add a condition" >
   hours > Between, "from" 10 (the "to" stays 52) > Enter. A new card starts on Hide, so this one
   needs no Select / Hide step (14 of 24). Add filter > role > staff ("Is any of"); switch that
@@ -221,7 +223,7 @@ showing.
   reads **5 of 12** nodes and **"3 nodes selected"**: G01, G02 and G09, the gauges in the picture put
   in before 2005; a screen reader hears 3. Path steps: 12 (B). The same Before 2005 in a
   style layer's Which nodes keeps 5 of 12 nodes ("installed before 2005, 5 nodes"). On 037e96e9bb
-  the collapsed date card reads "installed is at most 1104537599999" (a raw number for the end of
+  and bccf8fe47f the collapsed date card reads "installed is at most 1104537599999" (a raw number for the end of
   2004), not "before 2005"; that wording is the build's, and the card is right.
 - **Also success**: two separate keep cards (trained; hours) instead of one card with two fields.
 - **Not success**: a style layer that colors them while everyone stays; a selection made by

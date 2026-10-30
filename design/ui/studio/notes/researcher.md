@@ -10,7 +10,11 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-29) Key now names ff17391bb1. On ff: T65 Select counts only what is in the picture (A 4,
+- (2026-10-29) Key now names bccf8fe47f. On it T65's Select card chip counts the whole graph
+  (A 5 of 24, B 5 of 12) while 4 / 3 are selected: a key line written ahead of a fix (42ce7201c7)
+  outlived its revert (5b25463780). Before trusting a key line, check that the commit behind it is
+  in the frozen build (`git merge-base --is-ancestor`). A 5 read off that chip is graded on the act.
+- (2026-10-29) Earlier: key named ff17391bb1. On ff: T65 Select counts only what is in the picture (A 4,
   B 3: the old "5 not 4" grading line is gone); T64 Shortest path reads only "farther" weights, so
   A opens on None with "not read" (right for A; grade on Fields); re-runs recompute and paths list
   names. T68 B's gauges.csv row export (11 nodes, 0 edges) is F, the flows.csv row's is success.
@@ -42,10 +46,6 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   2 under skeptic check. Count a 3 only with its behavioral cost (blocked, misread).
 - (2026-10-21) A grade.md without the three header lines is silently dropped by `score.mjs`: tally
   by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
-- (2026-10-21) `--start` run inside the participant's turn queued for a browser and died with the
-  turn: 11 of 56 starts VOID. Starts run before the participant's turn.
-- (2026-10-21) Avoidance is not comprehension: 0 of 10 sprang the `<<Layer>>` token trap, 6 called
-  it jargon. Question 3 needs a measure that separates the two.
 - (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
   participant is one model. Read tasks and key for leading before spending sessions.
 - (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts
@@ -87,6 +87,14 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-10-29 (key matched to bccf8fe47f):** Replaced T65's "Card counts" (4 of 14 / 3 of 5, an
+  engineer's line for a change reverted before the freeze) with the screen's 5 of 24 / 5 of 12, and
+  added a grading line: a 5 read off the chip, with both cards right, is graded on the cards and the
+  selection. Reason: the key writes the screen; failing a reader for the build's number grades the
+  defect. Evidence: T65A, T65B and T68B walks agree in both card orders; the revert is an ancestor of
+  bccf8fe47f. Left alone: T60 focus and F6 order (build defects, not key), T61A and T66A (not walked
+  this pass), T67A (walk on 0ffeae2ef5), "Select | Hide" (screen's words).
 
 - **2026-10-29 (second ff re-pilot, T60/T61/T63/T66/T67):** Extended build lists ("037e96e9bb and
   ff17391bb1") only where the walk confirmed the note on ff. Did not add a T60 step count: T60 is
@@ -172,6 +180,9 @@ logged). Their reasons, in short:
   reaches; more sessions cannot move either.
 
 ## Tried: worked / did not work
+
+- 2026-10-29 (key to bccf) -- Worked: `git log -S'4 of 14'` on the key found which commit wrote the
+  stale line, and `merge-base --is-ancestor` on the revert proved the build lacks it.
 
 - 2026-10-29 (second ff re-pilot) -- Worked: one script of exact-match replacements with asserts;
   did not work at first: I appended "Path steps: 4" to T60 and took it out (not a core task).

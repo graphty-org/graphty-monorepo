@@ -320,3 +320,13 @@ first two by itself; the dry run owns the rest.
 - 2026-10-29: frozen on build bccf8fe47f (served from .study-builds/tier4-r1d2-bccf8fe47f), replacing
   ff17391bb1 (.study-builds/tier4-r1d2-ff17391bb1). It adds the issue that names which end of an edge
   is unknown, and a redone condition change that selects among what it leaves visible.
+- 2026-10-29: answer key matched to build bccf8fe47f from its targeted re-pilot (no bar, success
+  definition or step count changed; tasks.md needed no change):
+    - Header: the key names bccf8fe47f.
+    - T65: the Select card's chip still counts over the whole graph (A 5 of 24, B 5 of 12) while 4
+      and 3 are selected; the change that made it count only what it marks was taken back before
+      this build. The key's 4 of 14 / 3 of 5 lines are replaced by the screen's, and a report of 5
+      read off that chip is graded on the cards and the selection. The collapsed date card still
+      reads a raw number.
+    - T60, T61, T66, T67 and T68: the walks matched the key; the T67 points came from a walk on
+      0ffeae2ef5 and were already in the key; "Select | Hide" stays the screen's words.

@@ -69,3 +69,29 @@ reads the values as dates ("Jun 30, 1995 - Jun 27, 2018", detours/14.png).
    (still "expanded"); on a freshly added empty "Node time" row Enter does not open the list, and
    Space after ArrowDown closes the row's editing with focus back on "Add to node fields" (keyboard
    route steps after 45.png, same as the earlier build).
+
+## Second pass on the same build
+
+- **p2-success** (pointer; replayed from the success route): all 11 steps matched and the session
+  ended. "Set in Data" sets Time = installed; Fields shows Time = installed, Latitude = lat,
+  Longitude = lon; 12 nodes, 14 edges, values unchanged
+  (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T63B/p2-success/05.png,
+  12.png). The table's `lat` and `lon` headers still show no Latitude / Longitude chip while
+  `installed` shows "Time" (12.png): defect 1 above stands.
+- The rest of this pass, on the same build, each replayed from the walk named and matched at every
+  check point to the end (exit 0, session ended), so the results above stand unchanged:
+  - **p3-success-direct** ("Set in Data" first, then the Latitude list): Time = installed,
+    Latitude = lat, Longitude = lon; Undo reads "Undo changing a column's role"
+    (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T63B/p3-success-direct/04.png).
+    That screenshot shows the Latitude / Longitude chips only after the Latitude list was re-picked
+    (defect 1).
+  - **p3-success-2** (the longer pointer walk, 18 steps).
+  - **p3-detours** (22 steps) and **p3-detours-2** (31 steps): header Role > Time, Control+Z, Layout >
+    Map, Fields "+" > Time, Timeline, search, the `lat` header's Role submenu.
+  - **p3-keyboard** (44 steps) and **p3-keyboard-2** (93 steps): keys only, reached the end with
+    Time = installed, Latitude = lat, Longitude = lon, 12 nodes, 14 edges
+    (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T63B/p3-keyboard/45.png).
+    In that screenshot the table's `installed` header carries "Time" while `lat` and `lon` carry no
+    place chip (defect 1).
+- Not replayed again: success-3, detours-3, keyboard-3 (the same routes as the -2 walks, which matched)
+  and keyboard-f6 (unchanged since it matched in full on this build).

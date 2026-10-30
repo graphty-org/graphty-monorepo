@@ -288,6 +288,15 @@ export async function runArgs(shard, files) {
     return command ? ["--command", shard, command] : [shard];
 }
 
+// One run of tools/run-tests.sh, stopped at `limit`. coreutils timeout signals the run's whole process group
+// (vitest and its browsers too) and exits 124.
+function runLimited(spawn, limit, args, what) {
+    const command = ["--kill-after=1m", limit, join(ROOT, "tools/run-tests.sh"), ...args];
+    const code = spawn("timeout", command, { cwd: ROOT, stdio: "inherit" }).status;
+    if (code === 124) console.log(`::warning::${what}: no result in the lane's ${limit}; failed`);
+    return code;
+}
+
 /**
  * Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
  * A target whose file or shard does not exist at the point (a later merge adds or renames it) passes there:
@@ -311,12 +320,7 @@ export async function runPoint(s, sha, runs, spawn = spawnSync, exists = (f) => 
         for (const [shard, ts] of byShard) {
             const args = await runArgs(shard, [...new Set(ts.map((t) => t.file).filter(Boolean))]);
             if (!args) continue;
-            // coreutils timeout signals the run's whole process group (vitest, its browsers), and exits 124
-            const limit = `${(LANES[s.lane] ?? LANES.ci).minutes}m`;
-            const command = ["--kill-after=1m", limit, join(ROOT, "tools/run-tests.sh"), ...args];
-            const code = spawn("timeout", command, { cwd: ROOT, stdio: "inherit" }).status;
-            if (code === 124)
-                console.log(`::warning::${short(sha)} ${shard}: no result in the lane's ${limit}; failed`);
+            const code = runLimited(spawn, `${(LANES[s.lane] ?? LANES.ci).minutes}m`, args, `${short(sha)} ${shard}`);
             if (code !== 0) for (const t of ts) r.failed[t.id] = (r.failed[t.id] ?? 0) + 1;
         }
     return r;

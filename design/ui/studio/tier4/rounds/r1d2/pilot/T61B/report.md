@@ -192,3 +192,58 @@ Smaller, seen on this pass:
    station column's "1 value with padded spaces" (Willow Run) and the depth_cm column's G07 blank;
    the other rows show no tinted cell on screen. A participant asked "did anything not fit" may read
    11 there (e3-flows-first/23.png, 24.png; the same on the earlier build, x1-success/13.png).
+
+## Second re-walk on build bccf8fe47f (every route, including the drop)
+
+Build bccf8fe47f (`.study-builds/tier4-r1d2-bccf8fe47f`), 1440 x 900, start `empty`. Screenshots
+are under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T61B/ (g1 to
+g6). Every walk starts from the empty start screen and reaches the app by clicks, typing and keys
+only. The data stayed the task's own on every walk: gauges.csv (G01-G11, Upper Falls, Mill Pond,
+...) and flows.csv (15 rows, G09 -> G12 among them).
+
+Of the routes the fix pass touched, the one that belongs to this task is the success path on to
+Edges > With issues; the keyboard walk on to the Edges table's end header was walked with it. The
+rest belong to T61 A, T65, T66, T67 and T68. The detour set is the one held from the earlier passes,
+now with the drop walked on this build too.
+
+| Walk | How | Result |
+| ---- | --- | ------ |
+| g1-success (pointer) | replay of e1-success | All 23 steps matched; reached |
+| g2-menu-open (detour: main menu, Replace and Control+Z, Cancel and Undo, the join boxes, a separate graph, the reverse order) | replay of e2-menu-open | All 36 steps matched |
+| g3-flows-first (detour: Replace, a canceled join, then flows.csv first and gauges.csv second, on to Edges > With issues) | replay of e3-flows-first | All 23 steps matched; reached (12 nodes, 15 edges) |
+| g4-quick-actions (detour: Quick actions > Add data..., then Edges > With issues 1) | replay of e4-quick-actions | All 61 steps matched; reached |
+| g5-drop (detour: flows.csv dropped on the open network; Enter, Tab, Escape, Space in the join boxes) | replay of d2-drop | All 10 steps matched; reached |
+| g6-keys (keyboard only, screen-reader mode) | replay of e6-keys-edges; stopped at step 97, finished by hand | Reached |
+
+### What the screens show
+
+- Success path: the join screen reads "Join flows.csv -> gauges.csv", Edges, from = Id, to = Id,
+  "14 edges added", "1 new node", "1 not in graph", "1 repeated key" (g1-success/05.png). After
+  Join: Nodes 12, Edges 14, "From 2 files", the flows.csv row 12, 14 and issue chip 1
+  (g1-success/13.png). Edges > "With issues 1": the warning glyph on the Target header, the one row
+  G09 -> G12, 4 km, with G12 tinted (g1-success/23.png). The same after Quick actions > Add data...
+  (g4-quick-actions/62.png) and after the drop (g5-drop/11.png: Nodes 12, Edges 14, both sources).
+- Replace: 12 / 14 with only flows.csv in Sources and the notice "Replaced gauges.csv with
+  flows.csv" (g2-menu-open/08.png), as the answer key says.
+- Reverse order: 12 nodes, 15 edges, "1 repeated edge", both sources (g2-menu-open/36.png); the
+  Edges "With issues 1" row is G03 -> G04 with its menu "1 repeated edge" Keep, Merge, Ignore, Show
+  rows (g3-flows-first/22.png).
+- Keyboard: step 97 went another way only because the "Replaced flows.csv with flows.csv" notice was
+  still up, so the Tabs from the Sources row passed its "Undo" and "Dismiss" first (g6-keys/98.png);
+  two more Tabs reached "Key id" and "From 2 files". Then Shift+Tab to tab "Nodes", ArrowRight to
+  "Edges", Tab to "With issues 1", Space checks it, Tab on to "Key from", ArrowRight to "Key to".
+  Browse mode reads the header row "Key from Options for from Key to Issues in to Options for to
+  ..." and the row "G09 G12 4". Shift+F10 opens "1 unknown end" with Add nodes (checked), Leave out,
+  Ignore, Show rows (g6-keys/104.png); Escape returns to "Key to", ArrowDown to row header "G12". No
+  focus fell to the page body after the first key.
+
+### Mismatches between the answer key and the screen
+
+None. 12 gauges, 14 stretches and 14 on the second file's Sources row hold; the reverse order's 12
+and 15 with "1 repeated edge" are that network's own counts.
+
+### Defects (crash, block, or a result that would spoil grading)
+
+None. Unchanged from the first re-walk on this build: the focused "Key to" header's description is
+still empty (`--expect described=issue` failed again), so focus alone does not say the column has an
+issue; browse mode reads "Issues in to" (g6-keys/101.png, 102.png).

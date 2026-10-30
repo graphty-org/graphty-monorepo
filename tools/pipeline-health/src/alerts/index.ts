@@ -132,7 +132,7 @@ function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
     if (a.action === "{fix}" && !causeWords(m).fix) {
         return false; // a cause with no step only the owner can take is agent work: it never pages
     }
-    if (a.value ? m.value === undefined || !hit(m.value, a.value) : m.state !== "FAILING") {
+    if (a.value ? !past(ctx, m.value, a) : m.state !== "FAILING") {
         return false;
     }
     if (a.notWhileFailing?.some((id) => ctx.evaluation.members.find((x) => x.id === id)?.state === "FAILING")) {
@@ -144,6 +144,11 @@ function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
         return mtd !== undefined && m.fail !== undefined && hit(mtd, m.fail);
     }
     return true;
+}
+
+/** The value past alert.value, or its month-end pace past alert.pace (an AWS bill nearing its cap). */
+function past(ctx: Ctx, v: number | undefined, a: AlertConfig): boolean {
+    return v !== undefined && (hit(v, a.value!) || (!!a.pace && hit(pace(v, ctx.now), a.pace)));
 }
 
 async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undefined> {
@@ -399,7 +404,7 @@ interface CauseWords {
     alert?: Partial<AlertConfig>;
 }
 
-const SSM = (name: string) => `SSM parameter ${name} (any Claude session can store it for you)`;
+const SSM = (name: string) => ` (SSM ${name})`;
 /**
  * The sources whose credential only the owner can make: what refused, and where to make a new one. Every other
  * source's credential error is agent work and never pages: the billing feed reads Cost Explorer through the
@@ -411,13 +416,13 @@ const CREDENTIALS: Record<string, Omit<CauseWords, "off"> & { off?: string }> = 
         feed: "Cloudflare token",
         frozen: "Cloudflare costs and usage",
         problem: "Cloudflare token rejected",
-        fix: `Make a new read-only token (Account Analytics: Read, Billing: Read) at https://dash.cloudflare.com/profile/api-tokens and put it in ${SSM("/graphty-health/cloudflare/token")}.`,
+        fix: `Make a new read-only Cloudflare token at https://dash.cloudflare.com/profile/api-tokens (Account Analytics: Read, Billing: Read) and give it to any Claude session to store${SSM("/graphty-health/cloudflare/token")}.`,
     },
     "sentry-token": {
         feed: "Sentry token",
         frozen: "Sentry usage",
         problem: "Sentry token rejected",
-        fix: `Make a new token with org:read at https://sentry.io/settings/account/api/auth-tokens/ and put it in ${SSM("/graphty-health/sentry/token")}.`,
+        fix: `Make a new Sentry token with org:read at https://sentry.io/settings/account/api/auth-tokens/ and give it to any Claude session to store${SSM("/graphty-health/sentry/token")}.`,
     },
 };
 
@@ -438,16 +443,19 @@ export function causeWords(m: MemberStatus): CauseWords {
                 problem: "GitHub API down",
                 fix: "Nothing: GitHub's API is failing (https://www.githubstatus.com/), so CI is likely stalled too. The dashboard catches up by itself when GitHub recovers.",
                 off: "",
-                // An outage nobody can act on: one quiet page once it has lasted 2 h, never a loud one.
-                alert: { afterMs: 2 * HOUR, priority: 0 },
+                // An outage nobody can act on: one quiet page once it has lasted 2 h, never a loud one, and none
+                // while the CI page already reports the same GitHub outage.
+                alert: { afterMs: 2 * HOUR, priority: 0, notWhileFailing: ["ci.runners_not_assigned"] },
             };
         }
-        if (/\b401\b|bad credentials|private key|installation|jwt/i.test(error)) {
+        // The key itself: a 401 anywhere, or a 404 from the token endpoint (the App was uninstalled). A 403 or 429
+        // there is a rate limit, agent work.
+        if (/installation token: HTTP 404|\b401\b|bad credentials|private key|jwt/i.test(error)) {
             return {
                 feed: "Collector",
                 frozen: "GitHub",
                 problem: "GitHub App key refused",
-                fix: `Make a new private key for the graphty-pipeline-health App at https://github.com/organizations/graphty-org/settings/apps/graphty-pipeline-health and put it in ${SSM("/graphty-health/github-app/private-key")}. If the App was uninstalled, reinstall it there.`,
+                fix: `Make a new private key for the graphty-pipeline-health App at https://github.com/organizations/graphty-org/settings/apps/graphty-pipeline-health and give the .pem file to any Claude session to store${SSM("/graphty-health/github-app/private-key")}. If the App was uninstalled, reinstall it there.`,
                 off: "",
             };
         }
@@ -455,7 +463,7 @@ export function causeWords(m: MemberStatus): CauseWords {
             feed: "Collector",
             frozen: "GitHub",
             problem: "code error",
-            fix: "Ask any Claude session to read the collector's CloudWatch logs (us-east-2) and fix it.",
+            fix: "Have a Claude session read the collector's CloudWatch logs (us-east-2) and fix it.",
             off: "",
         };
     }
@@ -478,6 +486,13 @@ function words(m: MemberStatus): Record<string, string> {
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
 
+/** The month's last day, as "Oct 31" (UTC, as the engine's months are). */
+function monthEnd(now: number): string {
+    const d = new Date(now);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+    return last.toLocaleString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
 /** The value at month end at this month's pace so far (UTC days, as the engine's months are). */
 function pace(v: number, now: number): number {
     const d = new Date(now);
@@ -499,6 +514,7 @@ function fill(template: string, d: Due, now: number): string {
         suggest: human(m.id, m.value === undefined ? undefined : Math.floor(m.value / 10) * 10 + 10),
         mtd: human(m.id, m.facts?.month_to_date),
         month: new Date(now).toLocaleString("en-US", { month: "long", timeZone: "UTC" }),
+        end: monthEnd(now),
         peak: human(m.id, peak),
         pace: human(m.id, m.value === undefined ? undefined : pace(m.value, now)),
         for: duration(now - start),
@@ -512,6 +528,7 @@ function fill(template: string, d: Due, now: number): string {
     };
     return template
         .replace(/\{ms:([\w.]+)\}/g, (_, k: string) => duration(m.facts?.[k] ?? 0))
+        .replace(/\{n:([\w.]+)\}/g, (_, k: string) => String(Math.round(m.facts?.[k] ?? 0)))
         .replace(/\{issue:([\w.]+)\}/g, (_, k: string) =>
             m.facts?.[k]
                 ? `${REPO_URL}/issues/${m.facts[k]}`
@@ -530,34 +547,25 @@ function link(ctx: Pick<Ctx, "evaluation" | "now">, category: string, d?: Due) {
     return { url: `${PAGE_URL}${category.replaceAll("_", "-")}`, url_title: `Open the ${label} page` };
 }
 
-const projected = (d: Due) => d.c.measure.type === "month" && d.c.measure.projected === true;
-
 /**
- * The page for one member, or one for a group due together (the costs).
+ * The page for one member, or one for a group due together (the costs): each member's line, then one decision that
+ * accepts every suggested number at once (alert.short names each), or a cut.
  * @param ctx - the run
  * @param ds - the members due, one or more of one group
  */
 export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Message {
-    const text = (d: Due) => fill(d.c.alert.text, d, ctx.now);
-    const action = (d: Due) => fill(d.c.alert.action, d, ctx.now);
+    const f = (t: string, d: Due) => fill(t, d, ctx.now);
     const one = ds.length === 1;
-    // The closing step ("Tell any Claude session your choice") is said once, however many members are due.
-    const then = [...new Set(ds.map((d) => d.c.alert.then).filter((t) => !!t))].join(" ");
-    const tail = then ? `\n${then}` : "";
+    // The closing step ("Tell any Claude session your choice", a quoted error) is said once per distinct text.
+    const then = [...new Set(ds.map((d) => (d.c.alert.then ? f(d.c.alert.then, d) : "")).filter((t) => !!t))];
+    const tail = then.length ? `\n${then.join(" ")}` : "";
     const top = Math.max(...ds.map((d) => d.c.alert.priority));
+    const accept = ds.map((d) => `${d.c.alert.short ?? d.c.label} ${f("{suggest}", d)}`).join(", ");
     return {
-        title: one
-            ? fill(ds[0].c.alert.title, ds[0], ctx.now)
-            : `Budget decisions: ${ds
-                  .map(
-                      (d) =>
-                          `${d.c.label} ${human(d.m.id, d.m.value)}` +
-                          (projected(d) ? ` projected vs ${human(d.m.id, d.m.ok?.[1])}` : ""),
-                  )
-                  .join(", ")}`,
+        title: one ? f(ds[0].c.alert.title, ds[0]) : `${f(ds[0].c.alert.title, ds[0])} (${ds.length} items)`,
         message: one
-            ? `${text(ds[0])}\nWhat to do: ${action(ds[0])}${tail}`
-            : `${ds.map(text).join("\n")}\nWhat to do:\n${ds.map((d) => `- ${d.c.label}: ${action(d)}`).join("\n")}${tail}`,
+            ? `${f(ds[0].c.alert.text, ds[0])}\nWhat to do: ${f(ds[0].c.alert.action, ds[0])}${tail}`
+            : `${ds.map((d) => f(d.c.alert.text, d)).join("\n")}\nWhat to do: pick one. Accept the overrun and raise the budgets to ${accept}; or have the agents cut a paid service.${tail}`,
         ...link(ctx, ds[0].m.category, one ? ds[0] : undefined),
         // Loud only in the day: at night an outage page is held by the owner's quiet hours (as health-dead-man.sh).
         priority: String(top === 1 && !daytime(ctx.now) ? 0 : top),

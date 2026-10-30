@@ -330,14 +330,14 @@ describe("the policy's conditions", () => {
         expect(r.sent.map((s) => s.member).sort()).toEqual(["cost.llm", "cost.t4"]);
         expect(p.calls).toHaveLength(1);
         const body = Object.fromEntries(p.calls[0]);
-        expect(body.title).toBe("Budget decisions: T4 GPU $232 projected vs $180, LLM regression $88 projected vs $60");
+        expect(body.title).toBe("T4 GPU over budget: $232 of $180 by Nov 30 (2 items)");
         expect(body.priority).toBe("0");
         expect(body.message).toContain(
-            "T4 GPU test lane: $40 spent so far in November, $232 projected vs the $180 budget (+$52).\n",
+            "T4 GPU test lane: $232 by Nov 30 against its $180 budget, $52 over ($40 spent so far). It runs on every release, so it cannot be cut.\n",
         );
-        expect(body.message).toContain(
-            "- T4 GPU: Decide for next month: raise the T4 budget to $240, or name another line for the agents to cut.",
-        );
+        // One decision that names every suggested budget, not one decision per member.
+        expect(body.message).toContain("raise the budgets to T4 GPU $240, LLM tests $90;");
+        expect(body.message.match(/What to do/g)).toHaveLength(1);
         // The shared closing step is said once, not once per member.
         expect(body.message.match(/Tell any Claude session your choice/g)).toHaveLength(1);
         // The T4 lane runs in every full run (owner's rule): a page never offers running it less.
@@ -374,14 +374,21 @@ describe("the policy's conditions", () => {
         expect((await run(store, ev, early + 6 * HOUR, p.fetch, SLAS)).sent).toHaveLength(1);
     });
 
-    it("AWS pages at its $8 yellow line, before the $10 Budget lockout", async () => {
-        const p = pushover();
-        const store = new MemoryStore();
-        const ev = evaluation({ ...cost("cost.aws", 8.4, 8.4), state: "WARNING" });
-        const day = T0 + 8 * HOUR; // 13:00 Pacific
-        await run(store, ev, day, p.fetch, SLAS);
-        expect((await run(store, ev, day + HOUR, p.fetch, SLAS)).sent).toHaveLength(1);
-        expect(p.calls[0].get("title")).toBe("Budget decision: AWS at $8.40, dashboard locks at $10");
+    it("AWS pages only when it is heading for its $10 lockout this month, or within $1 of it", async () => {
+        const aws = (v: number) => evaluation({ ...cost("cost.aws", v, v), state: "WARNING" });
+        const sent = async (v: number, day: number) => {
+            const p = pushover();
+            const store = new MemoryStore();
+            await run(store, aws(v), day, p.fetch, SLAS);
+            await run(store, aws(v), day + HOUR, p.fetch, SLAS);
+            return p.calls.map((c) => c.get("title"));
+        };
+        const oct = (d: number) => Date.UTC(2026, 9, d, 20); // 13:00 Pacific
+        expect(await sent(8.4, oct(29))).toEqual([]); // about $8.70 by Oct 31: under the cap
+        expect(await sent(8.4, oct(20))).toEqual([
+            "AWS cap: dashboard and alerts stop at $10; $13 projected by Oct 31",
+        ]);
+        expect(await sent(9.2, oct(30))).toHaveLength(1); // under $10 by the pace, but within $1 of it
     });
 
     it("master red pages after 3 h, and not while GitHub is not starting jobs", async () => {
@@ -390,12 +397,16 @@ describe("the policy's conditions", () => {
             value: 3 * HOUR + 15 * MIN,
             fail: [">=", 15 * MIN],
         };
-        const outage = { ...member("ci.runners_not_assigned", "ci"), value: 30 * MIN };
+        const outage = {
+            ...member("ci.runners_not_assigned", "ci"),
+            value: 30 * MIN,
+            facts: { "ci.jobs_running": 0, "ci.jobs_queued": 40 },
+        };
         const p = pushover();
         const store = new MemoryStore();
         await run(store, evaluation([red, outage]), T0, p.fetch, SLAS);
         await run(store, evaluation([red, outage]), T0 + 3 * HOUR, p.fetch, SLAS);
-        expect(p.calls.map((c) => c.get("title"))).toEqual(["GitHub not starting CI jobs for 30 min"]);
+        expect(p.calls.map((c) => c.get("title"))).toEqual(["GitHub not starting CI jobs: 0 running, 40 waiting"]);
         await run(store, evaluation(red), T0 + 3 * HOUR + 5 * MIN, p.fetch, SLAS);
         expect((await run(store, evaluation(red), T0 + 6 * HOUR + 5 * MIN, p.fetch, SLAS)).sent).toEqual([
             { member: "master.red_now", kind: "open" },
@@ -404,6 +415,26 @@ describe("the policy's conditions", () => {
             title: "Master broken for 3 h 15 min, no agent has fixed it",
             priority: "1",
         });
+    });
+
+    it("GitHub running some jobs while many wait is a slowdown, not an outage: it never pages", async () => {
+        const slow = {
+            ...member("ci.runners_not_assigned", "ci"),
+            value: 5 * HOUR,
+            facts: { "ci.jobs_running": 40, "ci.jobs_queued": 600 },
+        };
+        const p = pushover();
+        const store = new MemoryStore();
+        await run(store, evaluation(slow), T0, p.fetch, SLAS);
+        await run(store, evaluation(slow), T0 + 2 * HOUR, p.fetch, SLAS);
+        expect(p.calls).toHaveLength(0);
+        // When GitHub stops starting jobs, the page says what was measured.
+        const stuck = { ...slow, facts: { "ci.jobs_running": 2, "ci.jobs_queued": 600 } };
+        await run(store, evaluation(stuck), T0 + 3 * HOUR, p.fetch, SLAS);
+        await run(store, evaluation(stuck), T0 + 4 * HOUR, p.fetch, SLAS);
+        expect(p.calls[0].get("message")).toContain(
+            "GitHub is running 2 of its 60 CI job slots while 600 jobs wait, and jobs have been left waiting for 5 h.",
+        );
     });
 
     it("the screenshot reminder pages for a green-images nightly hold a day old, with its issue", async () => {
@@ -455,8 +486,10 @@ describe("the policy's conditions", () => {
         expect(p.calls[0].get("title")).toBe(
             "Cloudflare token rejected: dashboard cannot read Cloudflare costs and usage",
         );
-        expect(p.calls[0].get("message")).toContain("read Cloudflare costs and usage for 1 h 5 min: 'HTTP 403'");
-        expect(p.calls[0].get("message")).toContain("https://dash.cloudflare.com/profile/api-tokens");
+        expect(p.calls[0].get("message")).toContain("read Cloudflare costs and usage for 1 h 5 min;");
+        expect(p.calls[0].get("message")).toMatch(
+            /\nWhat to do: Make a new read-only Cloudflare token at https:\/\/dash\.cloudflare\.com\/profile\/api-tokens .*\nError: 'HTTP 403'\.$/,
+        );
         // Fixed: the resolved names the feed, though the OK member no longer carries the cause.
         const ok = { ...src(), state: "OK" as const, value: 0, cause: undefined };
         await run(store, { ...evaluation(ok), episodes: [] }, DAY_T0 + 50 * MIN, p.fetch, SLAS);
@@ -510,8 +543,8 @@ describe("the policy's conditions", () => {
         expect(p.calls).toHaveLength(0);
         await run(store, evaluation(untested(8 * HOUR)), DAY_T0 + 3 * HOUR, p.fetch, SLAS);
         await run(store, evaluation(untested(9 * HOUR)), DAY_T0 + 4 * HOUR, p.fetch, SLAS);
-        expect(p.calls.map((c) => c.get("title"))).toEqual(["Full test runs stopped: none started for 9 h"]);
-        expect(p.calls[0].get("message")).toContain("settings/apps/graphty-release-scheduler");
+        expect(p.calls.map((c) => c.get("title"))).toEqual(["No full test run for 9 h: nothing reaches nightly"]);
+        expect(p.calls[0].get("message")).toContain("What to do: Have a Claude session fix the release scheduler");
     });
 
     it("a missing fact is a gap: it neither ends the episode nor sends a false resolved", async () => {
@@ -562,14 +595,13 @@ describe("the policy's conditions", () => {
             due("cost.spend", { value: 412.3, facts: { month_to_date: 385 } }),
             due("cost.t4", { value: 232.1, facts: { month_to_date: 221 } }),
             due("cost.llm", { value: 87.55, facts: { month_to_date: 83 } }),
-            due("cost.aws", { value: 8.4 }),
         ]);
         expect(costs.message.length).toBeLessThanOrEqual(1024);
-        expect(costs.title.length).toBeLessThanOrEqual(250);
-        for (const label of ["Spend this month", "T4 GPU", "LLM regression", "AWS"]) {
-            expect(costs.message).toContain(`\n- ${label}: `);
-        }
-        expect(costs.message).toMatch(/Tell any Claude session your choice; it applies it\.$/);
+        expect(costs.title).toBe("Over budget: $412 of $300 by Oct 31 (3 items)");
+        expect(costs.message).toContain("raise the budgets to total $420, T4 GPU $240, LLM tests $90;");
+        expect(costs.message).toMatch(
+            /Nothing is cut unless you say so\. Tell any Claude session your choice; it applies it\.$/,
+        );
         const blind = openMessage(ctx, [
             due("data.collector", {
                 value: 32 * MIN,
@@ -577,7 +609,7 @@ describe("the policy's conditions", () => {
             }),
         ]);
         expect(blind.message.length).toBeLessThanOrEqual(1024);
-        expect(blind.message).toMatch(/\.\.\.'\.\nWhat to do: Ask any Claude session/);
+        expect(blind.message).toMatch(/\nWhat to do: Have a Claude session [^\n]+\nLast error: '[^\n]+\.\.\.'\.$/);
     });
 
     it("rounds money to cents before choosing its format", () => {
@@ -621,7 +653,7 @@ describe("messages", () => {
     const realistic: Record<string, Partial<MemberStatus>> = {
         "master.red_now": { value: 3 * HOUR + 20 * MIN },
         "master.untested_age": { value: 25 * HOUR, facts: { "release.since_slot_ms": 9 * HOUR } },
-        "ci.runners_not_assigned": { value: 75 * MIN },
+        "ci.runners_not_assigned": { value: 75 * MIN, facts: { "ci.jobs_running": 0, "ci.jobs_queued": 40 } },
         "release.lanes_red": { value: 0, facts: { "release.review_wait_ms": 26 * HOUR, "release.review_issue": 4700 } },
         "cost.spend": { value: 412.3, facts: { month_to_date: 280 } },
         "cost.t4": { value: 232.1, facts: { month_to_date: 150 } },
@@ -674,7 +706,7 @@ describe("messages", () => {
 
     it("every alert text uses only placeholders fill() knows, and the thresholds they read exist", () => {
         const known =
-            /^(value|limit|target|over|suggest|pace|mtd|month|peak|lasted|for|error|since|feed|frozen|problem|fix|off|(ms|issue):[\w.]+)$/;
+            /^(value|limit|target|over|suggest|pace|mtd|month|end|peak|lasted|for|error|since|feed|frozen|problem|fix|off|(ms|issue|n):[\w.]+)$/;
         for (const c of SLAS.members.filter((x) => x.alert)) {
             const a = c.alert!;
             const texts = [
@@ -710,6 +742,10 @@ describe("messages", () => {
         // The collector's own allowance or slowness is agent work, not a GitHub outage.
         expect(words("GitHub graphql: HTTP 429 secondary rate limit").problem).toBe("code error");
         expect(words("TimeoutError: The operation was aborted due to timeout").problem).toBe("code error");
+        // The token endpoint rate limiting the collector is not a refused key; an uninstalled App (404) is.
+        expect(words("installation token: HTTP 429").problem).toBe("code error");
+        expect(words("installation token: HTTP 403").problem).toBe("code error");
+        expect(words("installation token: HTTP 404").problem).toBe("GitHub App key refused");
     });
 
     it("writes durations as a person says them", () => {

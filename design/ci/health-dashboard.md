@@ -850,14 +850,14 @@ condition, and the words.
 
 | Member                     | Pages when                                                                                                                                                                                                                                                                                                                     | Priority |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| Master red now             | FAILING for 3 h (agents normally fix it within the hour), not while runners are not assigned; links master's failing builds                                                                                                                                                                                                    | 1        |
-| Untested master age        | FAILING for 1 h while no scheduled full run has started for 7 h (the release scheduler stopped: a Claude session finds why; only a refused App key needs the owner); daytime only. Full runs that start but fail are agent work and never page                                                                                 | 0        |
-| Runners not assigned       | FAILING for 1 h (GitHub outage or account block); counts Linux and Windows jobs in status `queued`, and runs queued with no jobs yet, against the real 60-job limit                                                                                                                                                            | 1        |
+| Master red now             | FAILING for 3 h (agents normally fix it within the hour), not while runners are not assigned; asks the owner to check a pipeline-round loop is running; links master's failing builds                                                                                                                                          | 1        |
+| Untested master age        | FAILING for 1 h while no scheduled full run has started for 7 h (the release scheduler stopped; the owner has a Claude session fix it); daytime only. The newest full run is looked for in the last 12 release runs, then the last 100. Full runs that start but fail are agent work and never page                            | 0        |
+| Runners not assigned       | FAILING for 1 h while GitHub runs at most 5 jobs and at least 5 wait (an outage or account block, not a slowdown); counts Linux and Windows jobs in status `queued`, and runs queued with no jobs yet, against the real 60-job limit; the page gives both counts                                                               | 1        |
 | Lanes red on the candidate | the open "Nightly held on" issue's newest verdict is green-images (all tests passed, changed screenshots) and it has waited 24 h for the owner's review; daytime only; once per hold; links the hold issue                                                                                                                     | 0        |
-| Spend, T4, LLM             | FAILING for 6 h, not before day 7 of the month unless month-to-date spend is already past red; daytime only; at most once a week                                                                                                                                                                                               | 0        |
-| AWS                        | past its $8 yellow line for 1 h, since at $10 the Budget's deny-all silences the collector; daytime only                                                                                                                                                                                                                       | 0        |
+| Spend, T4, LLM             | FAILING for 6 h, not before day 7 of the month unless month-to-date spend is already past red; daytime only; at most once a week; due together, one message                                                                                                                                                                    | 0        |
+| AWS                        | for 1 h, spend of $9 or more, or past its $8 yellow line and heading for $10 by month end (the Budget's deny-all silences the collector at $10); its own page; daytime only                                                                                                                                                    | 0        |
 | Sources past their age     | a credential error (401, 403, expired or missing token), lasting an hour, on a source whose credential only the owner can make (the Cloudflare and Sentry tokens); daytime only; not while the collector is FAILING. The billing feed (the collector's own AWS role) and the results store token are agent work and never page | 0        |
-| Collector                  | FAILING for 10 min (no good GitHub read for 30 min); when GitHub's API itself is failing (HTTP 5xx or a network error), only after 2 h and at priority 0, since nobody can act on it                                                                                                                                           | 1        |
+| Collector                  | FAILING for 10 min (no good GitHub read for 30 min); when GitHub's API itself is failing (HTTP 5xx or a network error), only after 2 h, at priority 0 and not while runners are not assigned (one outage, one page); the key is blamed only for a 401, or a 404 from the token endpoint                                        | 1        |
 
 Cloudflare usage has no alert until something measures it: no collector part writes its metric,
 so a page could never say which usage or when it resets.
@@ -865,17 +865,20 @@ so a page could never say which usage or when it resets.
 Cost members due together go out as one message. Every message says what is wrong in words, the
 value and its limit in the dashboard's units (`3 h 20 min`, `$232`), and one line "What to
 do": a single step the owner can take from a phone (a link, a decision to tell any Claude session),
-or "nothing" for an outage that recovers by itself. A cost page says what is spent so far and the
-projection, and asks one decision for next month with a suggested number above the projection
-("accept it and raise the T4 budget to $240, or tell the agents what else to cut"); it never offers
-running the T4 lane less, which runs in every full run by the owner's rule. A credential page names the
-credential and where its new value goes, from the source and its error (`causeWords` in
+or "nothing" for an outage that recovers by itself. A cost page says the month-end projection with its date ("$232 by Oct 31"), what is spent so far and
+how far over it ends, that nothing is cut unless the owner says so, and asks one decision: accept the
+overrun with a suggested number above the projection, or have the agents cut a paid service (the LLM
+tests can be cut at once). It never offers running the T4 lane less, which runs in every full run by the
+owner's rule, and says so. Cost members due together go out as one message with one decision that
+names every suggested budget ("raise the budgets to total $420, T4 GPU $240, LLM tests $90"). A credential page names the
+credential and where to make a new one, asks the owner to hand it to any Claude session to store, and
+puts the quoted error last, from the source and its error (`causeWords` in
 `src/alerts/index.ts`); a cause with no step only the owner can take never pages. A quiet (priority -1) "resolved" follows only for the outage members and
 the credential case, and only after the member has been OK for 15 minutes, so a flapping recovery
 sends neither "resolved" nor a new page. The alert's mark keeps the episode's start, peak and cause, so a
 "resolved" for a member measured without history (the collector, the sources) still says which feed, and
 says how long it lasted from the episode's start to the first run that saw it fixed, not the value when it
-paged. Cost members due together share one closing line ("Tell any Claude session your choice"), and every
+paged. A closing line (`then`) said by several members of a group is said once, and every
 message is cut to Pushover's limits (250 characters of title, 1024 of message; a quoted error to 200).
 
 An episode starts at a member's first bad state and ends only when the member is judged OK again
@@ -900,8 +903,8 @@ the alert path can fail has its own check:
   that silences the collector, Pushover and the SNS email together, since SNS lives in the same
   project. So `release.yml`, on GitHub, runs `tools/health-dead-man.sh` on every attempt: when the
   health API does not answer (after three retries) or its views are over 30 minutes old, it pages through Pushover with
-  the release train's own keys. Only the first attempt of a scheduled run (mode full) pages, so a
-  long outage pages at most four times a day, at priority 1 between 9:00 and 21:00 Pacific and at
+  the release train's own keys. Only the first attempt of a scheduled run (mode full) on master pages,
+  not that slot's hand-off run on channel/full-run, so a long outage pages at most four times a day, at priority 1 between 9:00 and 21:00 Pacific and at
   priority 0 (held by the owner's quiet hours) at night.
 
 ## 14. Rollout

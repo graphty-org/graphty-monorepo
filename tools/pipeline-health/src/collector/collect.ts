@@ -828,9 +828,17 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     c.o("release.hold_open_ms", Number.isFinite(holdSince) ? c.now - holdSince : 0);
     c.o("release.train_skipped", trainSkipped(attempts, runs) ? 1 : 0);
     c.o("master.full_run_failed", candidate?.ciFailed ? 1 : 0);
-    // Since the newest scheduled slot started (the release scheduler dispatches mode full every 6 h); with none in
-    // the page of runs, at least since its oldest. Section 13 pages on it: a dead scheduler is the owner's to fix.
-    const slot = runs.find((r) => releaseMode(r.display_title) === "full") ?? runs.at(-1);
+    // Since the newest scheduled slot started (the release scheduler dispatches mode full every 6 h). With none in
+    // the 12 runs (a dead scheduler while agents dispatch restarts), look back 100 runs, so the age is not that of
+    // the oldest restart. Section 13 pages on it.
+    const full = (rs: GhRun[]) => rs.find((r) => releaseMode(r.display_title) === "full");
+    let slot = full(runs);
+    if (!slot && runs.length) {
+        const more =
+            (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/release.yml/runs?per_page=100`))?.workflow_runs ??
+            runs;
+        slot = full(more) ?? more.at(-1);
+    }
     if (slot) c.o("release.since_slot_ms", c.now - Date.parse(slot.created_at));
 
     let failing = 0;

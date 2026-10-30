@@ -392,6 +392,8 @@ jobs:
                   PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
                   PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
                   RELEASE_MODE: ${{ inputs.mode || 'full' }}
+                  # only the scheduler's run on master pages, not its hand-off run on channel/full-run
+                  SCHEDULED: ${{ inputs.scheduled }}
               run: tools/health-dead-man.sh
 
             - name: Skip while the previous release is pending

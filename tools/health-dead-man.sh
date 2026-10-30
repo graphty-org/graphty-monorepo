@@ -3,10 +3,11 @@
 # A paused AWS project or the graphty-health Budget's deny-all stops the collector, its Pushover alerts and the SNS
 # alarm email together, so release.yml runs this on every attempt: when the dashboard's API does not answer, or its
 # views are over 30 minutes old, it pushes one Pushover page. It never fails. Only the first attempt of a scheduled
-# run (mode full) pages, so a long outage pages at most four times a day, and only loudly (priority 1) between 9:00
-# and 21:00 Pacific; at night it pages at priority 0, which the owner's quiet hours hold.
+# run (mode full) on master pages -- not the same slot's hand-off run on channel/full-run -- so a long outage pages at
+# most four times a day, and only loudly (priority 1) between 9:00 and 21:00 Pacific; at night it pages at priority
+# 0, which the owner's quiet hours hold.
 # Usage: tools/health-dead-man.sh [status URL]   (PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY from the environment;
-# RELEASE_MODE and GITHUB_RUN_ATTEMPT from release.yml)
+# RELEASE_MODE, SCHEDULED, GITHUB_REF and GITHUB_RUN_ATTEMPT from release.yml)
 set -uo pipefail
 
 api=${1:-https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com/v1/status}
@@ -27,8 +28,9 @@ else
     cause="Usual cause: AWS paused the project (spend limit) or the graphty-health Budget locked it at \$10."
 fi
 echo "::warning::${what}"
-if [ "${GITHUB_RUN_ATTEMPT:-1}" != 1 ] || [ "${RELEASE_MODE:-full}" != full ]; then
-    echo "only the first attempt of a scheduled run pages the owner"
+if [ "${GITHUB_RUN_ATTEMPT:-1}" != 1 ] || [ "${RELEASE_MODE:-full}" != full ] || [ "${SCHEDULED:-false}" != true ] ||
+    [ "${GITHUB_REF:-}" != refs/heads/master ]; then
+    echo "only the first attempt of a scheduled run on master pages the owner"
     exit 0
 fi
 hour=$(TZ=America/Los_Angeles date +%-H)

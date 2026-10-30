@@ -66,6 +66,8 @@ export interface AlertConfig {
     floorMs?: number;
     /** The condition is the value past this, instead of the member being FAILING (the member must still be bad). */
     value?: Threshold;
+    /** Or its month-end projection at this month's pace past this (with value; a monthly bill nearing a cap). */
+    pace?: Threshold;
     /** And each of these facts (MemberStatus.facts) past its threshold; the episode ends once one is not. */
     facts?: Record<string, Threshold>;
     /** A month-end projection: not before this day of the month unless month-to-date spend is already past red. */
@@ -78,8 +80,10 @@ export interface AlertConfig {
     text: string;
     /** The owner's action, sent as "What to do: ...". */
     action: string;
-    /** A closing step after the action, said once when several members of a group go out together. */
+    /** A closing line after the action (placeholders allowed), said once when group members share it. */
     then?: string;
+    /** The member's name in a group's one decision ("raise the budgets to total $420, T4 GPU $240"); its label when absent. */
+    short?: string;
     /** The page's link, when the place to act is not the member's dashboard page (placeholders allowed). */
     link?: { url: string; title: string };
     /** Sends a quiet "resolved" once the member has been OK for clearAfterMs; absent, nothing is sent. */

@@ -17,9 +17,6 @@ import { columnGlyph } from "../../data-place/words";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** The site list the studio's T62 opens: "opened" is read as words, "families" has an "n/a". */
 const PANTRIES = `id,site,opened,families
 P01,Central Warehouse,2015-03-02,0
@@ -76,22 +73,19 @@ describe("dates in the table", () => {
         render(<Workspace store={store} />);
         drop(new File([PANTRIES], "pantries.csv", { type: "text/csv" }));
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                )?.session;
-                assert.isDefined(session);
-                assert.strictEqual(session?.data.nodes().length, 5);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
+            assert.isDefined(session);
+            assert.strictEqual(session?.data.nodes().length, 5);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
         await session.data.setType({ kind: "node", name: "opened" }, "date");
         // A dropped table of nodes opens the table dock by itself.
-        const grid = await screen.findByRole("grid", { name: "Nodes" }, { timeout: TIMEOUT_MS });
+        const grid = await screen.findByRole("grid", { name: "Nodes" });
 
         // A date column that is not the time reads as the time does.
         await waitFor(() => {
@@ -135,22 +129,19 @@ describe("dates in the table", () => {
         render(<Workspace store={store} />);
         drop(new File([PANTRIES], "pantries.csv", { type: "text/csv" }));
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                )?.session;
-                assert.isDefined(session);
-                assert.strictEqual(session?.data.nodes().length, 5);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
+            assert.isDefined(session);
+            assert.strictEqual(session?.data.nodes().length, 5);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
         const live = session;
         await live.time.setField({ nodes: { start: "opened" } });
-        const grid = await screen.findByRole("grid", { name: "Nodes" }, { timeout: TIMEOUT_MS });
+        const grid = await screen.findByRole("grid", { name: "Nodes" });
         // What Fields' column lists and the inspector draw for the column.
         const fieldsGlyph = (): string => {
             const column = live.data.attributes().find((each) => each.kind === "node" && each.name === "opened");

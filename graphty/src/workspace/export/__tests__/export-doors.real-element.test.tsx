@@ -18,9 +18,6 @@ import { HOSTS_CSV } from "../../data-place/fixtures";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const NODES = Array.from({ length: 4 }, (_, i) => ({ id: `n${String(i)}` }));
 const EDGES = NODES.map((node, i) => ({ source: node.id, target: NODES[(i + 1) % NODES.length].id }));
 
@@ -33,13 +30,10 @@ async function open(state: Partial<WorkspaceState> = {}): Promise<GraphSession> 
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, ...state });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -51,12 +45,9 @@ async function open(state: Partial<WorkspaceState> = {}): Promise<GraphSession> 
  * @param dialog - the Export dialog.
  */
 async function previewed(dialog: HTMLElement): Promise<void> {
-    await waitFor(
-        () => {
-            assert.notInclude(within(dialog).getByLabelText("Preview of the exported data").textContent, "Writing");
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.notInclude(within(dialog).getByLabelText("Preview of the exported data").textContent, "Writing");
+    });
 }
 
 describe("Export opens on Data where a table is showing (R14)", () => {
@@ -85,7 +76,7 @@ describe("Export opens on Data where a table is showing (R14)", () => {
         await session.data.import({ config: { file: new File(["id,os\nweb9,linux\n"], "more-hosts.csv") } });
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         const placeRegion = within(screen.getByRole("region", { name: "Data place" }));
-        const row = await placeRegion.findByRole("listitem", { name: "hosts.csv" }, { timeout: TIMEOUT_MS });
+        const row = await placeRegion.findByRole("listitem", { name: "hosts.csv" });
 
         await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "hosts.csv menu" }));
@@ -122,7 +113,7 @@ describe("Export's scope says what it writes and starts on the whole graph", () 
         await session.data.import({ config: { file: new File(["id,os\nweb9,linux\n"], "more-hosts.csv") } });
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         const placeRegion = within(screen.getByRole("region", { name: "Data place" }));
-        const row = await placeRegion.findByRole("listitem", { name: "hosts.csv" }, { timeout: TIMEOUT_MS });
+        const row = await placeRegion.findByRole("listitem", { name: "hosts.csv" });
 
         await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "hosts.csv menu" }));
@@ -192,7 +183,7 @@ describe("the Data output's format list and losses (R14)", () => {
         const dialog = await screen.findByRole("dialog", { name: "Export" });
         await userEvent.click(within(dialog).getByRole("combobox", { name: "Format" }));
         await userEvent.click(await screen.findByRole("option", { name: "GEXF" }));
-        const note = await within(dialog).findByRole("note", {}, { timeout: TIMEOUT_MS });
+        const note = await within(dialog).findByRole("note", {});
         const details = within(note).getByRole("button", { name: "Details" });
         assert.strictEqual(details.getAttribute("aria-expanded"), "false");
         assert.match(note.textContent, /^Lost in GEXF: node label color not writtenDetails$/);

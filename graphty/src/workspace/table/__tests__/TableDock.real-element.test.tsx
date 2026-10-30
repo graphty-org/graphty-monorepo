@@ -269,13 +269,10 @@ describe("the table dock", () => {
     it("names a rendered tab panel from every tab, and the showing one holds the table", async () => {
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }

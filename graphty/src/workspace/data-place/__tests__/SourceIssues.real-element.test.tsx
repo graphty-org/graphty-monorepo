@@ -16,9 +16,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** A site list with one name padded with spaces. */
 const SITES_CSV = "id,name,families\nA,Alpha,3\nB, Beta ,4\nC,Gamma,5\n";
 
@@ -29,13 +26,10 @@ const SITES_CSV = "id,name,families\nA,Alpha,3\nB, Beta ,4\nC,Gamma,5\n";
 async function openSites(file = new File([SITES_CSV], "sites.csv")): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Sites", id: 1 }, place: "data" })} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -64,8 +58,8 @@ describe("a Sources row's issues", () => {
     it("opens the issue list from the row's chip, trims by real input and says so once", async () => {
         const session = await openSites();
         const place = within(screen.getByRole("region", { name: "Data place" }));
-        const row = await place.findByRole("listitem", { name: "sites.csv" }, { timeout: TIMEOUT_MS });
-        const chip = await within(row).findByRole("button", { name: "1 issue in sites.csv" }, { timeout: TIMEOUT_MS });
+        const row = await place.findByRole("listitem", { name: "sites.csv" });
+        const chip = await within(row).findByRole("button", { name: "1 issue in sites.csv" });
         assert.isNull(screen.queryByRole("region", { name: "Table" }), "the table is closed");
 
         await userEvent.click(chip);
@@ -91,13 +85,11 @@ describe("a Sources row's issues", () => {
     it("shows an issue's rows from the row's list: the table opens narrowed to them", async () => {
         await openSites();
         const place = within(screen.getByRole("region", { name: "Data place" }));
-        const row = await place.findByRole("listitem", { name: "sites.csv" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(
-            await within(row).findByRole("button", { name: "1 issue in sites.csv" }, { timeout: TIMEOUT_MS }),
-        );
+        const row = await place.findByRole("listitem", { name: "sites.csv" });
+        await userEvent.click(await within(row).findByRole("button", { name: "1 issue in sites.csv" }));
         const dialog = await screen.findByRole("dialog", { name: "Issues in sites.csv" });
         await userEvent.click(within(dialog).getByRole("button", { name: "Show rows: 1 value with padded spaces" }));
-        const table = await screen.findByRole("region", { name: "Table" }, { timeout: TIMEOUT_MS });
+        const table = await screen.findByRole("region", { name: "Table" });
         await waitFor(() => {
             const grid = within(table).getByRole("grid", { name: "Nodes" });
             // The header row and the one row the padded value is on.
@@ -108,8 +100,8 @@ describe("a Sources row's issues", () => {
     it("opens with Enter and closes with Escape, focus back on the chip", async () => {
         await openSites();
         const place = within(screen.getByRole("region", { name: "Data place" }));
-        const row = await place.findByRole("listitem", { name: "sites.csv" }, { timeout: TIMEOUT_MS });
-        const chip = await within(row).findByRole("button", { name: "1 issue in sites.csv" }, { timeout: TIMEOUT_MS });
+        const row = await place.findByRole("listitem", { name: "sites.csv" });
+        const chip = await within(row).findByRole("button", { name: "1 issue in sites.csv" });
         chip.focus();
         await userEvent.keyboard("{Enter}");
         await screen.findByRole("dialog", { name: "Issues in sites.csv" });
@@ -127,8 +119,8 @@ describe("a Sources row's issues", () => {
         const name = "a-long-file-name-for-the-row.csv";
         await openSites(new File([`source,target,kind\n${rows.join("\n")}\n`], name));
         const place = within(screen.getByRole("region", { name: "Data place" }));
-        const row = await place.findByRole("listitem", { name }, { timeout: TIMEOUT_MS });
-        const issues = await within(row).findByRole("button", { name: `1 issue in ${name}` }, { timeout: TIMEOUT_MS });
+        const row = await place.findByRole("listitem", { name });
+        const issues = await within(row).findByRole("button", { name: `1 issue in ${name}` });
         await waitFor(() => {
             assert.include(row.textContent, "1,000");
         });

@@ -106,13 +106,10 @@ describe("the table's rows with issues", () => {
     it("marks the target column, and only the target cell, when the unknown end is a target", async () => {
         render(<Workspace store={createWorkspaceStore({ project: { name: "Sites", id: 2 } })} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -126,9 +123,9 @@ describe("the table's rows with issues", () => {
         assert.strictEqual(session.data.issues()[0]?.params.ends, "target");
 
         await userEvent.keyboard("{Shift>}T{/Shift}");
-        const dock = await screen.findByRole("region", { name: "Table" }, { timeout: TIMEOUT_MS });
+        const dock = await screen.findByRole("region", { name: "Table" });
         await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
-        const chip = await within(dock).findByRole("checkbox", { name: /^With issues/ }, { timeout: TIMEOUT_MS });
+        const chip = await within(dock).findByRole("checkbox", { name: /^With issues/ });
         const label = (chip as HTMLInputElement).labels?.[0];
         assert.isDefined(label, "the chip has a label");
         await userEvent.click(label);

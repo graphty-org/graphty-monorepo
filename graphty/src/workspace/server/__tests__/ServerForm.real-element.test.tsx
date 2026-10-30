@@ -202,7 +202,7 @@ describe("server sources on the real element", () => {
             ["Web API", "Web API"],
             ["NDEx", "NDEx"],
         ] as const) {
-            await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+            await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
             const dialog = await screen.findByRole("dialog", { name: "Open network data" });
             // The address box has a label the reader can see.
@@ -221,22 +221,19 @@ describe("server sources on the real element", () => {
 
     it("adds a graph file at a web address to the open project from Network data...", async () => {
         const { session } = await openDataPlace();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
         const dialog = await screen.findByRole("dialog", { name: "Open network data" });
         const address = within(dialog).getByRole("textbox", { name: /Web address/ });
         await userEvent.type(address, `${new URL("/samples/karate.gml", location.href).href}{Enter}`);
         // The project stays open and the file is taken in as its source, not opened as a new project.
-        await waitFor(
-            () => {
-                assert.deepEqual(
-                    session.data.sources().map((source) => source.name),
-                    ["karate.gml"],
-                );
-                assert.lengthOf(session.data.nodes(), 34);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(
+                session.data.sources().map((source) => source.name),
+                ["karate.gml"],
+            );
+            assert.lengthOf(session.data.nodes(), 34);
+        });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Open network data" }));
         });

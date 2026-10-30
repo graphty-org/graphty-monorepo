@@ -19,9 +19,6 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** Install dates for the small graph's nodes, in node order: three before 2005. */
 const INSTALLED = ["1998-05-12", "2003-07-01", "2004-12-31", "2005-01-01", "2010-09-09", "2018-06-27"];
 
@@ -37,14 +34,11 @@ const BEFORE_2005: RuleTree = { kind: "range", attribute: "data.installed", max:
 async function openWithDates(place: "data" | "graph"): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Gauges", id: 1 }, place });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -80,7 +74,7 @@ describe("the date condition card", () => {
 
     it("in Filters: installed is listed as a date, and Before 2005 keeps the three put in before", async () => {
         const session = await openWithDates("data");
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });
         assert.isNotNull(option.querySelector("svg.lucide-calendar"), "listed with the calendar glyph");
         await userEvent.click(option);
@@ -122,9 +116,9 @@ describe("the date condition card", () => {
             set: { "node.color": "#d55e00" },
         });
         await session.styles.settled();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Old, / }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         const option = await screen.findByRole("option", { name: /^installed(,|$)/ });

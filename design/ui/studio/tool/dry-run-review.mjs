@@ -63,7 +63,7 @@ export const SCHEMA = {
 };
 
 const outcomeFailed = (r) => r.result !== "pass" && /^checking "/.test(r.reason || "");
-/** Reasons graphty/dry-run/run.mjs gives when the machine, not the build, stopped a route. */
+/** Reasons graphty/acceptance/run.mjs gives when the machine, not the build, stopped a route. */
 export const MACHINE = /^(launching the browser|no worker reached it)/;
 const couldNotRun = (r) => r.result !== "pass" && MACHINE.test(r.reason || "");
 

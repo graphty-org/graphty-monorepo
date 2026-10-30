@@ -2,7 +2,7 @@
 /**
  * dry-run-pass.mjs -- the scripted half of a design studio dry-run pass, with no model in the loop.
  *
- * Runs the app's dry run (graphty/dry-run/run.mjs: every scripted route, on the GPU, outcome checks
+ * Runs the app's dry run (graphty/acceptance/run.mjs: every scripted route, on the GPU, outcome checks
  * through graphty-element's public API) on a frozen build, keeps the screen each route ended on, and
  * compares its interface (the screen with the drawing and the status bar covered, <route>.ui.png) with the same route's in
  * the newest earlier pass beside this one. The drawing is not compared as pixels: it may still be
@@ -27,7 +27,7 @@ import { parseArgs } from "node:util";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../..");
-const RUN = join(repo, "graphty/dry-run/run.mjs");
+const RUN = join(repo, "graphty/acceptance/run.mjs");
 const OUT = join(repo, "tmp/dry-run");
 
 /**

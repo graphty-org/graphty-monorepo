@@ -310,7 +310,7 @@ async function freezeBuild(tag, phaseName, withMaster) {
 // walked and passed, and no agent looks at an end screen that did not change since the earlier pass.
 const id0 = () => "<task id>";
 // The scripted dry run (design/ci/ai-checked-acceptance-tests.md section 10.3): the app's routes
-// (graphty/dry-run/, the success path of every task, with outcome checks read through graphty-element's
+// (graphty/acceptance/, the success path of every task, with outcome checks read through graphty-element's
 // API) run on the frozen build with no model, and each route's end screen is compared with the
 // earlier pass's (tool/dry-run-pass.mjs). Measured once each on tier 3's T42 (both datasets): the
 // script walks all 30 task halves in 30 to 45 s on a build newer than the routes (on the older frozen

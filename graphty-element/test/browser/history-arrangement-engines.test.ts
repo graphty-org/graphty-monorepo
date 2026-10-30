@@ -220,12 +220,20 @@ describe.each(["ngraph", "d3", "spring"])("the arrangement under %s", (engine) =
         const graph = await begin(engine);
         const session = graph.getSession();
         await session.data.addEdges([{ src: "n1", dst: "n5" }]);
+        // The edge draws n5 (#3192). ngraph and d3 take the newcomer and step to place it, so for
+        // them the add moved the nodes, and redo puts back where the add left them. The spring
+        // simulation leaves n5 unplaced and moves nothing.
+        const added = lane(graph);
         await session.undo();
         graph.getLayoutManager().running = true;
         graph.getUpdateManager().stepFrames(1);
         const moved = lane(graph);
 
         await session.redo();
-        assert.deepEqual(lane(graph), { ...moved, n5: "NaN,NaN,NaN" }, "the nodes stay where the layout left them");
+        if (engine === "spring") {
+            assert.deepEqual(lane(graph), { ...moved, n5: "NaN,NaN,NaN" }, "the nodes stay where the layout left them");
+        } else {
+            assert.deepEqual(lane(graph), added, "the nodes go back where the add placed them");
+        }
     });
 });

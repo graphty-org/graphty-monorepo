@@ -56,26 +56,43 @@ describe("slice runner-minutes against each cap", () => {
 
 const run = (id: number, path: string): GhRun =>
     ({ id, path: `.github/workflows/${path}`, status: "in_progress", created_at: new Date(T).toISOString() }) as GhRun;
-const job = (status: string, labels = ["ubuntu-latest"]): GhJob =>
-    ({ status, labels, created_at: new Date(T - MIN).toISOString() }) as GhJob;
+const job = (status: string, labels = ["ubuntu-latest"], ageMin = 10): GhJob =>
+    ({ status, labels, created_at: new Date(T - ageMin * MIN).toISOString() }) as GhJob;
 
 describe("what slices cost other work (design section 6)", () => {
     const slice = { run: run(1, "story-slices.yml"), jobs: [job("in_progress"), job("in_progress"), job("queued")] };
-    const ci = { run: run(2, "ci.yml"), jobs: [job("in_progress"), job("queued"), job("queued")] };
+    const ci = { run: run(2, "ci.yml"), jobs: [job("in_progress"), job("queued"), job("queued", undefined, 3)] };
     const gpu = { run: run(3, "gpu.yml"), jobs: [job("queued", ["machine.dev"])] };
 
-    it("counts slice runner-minutes held while other jobs queued, and their queue minutes", () => {
-        expect(contention([slice, ci, gpu], "story-slices.yml", false, 5)).toEqual({
+    it("counts slice runner-minutes held while other jobs waited for a runner, and their minutes queued in the cycle", () => {
+        expect(contention([slice, ci, gpu], "story-slices.yml", false, 5, T)).toEqual({
             contendedMin: 10,
-            queueWaitMin: 10,
+            queueWaitMin: 5 + 3,
+        });
+    });
+
+    it("counts nothing for jobs not waiting for a runner: created under 2 minutes ago, concurrency or approval", () => {
+        const notWaiting = {
+            run: run(2, "ci.yml"),
+            jobs: [job("queued", undefined, 1), job("pending"), job("waiting"), job("queued", ["macos-latest"])],
+        };
+        expect(contention([slice, notWaiting], "story-slices.yml", false, 5, T)).toEqual({
+            contendedMin: 0,
+            queueWaitMin: 0,
         });
     });
 
     it("counts held minutes while saturated even with nothing else queued, and nothing with no slice running", () => {
         const quiet = { ...ci, jobs: [job("in_progress")] };
-        expect(contention([slice, quiet], "story-slices.yml", true, 5)).toEqual({ contendedMin: 10, queueWaitMin: 0 });
-        expect(contention([ci], "story-slices.yml", true, 5)).toEqual({ contendedMin: 0, queueWaitMin: 0 });
-        expect(contention([slice, quiet], "story-slices.yml", false, 5)).toEqual({ contendedMin: 0, queueWaitMin: 0 });
+        expect(contention([slice, quiet], "story-slices.yml", true, 5, T)).toEqual({
+            contendedMin: 10,
+            queueWaitMin: 0,
+        });
+        expect(contention([ci], "story-slices.yml", true, 5, T)).toEqual({ contendedMin: 0, queueWaitMin: 0 });
+        expect(contention([slice, quiet], "story-slices.yml", false, 5, T)).toEqual({
+            contendedMin: 0,
+            queueWaitMin: 0,
+        });
     });
 });
 

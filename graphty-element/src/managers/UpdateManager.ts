@@ -413,6 +413,10 @@ export class UpdateManager implements Manager {
     /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
     private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
 
+    /** Watch the scene for meshes built or taken down; see {@link UpdateManager.watchFrames}. */
+    private meshAddedWatcher: Nullable<Observer<AbstractMesh>> = null;
+    private meshRemovedWatcher: Nullable<Observer<AbstractMesh>> = null;
+
     /**
      * Creates a new update manager
      * @param eventManager - Event manager for emitting update events
@@ -514,6 +518,14 @@ export class UpdateManager implements Manager {
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
             this.viewMoved();
         });
+        // A mesh built or taken down changes the picture wherever it happens -- in a pass, or
+        // outside one, as a tooltip the pointer brings up does (issue #3287) -- so the frame drawn
+        // before it is not the final one. A new mesh's shader is then waited for as well.
+        const pictureChanged = (): void => {
+            this.pending.changed();
+        };
+        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
+        this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
         this.lendShaderRepaint();
     }
 
@@ -534,6 +546,8 @@ export class UpdateManager implements Manager {
         scene.onAfterRenderObservable.remove(this.drawWatcher);
         scene.onBeforeDrawPhaseObservable.remove(this.drawPhaseWatcher);
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
+        scene.onNewMeshAddedObservable.remove(this.meshAddedWatcher);
+        scene.onMeshRemovedObservable.remove(this.meshRemovedWatcher);
     }
 
     /**

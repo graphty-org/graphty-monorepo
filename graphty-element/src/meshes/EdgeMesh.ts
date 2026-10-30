@@ -404,21 +404,24 @@ void main() {
 
     /**
      * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
-     * slot in a line batch: a patterned type on a straight line. A curve, and a dashed or dotted
-     * line through bends or round a self-loop, is a joined line in a batch.
+     * slot in a line batch: every patterned type, laid along whatever route the edge takes
+     * (issue #3102), except a dashed or dotted curve, or one through bends or round a self-loop,
+     * which is a joined line in a batch that measures its dashes along the whole route.
      * @param style - The resolved style.
      * @param loop - Whether the edge is a self-loop, which is never a straight line.
      * @returns True for pattern elements.
      */
     static drawsAsPattern(style: EdgeStyleConfig, loop = false): boolean {
         const lineType = style.line?.type ?? "solid";
-        if (!PATTERNED_TYPES.has(lineType) || style.line?.bezier === true) {
+        if (!PATTERNED_TYPES.has(lineType)) {
             return false;
         }
 
         const { line } = style;
         const routed =
-            loop || [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
+            loop ||
+            line?.bezier === true ||
+            [line?.bends, line?.sourcePort, line?.targetPort].some((text) => parseBends(text) !== null);
         return !(routed && (lineType === "dash" || lineType === "dot"));
     }
 

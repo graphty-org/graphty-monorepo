@@ -393,3 +393,9 @@ first two by itself; the dry run owns the rest.
   unchanged), T65 A 12 to **14** and B 12 to **13** (opening the "how to match" list, the "from"
   box and the typed value each count), T67 **3** (B **4**, unchanged). The walks are under the main
   checkout's `tmp/design-studio/tier4/round-1/path-counts/`.
+- 2026-10-30: bar 6's two references are written (no bar or target changed). The words-at-rest
+  budget per data screen is `words-at-rest.md`: principle 5's 50 words for the Data place at rest
+  and the empty screen, about 30 and at most 40 for each open dialog, popover or panel, and at
+  most 3 words per menu item, heading or row name, with the frozen build's scripted counts beside
+  them. The approved data surfaces are listed in `decided.md` with their reference screenshots,
+  taken from e52d7c4f57 into the main checkout's `tmp/design-studio/tier4/reference/`.

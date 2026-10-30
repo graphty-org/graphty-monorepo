@@ -26,6 +26,25 @@ the evidence; the old entry stays.
   tokens or Figma tests goes to `owner-decisions.md` under "for the owner", never into the code
   without the owner's `Figma-Approved` trailer. (Owner, 2026-10-23.)
 
+## Owner-approved surfaces on the data screens, and their reference screenshots (bar 6)
+
+A fix may add to these surfaces but never removes or restyles them (the owner rule above). The
+screenshot audit judges "restyled" against these references, taken on 2026-10-30 from build
+e52d7c4f57, before any tier 4 fix (the review's frozen copy, the main checkout's
+`tmp/design-studio/tier4/review/a11y/dist`), at 1440 x 900 in the dark scheme's default, with
+pantries.csv open and deliveries.csv joined where a surface needs two files. The images are under
+the main checkout's `tmp/design-studio/tier4/reference/` (never in git); the walk that took them is
+`reference/walk-e52d7c4f57/`.
+
+| Surface                                                                                                                          | Why it is approved                                                                             | Reference                                 |
+| -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| The Style panel's Which nodes card and its condition card ("lat", Between, the range and its two boxes, "N nodes", the remove X) | The filter cards ARE these cards (owner, 2026-10-29)                                           | `style-which-nodes-card.png`              |
+| The Style panel's Data source card (one box per file, "file, N nodes")                                                           | Approved; the Filters card keeps its reading (R2, "A Data source filter card keeps the edges") | `style-data-source-card.png`              |
+| The Style panel's attribute picker (search, kind glyphs, value summaries)                                                        | Filters "+" reuses it (R2)                                                                     | `style-attribute-picker.png`              |
+| Sources "+" menu, its Server... item, and the Server form                                                                        | Server... stays: it is approved (R8)                                                           | `sources-add-menu.png`, `server-form.png` |
+| The table header menu (Type, Role, Rename..., Hide, Hide others, Details, sorts, moves)                                          | Keeps its approved items (R10)                                                                 | `table-header-menu.png`                   |
+| A joined source row's ratio ("17/19")                                                                                            | The approved ratio stays (R11)                                                                 | `source-row-join-ratio.png`               |
+
 ## Carried over from tier 3 (`../tier3/decided.md`), still binding on these flows
 
 The layer tree entry below was corrected on 2026-10-19 (tier 3): a tree is entered at its focused

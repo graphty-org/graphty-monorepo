@@ -220,3 +220,84 @@ Smaller, seen on this pass:
 
 The other routes the fix pass touched are other tasks' (T65 A and B, T66, T67, T68 and T61 B); they
 are walked by those tasks' pilots.
+
+## Targeted re-walk on build a53beb7179 (the Edges table's issue marks and the header's spoken issue)
+
+Build: a53beb7179 (`.study-builds/tier4-r1d3-a53beb7179`), 1440 x 900, start `empty`, every walk
+from the empty app. Screenshots are under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T61A/ (s1-success,
+s2-deliveries-first, s3-keyboard). The data stayed the task's own on every walk: pantries.csv
+P01-P12 with their sites, deliveries.csv 19 rows, P13 only in the route list. Every session was
+ended.
+
+This pass reports only what crashes, blocks the task, or gives a result that would spoil its
+grading. Of the routes the fix pass touched, three are this task's and were walked: the success
+path to Edges > With issues 1, the detour that opens deliveries.csv first, and the keyboard walk to
+the Edges table's Target header. The others are other tasks' routes (T61B, T65A, T65B, T66, T67,
+T68) and are walked by those tasks' pilots.
+
+| Walk | How | Result |
+| ---- | --- | ------ |
+| s1-success (pointer) | replay of w2-success | All 18 steps matched; reached |
+| s2-deliveries-first (detour) | replay of d9-deliveries-first | All 7 steps matched; reached (13 nodes, 19 edges) |
+| s3-keyboard (keys only, screen-reader mode) | replay of k3-keyboard, 105 of 113 steps matched; finished by hand | Reached |
+
+### Success path by pointer (s1-success): reached
+
+- s1-success/04.png: "Join deliveries.csv -> pantries.csv", Edges, from = Id, to = Id, "18 edges
+  added", "1 new node", "1 not in graph", "1 repeated key".
+- s1-success/11.png: after Join, Overview Nodes 13, Edges 18, "From 2 files"; Sources lists
+  pantries.csv (12) and the second row "d.." with 13, 18 and issue chip 1.
+- s1-success/15.png: the chip opens "Issues in deliveries.csv": edges, 1 unknown end, Add nodes,
+  Leave out, Ignore.
+- s1-success/17.png: Edges, 18 edges, "With issues 1" narrows to one row, P05 -> P13, 4 trips; the
+  warning is on the Target header and P13 is drawn in the warning color, P05 plain.
+- s1-success/19.png: Nodes, "With issues 2": P06 and P07, pantries' own issues.
+
+### Detour: deliveries.csv first, then pantries.csv (s2-deliveries-first): reached
+
+- s2-deliveries-first/03.png to 05.png: Join gives 13 nodes, 19 edges, "1 repeated edge", "From 2
+  files". Edges, "With issues 1": the one row is P03 -> P10, 6 trips; the warning is on the "from"
+  header only and only P03 is tinted (the pair mark is in the backlog, decided in dry run pass 5).
+- s2-deliveries-first/06.png: the header's menu reads "1 repeated edge" with Keep, Merge, Ignore,
+  Show rows, Ignore all; Escape closes it (07.png).
+- s2-deliveries-first/08.png: the Nodes tab ("With issues 2", not ticked) shows the 13 nodes with
+  the issue marks on site and families; nothing after Join names P13 as not on the site list, as
+  on earlier builds.
+  The 13 / 19 counts are the ones the answer key accepts for this order.
+
+### Success path by keyboard (s3-keyboard): reached
+
+- Steps 1-105 matched the earlier walk: start screen, file load, Data, Add source, the join
+  screen's Tab order, Escape cancelling the join (77.png), F6 cycling, the second opening, Join
+  (focus on "deliveries.csv 17 of 19 rows joined 13 nodes, 18 edges", 89.png), the issue dialog,
+  the Edges tab, the Target header, sort, Control+Z and Control+Shift+Z.
+- Step 106 differed only because the "Redid joining deliveries.csv." notice was still up: its
+  "Dismiss" button took one Tab stop between Analyze and Resize table, so 15 Tabs ended on "With
+  issues 1" instead of "Columns: 3 of 3" (107.png). That is the notice's own close button while it
+  shows, not a defect.
+- By hand: Space ticks "With issues 1"; Tab x5 and ArrowRight reach the Target header, named
+  "Target, sorted ascending". Its accessible description is still empty ("focus is described as
+  \"\""), so nothing spoken on focus says the column has an issue; browse mode reads the header row
+  as "... Target, sorted ascending Issues in Target Options for Target ...".
+- Shift+F10 opens the header menu with focus on "Add nodes" (checked): "1 unknown end", Add nodes,
+  Leave out, Ignore, Show rows, Hide, Hide others, Sort ascending, Sort descending (112.png).
+  ArrowDown moves to "Leave out"; Escape returns focus to the header; ArrowDown goes to rowheader
+  "P13", the tinted cell (115.png). No focus fell to the page body on this walk.
+
+### Mismatches between the answer key and the screen
+
+None. The key's path, counts (13 nodes, 18 edges; deliveries-first 13 / 19) and the follow-up's
+18 on the second source row all read as the key says.
+
+### Defects (crash, block, or a result that would spoil grading)
+
+No crash, no block, no wrong count on any walk. Still present, none of them spoils grading:
+
+1. Keyboard: the Target header's focused name and description do not say it has an issue; the
+   issue is heard only in browse mode or after Shift+F10 opens its menu (s3-keyboard/109.png to
+   112.png). The fix pass left this unchanged.
+2. Deliveries-first: the repeated edge's mark is on "from" alone and tints only P03
+   (s2-deliveries-first/05.png); decided for the backlog.
+3. Deliveries-first: after Join nothing names P13 as missing from the site list
+   (s2-deliveries-first/08.png); the join screen's "1 no value" is the only place.

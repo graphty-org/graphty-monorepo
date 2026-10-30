@@ -350,7 +350,7 @@
             },
             "others": [
                 {
-                    "member": "flaky.stress_run",
+                    "member": "data-sources.stress_run",
                     "state": "bad",
                     "value": {
                         "word": "filed",
@@ -892,7 +892,7 @@
         {
             "id": "e7",
             "category": "flaky",
-            "member": "flaky.stress_run",
+            "member": "data-sources.stress_run",
             "worst": "bad",
             "start": "2026-10-25T08:42:00Z",
             "end": null,

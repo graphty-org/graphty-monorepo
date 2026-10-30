@@ -274,11 +274,11 @@ describe("views", () => {
         const page = (await readViewJson(store, { kind: "page", page: "flaky", range: "1h" })) as PageResponse;
         expect(page.sections.map((s) => s.id)).toEqual(expect.arrayContaining(["hotspots", "quarantine", "stress"]));
         expect(page.members.map((m) => m.id)).toEqual(
-            expect.arrayContaining(["flaky.flake_rate", "ci.reruns", "flaky.stress_run"]),
+            expect.arrayContaining(["flaky.flake_rate", "ci.reruns", "data-sources.stress_run"]),
         );
         // The stress run is judged here, on one page only: Data sources lists data sources.
         const ds = (await readViewJson(store, { kind: "page", page: "data-sources", range: "1h" })) as PageResponse;
-        expect(ds.members.map((m) => m.id)).not.toContain("flaky.stress_run");
+        expect(ds.members.map((m) => m.id)).not.toContain("data-sources.stress_run");
         expect(ds.sections.map((s) => s.id)).not.toContain("stress");
     });
 

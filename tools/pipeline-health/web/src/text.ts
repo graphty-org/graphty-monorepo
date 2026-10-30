@@ -342,7 +342,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Latest full test run",
         short: "latest full test run",
         def: "Whether every test shard (the CI lane) passed in the newest full run, which tests master every 6 hours. Passed here means master's tests are green; nightly can still wait on other lanes or on screenshot review (see Releases).",
-        red: "Red: the newest full run's tests failed on master, so nothing promotes to nightly until agents fix or revert the change its bisect names. See Releases > Lanes on the candidate.",
+        red: "The newest full run's tests failed on master, so nothing promotes to nightly until agents fix or revert the change its bisect names. See Releases > Lanes on the candidate.",
     },
     "master.untested_age": {
         name: "Hours since master was fully tested",
@@ -565,17 +565,17 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "Median days from a flaky test's issue being opened to its fix merging, over the fixes of the last 28 days. Not judged until 5 fixes have merged.",
         red: "Over 7 d: flaky tests stay broken for a week or more. Agents take the oldest flaky issues first.",
     },
-    "flaky.stress_run": {
+    "data-sources.stress_run": {
         name: "Weekly stress run",
         short: "weekly stress run",
         def: "The newest weekly run of every test shard under half the runner's CPU, which files an issue per test that fails under load. Its value is what the newest run did: passed, failed, or found nothing 3 weeks running.",
-        red: "Red: the weekly run or its issue filing failed, so tests that fail under load go untracked; agents fix restricted-cpu-stress.yml. Yellow: it found nothing 3 weeks running, so it may no longer limit the CPU; agents check that it does.",
+        red: "The weekly run or its issue filing failed, so tests that fail under load go untracked; agents fix the stress workflow. Yellow means it found nothing 3 weeks running, so it may no longer limit the CPU; agents check that it does.",
     },
     "releases.lanes_red": {
         name: "Red lanes on the candidate",
         short: "red lanes on the candidate",
         def: "Lanes of the full run (CI, T4 GPU, host matrix, macOS autosave, audit, LLM tests) that failed on the newest tested commit, the candidate for nightly. A run that passed but changed pictures counts on Full runs held for screenshot review instead, unless an open 'Nightly held' issue holds it.",
-        red: "Red: a lane has been red 6 h or more, or a held candidate with an open 'Nightly held' issue has waited 6 h for screenshot review, so nightly cannot move. Agents fix forward from the candidate; changed screenshots wait on the owner.",
+        red: "A lane has been red 6 h or more, or a held candidate with an open 'Nightly held' issue has waited 6 h for screenshot review, so nightly cannot move. Agents fix forward from the candidate; changed screenshots wait on the owner.",
         headline: "Release lanes red",
     },
     "releases.workflows_failing": {
@@ -639,7 +639,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Spend this month",
         short: "spend",
         def: "Every paid service, projected to month-end, in USD.",
-        red: "Red: spent so far is past the monthly budget; yellow: only the month-end forecast is past it. The owner picks a new limit or accepts the overrun.",
+        red: "Spent so far is past the monthly budget. Yellow means only the month-end forecast is past it. The owner picks a new limit or accepts the overrun.",
         headline: "Spend projected",
         when: " projected for month-end",
     },
@@ -647,14 +647,14 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "T4 GPU",
         short: "T4 GPU",
         def: 'The machine.dev bill for the paid T4 GPU runner, projected to month-end, in USD. "Money by workflow" below is GitHub\'s list-price value, not this bill.',
-        red: "Red: spent so far is past its limit; yellow: only the month-end forecast is past it. The owner picks a new limit or accepts the overrun.",
+        red: "Spent so far is past its limit. Yellow means only the month-end forecast is past it. The owner picks a new limit or accepts the overrun.",
         when: " projected for month-end",
     },
     "costs.llm": {
         name: "LLM tests (estimated)",
         short: "LLM tests spend",
         def: "Gemini calls made by the CI LLM regression tests, at a flat estimated rate, projected to month-end, in USD.",
-        red: "Red: spent so far is past its limit; yellow: only the month-end forecast is past it. The owner picks a new limit, or agents cut the LLM test runs.",
+        red: "Spent so far is past its limit. Yellow means only the month-end forecast is past it. The owner picks a new limit, or agents cut the LLM test runs.",
         when: " projected for month-end",
     },
     "costs.aws": {

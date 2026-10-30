@@ -153,7 +153,8 @@ export const SPEC: Record<string, Spec> = {
     "cost.cloudflare_usage": { id: "costs.cloudflare_usage", unit: "pct", k: PCT, link: "/data-sources/not-set-up" },
     "cost.sentry_usage": { id: "costs.sentry_usage", unit: "pct", k: PCT, link: "/data-sources/not-set-up" },
     "data.stress_run": {
-        id: "flaky.stress_run",
+        // Judged on Flaky tests since 2026-10-30; the id keeps its old prefix so pages built before then still read.
+        id: "data-sources.stress_run",
         link: "/flaky/stress",
         // stress.state: 0 passed and filed, 1 found nothing three weeks running, 2 filing failed or the run broke.
         word: (v) => STRESS_WORD[Math.min(2, Math.max(0, Math.round(v)))],

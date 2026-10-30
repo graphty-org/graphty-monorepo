@@ -520,7 +520,7 @@ const flakyMembers: Member[] = [
         link: "/flaky",
     }),
     member({
-        id: "flaky.stress_run",
+        id: "data-sources.stress_run",
         state: "bad",
         value: { word: "filed", n: 0 },
         sla: SLA.stress,
@@ -767,7 +767,7 @@ const categories: CategoryStatus[] = [
         state: "bad",
         setBy: ref(byId(flakyMembers, "flaky.blocked"), f("short.blocked", { prs: 3 })),
         others: [
-            ref(byId(flakyMembers, "flaky.stress_run"), f("short.stress_filed", { filed: 0, failures: 27 })),
+            ref(byId(flakyMembers, "data-sources.stress_run"), f("short.stress_filed", { filed: 0, failures: 27 })),
             ref(byId(flakyMembers, "flaky.no_issue"), f("short.no_issue", { tests: 2 })),
         ],
         headline: flakeRate,
@@ -867,7 +867,7 @@ const episodes: Episode[] = [
     {
         id: "e7",
         category: "flaky",
-        member: "flaky.stress_run",
+        member: "data-sources.stress_run",
         worst: "bad",
         start: t("08:42"),
         end: null,

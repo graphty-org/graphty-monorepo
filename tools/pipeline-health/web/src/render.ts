@@ -825,7 +825,7 @@ function sectionHead(s: Section): string {
         case "hotspots":
             return h(
                 "Hotspots",
-                "7- or 28-day measure; ranked by distinct flaky tests; open a row for its files and tests",
+                "7- or 28-day measure; ranked by distinct flaky tests; a rate here is one file's over these days, while the Flake rate row above is every file's over the last hour; open a row for its files and tests",
                 seg("hot", (s as TreeSection).range, [
                     ["7d", "7 d"],
                     ["28d", "28 d"],

@@ -18,7 +18,7 @@
     },
     "others": [
         {
-            "member": "flaky.stress_run",
+            "member": "data-sources.stress_run",
             "state": "bad",
             "value": {
                 "word": "filed",
@@ -286,7 +286,7 @@
                 }
             },
             "link": "/flaky/stress",
-            "id": "flaky.stress_run",
+            "id": "data-sources.stress_run",
             "value": {
                 "word": "filed",
                 "n": 0

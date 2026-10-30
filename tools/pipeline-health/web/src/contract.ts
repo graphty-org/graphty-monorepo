@@ -206,7 +206,7 @@ export const MEMBER_IDS = [
     "costs.aws",
     "costs.cloudflare_usage",
     "costs.sentry_usage",
-    "flaky.stress_run",
+    "data-sources.stress_run",
     "data-sources.past_age",
     "data-sources.thin",
     "data-sources.collector",

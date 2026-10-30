@@ -1310,7 +1310,7 @@ h2.top {
         display: grid;
         grid-template-columns: 40% minmax(0, 1fr);
         column-gap: 2%;
-        align-items: baseline;
+        align-items: start;
     }
     .tbl .tr > span::before {
         content: attr(data-h);

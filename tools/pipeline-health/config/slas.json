@@ -141,8 +141,8 @@
                 "priority": 1,
                 "notWhileFailing": ["ci.runners_not_assigned"],
                 "title": "Master broken for {value}, no agent has fixed it",
-                "text": "Master's build has been failing for {value}. Agents normally fix or revert it within an hour, so either no pipeline-round loop is running or its fix is stuck behind the CI queue. Canary deploys and the full test runs are blocked.",
-                "action": "Check whether a Claude session is still running /loop /pipeline-round. If none is, start one in graphty-monorepo with /loop 30m /pipeline-round; it fixes or reverts master.",
+                "text": "Master's build has been failing for {value}; agents normally fix or revert it within an hour.",
+                "action": "No agent seems to be fixing it. At your computer, start /loop 30m /pipeline-round in graphty-monorepo. Until master is fixed, canary deploys and full test runs are blocked.",
                 "resolved": {
                     "title": "Master is green again",
                     "text": "Master was broken for about {lasted}.",
@@ -220,8 +220,8 @@
                     "release.since_slot_ms": [">", 25200000]
                 },
                 "title": "No full test run for {ms:release.since_slot_ms}: nothing reaches nightly",
-                "text": "No full test run has started for {ms:release.since_slot_ms} (one should start every 6 h), so nothing reaches nightly. Master's newest commits have been untested for {value}.",
-                "action": "Have a Claude session fix the release scheduler, which starts the runs.",
+                "text": "No full test run has started for {ms:release.since_slot_ms} (one should start every 6 h), so nothing reaches nightly.",
+                "action": "Tell any Claude session: the release scheduler worker stopped starting full runs; fix it.",
                 "resolved": {
                     "title": "Full test runs are starting again",
                     "text": "A scheduled full test run has started again.",
@@ -408,8 +408,8 @@
             "alert": {
                 "afterMs": 3600000,
                 "priority": 1,
-                "title": "GitHub not starting CI jobs: {n:ci.jobs_running} running, {n:ci.jobs_queued} waiting",
-                "text": "GitHub is running {n:ci.jobs_running} of its 60 CI job slots while {n:ci.jobs_queued} jobs wait, and jobs have been left waiting for {value}. All CI and merging is stalled.",
+                "title": "GitHub not starting CI jobs: {n:ci.jobs_running} running, {n:ci.jobs_waiting_runner} waiting",
+                "text": "GitHub is running {n:ci.jobs_running} of its {slots} CI job slots while {n:ci.jobs_waiting_runner} jobs wait for a runner, and jobs have been left waiting for {value}. All CI and merging is stalled.",
                 "action": "Check https://www.githubstatus.com/ for an Actions outage. If GitHub reports none, check graphty-org's billing and Actions settings (spending limit, payment method, Actions disabled): https://github.com/organizations/graphty-org/settings/billing",
                 "resolved": {
                     "title": "GitHub is starting CI jobs again",
@@ -418,7 +418,7 @@
                 },
                 "facts": {
                     "ci.jobs_running": ["<=", 5],
-                    "ci.jobs_queued": [">=", 5]
+                    "ci.jobs_waiting_runner": [">=", 5]
                 }
             },
             "also": [
@@ -426,7 +426,7 @@
                     "metric": "ci.jobs_running"
                 },
                 {
-                    "metric": "ci.jobs_queued"
+                    "metric": "ci.jobs_waiting_runner"
                 }
             ]
         },
@@ -762,13 +762,14 @@
                 "afterMs": 0,
                 "priority": 0,
                 "floorMs": 86400000,
+                "repeatMs": 86400000,
                 "daytime": true,
                 "facts": {
                     "release.review_wait_ms": [">=", 86400000]
                 },
                 "title": "Nightly waiting on your screenshot review",
-                "text": "The held nightly candidate passed all its tests but has changed screenshots, and has waited {ms:release.review_wait_ms} for your review. Nightly releases are frozen until you approve or reject them.",
-                "action": "Tell any Claude session \"start the screenshot review for the held nightly\"; it replies with the review page's link. Approve or reject the changed pictures there.",
+                "text": "The held nightly candidate passed all its tests but has changed screenshots, and has waited {ms:release.review_wait_ms} for your review. Nightly releases stay frozen until you approve or reject the changed screenshots.",
+                "action": "At a computer, tell any Claude session \"start the screenshot review for the held nightly\"; it replies with the review page's link. Approve or reject each changed screenshot there.",
                 "link": {
                     "url": "{issue:release.review_issue}",
                     "title": "Open the hold issue"
@@ -984,12 +985,12 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "Over budget: {value} of {target} by {end}",
-                "text": "All paid services: {value} by {end} against the {target} monthly budget, {over} over ({mtd} spent so far).",
-                "action": "Pick one: accept the overrun and raise the total budget to {suggest}, or have the agents cut a paid service (LLM test runs, Sentry, ...).",
+                "title": "All paid services: {value} forecast for {mon}, budget {target} ({over} over)",
+                "text": "All paid services together, T4 GPU and LLM tests included: {mtd} spent so far, {value} by {end} at this pace, against the {target} monthly budget.",
+                "action": "{choose}: raise the total budget to {suggest} a month, or have the agents cut LLM test runs from {cutFrom}.",
                 "daytime": true,
                 "then": "Nothing is cut unless you say so. Tell any Claude session your choice; it applies it.",
-                "short": "total"
+                "short": "Total"
             }
         },
         {
@@ -1012,9 +1013,9 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "T4 GPU over budget: {value} of {target} by {end}",
-                "text": "T4 GPU test lane: {value} by {end} against its {target} budget, {over} over ({mtd} spent so far). It runs on every release, so it cannot be cut.",
-                "action": "Pick one: accept the overrun and raise the T4 budget to {suggest}, or have the agents cut another paid service (LLM test runs, Sentry, ...).",
+                "title": "T4 GPU: {value} forecast for {mon}, budget {target} ({over} over)",
+                "text": "T4 GPU test lane: {mtd} spent so far, {value} by {end} at this pace, against its {target} budget. It runs on every release, so it cannot be cut.",
+                "action": "{choose}: raise the T4 GPU budget to {suggest} a month, or have the agents cut LLM test runs from {cutFrom} to make room.",
                 "daytime": true,
                 "then": "Nothing is cut unless you say so. Tell any Claude session your choice; it applies it.",
                 "short": "T4 GPU"
@@ -1040,9 +1041,9 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "LLM tests over your ceiling: {value} of {target} by {end}",
-                "text": "LLM regression tests (Gemini): {value} by {end} against your {target} ceiling, {over} over ({mtd} spent so far).",
-                "action": "Pick one: accept this month's overrun and raise the ceiling to {suggest}, or have the agents cut LLM test runs now.",
+                "title": "LLM tests: {value} forecast for {mon}, ceiling {target} ({over} over)",
+                "text": "LLM regression tests (Gemini): {mtd} spent so far, {value} by {end} at this pace, against your {target} ceiling.",
+                "action": "{choose}: raise the LLM test ceiling to {suggest} a month, or have the agents cut LLM test runs from {cutFrom}.",
                 "daytime": true,
                 "then": "Nothing is cut unless you say so. Tell any Claude session your choice; it applies it.",
                 "short": "LLM tests"
@@ -1067,9 +1068,9 @@
                 "priority": 0,
                 "floorMs": 604800000,
                 "value": [">=", 9],
-                "title": "AWS cap: dashboard and alerts stop at $10; {pace} projected by {end}",
-                "text": "AWS hosting for the dashboard: {value} spent so far, about {pace} by {end} at this pace. At $10 the AWS spending cap locks the dashboard, which stops it and these alerts.",
-                "action": "Pick one: raise the AWS spending cap to $15, or have the agents find and cut what grew.",
+                "title": "AWS Budget: dashboard and alerts stop at $10; {pace} projected by {end}",
+                "text": "AWS hosting for the dashboard: {value} spent so far, about {pace} by {end} at this pace. At $10 the dashboard's AWS Budget locks it, which stops the dashboard and these alerts.",
+                "action": "Pick one: raise the dashboard's own AWS Budget from $10 to $15 (still under the $20 project spend limit), or have the agents find and cut what grew.",
                 "daytime": true,
                 "then": "Tell any Claude session your choice; it applies it.",
                 "pace": [">=", 10]
@@ -1134,7 +1135,7 @@
                 "facts": {
                     "credential_error_ms": [">=", 3600000]
                 },
-                "title": "{problem}: dashboard cannot read {frozen}",
+                "title": "{problem}: make a new one",
                 "text": "The health dashboard has not read {frozen} for {since}; those numbers stay frozen until the token is replaced. {off}",
                 "action": "{fix}",
                 "resolved": {

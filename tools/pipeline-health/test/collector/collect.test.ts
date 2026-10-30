@@ -300,6 +300,8 @@ describe("runner job counts", () => {
         await collect(deps(store, fake));
         expect(observed(store, "ci.jobs_running")).toBe(2);
         expect(observed(store, "ci.jobs_queued")).toBe(2);
+        // The runners page's count: only Linux and Windows jobs queued for a runner over 2 minutes.
+        expect(observed(store, "ci.jobs_waiting_runner")).toBe(2);
     });
 
     it("leaves out a queued run whose pull request is no longer open", async () => {

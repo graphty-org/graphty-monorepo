@@ -568,6 +568,8 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     c.o("ci.jobs_running", use.running.linux_windows);
     c.o("ci.running_macos", use.running.macos);
     c.o("ci.jobs_queued", use.queued);
+    // Only the jobs waiting for a runner, by the not-assigned flag's own rule: the runners page's count and gate.
+    c.o("ci.jobs_waiting_runner", use.queuedOver2);
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);

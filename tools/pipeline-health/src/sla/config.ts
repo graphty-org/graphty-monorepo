@@ -64,6 +64,8 @@ export interface AlertConfig {
     daytime?: boolean;
     /** At most one page per this span, even across episodes (6 h when absent). */
     floorMs?: number;
+    /** A reminder: once sent, it pages again after this span while its episode lasts (absent, once per episode). */
+    repeatMs?: number;
     /** The condition is the value past this, instead of the member being FAILING (the member must still be bad). */
     value?: Threshold;
     /** Or its month-end projection at this month's pace past this (with value; a monthly bill nearing a cap). */
@@ -72,7 +74,7 @@ export interface AlertConfig {
     facts?: Record<string, Threshold>;
     /** A month-end projection: not before this day of the month unless month-to-date spend is already past red. */
     fromDay?: number;
-    /** Not while any of these members is FAILING (one cause, one page). */
+    /** Not while any of these members is FAILING and meets its own alert's facts (one cause, one page). */
     notWhileFailing?: string[];
     /** Members of one group due together go out as one message. */
     group?: string;

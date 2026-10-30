@@ -330,13 +330,17 @@ describe("the policy's conditions", () => {
         expect(r.sent.map((s) => s.member).sort()).toEqual(["cost.llm", "cost.t4"]);
         expect(p.calls).toHaveLength(1);
         const body = Object.fromEntries(p.calls[0]);
-        expect(body.title).toBe("T4 GPU over budget: $232 of $180 by Nov 30 (2 items)");
+        // The title names every overrun, so the lock screen shows both.
+        expect(body.title).toBe("2 budgets over for Nov: T4 GPU +$52, LLM tests +$28");
         expect(body.priority).toBe("0");
         expect(body.message).toContain(
-            "T4 GPU test lane: $232 by Nov 30 against its $180 budget, $52 over ($40 spent so far). It runs on every release, so it cannot be cut.\n",
+            "T4 GPU test lane: $40 spent so far, $232 by Nov 30 at this pace, against its $180 budget. It runs on every release, so it cannot be cut.\n",
         );
-        // One decision that names every suggested budget, not one decision per member.
-        expect(body.message).toContain("raise the budgets to T4 GPU $240, LLM tests $90;");
+        // One decision that names every suggested budget, not one decision per member. Early in the month it holds
+        // from now on, and a cut starts today.
+        expect(body.message).toContain(
+            "What to do: Choose the budget from now on: raise the budgets to T4 GPU $240, LLM tests $90 a month, or have the agents cut LLM test runs from today.",
+        );
         expect(body.message.match(/What to do/g)).toHaveLength(1);
         // The shared closing step is said once, not once per member.
         expect(body.message.match(/Tell any Claude session your choice/g)).toHaveLength(1);
@@ -386,7 +390,7 @@ describe("the policy's conditions", () => {
         const oct = (d: number) => Date.UTC(2026, 9, d, 20); // 13:00 Pacific
         expect(await sent(8.4, oct(29))).toEqual([]); // about $8.70 by Oct 31: under the cap
         expect(await sent(8.4, oct(20))).toEqual([
-            "AWS cap: dashboard and alerts stop at $10; $13 projected by Oct 31",
+            "AWS Budget: dashboard and alerts stop at $10; $13 projected by Oct 31",
         ]);
         expect(await sent(9.2, oct(30))).toHaveLength(1); // under $10 by the pace, but within $1 of it
     });
@@ -400,7 +404,7 @@ describe("the policy's conditions", () => {
         const outage = {
             ...member("ci.runners_not_assigned", "ci"),
             value: 30 * MIN,
-            facts: { "ci.jobs_running": 0, "ci.jobs_queued": 40 },
+            facts: { "ci.jobs_running": 0, "ci.jobs_waiting_runner": 40 },
         };
         const p = pushover();
         const store = new MemoryStore();
@@ -417,11 +421,43 @@ describe("the policy's conditions", () => {
         });
     });
 
+    it("a CI slowdown (runners member FAILING, but GitHub still running jobs) does not hold back master red", async () => {
+        const red: MemberStatus = {
+            ...member("master.red_now", "master"),
+            value: 3 * HOUR + 15 * MIN,
+            fail: [">=", 15 * MIN],
+        };
+        const slow = {
+            ...member("ci.runners_not_assigned", "ci"),
+            value: 5 * HOUR,
+            facts: { "ci.jobs_running": 40, "ci.jobs_waiting_runner": 600 },
+        };
+        const p = pushover();
+        const store = new MemoryStore();
+        await run(store, evaluation([red, slow]), T0, p.fetch, SLAS);
+        await run(store, evaluation([red, slow]), T0 + 3 * HOUR, p.fetch, SLAS);
+        expect(p.calls.map((c) => c.get("title"))).toEqual(["Master broken for 3 h 15 min, no agent has fixed it"]);
+    });
+
+    it("an outage where runs sit queued before GitHub creates their jobs still pages", async () => {
+        // The runs with no jobs count as jobs waiting for a runner; the all-statuses job count stays 0.
+        const outage = {
+            ...member("ci.runners_not_assigned", "ci"),
+            value: 75 * MIN,
+            facts: { "ci.jobs_running": 0, "ci.jobs_waiting_runner": 12, "ci.jobs_queued": 0 },
+        };
+        const p = pushover();
+        const store = new MemoryStore();
+        await run(store, evaluation(outage), T0, p.fetch, SLAS);
+        await run(store, evaluation(outage), T0 + HOUR, p.fetch, SLAS);
+        expect(p.calls.map((c) => c.get("title"))).toEqual(["GitHub not starting CI jobs: 0 running, 12 waiting"]);
+    });
+
     it("GitHub running some jobs while many wait is a slowdown, not an outage: it never pages", async () => {
         const slow = {
             ...member("ci.runners_not_assigned", "ci"),
             value: 5 * HOUR,
-            facts: { "ci.jobs_running": 40, "ci.jobs_queued": 600 },
+            facts: { "ci.jobs_running": 40, "ci.jobs_waiting_runner": 600 },
         };
         const p = pushover();
         const store = new MemoryStore();
@@ -429,11 +465,11 @@ describe("the policy's conditions", () => {
         await run(store, evaluation(slow), T0 + 2 * HOUR, p.fetch, SLAS);
         expect(p.calls).toHaveLength(0);
         // When GitHub stops starting jobs, the page says what was measured.
-        const stuck = { ...slow, facts: { "ci.jobs_running": 2, "ci.jobs_queued": 600 } };
+        const stuck = { ...slow, facts: { "ci.jobs_running": 2, "ci.jobs_waiting_runner": 600 } };
         await run(store, evaluation(stuck), T0 + 3 * HOUR, p.fetch, SLAS);
         await run(store, evaluation(stuck), T0 + 4 * HOUR, p.fetch, SLAS);
         expect(p.calls[0].get("message")).toContain(
-            "GitHub is running 2 of its 60 CI job slots while 600 jobs wait, and jobs have been left waiting for 5 h.",
+            "GitHub is running 2 of its 60 CI job slots while 600 jobs wait for a runner, and jobs have been left waiting for 5 h.",
         );
     });
 
@@ -455,6 +491,12 @@ describe("the policy's conditions", () => {
         expect(p.calls.map((c) => c.get("title"))).toEqual(["Nightly waiting on your screenshot review"]);
         expect(p.calls[0].get("message")).toContain("waited 25 h for your review");
         expect(p.calls[0].get("url")).toBe("https://github.com/graphty-org/graphty-monorepo/issues/4700");
+        // A reminder: the same hold still waiting a day later is sent again, and not before.
+        await run(store, evaluation(held(40 * HOUR)), DAY_T0 + 7 * HOUR, p.fetch, SLAS); // 20:00 Pacific
+        expect(p.calls).toHaveLength(1);
+        await run(store, evaluation(held(49 * HOUR)), DAY_T0 + DAY + 10 * MIN, p.fetch, SLAS);
+        expect(p.calls).toHaveLength(2);
+        expect(p.calls[1].get("message")).toContain("waited 2 d 1 h for your review");
     });
 
     it("a publish hold or a red hold open a day never sends the screenshot reminder", async () => {
@@ -483,9 +525,7 @@ describe("the policy's conditions", () => {
         await run(store, evaluation(src({ credential_error_ms: 30 * MIN })), DAY_T0 + 5 * MIN, p.fetch, SLAS);
         expect(p.calls).toHaveLength(0);
         await run(store, evaluation(src({ credential_error_ms: 65 * MIN })), DAY_T0 + 40 * MIN, p.fetch, SLAS);
-        expect(p.calls[0].get("title")).toBe(
-            "Cloudflare token rejected: dashboard cannot read Cloudflare costs and usage",
-        );
+        expect(p.calls[0].get("title")).toBe("Cloudflare token rejected: make a new one");
         expect(p.calls[0].get("message")).toContain("read Cloudflare costs and usage for 1 h 5 min;");
         expect(p.calls[0].get("message")).toMatch(
             /\nWhat to do: Make a new read-only Cloudflare token at https:\/\/dash\.cloudflare\.com\/profile\/api-tokens .*\nError: 'HTTP 403'\.$/,
@@ -544,7 +584,9 @@ describe("the policy's conditions", () => {
         await run(store, evaluation(untested(8 * HOUR)), DAY_T0 + 3 * HOUR, p.fetch, SLAS);
         await run(store, evaluation(untested(9 * HOUR)), DAY_T0 + 4 * HOUR, p.fetch, SLAS);
         expect(p.calls.map((c) => c.get("title"))).toEqual(["No full test run for 9 h: nothing reaches nightly"]);
-        expect(p.calls[0].get("message")).toContain("What to do: Have a Claude session fix the release scheduler");
+        expect(p.calls[0].get("message")).toContain(
+            "What to do: Tell any Claude session: the release scheduler worker stopped starting full runs",
+        );
     });
 
     it("a missing fact is a gap: it neither ends the episode nor sends a false resolved", async () => {
@@ -597,8 +639,13 @@ describe("the policy's conditions", () => {
             due("cost.llm", { value: 87.55, facts: { month_to_date: 83 } }),
         ]);
         expect(costs.message.length).toBeLessThanOrEqual(1024);
-        expect(costs.title).toBe("Over budget: $412 of $300 by Oct 31 (3 items)");
-        expect(costs.message).toContain("raise the budgets to total $420, T4 GPU $240, LLM tests $90;");
+        expect(costs.title).toBe("3 budgets over for Oct: Total +$112, T4 GPU +$52, LLM tests +$28");
+        // The total says it already holds the lines below it, so nobody adds them up.
+        expect(costs.message).toContain("All paid services together, T4 GPU and LLM tests included: $385 spent so far");
+        // In the month's last week October is spent: the choice is November's budget.
+        expect(costs.message).toContain(
+            "What to do: October is nearly spent. Choose November's budget: raise the budgets to Total $420, T4 GPU $240, LLM tests $90 a month, or have the agents cut LLM test runs from Nov 1.",
+        );
         expect(costs.message).toMatch(
             /Nothing is cut unless you say so\. Tell any Claude session your choice; it applies it\.$/,
         );
@@ -653,7 +700,7 @@ describe("messages", () => {
     const realistic: Record<string, Partial<MemberStatus>> = {
         "master.red_now": { value: 3 * HOUR + 20 * MIN },
         "master.untested_age": { value: 25 * HOUR, facts: { "release.since_slot_ms": 9 * HOUR } },
-        "ci.runners_not_assigned": { value: 75 * MIN, facts: { "ci.jobs_running": 0, "ci.jobs_queued": 40 } },
+        "ci.runners_not_assigned": { value: 75 * MIN, facts: { "ci.jobs_running": 0, "ci.jobs_waiting_runner": 40 } },
         "release.lanes_red": { value: 0, facts: { "release.review_wait_ms": 26 * HOUR, "release.review_issue": 4700 } },
         "cost.spend": { value: 412.3, facts: { month_to_date: 280 } },
         "cost.t4": { value: 232.1, facts: { month_to_date: 150 } },
@@ -706,7 +753,7 @@ describe("messages", () => {
 
     it("every alert text uses only placeholders fill() knows, and the thresholds they read exist", () => {
         const known =
-            /^(value|limit|target|over|suggest|pace|mtd|month|end|peak|lasted|for|error|since|feed|frozen|problem|fix|off|(ms|issue|n):[\w.]+)$/;
+            /^(value|limit|target|over|suggest|pace|mtd|month|mon|choose|cutFrom|slots|end|peak|lasted|for|error|since|feed|frozen|problem|fix|off|(ms|issue|n):[\w.]+)$/;
         for (const c of SLAS.members.filter((x) => x.alert)) {
             const a = c.alert!;
             const texts = [

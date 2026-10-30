@@ -135,7 +135,7 @@ function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
     if (a.value ? !past(ctx, m.value, a) : m.state !== "FAILING") {
         return false;
     }
-    if (a.notWhileFailing?.some((id) => ctx.evaluation.members.find((x) => x.id === id)?.state === "FAILING")) {
+    if (a.notWhileFailing?.some((id) => paging(ctx, id))) {
         return false;
     }
     if (a.fromDay !== undefined && new Date(ctx.now).getUTCDate() < a.fromDay) {
@@ -144,6 +144,16 @@ function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
         return mtd !== undefined && m.fail !== undefined && hit(mtd, m.fail);
     }
     return true;
+}
+
+/**
+ * Another member's own page condition holds: FAILING and, when its alert pages on facts, those facts too (the
+ * runners member is FAILING in a slowdown as well, which never pages and so must not silence master red).
+ */
+function paging(ctx: Ctx, id: string): boolean {
+    const x = ctx.evaluation.members.find((m) => m.id === id);
+    const a = (ctx.config ?? SLAS).members.find((c) => c.id === id)?.alert;
+    return x?.state === "FAILING" && (!a || factsHold(x, a));
 }
 
 /** The value past alert.value, or its month-end pace past alert.pace (an AWS bill nearing its cap). */
@@ -209,7 +219,19 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
         await ctx.store.update(key, { set: { peak, ...cause, ttl: ttl(ctx) } });
     }
     if (mark.open === SENT) {
-        return undefined;
+        // A reminder (alert.repeatMs) re-arms once that span has passed since it was sent; the condition on
+        // lastOpenAt lets only one of two overlapping runs re-arm it.
+        const r = c.alert.repeatMs;
+        const again =
+            !!r &&
+            (await ctx.store.update(
+                key,
+                { set: { open: 0, ttl: ttl(ctx) } },
+                { field: "lastOpenAt", op: "<=", value: ctx.now - r },
+            ));
+        if (!again) {
+            return undefined;
+        }
     }
     if (!(await due(ctx, key, m, c.alert, mark.redSince as number | undefined))) {
         return undefined;
@@ -493,6 +515,25 @@ function monthEnd(now: number): string {
     return last.toLocaleString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 }
 
+const monthName = (t: number, month: "long" | "short") =>
+    new Date(t).toLocaleString("en-US", { month, timeZone: "UTC" });
+
+/**
+ * Which month a budget decision is about: in the month's last week this month is spent, so the choice is next
+ * month's budget and a cut starts on its first day; earlier it holds from now on.
+ */
+function budgetMonth(now: number): { choose: string; cutFrom: string } {
+    const d = new Date(now);
+    const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+    if ((next - now) / DAY > 7) {
+        return { choose: "Choose the budget from now on", cutFrom: "today" };
+    }
+    return {
+        choose: `${monthName(now, "long")} is nearly spent. Choose ${monthName(next, "long")}'s budget`,
+        cutFrom: `${monthName(next, "short")} 1`,
+    };
+}
+
 /** The value at month end at this month's pace so far (UTC days, as the engine's months are). */
 function pace(v: number, now: number): number {
     const d = new Date(now);
@@ -513,8 +554,11 @@ function fill(template: string, d: Due, now: number): string {
         // The next multiple of 10 above the value, so the suggestion always leaves headroom.
         suggest: human(m.id, m.value === undefined ? undefined : Math.floor(m.value / 10) * 10 + 10),
         mtd: human(m.id, m.facts?.month_to_date),
-        month: new Date(now).toLocaleString("en-US", { month: "long", timeZone: "UTC" }),
+        month: monthName(now, "long"),
+        mon: monthName(now, "short"),
         end: monthEnd(now),
+        ...budgetMonth(now),
+        slots: String(SLAS.runnerLimits.linux_windows),
         peak: human(m.id, peak),
         pace: human(m.id, m.value === undefined ? undefined : pace(m.value, now)),
         for: duration(now - start),
@@ -562,12 +606,16 @@ export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Me
     const then = [...new Set(ds.map((d) => (d.c.alert.then ? f(d.c.alert.then, d) : "")).filter((t) => !!t))];
     const tail = then.length ? `\n${then.join(" ")}` : "";
     const top = Math.max(...ds.map((d) => d.c.alert.priority));
-    const accept = ds.map((d) => `${d.c.alert.short ?? d.c.label} ${f("{suggest}", d)}`).join(", ");
+    const short = (d: Due) => d.c.alert.short ?? d.c.label;
+    const accept = ds.map((d) => `${short(d)} ${f("{suggest}", d)}`).join(", ");
+    // A group's title names every item, so the lock screen shows each overrun, not only the first.
+    const over = ds.map((d) => `${short(d)} +${f("{over}", d)}`).join(", ");
     return {
-        title: one ? f(ds[0].c.alert.title, ds[0]) : `${f(ds[0].c.alert.title, ds[0])} (${ds.length} items)`,
+        title: one ? f(ds[0].c.alert.title, ds[0]) : f(`${ds.length} budgets over for {mon}: ${over}`, ds[0]),
         message: one
             ? `${f(ds[0].c.alert.text, ds[0])}\nWhat to do: ${f(ds[0].c.alert.action, ds[0])}${tail}`
-            : `${ds.map((d) => f(d.c.alert.text, d)).join("\n")}\nWhat to do: pick one. Accept the overrun and raise the budgets to ${accept}; or have the agents cut a paid service.${tail}`,
+            : // LLM test runs are the one paid service the agents can cut at once (the T4 lane runs on every release).
+              `${ds.map((d) => f(d.c.alert.text, d)).join("\n")}\nWhat to do: ${f("{choose}", ds[0])}: raise the budgets to ${accept} a month, or have the agents cut LLM test runs from ${f("{cutFrom}", ds[0])}.${tail}`,
         ...link(ctx, ds[0].m.category, one ? ds[0] : undefined),
         // Loud only in the day: at night an outage page is held by the owner's quiet hours (as health-dead-man.sh).
         priority: String(top === 1 && !daytime(ctx.now) ? 0 : top),

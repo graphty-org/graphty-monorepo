@@ -17,9 +17,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** K5: five nodes, every pair joined, the smallest graph no layout can draw without crossings. */
 const IDS = ["a", "b", "c", "d", "e"];
 const K5 = IDS.flatMap((src, i) => IDS.slice(i + 1).map((dst) => ({ src, dst })));
@@ -31,13 +28,10 @@ const K5 = IDS.flatMap((src, i) => IDS.slice(i + 1).map((dst) => ({ src, dst }))
 async function openK5(): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "K5", id: 1 } })} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -70,144 +64,128 @@ describe("the Layout popover", () => {
         await page.viewport(1024, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "offers Rings by group once a community run has finished, grouped by that run",
-        async () => {
-            const session = await openK5();
-            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
-            let popover = await screen.findByRole("dialog", { name: "Layout" });
-            const before = within(popover).getByRole("option", { name: /^Rings by group/ });
-            assert.strictEqual(before.getAttribute("aria-disabled"), "true", "no column groups K5 yet");
-            assert.include(before.textContent, "run Louvain in Analyze first", "names what to run, in app words");
-            await userEvent.keyboard("{Escape}");
+    it("offers Rings by group once a community run has finished, grouped by that run", async () => {
+        const session = await openK5();
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        let popover = await screen.findByRole("dialog", { name: "Layout" });
+        const before = within(popover).getByRole("option", { name: /^Rings by group/ });
+        assert.strictEqual(before.getAttribute("aria-disabled"), "true", "no column groups K5 yet");
+        assert.include(before.textContent, "run Louvain in Analyze first", "names what to run, in app words");
+        await userEvent.keyboard("{Escape}");
 
-            const run = await session.runs.start("louvain", {}, { style: false });
-            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
-            popover = await screen.findByRole("dialog", { name: "Layout" });
-            await waitFor(() => {
-                const rings = within(popover).getByRole("option", { name: /^Rings by group/ });
-                assert.notStrictEqual(rings.getAttribute("aria-disabled"), "true", rings.textContent);
-            });
-            // K5 is one group: Two columns names the grouping by the run's name, not its field path.
-            const columns = within(popover).getByRole("option", { name: /^Two columns/ });
-            assert.include(columns.textContent, "Needs exactly two groups; Louvain has 1");
-            assert.notInclude(columns.textContent, "results.");
-            await userEvent.click(within(popover).getByRole("option", { name: /^Rings by group/ }));
-            await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-            await waitFor(() => {
-                assert.strictEqual(session.layout.id, "shell");
-            });
-            assert.deepInclude(session.layout.options, { groupBy: `results.${run.runId}.group` });
-        },
-        TIMEOUT_MS,
-    );
+        const run = await session.runs.start("louvain", {}, { style: false });
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        popover = await screen.findByRole("dialog", { name: "Layout" });
+        await waitFor(() => {
+            const rings = within(popover).getByRole("option", { name: /^Rings by group/ });
+            assert.notStrictEqual(rings.getAttribute("aria-disabled"), "true", rings.textContent);
+        });
+        // K5 is one group: Two columns names the grouping by the run's name, not its field path.
+        const columns = within(popover).getByRole("option", { name: /^Two columns/ });
+        assert.include(columns.textContent, "Needs exactly two groups; Louvain has 1");
+        assert.notInclude(columns.textContent, "results.");
+        await userEvent.click(within(popover).getByRole("option", { name: /^Rings by group/ }));
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
+            assert.strictEqual(session.layout.id, "shell");
+        });
+        assert.deepInclude(session.layout.options, { groupBy: `results.${run.runId}.group` });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "lists every layout, opens a form that runs nothing until Apply, and draws Force flat with Shape 2D",
-        async () => {
-            const session = await openK5();
-            assert.strictEqual(session.layout.id, "force", "the app starts on the force layout by id");
+    it("lists every layout, opens a form that runs nothing until Apply, and draws Force flat with Shape 2D", async () => {
+        const session = await openK5();
+        assert.strictEqual(session.layout.id, "force", "the app starts on the force layout by id");
 
-            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
-            let popover = await screen.findByRole("dialog", { name: "Layout" });
-            const rows = within(popover).getAllByRole("option");
-            const engines = session.catalog
-                .layouts()
-                .map((layout) => layoutEntry(layout.id)?.implementations.length ?? 1)
-                .reduce((sum, count) => sum + count, 0);
-            assert.strictEqual(rows.length, engines, "every catalog layout and each of its engines is listed");
-            for (const row of rows) {
-                const line = row.querySelector('[data-testid="layout-description"]')?.textContent ?? "";
-                assert.isNotEmpty(line.trim(), `${row.textContent} has a description`);
-            }
-            assert.isFalse(
-                rows.some((row) => {
-                    const description = row.querySelector('[data-testid="layout-description"]')?.textContent ?? "";
-                    return /flat/i.test(row.textContent.replace(description, ""));
-                }),
-                "no separate flat force",
-            );
-            const force = within(popover).getByRole("option", { name: /^Force(?!Atlas)/ });
-            assert.strictEqual(force.getAttribute("aria-selected"), "true", "the current layout is checked");
-            const rings = within(popover).getByRole("option", { name: /^Rings around a node/ });
-            assert.strictEqual(rings.getAttribute("aria-disabled"), "true");
-            assert.include(rings.textContent, "Select a node first");
-            const planar = within(popover).getByRole("option", { name: /^No crossings/ });
-            assert.strictEqual(planar.getAttribute("aria-disabled"), "true", "K5 cannot be drawn without crossings");
-            assert.include(planar.textContent, "cannot be drawn without crossings");
-            for (const elementWords of ["G is not planar", '"planar"', "results.", "dim:", "`"]) {
-                assert.notInclude(planar.textContent, elementWords);
-            }
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        let popover = await screen.findByRole("dialog", { name: "Layout" });
+        const rows = within(popover).getAllByRole("option");
+        const engines = session.catalog
+            .layouts()
+            .map((layout) => layoutEntry(layout.id)?.implementations.length ?? 1)
+            .reduce((sum, count) => sum + count, 0);
+        assert.strictEqual(rows.length, engines, "every catalog layout and each of its engines is listed");
+        for (const row of rows) {
+            const line = row.querySelector('[data-testid="layout-description"]')?.textContent ?? "";
+            assert.isNotEmpty(line.trim(), `${row.textContent} has a description`);
+        }
+        assert.isFalse(
+            rows.some((row) => {
+                const description = row.querySelector('[data-testid="layout-description"]')?.textContent ?? "";
+                return /flat/i.test(row.textContent.replace(description, ""));
+            }),
+            "no separate flat force",
+        );
+        const force = within(popover).getByRole("option", { name: /^Force(?!Atlas)/ });
+        assert.strictEqual(force.getAttribute("aria-selected"), "true", "the current layout is checked");
+        const rings = within(popover).getByRole("option", { name: /^Rings around a node/ });
+        assert.strictEqual(rings.getAttribute("aria-disabled"), "true");
+        assert.include(rings.textContent, "Select a node first");
+        const planar = within(popover).getByRole("option", { name: /^No crossings/ });
+        assert.strictEqual(planar.getAttribute("aria-disabled"), "true", "K5 cannot be drawn without crossings");
+        assert.include(planar.textContent, "cannot be drawn without crossings");
+        for (const elementWords of ["G is not planar", '"planar"', "results.", "dim:", "`"]) {
+            assert.notInclude(planar.textContent, elementWords);
+        }
 
-            // Grid: nothing runs until Apply.
-            await userEvent.click(within(popover).getByRole("option", { name: /^Grid/ }));
-            assert.strictEqual(session.layout.id, "force", "picking a layout runs nothing");
-            await userEvent.click(within(popover).getByRole("button", { name: "Back to layouts" }));
+        // Grid: nothing runs until Apply.
+        await userEvent.click(within(popover).getByRole("option", { name: /^Grid/ }));
+        assert.strictEqual(session.layout.id, "force", "picking a layout runs nothing");
+        await userEvent.click(within(popover).getByRole("button", { name: "Back to layouts" }));
 
-            // Force: Shape reads what is drawn, and nothing differs yet.
-            await userEvent.click(within(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
-            const shape = within(popover).getByRole("radiogroup", { name: "Shape" });
-            assert.isTrue(within(shape).getByRole<HTMLInputElement>("radio", { name: "3D" }).checked);
-            const applied = within(popover).getByRole("button", { name: "Applied" });
-            assert.isTrue(applied.hasAttribute("disabled"));
+        // Force: Shape reads what is drawn, and nothing differs yet.
+        await userEvent.click(within(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
+        const shape = within(popover).getByRole("radiogroup", { name: "Shape" });
+        assert.isTrue(within(shape).getByRole<HTMLInputElement>("radio", { name: "3D" }).checked);
+        const applied = within(popover).getByRole("button", { name: "Applied" });
+        assert.isTrue(applied.hasAttribute("disabled"));
 
-            await userEvent.click(within(shape).getByText("2D"));
-            await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-            await waitFor(() => {
-                assert.strictEqual(session.layout.arrangedDimension, "2d");
-            });
-            await waitFor(() => {
-                assert.isBelow(deepest(session), 1e-6, "every node lies flat");
-            });
-            assert.strictEqual(session.layout.dimension, "3d", "the view stays 3D");
-
-            // Reopened, Shape reads 2D.
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("dialog", { name: "Layout" }));
-            });
-            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
-            popover = await screen.findByRole("dialog", { name: "Layout" });
-            await userEvent.click(within(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
-            assert.isTrue(
-                within(within(popover).getByRole("radiogroup", { name: "Shape" })).getByRole<HTMLInputElement>(
-                    "radio",
-                    { name: "2D" },
-                ).checked,
-            );
-
-            // Reshuffle applies a new seed at once.
-            const before = session.layout.options.seed;
-            await userEvent.click(within(popover).getByRole("button", { name: /Advanced/ }));
-            // The Advanced settings open in a pop-out of their own, outside the Layout popover.
-            const advanced = await screen.findByRole("dialog", { name: "Advanced" });
-            await userEvent.click(within(advanced).getByRole("button", { name: "Reshuffle" }));
-            await waitFor(() => {
-                assert.notStrictEqual(session.layout.options.seed, before);
-            });
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reads a project saved with the old flat force as Shape 2D",
-        async () => {
-            const session = await openK5();
-            await session.layout.set("force-2d");
+        await userEvent.click(within(shape).getByText("2D"));
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(() => {
             assert.strictEqual(session.layout.arrangedDimension, "2d");
+        });
+        await waitFor(() => {
+            assert.isBelow(deepest(session), 1e-6, "every node lies flat");
+        });
+        assert.strictEqual(session.layout.dimension, "3d", "the view stays 3D");
 
-            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
-            const popover = await screen.findByRole("dialog", { name: "Layout" });
-            // The old flat force is Force drawn by its ARF engine: that engine's own row is checked.
-            const arf = within(popover).getByRole("option", { name: /^ARF/ });
-            assert.strictEqual(arf.getAttribute("aria-selected"), "true");
-            await userEvent.click(arf);
-            within(popover).getByText("Draws flat");
-        },
-        TIMEOUT_MS,
-    );
+        // Reopened, Shape reads 2D.
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Layout" }));
+        });
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        popover = await screen.findByRole("dialog", { name: "Layout" });
+        await userEvent.click(within(popover).getByRole("option", { name: /^Force(?!Atlas)/ }));
+        assert.isTrue(
+            within(within(popover).getByRole("radiogroup", { name: "Shape" })).getByRole<HTMLInputElement>("radio", {
+                name: "2D",
+            }).checked,
+        );
+
+        // Reshuffle applies a new seed at once.
+        const before = session.layout.options.seed;
+        await userEvent.click(within(popover).getByRole("button", { name: /Advanced/ }));
+        // The Advanced settings open in a pop-out of their own, outside the Layout popover.
+        const advanced = await screen.findByRole("dialog", { name: "Advanced" });
+        await userEvent.click(within(advanced).getByRole("button", { name: "Reshuffle" }));
+        await waitFor(() => {
+            assert.notStrictEqual(session.layout.options.seed, before);
+        });
+    });
+
+    it("reads a project saved with the old flat force as Shape 2D", async () => {
+        const session = await openK5();
+        await session.layout.set("force-2d");
+        assert.strictEqual(session.layout.arrangedDimension, "2d");
+
+        await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        // The old flat force is Force drawn by its ARF engine: that engine's own row is checked.
+        const arf = within(popover).getByRole("option", { name: /^ARF/ });
+        assert.strictEqual(arf.getAttribute("aria-selected"), "true");
+        await userEvent.click(arf);
+        within(popover).getByText("Draws flat");
+    });
 
     it("lists Force's other engines under Force-directed, and choosing ForceAtlas2 runs force with that engine", async () => {
         const session = await openK5();

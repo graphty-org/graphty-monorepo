@@ -743,7 +743,14 @@ Each package has its own CLAUDE.md with package-specific guidance:
     that interaction in its play function (pointer events on the canvas, clicks on the controls),
     and graphty's play functions run as tests in the `storybook` project.
 - Use `assert` instead of `expect` in layout tests
-- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
+- Tests wait on conditions and assert on counted work, with no local deadline anywhere: one global
+  hang guard, set in one place (`tools/test-wait-guard.mjs`), ends a hang -- every vitest config is
+  wrapped in its `withTestGuards`, which sets every test's, hook's and wait's limit (`vi.waitFor`,
+  `expect.poll`, `expect.element`, Testing Library, graphty-element's `waitForStableFrame()`) far
+  above the slowest legitimate test. No test, story, helper, setup file or config sets a timeout,
+  an interval or a deadline loop of its own, and no override of the guard exists. The
+  `local/no-test-timing` lint rule enforces it. A measurement is not a test: it goes in a project
+  named `bench*` (started by hand, never by the gate), which runs with no time limit.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - `pnpm run test:changed` runs only the tests your change can affect (`--dry-run` shows them and why), the

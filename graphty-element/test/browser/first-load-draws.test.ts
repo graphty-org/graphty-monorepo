@@ -37,11 +37,8 @@ describe("the first load into an empty element", () => {
         await draft.load({ styles: "none", mapping: draft.mapping });
 
         assert.isAbove(session.data.statistics().nodeCount, 0);
-        await vi.waitFor(
-            () => {
-                assert.isAbove(visible(), empty, "a node is drawn");
-            },
-            { timeout: 10_000, interval: 50 },
-        );
+        await vi.waitFor(() => {
+            assert.isAbove(visible(), empty, "a node is drawn");
+        });
     });
 });

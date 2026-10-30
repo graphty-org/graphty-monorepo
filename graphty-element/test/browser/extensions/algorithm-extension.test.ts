@@ -849,12 +849,9 @@ DeclaredAlgorithm.register(SharedRank);
  * @param what - What is being waited for, for the failure message.
  */
 async function waitFor(predicate: () => boolean, what: string): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isTrue(predicate(), `Timed out waiting for ${what}`);
-        },
-        { timeout: 5000 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(predicate(), `Timed out waiting for ${what}`);
+    });
 }
 
 /**

@@ -1,9 +1,10 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         ...baseTest({ reporters: ["verbose"] }),
         projects: [
@@ -13,7 +14,6 @@ export default defineConfig({
                     globals: true,
                     environment: "happy-dom",
                     pool: "forks",
-                    testTimeout: 30000,
                     // see test/setup/yield-to-event-loop.ts -- without it a file of long synchronous
                     // tests holds the worker past vitest's fixed 60 s RPC timeout and fails a green run
                     setupFiles: ["./test/setup/yield-to-event-loop.ts"],
@@ -46,8 +46,6 @@ export default defineConfig({
                         instances: [{ browser: "chromium" }],
                     },
                     include: ["test/browser/**/*.test.ts"],
-                    testTimeout: 60000,
-                    hookTimeout: 60000,
                 },
             },
         ],
@@ -82,8 +80,6 @@ export default defineConfig({
                       },
         },
         slowTestThreshold: 5000,
-        // Force exit after tests complete to prevent hanging
-        teardownTimeout: 10000,
     },
     resolve: {
         alias: {
@@ -91,3 +87,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

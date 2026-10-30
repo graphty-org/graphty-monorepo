@@ -153,12 +153,9 @@ describe("the location map layout", () => {
     it("draws the map under the nodes with its credits, and removes it with another layout", async () => {
         await placeAirports({ latitude: "latitude", longitude: "longitude" });
         // a hang guard for the bundled picture loading, not a pass/fail timing
-        await vi.waitFor(
-            () => {
-                assert.equal(graph.basemapStatus.state, "ready");
-            },
-            { timeout: 20_000, interval: 100 },
-        );
+        await vi.waitFor(() => {
+            assert.equal(graph.basemapStatus.state, "ready");
+        });
         assert.equal(graph.basemapStatus.source, "natural-earth");
         assert.include(graph.basemapStatus.attribution, "Natural Earth");
         const strip = container.querySelector<HTMLElement>("[data-graphty-attribution]");

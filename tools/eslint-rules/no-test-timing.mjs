@@ -27,6 +27,24 @@
  *   to `evaluate`, `evaluateHandle`, `$eval`, `$$eval`, `addInitScript` or `evaluateOnNewDocument`.
  *   The page then runs its steps on the clock instead of on the events they wait on (#2422, #2447).
  *
+ * - a time budget on a wait: a `timeout` or `interval` option (or a number in its place) on `waitFor`,
+ *   `waitForElementToBeRemoved`, `vi.waitFor`, `vi.waitUntil`, `expect.poll`, `expect.element`,
+ *   `find*By*`, a Playwright locator action or assertion, `toPass`, `waitForFunction`,
+ *   `waitForSelector`, `waitForEvent` and the other `waitFor*` calls, or a helper that builds one
+ *   (`storyWaitOptions(n)`). A wait's deadline decides pass or fail on a busy machine while the work
+ *   it waits on still finishes; one global hang guard (tools/test-wait-guard.mjs) ends every wait
+ *   that hangs. Fixable: `--fix` removes the option.
+ * - any other local deadline: a timeout or interval option on a call that waits (`waitForStableFrame({
+ *   timeoutMs })`, `untilIdle(x, { intervalMs })`) or runs a process or a request (`execFile(cmd, {
+ *   timeout })`, `fetch`), a helper parameter that defaults to one, a
+ *   `testTimeout` / `hookTimeout` / `teardownTimeout` anywhere (a per-project value in a vitest
+ *   config), and a deadline loop or check (`while (Date.now() < deadline)`, `if (performance.now() -
+ *   start > budget) throw`). There is one hang guard, set in one place; nothing else may end a test
+ *   on the clock. Only the guard's own constants (`WAIT_GUARD_MS`, `TEST_GUARD_MS`) may be passed:
+ *   a synchronous child process (`spawnSync`) blocks the event loop, so no test timeout can end it.
+ *   A timeout option of the code under test (a notifier's `timeoutMs`, graphviz's) is what the test
+ *   checks, not a deadline on the test, and is not reported.
+ *
  * Zero-delay timers (`setTimeout(r, 0)`) yield to the event loop and are not reported, and neither
  * is a sleep inside a callback handed to the code under test, which simulates slow work.
  */
@@ -38,6 +56,10 @@ const SLEEP_HINT =
 const TIMEOUT_HINT = "Do not set a per-test timeout; find what the test waits on and wait on that condition instead.";
 const FRAMES_HINT =
     "Count the work the test waits for (input updates, renders, events) and wait until that count is reached; a busy machine skips or adds animation frames.";
+const WAIT_HINT =
+    "Remove it: every wait shares the project's one hang guard (tools/test-wait-guard.mjs). If the wait runs out under load, wait on the event or state that settles it.";
+const DEADLINE_HINT =
+    "Remove it: the one global hang guard (tools/test-wait-guard.mjs) ends a real hang. Wait on the condition with no deadline of its own, or assert the state directly.";
 const PAGE_TIMER_HINT =
     "Drive each step in the page from the event it waits on (an awaited waitForFunction, a promise the test resolves) instead of a timer.";
 
@@ -63,13 +85,81 @@ const FUNCTION_TYPES = new Set(["ArrowFunctionExpression", "FunctionExpression",
 const ONE_FRAME_NAMES = new Set(["nextFrame", "nextAnimationFrame", "animationFrame", "waitFrame", "waitForFrame"]);
 // Calls that run a function in the page rather than in the test.
 const NUMBER_OPS = { "+": (a, b) => a + b, "-": (a, b) => a - b, "*": (a, b) => a * b };
+// Waits whose options take a deadline. A Playwright action or matcher takes one too, judged separately.
+const WAIT_CALLS = new Set([
+    "waitFor",
+    "waitForElementToBeRemoved",
+    "waitUntil",
+    "poll",
+    "element",
+    "toPass",
+    "waitForFunction",
+    "waitForSelector",
+    "waitForEvent",
+    "waitForURL",
+    "waitForLoadState",
+    "waitForResponse",
+    "waitForRequest",
+]);
+const LOCATOR_ACTIONS = new Set([
+    "click",
+    "dblclick",
+    "fill",
+    "hover",
+    "press",
+    "pressSequentially",
+    "type",
+    "check",
+    "uncheck",
+    "setChecked",
+    "selectOption",
+    "selectText",
+    "tap",
+    "dragTo",
+    "focus",
+    "blur",
+    "clear",
+    "setInputFiles",
+    "scrollIntoViewIfNeeded",
+    "textContent",
+    "innerText",
+    "inputValue",
+    "getAttribute",
+]);
+// Matchers whose argument is the expected value, not options: `expect(x).toEqual({ timeout: 5000 })`.
+const VALUE_MATCHER =
+    /^to(Be|Equal|StrictEqual|MatchObject|ContainEqual|Contain|HaveProperty|HaveBeen.*|HaveReturned.*|HaveLastReturned.*|HaveNthReturned.*|Throw.*|Match.*Snapshot|Satisfy|HaveLength)$/;
+const FIND_QUERY = /^find(All)?By[A-Z]/;
+const WAIT_KEYS = new Set(["timeout", "interval"]);
+// Any option or parameter that sets a deadline or a polling interval: `timeout`, `timeoutMs`,
+// `pollIntervalMs`, `actionTimeout`, `testTimeout`.
+const DEADLINE_KEY = /^(timeout|interval|pollInterval)(Ms|Millis|Seconds)?$|(Timeout|Interval)(Ms|Millis|Seconds)?$/;
+// Keys that set every test's, hook's, wait's or action's deadline (a vitest config, Testing Library's
+// `configure`, a Playwright provider), reported wherever they appear: the guard sets them.
+const CONFIG_DEADLINE_KEYS = new Set([
+    "testTimeout",
+    "hookTimeout",
+    "teardownTimeout",
+    "asyncUtilTimeout",
+    "actionTimeout",
+]);
+// Calls whose timeout option is a deadline on the test's own wait: a wait by name, a child process, a request.
+const WAITING_CALL = /(^(wait|until|poll|settle|find))|((Stable|Settled|Idle)(Frame)?$)/i;
+const PROCESS_CALLS = new Set(["exec", "execFile", "execSync", "execFileSync", "spawn", "spawnSync", "fork", "fetch"]);
+// The global hang guard's own constants (tools/test-wait-guard.mjs): the one value a deadline may take.
+const GUARD_NAMES = new Set(["WAIT_GUARD_MS", "TEST_GUARD_MS"]);
+// Helpers that build a wait's deadline from a number.
+const WAIT_BUILDERS = new Set(["storyWaitOptions"]);
 const PAGE_CALLS = new Set(["evaluate", "evaluateHandle", "$eval", "$$eval", "addInitScript", "evaluateOnNewDocument"]);
 
 /** @type {import("eslint").Rule.RuleModule} */
 const rule = {
     meta: {
         type: "problem",
-        docs: { description: "Disallow wall-clock assertions, fixed sleeps and per-test timeouts in tests" },
+        fixable: "code",
+        docs: {
+            description: "Disallow wall-clock assertions, fixed sleeps, per-test timeouts and wait deadlines in tests",
+        },
         schema: [
             {
                 type: "object",
@@ -87,6 +177,8 @@ const rule = {
             timeout: `Per-test timeout override. ${TIMEOUT_HINT}`,
             frames: `Animation frames counted as a wait. ${FRAMES_HINT}`,
             pageTimer: `Timer in code handed to the page. ${PAGE_TIMER_HINT}`,
+            waitBudget: `Time budget on a wait. ${WAIT_HINT}`,
+            deadline: `Local deadline. ${DEADLINE_HINT}`,
         },
     },
     create(context) {
@@ -227,6 +319,7 @@ const rule = {
             obj.properties.some((p) => p.type === "Property" && keys.has(p.key.name ?? p.key.value));
 
         const TIMEOUT_KEYS = new Set(["timeout"]);
+        const isTimeoutProp = (p) => keyName(p) === "timeout";
         const CONFIG_KEYS = new Set(["testTimeout", "hookTimeout", "teardownTimeout"]);
 
         const checkTimeoutArgs = (node) => {
@@ -245,14 +338,22 @@ const rule = {
             if (args.length <= fnIndex) {
                 return;
             }
-            const others = args.filter((_, i) => i !== fnIndex);
-            const after = args.slice(fnIndex + 1);
-            if (
-                others.some((a) => hasTimeoutKey(a, TIMEOUT_KEYS)) ||
-                after.some((a) => a.type !== "ObjectExpression" && a.type !== "SpreadElement")
-            ) {
-                context.report({ node, messageId: "timeout" });
+            const isNumberArg = (a, i) => i > fnIndex && a.type !== "ObjectExpression" && a.type !== "SpreadElement";
+            const isOptions = (a, i) => i !== fnIndex && hasTimeoutKey(a, TIMEOUT_KEYS);
+            if (!args.some((a, i) => isNumberArg(a, i) || isOptions(a, i))) {
+                return;
             }
+            // Fixable: the timeout argument, or the `timeout` option, goes.
+            const fix = (fixer) =>
+                args.flatMap((a, i) => {
+                    if (isNumberArg(a, i)) {
+                        return [removeArg(fixer, args, i)];
+                    }
+                    return isOptions(a, i)
+                        ? [removeProps(fixer, args, i, budgetProps(a).filter(isTimeoutProp))].flat()
+                        : [];
+                });
+            context.report({ node, messageId: "timeout", fix });
         };
 
         // A sleep inside a callback handed to the code under test (`queue.run(async () => { await
@@ -532,7 +633,200 @@ const rule = {
             return name === "setConfig" && args.some((a) => hasTimeoutKey(a, CONFIG_KEYS));
         };
 
+        // ---- Time budgets on waits.
+        const keyName = (p) => p.type === "Property" && !p.computed && (p.key.name ?? p.key.value);
+        const budgetProps = (obj) =>
+            obj?.type === "ObjectExpression" ? obj.properties.filter((p) => WAIT_KEYS.has(keyName(p))) : [];
+        // A const holding a budget object: `const WAIT = { timeout: 2000 }`.
+        const budgetConst = (id) => {
+            const def = id?.type === "Identifier" ? resolve(id)?.defs[0] : undefined;
+            return def?.type === "Variable" && def.parent.kind === "const" && budgetProps(def.node.init).length > 0;
+        };
+        const isBuilder = (n) =>
+            n?.type === "CallExpression" && n.callee.type === "Identifier" && WAIT_BUILDERS.has(n.callee.name);
+        // Removes an argument with the comma before it (or after it, when it is first).
+        const removeArg = (fixer, args, i) => {
+            const tokens = sourceCode;
+            if (i > 0) {
+                return fixer.removeRange([args[i - 1].range[1], args[i].range[1]]);
+            }
+            const next = args[1];
+            return fixer.removeRange([args[0].range[0], next ? next.range[0] : tokens.getTokenAfter(args[0]).range[0]]);
+        };
+        // Removes a property; the whole argument when nothing else is left in it.
+        const removeProps = (fixer, args, i, props) => {
+            const obj = args[i];
+            if (props.length === obj.properties.length) {
+                return removeArg(fixer, args, i);
+            }
+            return props.map((p) => {
+                const after = sourceCode.getTokenAfter(p);
+                const end = after.value === "," ? sourceCode.getTokenAfter(after).range[0] : p.range[1];
+                const before = sourceCode.getTokenBefore(p);
+                return after.value === ","
+                    ? fixer.removeRange([p.range[0], end])
+                    : fixer.removeRange([before.range[0], p.range[1]]);
+            });
+        };
+        const isWaitCall = (node, name) => {
+            if (WAIT_CALLS.has(name) || FIND_QUERY.test(name ?? "")) {
+                return true;
+            }
+            // locator.click({ timeout }), expect(x).toBeVisible({ timeout }): a member call only.
+            if (node.callee.type !== "MemberExpression") {
+                return false;
+            }
+            return (
+                LOCATOR_ACTIONS.has(name) ||
+                (/^to[A-Z]/.test(name ?? "") && !VALUE_MATCHER.test(name) && baseName(node.callee) === "expect")
+            );
+        };
+        // `vi.waitFor(fn, 5000)`, `vi.waitUntil(fn, 5000)`: a number where the options go.
+        const NUMBER_BUDGET = new Set(["waitFor", "waitUntil"]);
+        const isGuard = (v) =>
+            (v?.type === "Identifier" && GUARD_NAMES.has(v.name)) ||
+            (v?.type === "MemberExpression" && GUARD_NAMES.has(propName(v)));
+        // A timeout or interval option on a call that is not a wait the checks above know.
+        const checkDeadlineOptions = (node, name) => {
+            const base = baseName(node.callee);
+            if (!WAITING_CALL.test(name ?? "") && !PROCESS_CALLS.has(name)) {
+                return;
+            }
+            // The checks above report a test's, a hook's and setConfig's own timeout.
+            if (
+                VALUE_MATCHER.test(name ?? "") ||
+                base === "expect" ||
+                TEST_NAMES.has(base) ||
+                HOOK_NAMES.has(base) ||
+                HOOK_NAMES.has(name) ||
+                name === "setConfig"
+            ) {
+                return;
+            }
+            for (const arg of node.arguments) {
+                if (arg.type !== "ObjectExpression") {
+                    continue;
+                }
+                for (const p of arg.properties) {
+                    const key = keyName(p);
+                    if (key && DEADLINE_KEY.test(key) && !CONFIG_DEADLINE_KEYS.has(key) && !isGuard(p.value)) {
+                        const args = node.arguments;
+                        context.report({
+                            node: p,
+                            messageId: "deadline",
+                            fix: (fixer) => removeProps(fixer, args, args.indexOf(arg), [p]),
+                        });
+                    }
+                }
+            }
+        };
+        const checkWaitBudget = (node, name) => {
+            if (!name || !isWaitCall(node, name)) {
+                checkDeadlineOptions(node, name);
+                return;
+            }
+            const args = node.arguments;
+            args.forEach((arg, i) => {
+                const props = budgetProps(arg).filter((p) => !isGuard(p.value));
+                if (props.length > 0) {
+                    context.report({
+                        node: arg,
+                        messageId: "waitBudget",
+                        fix: (fixer) => removeProps(fixer, args, i, props),
+                    });
+                } else if (isBuilder(arg)) {
+                    context.report({ node: arg, messageId: "waitBudget", fix: (fixer) => removeArg(fixer, args, i) });
+                } else if (budgetConst(arg)) {
+                    context.report({ node: arg, messageId: "waitBudget" });
+                } else if (i === 1 && NUMBER_BUDGET.has(name) && baseName(node.callee) === "vi" && isNumeric(arg)) {
+                    context.report({ node: arg, messageId: "waitBudget", fix: (fixer) => removeArg(fixer, args, i) });
+                }
+            });
+        };
+
+        // A comparison against the clock outside an assertion: a deadline loop or check.
+        // What gives up: a throw, a break or return, or settling a promise (`reject`, `resolve`, `fail`).
+        const GIVE_UP_CALLS = new Set(["reject", "resolve", "fail"]);
+        const givesUp = (n) => {
+            if (!n || typeof n !== "object" || isFunction(n)) {
+                return false;
+            }
+            if (["ThrowStatement", "BreakStatement", "ReturnStatement"].includes(n.type)) {
+                return true;
+            }
+            if (n.type === "CallExpression" && GIVE_UP_CALLS.has(n.callee.name ?? propName(n.callee))) {
+                return true;
+            }
+            return Object.entries(n).some(
+                ([k, v]) => k !== "parent" && (Array.isArray(v) ? v.some(givesUp) : v?.type && givesUp(v)),
+            );
+        };
+        // Work the test hands to the code under test or to a timer (`defineAlgorithm({ nodes: () =>
+        // spin() })`, a fake server's `setInterval`) simulates that code; it is not the test waiting.
+        const inSimulatedWork = (node) => {
+            for (let p = node.parent; p; p = p.parent) {
+                if (!isFunction(p)) {
+                    continue;
+                }
+                const holder = p.parent?.type === "Property" ? p.parent.parent?.parent : p.parent;
+                const callee = holder?.callee;
+                const name = callee?.type === "Identifier" ? callee.name : propName(callee);
+                if (
+                    (holder?.type === "CallExpression" || holder?.type === "NewExpression") &&
+                    !TEST_NAMES.has(baseName(callee)) &&
+                    !HOOK_NAMES.has(baseName(callee)) &&
+                    !WAITING_CALL.test(name ?? "") &&
+                    name !== "Promise"
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        // A comparison against the clock that decides whether to keep waiting: a loop's condition,
+        // or an `if` that gives up. An animation's progress (`if (progress < 1) requestAnimationFrame(f)`)
+        // is not one.
+        const isDeadlineCheck = (node) => {
+            const left = clockKind(node.left);
+            const right = clockKind(node.right);
+            if (!(left === "elapsed" || right === "elapsed" || (left === "raw" && right === "raw"))) {
+                return false;
+            }
+            let test = node;
+            while (["LogicalExpression", "UnaryExpression"].includes(test.parent?.type)) {
+                test = test.parent;
+            }
+            const st = test.parent;
+            const loop = ["WhileStatement", "DoWhileStatement", "ForStatement"].includes(st?.type) && st.test === test;
+            const check = st?.type === "IfStatement" && st.test === test && givesUp(st.consequent);
+            return (loop || check) && !inSimulatedWork(node);
+        };
+        // A helper parameter that defaults to a deadline: `timeoutMs = 5000`, `{ timeout = 1000 } = {}`.
+        const checkParams = (fn) => {
+            const visit = (p) => {
+                if (p?.type === "AssignmentPattern") {
+                    if (p.left.type === "Identifier" && DEADLINE_KEY.test(p.left.name) && !isGuard(p.right)) {
+                        context.report({ node: p, messageId: "deadline" });
+                    }
+                    visit(p.left);
+                } else if (p?.type === "ObjectPattern") {
+                    p.properties.forEach((q) => visit(q.type === "Property" ? q.value : q));
+                }
+            };
+            fn.params.forEach(visit);
+        };
+
         return {
+            Property(node) {
+                const call = node.parent.parent;
+                const inSetConfig = call?.type === "CallExpression" && propName(call.callee) === "setConfig";
+                if (CONFIG_DEADLINE_KEYS.has(keyName(node)) && !isGuard(node.value) && !inSetConfig) {
+                    context.report({ node, messageId: "deadline" });
+                }
+            },
+            ":function"(node) {
+                checkParams(node);
+            },
             ForStatement(node) {
                 frameLoops.push(node);
             },
@@ -552,21 +846,27 @@ const rule = {
                 markClock(node.left, node.right);
             },
             BinaryExpression(node) {
-                if (!COMPARISONS.has(node.operator) || !(isElapsed(node.left) || isElapsed(node.right))) {
+                if (!COMPARISONS.has(node.operator)) {
                     return;
                 }
-                // Only inside an assertion: a deadline loop is not an assertion.
+                // Inside an assertion it asserts on elapsed time; anywhere else it is a deadline.
                 for (let p = node.parent; p && !isFunction(p); p = p.parent) {
                     if (p.type === "CallExpression" && isAssertCall(p)) {
-                        context.report({ node, messageId: "clock" });
+                        if (isElapsed(node.left) || isElapsed(node.right)) {
+                            context.report({ node, messageId: "clock" });
+                        }
                         return;
                     }
+                }
+                if (isDeadlineCheck(node)) {
+                    context.report({ node, messageId: "deadline" });
                 }
             },
             CallExpression(node) {
                 const { callee } = node;
                 const name = callee.type === "Identifier" ? callee.name : propName(callee);
                 checkClockMatcher(node, name);
+                checkWaitBudget(node, name);
                 collectCall(node, name);
                 if (isSleepCall(node, name)) {
                     reportSleep(node);

@@ -23,6 +23,8 @@ const config: KnipConfig = {
                 "vitest.shared.config.ts",
                 // First setup file of the packages' browser test projects (named in their vitest configs)
                 "vitest.browser-coverage-setup.ts",
+                // Every package's wait guard setup file (named in their vitest configs)
+                "vitest.wait-guard-setup.ts",
                 // Serves map tiles from a fixture in the browser test projects (vitest.map-tiles.mjs)
                 "vitest.map-tiles-setup.ts",
                 "docs/.vitepress/config.ts",

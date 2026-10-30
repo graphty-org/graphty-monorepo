@@ -17,9 +17,6 @@ import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** A hub "a" with three spokes: the givers' donations, roles and whether they are on record. */
 const NODES = [
     { id: "a", name: "Ava", donations: 12000, role: "staff", member: true },
@@ -47,13 +44,10 @@ async function openWithGraph(
     const store = createWorkspaceStore({ project: { name: "Givers", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -69,7 +63,7 @@ async function openWithGraph(
  * @returns the box.
  */
 async function focusFind(): Promise<HTMLElement> {
-    const find = await screen.findByRole("combobox", { name: "Find" }, { timeout: TIMEOUT_MS });
+    const find = await screen.findByRole("combobox", { name: "Find" });
     await userEvent.click(find);
     return find;
 }
@@ -93,15 +87,12 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("zzz");
 
-        await waitFor(
-            () => {
-                assert.include(
-                    lineUnderBox(),
-                    "Still selected: 2 nodes. To select by a value, type a rule such as donations >= 6000",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.include(
+                lineUnderBox(),
+                "Still selected: 2 nodes. To select by a value, type a rule such as donations >= 6000",
+            );
+        });
         assert.notInclude(lineUnderBox(), "`");
         assert.notMatch(lineUnderBox(), /(^|\s)=/, "no rule starts with =");
     });
@@ -111,7 +102,7 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("=degree > 2");
 
-        await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Did you mean Degree?", {});
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const offer = within(list).getByRole("group", { name: "Rule" });
         await waitFor(() => {
@@ -130,8 +121,8 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("donations >= 10000");
 
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-        const offer = await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const offer = await within(list).findByRole("group", { name: "Rule" });
         await waitFor(() => {
             assert.include(offer.textContent, "donations >= 10000");
             assert.include(offer.textContent, "Select the 2 nodes (donations 10000 or more)");
@@ -144,7 +135,7 @@ describe("the find box in plain words", () => {
         await session.selection.apply({ nodes: ["d"] });
         await focusFind();
         await userEvent.keyboard("staff");
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
         const row = within(list).getByRole("option", { name: /role is staff/ });
 
         await userEvent.keyboard("{Shift>}");
@@ -161,7 +152,7 @@ describe("the find box in plain words", () => {
         const session = await openWithGraph();
         await focusFind();
         await userEvent.keyboard("staff");
-        await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("listbox", { name: "Find results" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["a"]);
@@ -202,17 +193,17 @@ describe("the find box in plain words", () => {
         const session = await openWithGraph();
         await focusFind();
         await userEvent.keyboard("Ava");
-        await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("listbox", { name: "Find results" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["a"]);
         });
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await inspector.findByRole("tab", { name: "Style" }));
 
         await focusFind();
         await userEvent.keyboard("Ava");
-        await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("listbox", { name: "Find results" });
         await userEvent.keyboard("{Enter}");
 
         await waitFor(() => {
@@ -225,7 +216,7 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("Yes");
 
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
         assert.isNotNull(within(list).queryByRole("option", { name: /member is Yes \(2\)/ }));
     });
 
@@ -235,12 +226,9 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("=email missing{Enter}");
 
-        await waitFor(
-            () => {
-                assert.include(lineUnderBox(), "Not a rule Find can read");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.include(lineUnderBox(), "Not a rule Find can read");
+        });
         assert.include(lineUnderBox(), "Still selected: 1 node. A rule reads like donations >= 6000");
         assert.deepEqual([...session.selection.nodes], ["b"]);
     });
@@ -250,12 +238,9 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("zzz");
 
-        await waitFor(
-            () => {
-                assert.match(lineUnderBox(), /type a rule such as name == '(Ava|Ben|Cy|Dee)'/);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.match(lineUnderBox(), /type a rule such as name == '(Ava|Ben|Cy|Dee)'/);
+        });
         await userEvent.clear(screen.getByRole("combobox", { name: "Find" }));
         await userEvent.keyboard("=");
         await waitFor(() => {
@@ -276,12 +261,9 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("=");
 
-        await waitFor(
-            () => {
-                assert.strictEqual(lineUnderBox().trim(), "Type a rule");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(lineUnderBox().trim(), "Type a rule");
+        });
         await userEvent.keyboard("zz zz{Enter}");
         await waitFor(() => {
             assert.include(lineUnderBox(), "Not a rule Find can read");
@@ -295,7 +277,7 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("=degree > 2");
 
-        const line = await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
+        const line = await screen.findByText("Did you mean Degree?", {});
         assert.isTrue(line.classList.contains("ws-find-empty"), line.className);
         assert.isNull(document.querySelector(".ws-find-refusal"));
         const find = screen.getByRole("combobox", { name: "Find" });
@@ -306,8 +288,8 @@ describe("the find box in plain words", () => {
         const session = await openWithGraph();
         const find = await focusFind();
         await userEvent.keyboard("donations >= 10000");
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-        await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        await within(list).findByRole("group", { name: "Rule" });
 
         await userEvent.keyboard("{Enter}");
 
@@ -327,8 +309,8 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("donations_in_total >= 10000");
 
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-        const offer = await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const offer = await within(list).findByRole("group", { name: "Rule" });
         await waitFor(() => {
             assert.include(offer.textContent, "Select the 2 nodes");
         });
@@ -347,8 +329,8 @@ describe("the find box in plain words", () => {
         const session = await openWithGraph([...NODES, ...staff]);
         await focusFind();
         await userEvent.keyboard("staff");
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-        const row = await within(list).findByRole("option", { name: /role is staff/ }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const row = await within(list).findByRole("option", { name: /role is staff/ });
         const viewport = list.closest<HTMLElement>(".ws-find-viewport");
         assert.isNotNull(viewport);
         await waitFor(() => {

@@ -16,9 +16,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a layout finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** A ring of twelve nodes. */
 const IDS = Array.from({ length: 12 }, (_, i) => `n${String(i)}`);
 const RING = IDS.map((src, i) => ({ src, dst: IDS[(i + 1) % IDS.length] }));
@@ -31,14 +28,11 @@ type Element = HTMLElementTagNameMap["graphty-element"];
  */
 async function openRing(): Promise<{ element: Element; session: GraphSession }> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Ring", id: 1 } })} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -111,12 +105,9 @@ describe("the layout form's Transition", () => {
 
         const stop = trackDrawn(element, "n3");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(session.layout.id, "circular");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(session.layout.id, "circular");
+        });
         await element.waitForSettled();
         await element.waitForStableFrame();
         const seen = stop();
@@ -129,11 +120,8 @@ describe("the layout form's Transition", () => {
         assert.isAbove(between.length, 1, "the node is drawn on its way, over several frames");
 
         await session.undo();
-        await waitFor(
-            () => {
-                assert.strictEqual(session.layout.id, before, "Undo returns the layout");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(session.layout.id, before, "Undo returns the layout");
+        });
     });
 });

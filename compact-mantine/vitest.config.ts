@@ -6,6 +6,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
 /**
@@ -325,7 +326,7 @@ const browserCommands = {
 // comes out empty.
 const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-library/react"] };
 
-export default defineConfig({
+const config = defineConfig({
     plugins: [react()],
     test: {
         ...baseTest(),
@@ -445,3 +446,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

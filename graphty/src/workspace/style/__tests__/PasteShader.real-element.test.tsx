@@ -20,7 +20,6 @@ import {
     renderPanel,
     section,
     shaderRows,
-    TIMEOUT_MS,
     usesOn,
 } from "./shaderHarness";
 
@@ -126,12 +125,9 @@ async function previewPixels(): Promise<{ src: string; pixels: number[] }> {
 
 /** Waits for the checks to settle with Add enabled, then presses it. */
 async function pressAdd(): Promise<void> {
-    await waitFor(
-        () => {
-            assert.isNull(addButton().getAttribute("aria-disabled"), "Add is enabled");
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.isNull(addButton().getAttribute("aria-disabled"), "Add is enabled");
+    });
     await userEvent.click(addButton());
 }
 
@@ -147,12 +143,9 @@ describe("the code dialog on the real element", () => {
         const place = within(dialog).getByLabelText<HTMLInputElement>(/^Place/);
         assert.strictEqual(place.value, "On the node");
         await userEvent.fill(box, FIXED_TEXT);
-        await waitFor(
-            () => {
-                assert.strictEqual(place.value, "Around", "the header's place is where it draws");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(place.value, "Around", "the header's place is where it draws");
+        });
         const guide = within(dialog).getByRole("link", { name: "How to write one" });
         assert.strictEqual(guide.getAttribute("href"), "https://graphty.app/docs/graphty-element/guide/shaders");
     });
@@ -188,15 +181,12 @@ describe("the code dialog on the real element", () => {
         const box = await openNew();
         await userEvent.fill(box, WHILE_TEXT);
         const dialog = screen.getByRole("dialog", { name: "New shader" });
-        const rows = await waitFor(
-            () => {
-                const list = within(dialog).getByRole("list", { name: "Problems" });
-                const found = within(list).getAllByRole("listitem");
-                assert.lengthOf(found, 1, "one problem row");
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const rows = await waitFor(() => {
+            const list = within(dialog).getByRole("list", { name: "Problems" });
+            const found = within(list).getAllByRole("listitem");
+            assert.lengthOf(found, 1, "one problem row");
+            return found;
+        });
         assert.include(rows[0]?.textContent ?? "", "Line 7:5");
         assert.strictEqual(addButton().getAttribute("aria-disabled"), "true");
 
@@ -210,12 +200,9 @@ describe("the code dialog on the real element", () => {
 
         await userEvent.fill(box, FIXED_TEXT);
         await pressAdd();
-        await waitFor(
-            () => {
-                assert.deepEqual(usesOn(session, id), [{ shader: "user/pulse-ring" }]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(usesOn(session, id), [{ shader: "user/pulse-ring" }]);
+        });
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: DIALOG }), "the dialog closed");
         });
@@ -248,15 +235,12 @@ describe("the code dialog on the real element", () => {
         assert.include(box.value, '"Aura copy"', "the copy is named apart");
         await pressAdd();
 
-        await waitFor(
-            () => {
-                assert.deepEqual(
-                    usesOn(session, id).map((use) => use.shader),
-                    ["uncertainty-aura", "user/uncertainty-aura"],
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(
+                usesOn(session, id).map((use) => use.shader),
+                ["uncertainty-aura", "user/uncertainty-aura"],
+            );
+        });
         const body = async (shader: string): Promise<string> => {
             const parsed = parseShaderText(await session.shaders.source(shader, { duplicate: true }));
             assert.isTrue(parsed.ok);
@@ -304,12 +288,9 @@ describe("the code dialog on the real element", () => {
         assert.strictEqual(box.value, text);
         await pressAdd();
 
-        await waitFor(
-            () => {
-                assert.deepEqual(usesOn(session, id), [{ shader: "uncertainty-aura" }]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(usesOn(session, id), [{ shader: "uncertainty-aura" }]);
+        });
         assert.lengthOf(session.shaders.list(), 0, "no copy was added");
     });
 
@@ -361,12 +342,9 @@ describe("the code dialog on the real element", () => {
         const box = await openNew();
         await userEvent.fill(box, COMPILE_TEXT);
         const dialog = screen.getByRole("dialog", { name: "New shader" });
-        await waitFor(
-            () => {
-                assert.isNotNull(dialog.querySelector('[data-code="shader.compile"]'), "a compile problem row");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotNull(dialog.querySelector('[data-code="shader.compile"]'), "a compile problem row");
+        });
         assert.strictEqual(box.getAttribute("aria-invalid"), "true");
         const problems = within(dialog).getByRole("list", { name: "Problems" });
         assert.include(box.getAttribute("aria-describedby") ?? "", problems.id);
@@ -381,39 +359,30 @@ describe("the code dialog on the real element", () => {
         const box = await openNew();
         const dialog = screen.getByRole("dialog", { name: "New shader" });
         await userEvent.fill(box, FIXED_TEXT);
-        const first = await waitFor(
-            async () => {
-                const shown = await previewPixels();
-                assert.isTrue(
-                    shown.pixels.some((value, at) => at % 4 === 3 && value > 0),
-                    "the picture has something drawn",
-                );
-                return shown;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const first = await waitFor(async () => {
+            const shown = await previewPixels();
+            assert.isTrue(
+                shown.pixels.some((value, at) => at % 4 === 3 && value > 0),
+                "the picture has something drawn",
+            );
+            return shown;
+        });
 
         // A change typed into the box: the tint, from orange to blue.
         const tint = box.value.indexOf("#FFAA00") + 1;
         box.setSelectionRange(tint, tint + 6);
         await userEvent.keyboard("0055FF");
-        const second = await waitFor(
-            async () => {
-                const shown = await previewPixels();
-                assert.notDeepEqual(shown.pixels, first.pixels, "the picture follows the edit");
-                return shown;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const second = await waitFor(async () => {
+            const shown = await previewPixels();
+            assert.notDeepEqual(shown.pixels, first.pixels, "the picture follows the edit");
+            return shown;
+        });
         assert.include(box.value, '"#0055FF"', "the typed change is in the box");
 
         await userEvent.fill(box, COMPILE_TEXT);
-        await waitFor(
-            () => {
-                assert.isNotNull(dialog.querySelector('[data-code="shader.compile"]'), "the compile problem shows");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotNull(dialog.querySelector('[data-code="shader.compile"]'), "the compile problem shows");
+        });
         const third = await previewPixels();
         assert.strictEqual(third.src, second.src, "the preview is unchanged");
         assert.deepEqual(third.pixels, second.pixels);
@@ -426,14 +395,11 @@ describe("the code dialog on the real element", () => {
         const box = await openNew();
         await userEvent.fill(box, KEY_TEXT);
         const dialog = screen.getByRole("dialog", { name: "New shader" });
-        const row = await waitFor(
-            () => {
-                const found = dialog.querySelector<HTMLElement>('[data-code="shader.header-key"]');
-                assert.isNotNull(found);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const row = await waitFor(() => {
+            const found = dialog.querySelector<HTMLElement>('[data-code="shader.header-key"]');
+            assert.isNotNull(found);
+            return found;
+        });
         assert.notStrictEqual(row.tagName, "BUTTON");
         assert.isNull(row.closest("button"));
     });
@@ -444,12 +410,9 @@ describe("the code dialog on the real element", () => {
         const box = await openNew();
         await userEvent.fill(box, text);
         const dialog = screen.getByRole("dialog", { name: "New shader" });
-        await waitFor(
-            () => {
-                assert.include(dialog.textContent ?? "", "Written for edges");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.include(dialog.textContent ?? "", "Written for edges");
+        });
         assert.strictEqual(addButton().getAttribute("aria-disabled"), "true");
         assert.deepEqual(usesOn(session, id), []);
         assert.lengthOf(session.shaders.list(), 0);

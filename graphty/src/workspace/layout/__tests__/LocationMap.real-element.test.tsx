@@ -16,9 +16,6 @@ import { datasetBase } from "../../start/open";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** Three airports with a place each, and one node with none. */
 const NODES = [
     { id: "SFO", where: "37.619, -122.375" },
@@ -54,13 +51,10 @@ async function openWorkspace(
     });
     render(<Workspace store={store} />);
     let found: Element | null = null;
-    await waitFor(
-        () => {
-            found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+    });
     if (found === null) {
         throw new Error("the element never came up");
     }
@@ -95,7 +89,7 @@ const CITIES = [
  */
 async function openDataPlace(): Promise<ReturnType<typeof within>> {
     await userEvent.click(screen.getByRole("button", { name: "Data" }));
-    return within(await screen.findByRole("region", { name: "Data place" }, { timeout: TIMEOUT_MS }));
+    return within(await screen.findByRole("region", { name: "Data place" }));
 }
 
 /**
@@ -195,12 +189,9 @@ async function layOutOnMap(element: Element, mapType?: "2D map"): Promise<void> 
         await pick(popover, "Map type", mapType);
     }
     await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-    await waitFor(
-        () => {
-            assert.strictEqual(element.session.layout.id, "location-map");
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.strictEqual(element.session.layout.id, "location-map");
+    });
     // The map, its camera framing and the nodes' screen size land over several frames after the
     // layout is chosen: read where nodes are drawn, or open the form again, only once they have.
     await element.waitForSettled();
@@ -219,17 +210,14 @@ describe("the location map", () => {
         assert.strictEqual(location.textContent, "where", "the column the element found");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
 
-        await waitFor(
-            () => {
-                assert.strictEqual(element.session.layout.id, "location-map");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.id, "location-map");
+        });
         await waitFor(() => {
             assert.deepInclude(element.mapFrame?.location, { kind: "location", column: "where" });
         });
         // The notice, and the status line that speaks it.
-        await screen.findAllByText("1 of 4 nodes unplaced", undefined, { timeout: TIMEOUT_MS });
+        await screen.findAllByText("1 of 4 nodes unplaced", undefined);
         // West is left: San Francisco is drawn left of London.
         await waitFor(() => {
             const sfo = element.nodeScreenPosition("SFO")?.x ?? Infinity;
@@ -240,22 +228,16 @@ describe("the location map", () => {
     it("draws the 3D map in 3D, the 2D map with straight edges in 2D, and the globe again in 3D", async () => {
         const element = await openAirports();
         await layOutOnMap(element);
-        await waitFor(
-            () => {
-                assert.strictEqual(element.mapFrame?.mapDimension, "3d", "a globe, with nothing picked");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.mapFrame?.mapDimension, "3d", "a globe, with nothing picked");
+        });
 
         await switchView("2D");
-        await waitFor(
-            () => {
-                assert.strictEqual(element.mapFrame?.mapDimension, "2d", "the 2D view draws the 2D map");
-                // The element draws a 2D view's edges straight; its own tests measure the lines.
-                assert.strictEqual(element.mapFrame?.dimensions, 2);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.mapFrame?.mapDimension, "2d", "the 2D view draws the 2D map");
+            // The element draws a 2D view's edges straight; its own tests measure the lines.
+            assert.strictEqual(element.mapFrame?.dimensions, 2);
+        });
         const popover = await openMapForm();
         const type = within(popover).getByRole<HTMLInputElement>("combobox", { name: "Map type" });
         assert.strictEqual(type.value, "2D map", "the form shows the 2D map in 2D");
@@ -266,12 +248,9 @@ describe("the location map", () => {
         await userEvent.keyboard("{Escape}");
 
         await switchView("3D");
-        await waitFor(
-            () => {
-                assert.strictEqual(element.mapFrame?.mapDimension, "3d", "back in 3D, the globe");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.mapFrame?.mapDimension, "3d", "back in 3D, the globe");
+        });
     });
 
     it("draws the 2D map with arcs above it when the reader picks 2D map in 3D, and keeps it", async () => {
@@ -279,29 +258,23 @@ describe("the location map", () => {
         const popover = await openMapForm();
         await pick(popover, "Map type", "2D map");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(element.mapFrame?.mapDimension, "2d");
-                assert.strictEqual(element.mapFrame?.dimensions, 3, "in the 3D view");
-                // The element raises a 3D view's edges as arcs above the map; its own tests measure them.
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.mapFrame?.mapDimension, "2d");
+            assert.strictEqual(element.mapFrame?.dimensions, 3, "in the 3D view");
+            // The element raises a 3D view's edges as arcs above the map; its own tests measure them.
+        });
         await switchView("2D");
         await switchView("3D");
-        await waitFor(
-            () => {
-                assert.strictEqual(element.mapFrame?.dimensions, 3);
-                assert.strictEqual(element.mapFrame?.mapDimension, "2d", "the reader's 2D map is kept");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.mapFrame?.dimensions, 3);
+            assert.strictEqual(element.mapFrame?.mapDimension, "2d", "the reader's 2D map is kept");
+        });
     });
 
     it("chooses the map in the Map form, swapping it at once under nodes that stay where they are", async () => {
         const element = await openAirports(true);
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
-        await screen.findByRole("combobox", { name: "Lighting" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+        await screen.findByRole("combobox", { name: "Lighting" });
         assert.isNull(screen.queryByRole("combobox", { name: "Map" }), "Graph settings has no map");
 
         await layOutOnMap(element, "2D map");
@@ -334,7 +307,7 @@ describe("the location map", () => {
             });
         });
         // Nothing answers at that address: the field says so, and the canvas credits only what drew.
-        await within(popover).findByText("Not reachable", undefined, { timeout: TIMEOUT_MS });
+        await within(popover).findByText("Not reachable", undefined);
         assert.notInclude(element.basemapStatus.attribution, "Test tiles");
 
         await pickByKeys(popover, "Map", "Natural Earth");
@@ -379,12 +352,9 @@ describe("the location map", () => {
         const element = await openAirports(false, CITIES);
         const popover = await openMapForm();
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(element.basemapStatus.state, "ready", "a map is drawn");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.basemapStatus.state, "ready", "a map is drawn");
+        });
         assert.strictEqual(element.session.layout.id, "location-map");
         // The app's own choices: nodes one size on screen, on a map six times the element's default.
         assert.strictEqual(element.session.layout.options.nodeScale, "screen");
@@ -434,12 +404,9 @@ describe("the location map", () => {
         const popover = await openMapForm();
         assert.strictEqual(within(popover).getByRole("button", { name: "Location" }).textContent, "home");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-        await waitFor(
-            () => {
-                assert.deepInclude(element.mapFrame?.location, { kind: "location", column: "home" });
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepInclude(element.mapFrame?.location, { kind: "location", column: "home" });
+        });
         // Lisbon, Berlin, Moscow from west to east; Moscow, the farthest north, highest.
         await waitFor(() => {
             assert.isBelow(at(element, "SEA").x, at(element, "CHI").x);
@@ -478,16 +445,13 @@ describe("the location map", () => {
             "latitude, longitude",
         );
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-        await waitFor(
-            () => {
-                assert.deepInclude(element.mapFrame?.location, {
-                    kind: "columns",
-                    latitude: "latitude",
-                    longitude: "longitude",
-                });
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepInclude(element.mapFrame?.location, {
+                kind: "columns",
+                latitude: "latitude",
+                longitude: "longitude",
+            });
+        });
         // California, Illinois and New York from west to east; Minnesota north of Florida.
         await waitFor(() => {
             assert.isBelow(at(element, "CA").x, at(element, "IL").x);
@@ -502,7 +466,7 @@ describe("the location map", () => {
         const location = within(popover).getByRole("button", { name: "Location" });
         assert.strictEqual(location.textContent, "lat, lng");
         await userEvent.click(location);
-        await screen.findByRole("region", { name: "Data place" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("region", { name: "Data place" });
     });
 
     it("says once, under Location, what the locations held", async () => {
@@ -510,7 +474,7 @@ describe("the location map", () => {
         await layOutOnMap(element);
         const popover = await openMapForm();
         // One node has no place: one note, under Location.
-        const notes = await within(popover).findAllByText("1 unreadable or empty", undefined, { timeout: TIMEOUT_MS });
+        const notes = await within(popover).findAllByText("1 unreadable or empty", undefined);
         assert.lengthOf(notes, 1);
         const location = within(popover).getByRole("button", { name: "Location" }).getBoundingClientRect();
         const note = notes[0].getBoundingClientRect();
@@ -528,7 +492,7 @@ describe("the location map", () => {
             }
         });
         await layOutOnMap(element);
-        const select = await screen.findByRole("button", { name: "Select" }, { timeout: TIMEOUT_MS });
+        const select = await screen.findByRole("button", { name: "Select" });
         await userEvent.click(select);
         await waitFor(() => {
             assert.deepStrictEqual(element.session.selection.nodes.map(String), ["nowhere"]);
@@ -539,13 +503,10 @@ describe("the location map", () => {
         await userEvent.click(within(toolbar).getByRole("button", { name: "View, 3D" }));
         const menu = await screen.findByRole("menu", { name: /^View/ });
         await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^2D/ }));
-        await waitFor(
-            () => {
-                assert.strictEqual(element.session.layout.dimension, "2d");
-                assert.strictEqual(element.mapFrame?.dimensions, 2);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.session.layout.dimension, "2d");
+            assert.strictEqual(element.mapFrame?.dimensions, 2);
+        });
         assert.strictEqual(posted, shown, "the switch posted no second notice");
     });
 
@@ -557,23 +518,17 @@ describe("the location map", () => {
         ];
         const element = await openAirports(false, venice);
         await layOutOnMap(element);
-        await waitFor(
-            () => {
-                assert.deepEqual(element.session.layout.options.map, { source: "openstreetmap" });
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(element.session.layout.options.map, { source: "openstreetmap" });
+        });
     });
 
     it("wraps world data on the globe in Blue Marble, drawn as from space", async () => {
         const element = await openAirports();
         await layOutOnMap(element);
-        await waitFor(
-            () => {
-                assert.deepEqual(element.session.layout.options.map, { source: "nasa-gibs-blue-marble-bathymetry" });
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(element.session.layout.options.map, { source: "nasa-gibs-blue-marble-bathymetry" });
+        });
         assert.deepEqual(element.globeLook, { atmosphere: true, background: "#05070d" }, "drawn as from space");
     });
 
@@ -582,12 +537,9 @@ describe("the location map", () => {
         const popover = await openMapForm();
         await pick(popover, "Map type", "2D map");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-        await waitFor(
-            () => {
-                assert.notStrictEqual(flat.basemapStatus.state, "off", "the map is drawn");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.notStrictEqual(flat.basemapStatus.state, "off", "the map is drawn");
+        });
         assert.notExists(flat.session.layout.options.map, "no map was chosen for the reader");
     });
 
@@ -598,7 +550,7 @@ describe("the location map", () => {
         // button's name also says a setting behind it is changed.
         const advanced = within(popover).getByRole("button", { name: /^Advanced/ });
         await userEvent.hover(advanced);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        const tip = await screen.findByRole("tooltip", {});
         assert.strictEqual(tip.textContent, "Advanced");
         await userEvent.click(advanced);
         await within(popover).findByRole("combobox", { name: "Format" });

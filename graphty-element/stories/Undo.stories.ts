@@ -7,7 +7,15 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { dispatcherOf } from "../src/session/GraphSession";
 import { stateDigest } from "../src/session/project/digest";
-import { assertBackgroundColour, assertSkyboxDrawn, assertViewMode, type Drawn, drawn, holds } from "./assertions";
+import {
+    assertBackgroundColour,
+    assertSkyboxDrawn,
+    assertViewMode,
+    type Drawn,
+    drawn,
+    eventually,
+    holds,
+} from "./assertions";
 import { catSocialNetwork2Url, data3Url, skyboxUrl } from "./datasets";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
@@ -179,9 +187,10 @@ async function drag(scene: Drawn, id: string): Promise<void> {
     handler.onDragUpdate(start.add(new Vector3(40, 30, 0)));
     handler.onDragEnd();
     // The drop records its step once the drag's transaction closes, a moment after the pointer.
-    for (let wait = 0; wait < 500 && scene.session.history.steps.length === steps; wait++) {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-    }
+    await eventually(
+        () => scene.session.history.steps.length !== steps,
+        `Undo PinAndDrag: dropping node "${id}" recorded no step`,
+    );
 }
 
 /** The graph as it loads, untouched: the picture every story below should return to. */

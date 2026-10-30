@@ -4,7 +4,6 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { within } from "storybook/test";
 
-import { storyWaitOptions } from "../../stories/wait";
 import { runName } from "../runWords";
 import { Workspace } from "../Workspace";
 import { LoadingCard } from "./CanvasOverlays";
@@ -66,7 +65,7 @@ function nameOf(element: GraphtyElement, id: string): string {
 async function settle(canvasElement: HTMLElement, element: GraphtyElement, section: string): Promise<void> {
     await element.session.styles.settled();
     await element.waitForStableFrame();
-    await within(canvasElement).findByRole("group", { name: section }, storyWaitOptions(30_000));
+    await within(canvasElement).findByRole("group", { name: section });
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -83,7 +82,7 @@ export const Empty: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await elementOf(canvasElement);
-        await within(canvasElement).findByRole("region", { name: "No nodes to draw" }, storyWaitOptions(30_000));
+        await within(canvasElement).findByRole("region", { name: "No nodes to draw" });
     },
 };
 
@@ -103,7 +102,7 @@ export const Loading: Story = {
         </div>
     ),
     play: async ({ canvasElement }) => {
-        await within(canvasElement).findByRole("region", { name: "Reading Karate Club" }, storyWaitOptions(1000));
+        await within(canvasElement).findByRole("region", { name: "Reading Karate Club" });
     },
 };
 
@@ -164,7 +163,7 @@ export const PathOverRanking: Story = {
         // The run's merged section is one row, not a named group: the row says the run's name.
         await settle(canvasElement, element, `Color: ${nameOf(element, rank.id)}`);
         const legend = within(canvasElement).getByRole("region", { name: "Legend" });
-        await within(legend).findByText(nameOf(element, route.id), {}, storyWaitOptions(30_000));
+        await within(legend).findByText(nameOf(element, route.id), {});
     },
 };
 
@@ -195,6 +194,6 @@ export const HiddenByYourLayer: Story = {
         });
         await element.session.runs.start("louvain");
         await element.waitForStableFrame();
-        await within(canvasElement).findByText("Hidden by your layer My gray", {}, storyWaitOptions(30_000));
+        await within(canvasElement).findByText("Hidden by your layer My gray", {});
     },
 };

@@ -19,7 +19,6 @@ import {
     type TreeNodeData,
 } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
-import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
@@ -336,19 +335,20 @@ describe("Tree: keyboard", () => {
         await tabIn();
         // The page is busy for 700ms after it takes "g" (a redraw elsewhere), and "r" was typed
         // 100ms after "g", while it was busy: the browser hands "r" over only once the page is free.
+        // The busy page is its clock: once "g" is taken, performance.now() reads 700ms later, so
+        // the page handles "r" 700ms after "g" without the test holding the main thread.
         let gAt = 0;
+        let busyFor = 0;
+        const now = performance.now.bind(performance);
+        vi.spyOn(performance, "now").mockImplementation(() => now() + busyFor);
         const busy = (event: KeyboardEvent): void => {
             if (event.key === "g") {
                 gAt = event.timeStamp;
-                const until = performance.now() + 700;
-                while (performance.now() < until) {
-                    // the main thread is held
-                }
+                busyFor = 700;
             }
         };
-        // The keys are real, but their typed time is set here: Playwright sends "r" only after the
-        // page has handled "g" (its 700ms included), so the browser would stamp "r" after the
-        // stall. A reader's "r" is stamped when it was typed, which is what this stands in for.
+        // The keys are real, but their typed time is set here: a reader's "r" is stamped when it
+        // was typed, 100ms after "g", which is what this stands in for.
         const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
         vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
             return this instanceof KeyboardEvent && this.key === "r" ? gAt + 100 : (timeStamp?.call(this) as number);
@@ -1413,7 +1413,7 @@ describe("ResultRow", () => {
         expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
         expect(name.getBoundingClientRect().right).toBeLessThanOrEqual(viewport.getBoundingClientRect().right);
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
+        const tip = await screen.findByRole("tooltip", {});
         expect(tip.textContent).toContain(long);
     });
 });

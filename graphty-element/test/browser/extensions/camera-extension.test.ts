@@ -35,7 +35,7 @@
  * reader can check by eye, because what is under test is the element's treatment of them.
  */
 
-import { afterAll, afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { setCameraPosition, zoomToNodes } from "../../../ai";
 import { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "../../../catalog";
@@ -50,7 +50,6 @@ import {
 import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
-import { nextFrame } from "../../helpers/real-input";
 
 /** Three nodes at known coordinates, so every box in this file can be checked by eye. */
 const NODES = [
@@ -67,9 +66,6 @@ const EDGES = [
 
 /** How far a reported camera position may sit from the computed one and still be the same place. */
 const PLACE_TOLERANCE = 0.5;
-
-/** How long any wait here is allowed to take before it is called a failure. */
-const PATIENCE_MS = 5000;
 
 /** Where the view registered after a snapshot already held its name puts the viewer. */
 const LATECOMER_PLACE = { x: 321, y: 123, z: 213 };
@@ -218,22 +214,15 @@ function boxAround(points: readonly Coords[]): { center: Coords; maxDimension: n
 }
 
 /**
- * Poll until something becomes true, or give up loudly.
+ * Poll until something becomes true. No deadline of its own: the one hang guard
+ * (tools/test-wait-guard.mjs) ends a wait that never comes true, naming what it waited for.
  * @param condition - What is being waited for.
  * @param what - How to describe it if the wait fails.
  */
 async function waitFor(condition: () => boolean, what: string): Promise<void> {
-    const deadline = Date.now() + PATIENCE_MS;
-
-    while (Date.now() < deadline) {
-        if (condition()) {
-            return;
-        }
-
-        await nextFrame();
-    }
-
-    throw new Error(`timed out waiting for ${what}`);
+    await vi.waitFor(() => {
+        assert.isTrue(condition(), `waiting for ${what}`);
+    });
 }
 
 describe("a third party's camera view", () => {

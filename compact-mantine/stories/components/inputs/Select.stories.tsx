@@ -7,7 +7,7 @@ import { FieldRow, PANEL_GRID, PanelField, ResetButton } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { storyWaitOptions, untilPasses } from "../../helpers/settled";
+import { untilPasses } from "../../helpers/settled";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 
@@ -262,7 +262,7 @@ export const Keyboard: Story = {
         await expect(trigger).toHaveFocus();
         await userEvent.keyboard("{Enter}");
         const body = within(canvasElement.ownerDocument.body);
-        const inside = await body.findByRole("option", { name: "Inside" }, storyWaitOptions(1000));
+        const inside = await body.findByRole("option", { name: "Inside" });
         // floating-ui places the list on a later frame: wait on the placement, not a deadline (#2719).
         const offset = (): number =>
             Math.abs(
@@ -346,14 +346,8 @@ export const ResetToDefault: Story = {
         const canvas = within(canvasElement);
         await expect(canvas.queryByRole("button", { name: "Reset Node shape to default" })).toBeNull();
         await userEvent.click(canvas.getByRole("combobox", { name: "Node shape" }));
-        await userEvent.click(
-            await within(document.body).findByRole("option", { name: "Square" }, storyWaitOptions(1000)),
-        );
-        const reset = await canvas.findByRole(
-            "button",
-            { name: "Reset Node shape to default" },
-            storyWaitOptions(1000),
-        );
+        await userEvent.click(await within(document.body).findByRole("option", { name: "Square" }));
+        const reset = await canvas.findByRole("button", { name: "Reset Node shape to default" });
         await userEvent.click(reset);
         await expect(canvas.queryByRole("button", { name: "Reset Node shape to default" })).toBeNull();
         await expect(canvas.getByText("value: undefined (using the default)")).toBeInTheDocument();

@@ -28,7 +28,7 @@ const TIMEOUT_MS = 60_000;
 
 /** The fraud fixture's issues as the element counts them, and the header that carries each. */
 const ISSUES: readonly { label: string; tab: "Nodes" | "Edges"; header: string }[] = [
-    { label: "18 unknown ends", tab: "Edges", header: "to" },
+    { label: "18 edges with an unknown target", tab: "Edges", header: "to" },
     { label: "2 repeated ids", tab: "Nodes", header: "account" },
     { label: "row 412 refused", tab: "Edges", header: "from" },
     { label: "5 repeated edges", tab: "Edges", header: "from" },
@@ -201,9 +201,13 @@ describe("the table dock's configuration", () => {
         }
         // The fix the data already shows is pressed: the made nodes are kept.
         assert.strictEqual(
-            within(list).getByRole("button", { name: "Add nodes: 18 unknown ends" }).getAttribute("aria-pressed"),
+            within(list)
+                .getByRole("button", { name: "Add nodes: 18 edges with an unknown target" })
+                .getAttribute("aria-pressed"),
             "true",
         );
+        // Its other fix says what it does: the made nodes and their edges go.
+        within(list).getByRole("button", { name: "Remove nodes and edges: 18 edges with an unknown target" });
 
         // Every issue is in its header: the warning's hover lists it with its buttons, and the
         // header's menu offers the same fixes and Ignore for the keyboard.

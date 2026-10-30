@@ -398,16 +398,26 @@ export function issueLabel(issue: DataIssue): string {
     if (issue.code === "refused-row" && Array.isArray(lines) && lines.length === 1) {
         return `row ${String(lines[0])} refused`;
     }
-    const [one, many] = ISSUE_WORDS[issue.code] ?? [issue.code, issue.code];
+    // An unknown end names which end it is, as the element says (params.ends).
+    const end = issue.code === "unknown-end" ? UNKNOWN_END_WORDS[String(issue.params.ends)] : undefined;
+    const [one, many] = end ?? ISSUE_WORDS[issue.code] ?? [issue.code, issue.code];
     return `${formatNumber(issue.count)} ${issue.count === 1 ? one : many}`;
 }
+
+/** An unknown-end issue's words by the end it is on. */
+const UNKNOWN_END_WORDS: Readonly<Record<string, readonly [string, string]>> = {
+    source: ["edge with an unknown source", "edges with an unknown source"],
+    target: ["edge with an unknown target", "edges with an unknown target"],
+    both: ["edge with an unknown end", "edges with an unknown end"],
+};
 
 /** Each fix's button label. */
 const FIX_WORDS: Readonly<Record<string, string>> = {
     "make-blank": "Make blank",
     "read-decimal-comma": "Read as decimals",
     "add-nodes": "Add nodes",
-    "leave-out": "Leave out",
+    // Leaving an unknown end out removes the node made for it and every edge that names it.
+    "leave-out": "Remove nodes and edges",
     merge: "Merge",
     keep: "Keep",
     "keep-first": "Keep first",

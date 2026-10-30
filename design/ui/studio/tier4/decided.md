@@ -537,3 +537,21 @@ the earlier triages of that name are at cc562d52cd and aa8763fc28). Screenshots 
   `rejected-fixes.md`. Why: pass 6 sent one unit (the Select card's count, `git revert 0b1175dabc`); nothing
   was built after it, so this pass re-piloted a53beb7179: of its 81 rows, 5 were that unit's defect again (four
   pilots), 56 repeated backlog rows, and nothing new could be learned about the unit.
+
+## Dry run pass 8 (director, 2026-10-30)
+
+Settled by the triage of the re-pilot on build 79ed770292 (`dry-run-r1-4.md` as committed with this entry; pass 6's
+triage of that name is at 6ac9f2eb57). Screenshots are under the main checkout's `tmp/design-studio/tier4/r1d3/pilot/`.
+
+- **A walk on an earlier build stands for the frozen build when the source between them is code the route never
+  reaches.** When `git diff <earlier build> <frozen build>` over the app's, the element's, compact-mantine's and the
+  graph packages' source touches only code a route never runs, that route's walk on the earlier build counts as
+  walked on the frozen build, and its rows are judged on it. The triage names the diff and why the route does not
+  reach it. NARROWS, and for these routes REVERSES, the last clause of "A pilot row whose evidence is from an earlier
+  build is judged on the frozen build's walk of the same route" (dry run pass 7: "with no such walk, the route counts
+  as unwalked"); that entry still holds when the builds differ in code the route reaches. Why: 79ed770292 differs from
+  a53beb7179 only in the Select card's count (`VisibilityApi.ts` and one test). T63 B's full keyboard walk (94
+  steps, `T63B/r3-keyboard`) is on a53beb7179; on 79ed770292 its replays matched 37 steps and stopped where a route
+  recorded on the first build expected dates in a text column (`T63B/rewalk.json`), which this build draws as text
+  by decision ("A column's kind is drawn one way everywhere", dry run pass 1). T63 B adds no filter card, so a new
+  walk could not differ, and the old rule would have sent it back as a block.

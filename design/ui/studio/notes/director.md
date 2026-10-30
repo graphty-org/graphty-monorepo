@@ -5,39 +5,37 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-30 (tier 4 dry run pass 7 triaged on build a53beb7179).
-Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times) and 2026-10-30 (twice);
+Last updated: 2026-10-30 (tier 4 dry run pass 8 triaged on build 79ed770292: session-ready).
+Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times) and 2026-10-30 (three times);
 the full earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-10-30) TIER 4 DRY RUN PASS 7 on a53beb7179 (`tier4/dry-run-r1-3.md`, the third triage of that name):
-  81 rows, 5 fix-now in 1 unit, all repeats: U1, the Select card's count, `git revert 0b1175dabc` (restores
-  355022569a; `git diff 0b1175dabc HEAD` on its files still empty at b5ad13efa1). 1 decided, 0 design
-  questions, 57 backlog (56 met before), 18 not defects.
-- (2026-10-30) Pass 6's unit was NEVER APPLIED; pass 7 re-piloted the same build and could only re-find it.
-  New decided entry: no re-pilot on a build the last triage judged while its fix-now units are unbuilt. Next
-  time, before reading any pilot row, check criteria.md's first line against the last triage's build.
-- (2026-10-30) U1 was reverted twice for an unfinished re-walk; decided: a fix-now unit is taken back only for
-  a regression its re-walk shows. If U1 shows up again, first check whether a revert or nothing landed.
-- (2026-10-30) Check each report's evidence build, not just its claims: T67 A cited the first build's walks;
-  judged on the same routes' a53beb7179 walks (new decided entry).
-- (2026-10-30) A truthful screen after a wrong act is not "spoils" (T66 B Leave out deletes G12, screen reads
-  11 with no "of" count, key grades on that): backlog plus a decided rule, not a unit.
-- (2026-10-30) A pilot's "matches the answer key" is not "no defect"; class by the screen, not by the key.
+- (2026-10-30) TIER 4 DRY RUN PASS 8 on 79ed770292 (`tier4/dry-run-r1-4.md`): 96 rows, 0 fix-now, no units.
+  The build is SESSION-READY for round 1. U1 (the Select card's count) is fixed: T65 A reads 4 of 14 with 4
+  selected (`r1d3/pilot/T65A/y01-T65A-path/17.png`); seven pilots replayed every route it touched, no regression.
+  2 decided, 1 design question (Replace), 79 backlog (77 repeats), 14 not defects.
+- (2026-10-30) New decided entry: a walk on an earlier build stands when `git diff <earlier> <frozen>` over the
+  source is code the route never reaches (narrows pass 7's evidence rule; counted 1 reversal). Run the diff
+  FIRST: a53beb7179 -> 79ed770292 was VisibilityApi.ts and a test, which settled T63 B's keyboard walk.
+- (2026-10-30) Before reading pilot rows: check criteria.md's build against the last triage's build, and that
+  every unit it sent is built (pass 7 re-piloted an unchanged build; decided entry since).
+- (2026-10-30) A fix-now unit is taken back only for a regression its re-walk shows (U1 was reverted twice for
+  an unfinished re-walk and cost four passes).
+- (2026-10-30) Check each report's evidence build, not its claims: T67 A cites the first build's walks every
+  pass; judge on the frozen build's walks of the same routes.
+- (2026-10-30) A truthful screen after a wrong act is not "spoils"; a pilot's "matches the key" is not "no defect".
 - (2026-10-29) Before re-sending a reverted fix, diff what merged since (`git diff <revert> HEAD -- <files>`);
   empty means revert the revert, never rewrite it. Key on the predicate the behavior uses, not a literal.
 - (2026-10-29) A wrong mark is (a) only when the table is the one screen naming the answer; otherwise backlog.
 - (2026-10-29) Decided but not built is backlog, not (n) (Open button, Filter to / out, detected-role marks).
 - (2026-10-29) A route walked on the frozen build counts as walked; check `session.json` buildStamp per
   folder, not the pilot's word.
-- (2026-10-29) A team entry that contradicts an earlier decided entry must name it; I record the reversal.
 - (2026-10-29) Bars: 1 success (pointer only); 2 false done 0; 3 wrong turns median <= 2; 4 severity 3-4
   open 0; 5 keyboard (Sam S/SD + axe); 6 owner's data rules 0; 7 core median steps <= key path + 3.
 - (2026-10-29) Still owed before the round: `data.json` from `--end` and the end-state check; the scripted
   tier 4 walk with wording and axe; words-at-rest budget.
 - (2026-10-21) Same-model participants: a failure is strong evidence, a pass is weak.
-- (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk those.
 
 ## Priorities and values
 
@@ -78,28 +76,31 @@ the full earlier text is in this file's git history.
 
 ## Decisions and reasons
 
-- **2026-10-30, tier 4 dry run pass 7 on a53beb7179 (`tier4/dry-run-r1-3.md`; earlier triages of that name at
-  cc562d52cd and aa8763fc28).** 81 rows from 18 reports, generator `tmp/director-dryrun7/gen.mjs` (per-task
-  count asserts; evidence paths checked; `@3/` prefix for walks under r1d3). Fix now: U1 only, sent unchanged:
-  four pilots (T62 A, T65 A, T65 B, T67 B) met 5 of 24 / 5 of 12 again because nothing was built after pass 6
-  (no code commit since da8adb6da9; criteria.md still a53beb7179). Three new decided entries: an issue fix that
-  removes data says what it removes and is not a filter (T66 B Leave out, `r1d2/pilot/T66B/w2-chip-leave/04.png`:
-  screen true, key grades it, so backlog); a row with an earlier build's evidence is judged on the frozen
-  build's walk of the route (T67 A cited `r1/pilot/T67A`, 0ffeae2ef5; `r1d3/pilot/T67A` on a53beb7179
-  matched); no re-pilot on a judged build while its units are unbuilt. (n): T67 A's source inspector (R9).
-- **2026-10-29..30, tier 4 dry runs passes 1-6** (summarized 2026-10-30; full text in git history and
-  `tier4/dry-run-r1-1.md`, `-r1-2.md` at 028483e572 and 8f1aa15875, `-r1-3.md` at cc562d52cd and aa8763fc28,
-  `-r1-4.md`). Pass 1 (0ffeae2ef5): 8 units (source-row chips, a false refused-row issue, Add data... to the
-  join screen, one kind drawing, a date condition card, the Data source card's `side: "nodes"`, Export scope, a
-  weight given after the load). Pass 2 (037e96e9bb): 3 units (Select within the picture, run reuse reads the
-  Data weight, result rows named by `nodeName`) and the reversal of pass 1's Select entry. Pass 3 (ff17391bb1):
-  U1, the Select card's count (a regression of pass 2's fix). Pass 4: U1 again plus U2, an unknown end's warning
-  on the end that is unknown (`params.ends`, additive). Pass 5 (bccf8fe47f): U1 refixed on `selectsOverGraph`
-  (355022569a), reverted unfinished. Pass 6 (a53beb7179): U1 as `git revert 0b1175dabc`, plus the decided entry
-  that a unit is taken back only for a regression its re-walk shows. Not (a) across them: answer-key-graded
-  cosmetic and keyboard-only rows, decided-but-not-built team entries, T61's repeat resolved on the join screen
-  (b), Replace of the same file, T63 B's place chips, T68 B's source-row Export, PASS INCOMPLETE notes whose
-  routes were walked.
+- **2026-10-30, tier 4 dry run pass 8 on 79ed770292 (`tier4/dry-run-r1-4.md`; pass 6's triage of that name is
+  at 6ac9f2eb57).** 96 rows from 17 reports (94 defects, two split), generator `tmp/director-dryrun8/gen.mjs`
+  (per-task count asserts; every evidence path checked; `@2/` prefix for r1d2). Fix now: none; the build is
+  session-ready. Classed (n): T62 B's ask for a Data place home for a column's kind (team entry keeps Type in the
+  header; moving it is the owner's call, R10) and T67 A's source inspector (R9). (b): Replace that looks like a join
+  (T61 A). New backlog rows: Filter off announced while a select card is still on (T65 A); Quick actions finds
+  nothing for date (T62 B). New decided entry: an earlier build's walk stands when the source diff is code the route
+  never reaches (T63 B's 94-step keyboard walk on a53beb7179; 79ed770292's replays stopped at step 38 on a route
+  recorded on the first build). T60 A's evidence was re-cited from its 79ed770292 walks; on them the load status is
+  written twice on all three walks, not once on one.
+- **2026-10-29..30, tier 4 dry runs passes 1-7** (summarized 2026-10-30; full text in git history and
+  `tier4/dry-run-r1-1.md`, `-r1-2.md` at 028483e572 and 8f1aa15875, `-r1-3.md` at cc562d52cd, aa8763fc28 and
+  b37f90161a, `-r1-4.md` at 6ac9f2eb57). Pass 1 (0ffeae2ef5): 8 units (source-row chips, a false refused-row
+  issue, Add data... to the join screen, one kind drawing, a date condition card, the Data source card's
+  `side: "nodes"`, Export scope, a weight given after the load). Pass 2 (037e96e9bb): 3 units (Select within the
+  picture, run reuse reads the Data weight, result rows named by `nodeName`) and the reversal of pass 1's Select
+  entry. Pass 3 (ff17391bb1): U1, the Select card's count (a regression of pass 2's fix). Pass 4: U1 again plus U2,
+  an unknown end's warning on the end that is unknown (`params.ends`, additive). Pass 5 (bccf8fe47f): U1 refixed on
+  `selectsOverGraph` (355022569a), reverted unfinished. Pass 6 (a53beb7179): U1 as `git revert 0b1175dabc`, plus
+  "a unit is taken back only for a regression its re-walk shows". Pass 7 (a53beb7179 again, nothing built): U1
+  unchanged; decided entries: an issue fix that removes data says so and is not a filter (T66 B Leave out), an
+  earlier build's evidence is judged on the frozen build's walk, no re-pilot while units are unbuilt. U1 then built
+  as 71230abff1, re-walked to the end, frozen as 79ed770292. Not (a) across them: answer-key-graded cosmetic and
+  keyboard-only rows, decided-but-not-built team entries, T61's repeat resolved on the join screen (b), Replace of
+  the same file, T63 B's place chips, T68 B's source-row Export, PASS INCOMPLETE notes whose routes were walked.
 - **2026-10-29, tier 4 criteria reviewed and frozen** (three reviews: researcher, user advocate,
   red team; they agreed on most points). Taken: grade from step log and end-state records
   (`data.json`), not the last screenshot alone; end-state check in bar 4; audit confirms only what a
@@ -143,14 +144,17 @@ the full earlier text is in this file's git history.
 
 ## Tried: worked / did not work
 
-- 2026-10-30 (dry run pass 7) -- Worked: `git log` first; it showed only docs commits since the last triage,
-  so the frozen build could not hold the unit, which explained the four U1 rows before reading a report.
-  Worked: a per-task loop over `session.json` buildStamp for r1d2 and r1d3; it caught T67 A's first-build
-  evidence. Worked: reusing pass 6's generator with an evidence-prefix switch. Worked: looking at the T66 B
-  screenshot before classing; the "of"-less top bar settled it as truthful. Did not work: the workflow again
-  naming the file `dry-run-r1-3.md` and the pass "pass 3"; I kept the name it asked for and recorded the
-  two earlier triages' commits in its header.
-
+- 2026-10-30 (dry run pass 8) -- Worked: `git diff --stat <previous build> <frozen build>` over the source
+  before anything else; two files, so every repeat row could be classed by mechanism at once and T63 B's
+  keyboard walk settled without a new walk. Worked: re-reading each row's route.jsonl `out` lines on the frozen
+  build's walk instead of trusting the earlier build's screenshot (T60 A's status count differs). Worked: looking
+  at one U1 screenshot to confirm the fix rather than the pilots' silence. Worked: grepping backlog.md section by
+  section for each phrase to name the pass of a repeat. Did not work: grep -o with long `.{0,N}` spans (ugrep
+  complexity limit); use -F and cut instead.
+- 2026-10-30 (dry run pass 7) -- Worked: `git log` first (only docs commits since the last triage); a per-task
+  `session.json` buildStamp loop; reusing the previous generator. Did not work: the workflow reusing file names
+  and pass numbers ("pass 4" here was my pass 8); keep the name it asks for and record the earlier triages'
+  commits in the header.
 - 2026-10-29..30 (dry runs passes 1-6; summarized 2026-10-30, full text in git history) -- Worked: `git log`
   on rejected-fixes.md and the reverts before reading rows; `git diff <revert> HEAD` on a fix's files to justify
   a revert-the-revert; grepping every earlier triage for each row's key words (most backlog rows are repeats);
@@ -185,11 +189,13 @@ the full earlier text is in this file's git history.
 
 ## Thinking
 
-- **2026-10-30, dry run pass 7:** the loop has a missing edge, not a bad rule: triage -> fix -> freeze ->
-  re-pilot assumes the fix stage ran, and nothing checks it. A whole pass of 18 pilots ran on an unchanged
-  build. The cheapest guard is a precondition at the re-pilot step: refuse unless criteria.md's build differs
-  from the last triage's or rejected-fixes.md records every unit. I wrote it as a decided entry so the
-  workflow's stages read it; the workflow script itself should enforce it.
+- **2026-10-30, dry run pass 8:** the dry run ended clean once the one real unit was built and its re-walk
+  finished; four of the seven passes after pass 3 were spent on process, not product (reverts for unfinished
+  re-walks, a re-pilot of an unchanged build, evidence on the wrong build). Next tier: the dry-run loop needs
+  three machine checks before any pilot runs -- the build changed, every unit landed, and the diff from the
+  last judged build -- and the evidence rule should key on that diff, which is what pass 8's entry does by hand.
+  The 77 repeat backlog rows are the decide-and-fix loop's first list; most are keyboard and screen-reader rows
+  (F6, Tab in lists, dialog focus), which Sam's sessions will meet first.
 
 - **2026-10-29..30, dry runs passes 1-6 (summarized 2026-10-30; full text in git history):** two stages with
   no shared rule (fix reverts an unfinished re-walk, triage treats it as nothing found) cost a pass each time;
@@ -248,8 +254,9 @@ the full earlier text is in this file's git history.
 
 ## Sources
 
-- Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`; dry run pass 7 `tier4/dry-run-r1-3.md`
-  (build a53beb7179, re-pilots in `tmp/design-studio/tier4/r1d2/pilot/` and `r1d3/pilot/`, generator `tmp/director-dryrun7/gen.mjs`); dry run pass 6 `tier4/dry-run-r1-4.md`
+- Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`; dry run pass 8 `tier4/dry-run-r1-4.md`
+  (build 79ed770292, re-pilots in `tmp/design-studio/tier4/r1d3/pilot/`, generator `tmp/director-dryrun8/gen.mjs`); dry run pass 7 `tier4/dry-run-r1-3.md`
+  (build a53beb7179, re-pilots in `tmp/design-studio/tier4/r1d2/pilot/` and `r1d3/pilot/`, generator `tmp/director-dryrun7/gen.mjs`); dry run pass 6 `tier4/dry-run-r1-4.md` at 6ac9f2eb57
   (build a53beb7179, re-pilots in `tmp/design-studio/tier4/r1d3/pilot/`, generator `tmp/director-dryrun6/gen.mjs`); dry run pass 5 `tier4/dry-run-r1-3.md` at aa8763fc28
   (build bccf8fe47f, re-pilots in `tmp/design-studio/tier4/r1d2/pilot/`, generator `tmp/director-dryrun5/`); dry run pass 4 `tier4/dry-run-r1-2.md`
   (build ff17391bb1, second re-pilot in `tmp/design-studio/tier4/r1d1/pilot/`, generator `tmp/director-dryrun4/gen.mjs`);

@@ -857,22 +857,44 @@ function fileFlaky(name, body) {
     return sh("gh", ["issue", "create", "--title", title, ...labels, "--body-file", file]);
 }
 
+/**
+ * Above this many flaky stories in one run, they share a cause (a re-capture on a different runner image, a
+ * changed capture tool): one issue lists them all. One issue each filed 337 issues in 14 silent minutes and the
+ * job was cancelled before it recorded its verdict (#4983).
+ */
+export const MAX_FLAKY_STORIES = 5;
+
+/**
+ * The flaky issues a verdict files: one per lane and one per story, or one for every story when there are
+ * more than MAX_FLAKY_STORIES.
+ * @param o the facts
+ * @param o.lanes the flaky lanes' names
+ * @param o.stories the flaky stories, as flakyStories returns them
+ * @param o.at where and when they were found
+ * @param o.tail the closing paragraph
+ * @returns `{ name, body }` per issue
+ */
+export function flakyFilings({ lanes, stories, at, tail }) {
+    const out = lanes.map((name) => ({
+        name,
+        body: `${name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`,
+    }));
+    if (stories.length <= MAX_FLAKY_STORIES)
+        return [...out, ...stories.map((s) => ({ name: s.name, body: flakyStoryBody(s, at, tail) }))];
+    const list = stories.map((s) => `- ${flakyStoryBody(s, at, "").trim().replaceAll("\n\n", ": ")}`).join("\n");
+    const body = `${stories.length} stories were flaky at once ${at}. So many at once share a cause: find it.\n\n${list}\n\n${tail}`;
+    return [...out, { name: "many stories at once", body }];
+}
+
 function fileFlakies(env, lanes, stories) {
     const at = `on ${env.SHA} (${env.RUN_URL}, attempt ${env.RUN_ATTEMPT ?? 1})`;
     const tail = "It does not block nightly: this is a confirmation, not a quarantine. Find the mechanism and fix it.";
-    for (const l of lanes) {
-        const body = `${LANES[l].name} failed on the full run's first attempt and passed when re-run ${at}.\n\n${tail}`;
+    const names = lanes.map((l) => LANES[l].name);
+    for (const { name, body } of flakyFilings({ lanes: names, stories, at, tail })) {
+        console.log(`filing flaky: ${name}`);
         bestEffort(
-            () => fileFlaky(LANES[l].name, body),
-            `filing the flaky ${LANES[l].name}`,
-            () => null,
-        );
-    }
-    for (const s of stories) {
-        const body = flakyStoryBody(s, at, tail);
-        bestEffort(
-            () => fileFlaky(s.name, body),
-            `filing the flaky story ${s.name}`,
+            () => fileFlaky(name, body),
+            `filing the flaky ${name}`,
             () => null,
         );
     }
@@ -931,6 +953,8 @@ export const heldLine = (held) =>
 
 async function verdictMain(env) {
     const cfg = config(env);
+    // one group per phase: a step that stops printing names the phase it stopped in
+    console.log("::group::verdict: judge the lanes and captures");
     const lanes = JSON.parse(env.LANES);
     const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects ?? {});
     const { changed, missing } = differingImages(env.CAPTURES, projects);
@@ -946,6 +970,8 @@ async function verdictMain(env) {
     // does not hold it, so neither a bisect nor a restart on master could help
     const forward = !!env.FORWARD;
     const facts = { sha: env.SHA, good: env.GOOD, runId: env.RUN_ID, runUrl: env.RUN_URL, red, lanes, forward };
+    console.log("::endgroup::");
+    console.log("::group::verdict: red issue, bisect or close");
     if (wait) {
         console.log(`::notice::attempt 1 is red (${red.join(", ")}): release-rerun.yml re-runs its failed jobs once`);
     } else if (state === "red") {
@@ -959,11 +985,15 @@ async function verdictMain(env) {
     }
     // a lane red on the attempt before and green now, and a story the re-capture found flaky: filed, not blocking
     const before = attempt > 1 ? readJson(join(env.RECORDS ?? "", `verdict-${attempt - 1}.json`)) : null;
+    console.log("::endgroup::");
+    console.log("::group::verdict: flaky lanes and stories");
     if (!wait) fileFlakies(env, flakyLanes(before?.red ?? [], red), flakyStories(env.CAPTURES));
     // green-images: the owner reviews these (release.yml announces it); the files go to the run's log
     if (state === "green-images") console.log(`::notice::${what}\n${changed.join("\n")}`);
     // a failed pick judged no commit: recording red on one would make the next slot skip it. A deferred red is
     // recorded as deferred, which the pick ignores, until the re-run (or release-rerun.yml) decides
+    console.log("::endgroup::");
+    console.log("::group::verdict: record and hold");
     const recorded = wait ? DEFERRED : state;
     if (cfg && red[0] !== "pick")
         await record(cfg, { sha: env.SHA, state: recorded, lane: red.join(",") || null, issue });
@@ -973,6 +1003,7 @@ async function verdictMain(env) {
     const held = await heldNow(cfg, env.HELD);
     const hold = wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state });
     const owner = heldLine(env.VERSION_HELD);
+    console.log("::endgroup::");
     output({ state, issue: issue ? String(issue) : "", what, bisect, deferred: String(wait), hold, owner, held });
 }
 

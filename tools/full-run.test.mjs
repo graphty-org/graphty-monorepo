@@ -16,6 +16,7 @@ import {
     differingImages,
     duplicateOf,
     fixedRecently,
+    flakyFilings,
     flakyLanes,
     flakyStories,
     flakyStoryBody,
@@ -24,6 +25,7 @@ import {
     holdAction,
     isOnNightly,
     LANES,
+    MAX_FLAKY_STORIES,
     laneRedIssue,
     pick,
     redIssue,
@@ -882,6 +884,34 @@ describe("flaky story issues name their story test", () => {
             flakyStoryBody(s, "on abc", "Fix it."),
             "The story p/a.png matched its baseline on abc.\n\nFix it.",
         );
+    });
+});
+
+describe("flakyFilings", () => {
+    const story = (i) => ({
+        name: `p/s${i}.png`,
+        why: "drew a different picture",
+        test: { file: "p/S.stories.ts", name: `s${i}` },
+    });
+    const stories = (n) => Array.from({ length: n }, (_, i) => story(i));
+
+    it("files one issue per lane and per story when few are flaky", () => {
+        const out = flakyFilings({ lanes: ["CI"], stories: stories(2), at: "on abc", tail: "Fix it." });
+        assert.deepEqual(
+            out.map((f) => f.name),
+            ["CI", "p/s0.png", "p/s1.png"],
+        );
+    });
+
+    // run 41003760177 listed hundreds of flaky stories and filed 337 issues before it was cancelled (#4983)
+    it("files one issue for every story when many are flaky at once, naming each story test", () => {
+        const n = MAX_FLAKY_STORIES + 300;
+        const out = flakyFilings({ lanes: [], stories: stories(n), at: "on abc", tail: "Fix it." });
+        assert.equal(out.length, 1);
+        assert.equal(out[0].name, "many stories at once");
+        assert.ok(out[0].body.startsWith(`${n} stories were flaky at once on abc.`));
+        assert.ok(out[0].body.includes("Flaky test: p/S.stories.ts > s304"));
+        assert.ok(out[0].body.endsWith("Fix it."));
     });
 });
 

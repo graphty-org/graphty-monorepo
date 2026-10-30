@@ -10,6 +10,14 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-10-30) The studio stopped at its 1-round cap with bars 2, 3, 5, 6 and 7 failing as frozen.
+  One round cannot both find and confirm fixes: plan the cap so a fix round and a re-test round
+  fit, and fix the study tool (popover-on-hover) and the bar definitions (bar 2 key, bar 3 hover
+  rule) before the next tier spends sessions.
+- (2026-10-30) Real design work left, most severe first: join preview mismarks rows (sev 2), choices
+  come after the act with a default applied (sev 2), one fact drawn two ways (time vs kind, sev 2),
+  clipped approved ratio on the joined source row (bar 6), table tab names an unrendered panel
+  (bar 5, axe critical on 14 of 16 screens).
 - (2026-10-30) Tier 4 round 1 settled (`tier4/rounds/round-1/insights.md`): bar 4 HOLDS after the
   skeptics (no severity 3 survives); bars 2, 3, 5, 6, 7 fail as frozen, but bar 2 rests on the
   key's definition and bar 3 on post-success checks plus a tool defect. Bar 6 is real (ratio clipped).
@@ -73,6 +81,12 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-30 (studio stopped after tier 4 round 1):** Record the round as findings, not a
+  verdict on the design: two failing bars (2, 3) are partly study artifacts (key definition, tool
+  hover line, inconsistent hover counting). Reason: a stop at the cap leaves no re-test, so the
+  notes must say which failures are the product's (5, 6, 7, join preview) and which are the
+  study's. Tried: two independent skeptics per insight -- worked; they caught the tool defect and
+  the contestable false done. Did not work: grading hovers without a rule decided in advance.
 - **2026-10-30 (tier 4 round 1 insights, skeptics applied):** Two drops = dropped, one drop or
   weaken = weakened. All four severity 3 candidates fell to 2 or below (join preview 2, time vs
   kind 2, "With issues 11" 1, Export focus a candidate), so bar 4 holds. Bar 2 counted but flagged

@@ -667,6 +667,14 @@ function tableFold(id: string, folded: number, [what, endedNote]: [string, strin
     return `<details class="epm tfold" data-key="t-${esc(id)}"><summary>${what}${endedNote}${chev()}</summary>${inner}</details>`;
 }
 
+/** The fold's summary: how many rows it holds, and how many of them ended, when rows are open above it. */
+function foldWords(folded: TableRow[], anyShown: boolean, foldText?: (rows: TableRow[]) => string): [string, string] {
+    if (foldText) return [foldText(folded), ""];
+    if (!anyShown) return [`${fmtN(folded.length)} ended or idle ${folded.length === 1 ? "row" : "rows"}`, ""];
+    const ended = folded.filter((r) => r.past).length;
+    return [`${fmtN(folded.length)} more`, ended ? ` (${fmtN(ended)} ended or idle)` : ""];
+}
+
 function table(s: TableSection): string {
     const def = TABLES[s.id] ?? {
         cls: "t-sup",
@@ -690,16 +698,12 @@ function table(s: TableSection): string {
         ...s.rows.filter((r) => r.past && !r.total),
     ];
     const totals = s.rows.filter((r) => r.total);
-    const ended = folded.filter((r) => r.past).length;
-    const rowWord = folded.length === 1 ? "row" : "rows";
-    let what = shown.length ? `${fmtN(folded.length)} more` : `${fmtN(folded.length)} ended or idle ${rowWord}`;
-    if (def.foldText) what = def.foldText(folded);
-    const endedNote = def.foldText || !shown.length || !ended ? "" : ` (${fmtN(ended)} ended or idle)`;
+    const words = foldWords(folded, shown.length > 0, def.foldText);
     // With no row open, the header goes inside the fold, over the rows it names.
     const headOpen = shown.length > 0 || totals.length > 0;
     const listed = def.listFolded ? folded.filter(def.listFolded) : folded;
-    const inner = listed.length ? (headOpen ? "" : head) + listed.map(row).join("") : "";
-    const fold = tableFold(s.id, folded.length, [what, endedNote], inner);
+    const inner = listed.length ? (headOpen ? "" : head) : "";
+    const fold = tableFold(s.id, folded.length, words, inner + listed.map(row).join(""));
     // Nothing live: say so in words above the fold, so a table never reads as a header with no rows.
     const noneText = def.noneNow ?? (def.open ? "None past its line." : "None ongoing now.");
     const none = s.rows.length && !shown.length && !totals.length ? `<p class="empty">${esc(noneText)}</p>` : "";
@@ -1209,7 +1213,8 @@ export function overviewView(o: OverviewResponse): string {
 /** GitHub's issue search for the test file's name, open and closed: the issues the flaky counter could match. */
 function issueSearch(h: TestHistoryResponse): string {
     const file = h.file.split("/").pop() ?? h.file;
-    return `${REPO}/issues?${new URLSearchParams({ q: `is:issue "${file}"` }).toString()}`;
+    const q = new URLSearchParams({ q: 'is:issue "' + file + '"' });
+    return `${REPO}/issues?${q.toString()}`;
 }
 
 /** A new-issue link with the test's facts filled in; GitHub opens it as a draft the reader submits or drops. */

@@ -67,7 +67,7 @@ const place = (): ReturnType<typeof within> => within(screen.getByRole("region",
  * The Data place's Fields section.
  * @returns the section.
  */
-const fieldsGroup = (): HTMLElement => place().getByRole("group", { name: "Fields" });
+const fieldsGroup = (): HTMLElement => place().getByRole("group", { name: "Attributes" });
 
 /**
  * Picks an option of a Fields dropdown by clicking it open and clicking the option.
@@ -95,7 +95,7 @@ const shown = (label: string): string =>
  * @param column - the column.
  */
 async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
-    await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} fields` }));
+    await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} attributes` }));
     await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
     await userEvent.click(await screen.findByRole("option", { name: column }));
 }
@@ -149,8 +149,8 @@ describe("the Data place's sidebar on the real element", () => {
         assert.include(fields.textContent, "auth-log.csv");
         assert.isNotNull(fields.querySelector('[data-kind="edge"]'));
         assert.isNull(fields.querySelector('[data-kind="node"]'));
-        within(fields).getByRole("button", { name: "Add to edge fields" });
-        assert.isNull(within(fields).queryByRole("button", { name: "Add to node fields" }));
+        within(fields).getByRole("button", { name: "Add to edge attributes" });
+        assert.isNull(within(fields).queryByRole("button", { name: "Add to node attributes" }));
     });
 
     it("reads an event table as nodes until the reader says its rows are edges, one undo step", async () => {
@@ -167,7 +167,7 @@ describe("the Data place's sidebar on the real element", () => {
         await pick("Rows are", "nodes");
         await waitFor(() => {
             assert.equal(shown("Rows are"), "nodes");
-            within(fieldsGroup()).getByRole("button", { name: "Add to node fields" });
+            within(fieldsGroup()).getByRole("button", { name: "Add to node attributes" });
         });
         assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Source" }));
 
@@ -219,7 +219,7 @@ describe("the Data place's sidebar on the real element", () => {
     it("offers only number columns as the weight", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge fields" }));
+        await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
         const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
         assert.includeMembers(options, ["time", "bytes"]);
@@ -403,7 +403,7 @@ describe("the Data place's sidebar on the real element", () => {
             group("auth-log.csv");
             assert.equal(within(fieldsGroup()).getAllByRole("group")[0], group("hosts.csv"));
         });
-        assert.isNotNull(within(group("hosts.csv")).queryByRole("button", { name: "Add to node fields" }));
+        assert.isNotNull(within(group("hosts.csv")).queryByRole("button", { name: "Add to node attributes" }));
         assert.isNull(within(group("auth-log.csv")).queryByRole("combobox", { name: "Source" }), "closed");
 
         const log: HTMLElement = place().getByRole("listitem", { name: "auth-log.csv" });

@@ -103,7 +103,7 @@ async function fields(): Promise<ReturnType<typeof within>> {
     // Exact, so "Data place" (the region) does not also match.
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
     const place = await screen.findByRole("region", { name: "Data place" }, { timeout: TIMEOUT_MS });
-    return within(within(place).getByRole("group", { name: "Fields" }));
+    return within(within(place).getByRole("group", { name: "Attributes" }));
 }
 
 /**
@@ -114,7 +114,7 @@ async function fields(): Promise<ReturnType<typeof within>> {
  */
 function entries(section: ReturnType<typeof within>, side: "nodes" | "edges"): string[] {
     const plus: HTMLElement = section.getByRole("button", {
-        name: `Add to ${side === "nodes" ? "node" : "edge"} fields`,
+        name: `Add to ${side === "nodes" ? "node" : "edge"} attributes`,
     });
     const list = plus.closest("[data-fields-side]");
     return [...(list?.querySelectorAll<HTMLElement>("[data-entry]") ?? [])].map((each) => each.dataset.entry ?? "");
@@ -201,7 +201,7 @@ describe("Data > Fields as a + list on the real element", () => {
         await dropCsv("code,colour\nA,red\nB,blue\nC,green\n");
         const section = await fields();
         await waitFor(() => {
-            section.getByRole("button", { name: "Add to node fields" });
+            section.getByRole("button", { name: "Add to node attributes" });
             assert.deepEqual(entries(section, "nodes"), []);
         });
         assert.isNull(section.queryByRole("option", { name: "none" }));
@@ -210,7 +210,7 @@ describe("Data > Fields as a + list on the real element", () => {
     it("lists the columns that fit a field first, each with its kind's glyph, and says how many of the rest will not convert", async () => {
         await dropCsv("code,count,size\nA,1,10\nB,2,x\nC,3,30\n");
         const section = await fields();
-        await userEvent.click(await section.findByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(await section.findByRole("button", { name: "Add to node attributes" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
         await screen.findByRole("option", { name: /^count/ });
         const options = screen.getAllByRole("option");
@@ -255,11 +255,11 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.equal(element.session.data.statistics().nodeCount, 159);
         let section = await fields();
         await waitFor(() => {
-            section.getByRole("button", { name: "Add to node fields" });
+            section.getByRole("button", { name: "Add to node attributes" });
         });
         assert.notInclude(entries(section, "nodes"), "time");
 
-        await userEvent.click(section.getByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
         // Picking the kind opens its column list.
         await userEvent.click(await screen.findByRole("option", { name: "year" }));
@@ -273,7 +273,7 @@ describe("Data > Fields as a + list on the real element", () => {
             assert.isNull(element.session.time.field);
             assert.notInclude(entries(section, "nodes"), "time");
             // Focus goes to "+".
-            assert.strictEqual(document.activeElement, section.getByRole("button", { name: "Add to node fields" }));
+            assert.strictEqual(document.activeElement, section.getByRole("button", { name: "Add to node attributes" }));
         });
 
         // The work is saved, then the page goes away and comes back: a reload.
@@ -293,7 +293,7 @@ describe("Data > Fields as a + list on the real element", () => {
         await restored.waitForStableFrame();
         section = await fields();
         await waitFor(() => {
-            section.getByRole("button", { name: "Add to node fields" });
+            section.getByRole("button", { name: "Add to node attributes" });
         });
         assert.notInclude(entries(section, "nodes"), "time");
         assert.isNull(restored.session.time.field);
@@ -306,7 +306,7 @@ describe("Data > Fields as a + list on the real element", () => {
             session.data.attributes().find((each) => each.kind === "node" && each.name === "opened")?.type;
         assert.equal(typeOf(), "string", "the days load as text");
         const section = await fields();
-        await userEvent.click(section.getByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
         await userEvent.click(await screen.findByRole("option", { name: /^opened/ }));
         await waitFor(() => {
@@ -347,7 +347,7 @@ describe("Data > Fields as a + list on the real element", () => {
         // Column names the element does not find a location by, so the list starts empty.
         const session = await dropCsv("id,place,land,north\na,Paris,France,48.85\nb,Lyon,France,45.76\n");
         const section = await fields();
-        const plus = await section.findByRole("button", { name: "Add to node fields" });
+        const plus = await section.findByRole("button", { name: "Add to node attributes" });
         await waitFor(() => {
             assert.deepEqual(entries(section, "nodes"), []);
         });

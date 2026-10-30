@@ -78,7 +78,7 @@ function dataPlace(): ReturnType<typeof within> {
  */
 async function pickField(column: string, row: "Edge time" | "Node time" = "Edge time"): Promise<void> {
     const plus = await dataPlace().findByRole("button", {
-        name: `Add to ${row === "Edge time" ? "edge" : "node"} fields`,
+        name: `Add to ${row === "Edge time" ? "edge" : "node"} attributes`,
     });
     const entry = dataPlace().queryByRole("combobox", { name: row });
     if (entry === null) {

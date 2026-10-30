@@ -584,7 +584,7 @@ function SideGroup({
                 <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
                 <AddButton
                     kind={kind}
-                    title="Fields"
+                    title="Attributes"
                     options={offered.map((entry) => ({ key: entry.id, label: entry.name }))}
                     onAdd={(key) => {
                         setAdding(key as EntryId);
@@ -908,14 +908,14 @@ export function Fields({
         sidesShown(attributes, source).length === 0 && !(source !== undefined && held?.load === source.key);
     if (sources.length === 0) {
         return (
-            <ControlSection label="Fields" empty={empty(undefined)}>
+            <ControlSection label="Attributes" empty={empty(undefined)}>
                 <SourceFields session={session} source={undefined} />
             </ControlSection>
         );
     }
     const ordered = selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
     return (
-        <ControlSection label="Fields">
+        <ControlSection label="Attributes">
             <div ref={groups} className="dp-field-groups">
                 {ordered.map((source) => (
                     <ControlSection

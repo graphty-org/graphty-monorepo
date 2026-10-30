@@ -1013,7 +1013,7 @@ const WALKS4 = [
             },
             { do: steps("--click role=button:Join", "--expect role=button:1 issue in deliveries.csv") },
             { do: steps("--click 1 issue in deliveries.csv", "--expect Leave out"), screen: "the issue list" },
-            { do: steps("--key Escape", "--click Add to edge fields", "--expect Weight"), screen: "Fields +" },
+            { do: steps("--key Escape", "--click Add to edge attributes", "--expect Weight"), screen: "Fields +" },
             { do: steps("--key Escape", "--click Add filter", "--expect Node id"), screen: "the Filters picker" },
             {
                 do: steps("--key Escape", "--click deliveries.csv menu", "--click Export...", "--expect Scope"),

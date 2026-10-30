@@ -184,10 +184,10 @@ describe("the table dock's configuration", () => {
         // Maximized: the Issues list beside the table; Sources, Fields and Filters once, in the
         // Data place on the left.
         const config = await within(dock).findByRole("complementary", { name: "Table configuration" });
-        assert.isNull(within(config).queryByRole("list", { name: "Sources" }));
+        assert.isNull(within(config).queryByRole("list", { name: "Data sources" }));
         const left = screen.getByRole("complementary", { name: "Left panel" });
-        assert.lengthOf(screen.getAllByRole("list", { name: "Sources" }), 1);
-        within(left).getByRole("list", { name: "Sources" });
+        assert.lengthOf(screen.getAllByRole("list", { name: "Data sources" }), 1);
+        within(left).getByRole("list", { name: "Data sources" });
         const list = within(config).getByRole("list", { name: "Issues" });
         for (const { label, tab } of ISSUES) {
             const item = within(list).getByText(label).closest("li");

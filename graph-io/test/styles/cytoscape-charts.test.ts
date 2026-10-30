@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 import { readCytoscapeCharts } from "../../src/styles/cytoscape/charts.js";
 import type { StyleColumn } from "../../src/styles/types.js";
 
-const PIE =
-    'org.cytoscape.PieChart:{"cy_startAngle":0.0,"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]}';
+const PIE_OPTIONS = '"cy_startAngle":0.0,"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]';
+const PIE = `org.cytoscape.PieChart:{${PIE_OPTIONS}}`;
 const DATA: Record<string, unknown> = { a: 3, b: 5, c: 2, series: [2, 5, 3, 8, 4], chartLabels: ["X", "Y", "Z"] };
 
 /**
@@ -40,7 +40,7 @@ describe("Cytoscape charts", () => {
 
     it("reads a ring's hole, CX2's chart objects, and a chart's own size and position", () => {
         const ring = read({
-            NODE_CUSTOMGRAPHICS_1: PIE.replace("PieChart", "RingChart").replace("{", '{"cy_holeSize":0.7,'),
+            NODE_CUSTOMGRAPHICS_1: `org.cytoscape.RingChart:{"cy_holeSize":0.7,${PIE_OPTIONS}}`,
         });
         expect(ring.pieHole).toBe(0.7);
         const cx2 = read(
@@ -69,7 +69,7 @@ describe("Cytoscape charts", () => {
 
     it("draws a pie's item labels on its slices, from the options or a column, at their size", () => {
         const labelled = (options: string): unknown => {
-            const v = read({ NODE_CUSTOMGRAPHICS_1: PIE.replace("{", `{${options},`) });
+            const v = read({ NODE_CUSTOMGRAPHICS_1: `org.cytoscape.PieChart:{${options},${PIE_OPTIONS}}` });
             return typeof v.shapeTexts === "string" ? JSON.parse(v.shapeTexts) : v.shapeTexts;
         };
         // a = 3 of 10 from 3 o'clock counter-clockwise: its middle at 54 degrees, 0.62 of the 27 px disc's radius out

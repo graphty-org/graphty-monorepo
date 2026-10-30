@@ -105,3 +105,46 @@ New on this pass:
 
 - The routes listed as touched by the fixes (T61A, T61B, T65A, T65B, T66A/T66B, T67A/T67B,
   T68A/T68B): they belong to other tasks, not T60A.
+
+## Pass on the frozen build a53beb7179 (a53beb7179/)
+
+Walked in fresh sessions on a53beb7179 (`.study-builds/tier4-r1d3-a53beb7179`), each replayed from
+this folder's walk on bccf8fe47f. Folders are under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60A/a53beb7179/.
+
+Result: reached. The network opened from the address with 24 nodes and 59 edges, matching the
+answer key; the data stayed sources.graphml the whole way. Nothing crashed, blocked the task or
+gave a wrong count. None of the routes listed as touched by the fixes (T61, T65, T66, T67, T68)
+belongs to this task, so none was walked here.
+
+- success (pointer): all 8 steps matched to the end. Sources row has the link glyph, "24" and
+  "59" (tooltip "24 nodes, 59 edges"); the inspector's Overview reads Nodes 24, Edges 59.
+  a53beb7179/success/09.png
+- keyboard-c (keys only, with a screen reader): steps 1 to 31 matched; step 32 (Enter in the
+  address box) diverged. The graph opened with 24 nodes and 59 edges, but focus fell to the page
+  body ("focus: nothing (the page itself)"), where the walk on bccf8fe47f put it on the heading
+  "Graph, sources: 24 nodes, 59 edges"; and "24 nodes, 59 edges" was announced twice again after
+  "sources: 24 nodes, 59 edges". a53beb7179/keyboard-c/33.png. Carried on by hand: Tab from the
+  body goes "Main menu", "Project: sources"; Shift+Tab goes back "Main menu", "Local only",
+  "Resize inspector". F6 cycles canvas "Graph drawing", toolbar "Analyze", left panel
+  "Graph sources.graphml", inspector "Resize inspector", canvas again; the top bar is never in the
+  cycle. Read of the canvas region lists the toolbar's seven buttons. Shift+Tab from the canvas
+  goes "Resize left panel", "Graph settings", the "Everything" layer row, "Add a layer or a
+  folder", "Find". The keyboard walk reached the end. a53beb7179/keyboard-c/34.png to 49.png
+
+Defects on this build (all seen before, none new):
+
+1. Focus after opening the address with Enter falls to the page body, and the count is announced
+   twice (keyboard-c/33.png). Across passes the same keys put focus on the inspector heading in
+   one walk and on the body in others, so the move of focus to the heading does not reliably run
+   after the load.
+2. F6 does not stop on the top bar, and enters the inspector on its "Resize inspector" separator
+   rather than its first control (keyboard-c, the F6 steps).
+
+Answer key against the screen: no new mismatch. The earlier mismatches stand: the address box has
+no Open button (Enter is the only way to open the address), and the Server route the key lists as
+"also success" cannot load a file address.
+
+Not walked on this build: the detours (detour-open-file, detour-menu-paste, detour-server,
+detour-add-data) and the keyboard, keyboard-b and keyboard-nosr walks, which matched every check
+point when replayed earlier; their findings stand.

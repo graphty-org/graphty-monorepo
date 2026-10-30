@@ -12,8 +12,15 @@ import type {
     StepItem,
     TestItem,
 } from "../model/items.js";
-import { DAY, HOUR, MIN } from "../model/items.js";
-import { type LaneJob, NOT_A_TRAIN, type OwnerWait, type ReleaseSeen, type WorkflowState } from "../model/snapshots.js";
+import { DAY, HOUR, isOffMaster, loadOf, MIN } from "../model/items.js";
+import {
+    type ChannelAttempt,
+    type LaneJob,
+    NOT_A_TRAIN,
+    type OwnerWait,
+    type ReleaseSeen,
+    type WorkflowState,
+} from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -132,20 +139,26 @@ export function runnerOs(labels: string[]): JobItem["os"] {
 const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 
 /**
- * The kind of load a run puts on the runners (4.3, runner-minutes per merge).
+ * The kind of load a run puts on the runners (4.3, runner-minutes per merge): model/items.ts loadOf.
  * @param run the run
- * @returns full for release.yml (whose called workflows run inside it), pr (a pull request's, including CodeQL's
- *     default setup scanning one: event `dynamic` on `refs/pull/<n>/head`), master for a push to master, else other
  */
 export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
-    if (workflowFile(run.path) === "release.yml") return "full";
-    if (run.event === "pull_request" || run.event === "pull_request_target") return "pr";
-    if (run.event === "dynamic" && run.head_branch?.startsWith("refs/pull/")) return "pr";
-    if (run.event === "push" && run.head_branch === "master") return "master";
-    return "other";
+    return loadOf(workflowFile(run.path), run.event, run.head_branch);
 }
 
-export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false, load?: LoadKind): JobItem {
+/** Whether a run is on a branch other than master (model/items.ts isOffMaster). */
+export function offMaster(run: Pick<GhRun, "head_branch">): boolean {
+    return isOffMaster(run.head_branch);
+}
+
+export function toJobItem(
+    j: GhJob,
+    repo: string,
+    workflow: string,
+    hang = false,
+    load?: LoadKind,
+    offMasterRun = false,
+): JobItem {
     const skipped = isSkipped(j);
     const fam = family(j.name);
     return {
@@ -163,6 +176,7 @@ export function toJobItem(j: GhJob, repo: string, workflow: string, hang = false
         status: j.status,
         ...opt("conclusion", j.conclusion),
         ...(hang ? { hang: true } : {}),
+        ...(offMasterRun ? { offMaster: true as const } : {}),
         createdAt: Date.parse(j.created_at),
         ...(skipped ? {} : opt("startedAt", ms(j.started_at))),
         ...(skipped ? {} : opt("completedAt", ms(j.completed_at))),
@@ -268,9 +282,21 @@ export function masterState(runs: RunItem[]): MasterState {
 export interface RunnerUse {
     running: Record<JobItem["pool"], number>;
     queued: number;
-    /** Jobs queued over 2 minutes. */
+    /** Linux and Windows jobs waiting for a runner (status "queued") over 2 minutes, and runs queued with no jobs. */
     queuedOver2: number;
     longestQueuedMs: number;
+}
+
+/** Counts one job that has not started (queued, waiting or pending) into `use`. */
+function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number) {
+    if (p === "other") return; // machine.dev and self-hosted pools are outside GitHub's limit
+    const age = nowMs - Date.parse(j.created_at);
+    use.queued++;
+    // Only "queued" waits for a runner: "waiting" is an environment approval and "pending" a concurrency
+    // group, so neither says GitHub is short of runners (the owner's own Promote run read as an outage).
+    // macOS jobs queue behind their own 5-job limit while Linux runners sit free: that is no outage.
+    if (age > 2 * MIN && j.status === "queued" && p === "linux_windows") use.queuedOver2++;
+    use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
 }
 
 export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number): RunnerUse {
@@ -286,15 +312,15 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
             use.running[p]++;
             if (p === "macos") use.running.linux_windows++; // a macOS job counts against the 60 too
         } else if (j.status === "queued" || j.status === "waiting" || j.status === "pending") {
-            if (p === "other") continue; // machine.dev and self-hosted pools are outside GitHub's limit
-            const age = nowMs - Date.parse(j.created_at);
-            use.queued++;
-            if (age > 2 * MIN) use.queuedOver2++;
-            use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+            countWaiting(use, j, p, nowMs);
         }
     }
-    for (const r of runsWithoutJobs)
-        use.longestQueuedMs = Math.max(use.longestQueuedMs, nowMs - Date.parse(r.created_at));
+    for (const r of runsWithoutJobs) {
+        const age = nowMs - Date.parse(r.created_at);
+        use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+        // In an Actions outage runs sit queued before GitHub creates their jobs: each counts as one job waiting.
+        if (age > 2 * MIN && r.status === "queued") use.queuedOver2++;
+    }
     return use;
 }
 
@@ -569,6 +595,38 @@ export interface GqlIssue {
     labels: { nodes: { name: string }[] };
 }
 
+/** An open "Nightly held on <sha>" issue (ISSUE_QUERY's `nightly` search), with its body and last comments. */
+export interface GqlHoldIssue {
+    number: number;
+    title: string;
+    state: string;
+    createdAt: string;
+    body?: string;
+    comments?: { nodes: { body: string; createdAt: string }[] };
+}
+
+const HOLD_VERDICT = /\bended (green-images|green-clean|red|owner-item|approved|rejected)\b/;
+
+/**
+ * The held nightly candidate waiting only on the owner's screenshot review: its hold issue's newest verdict
+ * (tools/channel/hold.mjs writes "ended <state>" in the body, then in a comment per re-test) is green-images. A red
+ * or owner-item hold is the agents' to fix, and a publish hold ("Release held") is not a nightly hold at all.
+ * @param issues - the `nightly` search's nodes
+ * @returns since when it has waited and its issue, or undefined
+ */
+export function screenshotReview(issues: (GqlHoldIssue | null)[]): { since: number; issue: number } | undefined {
+    for (const i of issues) {
+        if (i?.state !== "OPEN" || !i.title.startsWith("Nightly held on")) continue;
+        const said = [{ body: i.body ?? "", createdAt: i.createdAt }, ...(i.comments?.nodes ?? [])]
+            .map((x) => ({ at: Date.parse(x.createdAt), state: HOLD_VERDICT.exec(x.body)?.[1] }))
+            .filter((x) => x.state);
+        let k = said.length;
+        while (k > 0 && said[k - 1].state === "green-images") k--; // re-tests that stay green-images keep the wait
+        if (k < said.length) return { since: said[k].at, issue: i.number };
+    }
+    return undefined;
+}
+
 export function toIssueItem(i: GqlIssue, repo: string): IssueItem {
     return {
         kind: "issue",
@@ -606,6 +664,9 @@ const BAD = new Set(["failure", "timed_out", "cancelled", "startup_failure", "ac
 /** "full" from "Release (full)"; runs before 2026-10-25 18:00 say just "Release" (legacy). */
 export const releaseMode = (title: string | undefined): string => /\(([\w-]+)\)/.exec(title ?? "")?.[1] ?? "legacy";
 
+/** release.yml's job that deploys nightly.graphty.app once the candidate was promoted. */
+const NIGHTLY_SITE = "Deploy the nightly site";
+
 const jobsOf = (jobs: GhJob[], name: string) => jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
 
 function laneOf(jobs: GhJob[], name: string): LaneResult {
@@ -627,6 +688,8 @@ export interface ReleaseAttempt {
     jobs: Partial<Record<Lane, LaneJob>>;
     /** The first job that failed, wherever it is (for an attempt that failed before its lanes). */
     failedJob?: string;
+    /** Its "Deploy the nightly site" job: passed means it promoted the candidate to nightly. */
+    nightly: LaneResult;
 }
 
 function laneJob(mine: GhJob[], name: string): LaneJob | undefined {
@@ -687,7 +750,46 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
     const failed = jobs
         .filter((j) => BAD.has(j.conclusion ?? ""))
         .sort((a, b) => msOr(a.completed_at) - msOr(b.completed_at))[0];
-    return { mode, lanes, tested, red, jobs: laneJobs, ...(failed ? { failedJob: failed.name } : {}) };
+    const nightly = laneOf(jobs, NIGHTLY_SITE);
+    return { mode, lanes, tested, red, jobs: laneJobs, nightly, ...(failed ? { failedJob: failed.name } : {}) };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The release channels (#4460): canary's deploys and production's promotions. Nightly's are release attempts.
+
+/** A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed. */
+const runOutcome = (conclusion: string | null): ChannelAttempt["outcome"] => {
+    if (conclusion === "success") return "ok";
+    return conclusion === "cancelled" ? "cancelled" : "bad";
+};
+
+/** Canary's attempts, newest first: finished deploy-pages.yml runs; a skipped run (master's build was red) is none. */
+export function canaryAttempts(runs: GhRun[]): ChannelAttempt[] {
+    return runs
+        .filter((r) => r.status === "completed" && r.conclusion !== "skipped")
+        .map((r) => ({
+            at: Date.parse(r.updated_at),
+            outcome: runOutcome(r.conclusion),
+            // run-name is "Deploy <the built commit>"; the run's own head is master's newest commit.
+            sha: /\b[0-9a-f]{40}\b/.exec(r.display_title ?? "")?.[0] ?? r.head_sha,
+            run: r.id,
+        }))
+        .sort((a, b) => b.at - a.at);
+}
+
+/**
+ * A finished promote.yml run as a production promotion: it moved channel/production, or its promotion failed. A dry
+ * run, a configuration redeploy or a nightly rollback is null. ponytail: a failed dry run counts as a failed
+ * promotion, since the jobs API does not say which runs were dry; read the run's inputs if that misleads.
+ */
+export function promotion(run: GhRun, jobs: GhJob[]): ChannelAttempt | null {
+    const move = jobs.find((j) => j.name.startsWith("Move channel/"));
+    if (move?.name !== "Move channel/production") return null;
+    const moved = laneOf(jobs, move.name);
+    if (moved !== "passed" && moved !== "failed" && laneOf(jobs, "Promote (owner approval)") !== "failed") return null;
+    // A run that succeeded without moving the channel failed its promotion (its promote job did).
+    const failed = run.conclusion === "success" ? "failure" : run.conclusion;
+    return { at: Date.parse(run.updated_at), outcome: moved === "passed" ? "ok" : runOutcome(failed), run: run.id };
 }
 
 /** The scheduler's App dispatches the train; anything else is ad hoc. */
@@ -746,7 +848,7 @@ export function trainSkipped(attempts: ReleaseSeen[], runs: GhRun[]): boolean {
 export const RELEASE_WORKFLOW_EVENTS: Record<string, string[]> = {
     "release.yml": ["workflow_dispatch"],
     "promote.yml": ["workflow_dispatch"],
-    "release-watch.yml": ["workflow_run"],
+    "release-watch.yml": ["workflow_run", "workflow_dispatch"],
 };
 
 /** The runs of an event the workflow declares; every run when the workflow's events are not known. */
@@ -838,7 +940,13 @@ export function stressQuiet(runs: Pick<StressCursorRun, "at" | "foundFailures">[
 
 export interface Rates {
     t4: { bootMin: number; usdPerMin: Record<string, number> };
-    llm: { step: string; usdPerPaidStep: number; paidConclusions: string[] };
+    llm: {
+        step: string;
+        bisectStep: string;
+        legacyBisectRuns: number[];
+        usdPerPaidStep: number;
+        paidConclusions: string[];
+    };
     fixedMonthly: Record<string, { usd: number } | null>;
 }
 
@@ -864,12 +972,33 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
     };
 }
 
-/** Paid LLM test steps (as tools/llm-due.mjs counts them) times the per-run cost. */
-export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
+/** Whether a bisect.yml run bisects the llm lane: its run name says so, or it is listed from before the name did. */
+const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates) =>
+    !!run && (/\bllm lane\b/.test(run.display_title ?? "") || rates.llm.legacyBisectRuns.includes(run.id));
+
+/** The step after the LLM tests whose name carries the run's logged cost (release.yml, tools/llm-spend.mjs). */
+const LLM_COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
+
+/**
+ * Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost: release.yml's LLM regression step,
+ * and the test step of each point of a bisect of the llm lane. A job whose cost step logged its real cost is priced at
+ * that instead.
+ */
+export function llmCost(
+    j: GhJob,
+    repo: string,
+    rates: Rates,
+    workflow?: string,
+    run?: Pick<GhRun, "id" | "display_title">,
+): CostItem | undefined {
+    const bisect = workflow === "bisect.yml";
+    if (bisect && !llmBisect(run, rates)) return undefined;
+    const step = bisect ? rates.llm.bisectStep : rates.llm.step;
     const paid = (j.steps ?? []).filter(
-        (s) => s.name === rates.llm.step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
+        (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
     if (!paid.length) return undefined;
+    const logged = (j.steps ?? []).map((s) => LLM_COST_STEP.exec(s.name)?.[1]).find((v) => v !== undefined);
     const end = Date.parse(paid[paid.length - 1].completed_at ?? j.completed_at ?? j.created_at);
     return {
         kind: "cost",
@@ -878,7 +1007,7 @@ export function llmCost(j: GhJob, repo: string, rates: Rates, workflow?: string)
         line: "llm",
         ...opt("workflow", workflow),
         day: dayOf(end),
-        usd: paid.length * rates.llm.usdPerPaidStep,
+        usd: logged === undefined ? paid.length * rates.llm.usdPerPaidStep : Number(logged),
     };
 }
 

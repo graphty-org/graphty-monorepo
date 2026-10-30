@@ -42,9 +42,6 @@ const EDGES = [
     { src: "n12", dst: "n29" },
 ];
 
-/** How long the layout, the framing and the frame after them are given. */
-const STABLE_TIMEOUT_MS = 15000;
-
 /** How many frames to keep drawing after the element says the picture is final. */
 const TAIL_FRAMES = 24;
 
@@ -239,7 +236,7 @@ describe("knowing the picture is final", () => {
         );
 
         shaders.release();
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
         const final = await histogram();
 
         await shaders.arrived();
@@ -282,7 +279,7 @@ describe("knowing the picture is final", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         const drawnWhenFinal = drawn;
 
@@ -306,7 +303,7 @@ describe("knowing the picture is final", () => {
     it("resolves only once nothing moves again", async () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         const before = picture();
 
@@ -327,7 +324,7 @@ describe("knowing the picture is final", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         assert.equal(announcements, 1, "one settlement, one announcement");
         assert.isTrue(
@@ -339,7 +336,7 @@ describe("knowing the picture is final", () => {
     it("does not call the picture final while a style edit is still waiting to be drawn", async () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         let drawn = 0;
 
@@ -363,7 +360,7 @@ describe("knowing the picture is final", () => {
             assert.isFalse(graph.isFrameStable, "the edit is not on screen yet, so the frame is not final");
         }
 
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         assert.isFalse(graph.getStylePainter().hasPending, "the wait resolved with the edit still undrawn");
         assert.isAbove(drawn, drawnAtEdit, "a frame showing the edit was drawn before the wait resolved");
@@ -385,12 +382,9 @@ describe("knowing the picture is final", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await vi.waitFor(
-            () => {
-                assert.isTrue(graph.getUpdateManager().zoomToFitCompleted, "the camera was framed");
-            },
-            { timeout: STABLE_TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(graph.getUpdateManager().zoomToFitCompleted, "the camera was framed");
+        });
 
         const { final, later } = await finalAndLater(shaders, "the nodes");
 
@@ -412,7 +406,7 @@ describe("knowing the picture is final", () => {
         await graph.setLayout("circular");
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         const shaders = holdShadersBack();
 
@@ -433,21 +427,36 @@ describe("knowing the picture is final", () => {
         );
     });
 
-    it("fails out loud rather than handing back a moving picture", async () => {
-        // Deliberately not awaited: the queue is busy, so a one millisecond wait cannot be
-        // satisfied honestly, and the only two answers are a rejection and a lie.
-        const loading = graph.addNodes(NODES);
-        let message = "";
-
+    /**
+     * Waits for the final frame with the wait's own limit on a fake clock, and runs the limit out
+     * at once. The test then decides when the time is up instead of a real deadline racing the
+     * machine, so it reads the same however busy the page is.
+     * @returns The message of the rejection, or "resolved" when the wait was satisfied.
+     */
+    async function waitAndRunOutTheLimit(): Promise<string> {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         try {
-            await graph.waitForStableFrame({ timeoutMs: 1 });
-            assert.fail("the wait resolved on a graph that was still loading");
-        } catch (error) {
-            message = error instanceof Error ? error.message : String(error);
+            const outcome = graph.waitForStableFrame().then(
+                () => "resolved",
+                (error: unknown) => (error instanceof Error ? error.message : String(error)),
+            );
+            vi.runOnlyPendingTimers();
+            return await outcome;
+        } finally {
+            vi.useRealTimers();
         }
+    }
 
+    it("fails out loud rather than handing back a moving picture", async () => {
+        // Deliberately not awaited: the queue is busy, so a wait whose limit runs out now cannot
+        // be satisfied honestly, and the only two answers are a rejection and a lie.
+        const loading = graph.addNodes(NODES);
+
+        const message = await waitAndRunOutTheLimit();
+
+        assert.notStrictEqual(message, "resolved", "the wait resolved on a graph that was still loading");
         assert.include(message, "still changing", "the failure says the picture was not final");
-        assert.include(message, "1 ms", "the failure says how long it waited");
+        assert.include(message, "ms after waitForStableFrame() was called", "the failure says how long it waited");
 
         await loading;
     });
@@ -459,15 +468,10 @@ describe("knowing the picture is final", () => {
         // says the page stopped drawing.
         await graph.addNodes(NODES);
         graph.engine.stopRenderLoop();
-        let message = "";
 
-        try {
-            await graph.waitForStableFrame({ timeoutMs: 1 });
-            assert.fail("the wait resolved on a graph that never drew its picture");
-        } catch (error) {
-            message = error instanceof Error ? error.message : String(error);
-        }
+        const message = await waitAndRunOutTheLimit();
 
+        assert.notStrictEqual(message, "resolved", "the wait resolved on a graph that never drew its picture");
         assert.include(message, "0 frames were drawn while it waited", "the failure counts the frames drawn");
     });
 });

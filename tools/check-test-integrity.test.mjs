@@ -177,6 +177,36 @@ describe("check-test-integrity: skips, timeouts, retries", () => {
         );
         assert.deepEqual(repo({ "a.test.ts": TWO }).change({ "a.test.ts": `${TWO}const o = { retries: 2 };\n` }), []);
     });
+
+    // #4102: a lint rule's test file holds the code the rule judges as strings; their timeouts and assertions
+    // are fixtures, not the test's own.
+    it("ignores timeouts and assertions inside string and template literals (a lint rule's fixtures)", () => {
+        const rule = (ms, extra) => `${ONE}it("rule", () => {
+    tester.run("no-test-timing", rule, {
+        invalid: [{ code: "await vi.waitFor(f, { timeout: ${ms} });" }, { code: 'expect(a).toBe(1); assert(b);' }],
+        valid: [\`${extra}\`],
+    });
+});
+`;
+        const before = rule(5000, "x");
+        const after = rule(60000, "export default { test: { testTimeout: 1000, hookTimeout: 1000 } };");
+        assert.deepEqual(repo({ "r.test.mjs": before }).change({ "r.test.mjs": after }), []);
+        // the fixture's assertions removed are not assertions removed
+        assert.deepEqual(
+            repo({ "r.test.mjs": before }).change({
+                "r.test.mjs": before.replace("expect(a).toBe(1); assert(b);", "f()"),
+            }),
+            [],
+        );
+    });
+
+    it("still reports a real timeout grown next to a string, on the right line", () => {
+        const file = `${TWO}const s = "timeout: 1";\n`;
+        has(
+            repo({ "a.test.ts": file }).change({ "a.test.ts": file.replace("timeout: 1000", "timeout: 9000") }),
+            "timeout timeout 1000 -> 9000",
+        );
+    });
 });
 
 const CONFIG = `export default defineConfig({

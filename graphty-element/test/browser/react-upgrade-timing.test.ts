@@ -69,10 +69,7 @@ test("nodeData assigned as a property before the upgrade still loads", async () 
         (node as unknown as { nodeData: unknown }).nodeData = [{ id: "a" }, { id: "b" }];
     });
 
-    await vi.waitFor(
-        () => {
-            assert.strictEqual(el.session.status.counts.nodes, 2);
-        },
-        { timeout: 5000 },
-    );
+    await vi.waitFor(() => {
+        assert.strictEqual(el.session.status.counts.nodes, 2);
+    });
 });

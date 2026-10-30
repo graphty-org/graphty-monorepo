@@ -22,10 +22,11 @@ import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
+import { parseArrowStack } from "./arrowStack";
 import { CustomLineRenderer } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
-import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import { FilledArrowRenderer, TEE_DEPTH } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
@@ -1061,10 +1062,61 @@ void main() {
      * @param cap - The line's width and the cap's size and breadth, which decide how far a vee's line runs on
      * @param cap.lineWidth - The line's width (`line.width`)
      * @param cap.size - The cap's size multiple
+     * @param cap.stack - The caps drawn in a row behind it (`stack`), past which the line runs to the last
      * @param cap.breadth - The cap's width multiple
      * @returns Arrow geometry configuration including positioning mode and offsets
      */
     static getArrowGeometry(
+        arrowType: string,
+        cap?: { lineWidth?: number; size?: number; breadth?: number; stack?: string },
+    ): ArrowGeometry {
+        const own = EdgeMesh.ownArrowGeometry(arrowType, cap);
+        const parts = parseArrowStack(cap?.stack);
+        const last = parts.at(-1);
+        if (last === undefined) {
+            return own;
+        }
+
+        // a cap with a row behind it (`stack`): the line runs past it and every part but the last, and stops where
+        // the last one's own line would
+        const size = cap?.size ?? 1;
+        let stop = EdgeMesh.capExtent(arrowType, size);
+        for (const part of parts.slice(0, -1)) {
+            stop += EdgeMesh.capExtent(part.type, part.size ?? size);
+        }
+        const lastSize = last.size ?? size;
+        const lastOwn = EdgeMesh.ownArrowGeometry(last.type, {
+            lineWidth: cap?.lineWidth,
+            size: lastSize,
+            breadth: last.width,
+        });
+        stop += this.calculateArrowLength() * lastSize * (lastOwn.scaleFactor ?? 1) * (lastOwn.lineStop ?? 1);
+        return { ...own, lineStop: stop / (this.calculateArrowLength() * size * (own.scaleFactor ?? 1)) };
+    }
+
+    /**
+     * How long a cap is drawn along its line, from its tip to its back, in scene units: its size's length, a tee's bar
+     * shallower, a 3D sphere dot smaller. A cap in an end cap's row (`stack`) starts where the one before it ends.
+     * @param arrowType - The cap's type.
+     * @param size - Its size.
+     * @returns The length.
+     */
+    static capExtent(arrowType: string, size: number): number {
+        const depth = arrowType === "tee" ? TEE_DEPTH : 1;
+        const scale = EdgeMesh.ownArrowGeometry(arrowType).scaleFactor ?? 1;
+        return this.calculateArrowLength() * size * depth * scale;
+    }
+
+    /**
+     * Geometry metadata for one cap of an arrow type, without the row a `stack` draws behind it.
+     * @param arrowType - The arrow type.
+     * @param cap - The cap's line width, size and breadth, where its line stop depends on them.
+     * @param cap.lineWidth - The line's width (`line.width`)
+     * @param cap.size - The cap's size multiple
+     * @param cap.breadth - The cap's width multiple
+     * @returns The cap's positioning mode and offsets.
+     */
+    private static ownArrowGeometry(
         arrowType: string,
         cap?: { lineWidth?: number; size?: number; breadth?: number },
     ): ArrowGeometry {

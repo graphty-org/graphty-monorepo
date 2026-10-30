@@ -1,3 +1,7 @@
+## 2.0.25 (2026-10-29)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
 ## 2.0.24 (2026-10-28)
 
 ### 🩹 Fixes

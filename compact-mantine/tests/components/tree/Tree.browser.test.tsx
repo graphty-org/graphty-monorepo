@@ -19,7 +19,6 @@ import {
     type TreeNodeData,
 } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
-import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
@@ -309,21 +308,59 @@ describe("Tree: keyboard", () => {
     it("jumps by type-ahead, and a quick run of keys matches a longer prefix", async () => {
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
         await tabIn();
-        // The type-ahead window is read from Date.now(): hold the clock still and move it by hand.
-        let now = Date.now();
-        vi.setSystemTime(now);
+        // The type-ahead pause is read from when each key was typed (event.timeStamp): move that
+        // forward by hand to make a pause.
+        let later = 0;
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return (timeStamp?.call(this) as number) + later;
+        });
         try {
             await userEvent.keyboard("l");
             expect(focused()).toBe("leaf");
             // A new run starts once the 500ms type-ahead window has passed.
-            vi.setSystemTime((now += 600));
+            later += 600;
             await userEvent.keyboard("g");
             expect(focused()).toBe("group");
-            vi.setSystemTime((now += 600));
+            later += 600;
             await userEvent.keyboard("{Home}ot");
             expect(focused()).toBe("other");
         } finally {
-            vi.useRealTimers();
+            vi.restoreAllMocks();
+        }
+    });
+
+    it("keeps a quick run of keys one run on a busy page (#3534)", async () => {
+        await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame"]} />);
+        await tabIn();
+        // The page is busy for 700ms after it takes "g" (a redraw elsewhere), and "r" was typed
+        // 100ms after "g", while it was busy: the browser hands "r" over only once the page is free.
+        // The busy page is its clock: once "g" is taken, performance.now() reads 700ms later, so
+        // the page handles "r" 700ms after "g" without the test holding the main thread.
+        let gAt = 0;
+        let busyFor = 0;
+        const now = performance.now.bind(performance);
+        vi.spyOn(performance, "now").mockImplementation(() => now() + busyFor);
+        const busy = (event: KeyboardEvent): void => {
+            if (event.key === "g") {
+                gAt = event.timeStamp;
+                busyFor = 700;
+            }
+        };
+        // The keys are real, but their typed time is set here: a reader's "r" is stamped when it
+        // was typed, 100ms after "g", which is what this stands in for.
+        const timeStamp = Object.getOwnPropertyDescriptor(Event.prototype, "timeStamp")?.get;
+        vi.spyOn(Event.prototype, "timeStamp", "get").mockImplementation(function (this: Event) {
+            return this instanceof KeyboardEvent && this.key === "r" ? gAt + 100 : (timeStamp?.call(this) as number);
+        });
+        globalThis.addEventListener("keydown", busy);
+        try {
+            // "gr" is Group; "r" alone, from Group, would be Rect.
+            await userEvent.keyboard("gr");
+            expect(focused()).toBe("group");
+        } finally {
+            globalThis.removeEventListener("keydown", busy);
+            vi.restoreAllMocks();
         }
     });
 
@@ -1376,7 +1413,7 @@ describe("ResultRow", () => {
         expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
         expect(name.getBoundingClientRect().right).toBeLessThanOrEqual(viewport.getBoundingClientRect().right);
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
+        const tip = await screen.findByRole("tooltip", {});
         expect(tip.textContent).toContain(long);
     });
 });

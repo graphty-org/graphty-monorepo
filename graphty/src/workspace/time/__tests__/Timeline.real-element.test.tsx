@@ -20,9 +20,6 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** Enough simulation steps for the samples' force layout to settle before it is drawn. */
 const PRE_STEPS = 1000;
 
@@ -44,13 +41,10 @@ async function open(
     const store = createWorkspaceStore({ project: { name: "Timeline", id: 1 }, place });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -96,7 +90,9 @@ async function pickField(column: string, row: "Edge time" | "Node time" = "Edge 
  */
 async function timeCard(): Promise<ReturnType<typeof within>> {
     if (screen.queryByTestId("time-card") === null) {
-        await userEvent.click(await dataPlace().findByRole("treeitem", { name: /^Time/ }));
+        await userEvent.click(
+            within(await dataPlace().findByRole("listitem", { name: /^Time/ })).getByRole("button", { name: /^Time/ }),
+        );
     }
     return within(await screen.findByTestId("time-card"));
 }
@@ -197,13 +193,10 @@ describe("the timeline on the real element", () => {
         const { position } = session.history;
 
         await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
-        await waitFor(
-            () => {
-                assert.isTrue(session.time.playing);
-                assert.isAbove(Number(session.time.current?.from), Date.UTC(2024, 11, 30));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isTrue(session.time.playing);
+            assert.isAbove(Number(session.time.current?.from), Date.UTC(2024, 11, 30));
+        });
         await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         assert.isFalse(session.time.playing);
         await waitFor(() => {
@@ -316,7 +309,7 @@ describe("the timeline on the real element", () => {
         await waitFor(() => {
             assert.isNotNull(session.time.current);
         });
-        await dataPlace().findByRole("treeitem", { name: /^Time / });
+        await dataPlace().findByRole("listitem", { name: /^Time / });
         const chip = await screen.findByRole("button", { name: /^Time: / });
         await userEvent.click(chip);
         assert.equal(document.activeElement?.getAttribute("aria-label"), "Window start");
@@ -573,13 +566,10 @@ describe("the Overview and the import of time", () => {
         const store = createWorkspaceStore({ project: { name: "Blanks", id: 1 }, place: "data" });
         render(<Workspace store={store} registrations={REGISTRATIONS} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         const live = session as GraphSession;
         await live.data.import({
             type: "csv",
@@ -597,31 +587,30 @@ describe("the Overview and the import of time", () => {
         });
     });
 
-    it("adds a time window as a filter step: Filter by Time window, its field, Add step", async () => {
+    it("adds a time window from the Filters +, once a time field is set and the window is off", async () => {
         const { session } = await open();
-        await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter step" }));
-        await userEvent.click(await screen.findByRole("combobox", { name: "Filter by" }));
-        await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
-        const card = within(await screen.findByTestId("time-card"));
-        await userEvent.click(card.getByRole("combobox", { name: "Time field" }));
-        await userEvent.click(await screen.findByRole("option", { name: "sent" }));
-        await waitFor(() => {
-            assert.deepEqual(session.time.field, { edges: { start: "sent" } });
-        });
-        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+        await designateSent(session);
+        if (session.time.current !== null) {
+            await userEvent.click(await dataPlace().findByRole("checkbox", { name: "Apply the time window" }));
+            await waitFor(() => {
+                assert.isNull(session.time.current);
+            });
+        }
+        await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Time window" }));
 
         await waitFor(() => {
             assert.isNotNull(session.visibility.window, "the window is on");
         });
         assert.isBelow(session.visibility.summary.visibleEdges, 2102);
-        // The Filters list holds it as a row, and the card stays open on it.
-        await dataPlace().findByRole("treeitem", { name: /^Time / });
+        // The Filters list holds it as a row, and its card opens in the inspector.
+        await dataPlace().findByRole("listitem", { name: /^Time / });
         await screen.findByTestId("time-card");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("button", { name: "Add step" }), "the row's card has nothing to add");
-        });
-        // The same field reads in Fields.
-        assert.equal(dataPlace().getByRole("combobox", { name: "Edge time" }).getAttribute("value"), "sent");
+        // With the window on, "+" no longer offers it.
+        await userEvent.click(dataPlace().getByRole("button", { name: "Add filter" }));
+        await screen.findByRole("menuitem", { name: "Largest component" });
+        assert.isNull(screen.queryByRole("menuitem", { name: "Time window" }));
+        await userEvent.keyboard("{Escape}");
     });
 
     it("drags the whole window from between its two handles, the graph following, as one step", async () => {
@@ -635,6 +624,10 @@ describe("the Overview and the import of time", () => {
         const to = from + span * 0.1;
         await act(async () => {
             await session.time.window({ from, to, step: "week" });
+            // Window edits recorded within a second of each other merge into one step; an undo
+            // and a redo end that, so the drag below is counted on its own however fast it runs.
+            await session.undo();
+            await session.redo();
         });
         const before = session.history.position;
         const live: TimeStepEvent[] = [];
@@ -676,12 +669,9 @@ describe("the Overview and the import of time", () => {
         });
 
         await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
-        await waitFor(
-            () => {
-                assert.isAtLeast(frames.length, 12, "frames played");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isAtLeast(frames.length, 12, "frames played");
+        });
         await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         off();
 
@@ -720,12 +710,9 @@ describe("the Overview and the import of time", () => {
         });
 
         await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
-        await waitFor(
-            () => {
-                assert.isAtLeast(frames, 12, "frames played");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isAtLeast(frames, 12, "frames played");
+        });
         await userEvent.click(within(dock).getByRole("button", { name: "Pause" }));
         off();
         attributes.mockRestore();

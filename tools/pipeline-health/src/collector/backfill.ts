@@ -23,11 +23,12 @@ import rates from "../../config/rates.json" with { type: "json" };
 import { DAILY_ROW_LIMIT, DAY, homeKey, type RawItem, type TestItem } from "../model/items.js";
 import { getCursor, putRaw, recordSource, setCursor, takeQuota } from "../model/raw.js";
 import type { Store } from "../model/store.js";
-import type { GitHub } from "./github.js";
+import { type GitHub, runJobs } from "./github.js";
 import {
     flakyTestItem,
     llmCost,
     loadKind,
+    offMaster,
     t4Cost,
     toIssueItem,
     toJobItem,
@@ -35,7 +36,6 @@ import {
     toRunItem,
     toStepItems,
     workflowFile,
-    type GhJob,
     type GhRun,
     type GqlIssue,
     type GqlPr,
@@ -63,6 +63,11 @@ export interface BackfillOptions {
     perPage?: number;
     /** Runs GitHub lists for one query (LISTED_RUNS; tests lower it). */
     listedRuns?: number;
+    /**
+     * Re-read only these days' runs of these workflows, whatever the cursors say, and nothing else: a repair of days
+     * an earlier backfill lost (before hourRuns, a day over GitHub's listed limit kept only its newest runs).
+     */
+    repair?: { days: string[]; workflows: string[] };
     log?: (line: string) => void;
     sleep?: (ms: number) => Promise<void>;
     /** The clock the throttle and the deadline read (tests pass a fake one). */
@@ -146,6 +151,12 @@ export async function backfill(o: BackfillOptions): Promise<BackfillReport> {
 
     try {
         const ctx: Ctx = { o, perPage, gate, get, write, r, log };
+        if (o.repair) {
+            await repairRuns(ctx, o.repair.days, o.repair.workflows);
+            r.done = true;
+            r.calls = o.gh.calls - calls0;
+            return r;
+        }
         await flakyTests(ctx, first);
         for (const repo of o.repos) await repoRuns(ctx, repo, first);
         if ((await getCursor(o.store, PRS_CURSOR)) !== "done") {
@@ -232,6 +243,41 @@ async function hourRuns(c: Ctx, repo: string, day: number, hour: number, fromPag
     }
 }
 
+/** The repair's cursor: which repair (its days and workflows), the next day-workflow pair and page, or done. */
+export const REPAIR_CURSOR = "backfill#repair";
+
+/**
+ * Each day's runs of each workflow in `o.repo` (a workflow lists far fewer than LISTED_RUNS a day), with their items.
+ * The cursor moves after each page, so an invocation stopped by its deadline or the write budget continues there
+ * instead of re-reading (and re-writing) the same first pages every time; a finished repair reads nothing again.
+ */
+async function repairRuns(c: Ctx, days: string[], workflows: string[]): Promise<void> {
+    const key = JSON.stringify({ days, workflows });
+    const saved = await getCursor(c.o.store, REPAIR_CURSOR);
+    let at = { i: 0, page: 1, done: false };
+    try {
+        const v = saved ? (JSON.parse(saved) as { key?: string; i?: number; page?: number; done?: boolean }) : {};
+        if (v.key === key) at = { i: v.i ?? 0, page: v.page ?? 1, done: v.done === true };
+    } catch {
+        // unreadable: start over (writes are idempotent)
+    }
+    const save = (v: object) => setCursor(c.o.store, REPAIR_CURSOR, JSON.stringify({ key, ...v }), c.o.now);
+    if (at.done) return;
+    const pairs = days.flatMap((day) => workflows.map((wf) => [day, wf] as const));
+    for (let i = at.i; i < pairs.length; i++) {
+        const [day, wf] = pairs[i];
+        for (let page = i === at.i ? at.page : 1; page <= LISTED_RUNS / c.perPage; page++) {
+            const res = await c.get<{ workflow_runs: GhRun[] }>(
+                `repos/${c.o.repo}/actions/workflows/${wf}/runs?created=${day}&per_page=${c.perPage}&page=${page}`,
+            );
+            const last = await runsPage(c, c.o.repo, res?.workflow_runs ?? [], `${wf} ${day} page ${page}`);
+            await save(last ? { i: i + 1, page: 1 } : { i, page: page + 1 });
+            if (last) break;
+        }
+    }
+    await save({ done: true });
+}
+
 /** Writes one listed page of runs with their items; true when it was the query's last page. */
 async function runsPage(c: Ctx, repo: string, list: GhRun[], what: string): Promise<boolean> {
     const out: RawItem[] = [];
@@ -312,10 +358,8 @@ async function suiteFlaky(c: Ctx, repo: string, run: GhRun, suite: FlakySuite | 
         const probe = flakyTestItem(message, cr.name, run.id, 1, 0);
         if (!probe) continue;
         if (run.run_attempt > 1 && !attempts) {
-            const jobs = await c.get<{ jobs: GhJob[] }>(
-                `repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=100`,
-            );
-            attempts = new Map((jobs?.jobs ?? []).map((j) => [j.id, j.run_attempt]));
+            const jobs = await runJobs(c.get, `repos/${repo}/actions/runs/${run.id}/jobs?filter=all`);
+            attempts = new Map(jobs.map((j) => [j.id, j.run_attempt]));
         }
         const attempt = attempts?.get(cr.databaseId) ?? 1;
         const seenAt = cr.completedAt ? Date.parse(cr.completedAt) : Date.parse(run.updated_at);
@@ -332,24 +376,17 @@ async function runItems(
 ): Promise<RawItem[]> {
     const workflow = workflowFile(run.path);
     const out: RawItem[] = [toRunItem(run, repo)];
-    const jobs: GhJob[] = [];
-    for (let page = 1; page <= 5; page++) {
-        const r = await get<{ total_count: number; jobs: GhJob[] }>(
-            `repos/${repo}/actions/runs/${run.id}/jobs?filter=all&per_page=100&page=${page}`,
-        );
-        jobs.push(...(r?.jobs ?? []));
-        if (!r || jobs.length >= r.total_count || !r.jobs.length) break;
-    }
+    const jobs = await runJobs(get, `repos/${repo}/actions/runs/${run.id}/jobs?filter=all`);
     for (let a = 1; a < run.run_attempt; a++) {
         const earlier = await get<GhRun>(`repos/${repo}/actions/runs/${run.id}/attempts/${a}`);
         if (earlier) out.push(toRunItem(earlier, repo));
     }
     for (const j of jobs) {
-        out.push(toJobItem(j, repo, workflow, false, loadKind(run)));
+        out.push(toJobItem(j, repo, workflow, false, loadKind(run), offMaster(run)));
         if (j.status !== "completed") continue;
         if (STEP_WORKFLOWS.has(workflow)) out.push(...toStepItems(j, repo, workflow));
         const t4 = t4Cost(j, repo, rates as unknown as Rates, workflow);
-        const llm = llmCost(j, repo, rates as unknown as Rates, workflow);
+        const llm = llmCost(j, repo, rates as unknown as Rates, workflow, run);
         if (t4) out.push(t4);
         if (llm) out.push(llm);
     }
@@ -366,7 +403,13 @@ async function pullRequestsAndIssues(
     const [owner, name] = o.repo.split("/");
     for (const [query, vars] of [
         [PR_QUERY, { withOpen: false }],
-        [ISSUE_QUERY, { held: `repo:${o.repo} is:issue is:open in:title "Release held"` }],
+        [
+            ISSUE_QUERY,
+            {
+                held: `repo:${o.repo} is:issue is:open in:title "Release held"`,
+                nightly: `repo:${o.repo} is:issue is:open in:title "Nightly held on"`,
+            },
+        ],
     ] as const) {
         let cursor: string | null = null;
         for (let page = 0; page < 100; page++) {

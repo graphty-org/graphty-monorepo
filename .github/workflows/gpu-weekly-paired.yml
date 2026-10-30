@@ -23,6 +23,10 @@ concurrency:
     group: gpu-weekly-paired
     cancel-in-progress: false
 
+env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
 jobs:
     paired:
         name: Paired benchmark, master against the latest release (NVIDIA T4)

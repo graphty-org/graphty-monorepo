@@ -1,14 +1,14 @@
 import { defineConfig } from "vitest/config";
 
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest, localVerbose } from "../vitest.base.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         ...baseTest({ reporters: [localVerbose()] }),
         globals: true,
         environment: "node",
         pool: "forks",
-        testTimeout: 30000,
         include: ["test/**/*.test.ts"],
         // verbose prints a line per test: useful locally, needless noise in CI.
         // see test/setup/yield-to-event-loop.ts -- without it one audit file holds the worker
@@ -29,3 +29,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

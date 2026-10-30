@@ -51,7 +51,7 @@ production moves `latest` to the same versions and deploys the same site tarball
    canary.graphty.app. Merge to canary: about 20 to 35 min.
 5. **Full run, every 6 hours** on the newest green master build: every shard in both feature-flag
    configurations, every story's screenshot, T4 GPU, Hosts, macOS work protection, the audit, LLM
-   regression once a UTC day. Measured 65 to 93 min today; target 60 to 75 (section 3). Red:
+   regression in every full run. Measured 65 to 93 min today; target 60 to 75 (section 3). Red:
    bisect master's merges with only the failing tests, revert by pull request, fix forward.
 6. **Nightly.** Green with no changed screenshot: version, publish npm `next`, deploy
    nightly.graphty.app (budget 20 min). Changed screenshots: wait for the owner's Finish, then the
@@ -160,10 +160,16 @@ Detail: [channels.md](channels-pipeline/channels.md).
   newest master first-parent commit whose push build is green and whose `site-<sha>` exists, from
   the store (canary's build stamp is a cross-check after step 8). It skips a commit already judged,
   or one whose diff from the last judged commit is only release-version merges and accept merges
-  (`tools/release-diff.mjs`). The version and major-bump dry run is its own lane, and the `version`
+  (`tools/release-diff.mjs`). A candidate other than the dispatching commit is handed to a run on
+  `channel/full-run` at that commit, so its own workflow files test it; when the hand-off cannot
+  run (a candidate from before it, or environments that do not allow the branch) and the
+  candidate's `.github/workflows` differ from the dispatching commit's, the dispatching commit is
+  tested in its place and the run assembles its site (`candidate_site`), so a new CI step and the
+  script it runs always meet (#4522). The held head is the exception: the hold exists to test it.
+  The version and major-bump dry run is its own lane, and the `version`
   job reuses its plan. Lanes: ci.yml (each On shard starts when its Off twin ends), `gpu.yml`,
-  `hosts.yml`, `work-protection-macos.yml`, the audit, and LLM regression once per UTC day (the first full run
-  of the day whose ci.yml lane is green, and an owner `mode=full` run), started when the ci.yml lane
+  `hosts.yml`, `work-protection-macos.yml`, the audit, and LLM regression in every full, restart and candidate run (owner,
+  2026-10-29), started when the ci.yml lane
   is green (off the critical path). Performance Benchmarks becomes `needs:
 build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-images`, `red` or
   `owner-item`, and also runs the screenshot gate on green-clean (section 5).
@@ -192,7 +198,8 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   owner-wait recorded as its own key.
 - **Nightly fixes the run it has.** Master moves every 6 hours with new fixes and new problems, so
   waiting for a clean newest full run may never publish. A full run that is not green-clean is
-  checked once more on its own commit, then held and fixed in place, never replaced by newer master.
+  checked once more on its own commit, then held and fixed in place. Newer master replaces it only
+  through a green run while it is red (below, #5052), never while it waits for the owner's review.
 - **Same-commit re-run, once.** A release.yml `recapture` job (needs ci; ci.yml's visual job and
   gate step are untouched) re-shoots on a fresh runner only the stories attempt 1 found changed or
   new (`capture --stories`). A story is changed only when both shots differ from its baseline and
@@ -222,7 +229,13 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   `channel/nightly`), writes the store's one-row `candidate` table (`base` C, `head`), and opens
   "Nightly held on <sha12>" (priority:high) listing the red lanes, changed images and owner items,
   announced on the Release status issue and Pushover. Master keeps merging; master slots still run
-  and file red issues, but never promote or replace C. Catch-up order: a due promotion, an untested
+  and file red issues, but never promote past C, with one exception (#5052; owner, 2026-10-30: a red
+  hold must never outlive a green run behind it): a newer master commit (C in its history) whose
+  verdict is `green-clean` or `green-images` replaces a held head judged `red`, `owner-item` or
+  `rejected` (`hold=replace`, `tools/channel/hold.mjs replace`): the hold ends (its issue closed,
+  `channel/candidate` deleted by lease at that head), then a green-clean commit promotes in the same
+  run and a green-images one is held in its place. A head judged `green-images` (the owner's pending
+  review), `approved` or not judged yet is never replaced. Catch-up order: a due promotion, an untested
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
   closes the issue) or it is abandoned; newer master supersedes it only through an abandon, which
   records `rejected` on the held head, so an approval of it that merges later promotes nothing.
@@ -269,7 +282,7 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   (`candidate-fix.mjs plan`): ci.yml with `shards` (the shards of the projects nx calls affected,
   as a light run without screenshots), T4, the audit, Hosts when webgpu-graph-algorithms,
   graph-format or the lockfile changed, macOS work protection when graphty-element or the lockfile
-  changed, and any lane the head's previous verdict found red; LLM regression keeps its daily rule.
+  changed, and any lane the head's previous verdict found red; LLM regression always runs.
   A red CI lane or screenshot capture before, or no earlier run to carry captures from, re-runs
   everything. The `recapture` job shoots every story of an affected Storybook and carries the
   other projects' `visual-final-*` over from the run that judged the head before, shooting their
@@ -287,8 +300,8 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
 - **Production promotion** (`promote.yml`, environment `production`: the owner as required reviewer,
   "prevent self-review" off, master only) refuses a nightly that was not clean or approved, whose
   asset hash differs from the store's, has a publish hold, misses a version on npm, or would roll
-  back across an autosave or project format change; checks the token and every package's dist-tags
-  before moving any; moves `latest`; merges production's datasets (index merged, thumbnails replaced,
+  back across an autosave or project format change; checks that npm's trusted publishing accepts the
+  job for every package and reads every package's dist-tags before moving any; moves `latest`; merges production's datasets (index merged, thumbnails replaced,
   datasets add-only by gunzipped bytes; channels section 2); deploys graphty-site with
   `graphty/sites/production.json` from master's tip; then a `needs:` job in environment `release`
   fast-forwards `channel/production` with the deploy key. Idempotent; `config_only` redeploys with a
@@ -416,28 +429,18 @@ auto-merge. The owner's own pipeline edits are made by an agent session and appr
 Agents run as the owner's Unix user: the split holds only once his `gh` token, his git credential
 helpers and cache, his SSH keys and ssh-agent, his npm token and his GPG key are out of their reach (section 13 item 2).
 
-### 6.2 CODEOWNERS
+### 6.2 CODEOWNERS (removed)
 
-Owned are only the paths that can loosen a check or take authority: `/.github/workflows/`,
-`/.github/CODEOWNERS`, `/.claude/`, `/CLAUDE.md`, `/ci-budgets.json`, `/release-hold.json`,
-`/release-approvals.json`, `/nx.json`, `/vitest.shared.config.ts`, `/vitest.ci-junit.mjs`,
-`**/.storybook/vitest.setup.*`, `/visual-review/trusted/`, `/visual-review/capture/`,
-`/visual-review/passkeys.json`, `/visual-review.config.json`, `/graphty/sites/nightly.json`, `/graphty/sites/production.json`, and in
-`tools/` the results, cache, scheduler and channel directories, `bisect-core`, the release tools,
-`ci-test-matrix`, `run-tests`, the selector and its rules, and the integrity, features, budgets,
-`pr-open`, `pr-review` and quick-check scripts. `visual-baselines/` is guarded by the signature
-(section 5). **Owned closure:** PR Integrity fails when an owned script's or workflow's static import
-closure (the selector's import graph) holds an unowned file, so a helper an owned tool imports is
-owned too; the list grows by the files that check names, in its own pull request. Of
-the 117 golden landings of 2026-10-18 to 10-24, 27 touched this list, about 4 a day; the integrity
-check adds an unknown number, replayed over the same landings before step 3. A code-owned pull
-request that references an open red, release-held or red-master issue, or a rollout step's pull
-request, gets its own `ACTION NEEDED` line when green; the rest go in one daily review list.
+Removed on 2026-10-29 by the owner's decision (#4599). `.github/CODEOWNERS` named only a team that
+never existed, the master ruleset never required code-owner review, and its one live use, PR
+Integrity's owned-closure check, failed pull requests whenever the hand-kept list drifted. PR
+Integrity counts the owner's approval through its `OWNER` login. The guard against a pull request
+editing the checks that judge it is to run master's copy of those checks (issue #4421).
 
 ### 6.3 Rulesets and secrets
 
 - Ruleset 23973898: bypass = deploy keys (a ruleset cannot single out one key, so every write deploy
-  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 164375816,
+  key bypasses; the scheduler Worker checks daily that the repository has exactly one, id 167635448,
   and files a `priority:critical` issue otherwise); code-owner review required with 0 approvals;
   stale reviews dismissed; last-push approval off. A pull request waiting for the owner is never
   merged with master unless it conflicts.
@@ -447,7 +450,7 @@ request, gets its own `ACTION NEEDED` line when green; the rest go in one daily 
 - **Outside-world secrets live in master-only environments**, job by job: release.yml `land`
   (`release`: `RELEASE_DEPLOY_KEY`), `publish` (`release`: npm OIDC, Pushover), `site` (`nightly`:
   `NIGHTLY_SITE_DEPLOY_KEY`; `GITHUB_TOKEN` for the release), `llm` (`full-run`: `GOOGLE_API_KEY`);
-  promote.yml `promote` (`production`: `NPM_DIST_TAG_TOKEN`, `PRODUCTION_SITE_DEPLOY_KEY`) then
+  promote.yml `promote` (`production`: npm OIDC for the dist-tags, `PRODUCTION_SITE_DEPLOY_KEY`) then
   `channel-ref` (`release`: `RELEASE_DEPLOY_KEY`); ci.yml `sentry-upload` (`master-build`:
   `SENTRY_AUTH_TOKEN`), cache writes (`nx-cache-write`); `dependabot-automerge.yml`
   (`dependabot-automerge`: `AGENT_AUTOMERGE_TOKEN`). Jobs that also run on pull requests declare
@@ -512,11 +515,19 @@ Detail: [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md) section 1
   60 s slower, per key and within run kind (pull request kinds included). The Worker computes it; the
   `timings` job that sees it files or updates one issue per key naming the merge range. The Sentry
   regression would have alarmed in about 5 hours.
-- **Stall alarm:** every release.yml run's `timings` job checks `age:nightly`, the time since
-  `channel/nightly` last moved while canary holds an unpromoted commit. Over 24 hours it files or
-  updates one `priority:critical` issue "Nightly stalled since <date>" naming the blocking state (red
-  with or without a culprit, waiting for screenshots, an owner item, a hold); the pipeline round owns
-  a red with no culprit and fixes forward. Over 48 hours, the issue gets an `ACTION NEEDED` line.
+- **Missed-slot alarm (#5052):** the goal is a nightly promotion every 6-hour slot, and a slot that
+  does not promote is an incident with a named cause. release.yml's `slot` job, at the end of every
+  full, restart and candidate run that ends without moving nightly (not one that handed off to
+  channel/full-run, nor an attempt 1 waiting for its re-run), files or updates one
+  `priority:critical` issue "Nightly missed slot <date hh:mm> UTC: <cause>": a red lane and its red
+  issue, the owner's screenshot review with the review page, a hold nobody can review, a green-clean
+  commit that did not promote and why, or no new candidate. It closes when nightly moves
+  (`tools/channel/nightly.mjs slot`).
+- **Stall alarm (fallback):** every release.yml run's `timings` job checks `age:nightly`, the time
+  since `channel/nightly` last moved while canary holds an unpromoted commit. Over 8 hours (a slot
+  and a run) with no missed-slot issue open, so a slot produced no run at all, it files or updates one
+  `priority:critical` issue "Nightly stalled since <date>" naming the blocking state. Over 48 hours,
+  the issue gets an `ACTION NEEDED` line.
 
 ### 7.1 Load and runner capacity (owner, 2026-10-26)
 
@@ -594,10 +605,12 @@ Detail: [features.md](channels-pipeline/features.md).
 Every binding decision of 2026-10-24 and 25 is implemented in sections 1 to 8 and 12. One meets
 an older guideline: "LLM regression once per candidate" at up to 4 candidates a day is up to $113 a
 month against the 2026-10-12 guideline of about $60. The implementation plan (#3418, item
-`llm-once-a-day`) lowered it to once per UTC day: the first full run of the day whose ci.yml lane is
-green, and an owner `mode=full` run, about $29 a month. Budget key `spend:llm` warns at $60 in a
-calendar month with the month's runs counted. Going back to once per candidate is a one-line change
-to the lane's condition (`tools/llm-due.mjs`). Owner rules
+`llm-once-a-day`) first lowered it to once per UTC day; the owner reversed that on 2026-10-29 ("LLM
+tests should only be running during the full release testing, and should run for each of the 4
+canary->nightly releases per day", #4469): the lane runs in every full, restart and candidate run,
+never in promote-nightly, a pull request or a master push. Budget key `spend:llm` still warns at $60 in a
+calendar month with the month's runs counted (`tools/llm-spend.mjs`) until the owner sets a new
+budget. Owner rules
 throughout: no admin merge; nothing unapproved reaches production (step 3 freezes it first, assets
 are hash-checked, first publishes need his go); holds, never exclusions; breaking changes and the
 held grouped major need the owner; states end on events; nothing weakened to pass; flaky tests are
@@ -620,7 +633,7 @@ signature checked on every path.
 - graphty.app ran code no full run passed: one tarball and version set per promotion, frozen during the rollout (3, 12)
 - Agents held the owner's authority: Write-only machine account, credential helpers removed, signed baselines, protected tags, master-only secrets (6)
 - Agents raised timeouts and narrowed checks: test integrity, proof, fresh review (6.4)
-- Fixes waited days for the owner: code-owned fixes for a red pipeline get their own `ACTION NEEDED` (6.2)
+- Fixes waited days for the owner: only breaking and owner-guarded pull requests wait for him (`tools/pr-open.sh`)
 
 ## 11. Costs
 
@@ -629,7 +642,7 @@ signature checked on every path.
 | Agent account                       | one more GitHub Team seat ($4 a month at today's list price)                                                                                   |
 | Cloudflare                          | Workers Paid $5 a month (results); R2 for the nx cache, a few GB at $0.015 per GB-month, no egress                                             |
 | T4 lane                             | 4 x 45 min = 3 h a day as a floor; with restarts and hotfix runs (8 of 17 verifications red) 5 h; bisects up to 4 h each, after the local card |
-| LLM regression                      | about $0.94 a run, once a UTC day plus owner runs (about $29 a month); bisects capped at the ceiling (section 9)                               |
+| LLM regression                      | about $0.94 a run, every full, restart and candidate run (4 to 6 a day: about $113 to $170 a month); bisects capped at the ceiling (section 9) |
 | GitHub-hosted Linux, macOS, Windows | free on this public repository; limited by concurrency (60 Linux, 5 macOS jobs; table in channels 5); saturated at 76 merges a day (7.1)       |
 | Git LFS bandwidth                   | up to 880 MB per full run on a cache miss, 100 to 150 GB a month at worst, of 250 GiB; alarm at 150                                            |
 
@@ -647,7 +660,7 @@ step's code-owned edits go in one pull request per step, listed in migration sec
    for 3 days; none slowed over 5 s.
 3. **Switch identity and freeze npm**, one owner-reviewed pull request and the owner's settings:
    release.yml publishes nothing except the owner-approved interim mode (section 13 item 9),
-   CODEOWNERS, environments, the tag ruleset, the agent account, bypass removed, PR Integrity
+   environments, the tag ruleset, the agent account, bypass removed, PR Integrity
    required after its replay. After: 0, 1. Done: graphty.app's stamp unchanged since step 0; on a scratch
    ruleset first: an owned-path pull request waits, an unowned one auto-merges, `--admin` is refused,
    a revert, an accept-only and a Dependabot pull request pass PR Integrity, a `!` title and an
@@ -718,7 +731,7 @@ Answers to review findings that the sections above do not settle by themselves.
   configurations; whether editing an existing one restarts it is unknown. So item 8 binds them on
   the day a nightly is due to publish, and a failed publish is today's publish hold, cleared by
   re-running the publish job.
-- **Owned scripts that import unowned code** are closed by the owned-closure rule (section 6.2).
+- **A pull request that edits the checks that judge it** is guarded by running master's copy of those checks (issue #4421; section 6.2).
 - **Nightly stalling silently** and **a red with no culprit** have the stall alarm (section 7).
 - **Huge or old branches** have the branch ceiling (section 2).
 
@@ -754,9 +767,10 @@ In rollout order. Each item says when it is needed, the exact steps, and how to 
    one's secrets from the list the session gives. At step 7, turn on immutable releases once the
    session reports that `gh release edit --prerelease` and `--latest` still work on one. _Check:_ a
    `promote.yml` dry run waits for you.
-5. **Ruleset and settings.** _When:_ step 3, after the session's scratch-ruleset tests pass. Approve
-   the CODEOWNERS pull request; on ruleset 23973898 remove the admin role from the bypass list, keep
-   deploy keys, turn on code-owner review (0 approvals), dismiss stale reviews, leave last-push
+5. **Ruleset and settings.** _When:_ step 3, after the session's scratch-ruleset tests pass. On
+   ruleset 23973898 remove the admin role from the bypass list, keep
+   deploy keys, leave code-owner review off (the guard against a pull request editing the checks that
+   judge it is to run master's copy of those checks, issue #4421), dismiss stale reviews, leave last-push
    approval off, require `All Checks Pass`, `Lint PR Title`, `Link PR Issue` and `PR Integrity`; add
    the tag ruleset on `*@*` and `site-*` (create: deploy key only; update and delete: nobody) and the
    `channel/*` branch rule; switch off squash merging; set Actions' default permissions to read-only
@@ -773,12 +787,13 @@ In rollout order. Each item says when it is needed, the exact steps, and how to 
    nightly.graphty.app on graphty-nightly and enforce HTTPS. _Check:_ the first nightly deploy serves.
 8. **npm.** _When:_ step 7, only after the session says the publish job declares
    `environment: release`, on a day a nightly is due. On npmjs.com, for each @graphty package's trusted publisher
-   (workflow `release.yml`), set environment `release`. Create a granular token with write on
-   `@graphty` and "bypass 2FA"; store it as `NPM_DIST_TAG_TOKEN` in environment `production` and its
-   expiry date as repository variable `NPM_DIST_TAG_TOKEN_EXPIRES` (the round reminds you 14 days
-   before it expires). For a new package, still only after its first publish fails: create its
-   trusted publisher with environment `release`, never without one. _Check:_ the first `next` publish
-   and a no-op `npm dist-tag add` succeed.
+   (workflow `release.yml`), set environment `release`. For the dist-tags, add a second trusted
+   publisher to every package: workflow `promote.yml`, environment `production`, "Allow npm dist-tag"
+   on, direct `npm publish` off (no stored npm token; the clicks are step 4 of "A new package's first npm
+   publish" in CLAUDE.md). For a new package, still only after its first publish fails: create
+   its `release.yml` trusted publisher with environment `release`, never without one, and its
+   `promote.yml` one with it. _Check:_ the first `next` publish succeeds, and a promote.yml dry run
+   passes "Check npm trusts this workflow for every package".
 9. **Interim urgent release.** _When:_ steps 3 to 8, only if something must ship. Dispatch
    `release.yml -f mode=legacy` and approve its publish and graphty.app deploy in `production`.
    _Check:_ none unless used.

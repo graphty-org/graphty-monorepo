@@ -1,7 +1,7 @@
 // The Flaky tests members the collector observes (design/ci/health-dashboard.md, section 4.4): tests seen flaky in
 // CI with no open issue, open pull requests blocked by a flake, and net new flaky. Read from the flaky.tests daily
 // rollup (distinct tests seen flaky in CI, live and backfilled), the RUNTESTS index of test rows (items.ts), the
-// open pull requests' checks, and one GraphQL query for the flaky issues per cycle.
+// open pull requests' checks, and the flaky issue searches (read to their last page) per cycle.
 
 import { DAY, floorTo } from "../model/items.js";
 import { loadSeries } from "../model/rollup.js";
@@ -71,10 +71,27 @@ export function namesTest(issue: IssueText, t: { file: string; name: string }): 
 
 const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 
+/** Every issue a search finds, page by page (GitHub's search stops at 1,000). */
+async function searchAll(gh: GitHub, q: string): Promise<IssueText[]> {
+    type Page = { nodes?: (IssueText | null)[]; pageInfo?: { hasNextPage: boolean; endCursor: string | null } };
+    const out: IssueText[] = [];
+    let after: string | null = null;
+    do {
+        const { s }: { s?: Page } = await gh.graphql(
+            `query($q: String!, $after: String) { s: search(query: $q, type: ISSUE, first: 100, after: $after) { ` +
+                `pageInfo { hasNextPage endCursor } nodes { ... on Issue { title body closedAt } } } }`,
+            { q, after },
+        );
+        out.push(...(s?.nodes ?? []).filter((n): n is IssueText => !!n));
+        after = s?.pageInfo?.hasNextPage ? s.pageInfo.endCursor : null;
+    } while (after);
+    return out;
+}
+
 /**
  * For each test, whether an open issue names it, and when the newest issue naming it was closed as fixed since
- * `closedSince` (undefined: none). One GraphQL query: the open flaky issues and those closed as fixed since then,
- * matched to the tests here (namesTest). ponytail: 100 issues per side, page through them if that is ever reached.
+ * `closedSince` (undefined: none). Two searches, each read to its last page: the open flaky issues and those closed
+ * as fixed since then, matched to the tests here (namesTest).
  * @param gh
  * @param repo
  * @param tests
@@ -89,15 +106,10 @@ export async function issuesNaming(
     const out = new Map<string, { open: boolean; closedAt?: number }>();
     if (!tests.length) return out;
     const base = `repo:${repo} is:issue flaky`;
-    const nodes = `nodes { ... on Issue { title body closedAt } }`;
-    type Got = Record<"open" | "closed", { nodes?: (IssueText | null)[] } | undefined>;
-    const data = await gh.graphql<Got>(
-        `query($o: String!, $c: String!) { open: search(query: $o, type: ISSUE, first: 100) { ${nodes} } ` +
-            `closed: search(query: $c, type: ISSUE, first: 100) { ${nodes} } }`,
-        { o: `${base} is:open`, c: `${base} is:closed reason:completed closed:>=${isoDay(closedSince)}` },
+    const open = await searchAll(gh, `${base} is:open`);
+    const closed = (await searchAll(gh, `${base} is:closed reason:completed closed:>=${isoDay(closedSince)}`)).filter(
+        (n) => !!n.closedAt,
     );
-    const open = (data.open?.nodes ?? []).filter((n): n is IssueText => !!n);
-    const closed = (data.closed?.nodes ?? []).filter((n): n is IssueText => !!n?.closedAt);
     for (const t of tests) {
         const at = closed.filter((i) => namesTest(i, t)).map((i) => Date.parse(i.closedAt!));
         out.set(testKey(t.file, t.name), {

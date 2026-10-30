@@ -33,8 +33,9 @@ import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
-import type { BasemapConfig, BasemapStatus, MapFrameFact } from "./config/Basemap";
+import type { BasemapConfig, BasemapStatus, GlobeLook, MapFrameFact } from "./config/Basemap";
 import type { LocationMapFrame } from "./layout/locationMap/place";
+import { flatMapReach } from "./layout/locationMap/reach";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
 
@@ -55,6 +56,18 @@ interface StableFrameWait {
  * name that failure out loud instead of handing back a moving picture.
  */
 const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
+
+/**
+ * The default wait of {@link Graph.waitForStableFrame}: 30 seconds, or a test harness's own hang
+ * guard when it sets the global `globalThis.__GRAPHTY_WAIT_GUARD_MS__` (a positive number). A
+ * harness on a busy machine draws slower than any fixed default, and its one guard is what ends a
+ * real hang there; the graphty monorepo's test setup sets it from tools/test-wait-guard.mjs.
+ * @returns The default wait in milliseconds.
+ */
+function defaultStableFrameTimeoutMs(): number {
+    const guard = (globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: unknown }).__GRAPHTY_WAIT_GUARD_MS__;
+    return typeof guard === "number" && guard > 0 ? guard : DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+}
 
 /**
  * How much one `zoomStep` moves the camera: a fifth nearer or further, the smallest change that
@@ -800,12 +813,13 @@ export class Graph implements GraphContext {
     /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
-     * while drawing on demand is on. See `RenderManager.mayRest`.
+     * while drawing on demand is on. A turning camera keeps it unfinished only while the canvas is
+     * in view: nobody sees a frame drawn out of it (#4426). See `RenderManager.mayRest`.
      * @returns True when a frame that changes nothing may be skipped.
      */
     private readonly pictureIsFinal = (): boolean =>
         this.updateManager.frameIsStable &&
-        !this.updateManager.autoTurning &&
+        !(this.updateManager.autoTurning && this.renderManager.canvasInView) &&
         (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
@@ -2306,6 +2320,41 @@ export class Graph implements GraphContext {
      */
     setAttributionOffset(pixels: number): void {
         this.basemapManager.attributionOffset = pixels;
+    }
+
+    /** See {@link setGlobeLook}. */
+    #globeLook: GlobeLook = Object.freeze({});
+
+    /**
+     * How the globe under the `location-map` layout looks beyond its map; see {@link setGlobeLook}.
+     * @returns The look.
+     * @since 3.31.0
+     */
+    getGlobeLook(): GlobeLook {
+        return this.#globeLook;
+    }
+
+    /**
+     * Set how the globe under the `location-map` layout looks beyond its map: a glow of air around
+     * its rim, a sun lighting one side, and a colour the canvas is cleared to while it is drawn.
+     * Every part is off unless set. A view setting, not saved with the project; it takes effect at
+     * once on a globe drawn now, and on every globe drawn after.
+     * @param look - The look; a part left out is off.
+     * @since 3.31.0
+     */
+    setGlobeLook(look: GlobeLook): void {
+        this.#globeLook = Object.freeze({ ...look });
+        this.basemapManager.globeLook = this.#globeLook;
+        this.#lookOfFrame(this.#geoFrame());
+    }
+
+    /**
+     * The background the globe's look asks for while a globe is drawn, else the graph's own.
+     * @param frame - The frame now active, or null.
+     */
+    #lookOfFrame(frame: LocationMapFrame | null): void {
+        const color = this.#globeLook.background ?? null;
+        this.renderManager.backgroundOverride = frame?.surface === "globe" ? color : null;
     }
 
     /**
@@ -4718,15 +4767,20 @@ export class Graph implements GraphContext {
 
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
-     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii).
+     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii) and
+     * its near clip plane comes in as it nears the surface, so the surface is never cut away.
      * @param frame - The frame now active, or null.
      */
     #followFrame(frame: LocationMapFrame | null): void {
         this.camera.setZoomToPointer(this.#zoomToPointer || frame !== null);
+        this.#lookOfFrame(frame);
         const orbit = this.camera.getActiveController();
         if (orbit instanceof OrbitCameraController) {
             orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * 1.02 } : null;
             orbit.grabSphere = frame?.surface === "globe" ? { radius: frame.radius } : null;
+            orbit.farReach = frame?.surface === "flat" ? { radius: flatMapReach(frame.mapFrame) } : null;
+            // The clip planes follow the globe or the flat map (or their going).
+            orbit.updateCameraPosition();
         }
     }
 
@@ -4776,8 +4830,8 @@ export class Graph implements GraphContext {
             warnings: frame.warnings,
         };
         return frame.surface === "globe"
-            ? { ...common, surface: "globe", radius: frame.radius }
-            : { ...common, surface: "flat", projection: frame.projection, bounds: frame.bounds, size: frame.size };
+            ? { ...common, mapDimension: "3d", radius: frame.radius, bounds: frame.bounds }
+            : { ...common, mapDimension: "2d", projection: frame.projection, bounds: frame.bounds, size: frame.size };
     }
 
     /**
@@ -5691,7 +5745,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForStableFrame(options: { timeoutMs?: number } = {}): Promise<void> {
-        const timeoutMs = options.timeoutMs ?? DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+        const timeoutMs = options.timeoutMs ?? defaultStableFrameTimeoutMs();
         // Counted so a timeout can tell a picture that kept changing from a page that stopped
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.

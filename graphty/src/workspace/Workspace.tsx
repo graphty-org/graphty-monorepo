@@ -125,9 +125,11 @@ export function Workspace({
                 if (focus) {
                     opening.focus?.();
                 }
+                opening.settle();
             })
             .catch((error: unknown) => {
                 focusLater(false);
+                opening.settle({ error });
                 const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
                 store.set((state) =>
                     state.project?.id === project?.id

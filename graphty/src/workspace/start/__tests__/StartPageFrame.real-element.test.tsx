@@ -15,24 +15,13 @@ import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it, onTestFailed } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { swipeOver, wheelOver } from "../../../test/real-pointer";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { clearRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
-/**
- * The wait for a scroll to land. A smooth scroll moves on the page's frames, and the hero graph
- * turning above it draws every one of them on the test browser's software GPU. With every core
- * busy, as in the pre-push gate, the page's tasks ran up to 0.8 s and one key press took 0.7 s, so
- * waitFor's own 1-second limit could fail a scroll that was on its way (End, once, in the gate).
- * These waits keep only the hang guard.
- */
-const SCROLL = { timeout: TIMEOUT_MS };
 
 /**
  * Renders the start page and waits for its graph to load.
@@ -41,15 +30,12 @@ const SCROLL = { timeout: TIMEOUT_MS };
 async function startPage(): Promise<WorkspaceStore> {
     const store = createWorkspaceStore();
     render(<Workspace store={store} />);
-    await waitFor(
-        () => {
-            const hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element[data-start-page]",
-            );
-            assert.equal(hero?.session.data.statistics().nodeCount, 77);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        const hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element[data-start-page]",
+        );
+        assert.equal(hero?.session.data.statistics().nodeCount, 77);
+    });
     return store;
 }
 
@@ -95,7 +81,7 @@ async function showSamples(): Promise<HTMLElement> {
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.isTrue(ended, "the page came to rest");
-        }, SCROLL);
+        });
     } finally {
         document.removeEventListener("scrollend", onEnd);
     }
@@ -124,13 +110,13 @@ describe("the start page in the app's frame", () => {
         await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.equal(scrolled(), 0, "the wheel scrolled it back up");
-        }, SCROLL);
+        });
         // As far as the samples, not past them: the library runs on well below its top.
         const header = Number.parseFloat(getComputedStyle(samples).scrollMarginTop) || 0;
         await wheelOver(screen.getByRole("heading", { level: 1 }), samples.getBoundingClientRect().top - header);
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "the wheel scrolled it down");
-        }, SCROLL);
+        });
     });
 
     it("shows the header's own lockup only once the page is scrolled past the big one", async () => {
@@ -151,11 +137,11 @@ describe("the start page in the app's frame", () => {
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.equal(header?.dataset.scrolled, "true", "scrolled down, the header shows its lockup");
-        }, SCROLL);
+        });
         await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.isUndefined(header?.dataset.scrolled, "back at the top, it hides it again");
-        }, SCROLL);
+        });
     });
 
     it("scrolls back up from the samples by touch", async () => {
@@ -166,7 +152,7 @@ describe("the start page in the app's frame", () => {
         await swipeOver(screen.getByRole("heading", { name: "Sample library" }), 400);
         await waitFor(() => {
             assert.isBelow(scrolled(), before, "a swipe scrolled it back up");
-        }, SCROLL);
+        });
     });
 
     it("scrolls back up from the samples, and down again, by keyboard", async () => {
@@ -199,13 +185,13 @@ describe("the start page in the app's frame", () => {
             note("Home pressed");
             await waitFor(() => {
                 assert.equal(scrolled(), 0, "Home scrolled it back up");
-            }, SCROLL);
+            });
             note("at the top");
             await userEvent.keyboard("{End}");
             note("End pressed");
             await waitFor(() => {
                 assert.isAbove(scrolled(), 0, "End scrolled it down");
-            }, SCROLL);
+            });
         } finally {
             document.removeEventListener("scrollend", onEnd);
             globalThis.removeEventListener("keydown", onKey);
@@ -271,17 +257,11 @@ describe("the start page in the app's frame", () => {
             assert.include(offered, `Open the ${title} sample`);
         }
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" }));
-        await waitFor(
-            () => {
-                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                );
-                assert.equal(element?.session.data.statistics().nodeCount, 62);
-                assert.equal(element?.session.data.statistics().edgeCount, 159);
-            },
-            { timeout: TIMEOUT_MS },
+        const opened = await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: "Open the Doubtful Sound dolphins sample" })),
         );
+        assert.equal(opened.data.statistics().nodeCount, 62);
+        assert.equal(opened.data.statistics().edgeCount, 159);
         assert.equal(store.get().project?.name, "Doubtful Sound dolphins");
         assert.isNull(store.get().notice);
     });
@@ -289,17 +269,11 @@ describe("the start page in the app's frame", () => {
     it("opens the timed campus contacts sample, every hour two students were close an edge", async () => {
         const store = await startPage();
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Campus contacts sample" }));
-        await waitFor(
-            () => {
-                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                );
-                assert.equal(element?.session.data.statistics().nodeCount, 615);
-                assert.equal(element?.session.data.statistics().edgeCount, 8142);
-            },
-            { timeout: TIMEOUT_MS },
+        const opened = await openBy(store, () =>
+            userEvent.click(screen.getByRole("button", { name: "Open the Campus contacts sample" })),
         );
+        assert.equal(opened.data.statistics().nodeCount, 615);
+        assert.equal(opened.data.statistics().edgeCount, 8142);
         assert.equal(store.get().project?.name, "Campus contacts");
         assert.isNull(store.get().notice);
         // Every edge's `time` reads as time, so the timeline can take it.
@@ -367,19 +341,12 @@ describe("the start page in the app's frame", () => {
         assert.equal((nodes as HTMLInputElement).value, "60");
         await userEvent.tripleClick(nodes);
         await userEvent.keyboard("24");
-        await userEvent.click(within(dialog).getByRole("button", { name: "Generate" }));
-
-        await waitFor(
-            () => {
-                const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element:not([data-start-page])",
-                );
-                assert.equal(element?.session.data.statistics().nodeCount, 24);
-                // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
-                assert.equal(element?.session.data.statistics().edgeCount, 48);
-            },
-            { timeout: TIMEOUT_MS },
+        const opened = await openBy(store, () =>
+            userEvent.click(within(dialog).getByRole("button", { name: "Generate" })),
         );
+        assert.equal(opened.data.statistics().nodeCount, 24);
+        // A ring of 24 with 4 neighbors each keeps 24 * 4 / 2 edges through the rewiring.
+        assert.equal(opened.data.statistics().edgeCount, 48);
         assert.equal(store.get().project?.name, "Watts-Strogatz");
         assert.isNull(store.get().notice);
     });

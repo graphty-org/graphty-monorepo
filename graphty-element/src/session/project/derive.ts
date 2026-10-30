@@ -208,6 +208,15 @@ export class DerivationLane {
      * slices the pass derived.
      */
     passEnded: ((dirty: ReadonlyMap<DerivedSlice, ReadonlySet<string>>) => void) | null = null;
+    /**
+     * Told when the lane goes idle -- its last pass has ended and none waits -- with every slice
+     * the passes since it last went idle derived, whatever scheduled them: a commit, or a touch
+     * with no commit behind it (a deferred repaint, an import's end). Called synchronously once the
+     * last pass's promise has resolved, before the reactions to it run.
+     */
+    drained: ((slices: ReadonlySet<DerivedSlice>) => void) | null = null;
+    /** The slices derived since the lane last went idle. */
+    private sinceIdle = new Set<DerivedSlice>();
     /** What the running pass, or the last one, catches up with. */
     private passCauseValue: HistoryCause = "command";
 
@@ -425,6 +434,24 @@ export class DerivationLane {
                 this.onError(error);
             }
             pass.resolve();
+            dirty.forEach((_, slice) => this.sinceIdle.add(slice));
+        }
+
+        this.idle();
+    }
+
+    /** Tell `drained` the slices derived since the lane last went idle. */
+    private idle(): void {
+        const slices = this.sinceIdle;
+        this.sinceIdle = new Set();
+        if (this.closed || slices.size === 0) {
+            return;
+        }
+
+        try {
+            this.drained?.(slices);
+        } catch (error) {
+            this.onError(error);
         }
     }
 

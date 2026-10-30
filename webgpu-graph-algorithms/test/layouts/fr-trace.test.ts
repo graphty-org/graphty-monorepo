@@ -60,7 +60,6 @@ import { assertCheckPasses, type CheckReport, mergeReports, ratioOf } from "../h
 import { type FrOracleTraceRecord, FruchtermanReingoldOracle } from "../oracle/fruchterman-reingold.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 /** 10 .. 1,000 nodes (spec 11.4): the path of 10, karate, the grid and random1k (scaled on software adapters). */
 const GRAPHS: readonly ParityGraph[] = ["path10", "karate", "grid10", "random1k"];
 /** The horizons the admission rule measures and a case may assert. */
@@ -174,44 +173,39 @@ function at<T>(map: ReadonlyMap<number, T>, k: number): T {
 }
 
 describe("FR trace: the admission rule (the f64 and f32 oracles alone, no GPU)", () => {
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 35 s on the T4 lane, 24 s on the dev box's RTX 4070 SUPER under load, 18 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "every graph's trajectory sensitivity at 1, 5 and 10 is printed; the admitted horizons are under a third of the cap on both counts; the traj10 graph is admitted at 10",
-        async () => {
-            const third = P5_TOLERANCE_CAPS["fr-trajectory"].cap / 3;
-            // the ensemble runs at gpuScale() and its numbers are printed only on a software adapter (the P3 precedent of fa2-distributional.test.ts: a 4-core CI runner under coverage cannot finish the full-size random1k ensemble inside the case timeout, ci.yml run 35548431040)
-            const scale = gpuScale();
-            const full = scale === 1;
-            for (const graph of GRAPHS) {
-                const s = paritySnapshot(graph, scale, false);
-                const sensitivity = await frTrajectorySensitivity(
-                    s,
-                    startPositions(s, FR_BASE_OPTIONS, false),
-                    FR_BASE_OPTIONS,
-                    null,
-                    HORIZONS,
-                );
-                const admitted = ADMITTED[graph];
-                console.warn(
-                    `[fr-trace] admission ${graph}${full ? "" : ` (scaled x${scale}, printed only)`} (a third of the cap ${third.toExponential(3)}): ${HORIZONS.map(
-                        (k) =>
-                            `k=${k} spread ${at(sensitivity, k).spread.toExponential(3)} f32 ${at(sensitivity, k).f32.toExponential(3)} ${admitted.includes(k) ? "admitted" : "left out"}`,
-                    ).join("; ")}`,
-                );
-                for (const k of full ? admitted : []) {
-                    expect(at(sensitivity, k).spread, `${graph} k=${k}: the oracle's own spread`).toBeLessThanOrEqual(
-                        third,
-                    );
-                    expect(at(sensitivity, k).f32, `${graph} k=${k}: the f32 oracle`).toBeLessThanOrEqual(third);
-                }
-            }
-            expect(ADMITTED[TRAJ10_GRAPH], "the traj10 member's graph is admitted at its horizon").toContain(
-                TRAJ10_HORIZON,
+    it("every graph's trajectory sensitivity at 1, 5 and 10 is printed; the admitted horizons are under a third of the cap on both counts; the traj10 graph is admitted at 10", async () => {
+        const third = P5_TOLERANCE_CAPS["fr-trajectory"].cap / 3;
+        // the ensemble runs at gpuScale() and its numbers are printed only on a software adapter (the P3 precedent of fa2-distributional.test.ts: a 4-core CI runner under coverage cannot finish the full-size random1k ensemble inside the case timeout, ci.yml run 35548431040)
+        const scale = gpuScale();
+        const full = scale === 1;
+        for (const graph of GRAPHS) {
+            const s = paritySnapshot(graph, scale, false);
+            const sensitivity = await frTrajectorySensitivity(
+                s,
+                startPositions(s, FR_BASE_OPTIONS, false),
+                FR_BASE_OPTIONS,
+                null,
+                HORIZONS,
             );
-            expect(FR_NOISE_FIXTURES.traj10.fixture).toBe(`fr-${TRAJ10_GRAPH}-traj${TRAJ10_HORIZON}`);
-        },
-        CASE_TIMEOUT,
-    );
+            const admitted = ADMITTED[graph];
+            console.warn(
+                `[fr-trace] admission ${graph}${full ? "" : ` (scaled x${scale}, printed only)`} (a third of the cap ${third.toExponential(3)}): ${HORIZONS.map(
+                    (k) =>
+                        `k=${k} spread ${at(sensitivity, k).spread.toExponential(3)} f32 ${at(sensitivity, k).f32.toExponential(3)} ${admitted.includes(k) ? "admitted" : "left out"}`,
+                ).join("; ")}`,
+            );
+            for (const k of full ? admitted : []) {
+                expect(at(sensitivity, k).spread, `${graph} k=${k}: the oracle's own spread`).toBeLessThanOrEqual(
+                    third,
+                );
+                expect(at(sensitivity, k).f32, `${graph} k=${k}: the f32 oracle`).toBeLessThanOrEqual(third);
+            }
+        }
+        expect(ADMITTED[TRAJ10_GRAPH], "the traj10 member's graph is admitted at its horizon").toContain(
+            TRAJ10_HORIZON,
+        );
+        expect(FR_NOISE_FIXTURES.traj10.fixture).toBe(`fr-${TRAJ10_GRAPH}-traj${TRAJ10_HORIZON}`);
+    });
 });
 
 describe("FR trace: the temperature schedule, the free-running trajectory and the K1 fold (spec 11.4, 7.20)", () => {
@@ -271,98 +265,93 @@ describe("FR trace: the temperature schedule, the free-running trajectory and th
     for (const graph of GRAPHS) {
         const asserted = ADMITTED[graph];
         const printed = [...HORIZONS.filter((k) => !asserted.includes(k)), PRINTED];
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 19 s on the T4 lane, 13 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
-        it(
-            `${graph}: twice bitwise; positions after ${asserted.join(", ")} iterations within fr-trajectory (${printed.join(", ")} printed); the fold of records through ${Math.max(...asserted)} within it`,
-            async (t) => {
-                requireGpu(t);
-                const s = paritySnapshot(graph, gpuScale(), false);
-                try {
-                    const start = startPositions(s, FR_BASE_OPTIONS, false);
-                    const checkpoints = [...HORIZONS, PRINTED];
-                    const a = await gpuTrajectory(ctx, s, start, FR_BASE_OPTIONS, checkpoints);
-                    const b = await gpuTrajectory(ctx, s, start, FR_BASE_OPTIONS, checkpoints);
-                    for (const k of checkpoints) {
-                        expectBitwiseEqual(
-                            at(a.positions, k),
-                            at(b.positions, k),
-                            `${graph}: iteration ${k}, run 1 vs run 2`,
-                        );
-                    }
+        it(`${graph}: twice bitwise; positions after ${asserted.join(", ")} iterations within fr-trajectory (${printed.join(", ")} printed); the fold of records through ${Math.max(...asserted)} within it`, async (t) => {
+            requireGpu(t);
+            const s = paritySnapshot(graph, gpuScale(), false);
+            try {
+                const start = startPositions(s, FR_BASE_OPTIONS, false);
+                const checkpoints = [...HORIZONS, PRINTED];
+                const a = await gpuTrajectory(ctx, s, start, FR_BASE_OPTIONS, checkpoints);
+                const b = await gpuTrajectory(ctx, s, start, FR_BASE_OPTIONS, checkpoints);
+                for (const k of checkpoints) {
                     expectBitwiseEqual(
-                        Float32Array.from(a.trace.map((r) => r.meanDisplacement)),
-                        Float32Array.from(b.trace.map((r) => r.meanDisplacement)),
-                        `${graph}: trace run 1 vs run 2`,
+                        at(a.positions, k),
+                        at(b.positions, k),
+                        `${graph}: iteration ${k}, run 1 vs run 2`,
                     );
-                    const oracle = oracleTrajectory(s, start, FR_BASE_OPTIONS, checkpoints);
-                    const tolerance = frTolerance("fr-trajectory").value;
-                    const measured = checkpoints.map((k) => {
-                        const err = stageError(true, at(a.positions, k), at(oracle.positions, k));
-                        return { k, rel: err.rel, abs: err.abs };
-                    });
-                    console.warn(
-                        `[fr-trace] ${graph} (fr-trajectory ${tolerance.toExponential(3)}): ${measured
-                            .map(
-                                (m) =>
-                                    `k=${m.k} rel ${m.rel.toExponential(3)} (ratio ${ratioOf(m.rel, tolerance).toExponential(3)}, max abs ${m.abs.toExponential(3)})${asserted.includes(m.k) ? "" : " informational"}`,
-                            )
-                            .join("; ")}`,
-                    );
-                    for (const k of asserted) {
-                        const err = stageError(true, at(a.positions, k), at(oracle.positions, k));
-                        assertCheckPasses({
-                            worst: ratioOf(err.rel, tolerance),
-                            worstLabel: `${graph}: positions after ${k} iterations vs the f64 oracle`,
-                            samples: s.nodeCount,
-                        });
-                    }
-                    for (const k of checkpoints) {
-                        expect(
-                            Array.from(at(a.positions, k)).every((v) => Number.isFinite(v)),
-                            `${graph}: finite after ${k} iterations`,
-                        ).toBe(true);
-                    }
-                    // (3) the K1 fold, index-aligned (record k is the fold of integrate k - 1 on both sides), through
-                    // the largest admitted horizon under the trajectory tolerance; the temperature bitwise everywhere
-                    expect(a.trace).toHaveLength(PRINTED);
-                    expect(oracle.trace).toHaveLength(PRINTED);
-                    const folds: CheckReport[] = a.trace.map((g, k) => {
-                        const o = oracle.trace[k];
-                        expect(g.temperature, `${graph}: record ${k} temperature`).toBe(Math.fround(o.temperature));
-                        const err = stageError(
-                            false,
-                            [g.meanDisplacement, g.settledCount],
-                            [o.meanDisplacement, o.settledCount],
-                        );
-                        return {
-                            worst: ratioOf(err.rel, tolerance),
-                            worstLabel: `${graph}: record ${k} (meanDisplacement ${g.meanDisplacement} vs ${o.meanDisplacement})`,
-                            samples: 2,
-                        };
-                    });
-                    const horizon = Math.max(...asserted);
-                    const worstAsserted = mergeReports(folds.slice(0, horizon + 1));
-                    const worstAll = mergeReports(folds);
-                    console.warn(
-                        `[fr-trace] ${graph}: K1 fold through record ${horizon}: worst ratio ${worstAsserted.worst.toExponential(3)} at ${worstAsserted.worstLabel}; through ${PRINTED} (informational): ${worstAll.worst.toExponential(3)} at ${worstAll.worstLabel}`,
-                    );
-                    assertCheckPasses(worstAsserted);
-                    // iteration 1 carries FA2_FLAG_FIRST: K1 folds nothing and reports the host-written 0; every later record moves
-                    expect(a.trace[0].meanDisplacement).toBe(0);
-                    expect(
-                        a.trace.slice(1).every((r) => r.meanDisplacement > 0),
-                        `${graph}: moving`,
-                    ).toBe(true);
-                    expect(
-                        a.trace.every((r) => r.settledCount === 0),
-                        `${graph}: never settles`,
-                    ).toBe(true);
-                } finally {
-                    ctx.release(s);
                 }
-            },
-            CASE_TIMEOUT,
-        );
+                expectBitwiseEqual(
+                    Float32Array.from(a.trace.map((r) => r.meanDisplacement)),
+                    Float32Array.from(b.trace.map((r) => r.meanDisplacement)),
+                    `${graph}: trace run 1 vs run 2`,
+                );
+                const oracle = oracleTrajectory(s, start, FR_BASE_OPTIONS, checkpoints);
+                const tolerance = frTolerance("fr-trajectory").value;
+                const measured = checkpoints.map((k) => {
+                    const err = stageError(true, at(a.positions, k), at(oracle.positions, k));
+                    return { k, rel: err.rel, abs: err.abs };
+                });
+                console.warn(
+                    `[fr-trace] ${graph} (fr-trajectory ${tolerance.toExponential(3)}): ${measured
+                        .map(
+                            (m) =>
+                                `k=${m.k} rel ${m.rel.toExponential(3)} (ratio ${ratioOf(m.rel, tolerance).toExponential(3)}, max abs ${m.abs.toExponential(3)})${asserted.includes(m.k) ? "" : " informational"}`,
+                        )
+                        .join("; ")}`,
+                );
+                for (const k of asserted) {
+                    const err = stageError(true, at(a.positions, k), at(oracle.positions, k));
+                    assertCheckPasses({
+                        worst: ratioOf(err.rel, tolerance),
+                        worstLabel: `${graph}: positions after ${k} iterations vs the f64 oracle`,
+                        samples: s.nodeCount,
+                    });
+                }
+                for (const k of checkpoints) {
+                    expect(
+                        Array.from(at(a.positions, k)).every((v) => Number.isFinite(v)),
+                        `${graph}: finite after ${k} iterations`,
+                    ).toBe(true);
+                }
+                // (3) the K1 fold, index-aligned (record k is the fold of integrate k - 1 on both sides), through
+                // the largest admitted horizon under the trajectory tolerance; the temperature bitwise everywhere
+                expect(a.trace).toHaveLength(PRINTED);
+                expect(oracle.trace).toHaveLength(PRINTED);
+                const folds: CheckReport[] = a.trace.map((g, k) => {
+                    const o = oracle.trace[k];
+                    expect(g.temperature, `${graph}: record ${k} temperature`).toBe(Math.fround(o.temperature));
+                    const err = stageError(
+                        false,
+                        [g.meanDisplacement, g.settledCount],
+                        [o.meanDisplacement, o.settledCount],
+                    );
+                    return {
+                        worst: ratioOf(err.rel, tolerance),
+                        worstLabel: `${graph}: record ${k} (meanDisplacement ${g.meanDisplacement} vs ${o.meanDisplacement})`,
+                        samples: 2,
+                    };
+                });
+                const horizon = Math.max(...asserted);
+                const worstAsserted = mergeReports(folds.slice(0, horizon + 1));
+                const worstAll = mergeReports(folds);
+                console.warn(
+                    `[fr-trace] ${graph}: K1 fold through record ${horizon}: worst ratio ${worstAsserted.worst.toExponential(3)} at ${worstAsserted.worstLabel}; through ${PRINTED} (informational): ${worstAll.worst.toExponential(3)} at ${worstAll.worstLabel}`,
+                );
+                assertCheckPasses(worstAsserted);
+                // iteration 1 carries FA2_FLAG_FIRST: K1 folds nothing and reports the host-written 0; every later record moves
+                expect(a.trace[0].meanDisplacement).toBe(0);
+                expect(
+                    a.trace.slice(1).every((r) => r.meanDisplacement > 0),
+                    `${graph}: moving`,
+                ).toBe(true);
+                expect(
+                    a.trace.every((r) => r.settledCount === 0),
+                    `${graph}: never settles`,
+                ).toBe(true);
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 
     it(`writes the ${TRAJ10_HORIZON}-iteration positions of the UNSCALED ${TRAJ10_GRAPH} and the f64 reference's as the traj10 noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`, async (t) => {

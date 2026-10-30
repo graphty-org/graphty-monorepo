@@ -12,7 +12,10 @@ export function ssmGetParams(client = new SSMClient({})) {
     };
 }
 
-/** Daily unblended cost of the account from `from` (inclusive) to `to` (exclusive), ISO days. Cost Explorer lives in us-east-1. */
+/**
+ * Daily unblended cost of the account, credits and refunds left out, from `from` (inclusive) to `to` (exclusive), ISO
+ * days. Cost Explorer lives in us-east-1.
+ */
 export function costExplorerDaily(client = new CostExplorerClient({ region: "us-east-1" })) {
     return async (from: string, to: string): Promise<{ day: string; usd: number }[]> => {
         const out: { day: string; usd: number }[] = [];
@@ -23,6 +26,8 @@ export function costExplorerDaily(client = new CostExplorerClient({ region: "us-
                     TimePeriod: { Start: from, End: to },
                     Granularity: "DAILY",
                     Metrics: ["UnblendedCost"],
+                    // Cost before credits and refunds, as the dashboard's AWS Budget counts it (health-stack.ts).
+                    Filter: { Not: { Dimensions: { Key: "RECORD_TYPE", Values: ["Credit", "Refund"] } } },
                     NextPageToken: token,
                 }),
             );

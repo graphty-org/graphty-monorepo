@@ -522,10 +522,16 @@ describe("the wait log", () => {
             await waiting;
             release();
             (await taking)();
-            assert.equal(lines.length, 1);
-            assert.equal(lines[0].kind, "test-slot");
-            assert.equal(lines[0].waiter, "the waiter");
-            assert.match(lines[0].heldBy[0], new RegExp(`^pid ${holder.pid} the holder`));
+            // One wait line, for the waiter only; each run's hold is logged when it gives the slot back.
+            assert.deepEqual(
+                lines.map((l) => [l.kind, l.waiter]),
+                [
+                    ["test-slot-held", "the holder"],
+                    ["test-slot", "the waiter"],
+                    ["test-slot-held", "the waiter"],
+                ],
+            );
+            assert.match(lines[1].heldBy[0], new RegExp(`^pid ${holder.pid} the holder`));
         } finally {
             holder.kill();
             waiter.kill();
@@ -635,6 +641,46 @@ wait`,
             "other\n",
             "the second low command ran once slot 4 was free",
         );
+    });
+
+    it("serves low-lane waiters in the order they began to wait, however often each one looks", () => {
+        const dir = join(TMP, "low-lane-fifo");
+        mkdirSync(dir, { recursive: true });
+        // A holder keeps slot 4. A and B wait, looking every second; C waits last, looking every 0.02 s. When
+        // the slot frees, A takes it first, then B, then C.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+export BROWSER_SLOT_PRIORITY=low
+"$GATE" sh -c "touch held; while [ ! -e go ]; do sleep 0.05; done" &
+until [ -e held ]; do sleep 0.05; done
+for w in A B; do
+    "$GATE" sh -c "echo $w >> order" 2> $w.err &
+    until grep -q "waiting for one of 4" $w.err 2>/dev/null; do sleep 0.05; done
+done
+BROWSER_SLOT_POLL=0.02 "$GATE" sh -c "echo C >> order" 2> C.err &
+until grep -q "waiting for one of 4" C.err 2>/dev/null; do sleep 0.05; done
+touch go
+wait
+[ "$(tr -d '\\n' < order)" = ABC ] || { echo "order: $(tr '\\n' ' ' < order)"; exit 9; }
+ls -a browser-slots | grep -q '^\\.low-' && { echo "a low ticket was left"; exit 8; }
+exit 0`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    BROWSER_SLOT_POLL: "1",
+                    PIPELINE_WAIT_LOG: "off",
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
     });
 
     it("gives the next free slot to the high lane (BROWSER_SLOT_PRIORITY=high), ahead of a command that waited first", () => {

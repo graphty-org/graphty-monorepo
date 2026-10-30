@@ -394,6 +394,45 @@ function narrowingColumn(found: Partial<Record<PlaceRole, ColumnValues>>, kind: 
 }
 
 /**
+ * The latitude and longitude columns when at least one of them is named: the other is found by
+ * name, and a half that no node carries is refused.
+ * @param latitude - The named latitude column, or null.
+ * @param longitude - The named longitude column, or null.
+ * @param columns - The nodes' attributes.
+ * @param carried - The values of a column some node carries, or null.
+ * @param refuse - Builds the refusal naming the missing half.
+ * @returns The source, or the refusal.
+ */
+function resolveColumns(
+    latitude: string | null,
+    longitude: string | null,
+    columns: readonly ColumnValues[],
+    carried: (name: string) => readonly unknown[] | null,
+    refuse: (missing: LocationRole) => LocationRefusal,
+): ResolvedLocation | LocationRefusal {
+    const latName = latitude ?? columns.find((c) => LAT_NAMES.has(c.name.toLowerCase()))?.name;
+    const lonName = longitude ?? columns.find((c) => LON_NAMES.has(c.name.toLowerCase()))?.name;
+    const lat = latName === undefined ? null : carried(latName);
+    const lon = lonName === undefined ? null : carried(lonName);
+    if (lat === null || latName === undefined) {
+        return refuse("latitude");
+    }
+
+    if (lon === null || lonName === undefined) {
+        return refuse("longitude");
+    }
+
+    let filled: ResolvedLocation["filled"] = null;
+    if (latitude === null) {
+        filled = "latitude";
+    } else if (longitude === null) {
+        filled = "longitude";
+    }
+
+    return { source: { kind: "columns", latitude: latName, longitude: lonName, lat, lon }, filled };
+}
+
+/**
  * Where the layout reads the locations, from its options and the nodes' attributes.
  *
  * - Latitude and Longitude both set: those two columns.
@@ -431,26 +470,7 @@ export function resolveLocation(
 
     const { latitude, longitude, location } = choice;
     if (latitude !== null || longitude !== null) {
-        const latName = latitude ?? columns.find((c) => LAT_NAMES.has(c.name.toLowerCase()))?.name;
-        const lonName = longitude ?? columns.find((c) => LON_NAMES.has(c.name.toLowerCase()))?.name;
-        const lat = latName === undefined ? null : carried(latName);
-        const lon = lonName === undefined ? null : carried(lonName);
-        if (lat === null || latName === undefined) {
-            return refuse("latitude");
-        }
-
-        if (lon === null || lonName === undefined) {
-            return refuse("longitude");
-        }
-
-        let filled: ResolvedLocation["filled"] = null;
-        if (latitude === null) {
-            filled = "latitude";
-        } else if (longitude === null) {
-            filled = "longitude";
-        }
-
-        return { source: { kind: "columns", latitude: latName, longitude: lonName, lat, lon }, filled };
+        return resolveColumns(latitude, longitude, columns, carried, refuse);
     }
 
     const role = choice.role ?? "auto";

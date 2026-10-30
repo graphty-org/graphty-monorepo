@@ -1,6 +1,6 @@
 ---
 name: pipeline-round
-description: Use with /loop (for example `/loop 30m /pipeline-round`) to run one round of keeping graphty-monorepo's pipeline moving without the owner routing work -- react to a red master build and its master-guard reverts, a red 6-hour full run (bisect, revert, fix forward), flaky tests and base checks, CI budget alarms, held releases and failed publishes, owner items, red or conflicted agent pull requests, finished branches with no pull request, and check that finished worktrees are removed; escalate only what only the owner can do. It never starts new issue work (that is issue-round). Also use when changing this routine.
+description: Use with /loop (for example `/loop 30m /pipeline-round`) to run one round of keeping graphty-monorepo's pipeline moving without the owner routing work -- react to a red master build and its master-guard reverts, a red 6-hour full run (bisect, revert, fix forward), flaky tests and base checks, CI budget alarms, held releases and failed publishes, the held nightly candidate and its promotion, owner items, red or conflicted agent pull requests, finished branches with no pull request, and check that finished worktrees are removed; escalate only what only the owner can do. It never starts new issue work (that is issue-round). Also use when changing this routine.
 ---
 
 # One round of the pipeline
@@ -21,16 +21,57 @@ the start of every round), the markers, the subagent rules, escalation and the f
 (`master`, `release_lanes`, `pull_requests`, `flaky_hotspots`, `runners`) narrow a step. The dashboard is a guide, up
 to 5 minutes old: before acting on it (revert, rerun, comment, close, merge), confirm the fact on GitHub, in the pull
 request status broker or in the local file it came from, never from the dashboard alone. A result with `stale: true`
-in its `freshness`, or an error, means fall back to this round's own checks.
+in its `freshness`, or an error, means fall back to this round's own checks. Also read the public status endpoint
+`curl -s https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com/v1/status` each round: a member's issue column
+comes from strict title matching (#4468), so an issue it does not name is not linked to that member.
 
 **Bounds, every step:** never mix a test, budget, quarantine or workflow change with a product fix in one pull
 request; never re-run a failure hoping for green (a re-run is only for a classified outside cause); never ask for the
 admin bypass; never touch the screenshot gate's trusted files.
 
+## Every round, before the steps
+
+Two checks run in EVERY round, before step 1, even when a step below ends the round early. Their results lead the
+round's last line.
+
+### Nightly every slot
+
+The goal (owner, 2026-10-30): a successful nightly promotion every 6-hour slot; a slot that does not promote is an
+incident with a named cause (#5052).
+
+- **State nightly's age and the current blocker:** nightly.graphty.app's build stamp
+  (`<meta name="graphty-build" content="commit=...">`) and the store's `GET /v1/release-state` (`ageNightlyMs`,
+  `blocking`), the open `Nightly missed slot <date hh:mm> UTC: <cause>` issue (filed by release.yml's slot job when a
+  full, restart or candidate run ends without moving nightly; `Nightly stalled since` is only the fallback for a slot
+  with no run at all) and the `Nightly held on <sha12>` issue.
+- **An unreviewable or stale hold is fixed this round:** a held head judged red, owner-item or rejected while
+  newer green runs could not replace it, a hold whose fix forward is not moving, or one older than a slot with no
+  fix in flight. Fix forward (step 6), or end it with
+  `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"` (allowed, needs no owner).
+- **A held candidate awaiting screenshots** gets its `ACTION NEEDED` review link at once (step 6's check of the
+  review page first), listed first among owner items.
+- **A missed slot whose cause is a red lane** is step 2's; its issue stays until nightly moves.
+
+### Every dashboard member owned
+
+Run `node tools/health-owner-sweep.mjs`: every health dashboard member that is not ok, and every row of the
+chronic, flaky-quarantine and owner tables, with its issue or pull request, whether that owner is live (open, and a
+pull request, touched in 24 hours, or with an open pull request), and how long the member has been not ok. Exit 1
+names each one with no live owner.
+
+- **No live owner:** take it this round -- file the issue (priority by impact) or start the fix within step 12's
+  bounds -- or name who owns it with evidence the sweep can see (an issue whose title or body names the member).
+- **"The rows should age out" is not an owner.** It counts only once the next round's sweep confirms the row is gone.
+- **A member red two rounds running with no live owner is an alarm,** handled like a red full run (step 2): a
+  `priority:critical` issue and a fix subagent the same round.
+
 ## The round, in priority order
 
 Work down the steps. A step that acts may end the round; otherwise continue. "End the round" ends only this skill's
-part: in the one-client normal mode, issue-round still runs after it in the same `/loop` prompt.
+part: in the one-client normal mode, issue-round still runs after it in the same `/loop` prompt. Whatever ends it,
+the round's last line leads with nightly's age and blocker, then the sweep: for example
+`pipeline-round: nightly 3 h (moved at the 12:00 slot); 4 members not ok, all owned; ...` or
+`pipeline-round: nightly 14 h (held e87f65b, waiting on review); took on costs.t4 (#4701); ...`.
 
 ### 1. Red master build and its reverts
 
@@ -49,7 +90,7 @@ A red master build comes first: it also blocks canary and the build cache every 
   reopen it as graphty-agent (`gh pr close <n> && gh pr reopen <n>`). When master is green again without it, close
   it with a one-line reason. After three failed fix attempts on one problem, keep master green by reverting the
   culprit and start the next attempt from a different approach, with the earlier attempts' evidence in its prompt.
-- **While master's build is red:** no other pull request is opened (steps 7 and 8 wait), and issue-round starts
+- **While master's build is red:** no other pull request is opened (steps 8 and 9 wait), and issue-round starts
   nothing.
 - **A critical issue no later step owns** is still this skill's alarm (issue-round skips every `priority:critical`
   issue): mark it and start a fix subagent the same way.
@@ -106,8 +147,10 @@ first-parent merges since the last green full run.
   read the suspect merge range in the issue, find the task or step that slowed, and revert or fix it. A budget
   raise is never the fix by itself: it is its own pull request with its new measurement, for the owner to review.
 - A job killed at its `timeout-minutes` (labelled `hung`) is a defect: fix the hang, never re-run or raise it.
-- **`Nightly stalled since <date>`** (`priority:critical`, from `age:nightly` over 24 hours): act on the blocking
-  state it names (a red with no culprit is step 2's to fix forward). Over 48 hours, add its `ACTION NEEDED` line.
+- **`Nightly missed slot <date hh:mm> UTC: <cause>`** (`priority:critical`, from release.yml's slot job): act on
+  the cause it names this round (see "Nightly every slot"). **`Nightly stalled since <date>`** (over a slot and a
+  run with no missed-slot issue: a slot produced no run): check the release scheduler and the newest release.yml
+  runs. Over 48 hours, add its `ACTION NEEDED` line.
 
 ### 5. Held release or failed publish
 
@@ -121,28 +164,54 @@ version` (409) means it is propagating (minutes); otherwise re-run the failed pu
 - **Red deploy run:** the newest `deploy-pages.yml` run failed and no open issue names its run id: open one,
   `Red run: deploy-pages.yml <run id> on <sha7>` (`bug`, `priority:high`, `effort:medium`), with the failed job and
   the end of its log, then classify it as above.
-- Never dispatch `release.yml` or `promote.yml`, and never release the grouped major (#676, #702, #843, #1370 have no
-  entry in `release-approvals.json` and stay held).
+- Never dispatch `promote.yml` (production) or `release.yml` in any mode but the `promote-nightly` fallback in step 6,
+  and never release the grouped major (#676, #702, #843, #1370 have no entry in `release-approvals.json` and stay
+  held).
 
-### 6. Owner items
+### 6. Held nightly candidate
+
+A full run that is green but changed screenshots (`green-images`), or not green-clean after its one re-run, holds its
+commit H on `channel/candidate` with a `Nightly held on <sha12>` issue (CLAUDE.md, "The held nightly candidate"). A
+red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt, that base, `Refs #<hold issue>`). A
+newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected on its
+own (`hold.mjs replace`); a held green-images head awaiting review is never replaced.
+
+- **Before asking the owner,** open the live review page (servherd `visual-review-v3`, `serve --candidate next`) in
+  your own browser tab and confirm it lists `master candidate <sha>` for H with its change count. If it does not, that
+  is a defect to fix (on 2026-10-28 the page hid the candidate for 16 hours; #4390), never a reason to ask. Then one
+  `ACTION NEEDED` line with the one full URL: the server's tokenized URL from its log plus `&target=master`.
+- **After the owner's Finish** (a pull request from `visual/approve-<sha>`): arm its auto-merge
+  (`gh pr merge <n> --auto --merge`). Never merge master into it or update its branch: the promotion refuses an
+  approval that is not H plus accept-only commits (`tools/channel/resume.mjs`). Red on a cause master already fixed:
+  re-run the failed jobs (`gh run rerun <id> --failed`); to re-trigger PR Integrity, edit the description (fetch the
+  body, append a line, write it back; never overwrite it).
+- **The promotion:** its merge's master build runs `release-due`, which dispatches `release.yml` in mode
+  `promote-nightly`. No such run: read that build's "Release due" step log for `::error::` (#4446 makes failures loud),
+  fix the cause, and dispatch it yourself, for an approved candidate only:
+  `gh workflow run release.yml --ref master -f mode=promote-nightly -f candidate=<H> -f accept=<P>` (P: the approval
+  pull request's head). Then verify: nightly.graphty.app's build stamp
+  (`<meta name="graphty-build" content="commit=...">`) names H, and `npm view @graphty/graphty-element dist-tags.next`
+  moved.
+
+### 7. Owner items
 
 Each once per item (an `asked owner` marker on its issue), batched into one `ACTION NEEDED` line when there are
 several:
 
-- **Promotion waiting on screenshots:** a green full run whose screenshots changed waits for the owner's Finish on the
-  review page before nightly; a broken story fails its own pull request instead.
-- **Code-owner review:** a pull request `tools/pr-open.sh` left auto-merge off for (a breaking change, which needs the
-  label `breaking-go`; or a code-owned path: `.github/`, `.claude/`, the CI and test-selection inputs, visual-review,
-  the release files, `ci-budgets.json`). They go into one daily review list. A code-owned fix for an open red, held
-  or red-master issue, or a rollout step's pull request, gets its own line the moment it is green. Never merge master
-  into one waiting on the owner unless it conflicts: the push dismisses his approval.
+- **Promotion waiting on screenshots, always first:** the held candidate's Finish (step 6, after its check), asked
+  the round it is held; a broken story fails its own pull request instead.
+- **Never ask the owner to merge.** A pull request `tools/pr-open.sh` left auto-merge off for because it touches an
+  owner-guarded path: once green, arm its auto-merge yourself (`gh pr merge <n> --auto --merge`). Only a breaking
+  change (it needs the label `breaking-go`) is the owner's, in one daily review list. Never arm one that writes an
+  approval the owner keeps for himself (`visual-review/passkeys.json`, `release-approvals.json`, a hand-added
+  `tools/test-quarantine.json` entry): agents never write those, so flag it to the owner instead. Never merge master into one
+  waiting on the owner unless it conflicts: the push dismisses his approval.
 - **A major or first publish** the verdict names as an owner item (no `release-approvals.json` entry).
-- **The npm token:** 14 days before `NPM_DIST_TAG_TOKEN_EXPIRES`, one line to renew it.
 - **The branch ceiling,** in the daily list: every branch with no pull request whose first commit is over 3 days
   old, and every pull request over 1,500 changed lines (tests and baselines not counted). Each is split into flagged
   pieces or its owner says why not, recorded with `tools/branch-note.mjs`. A warning, not a check.
 
-### 7. Red or conflicted agent pull requests
+### 8. Red or conflicted agent pull requests
 
 From the broker file (`tmp/pr-status/status.json`): every open pull request into master opened by graphty-agent
 (its `author`) whose `All Checks Pass` concluded `failure` on its head, that conflicts with master, or has unanswered
@@ -159,7 +228,7 @@ review findings. A pull request anyone else opened -- the owner's (among them th
 auto-merge off gets it turned on as graphty-agent (`gh pr merge <n> --auto --merge`), except Actions updates, which
 wait for the owner. A red one is classified like an agent pull request.
 
-### 8. Finished branches with no pull request
+### 9. Finished branches with no pull request
 
 A branch on GitHub with commits master lacks, whose issue's newest marker is `ready <branch> <sha>` at its tip, and
 no open pull request (a subagent whose `pr-open.sh` failed): open it, oldest first, at most 10 open at once, so
@@ -172,7 +241,7 @@ git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refn
   refs/remotes/origin | grep -vE '^origin/(HEAD|master|revert/[^ ]*|dependabot/[^ ]*|channel/[^ ]*) '
 ```
 
-### 9. Stale issues and stranded branches
+### 10. Stale issues and stranded branches
 
 - An `in-progress` issue that is stale (see "Stale" in the shared file) with no commits on its branch: write
   `released -- <reason>` and remove the label, so issue-round can pick it again.
@@ -183,16 +252,28 @@ git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refn
   Not wanted: a `stranded branch` marker with the reason; never delete the branch. A branch with no issue gets one
   first (`node tools/branch-note.mjs new-issue --title "<what it does>" --branch <b>`).
 
-### 10. Finished worktrees
+### 11. Finished worktrees
 
 `tools/worktree-cleanup.mjs` removes finished worktrees on its own (the servherd server `worktree-cleanup`, every 15
 minutes, from `.worktrees/worktree-cleanup-live`). Check only that `servherd_list` shows it online, else start it:
 `servherd_start({ name: "worktree-cleanup", cwd: "/home/apowers/Projects/graphty-monorepo/.worktrees/worktree-cleanup-live", command: "node tools/worktree-cleanup.mjs --apply --every 15" })`.
 
-### 11. Nothing to do
+### 12. Dashboard members no step covers
 
-End with one line, for example `pipeline-round: nothing due (3 pull requests open, 1 waiting on the owner).` No
-ACTION NEEDED line unless something in "Escalation" is newly due.
+The sweep in "Every dashboard member owned" already ran this round; this step works its findings. For EVERY member
+of `health_status` that is not ok (for example `ci.chronic_jobs`, `costs.*`, `ci.runner_wait`,
+`data-sources.*`, `pull-requests.oldest_open`), get its rows from the drill-down tools (or
+`/v1/page/<page>` on the status API for tables such as chronic) and find its owner: an open issue named for it, an
+open pull request, or a claim in `tmp/health-green-owner/journal.md` (the health-to-green workflow's journal). No
+owner: fix it within this round's bounds, or file an issue (priority by impact) and record it on the issue. Red only
+because the dashboard reads wrong: fix `tools/pipeline-health`. Never change an SLA target (owner only): propose it
+in `tmp/health-green-owner/owner-asks.md`.
+
+### 13. Nothing to do
+
+End with one line that still leads with nightly and the sweep, for example
+`pipeline-round: nightly 2 h; 3 members not ok, all owned; nothing due (3 pull requests open, 1 waiting on the owner).`
+No ACTION NEEDED line unless something in "Escalation" is newly due.
 
 ## Known situations
 
@@ -206,6 +287,18 @@ Each: signal, meaning, action. Add to this list (see the next section).
 - **The baseline seed pull request** from `visual-seed.yml` merges into master directly; it is not a stray.
 - **The results store is down:** every job fails open (longer and stricter, never looser). Read red issues and runs
   from GitHub instead, and dispatch the bisect yourself when a red full run has none.
+- **A release-path job failed on a results-store 5xx or the Actions API rate limit.** A pipeline defect, not a red
+  full run: never bisect it or blame a merge. Re-run the job once the service answers, and fix the tool that did not
+  retry or fail open.
+- **A GitHub release needs another asset.** Releases are immutable: assets go up only when the release is created,
+  so a fix re-creates through the publish path, never by uploading to an existing release.
+- **The nightly site did not deploy** while npm `next` moved: the site job is `nightly-site.yml`; re-dispatch it
+  for the promoted commit.
+- **A workflow fix and a re-run.** `gh run rerun` keeps the original run's workflow file, so a merged workflow fix
+  takes effect only in a new dispatch.
+- **"rate limit exceeded"** on the agent account (5,000 an hour, every session) or the Actions token budget
+  (#4318, #4453): stop, read the reset from `gh api rate_limit`, and wait for it; never retry in a loop. Find the
+  spender (a per-pull-request REST loop, a tight poll) and file or fix it.
 - **Worktrees git refuses to remove** because of untracked build output: leave them; a fix belongs in
   `tools/worktree-cleanup.mjs`, not a forced removal.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the

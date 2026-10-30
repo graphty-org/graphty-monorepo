@@ -1,3 +1,12 @@
+## 2.5.12 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.41
+- Updated visual-review to 0.2.37
+- Updated graph-format to 1.4.9
+- Updated algorithms to 3.4.16
+
 ## 2.5.11 (2026-10-28)
 
 ### 🩹 Fixes

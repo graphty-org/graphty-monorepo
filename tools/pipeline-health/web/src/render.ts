@@ -8,6 +8,7 @@ import type {
     CategoryState,
     CategoryStatus,
     Cell,
+    ChannelTile,
     Episode,
     Member,
     MemberRef,
@@ -25,6 +26,12 @@ import type {
 } from "./contract";
 import {
     CATEGORY_NAME,
+    CHANNEL,
+    CHANNELS_HEAD,
+    CHANNELS_SUB,
+    attemptText,
+    attemptsLabel,
+    channelSince,
     LABEL,
     MEMBER,
     STATE_WORD,
@@ -400,8 +407,8 @@ const TABLES: Record<string, { cls: string; cols: [string, string][] }> = {
         cls: "t-cost",
         cols: [
             ["line", "line"],
-            ["projected", "projected, USD"],
-            ["sofar", "so far / budget"],
+            ["projected", "projected month-end, USD"],
+            ["sofar", "spent so far / limit"],
             ["spark", "projection by day"],
             ["state", "state"],
         ],
@@ -751,6 +758,22 @@ function episode(e: Episode): string {
     );
 }
 
+/** The hollow dots a channel with no attempt recorded shows (the design's 14). */
+const EMPTY_DOTS = 14;
+
+/** A release channel's tile (#4460): its state, the commit it serves and since when, a dot per recent attempt. */
+export function channelTile(c: ChannelTile): string {
+    const dots = c.attempts.length
+        ? c.attempts.map((a) => `<i class="dot d-${a.outcome}" title="${attemptText(c.id, a)}"></i>`).join("")
+        : `<i class="dot d-none"></i>`.repeat(EMPTY_DOTS);
+    return (
+        `<a class="tile ${stateClass(c.state)}" href="${href(c.link)}"><span class="th"><span class="tn">${esc(CHANNEL[c.id].name)}</span>` +
+        `<span class="tst">${STATE_WORD[c.state]}</span></span><span class="tv">${c.sha ? esc(c.sha.slice(0, 7)) : "--"}</span>` +
+        `<span class="ts">${channelSince(c.id, c.at)}</span>` +
+        `<span class="dots" role="img" aria-label="${attemptsLabel(c.attempts.length)}">${dots}</span></a>`
+    );
+}
+
 /** Episodes listed open on the overview before the cleared rest fold away. */
 const EPISODES_SHOWN = 6;
 
@@ -771,8 +794,12 @@ export function overviewView(o: OverviewResponse): string {
     const eps = o.episodes.length
         ? [...ongoing, ...cleared.slice(0, shown)].map(episode).join("") + more
         : `<p class="empty">No member went past its target in the last 24 h.</p>`;
+    const channels = o.channels?.length
+        ? `<h2 class="top">${CHANNELS_HEAD}<span class="h2sub">${CHANNELS_SUB}</span></h2><div class="tiles">${o.channels.map(channelTile).join("")}</div>`
+        : "";
     return (
         header("Pipeline health", [], o.generated) +
+        channels +
         `<p class="kcap">Each block is its category's state: rates judged on the last 1 h, states now. Under it: the headline measure, ${here.range === "1h" ? "its 6 h value, and " : ""}${trend}.</p>` +
         `<ol class="status" aria-label="Category status">${cols}</ol>` +
         `<h2>Last 24 hours<span class="h2sub">each time a member went past its target; ongoing first</span></h2><div class="eps">${eps}</div>`

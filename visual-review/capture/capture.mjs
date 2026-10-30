@@ -64,6 +64,7 @@ const RENDER_TIMEOUT = 30_000;
  * shapes on the CPU: rasterized through SwiftShader, a glyph that sits on a sub-pixel boundary
  * landed on either side of it from one render to the next, so a story with nothing moving read
  * `unstable` (the README, "Why captures rasterize on the CPU"). WebGL still runs on SwiftShader.
+ * `--force-device-scale-factor` keeps every layer rasterized at SCALE between screenshots.
  */
 export const CHROMIUM_ARGS = [
     "--use-gl=angle",
@@ -73,6 +74,10 @@ export const CHROMIUM_ARGS = [
     "--force-color-profile=srgb",
     "--disable-lcd-text",
     "--font-render-hinting=none",
+    // The page renders at SCALE all the time, not only while a screenshot is taken: with the scale
+    // only emulated, every layer is rasterized at 1x between shots and again at 2x for each shot,
+    // and on a loaded machine a shot could copy the stale 1x tiles (blurred overlays, #4374).
+    `--force-device-scale-factor=${String(SCALE)}`,
 ];
 /**
  * The environment every capture browser launches with: this process's, then `extra`, in UTC, and
@@ -119,6 +124,22 @@ export const storyIds = (index) =>
         .filter((e) => e.type === "story")
         .map((e) => e.id)
         .sort();
+
+/**
+ * The story ids `--stories` selects: an entry that is a whole story id selects that story alone, any other
+ * entry every id starting with it. CI passes whole ids, and as prefixes `labels-p-1` also captured
+ * `labels-p-10` to `labels-p-19`, which ran one graph-io-fidelity bin at 1.6 times its plan (#3448).
+ * @param {string[]} ids every story id
+ * @param {string[] | undefined} stories the entries, or none for every story
+ * @returns {string[]} the selected ids
+ */
+export const selectStoryIds = (ids, stories) => {
+    if (!stories) {
+        return ids;
+    }
+    const whole = new Set(stories.filter((p) => ids.includes(p)));
+    return ids.filter((id) => whole.has(id) || stories.some((p) => !whole.has(p) && id.startsWith(p)));
+};
 
 /**
  * The PNG name of a story and mode.
@@ -651,7 +672,10 @@ async function stitchAsChromium(page, tiles, size) {
         const out = new PNG({ width: size.width * SCALE, height: size.height * SCALE });
         for (const t of tiles) {
             const tile = PNG.sync.read(t.png);
-            PNG.bitblt(tile, out, 0, 0, t.width * SCALE, t.height * SCALE, t.left * SCALE, t.top * SCALE);
+            // A tile can be a device row short of its CSS size: at a forced 2x a scroll lands on a half
+            // pixel, so its clip starts there and Chromium rounds the copy down.
+            const [w, h] = [Math.min(tile.width, t.width * SCALE), Math.min(tile.height, t.height * SCALE)];
+            PNG.bitblt(tile, out, 0, 0, w, h, t.left * SCALE, t.top * SCALE);
         }
         return PNG.sync.write(out, { filterType: 4 });
     }
@@ -968,7 +992,7 @@ export function needsSecondShot(status, hash, referenceHash) {
  *     absolute path of the fonts.conf every browser draws with (the config's `fontconfig`), null for
  *     the host's fonts; `waitFor` is the project's config entry (see
  *     shootOnce); `reference` is the default branch's capture (see above); `stories` keeps only
- *     the story ids starting with one of these prefixes, for a quick local preview, and then no
+ *     the stories selectStoryIds() picks (a whole id, or every id starting with a prefix), and then no
  *     baseline is reported removed
  * @returns {Promise<object>} the final results.json contents
  */
@@ -994,7 +1018,7 @@ export async function capture({
     await mkdir(join(out, "baselines"), { recursive: true });
     await mkdir(join(out, "second"), { recursive: true });
     const allIds = storyIds(JSON.parse(await readFile(join(storybook, "index.json"), "utf8")));
-    const ids = allIds.filter((id) => !stories || stories.some((p) => id.startsWith(p)));
+    const ids = selectStoryIds(allIds, stories);
     const renames = await loadRenames(baselines);
     const refs = await loadReference(reference);
     const [server, base] = await serve(storybook);

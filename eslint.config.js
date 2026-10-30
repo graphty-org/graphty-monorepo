@@ -11,7 +11,6 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
-import storyWaitOptions from "./tools/eslint-rules/story-wait-options.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -81,8 +80,9 @@ export default tseslint.config(
             "jsdoc/check-tag-names": [
                 "error",
                 {
-                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them
-                    definedTags: ["since", "internal", "remarks", "category", "defaultValue"],
+                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them;
+                    // beta marks an API that may change or be removed in a minor release (api-extractor prints `// @beta`)
+                    definedTags: ["since", "internal", "remarks", "category", "defaultValue", "beta"],
                 },
             ],
             "jsdoc/require-jsdoc": [
@@ -359,13 +359,25 @@ export default tseslint.config(
     // ============================================
     // TESTS WAIT ON CONDITIONS, NOT ON THE CLOCK
     // ============================================
-    // A wall-clock assertion, a fixed sleep or a hand-set timeout passes on an idle machine and
-    // fails when several test runs share it. The rule and its reasons: tools/eslint-rules/no-test-timing.mjs.
+    // A wall-clock assertion, a fixed sleep, a hand-set timeout or any other local deadline passes on
+    // an idle machine and fails when several test runs share it. There is one hang guard, set in
+    // tools/test-wait-guard.mjs; nothing else may end a test on the clock. The rule and its reasons:
+    // tools/eslint-rules/no-test-timing.mjs. Story play functions, their helpers, setup files and
+    // the vitest configs (a per-project testTimeout) are covered too.
     // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
     // the scripts that drive the source programs to draw the fidelity oracles: they are no tests,
     // and a desktop program that offers no event to wait on is polled.
     {
-        files: ["**/*.test.{ts,tsx,js,mjs}", "**/*.spec.{ts,tsx,js,mjs}", "**/test/**/*.{ts,tsx,js,mjs}"],
+        files: [
+            "**/*.test.{ts,tsx,js,mjs}",
+            "**/*.spec.{ts,tsx,js,mjs}",
+            "**/test/**/*.{ts,tsx,js,mjs}",
+            "**/tests/**/*.{ts,tsx,js,mjs}",
+            "**/*.stories.{ts,tsx}",
+            "**/stories/**/*.{ts,tsx}",
+            "**/.storybook/**/*.{ts,tsx}",
+            "**/vitest*.config.{ts,mts,mjs,js}",
+        ],
         ignores: [
             "**/*.bench.test.ts",
             "**/*.bench-browser.ts",
@@ -386,13 +398,6 @@ export default tseslint.config(
             "compact-mantine/tests/figma/overlays.browser.test.tsx",
         ],
         rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
-    },
-    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
-    // of its own under a test runner (#2930). graphty's stories are in its own config.
-    {
-        files: ["compact-mantine/stories/**/*.stories.{ts,tsx}"],
-        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
-        rules: { "local-stories/story-wait-options": "error" },
     },
 
     // ============================================

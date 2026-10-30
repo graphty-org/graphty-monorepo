@@ -19,8 +19,8 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { type Card, cardFields, nodeCards, selectorOf } from "../cards";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+/** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
+const PRE_STEPS = 1000;
 
 /**
  * Les Miserables in the workspace with its starting rows, the base layer editable.
@@ -30,17 +30,19 @@ async function openScene(): Promise<{ session: GraphSession; idOf: (name: string
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
+    // The force layout settles before the first frame: these tests are about the Style panel, not
+    // the layout. Left to settle on screen, the layout draws a frame per step, and on a software
+    // GPU each frame holds the page's main thread until it is read back (hundreds of milliseconds
+    // on a busy machine), so the clicks made while it settles wait behind those frames (#4239).
+    await session.config.set({ layoutBehavior: { preSteps: PRE_STEPS } });
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
     await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
     const idOf = (name: string): string => String(session.data.nodes().find((n) => n.name === name)?.id);
@@ -54,7 +56,7 @@ async function openScene(): Promise<{ session: GraphSession; idOf: (name: string
  * @param options.shift - Shift held: a range.
  */
 async function clickRow(name: string, { shift = false }: { shift?: boolean } = {}): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     const row = await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
     if (shift) {
         await userEvent.keyboard("{Shift>}");
@@ -98,7 +100,7 @@ describe("the Style panel", () => {
         });
         await session.styles.settled();
         await clickRow("Plain");
-        const row = await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS });
+        const row = await screen.findByRole("button", { name: /^Which nodes, / });
         const hint = row.querySelector<HTMLElement>(".ws-which-hint");
         assert.isNotNull(hint);
         assert.strictEqual(hint?.textContent, "All 77 nodes: add a condition to narrow");
@@ -113,11 +115,9 @@ describe("the Style panel", () => {
         await session.styles.add({ name: "Three", target: "node", selector, set: { "node.color": "#d55e00" } });
         await session.styles.settled();
         await clickRow("Three");
-        const row = await screen.findByRole(
-            "button",
-            { name: /^Which nodes, 3 of 77 nodes, Picked by hand: 3 nodes$/ },
-            { timeout: TIMEOUT_MS },
-        );
+        const row = await screen.findByRole("button", {
+            name: /^Which nodes, 3 of 77 nodes, Picked by hand: 3 nodes$/,
+        });
         assert.notInclude(row.textContent ?? "", "A rule set elsewhere");
         await userEvent.click(row);
         const region = await screen.findByRole("group", { name: "Which nodes" });
@@ -149,19 +149,19 @@ describe("the Style panel", () => {
         });
         await session.styles.settled();
         await clickRow("Nodes only");
-        const box = await screen.findByRole("checkbox", { name: "Style nodes" }, { timeout: TIMEOUT_MS });
+        const box = await screen.findByRole("checkbox", { name: "Style nodes" });
         assert.isTrue((box as HTMLInputElement).disabled);
         const reason = "Stays on: style edges first to stop styling nodes";
         assert.strictEqual(box.getAttribute("aria-description"), reason, "a screen reader hears why");
         assert.strictEqual(box.closest(".ws-kind-switch")?.textContent, "Style nodes", "no lines under the box");
         await userEvent.hover(box.closest(".ws-kind-switch-tip") ?? box);
         // The tooltip opens after the theme's open delay.
-        assert.strictEqual((await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS })).textContent, reason);
+        assert.strictEqual((await screen.findByRole("tooltip", {})).textContent, reason);
     });
 
     it("draws a reason several menu rows share once", async () => {
         await openScene();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Everything, / }), {
             button: "right",
         });
@@ -191,7 +191,7 @@ describe("the Style panel", () => {
         await session.styles.settled();
         await clickRow("Second");
         await clickRow("First", { shift: true });
-        const row = await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS });
+        const row = await screen.findByRole("button", { name: /^Which nodes, / });
         await waitFor(() => {
             assert.isNull(document.getElementById("ws-bulk-scope"), "no line that only repeats the count");
         });

@@ -650,6 +650,8 @@ export interface DrawnNode {
     outer?: { border: DrawnBorder; gapPx: number } | null;
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
+    /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
+    picture?: ScreenBox;
     label: DrawnLabel | null;
     /** The further texts it draws over its face (`shape.texts`). */
     texts?: DrawnLabel[];
@@ -932,6 +934,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
             return read === null ? [] : [read];
         }),
         // the image of a node with no body is the node itself
+        ...(picture === undefined ? {} : { picture: picture.box }),
         pieces: pieces.filter(
             (piece): piece is { kind: "shape" | "image"; box: ScreenBox } => piece !== picture && piece.kind !== "body",
         ),
@@ -1265,13 +1268,17 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     if (world.length >= 2 && head !== null) {
         world = [...world.slice(0, -1), head];
     }
-    const caps = edge.drawnCaps.map((c) => {
-        const cap = {
-            arrowHead: edge.arrowCap,
-            arrowTail: edge.arrowTailCap,
-            arrowMiddleHead: edge.arrowMiddleHeadCap,
-            arrowMiddleTail: edge.arrowMiddleTailCap,
-        }[c.end];
+    // the caps in the order drawnCaps lists them: each end cap followed by the row drawn behind it (`stack`)
+    const capObjects = [
+        edge.arrowCap,
+        ...edge.arrowHeadStackCaps,
+        edge.arrowTailCap,
+        ...edge.arrowTailStackCaps,
+        edge.arrowMiddleHeadCap,
+        edge.arrowMiddleTailCap,
+    ].filter((cap) => cap !== null && !cap.isDisposed());
+    const caps = edge.drawnCaps.map((c, k) => {
+        const cap = capObjects[k];
         const at = cap?.position ?? Vector3.Zero();
         // a billboard's color is its slot's; a flat cap's, its batch's material
         const look = cap?.drawnAppearance?.colour ?? null;

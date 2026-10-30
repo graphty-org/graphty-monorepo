@@ -337,7 +337,7 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 | `ci-test-matrix.mjs` | The CI test shards, their commands, groups and measured durations; ci.yml and `run-tests.sh` both read it |
 | `test-select.mjs` | The file-level test selector (design/ci/minimal-tests.md): for a change, per shard all, none or which test files and why, from nx's graph, Vite's import graph and `test-select-rules.json`. A pull request's CI runs by it |
 | `test-changed.mjs` | `pnpm run test:changed [--dry-run] [--base <ref>]`: runs only the tests this worktree's change can affect, as `test-select.mjs` decides, building what they need first |
-| `check-quick.sh` | `pnpm run check:quick [--base <ref>]`: prettier on the changed files, `nx affected -t build lint typecheck`, the selected tests, SonarQube on the changed lines and, when webgpu-graph-algorithms is affected, its tests on the local NVIDIA card. Run it in the background before opening a pull request |
+| `check-quick.sh` | `pnpm run check:quick [--base <ref>] [--with-dry-run]`: prettier on the changed files, `nx affected -t build lint typecheck`, the selected tests, SonarQube on the changed lines and, when webgpu-graph-algorithms is affected, its tests on the local NVIDIA card; `--with-dry-run` also builds the graphty app and runs its dry run (`graphty/acceptance/run.mjs`), for a long-lived branch (see "Shipping a change", step 2). Run it in the background before opening a pull request |
 | `test-quarantine.mjs` | Runs every CI shard: retries failed test files once and quarantines a test that failed and then passed. See "Quarantined tests" |
 | `test-quarantine.json` | The committed quarantine list. Entries come only from the tooling, never by hand |
 | `results/` | The results store's clients: `run-group.mjs` runs one test group and posts its record and each failure to the store (`RESULTS_URL`); `cli.mjs` queries and imports. The store itself is `results-service/` (a Cloudflare Worker with D1) |
@@ -487,7 +487,7 @@ detection reads: a test that failed and then passed on the same inputs is quaran
 
 **Every pull request description names its issue** (`Fixes #N`, `Closes #N`, `Resolves #N`, `Refs #N` or
 `Part of #N`) **or has a line `No issue`.** The `Link PR Issue` check fails it otherwise. `PR Integrity`
-(`pr-integrity.yml`, `.github/CODEOWNERS`) enforces what agents cannot be trusted to keep by themselves: no test
+(`pr-integrity.yml`) enforces what agents cannot be trusted to keep by themselves: no test
 weakened, no unapproved breaking change, no baselines changed without the owner.
 
 **Dependabot opens security updates only** (owner, 2026-10-27): routine version updates are off
@@ -543,7 +543,7 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
   merges since a judged one change only versions or screenshot approvals inherits that verdict
   (`tools/release-diff.mjs`). A store that does not answer makes the slot test master's head.
 - **Lanes**: the full CI suite (every shard and the whole screenshot capture), the T4 GPU lane, Hosts, macOS
-  autosave, the production security audit, the LLM regression tests once a UTC day, and a `Version dry run`
+  autosave, the production security audit, the LLM regression tests (in every full, restart and candidate run), and a `Version dry run`
   that fails when a project would publish a major (below 1.0.0, a minor) or its first version without an entry
   in `release-approvals.json`.
 - **Verdict**, written to the store: `green-clean`, `green-images`, `red` or `owner-item`. A red attempt 1 is
@@ -561,7 +561,9 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
 
 **The held nightly candidate.** A run that is not green-clean after its re-run holds its commit: branch
 `channel/candidate`, the store's hold and a "Nightly held on <sha12>" issue (`tools/channel/hold.mjs`). Master
-keeps merging, but nothing promotes or replaces the held commit. Fix it forward from the candidate's head, never
+keeps merging, and nothing promotes past the held commit, except that a newer commit's green-clean or green-images
+run replaces a held head judged red, owner-item or rejected (`hold.mjs replace`): the red hold ends, and the newer
+commit promotes or is held for review in its place. A held green-images head awaiting review is never replaced. Fix it forward from the candidate's head, never
 from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`,
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
@@ -571,6 +573,10 @@ nothing and the next full run undoes it): anyone's `gh workflow run nightly-aban
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
 has a newer green build. Changed screenshots awaiting review never end a hold.
+
+Every full, restart and candidate run that ends without moving nightly files or updates one `priority:critical`
+"Nightly missed slot <date hh:mm> UTC: <cause>" issue (release.yml's slot job, `tools/channel/nightly.mjs slot`),
+closed when nightly moves; "Nightly stalled since" is only the fallback for a slot that produced no run.
 
 Every outcome is announced on the one open `Release status` issue (`tools/release-status.mjs`) and pushed to the
 owner's phone through Pushover. A failed publish opens a `Release held: publish failed on <sha>` issue; re-run
@@ -601,6 +607,10 @@ expires after 2 days (https://docs.npmjs.com/trusted-publishers/):
 2. Then, and not before, create the trusted publisher on `https://www.npmjs.com/package/<name>/access`: GitHub
    Actions, organization `graphty-org`, repository `graphty-monorepo`, workflow `release.yml`, no environment.
 3. Re-run the failed publish job at once: `gh run rerun <run id> --failed`.
+4. Add the package's second trusted publisher, which `promote.yml` uses to move `latest` and `next` with OIDC
+   (no npm token is stored anywhere): Add trusted publisher, GitHub Actions, organization `graphty-org`,
+   repository `graphty-monorepo`, workflow `promote.yml`, environment `production`, "Allow npm dist-tag" ticked,
+   direct `npm publish` not allowed. It never expires unused for long: the next promotion uses it.
 
 ### CI Test Shards
 
@@ -733,7 +743,14 @@ Each package has its own CLAUDE.md with package-specific guidance:
     that interaction in its play function (pointer events on the canvas, clicks on the controls),
     and graphty's play functions run as tests in the `storybook` project.
 - Use `assert` instead of `expect` in layout tests
-- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
+- Tests wait on conditions and assert on counted work, with no local deadline anywhere: one global
+  hang guard, set in one place (`tools/test-wait-guard.mjs`), ends a hang -- every vitest config is
+  wrapped in its `withTestGuards`, which sets every test's, hook's and wait's limit (`vi.waitFor`,
+  `expect.poll`, `expect.element`, Testing Library, graphty-element's `waitForStableFrame()`) far
+  above the slowest legitimate test. No test, story, helper, setup file or config sets a timeout,
+  an interval or a deadline loop of its own, and no override of the guard exists. The
+  `local/no-test-timing` lint rule enforces it. A measurement is not a test: it goes in a project
+  named `bench*` (started by hand, never by the gate), which runs with no time limit.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - `pnpm run test:changed` runs only the tests your change can affect (`--dry-run` shows them and why), the
@@ -796,7 +813,7 @@ servherd_start({ name: "visual-review", cwd: "<repo>", protocol: "https",
 
 The page runs from the visual-review live copy: put a visual-review change into it with
 `tools/live.sh visual-review <branch>` as soon as it is committed. `--candidate next` serves the held nightly
-candidate, `--master-run <run id>` a master run for seeding, `--results <dir>` ad hoc local captures as a
+candidate and the master rolling target (below), `--master-run <run id>` a master run for seeding, `--results <dir>` ad hoc local captures as a
 look-only preview. A server an agent starts signs Finish with the agent's key; the page prints the command that
 starts the same server from the owner's own shell.
 
@@ -804,9 +821,22 @@ starts the same server from the owner's own shell.
   its test, compare it with its baseline and upload `visual-<project>-<attempt>`, which the review page, the
   `Visual report` step and release.yml read. A pull request's changed stories are listed in its `Stories` jobs'
   summaries.
-- **The owner reviews changed pictures only on the held nightly candidate**, which release.yml announces on the
-  `Release status` issue. Never ask him to review a pull request's screenshots: a changed picture holds the
-  promotion to nightly, not the pull request.
+- **The owner reviews changed pictures early, on the master rolling target, and on a held candidate when one is
+  held.** `story-slices.yml` renders small slices of every story from a master commit many times a day
+  (design/visual-testing/early-capture.md); a changed picture shows on the review page's "master rolling" target
+  (`tools/channel/rolling.mjs`), and the slice jobs tell his phone (Pushover) when the queue fills and before each
+  full-run slot. His Finish there opens `visual/approve-rolling-<sha12>`, an accept-only pull request with the
+  subject "rolling approval of visual baselines rendered at <sha12>", so the next full run finds the pictures
+  approved and promotes green-clean. A rolling render never approves, gates or promotes anything by itself; the
+  full run's complete capture stays the release gate. Never ask him to review a pull request's screenshots: a
+  changed picture holds the promotion to nightly, not the pull request.
+- **One approval in flight.** The page refuses a rolling Finish while a candidate is held or another approval pull
+  request is open, and a candidate's Finish closes the open rolling ones. Merge a rolling approval pull request
+  only with `node tools/channel/rolling-merge.mjs <pr>` (it waits while a candidate is held or a full run is between
+  its pick and its verdict; exit 2 means try later), never with `gh pr merge`. ci.yml's Build job fails a pull
+  request that changes `visual-baselines/` when merging it would leave master a baselines tree its head does not
+  carry (`tools/channel/baselines-tree.mjs`): run `node visual-review/trusted/cli.mjs update <pr>`, and the owner
+  signs again.
 - Every story needs an owner-approved baseline; every project is gated, and no setting turns the gate off
   (`visual-review.config.json` refuses `"gate"`). Seed a story with no baseline from master (`visual-seed.yml`,
   `serve --master-run`, Finish, merge the seed pull request), only from a commit whose images a person reviewed.
@@ -943,7 +973,15 @@ Design: `design/ci/channels-pipeline.md`.
    `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
 2. Before opening it, run what CI would: the affected packages' lint, build and tests
    (`pnpm run check:quick`, or `pnpm run test:changed --base origin/master`, through `tools/low-priority.sh`),
-   and `node tools/sonar-gate.mjs`. Long runs go in the background.
+   and `node tools/sonar-gate.mjs`. Long runs go in the background. A long-lived branch -- open more than about
+   two days, holding more than a day of work, or after a merge of master that brought app or graphty-element
+   changes or needed conflicts resolved, or after a large change on any branch (a refactor of a shared component,
+   a dependency or lockfile upgrade, a change to graphty-element's styling, layout or rendering) -- whose change
+   reaches the graphty app also runs the app's dry run
+   (`graphty/acceptance/`: every route walked in a real browser on this machine's NVIDIA card, about a minute after
+   the build): `pnpm run check:quick --with-dry-run`, or `node graphty/acceptance/run.mjs` after
+   `pnpm exec nx run graphty:build` (faster when the quick check would run whole test shards). Fix every failed route before opening the pull request. Nothing runs it
+   automatically, in CI or in a hook: the branch's owner decides (design/ci/ai-checked-acceptance-tests.md, 10.4).
 3. When the work is finished -- never earlier, because auto-merge merges the first green commit -- write
    a Proof file (the commands you ran and what they showed) under `tmp/<task>/` and run
    `tools/pr-open.sh --proof tmp/<task>/proof.md` (`--refs` for `Refs #N` instead of `Fixes #N`; `--title`
@@ -987,8 +1025,9 @@ Rules:
   capture the stories a change can reach, and `All Checks Pass` needs them: a story that fails to render,
   whose play function throws, or that draws two different pictures on the same inputs (`[BROKEN]`,
   `[UNSTABLE]`) fails the pull request; fix it on the branch. A changed or new picture blocks the promotion
-  to nightly until the owner approves it there (`node visual-review/trusted/cli.mjs serve --candidate next`),
-  so it needs no `ACTION NEEDED` line on the pull request.
+  to nightly until the owner approves it, on the master rolling target or the held candidate
+  (`node visual-review/trusted/cli.mjs serve --candidate next`), so it needs no `ACTION NEEDED` line on the
+  pull request.
 - **Nothing tests master itself between full runs.** Master's build runs no tests, and required checks are
   not "strict", so two pull requests that each pass can break the tests together; the 6-hour full run catches
   that, bisects and files it.

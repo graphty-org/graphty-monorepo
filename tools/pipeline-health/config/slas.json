@@ -1,5 +1,5 @@
 {
-    "$comment": "SLA members of design/ci/health-dashboard.md section 4. Times in ms, shares as fractions. ok is the target (green), fail the red threshold; yellow lies between. Window: 1h, 1h+6h (red needs the 6 h value past fail too), now, slow (never sets state), info (not judged yet).",
+    "$comment": "SLA members of design/ci/health-dashboard.md section 4. Times in ms, shares as fractions. ok is the target (green), fail the red threshold; yellow lies between. Window: 1h, 1h+6h (red needs the 6 h value past fail too), now, slow (never sets state), info (not judged yet). alert: when and how a member pages the owner (design section 13); a member without it never pages.",
     "categories": [
         {
             "id": "master",
@@ -32,7 +32,12 @@
     ],
     "sources": {
         "collector": {
-            "label": "Collector: GitHub runs, jobs, pull requests, issues",
+            "label": "Collector: GitHub runs",
+            "yellowAfterMs": 900000,
+            "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
+        },
+        "collector-parts": {
+            "label": "Collector: GitHub pull requests, runners, issues, jobs",
             "yellowAfterMs": 900000,
             "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
         },
@@ -101,11 +106,16 @@
         "sentry-token": {
             "label": "Sentry read-only token",
             "notSetUp": "read-only Sentry token not created (owner decision, design section 16)"
+        },
+        "story-slices": {
+            "label": "Rolling screenshot captures (results store)",
+            "yellowAfterMs": 3600000,
+            "notSetUp": "the results store's URL and token are not in SSM yet (owner step, design/visual-testing/early-capture.md)"
         }
     },
     "runnerLimits": {
-        "linux_windows": 60,
-        "macos": 5
+        "linux_windows": 500,
+        "macos": 50
     },
     "prBudgetsMin": {
         "pr": 20,
@@ -130,7 +140,24 @@
                     "fail": [">=", 2]
                 }
             ],
-            "sources": ["collector"]
+            "sources": ["collector"],
+            "alert": {
+                "afterMs": 10800000,
+                "priority": 1,
+                "notWhileFailing": ["ci.runners_not_assigned"],
+                "title": "Master broken for {value} and no agent has fixed it",
+                "text": "Agents normally fix or revert a red master within an hour; this one has been red for {value}. Until it is fixed, canary deploys and full test runs are blocked.",
+                "action": "Restart /loop 30m /pipeline-round in a Claude session in graphty-monorepo (start one if none is running).",
+                "resolved": {
+                    "title": "Master is green again",
+                    "text": "Master was broken for about {lasted}.",
+                    "clearAfterMs": 900000
+                },
+                "link": {
+                    "url": "https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml?query=branch%3Amaster",
+                    "title": "Open master's failing builds"
+                }
+            }
         },
         {
             "id": "master.green_time",
@@ -184,7 +211,24 @@
             },
             "ok": ["<=", 28800000],
             "fail": [">", 46800000],
-            "sources": ["collector"]
+            "also": [
+                {
+                    "metric": "release.since_slot_ms"
+                }
+            ],
+            "sources": ["collector"],
+            "alert": {
+                "afterMs": 0,
+                "priority": 0,
+                "daytime": true,
+                "floorMs": 86400000,
+                "facts": {
+                    "release.since_slot_ms": [">=", 46800000]
+                },
+                "title": "No full test run in {ms:release.since_slot_ms}: release scheduler may be down",
+                "text": "The release scheduler starts a full test run every 6 h; none has started in {ms:release.since_slot_ms}, so nightly and npm next are frozen and master has gone untested for {value}.",
+                "action": "Ask any Claude session to find out why the release scheduler stopped. If its Cloudflare Worker or GitHub App credential has lapsed, make the new one the session names and give it to the session to store."
+            }
         },
         {
             "id": "master.reverts",
@@ -361,7 +405,35 @@
             },
             "ok": ["<=", 0],
             "fail": [">=", 900000],
-            "sources": ["collector"]
+            "sources": ["collector"],
+            "alert": {
+                "afterMs": 3600000,
+                "priority": 1,
+                "title": "GitHub not starting CI jobs: {n:ci.jobs_running} running, {n:ci.jobs_waiting_runner} waiting",
+                "text": "{n:ci.jobs_running} CI jobs running and {n:ci.jobs_waiting_runner} waiting for a runner, some for {value}. All CI and merging are stalled.",
+                "action": "Likely a GitHub Actions outage; nothing to do but wait. If GitHub's status page (the link) shows no outage, check graphty-org's billing and Actions settings: https://github.com/organizations/graphty-org/settings/billing",
+                "resolved": {
+                    "title": "GitHub is starting CI jobs again",
+                    "text": "CI jobs are running again after about {lasted}.",
+                    "clearAfterMs": 900000
+                },
+                "facts": {
+                    "ci.jobs_running": ["<=", 5],
+                    "ci.jobs_waiting_runner": [">=", 5]
+                },
+                "link": {
+                    "url": "https://www.githubstatus.com/",
+                    "title": "Open GitHub's status page"
+                }
+            },
+            "also": [
+                {
+                    "metric": "ci.jobs_running"
+                },
+                {
+                    "metric": "ci.jobs_waiting_runner"
+                }
+            ]
         },
         {
             "id": "ci.first_attempt",
@@ -506,6 +578,90 @@
             "sources": ["collector", "benchmarks"]
         },
         {
+            "id": "slices.set_age",
+            "category": "ci",
+            "label": "Screenshot set age",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "slices.set_age_ms"
+            },
+            "ok": ["<=", 21600000],
+            "fail": [">", 43200000],
+            "slowWindow": "7d",
+            "sources": ["story-slices"]
+        },
+        {
+            "id": "slices.base_budget",
+            "category": "ci",
+            "label": "Base slices, share of their daily cap",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "slices.base_cap_share"
+            },
+            "ok": ["<=", 1],
+            "fail": [">", 1.25],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "slices.idle_budget",
+            "category": "ci",
+            "label": "Idle slices, share of their daily cap",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "slices.idle_cap_share"
+            },
+            "ok": ["<=", 1],
+            "fail": [">", 1.25],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "slices.idle_hour_budget",
+            "category": "ci",
+            "label": "Idle slices, share of their hourly cap",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "slices.idle_hour_cap_share"
+            },
+            "ok": ["<=", 1],
+            "fail": [">", 1.25],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "slices.contended",
+            "category": "ci",
+            "label": "Slice minutes held while contended",
+            "window": "slow",
+            "measure": {
+                "type": "sum",
+                "metric": "slices.contended_min"
+            },
+            "ok": ["<=", 35],
+            "fail": [">", 105],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "slices.queue_wait",
+            "category": "ci",
+            "label": "Queue wait during slices",
+            "window": "slow",
+            "measure": {
+                "type": "sum",
+                "metric": "slices.queue_wait_min"
+            },
+            "ok": ["<=", 35],
+            "fail": [">", 105],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
             "id": "flaky.rate",
             "category": "flaky",
             "label": "Flake rate",
@@ -596,10 +752,34 @@
                 {
                     "metric": "release.hold_open_ms",
                     "fail": [">=", 21600000]
+                },
+                {
+                    "metric": "release.review_wait_ms",
+                    "fail": [">=", 21600000]
+                },
+                {
+                    "metric": "release.review_issue"
                 }
             ],
             "sources": ["release"],
-            "headline": true
+            "headline": true,
+            "alert": {
+                "afterMs": 0,
+                "priority": 0,
+                "floorMs": 86400000,
+                "repeatMs": 86400000,
+                "daytime": true,
+                "facts": {
+                    "release.review_wait_ms": [">=", 86400000]
+                },
+                "title": "Nightly waiting on your screenshot review",
+                "text": "The held nightly candidate passed all its tests but has changed screenshots, and has waited {ms:release.review_wait_ms} for your review. Nightly releases stay frozen until you approve or reject the changed screenshots.",
+                "action": "At a computer, ask any Claude session to start the nightly screenshot review, then approve or reject each changed screenshot there.",
+                "link": {
+                    "url": "{issue:release.review_issue}",
+                    "title": "Open the hold issue"
+                }
+            }
         },
         {
             "id": "release.workflows_failing",
@@ -731,6 +911,66 @@
             "sources": ["channels"]
         },
         {
+            "id": "release.review_lag",
+            "category": "releases",
+            "label": "Screenshot review lag",
+            "window": "slow",
+            "measure": {
+                "type": "median",
+                "metric": "release.review_lag_ms"
+            },
+            "ok": ["<=", 21600000],
+            "fail": [">", 86400000],
+            "minN": 3,
+            "slowWindow": "7d",
+            "sources": ["story-slices"]
+        },
+        {
+            "id": "release.slots_unreviewed",
+            "category": "releases",
+            "label": "Slots meeting an unapproved picture",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "release.slot_unreviewed"
+            },
+            "ok": ["<=", 0.25],
+            "fail": [">", 0.75],
+            "minN": 3,
+            "slowWindow": "7d",
+            "sources": ["release"]
+        },
+        {
+            "id": "release.green_clean",
+            "category": "releases",
+            "label": "Green-clean full runs",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "release.green_clean"
+            },
+            "ok": [">=", 0.5],
+            "fail": ["<", 0.25],
+            "minN": 3,
+            "slowWindow": "7d",
+            "sources": ["release"]
+        },
+        {
+            "id": "release.nightly_promotions",
+            "category": "releases",
+            "label": "Nightly promotions per day",
+            "window": "slow",
+            "measure": {
+                "type": "sum",
+                "metric": "release.nightly_promotions",
+                "scale": 0.14285714285714285
+            },
+            "ok": [">=", 2],
+            "fail": ["<", 1],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
             "id": "cost.spend",
             "category": "costs",
             "label": "Spend this month",
@@ -738,12 +978,25 @@
             "measure": {
                 "type": "month",
                 "metric": "cost.usd",
-                "projected": true
+                "projected": true,
+                "redOnSpent": true
             },
-            "ok": ["<=", 300],
-            "fail": [">", 360],
+            "ok": ["<=", 415],
+            "fail": [">", 415],
             "sources": ["collector", "billing"],
-            "headline": true
+            "headline": true,
+            "alert": {
+                "afterMs": 21600000,
+                "priority": 0,
+                "floorMs": 604800000,
+                "group": "costs",
+                "title": "All costs {over} over {mon} limit: pick {pick} limit",
+                "text": "All paid services (T4 GPU and LLM tests included): {mtd} spent so far, limit {limit}, {value} forecast by {end}.",
+                "action": "{choose}: raise the total limit to {suggest} a month, or keep {limit} and accept the overrun. Nothing is cut unless you say so; tell any Claude session your choice.",
+                "daytime": true,
+                "short": "Total",
+                "repeatMs": 604800000
+            }
         },
         {
             "id": "cost.t4",
@@ -754,11 +1007,24 @@
                 "type": "month",
                 "metric": "cost.usd",
                 "dim": "t4",
-                "projected": true
+                "projected": true,
+                "redOnSpent": true
             },
-            "ok": ["<=", 180],
-            "fail": [">", 200],
-            "sources": ["collector"]
+            "ok": ["<=", 240],
+            "fail": [">", 240],
+            "sources": ["collector"],
+            "alert": {
+                "afterMs": 21600000,
+                "priority": 0,
+                "floorMs": 604800000,
+                "group": "costs",
+                "title": "T4 GPU {over} over {mon} limit: pick {pick} limit",
+                "text": "T4 GPU test lane: {mtd} spent so far, limit {limit}, {value} forecast by {end}. It runs on every release, so it cannot be cut.",
+                "action": "{choose}: raise the T4 GPU limit to {suggest} a month, or keep {limit} and accept the overrun. Nothing is cut unless you say so; tell any Claude session your choice.",
+                "daytime": true,
+                "short": "T4 GPU",
+                "repeatMs": 604800000
+            }
         },
         {
             "id": "cost.llm",
@@ -769,11 +1035,24 @@
                 "type": "month",
                 "metric": "cost.usd",
                 "dim": "llm",
-                "projected": true
+                "projected": true,
+                "redOnSpent": true
             },
-            "ok": ["<=", 60],
-            "fail": [">", 75],
-            "sources": ["collector"]
+            "ok": ["<=", 90],
+            "fail": [">", 90],
+            "sources": ["collector"],
+            "alert": {
+                "afterMs": 21600000,
+                "priority": 0,
+                "floorMs": 604800000,
+                "group": "costs",
+                "title": "LLM tests {over} over {mon} limit: pick {pick} limit",
+                "text": "LLM regression tests (Gemini): {mtd} spent so far, limit {limit}, {value} forecast by {end}.",
+                "action": "{choose}: raise the LLM test limit to {suggest} a month, or have the agents cut LLM test runs from {cutFrom} to fit {limit}. Nothing is cut unless you say so; tell any Claude session your choice.",
+                "daytime": true,
+                "short": "LLM tests",
+                "repeatMs": 604800000
+            }
         },
         {
             "id": "cost.aws",
@@ -788,7 +1067,18 @@
             },
             "ok": ["<=", 8],
             "fail": [">", 10],
-            "sources": ["billing"]
+            "sources": ["billing"],
+            "alert": {
+                "afterMs": 3600000,
+                "priority": 0,
+                "floorMs": 604800000,
+                "value": [">", 8],
+                "title": "Health alerts stop at $10 AWS spend (forecast {pace}): raise the limit?",
+                "text": "AWS hosting for the dashboard: {value} spent so far, about {pace} by {end} at this pace. At $10 the dashboard's AWS Budget locks it, which stops the dashboard and these alerts.",
+                "action": "Pick one: raise the dashboard's own AWS Budget from $10 to $15 (still under the $20 project spend limit), or have the agents find and cut what grew.",
+                "daytime": true,
+                "then": "Tell any Claude session your choice; it applies it."
+            }
         },
         {
             "id": "cost.cloudflare_usage",
@@ -813,7 +1103,7 @@
                 "metric": "cost.sentry_usage_share"
             },
             "ok": ["<", 0.8],
-            "fail": [">", 1.0],
+            "fail": [">", 1],
             "sources": ["sentry-token", "billing"]
         },
         {
@@ -840,7 +1130,25 @@
             },
             "ok": ["<=", 0],
             "sources": [],
-            "headline": true
+            "headline": true,
+            "alert": {
+                "afterMs": 0,
+                "priority": 0,
+                "daytime": true,
+                "notWhileFailing": ["data.collector"],
+                "facts": {
+                    "credential_error_ms": [">=", 3600000]
+                },
+                "title": "{problem}: make a new one",
+                "text": "The health dashboard has not read {frozen} for {since}; those numbers stay frozen until the token is replaced. {off}",
+                "action": "{fix}",
+                "resolved": {
+                    "title": "{feed} works again",
+                    "text": "The dashboard reads {frozen} again, after about {lasted}.",
+                    "clearAfterMs": 900000
+                },
+                "then": "Error: '{error}'."
+            }
         },
         {
             "id": "data.sources_thin",
@@ -867,7 +1175,20 @@
             },
             "ok": ["<=", 600000],
             "fail": [">", 1200000],
-            "sources": []
+            "sources": [],
+            "alert": {
+                "afterMs": 600000,
+                "priority": 1,
+                "title": "Health dashboard down ({problem}) for {value}",
+                "text": "The health dashboard has not read GitHub for {value}, so nothing is being watched.",
+                "action": "{fix}",
+                "resolved": {
+                    "title": "Health dashboard is working again",
+                    "text": "The health dashboard was down for about {lasted}.",
+                    "clearAfterMs": 900000
+                },
+                "then": "Last error: '{error}'."
+            }
         },
         {
             "id": "data.rate_limit",

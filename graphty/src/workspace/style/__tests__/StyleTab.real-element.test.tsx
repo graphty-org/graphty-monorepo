@@ -17,9 +17,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const NODES = [
     { id: "1", name: "Alpha", dept: "east", code: 1 },
     { id: "2", name: "Beta", dept: "west", code: 2 },
@@ -50,13 +47,10 @@ async function openWithGraph(stacked = false): Promise<Opened> {
     const store = createWorkspaceStore({ project: { name: "Ring", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -106,7 +100,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         act(() => {
             store.set({ labelsAvoid: false });
         });
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         // The Nodes group's list: the Edges group draws a Text list of its own.
         const nodes = tab.querySelector<HTMLElement>('[data-group="node"]');
         if (nodes === null) {
@@ -123,41 +117,32 @@ describe("labels from an attribute (task T10) on the real element", () => {
             assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
         });
         // The statement is the element's counts, read live, the hidden part included.
-        await waitFor(
-            () => {
-                const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
-                assert.equal(labeled, NODES.length);
-                assert.isAbove(hiddenByOverlap, 0, "stacked labels overlap");
-                assert.isNotNull(
-                    within(styleTab()).getByText(`${String(labeled)} labels, ${String(hiddenByOverlap)} hidden`),
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
+            assert.equal(labeled, NODES.length);
+            assert.isAbove(hiddenByOverlap, 0, "stacked labels overlap");
+            assert.isNotNull(
+                within(styleTab()).getByText(`${String(labeled)} labels, ${String(hiddenByOverlap)} hidden`),
+            );
+        });
         // Show all labels turns the overlap rule off on the element: every label is drawn.
         const showAll = within(styleTab()).getByRole("checkbox", { name: "Show all labels" });
         assert.isFalse((showAll as HTMLInputElement).checked);
         await userEvent.click(showAll);
-        await waitFor(
-            () => {
-                assert.isFalse(element.layoutBehavior?.labels?.declutter);
-                assert.equal(element.nodeLabelCounts.hiddenByOverlap, 0);
-                for (const node of NODES) {
-                    assert.isTrue(element.labelOf(node.id)?.drawn, node.name);
-                }
-                assert.isNotNull(within(styleTab()).getByText(`${String(NODES.length)} labels`));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.labels?.declutter);
+            assert.equal(element.nodeLabelCounts.hiddenByOverlap, 0);
+            for (const node of NODES) {
+                assert.isTrue(element.labelOf(node.id)?.drawn, node.name);
+            }
+            assert.isNotNull(within(styleTab()).getByText(`${String(NODES.length)} labels`));
+        });
         // And back: the rule hides the stacked labels again.
         await userEvent.click(within(styleTab()).getByRole("checkbox", { name: "Show all labels" }));
-        await waitFor(
-            () => {
-                assert.isTrue(element.layoutBehavior?.labels?.declutter);
-                assert.isAbove(element.nodeLabelCounts.hiddenByOverlap, 0);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isTrue(element.layoutBehavior?.labels?.declutter);
+            assert.isAbove(element.nodeLabelCounts.hiddenByOverlap, 0);
+        });
     });
 
     it('Add label line labels Everything as Text "+" does, by the open attribute or one picked', async () => {
@@ -174,12 +159,9 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await command.run(ctx);
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
-        await waitFor(
-            () => {
-                assert.equal(element.labelOf("1")?.text, "Alpha");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(element.labelOf("1")?.text, "Alpha");
+        });
         const byPlus = userLayers();
         await session.undo();
         await waitFor(() => {
@@ -203,7 +185,7 @@ describe("the Selection row's highlight on the real element", () => {
         act(() => {
             store.set({ inspected: { kind: "selection-row", id: "selection" } });
         });
-        const highlight = await screen.findByRole("group", { name: "Highlight" }, { timeout: TIMEOUT_MS });
+        const highlight = await screen.findByRole("group", { name: "Highlight" });
         const part = (name: string): HTMLElement => within(highlight).getByRole("group", { name });
         const hexOf = (name: string): HTMLInputElement =>
             within(part(name)).getByRole<HTMLInputElement>("textbox", { name: /^Color hex value(,|$)/ });

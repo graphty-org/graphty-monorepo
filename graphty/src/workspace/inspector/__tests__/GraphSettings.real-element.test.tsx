@@ -14,9 +14,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Renders the workspace on Graph settings and waits for the element and a small graph.
  * @returns the element.
@@ -25,13 +22,10 @@ async function openGraphSettings(): Promise<HTMLElementTagNameMap["graphty-eleme
     const store = createWorkspaceStore({ project: { name: "Pair", id: 1 }, inspected: { kind: "graph" } });
     render(<Workspace store={store} />);
     let found: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+    });
     if (found === null) {
         throw new Error("the element never came up");
     }
@@ -39,8 +33,8 @@ async function openGraphSettings(): Promise<HTMLElementTagNameMap["graphty-eleme
     await element.session.data.addNodes([{ id: "a" }, { id: "b" }]);
     await element.session.data.addEdges([{ source: "a", target: "b" }]);
     // The graph opens on its Values tab; the settings are on Style.
-    await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
-    await screen.findByRole("combobox", { name: "Lighting" }, { timeout: TIMEOUT_MS });
+    await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+    await screen.findByRole("combobox", { name: "Lighting" });
     return element;
 }
 
@@ -103,7 +97,7 @@ describe("Graph settings", () => {
         const add = screen.getByRole("button", { name: "Add to background" });
         await userEvent.click(add);
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
-        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        const gallery = await screen.findByTestId("shader-gallery", {});
         await userEvent.click(within(gallery).getByRole("button", { name: /^Nebula/ }));
         await waitFor(() => {
             assert.strictEqual(element.session.config.background.shader?.id, "nebula");

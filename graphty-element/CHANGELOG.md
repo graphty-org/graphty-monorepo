@@ -1,3 +1,79 @@
+## 3.32.0 (2026-10-29)
+
+### 🚀 Features
+
+- **graphty-element:** have Graphviz route the edges of a placed DOT file ([5a26cc34ea](https://github.com/graphty-org/graphty-monorepo/commit/5a26cc34ea))
+- **graphty-element:** draw curved edges through support points a force simulation places ([28c375dddd](https://github.com/graphty-org/graphty-monorepo/commit/28c375dddd))
+- **graphty-element:** save each load's column roles and a joined table's join ([ee71e4ba8d](https://github.com/graphty-org/graphty-monorepo/commit/ee71e4ba8d))
+- **graph-io:** declare a source's credential slots, and remember keys per slot in graphty-element ([35fb9f5d02](https://github.com/graphty-org/graphty-monorepo/commit/35fb9f5d02))
+
+### 🩹 Fixes
+
+- **graphty-element:** share one claim of an entry's lock between a write and the bfcache reclaim ([#4037](https://github.com/graphty-org/graphty-monorepo/issues/4037))
+- **graphty-element:** tell a map fallback only once the world under it is drawn ([#3999](https://github.com/graphty-org/graphty-monorepo/issues/3999), [#3984](https://github.com/graphty-org/graphty-monorepo/issues/3984), [#4124](https://github.com/graphty-org/graphty-monorepo/issues/4124))
+- **graphty-element:** drop a duplicate cypher helper, update the API report ([#3395](https://github.com/graphty-org/graphty-monorepo/issues/3395))
+- **graphty-element:** draw the first-frame resize instead of clearing the canvas ([#4122](https://github.com/graphty-org/graphty-monorepo/issues/4122))
+- **graphty-element:** recompute node world matrix before every edge ray cast ([#4073](https://github.com/graphty-org/graphty-monorepo/issues/4073))
+- **graphty-element:** leave the support point step's calm count optional without a literal default ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graphty-element:** let support points come to rest by their speed, not the step limit ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graph-io:** export BendPoint from the dot entry so its API docs build ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graphty-element:** classify Node.groupDrawnForAnotherCamera and update the API report ([#4088](https://github.com/graphty-org/graphty-monorepo/issues/4088))
+- **graphty-element:** frame and draw a 3D group independently of the previous camera ([#4088](https://github.com/graphty-org/graphty-monorepo/issues/4088), [#3997](https://github.com/graphty-org/graphty-monorepo/issues/3997), [#4073](https://github.com/graphty-org/graphty-monorepo/issues/4073))
+- **graphty-element:** settle a support point afresh when its forces change ([11d08e97d4](https://github.com/graphty-org/graphty-monorepo/commit/11d08e97d4))
+- **graph-io:** write a Pajek line's arrowhead size and read a graphty-written file's arcs unbowed ([2c777460c6](https://github.com/graphty-org/graphty-monorepo/commit/2c777460c6))
+- **graphty-element:** bound a compound member's label as Cytoscape.js does, margin in font pixels ([37adbc9973](https://github.com/graphty-org/graphty-monorepo/commit/37adbc9973))
+- **graphty-element:** read double lines, covered stubs and overlapping ends as drawn in comparator ([b2120ff039](https://github.com/graphty-org/graphty-monorepo/commit/b2120ff039))
+- **graphty-element:** classify round 4's new public members for undo; refuse a support unit of 0 ([8be8b4a031](https://github.com/graphty-org/graphty-monorepo/commit/8be8b4a031))
+- **graphty-element:** clear the SonarQube findings on round 4's changed lines ([21e0e82d38](https://github.com/graphty-org/graphty-monorepo/commit/21e0e82d38))
+- **graphty-element:** keep a load's left-out edge rows in the sources member ([9c02cdd4bc](https://github.com/graphty-org/graphty-monorepo/commit/9c02cdd4bc))
+- **graphty-element:** hand Graphviz a DOT file's rank subgraphs, edge weights and cluster labels ([5513e52c23](https://github.com/graphty-org/graphty-monorepo/commit/5513e52c23))
+- **graphty-element:** stop growing a label-fit polygon by its corners' reach twice ([385bb4f7b5](https://github.com/graphty-org/graphty-monorepo/commit/385bb4f7b5))
+- **graphty-element:** draw each edge along the route Graphviz lays it ([0ba57c813b](https://github.com/graphty-org/graphty-monorepo/commit/0ba57c813b))
+- **graphty-element:** call support points at rest after 1500 steps, not 4000 ([500bd541fa](https://github.com/graphty-org/graphty-monorepo/commit/500bd541fa))
+- **graphty-element:** lay a file out at its styled node sizes however late the next frame is ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graphty-element:** lay out a DOT file with Graphviz at 72 units an inch when lengths are kept ([377a408469](https://github.com/graphty-org/graphty-monorepo/commit/377a408469))
+- **graphty-element:** hand a file's clusters to Graphviz as cluster subgraphs ([e6e5b76442](https://github.com/graphty-org/graphty-monorepo/commit/e6e5b76442))
+- **graphty-element:** read and draw the smaller edge settings of Cytoscape.js, DOT and vis-network ([fc282fe5b3](https://github.com/graphty-org/graphty-monorepo/commit/fc282fe5b3))
+- **graphty-element:** pair a mutual pair by its arrowheads, not by the ends the markup names ([7436354ff4](https://github.com/graphty-org/graphty-monorepo/commit/7436354ff4))
+- **graphty-element:** judge covered arrowheads, mutual pairs and dashed routes in the comparator ([7162b30896](https://github.com/graphty-org/graphty-monorepo/commit/7162b30896))
+- **graphty-element:** never squeeze dashes together on a short or shortened line ([2acac7cb4a](https://github.com/graphty-org/graphty-monorepo/commit/2acac7cb4a))
+- **graphty-element:** measure self-loop bends against the node's size, not its border-shrunk fill ([7787044066](https://github.com/graphty-org/graphty-monorepo/commit/7787044066))
+- **graphty-element:** hold the oracle raster floors to the GPU path they were measured on ([e2886b7d0f](https://github.com/graphty-org/graphty-monorepo/commit/e2886b7d0f))
+- **graphty-element:** judge a specimen labeled as its caption in the comparator ([58b0da0416](https://github.com/graphty-org/graphty-monorepo/commit/58b0da0416))
+- **graphty-element:** read a box round one node as the group graphty draws there in the comparator ([10c573ce4b](https://github.com/graphty-org/graphty-monorepo/commit/10c573ce4b))
+- **graphty-element:** judge sigma.js drawings by their discs and their framing in the comparator ([755331d1d4](https://github.com/graphty-org/graphty-monorepo/commit/755331d1d4))
+- **graphty-element:** read coincident, banded and tapered Cytoscape.js lines in the comparator ([5439146599](https://github.com/graphty-org/graphty-monorepo/commit/5439146599))
+- **graphty-element:** read a cap along the line where it sits in the comparator ([087f3796d9](https://github.com/graphty-org/graphty-monorepo/commit/087f3796d9))
+- **graphty-element:** read a curved line's arrowhead along its own axis in the comparator ([b8c79fd8c0](https://github.com/graphty-org/graphty-monorepo/commit/b8c79fd8c0))
+- **graphty-element:** a key saved before credential slots fills slot default ([2abda5ca84](https://github.com/graphty-org/graphty-monorepo/commit/2abda5ca84))
+- **graphty-element:** carry Cytoscape's patterned lines to their own arrowheads in the comparator ([49b1d22e23](https://github.com/graphty-org/graphty-monorepo/commit/49b1d22e23))
+- **graphty-element:** name a source preview row as data.name does, and pass the API report check ([edf475c0ae](https://github.com/graphty-org/graphty-monorepo/commit/edf475c0ae))
+- **graphty-element:** a received project's loads fetch nothing until the application runs them ([4f96df27dd](https://github.com/graphty-org/graphty-monorepo/commit/4f96df27dd))
+- **graphty-element:** name vis-network's nodes by where it drew them in the oracle comparator ([4054e4da91](https://github.com/graphty-org/graphty-monorepo/commit/4054e4da91))
+- **graphty-element:** pair oracle edges at nodes drawn on one another in the comparator ([f222573e32](https://github.com/graphty-org/graphty-monorepo/commit/f222573e32))
+- **graphty-element:** read draw.io's classic arrow as notched in the oracle comparator ([a7b4625796](https://github.com/graphty-org/graphty-monorepo/commit/a7b4625796))
+
+### 🔥 Performance
+
+- **graphty-element:** load the source load and expand code on first use ([3c0e1c4cf7](https://github.com/graphty-org/graphty-monorepo/commit/3c0e1c4cf7))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.63
+- Updated @graphty/remote-logger to 2.0.25
+- Updated babylonjs-map to 0.0.2
+- Updated graph-samples to 0.1.41
+- Updated visual-review to 0.2.37
+- Updated graph-format to 1.4.9
+- Updated algorithms to 3.4.16
+- Updated graph-io to 0.3.50
+- Updated layout to 2.5.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
 ## 3.31.0 (2026-10-28)
 
 ### 🚀 Features

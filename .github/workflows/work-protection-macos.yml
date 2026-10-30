@@ -34,6 +34,16 @@ on:
                 type: string
                 default: ""
     workflow_dispatch:
+        inputs:
+            # bisect.yml dispatches a point here, on a branch at the point, so the point runs with its own workflow files
+            files:
+                description: "a bisect point's failing test files; empty runs the whole lane"
+                type: string
+                default: ""
+            bisect_point:
+                description: "set by bisect.yml: <red sha>-<point sha>, this run's own concurrency group"
+                type: string
+                default: ""
 permissions: { contents: read }
 concurrency:
     group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || format('work-protection-macos-{0}', inputs.candidate && format('release-{0}', inputs.candidate) || github.ref) }}

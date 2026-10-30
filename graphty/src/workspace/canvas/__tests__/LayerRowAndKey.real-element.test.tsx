@@ -21,9 +21,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a repaint, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * The workspace with the element up and one file read.
  * @param file - which file.
@@ -31,14 +28,11 @@ const TIMEOUT_MS = 90_000;
  */
 async function open(file: "volunteers" | "lesmis"): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: file, id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -56,7 +50,7 @@ async function open(file: "volunteers" | "lesmis"): Promise<GraphSession> {
  */
 async function rowCount(name: string): Promise<{ row: HTMLElement; count: string }> {
     const tree = screen.getByRole("tree", { name: "Style layers" });
-    const row = await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }, { timeout: TIMEOUT_MS });
+    const row = await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
     return { row, count: row.querySelector(".ws-row-count")?.textContent ?? "" };
 }
 
@@ -66,8 +60,8 @@ async function rowCount(name: string): Promise<{ row: HTMLElement; count: string
  * @returns the names.
  */
 async function keyRows(title: string): Promise<string[]> {
-    const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-    const section = await within(legend).findByRole("group", { name: title }, { timeout: TIMEOUT_MS });
+    const legend = await screen.findByRole("region", { name: "Legend" });
+    const section = await within(legend).findByRole("group", { name: title });
     return [...section.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent ?? "");
 }
 
@@ -195,8 +189,8 @@ describe("layer rows and the key agree with what a layer draws", () => {
             set: { "node.size": 4 },
         });
         await session.styles.settled();
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        const section = await within(legend).findByRole("group", { name: "Size: hours" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        const section = await within(legend).findByRole("group", { name: "Size: hours" });
         await waitFor(() => {
             assert.include(section.textContent, "3 nodes covered by Picked");
         });

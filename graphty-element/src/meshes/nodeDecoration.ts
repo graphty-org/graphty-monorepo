@@ -519,7 +519,8 @@ function numbers(text: string | undefined): number[] {
  * A chart drawn over a node `width` x `height` (`chart` of a node style): bars side by side ("bar"), bars piled into
  * one ("stacked-bar"), a line through the values ("line"), a box and whiskers ("box": the values are the low
  * whisker, the lower quartile, the median, the upper quartile and the high whisker) or a row of colored cells
- * ("cells"). The plot is a box `size` times the node's, centered on it. Values run along one axis from `min` to `max`
+ * ("cells"). The plot is a box `size` times the node's (`width` and `height` times its sides, where given), centered on
+ * it and moved by `offsetX` / `offsetY` (the style's lengths, y down). Values run along one axis from `min` to `max`
  * (bottom to top, or with `horizontal` left to right); the values' categories along the other (left to right, or top
  * to bottom), each an equal share of it after `margin` at each end and `gap` between them. Item i is drawn in color
  * i of `colors`, the last one again for the rest; a box draws its whiskers in the first color too and its median in
@@ -537,7 +538,9 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
         return [];
     }
     const k = chart.size ?? 1;
-    const [w, h] = [k * width, k * height];
+    const [w, h] = [(chart.width ?? k) * width, (chart.height ?? k) * height];
+    // its middle, moved off the node's in the style's lengths, y down
+    const [ox, oy] = [(chart.offsetX ?? 0) * scale, -(chart.offsetY ?? 0) * scale];
     const horizontal = chart.horizontal === true;
     const kind = chart.kind ?? "bar";
     const lo = chart.min ?? Math.min(0, ...values);
@@ -546,7 +549,7 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
     const along = (v: number): number => Math.max(0, Math.min(1, (v - lo) / (hi - lo || 1)));
     // a point at a share c along the categories and v along the values, in the node's plane (y up)
     const at = (c: number, v: number): Point2 =>
-        horizontal ? [-w / 2 + v * w, h / 2 - c * h] : [-w / 2 + c * w, -h / 2 + v * h];
+        horizontal ? [ox - w / 2 + v * w, oy + h / 2 - c * h] : [ox - w / 2 + c * w, oy - h / 2 + v * h];
     const rect = (c0: number, c1: number, v0: number, v1: number): Point2[] => {
         const [a, b] = [at(c0, v0), at(c1, v1)];
         const [x0, x1, y0, y1] = [

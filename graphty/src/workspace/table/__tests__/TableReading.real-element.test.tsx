@@ -15,9 +15,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const NODES = [
     { id: "MlleBaptistine", name: "Mademoiselle Baptistine", email: "baptistine@example.org" },
     { id: "Myriel", name: "Myriel" },
@@ -29,13 +26,10 @@ describe("reading the table dock", () => {
         const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
         render(<Workspace store={store} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }

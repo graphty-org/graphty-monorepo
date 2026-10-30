@@ -78,12 +78,9 @@ function yieldToEventLoop(): Promise<void> {
  * @param what - Named in the failure message when it never becomes true.
  */
 async function until(predicate: () => boolean, what: string): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isTrue(predicate(), `waiting for ${what}`);
-        },
-        { timeout: 3000 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(predicate(), `waiting for ${what}`);
+    });
 }
 
 /**

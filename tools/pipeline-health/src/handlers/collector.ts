@@ -3,11 +3,13 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 import rates from "../../config/rates.json" with { type: "json" };
 import slas from "../../config/slas.json" with { type: "json" };
+import sliceConfig from "../../config/slices.json" with { type: "json" };
 import { codeBuildDeploy, costExplorerDaily, ssmGetParams } from "../collector/aws.js";
 import { backfill, backfillRepos, type BackfillReport } from "../collector/backfill.js";
 import { collect, type CycleReport } from "../collector/collect.js";
-import { GitHub, installationToken, readAppConfig } from "../collector/github.js";
+import { DISPATCH_APP_PARAMS, GitHub, installationToken, readAppConfig } from "../collector/github.js";
 import type { Rates } from "../collector/parse.js";
+import { quarantineReader, SLICE_STORE_PARAMS, type SliceConfig, sliceDeps } from "../collector/slices.js";
 import { dynamoStore } from "../dynamo.js";
 import { recompute } from "../model/rollup.js";
 import { recomputeAll } from "../recompute.js";
@@ -44,6 +46,7 @@ export async function handler(
     const store = dynamoStore(process.env.TABLE_NAME ?? "graphty-health");
     const app = await readAppConfig(getParams);
     const gh = app ? new GitHub(() => installationToken(app, fetch, Date.now())) : undefined;
+    const storeParams = await getParams(Object.values(SLICE_STORE_PARAMS));
     const report = await collect({
         store,
         now,
@@ -55,6 +58,14 @@ export async function handler(
         org: "graphty-org",
         repo: "graphty-org/graphty-monorepo",
         deploy,
+        readQuarantine: quarantineReader(storeParams, fetch),
+        slices: sliceDeps(
+            sliceConfig as SliceConfig,
+            storeParams,
+            await readAppConfig(getParams, DISPATCH_APP_PARAMS),
+            fetch,
+            "graphty-org/graphty-monorepo",
+        ),
     });
     const rolled = await recomputeAll(store, Date.now());
     console.log(JSON.stringify({ lastRun, ...report, ...rolled }));
@@ -66,6 +77,8 @@ export interface BackfillEvent {
     mode: "backfill";
     days?: number;
     perHour?: number;
+    /** Re-read only these days' runs of these workflows (BackfillOptions.repair). */
+    repair?: { days: string[]; workflows: string[] };
 }
 
 export type BackfillResult =
@@ -96,6 +109,7 @@ async function runBackfill(
         perHour: event.perHour ?? 2000,
         now: start,
         deadline: end - 90_000,
+        ...(event.repair ? { repair: event.repair } : {}),
     });
     let recomputed = 0;
     let dirtyLeft = true;

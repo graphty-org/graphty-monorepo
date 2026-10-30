@@ -277,6 +277,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartMax": "Chart max",
     "node.chartHorizontal": "Chart horizontal",
     "node.chartSize": "Chart size",
+    "node.chartWidth": "Chart width",
+    "node.chartHeight": "Chart height",
+    "node.chartOffsetX": "Chart offset x",
+    "node.chartOffsetY": "Chart offset y",
     "node.chartMargin": "Chart margin",
     "node.chartGap": "Chart gap",
     "node.chartLineWidth": "Chart line width",
@@ -314,6 +318,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Arrow",
     "edge.arrowHeadGap": "Arrow",
+    "edge.arrowHeadStack": "Arrow",
     "edge.arrowHeadImage": "Arrow",
     "edge.arrowHeadTextLetterSize": "Arrow",
     "edge.arrowHeadTextFont": "Arrow",
@@ -325,6 +330,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetY": "Arrow",
     "edge.arrowTailSide": "Arrow",
     "edge.arrowTailGap": "Arrow",
+    "edge.arrowTailStack": "Arrow",
     "edge.arrowTailImage": "Arrow",
     "edge.arrowTailTextLetterSize": "Arrow",
     "edge.arrowTailTextFont": "Arrow",
@@ -383,6 +389,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.targetNodeGap": "Gap",
     "edge.supportModel": "Route",
     "edge.supportUnit": "Route",
+    "edge.supportScale": "Route",
     "edge.supportSpringLength": "Route",
     "edge.supportSpringConstant": "Route",
     "edge.supportRepulsion": "Route",
@@ -528,11 +535,11 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
 
 /** What Filter to neighbors does, and where it is turned off. */
-export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its step in Filters turns it off";
+export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";
 
-/** Why Filter to neighbors is disabled: its step is already on at the reach shown. */
+/** Why Filter to neighbors is disabled: its card is already on at the reach shown. */
 export const NEIGHBOR_FILTER_APPLIED_WORDS =
-    "The drawing already shows only this neighborhood. Its step in Filters turns it off";
+    "The drawing already shows only this neighborhood. Its card in Filters turns it off";
 
 /**
  * A selection's size, leaving out a zero half ("2 nodes selected", "3 nodes, 1 edge selected").

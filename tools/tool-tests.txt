@@ -1,6 +1,8 @@
+tools/acceptance.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
+tools/channel/baselines-tree.test.mjs
 tools/channel/candidate-fix.test.mjs
 tools/channel/candidates.test.mjs
 tools/channel/hold.test.mjs
@@ -10,11 +12,14 @@ tools/channel/promote.test.mjs
 tools/channel/recapture.test.mjs
 tools/channel/rehearse.test.mjs
 tools/channel/resume.test.mjs
+tools/channel/rolling-merge.test.mjs
+tools/channel/rolling.test.mjs
 tools/channel/site-deploy.test.mjs
+tools/channel/story-slices.test.mjs
 tools/check-committed-images.test.mjs
 tools/check-features.test.mjs
 tools/check-figma-lock.test.mjs
-tools/check-owned-closure.test.mjs
+tools/check-packed-exports.test.mjs
 tools/check-quick.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
@@ -30,11 +35,12 @@ tools/features-on.test.mjs
 tools/dependency-refresh.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
+tools/health-owner-sweep.test.mjs
 tools/land.test.mjs
 tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs
 tools/live.test.mjs
-tools/llm-due.test.mjs
+tools/llm-spend.test.mjs
 tools/nightly-scenarios.test.mjs
 tools/nx-cache-proxy.test.mjs
 tools/nx-cache-worker/test/index.test.mjs
@@ -64,6 +70,7 @@ tools/test-ledger.test.mjs
 tools/test-quarantine.test.mjs
 tools/test-select.test.mjs
 tools/test-slots.test.mjs
+tools/test-wait-guard.test.mjs
 tools/verify.test.mjs
 tools/visual-flaky-report.test.mjs
 tools/vitest-base.test.mjs

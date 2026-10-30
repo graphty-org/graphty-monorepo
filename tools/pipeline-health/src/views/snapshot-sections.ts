@@ -94,7 +94,7 @@ export async function ownerTable(reads: Reads): Promise<Section> {
 }
 
 /**
- * The committed quarantine list (tools/test-quarantine.json on master).
+ * The quarantine in force (the results store; tools/test-quarantine.json on master without one).
  * @param reads
  */
 export async function quarantineTable(reads: Reads): Promise<Section> {

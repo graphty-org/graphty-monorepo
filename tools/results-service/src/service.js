@@ -17,6 +17,7 @@ import {
     getFailures,
     getMedians,
     getPlan,
+    getQuarantine,
     getReleaseState,
     trackedIssues,
     trendFor,
@@ -755,6 +756,7 @@ const ROUTES = {
     "POST /v1/story-reach": postStoryReach,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
+    "GET /v1/quarantine": getQuarantine,
     "GET /v1/candidate": getCandidate,
     "GET /v1/release-state": getReleaseState,
     "GET /v1/failures": getFailures,

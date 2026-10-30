@@ -238,8 +238,8 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
  * Flake hotspots (section 5): family, file, test, ranked by distinct flaky tests, from CI's flaky detections
  * (tools/test-quarantine.mjs through /v1/failures, and a passing retry's lookback). The rate per 1,000 runs is
  * flaky events over runs at that level: a family's over the test files its shard runs ran, a file's over its own
- * runs, a test's over its file's runs (a test runs whenever its file does). Quarantined counts the committed
- * quarantine list's entries; held pull requests have no writer yet, so they are null.
+ * runs, a test's over its file's runs (a test runs whenever its file does). Quarantined counts the quarantine
+ * in force (the results store's entries); held pull requests have no writer yet, so they are null.
  * @param reads
  * @param range
  */

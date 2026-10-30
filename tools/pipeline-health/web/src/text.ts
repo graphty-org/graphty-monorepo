@@ -812,8 +812,7 @@ const S: Record<string, (p: P) => string> = {
         `All in ${str(p, "repo")}; no other graphty-org repository ran a job in ${fmtN(num(p, "h"))} h.`,
 
     // flaky
-    "flaky.quarantine.empty": () =>
-        "No quarantine entries: CI keeps no quarantine state and tools/test-quarantine.json is empty. Flaky tests are counted by open issue instead (member above).",
+    "flaky.quarantine.empty": () => "No quarantine entries: the results store has no quarantined test in force.",
     "tag.screenshots": () => "Storybook capture",
     "tag.unstable": () => "unstable, blocks merge",
     "tag.issue": (p) => `#${num(p, "issue")}`,

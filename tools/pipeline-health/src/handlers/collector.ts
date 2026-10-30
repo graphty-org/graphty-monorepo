@@ -9,7 +9,7 @@ import { backfill, backfillRepos, type BackfillReport } from "../collector/backf
 import { collect, type CycleReport } from "../collector/collect.js";
 import { DISPATCH_APP_PARAMS, GitHub, installationToken, readAppConfig } from "../collector/github.js";
 import type { Rates } from "../collector/parse.js";
-import { SLICE_STORE_PARAMS, type SliceConfig, sliceDeps } from "../collector/slices.js";
+import { quarantineReader, SLICE_STORE_PARAMS, type SliceConfig, sliceDeps } from "../collector/slices.js";
 import { dynamoStore } from "../dynamo.js";
 import { recompute } from "../model/rollup.js";
 import { recomputeAll } from "../recompute.js";
@@ -46,6 +46,7 @@ export async function handler(
     const store = dynamoStore(process.env.TABLE_NAME ?? "graphty-health");
     const app = await readAppConfig(getParams);
     const gh = app ? new GitHub(() => installationToken(app, fetch, Date.now())) : undefined;
+    const storeParams = await getParams(Object.values(SLICE_STORE_PARAMS));
     const report = await collect({
         store,
         now,
@@ -57,9 +58,10 @@ export async function handler(
         org: "graphty-org",
         repo: "graphty-org/graphty-monorepo",
         deploy,
+        readQuarantine: quarantineReader(storeParams, fetch),
         slices: sliceDeps(
             sliceConfig as SliceConfig,
-            await getParams(Object.values(SLICE_STORE_PARAMS)),
+            storeParams,
             await readAppConfig(getParams, DISPATCH_APP_PARAMS),
             fetch,
             "graphty-org/graphty-monorepo",

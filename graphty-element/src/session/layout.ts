@@ -347,12 +347,30 @@ export function recommendLayout(
                 layout: descriptor,
                 reason: "The file is a Graphviz file with no coordinates, so it is drawn by the engine it names.",
                 fact: { code: "recommend.graphviz-file" as const, params },
-                ...(Object.keys(attributes).length === 0 ? {} : { options: Object.freeze({ attributes }) }),
+                ...graphvizFileOptions(attributes, options.file?.format === "dot"),
             });
         }
     }
 
     return recommendByRules(input);
+}
+
+/**
+ * The options a Graphviz file is drawn with: its graph attributes, and for a DOT file, whose nodes carry the attributes
+ * Graphviz sizes them by, nodes at the size Graphviz gives them, as Graphviz lays the file out itself.
+ * @param attributes - the file's graph attributes the engine reads
+ * @param dot - whether the file is a DOT file
+ * @returns the recommendation's `options`, or nothing when there are none
+ */
+function graphvizFileOptions(
+    attributes: Readonly<Record<string, string>>,
+    dot: boolean,
+): { options?: Readonly<Record<string, unknown>> } {
+    const options = {
+        ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
+        ...(dot ? { nodeSize: "label" } : {}),
+    };
+    return Object.keys(options).length === 0 ? {} : { options: Object.freeze(options) };
 }
 
 /**

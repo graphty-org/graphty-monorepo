@@ -41,6 +41,7 @@ import {
     type NodeMask,
 } from "@graphty/graph-format";
 
+import { BarnesHutTree } from "./barnes-hut.js";
 import {
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
@@ -81,7 +82,12 @@ interface ResolvedOptions {
     readonly iterationsPerStep: number;
     readonly compat: "paper" | "networkx";
     readonly seed: number | null;
+    /** The Barnes-Hut opening angle, or null for every pair. */
+    readonly barnesHutTheta: number | null;
 }
+
+/** Gephi's default Barnes-Hut opening angle. */
+const BARNES_HUT_THETA = 1.2;
 
 /** The per-load scratch of one iteration (allocated by load(), released by dispose()). */
 interface Scratch {
@@ -258,6 +264,9 @@ function resolveOptions(options: ForceAtlas2SimulationOptions | undefined): Reso
         ),
         compat,
         seed: o.seed ?? null,
+        barnesHutTheta: pickBoolean("barnesHutOptimize", o.barnesHutOptimize, false)
+            ? pickNumber("barnesHutTheta", o.barnesHutTheta, BARNES_HUT_THETA, (v) => v > 0, "> 0")
+            : null,
     };
 }
 
@@ -524,6 +533,11 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     private centroid: [number, number, number] = [0, 0, 0];
     /** The partials of the last integrate; null before the first iteration after load (K1 keeps load()'s state then). */
     private pending: GroupPartials | null = null;
+    /** The repulsion's tree with barnesHutOptimize, else null. */
+    private readonly tree: BarnesHutTree | null;
+    /** The tree's approximated repulsion and the exact pairs' sum on one node. */
+    private readonly far = new Float64Array(3);
+    private readonly near = new Float64Array(3);
 
     /**
      * Resolves the options (FA2_DEFAULTS applied, ranges validated: design 7.14) without touching a graph.
@@ -534,6 +548,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.dim = this.options.dim;
         this.swingMode = this.options.compat === "networkx" ? 1 : 0;
         this.gravityCenter = this.options.compat === "networkx" ? 1 : 0;
+        this.tree = this.options.barnesHutTheta === null ? null : new BarnesHutTree(this.dim);
     }
 
     /**
@@ -824,6 +839,38 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             meanDisplacement <= this.options.settleThreshold * rmsRadius ? this.settledCountValue + 1 : 0;
     }
 
+    /**
+     * The repulsion on node i through the Barnes-Hut tree: the far cells as one body each at their centre of mass,
+     * the near nodes pair by pair with the exact law (the distance floor and the coincident kick included).
+     * @param i - the node
+     * @returns the force
+     */
+    private barnesHutRepulsion(i: number): [number, number, number] {
+        const { positions: pos, mass, far, near } = this;
+        const k = this.options.scalingRatio * mass[i];
+        far.fill(0);
+        near.fill(0);
+        (this.tree as BarnesHutTree).repel(i, pos, this.options.barnesHutTheta as number, far, (j) => {
+            const dx = pos[3 * i] - pos[3 * j];
+            const dy = pos[3 * i + 1] - pos[3 * j + 1];
+            const dz = pos[3 * i + 2] - pos[3 * j + 2];
+            const d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 < FA2_COINCIDENT_SQ) {
+                const kick = kickDir(i, j, this.dim);
+                const magnitude = (k * mass[j]) / FA2_DISTANCE_FLOOR;
+                near[0] += kick[0] * magnitude;
+                near[1] += kick[1] * magnitude;
+                near[2] += kick[2] * magnitude;
+                return;
+            }
+            const scale = (k * mass[j]) / Math.max(d2, FA2_DISTANCE_FLOOR_SQ);
+            near[0] += dx * scale;
+            near[1] += dy * scale;
+            near[2] += dz * scale;
+        });
+        return [near[0] + k * far[0], near[1] + k * far[1], near[2] + k * far[2]];
+    }
+
     /** One iteration: K1 fold (from the previous integrate), K2, K3 + epilogue, K4, K5 (the oracle's step() body). */
     private iterate(): void {
         const { n, scratch } = this;
@@ -875,6 +922,9 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         const cx = this.centroid[0];
         const cy = this.centroid[1];
         const cz = this.centroid[2];
+        this.tree?.build(pos, mass, n);
+        // every pair without the tree; with it, barnesHutRepulsion visits the near nodes only
+        const pairs = this.tree === null ? n : 0;
         for (let i = 0; i < n; i++) {
             const px = pos[3 * i];
             const py = pos[3 * i + 1];
@@ -883,7 +933,10 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             let fx = 0;
             let fy = 0;
             let fz = 0;
-            for (let j = 0; j < n; j++) {
+            if (this.tree !== null) {
+                [fx, fy, fz] = this.barnesHutRepulsion(i);
+            }
+            for (let j = 0; j < pairs; j++) {
                 if (j === i) {
                     continue;
                 }

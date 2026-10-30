@@ -458,6 +458,17 @@ describe("GET /v1/plan", () => {
         assert.equal((await plan(call, { variants: `${BROWSER},b`, inputs: "k1" })).status, 400);
     });
 
+    it("answers an everything run's ~55 variants within D1's 100 bound parameters", async () => {
+        const { call } = service();
+        const variants = Array.from({ length: 55 }, (_, i) => `family-${i}|off`);
+        const r = await plan(call, {
+            base: "b1",
+            variants: variants.join(","),
+            inputs: variants.map(() => "-").join(","),
+        });
+        assert.equal(r.status, 200);
+    });
+
     it("computes the quarantine when it is read", async () => {
         const { call, env } = service();
         const s = seed(env);
@@ -492,6 +503,26 @@ describe("GET /v1/plan", () => {
             [
                 ["active", 9, 1],
                 ["prOnly", 9, 0],
+            ],
+        );
+    });
+
+    it("lists every family's quarantine in force on GET /v1/quarantine, with since, never a GPU family", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.quarantine("graphty-element-browser", "active", { since: NOW - 10 * 60_000 });
+        s.quarantine("cytoscape-extensions-storybook", "story", { issue: 5001 });
+        s.quarantine("graphty-element-browser", "expired", { expires: NOW - 1 });
+        s.quarantine("graphty-element-browser", "left", { left: NOW - HOUR });
+        s.quarantine("webgpu-graph-algorithms-browser", "gpu");
+        assert.equal((await call("GET", "/v1/quarantine")).status, 401);
+        const res = await call("GET", "/v1/quarantine", { token: LOCAL_TOKEN });
+        assert.equal(res.status, 200);
+        assert.deepEqual(
+            res.body.quarantine.map((q) => [q.family, q.name, q.issue, q.since, q.expires]),
+            [
+                ["graphty-element-browser", "active", 9, NOW - 10 * 60_000, NOW + DAY],
+                ["cytoscape-extensions-storybook", "story", 5001, NOW - DAY, NOW + DAY],
             ],
         );
     });

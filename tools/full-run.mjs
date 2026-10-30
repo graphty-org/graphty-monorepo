@@ -29,7 +29,8 @@
 // workflow's GITHUB_TOKEN (GITHUB_ACTOR github-actions[bot]: release-due's restart and candidate runs) is never seen by
 // release-rerun.yml, so its attempt 1 decides at once like any later attempt. A lane red on attempt 1 and
 // green on attempt 2, and a story the re-capture found flaky (flaky.json in the final captures), each get one
-// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing.
+// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing; more than FLAKY_GROUP
+// stories of one project at once get one issue for the project (flakyFilings).
 //
 // Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
 // held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
@@ -52,6 +53,7 @@ import { diffCommits } from "./release-diff.mjs";
 import { call, config } from "./results/client.mjs";
 
 export const RED_TITLE = "Full run red:";
+export const UNSIGNED_TITLE = "Master baselines tree unsigned";
 export const FLAKY_TITLE = "Flaky in full run:";
 /** The modes whose attempt 1 is re-run once by release-rerun.yml instead of filing at once. */
 export const RERUN_MODES = new Set(["full", "restart", "candidate"]);
@@ -602,6 +604,87 @@ function publishHold() {
     }
 }
 
+/**
+ * Whether a picked commit's visual-baselines/ tree could never promote: it is not nightly's, and no approval statement
+ * of the owner's names it (`visual-review-approvals/<tree>.json`), so the screenshot gate would refuse it and every
+ * commit after it. The one-approval-in-flight rules (design/visual-testing/early-capture.md, 4d) prevent it; this
+ * makes a gap visible instead of leaving nightly stalled. The gate itself checks the signature; this only looks for
+ * the statement.
+ * @param o the facts
+ * @param o.tree the commit's baselines tree
+ * @param o.nightlyTree channel/nightly's, or null before it exists
+ * @param o.hasStatement whether the commit holds an approval statement of that tree
+ * @returns boolean
+ */
+export const unsignedTree = ({ tree, nightlyTree, hasStatement }) =>
+    nightlyTree !== null && tree !== nightlyTree && !hasStatement;
+
+/**
+ * The alarm issue for an unsigned master baselines tree.
+ * @param sha the picked commit
+ * @param tree its baselines tree
+ * @returns `{ title, body }`
+ */
+export function unsignedIssue(sha, tree) {
+    return {
+        title: `${UNSIGNED_TITLE} on ${short(sha)}`,
+        body: [
+            `The full run picked ${sha}, whose \`visual-baselines/\` tree ${tree} is neither channel/nightly's nor named`,
+            "by an approval statement of the owner's (`visual-review-approvals/<tree>.json`). The screenshot gate refuses",
+            "it and every later commit until a signed tree reaches master, so nightly cannot promote.",
+            "",
+            "One approval in flight (design/visual-testing/early-capture.md, 4d) should prevent this: find the merge that",
+            "changed `visual-baselines/` without its signed tree (two approval pull requests merged together, or one",
+            "merged while a full run judged a commit), then have the owner review and Finish the next candidate.",
+        ].join("\n"),
+    };
+}
+
+function alarmUnsigned(sha, baselines, nightly) {
+    const tree = baselines(sha);
+    let nightlyTree = null;
+    try {
+        nightlyTree = baselines(nightly);
+    } catch {
+        // no channel/nightly yet
+    }
+    let hasStatement = true;
+    try {
+        execFileSync("git", ["cat-file", "-e", `${sha}:visual-review-approvals/${tree}.json`], { stdio: "ignore" });
+    } catch {
+        hasStatement = false;
+    }
+    if (!unsignedTree({ tree, nightlyTree, hasStatement })) return;
+    const issue = unsignedIssue(sha, tree);
+    console.log(`::error::${issue.title}`);
+    const open = sh("gh", [
+        "api",
+        "repos/{owner}/{repo}/issues?state=open&labels=priority:critical&per_page=100",
+        "--jq",
+        String.raw`.[] | select(.title | startswith("${UNSIGNED_TITLE}")) | .number`,
+    ]).split("\n")[0];
+    const file = join(tmpdir(), `full-run-unsigned-${process.pid}.md`);
+    writeFileSync(file, issue.body);
+    if (open) {
+        sh("gh", ["issue", "comment", open, "--body-file", file]);
+        return;
+    }
+    sh("gh", [
+        "issue",
+        "create",
+        "--title",
+        issue.title,
+        "--label",
+        "bug",
+        "--label",
+        "priority:critical",
+        "--label",
+        "effort:medium",
+        "--body-file",
+        file,
+    ]);
+}
+
 async function pickMain(env) {
     const cfg = config(env);
     const store = cfg ? await read(cfg, "/v1/candidate") : null;
@@ -637,6 +720,13 @@ async function pickMain(env) {
         rolling: env.MODE === "full" && store ? await rollingInputs(cfg, env) : null,
     });
     console.log(`::notice::${p.why}`);
+    if (p.run && p.sha) {
+        bestEffort(
+            () => alarmUnsigned(p.sha, baselines, NIGHTLY),
+            "the unsigned baselines tree check",
+            () => null,
+        );
+    }
     if (p.rolling) {
         const on = env.PICK_RULE === "rolling" ? "on" : "off (shadow)";
         const chose = p.rolling.sha ? short(p.rolling.sha) : "no preference";
@@ -840,6 +930,38 @@ export function flakyStoryBody(s, at, tail) {
     return `${named}The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
 }
 
+/** More flaky stories than this in one project at once is one cause (#4940), filed as one issue. */
+export const FLAKY_GROUP = 5;
+// GitHub refuses an issue body over 65,536 characters
+const MAX_BODY = 60_000;
+
+/**
+ * What to file for the flaky stories: one issue per story, or one per project when more than FLAKY_GROUP of its
+ * stories flipped at once. A grouped body still names each story test, so the dashboard matches it to them.
+ * @param stories the flaky stories, as flakyStories returns them
+ * @param at where and when they were found
+ * @param tail the closing paragraph
+ * @returns `{ name, body }` per issue
+ */
+export function flakyFilings(stories, at, tail) {
+    const byProject = Map.groupBy(stories, (s) => s.name.split("/")[0]);
+    return [...byProject].flatMap(([project, all]) => {
+        if (all.length <= FLAKY_GROUP) return all.map((s) => ({ name: s.name, body: flakyStoryBody(s, at, tail) }));
+        let list = "";
+        for (const s of all) {
+            const story = s.test ? "Flaky test: " + s.test.file + " > " + s.test.name + " (" + s.name + ")" : s.name;
+            const line = `- ${story}: ${s.why}\n`;
+            if (list.length + line.length > MAX_BODY) {
+                list += "- ... and more (the run's visual-final captures list them all)\n";
+                break;
+            }
+            list += line;
+        }
+        const head = `${all.length} stories of ${project} were found flaky at once ${at}. So many at once is one cause (the renderer, the capture code, the runner), not ${all.length} unstable stories.`;
+        return [{ name: `${project} (${FLAKY_GROUP}+ stories at once)`, body: `${head}\n\n${list}\n${tail}` }];
+    });
+}
+
 // One open "Flaky in full run: <name>" issue per name: a comment when it recurs
 function fileFlaky(name, body) {
     const title = `${FLAKY_TITLE} ${name}`;
@@ -868,11 +990,10 @@ function fileFlakies(env, lanes, stories) {
             () => null,
         );
     }
-    for (const s of stories) {
-        const body = flakyStoryBody(s, at, tail);
+    for (const { name, body } of flakyFilings(stories, at, tail)) {
         bestEffort(
-            () => fileFlaky(s.name, body),
-            `filing the flaky story ${s.name}`,
+            () => fileFlaky(name, body),
+            `filing the flaky story ${name}`,
             () => null,
         );
     }

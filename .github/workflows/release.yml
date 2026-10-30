@@ -814,11 +814,11 @@ jobs:
               id: llm
               working-directory: graphty-element
               env:
-                  VITE_LLM_REGRESSION_PROVIDER: google
-                  VITE_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+                  LLM_REGRESSION_PROVIDER: google
+                  GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
               run: |
                   set -uo pipefail
-                  if [ -z "${VITE_GOOGLE_API_KEY}" ]; then
+                  if [ -z "${GOOGLE_API_KEY}" ]; then
                       echo "owner_item=the GOOGLE_API_KEY repository secret is missing or empty" >> "$GITHUB_OUTPUT"
                       echo "::error::the GOOGLE_API_KEY repository secret is missing or empty, so the LLM regression tests cannot run; add it under Settings > Secrets and variables > Actions"
                       exit 1
@@ -1189,12 +1189,15 @@ jobs:
               with:
                   ref: ${{ needs.pick.outputs.sha }}
 
-            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's tools, actions,
-            # re-capture and capture code, as of the run's start (channels design, section 5): the picked commit may
-            # predate them, as the first nightly run's did (#3952), and its copy is never what judges it.
+            # The candidate's tree (its baselines, its dependencies, its Storybook below) with master's tools, actions
+            # and re-capture code, as of the run's start (channels design, section 5): the picked commit may predate
+            # them, as the first nightly run's did (#3952). The capture code (visual-review/capture and trusted) stays
+            # the candidate's: the CI lane's story tests shot the first picture with it, and a second shot taken by
+            # other capture code differs by construction, not because the story is unstable. Master's 2x launch flag
+            # (#4603) against a candidate without it read every re-shot story as flaky (#4940).
             - name: Use the workflow's own tools and actions
               env:
-                  OVERLAY: tools .github/actions visual-review/capture visual-review/trusted
+                  OVERLAY: tools .github/actions
               run: |
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   git fetch --quiet --no-tags --depth=1 origin "$GITHUB_SHA"

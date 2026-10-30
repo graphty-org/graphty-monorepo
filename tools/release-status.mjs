@@ -271,6 +271,19 @@ export function pushMessage(outcome, f) {
             ],
             ...fail,
         },
+        // the rolling screenshot slices (design/visual-testing/early-capture.md, 4d): told by story-slices.yml's bins
+        "rolling-queue": {
+            title: "Screenshots CHANGED on master",
+            lines: [f.what || "Pictures changed on master", "Review them on the master rolling target"],
+            priority: 0,
+            sound: "pushover",
+        },
+        "rolling-slot": {
+            title: "Screenshots WAITING for review",
+            lines: [f.what || "Pictures wait for review", "Approve them before the slot so nightly can promote"],
+            priority: 0,
+            sound: "pushover",
+        },
         "run-ended": {
             title: "Release RUN ENDED BADLY",
             lines: [`Run ${f.what || "failed"} on ${sha} before announcing`, retry],
@@ -285,7 +298,7 @@ export function pushMessage(outcome, f) {
         title: k.title,
         message: k.lines.filter(Boolean).join("\n").slice(0, 1024),
         url: f.run,
-        url_title: "Open run",
+        url_title: f.urlTitle ?? "Open run",
         priority: String(k.priority),
         sound: k.sound,
     };

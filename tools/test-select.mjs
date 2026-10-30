@@ -1332,6 +1332,34 @@ const NO_HISTORY_MS = 30_000;
 export const FILE_OVERHEAD_MS = 5_000;
 
 /**
+ * How a family's bin really runs where FILE_OVERHEAD_MS and the recorded durations are wrong for it (#5048):
+ * `overheadMs` per file and `scale` on each recorded duration. Fitted to the bins of pull request runs
+ * 41040420195, 41058628979 and 41061566840 (2026-10-30), wall time of each bin's run-group invocation against
+ * its files' recorded ms:
+ * - graphty-element-browser and -storybook run their files one after another in a browser: 5.5 to 7.2 s per
+ *   file on top of the recorded time, so bins planned at 8 min ran 8.1 to 9.9 min (14 of 23 over).
+ * - graphty's recorded durations leave out its hooks: bins of a few long files ran 1.2 to 1.35 times their
+ *   recorded sum, plus about 1.5 s per file.
+ * - graphty-element-default and githerd run their files in parallel workers: about 0.3 s per file, so 5 s split
+ *   one 1-minute run into ten bins.
+ * ponytail: constants re-fitted by hand; learn them from the store's invocation records if they drift.
+ */
+export const FAMILY_BIN_COST = {
+    "graphty-element-browser": { overheadMs: 7_500, scale: 1 },
+    "graphty-element-storybook": { overheadMs: 7_500, scale: 1 },
+    graphty: { overheadMs: 2_000, scale: 1.35 },
+    "graphty-element-default": { overheadMs: 500, scale: 1 },
+    githerd: { overheadMs: 500, scale: 1 },
+};
+
+/**
+ * A family's bin cost: FAMILY_BIN_COST's entry, or FILE_OVERHEAD_MS per file and the recorded ms as they are.
+ * @param family a shard family
+ * @returns `{ overheadMs, scale }`
+ */
+export const binCost = (family) => FAMILY_BIN_COST[family] ?? { overheadMs: FILE_OVERHEAD_MS, scale: 1 };
+
+/**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
  * into the first bin it fits (first-fit decreasing). A file with no recorded time counts as the family's longest
  * recorded file; a file longer than the limit gets a bin of its own.
@@ -1339,12 +1367,13 @@ export const FILE_OVERHEAD_MS = 5_000;
  * @param fileMs Map(file -> recorded ms) over the whole family, not only the selected files
  * @param [limitMs] the most one bin may hold
  * @param [overheadMs] added to every file's recorded ms: Vitest's per-file setup and import
+ * @param [scale] multiplies every file's recorded ms (binCost())
  * @returns `[{ files, ms }]`, the longest bin first; `files` sorted
  */
-export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS, overheadMs = FILE_OVERHEAD_MS) {
+export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS, overheadMs = FILE_OVERHEAD_MS, scale = 1) {
     const longest = Math.max(0, ...fileMs.values()) || NO_HISTORY_MS;
     const sized = [...new Set(files)]
-        .map((file) => ({ file, ms: (fileMs.get(file) ?? longest) + overheadMs }))
+        .map((file) => ({ file, ms: Math.round((fileMs.get(file) ?? longest) * scale) + overheadMs }))
         .sort((a, b) => b.ms - a.ms || a.file.localeCompare(b.file));
     const bins = [];
     for (const { file, ms } of sized) {
@@ -1412,9 +1441,13 @@ export function lightPlan(root, shards, selection, durations = {}) {
                 continue;
             }
             const fileWhy = new Map(run.files.map((f) => [f.file, f.why]));
+            const { overheadMs, scale } = binCost(family);
             for (const bin of packBins(
                 run.files.map((f) => f.file),
                 fileMs,
+                BIN_LIMIT_MS,
+                overheadMs,
+                scale,
             )) {
                 n += 1;
                 const command = selectedCommand(root, run.shard, bin.files);
@@ -1472,7 +1505,8 @@ function packWhole(root, family, runs, fileMs, out) {
     const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
     const why = `its shard runs whole, packed into bins: ${reasons.join("; ") || "the selector gave no reason"}`;
     const covers = runs.flatMap((r) => r.covers);
-    packBins(files, fileMs).forEach((bin, i) => {
+    const { overheadMs, scale } = binCost(family);
+    packBins(files, fileMs, BIN_LIMIT_MS, overheadMs, scale).forEach((bin, i) => {
         out.bins.push({
             name: `${family}-${i + 1}`,
             family,
@@ -1751,9 +1785,13 @@ export const STORY_BIN_MAX_MS = 12 * 60_000;
  */
 // ponytail: one rate per project; graphty's workspace stories take about twice its average, so record capture time per story in the results store if bins drift from 4 min
 export const STORY_MS = {
-    // its Specimens files; its Samples files are in STORY_FILE_MS (11 PR runs of 2026-10-27, 40573748841 to
-    // 40602189710: 132 bins fitted at 2.75 s a Specimens story, 6.2 s a Samples story)
-    "graph-io-fidelity": 2_800,
+    // its Specimens files; its Samples files are in STORY_FILE_MS. Fitted at 2.75 s a Specimens story and 6.2 s a
+    // Samples story (11 PR runs of 2026-10-27) while its pictures matched their baselines; now that they differ,
+    // each changed picture is shot twice (capture.mjs needsSecondShot: the reference, master's story-test capture,
+    // never matches the built-Storybook capture byte for byte), and PR run 41005977433 (#4559, Stories
+    // (graph-io-fidelity-1), both attempts) captured cx2 and cys Specimens at 6.1 to 6.5 s a story, graphology
+    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639)
+    "graph-io-fidelity": 6_500,
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
@@ -1780,18 +1818,19 @@ export const STORY_FILE_MS = {
     "graphty/src/workspace/frame/Frame.stories.tsx": 11_500,
     "graphty/src/workspace/style/StylePanel.stories.tsx": 11_500,
     // graph-io-fidelity's Samples files draw real datasets, about twice its Specimens stories (fit above, at
-    // STORY_MS); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
-    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 6_200,
+    // STORY_MS), and are shot twice while they differ from their baselines: 12.4 s, gexf's measured rate in PR run
+    // 41005977433 (#4639); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
+    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 12_400,
     "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
     // PR run 40891650568 (2026-10-29): Stories (graph-io-fidelity-4) captured 46 dot Specimens stories and 8 gexf
     // Samples ones in 361 s and Stories (graph-io-fidelity-9) 41 xgmml Specimens and 9 cytoscapejs Samples in 370 s,
@@ -1800,8 +1839,8 @@ export const STORY_FILE_MS = {
     // gexf's Specimens, measured in the same runs at 4.1 s a story
     "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 4_100,
     "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 7_700,
-    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 12_400,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;

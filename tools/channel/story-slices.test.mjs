@@ -9,7 +9,16 @@ import { describe, it } from "node:test";
 import { parse } from "yaml";
 
 import { STORY_BIN_LIMIT_MS } from "../test-select.mjs";
-import { captureRows, matrixOf, orderUnits, reachKeys, sliceBins } from "./story-slices.mjs";
+import {
+    captureRows,
+    matrixOf,
+    nextSlot,
+    notices,
+    orderUnits,
+    queueSize,
+    reachKeys,
+    sliceBins,
+} from "./story-slices.mjs";
 
 // allUnits() of master's real story files, recorded on 2026-10-29 (280 units, about 98 capture-minutes)
 const RECORDED = JSON.parse(readFileSync(new URL("fixtures/story-slices-units.json", import.meta.url), "utf8"));
@@ -240,6 +249,13 @@ describe("story-slices.yml", () => {
         );
     });
 
+    it("tells the owner's phone from the step that posts the rows, with the repository's Pushover secrets", () => {
+        const post = steps("capture").find((s) => /story-slices\.mjs post/.test(String(s.run ?? "")));
+        assert.equal(post.env.PUSHOVER_APP_TOKEN, "${{ secrets.PUSHOVER_APP_TOKEN }}");
+        assert.equal(post.env.PUSHOVER_USER_KEY, "${{ secrets.PUSHOVER_USER_KEY }}");
+        assert.match(post.env.REVIEW_URL, /vars\.VISUAL_REVIEW_URL/);
+    });
+
     it("posts rows only when post is true, and never touches visual-baselines/ beyond reading it", () => {
         const post = steps("capture").find((s) => /story-slices\.mjs post/.test(String(s.run ?? "")));
         assert.match(post.if, /inputs\.post/);
@@ -268,5 +284,58 @@ describe("ci.yml's reach rows (4a)", () => {
         const restore = job.steps.find((s) => s.id === "graphs");
         assert.notEqual(restore.with["lookup-only"], true);
         assert.ok(job.steps.indexOf(step) > job.steps.findIndex((s) => /cache\/save/.test(String(s.uses ?? ""))));
+    });
+});
+
+describe("the owner's notices (4d)", () => {
+    const at = (iso) => Date.parse(iso);
+    const none = { queue: null, slot: null };
+
+    it("counts only renders against the posted baselines tree: an approved picture's stale row is not waiting", () => {
+        const T = "a".repeat(40);
+        const old = "b".repeat(40);
+        const captures = [
+            { status: "changed", baselinesTree: T },
+            { status: "new", baselinesTree: T },
+            { status: "unchanged", baselinesTree: T },
+            { status: "unstable", baselinesTree: T },
+            // rendered before an approval moved master's baselines: the review page holds it back, so no notice
+            { status: "changed", baselinesTree: old },
+        ];
+        assert.equal(queueSize({ captures }, T), 2);
+        assert.equal(queueSize({ captures }, old), 1);
+    });
+
+    it("finds the next full-run slot", () => {
+        assert.equal(nextSlot(at("2026-10-29T05:59:00Z")), at("2026-10-29T06:00:00Z"));
+        assert.equal(nextSlot(at("2026-10-29T18:00:00Z")), at("2026-10-30T00:00:00Z"));
+    });
+
+    it("tells once when the queue goes from empty to non-empty, at most every 2 hours", () => {
+        const now = at("2026-10-29T02:00:00Z");
+        assert.deepEqual(
+            notices({ before: 0, after: 3, notified: none, now }).map((n) => [n.kind, n.what]),
+            [["queue", "3 pictures changed on master"]],
+        );
+        assert.deepEqual(notices({ before: 2, after: 3, notified: none, now }), []);
+        assert.deepEqual(notices({ before: 0, after: 1, notified: { ...none, queue: now - 3_600_000 }, now }), []);
+        assert.equal(
+            notices({ before: 0, after: 1, notified: { ...none, queue: now - 3 * 3_600_000 }, now }).length,
+            1,
+        );
+    });
+
+    it("reminds once before each slot while the queue is not empty", () => {
+        const now = at("2026-10-29T05:00:00Z"); // 60 minutes before the 06:00 slot
+        const [n] = notices({ before: 1, after: 1, notified: none, now });
+        assert.deepEqual([n.kind, n.what], ["slot", "The 06:00 UTC slot holds nightly for 1 picture"]);
+        assert.deepEqual(notices({ before: 1, after: 1, notified: { ...none, slot: now - 600_000 }, now }), []);
+        assert.deepEqual(notices({ before: 1, after: 0, notified: none, now }), []);
+        // too early, and too late, for this slot
+        assert.deepEqual(notices({ before: 1, after: 1, notified: none, now: at("2026-10-29T04:00:00Z") }), []);
+        assert.deepEqual(notices({ before: 1, after: 1, notified: none, now: at("2026-10-29T05:45:00Z") }), []);
+        // the reminder sent for the slot before does not count for this one
+        const before = { ...none, slot: at("2026-10-28T23:00:00Z") };
+        assert.equal(notices({ before: 1, after: 1, notified: before, now }).length, 1);
     });
 });

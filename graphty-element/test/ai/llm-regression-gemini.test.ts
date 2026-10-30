@@ -8,7 +8,7 @@ import { assert, describe, it } from "vitest";
 import { z } from "zod";
 
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
-import { FLEX_CAPACITY_CODE, GeminiTransport } from "../helpers/llm-regression-gemini";
+import { FLEX_CAPACITY_CODE, GeminiTransport, REQUEST_TIMEOUT_CODE } from "../helpers/llm-regression-gemini";
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
 const GENERATE = `${API}/models/gemini-3.8-flash:generateContent`;
@@ -191,6 +191,86 @@ describe("GeminiTransport", () => {
 
         assert.strictEqual(response.status, 429);
         assert.strictEqual(api.sent.length, 1);
+    });
+
+    describe("deadline", () => {
+        /**
+         * A Gemini that never answers the first `stalls` generate requests (they end only when aborted) and
+         * answers the rest, and deadlines the test fires by hand: no real time passes.
+         */
+        function stallingGemini(stalls: number) {
+            const api = fakeGemini();
+            const deadlines: AbortController[] = [];
+            let left = stalls;
+            const fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+                if (left === 0) {
+                    return api.fetch(input, init);
+                }
+
+                left--;
+                api.sent.push({ method: "POST", url: input instanceof Request ? input.url : input.toString() });
+                const signal = init?.signal;
+                // A stalled request: the deadline fires once the request is on the wire.
+                queueMicrotask(() => deadlines.at(-1)?.abort(new DOMException("deadline", "TimeoutError")));
+                return new Promise((_resolve, reject) => {
+                    signal?.addEventListener("abort", () => reject(signal.reason as Error), { once: true });
+                });
+            };
+            const deadline = (): AbortSignal => {
+                const controller = new AbortController();
+                deadlines.push(controller);
+                return controller.signal;
+            };
+            return { api, fetch, deadline };
+        }
+
+        it("sends a request that missed its deadline once more and returns that answer", async () => {
+            const gemini = stallingGemini(1);
+            const transport = new GeminiTransport({
+                apiKey: "k",
+                tier: "standard",
+                cache: false,
+                fetch: gemini.fetch,
+                deadline: gemini.deadline,
+            });
+            const response = await transport.fetch(GENERATE, request());
+
+            assert.strictEqual(response.status, 200);
+            assert.strictEqual(gemini.api.sent.filter((s) => s.url === GENERATE).length, 2);
+            assert.strictEqual(transport.usage.requests, 1);
+        });
+
+        it("fails with a coded error when the resend misses its deadline too", async () => {
+            const gemini = stallingGemini(2);
+            const transport = new GeminiTransport({
+                apiKey: "k",
+                tier: "standard",
+                cache: false,
+                fetch: gemini.fetch,
+                deadline: gemini.deadline,
+            });
+
+            let error: unknown;
+            await transport.fetch(GENERATE, request()).catch((e: unknown) => (error = e));
+            assert.ok(error instanceof Error);
+            assert.include(error.message, REQUEST_TIMEOUT_CODE);
+            assert.strictEqual(gemini.api.sent.filter((s) => s.url === GENERATE).length, 2);
+        });
+
+        it("hands the caller's own abort back as it is, never resent", async () => {
+            const api = fakeGemini();
+            const caller = new AbortController();
+            caller.abort(new Error("caller stopped"));
+            const fetch = (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+                Promise.reject(init?.signal?.reason as Error);
+            const transport = new GeminiTransport({ apiKey: "k", tier: "standard", fetch });
+
+            let error: unknown;
+            await transport.fetch(GENERATE, { ...request(), signal: caller.signal }).catch((e: unknown) => (error = e));
+            assert.ok(error instanceof Error);
+            assert.strictEqual(error.message, "caller stopped");
+            assert.strictEqual(api.sent.length, 0);
+        });
     });
 
     it("passes other providers' and non-generate requests through untouched", async () => {

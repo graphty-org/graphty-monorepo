@@ -399,6 +399,36 @@ axes (#4249), and labeled boxes drawn as dots on a computed layout (#3103).
 
 See `graph-io/test/fidelity/oracles/ISSUES.md`, section "Round 5", for every number, its cause and the pending decisions.
 
+## Round 6: the comparator's last blind spots, line widths, arrowheads and chart axes (2026-10-29)
+
+Round 6 closed the blind spots the round 5 comparator still had, then fixed the drawing problems it ranked worst.
+Counting only drawings made by each file's own program:
+
+| measure                          | before round 6         | round-6 comparator, same drawing | after round 6          |
+| -------------------------------- | ---------------------- | -------------------------------- | ---------------------- |
+| real files: failing elements     | 2,063 of 32,512 (6.3%) | 2,917 (9.0%)                     | 2,629 of 32,512 (8.1%) |
+| real files: clean                | 20 of 80               | 20 of 80                         | 20 of 80               |
+| specimen pages: failing elements | 800 of 20,094 (4.0%)   | 930 (4.6%)                       | 539 of 19,830 (2.7%)   |
+| specimen pages: clean            | 271 of 377             | 259                              | 260                    |
+
+"Before" is master after round 5 with the round 5 branches still open merged, the Graphviz label-size change among
+them. "After" is master with the round 6 comparator and the vis-network line widths merged, plus every round 6
+branch not yet on master: stacked arrowheads, Cytoscape chart axes, label shifts, one file scale and the full gate's
+records. Real files got worse in the count only because the comparator now judges three things it could not see: a
+GEXF file whose 867 nodes graphty's own layout packs 2.5 times as densely as Gephi, Pajek's part-way arrowheads (graphty
+puts the head a head length nearer the source), and node gradients and images that graphty draws plain or not at all.
+The drawing changes then took real files down by 288 and specimen pages by 391: one vis-network file's line widths
+(284 lines), Cytoscape chart axes and their words (96 marks per format) and Graphviz's stacked arrowheads (14).
+vis-network's bent lines, drawn straight on files graphty lays out itself, are fixed on a branch that waits on an
+owner decision about 14 elements it newly fails in the position-matched view.
+
+Still open and largest: a computed layout that ignores the file's node sizes and spacing (#3103, #3168), Graphviz
+node positions from graphty's WebAssembly Graphviz run (#4203), Pajek's part-way heads (#4514) and node gradients and
+images (#4515).
+
+See `graph-io/test/fidelity/oracles/ISSUES.md`, section "Round 6", for every number, its cause, the known failures
+added for the owner to accept and the pending decisions.
+
 ## Per-file results, second real-file collection
 
 "Rules" lists the rules per role and what the planner recovered ("by X": a discrete mapping on X;

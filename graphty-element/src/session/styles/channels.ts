@@ -292,6 +292,8 @@ export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["
 export type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"]>["kind"]>;
 /** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
 export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
+/** What unit an edge's support lengths and forces are in (`edge.supportScale`). */
+export type EdgeSupportScaleValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportScale"]>;
 /** The force law an edge's support point settles under (`edge.supportModel`). */
 export type EdgeSupportModelValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["supportModel"]>;
 
@@ -537,6 +539,7 @@ export interface ChannelValues {
     "edge.supportRepulsion": number;
     "edge.supportCentralGravity": number;
     "edge.supportUnit": number;
+    "edge.supportScale": EdgeSupportScaleValue;
     "edge.route": EdgeRouteValue;
     "edge.arcHeight": number;
     "edge.nodeGap": number;
@@ -979,6 +982,7 @@ const NODE_GRADIENT_CAVEAT =
 const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
 const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
 const EDGE_SUPPORT_MODEL_VALUES: readonly EdgeSupportModelValue[] = ["barnesHut", "forceAtlas2"];
+const EDGE_SUPPORT_SCALE_VALUES: readonly EdgeSupportScaleValue[] = ["unit", "drawing"];
 const SUPPORT_CAVEAT = " Only an edge with an `edge.supportModel` has a support point; any other ignores it.";
 const EDGE_ROUTE_VALUES: readonly EdgeRouteValue[] = ["straight", "arc", "great-circle"];
 
@@ -4111,6 +4115,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.supportUnit",
         renderable: true,
         caveat: `How many scene units one support unit is, the unit of the lengths and forces of the support (1 when unset).${SUPPORT_CAVEAT}`,
+    },
+    "edge.supportScale": {
+        channel: "edge.supportScale",
+        target: "edge",
+        plainName: "Edge Support Scale",
+        shortName: "Support scale",
+        group: "line",
+        accepts: "enum",
+        values: EDGE_SUPPORT_SCALE_VALUES,
+        stylePath: "line.supportScale",
+        renderable: true,
+        caveat:
+            'What unit the lengths and forces of the support are in: "unit" (when unset), the support unit; ' +
+            '"drawing", the size at which the forces hold the drawn nodes in balance, so an edge bows among ' +
+            `nodes any layout placed as among nodes those forces placed themselves.${SUPPORT_CAVEAT}`,
     },
     "edge.route": {
         channel: "edge.route",

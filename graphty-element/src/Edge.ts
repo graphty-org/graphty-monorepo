@@ -16,6 +16,7 @@ import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
+import type { EdgePosition } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
@@ -29,6 +30,7 @@ import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
     arcThroughBend,
+    bendPoints,
     bezierThroughControls,
     centerArc,
     clearOfCaps,
@@ -1005,6 +1007,22 @@ export class Edge {
     }
 
     /**
+     * Where the edge's label goes: where the layout put it (Graphviz's `lp`), else the middle of the line.
+     * @param src - the source end
+     * @param dst - the target end
+     * @param bent - whether the line was drawn bent
+     * @param labelAt - the layout's label place, relative to the two ends
+     * @returns the point
+     */
+    private labelPoint(src: Vector3, dst: Vector3, bent: boolean, labelAt: EdgePosition["labelAt"]): Vector3 {
+        if (labelAt !== undefined && !this.lifted) {
+            return Vector3.FromArray(bendPoints(src, dst, labelAt));
+        }
+
+        return (bent || this.bundled) && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
+    }
+
+    /**
      * Updates the edge's visual representation based on current node positions and style changes.
      * Performs dirty checking to skip updates when nodes haven't moved.
      */
@@ -1073,12 +1091,11 @@ export class Edge {
             bent = this.placeLine(src, dst, lnk.bends);
         }
 
-        // Update label position if exists
-        if (this.label) {
-            const midPoint =
-                (bent || this.bundled) && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
-            this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
-        }
+        this.label?.attachTo(
+            this.labelPoint(src, dst, bent, lnk.labelAt),
+            this._labelAttachPosition,
+            this._labelOffset,
+        );
 
         this.placeArrowCaptions(src, dst);
 
@@ -2626,6 +2643,7 @@ export class Edge {
                 centralGravity: line?.supportCentralGravity ?? SUPPORT_DEFAULTS.centralGravity,
                 // a unit of 0 has no size: drawn as unset, as the channel refuses it
                 unit: line?.supportUnit || 1,
+                scale: line?.supportScale ?? "unit",
             },
         };
     }

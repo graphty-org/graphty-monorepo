@@ -5,6 +5,7 @@
 // gathers its inputs and makes the one dispatch call.
 
 import { DAY, HOUR, MIN } from "../model/items.js";
+import type { QuarantineEntry } from "../model/snapshots.js";
 import { type AppConfig, type Fetch, GitHub, installationToken } from "./github.js";
 import type { GhJob, GhRun } from "./parse.js";
 import { setAge, type StoryCaptures } from "./slice-metrics.js";
@@ -223,6 +224,54 @@ export const SLICE_STORE_PARAMS = {
 } as const;
 
 /**
+ * A GET of the results store, or undefined when its URL or token is not in SSM.
+ * @param store the SSM parameters: the store's URL and local token
+ * @param f fetch
+ */
+export function storeReader(store: Record<string, string>, f: Fetch) {
+    const url = store[SLICE_STORE_PARAMS.url];
+    const token = store[SLICE_STORE_PARAMS.token];
+    if (!url || !token) return undefined;
+    return async <T>(path: string): Promise<T> => {
+        const res = await f(`${url.replace(/\/$/, "")}${path}`, {
+            headers: { authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) throw new Error(`results store: HTTP ${res.status}`);
+        return (await res.json()) as T;
+    };
+}
+
+/** One entry of the results store's GET /v1/quarantine (times in milliseconds). */
+interface StoreQuarantine {
+    family: string;
+    file: string;
+    name: string;
+    issue: number | null;
+    since: number;
+    expires: number;
+}
+
+/**
+ * The quarantine in force, from the results store (where CI's retry step reads it), or undefined without a store.
+ * @param store the SSM parameters: the store's URL and local token
+ * @param f fetch
+ */
+export function quarantineReader(store: Record<string, string>, f: Fetch) {
+    const read = storeReader(store, f);
+    if (!read) return undefined;
+    return async (): Promise<QuarantineEntry[]> =>
+        (await read<{ quarantine: StoreQuarantine[] }>("/v1/quarantine")).quarantine.map((q) => ({
+            file: q.file,
+            name: q.name,
+            family: q.family,
+            ...(q.issue ? { issue: q.issue } : {}),
+            since: new Date(q.since).toISOString(),
+            expires: new Date(q.expires).toISOString(),
+        }));
+}
+
+/**
  * The collector's slice dependencies from what is set up: no store parameters, it never dispatches; no dispatch App,
  * it decides and dispatches nothing (a dry run, the decision in the cycle's log).
  * @param cfg config/slices.json
@@ -238,19 +287,8 @@ export function sliceDeps(
     f: Fetch,
     repo: string,
 ) {
-    const url = store[SLICE_STORE_PARAMS.url];
-    const token = store[SLICE_STORE_PARAMS.token];
-    const readStore =
-        url && token
-            ? async () => {
-                  const res = await f(`${url.replace(/\/$/, "")}/v1/story-captures`, {
-                      headers: { authorization: `Bearer ${token}` },
-                      signal: AbortSignal.timeout(15_000),
-                  });
-                  if (!res.ok) throw new Error(`results store: HTTP ${res.status}`);
-                  return (await res.json()) as StoryCaptures;
-              }
-            : undefined;
+    const read = storeReader(store, f);
+    const readStore = read ? () => read<StoryCaptures>("/v1/story-captures") : undefined;
     const gh = app && cfg.dispatch ? new GitHub(() => installationToken(app, f, Date.now()), f) : undefined;
     const dispatch = gh
         ? (sha: string, mode: SliceMode) =>

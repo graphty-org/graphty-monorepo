@@ -578,17 +578,18 @@ export class ElementAutosave {
             return;
         }
 
+        const done = saver.depart().then(
+            () => this.#store?.close?.(),
+            () => this.#store?.close?.(),
+        );
         // The entry's id even before its first commit: the final write may be that commit, and a
-        // remount in this tab must find it.
+        // remount in this tab must find it. Read after `depart()`, which starts the entry when an
+        // edit made while the page's own load ran was still held (issues #5038, #5039).
         const entry = saver.started ? saver.entryId : null;
         if (entry !== null) {
             ownEntries.set(saver.key, entry);
         }
 
-        const done = saver.depart().then(
-            () => this.#store?.close?.(),
-            () => this.#store?.close?.(),
-        );
         if (entry !== null) {
             departing.set(entry, done);
             void done.finally(() => {

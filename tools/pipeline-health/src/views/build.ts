@@ -288,7 +288,7 @@ class Builder {
             case "runners":
                 return [await jobs(this.reads, range), await holders(this.reads), await superseded(this.reads)];
             case "flaky":
-                // Every flaky source (4.4): CI's detections (hotspots), the committed quarantine list, the stress run.
+                // Every flaky source (4.4): CI's detections (hotspots), the quarantine in force, the stress run.
                 return [
                     await hotspots(this.reads, "7d"),
                     await quarantineTable(this.reads),

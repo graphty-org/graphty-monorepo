@@ -126,6 +126,11 @@ export interface Deps {
     /** The health stack's deploy build. Undefined: the stack is not redeployed from master. */
     deploy?: DeployBuilds;
     /**
+     * The quarantine in force, from the results store (slices.ts quarantineReader). Undefined: the committed
+     * tools/test-quarantine.json is read instead.
+     */
+    readQuarantine?: () => Promise<QuarantineEntry[]>;
+    /**
      * The rolling screenshot slice dispatcher (slices.ts). Without `readStore` it never decides to dispatch; without
      * `dispatch` it decides and reports, and dispatches nothing (a dry run).
      */
@@ -677,7 +682,7 @@ async function ownerWaits(c: Cycle, gh: GitHub, open: GqlPr[]) {
 }
 
 /**
- * The committed quarantine list, CODEOWNERS, ci.yml's jobs and those allowed to fail, from master (one query;
+ * CODEOWNERS, the committed quarantine list (only without the results store), ci.yml's jobs and those allowed to fail, from master (one query;
  * hourly, and once before any exists).
  */
 async function repoFiles(c: Cycle, gh: GitHub) {
@@ -697,20 +702,30 @@ async function repoFiles(c: Cycle, gh: GitHub) {
         await c.setJson("non-gating", nonGatingJobs(ci, jobs));
         await c.setJson("ci-jobs", definedJobs(ci));
     }
+    await c.setJson("codeowners", codeownerPatterns(data.repository.codeowners?.text ?? ""));
+    if (c.d.readQuarantine) return; // the store's quarantine is read every cycle (storeQuarantine)
     const q = data.repository.quarantine?.text;
     const list = q ? ((JSON.parse(q) as { quarantine?: QuarantineEntry[] }).quarantine ?? []) : [];
-    await c.setJson(
-        "quarantine",
-        list.map(({ file, name: test, family, issue, since, expires }) => ({
-            file,
-            name: test,
-            family,
-            issue,
-            since,
-            expires,
-        })),
-    );
-    await c.setJson("codeowners", codeownerPatterns(data.repository.codeowners?.text ?? ""));
+    await c.setJson("quarantine", list.map(quarantineEntry));
+}
+
+const quarantineEntry = ({ file, name, family, issue, since, expires }: QuarantineEntry): QuarantineEntry => ({
+    file,
+    name,
+    family,
+    issue,
+    since,
+    expires,
+});
+
+/**
+ * The quarantine in force from the results store, where CI's retry step reads it since the committed
+ * tools/test-quarantine.json was emptied (results-service.md 6.1); every cycle, since a test enters it within one.
+ * @param c the cycle
+ * @param read the store's quarantine
+ */
+async function storeQuarantine(c: Cycle, read: () => Promise<QuarantineEntry[]>) {
+    await c.setJson("quarantine", (await read()).map(quarantineEntry));
 }
 
 /** The oldest open "Release held" issue's creation time (0 for none); records the nightly screenshot-review wait. */
@@ -1219,8 +1234,15 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         if (green) c.newestGreen = green;
     });
     const missing = async (name: string) => (await c.cursor(name)) === undefined;
-    if (hourly || (await missing("quarantine")) || (await missing("non-gating")) || (await missing("ci-jobs")))
+    if (
+        hourly ||
+        (!d.readQuarantine && (await missing("quarantine"))) ||
+        (await missing("non-gating")) ||
+        (await missing("ci-jobs"))
+    )
         await c.part("repo files", PARTS, () => repoFiles(c, gh));
+    const readQuarantine = d.readQuarantine;
+    if (readQuarantine) await c.part("quarantine", undefined, () => storeQuarantine(c, readQuarantine));
     let parts = await c.part("pull requests", PARTS, () => pullRequests(c, gh));
     const xs = collected;
     if (xs) parts = (await c.part("runners", PARTS, () => runners(c, xs, elapsed))) && parts;

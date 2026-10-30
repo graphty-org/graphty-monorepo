@@ -11,12 +11,14 @@ import { assert, describe, it, vi } from "vitest";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../../src/catalog/layouts";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
 import { GRAPHVIZ_ENGINES, GRAPHVIZ_NODE_BUDGETS } from "../../src/layout/graphviz/engines";
-import { clusterMargins, edgeBends, fromJson } from "../../src/layout/graphviz/fromJson";
+import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson } from "../../src/layout/graphviz/fromJson";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { classify, layout } from "../../src/layout/graphviz/loader";
 import { graphvizStructure } from "../../src/layout/graphviz/structure";
 import { toDot } from "../../src/layout/graphviz/toDot";
-import { graphvizAttributes, graphvizError } from "../../src/layout/GraphvizLayoutEngine";
+import { graphvizAttributes, graphvizError, layoutStructure } from "../../src/layout/GraphvizLayoutEngine";
+import type { SnapshotLayoutInput } from "../../src/layout/SnapshotLayoutEngine";
+import type { Node } from "../../src/Node";
 import { recommendLayout } from "../../src/session";
 import { FILE_GRAPH_VALUE } from "../../src/session/commands/data";
 import { dispatcherOf } from "../../src/session/GraphSession";
@@ -589,7 +591,10 @@ describe("the recommendation for a Graphviz file", () => {
         assert.strictEqual(advice?.layout.id, "graphviz-dot");
         assert.strictEqual(advice?.fact.code, "recommend.graphviz-file");
         assert.strictEqual(advice?.fact.params.engine, "dot");
-        assert.deepEqual(advice?.options, { attributes: { rankdir: "LR", clusterrank: "none" } });
+        assert.deepEqual(advice?.options, {
+            attributes: { rankdir: "LR", clusterrank: "none" },
+            nodeSize: "label",
+        });
     });
 
     it("draws the engine the file names", () => {
@@ -600,7 +605,7 @@ describe("the recommendation for a Graphviz file", () => {
 
         assert.strictEqual(advice?.layout.id, "graphviz-neato");
         assert.strictEqual(advice?.fact.params.engine, "neato");
-        assert.isUndefined(advice?.options, "nothing to pass on");
+        assert.deepEqual(advice?.options, { nodeSize: "label" }, "no graph attribute to pass on");
     });
 
     it("names the engine a file of another format asks for in its layout value", () => {
@@ -610,6 +615,7 @@ describe("the recommendation for a Graphviz file", () => {
         });
 
         assert.strictEqual(advice?.layout.id, "graphviz-twopi");
+        assert.isUndefined(advice?.options, "its nodes carry no Graphviz label attributes to size them by");
     });
 
     it("says the package is missing and takes the next rule's arrangement", () => {
@@ -686,5 +692,229 @@ describe("a DOT file loaded with layout recommended", () => {
         });
         assert.strictEqual(session.layout.id, "force", "Node has no Worker, so Graphviz is unavailable");
         session.dispose();
+    });
+});
+
+/**
+ * Where Graphviz put each node of a json answer, by name, centered on its bounding box, in points.
+ * @param json - the `-Tjson` text
+ * @returns the centers by name
+ */
+function centersByName(json: string): Map<string, [number, number]> {
+    const parsed = JSON.parse(json) as { bb: string; objects: { name: string; pos?: string }[] };
+    const [x0, y0, x1, y1] = parsed.bb.split(",").map(Number);
+    const out = new Map<string, [number, number]>();
+    for (const { name, pos } of parsed.objects) {
+        if (pos !== undefined) {
+            const [x, y] = pos.split(",").map(Number);
+            out.set(name, [x - (x0 + x1) / 2, y - (y0 + y1) / 2]);
+        }
+    }
+
+    return out;
+}
+
+describe("nodes Graphviz sizes to their labels (nodeSize: label)", () => {
+    const ids = ["a", "b", "c", "d"];
+    const rowOf = (id: string | number): number => ids.indexOf(String(id));
+
+    it("hands over each node's own label, font, shape and size, its name for no label, and nothing for \\G", () => {
+        const structure = graphvizStructure(
+            rowOf,
+            [],
+            new Map(),
+            [],
+            new Map<number, Record<string, unknown>>([
+                [
+                    0,
+                    { label: String.raw`two\nlines`, fontname: "Helvetica", fontsize: 9, shape: "plain", color: "red" },
+                ],
+                [1, { width: 2 }],
+                [2, { label: String.raw`\N is c` }],
+                [3, { label: String.raw`\N in \G` }],
+            ]),
+            { idOf: (row) => ids[row] },
+        );
+
+        assert.isTrue(structure.labelSized);
+        assert.deepEqual(structure.nodeAttributes?.get(0), {
+            shape: "plain",
+            label: String.raw`two\nlines`,
+            fontsize: "9",
+            fontname: "Helvetica",
+        });
+        assert.deepEqual(structure.nodeAttributes?.get(1), { width: "2", label: "b" }, "Graphviz's \\N, its name");
+        assert.deepEqual(structure.nodeAttributes?.get(2), { label: "c is c" });
+        // the graph's name is not the element's to know: the node goes at the size it is drawn
+        assert.isFalse(structure.nodeAttributes?.has(3));
+    });
+
+    it("writes a label-sized node with Graphviz's own defaults, its label as written, an HTML label unquoted", () => {
+        const dot = toDot(graph(true, TRIANGLE), {}, [1, 1, 1], undefined, new Map(), {
+            labelSized: true,
+            nodeAttributes: new Map<number, Record<string, string>>([
+                [0, { label: String.raw`say "hi"\n`, shape: "box" }],
+                [1, { label: "<<b>bold</b>>" }],
+            ]),
+        });
+
+        assert.include(
+            dot,
+            String.raw`n0 [shape="box", fixedsize="false", width="0.75", height="0.5", label="say \"hi\"\n"];`,
+        );
+        assert.include(
+            dot,
+            'n1 [shape="ellipse", fixedsize="false", width="0.75", height="0.5", label=<<b>bold</b>>];',
+        );
+        assert.include(dot, "n2 [width=1, height=1];", "a node with nothing to size it by keeps its drawn size");
+    });
+
+    it("lays the nodes out where Graphviz lays out the file itself", async () => {
+        const file = String.raw`digraph { node [fontname="Helvetica", fontsize=9, shape=box];
+            a [label="a rather long label"]; b [label="two\nlines"]; c; d [shape=ellipse];
+            a -> b; a -> c; b -> d; c -> d; a -> d }`;
+        const pairs: [string, string][] = [
+            ["a", "b"],
+            ["a", "c"],
+            ["b", "d"],
+            ["c", "d"],
+            ["a", "d"],
+        ];
+        const snapshot = graph(true, pairs);
+        const font = { fontname: "Helvetica", fontsize: 9 };
+        const structure = graphvizStructure(
+            (id) => snapshot.ids.indexOf(id),
+            // in the file's order, as an element hands its edges over
+            pairs.map(([srcId, dstId]) => ({ srcId, dstId, data: {} })),
+            new Map(),
+            [],
+            new Map<number, Record<string, unknown>>(
+                [
+                    { label: "a rather long label", shape: "box", ...font },
+                    { label: String.raw`two\nlines`, shape: "box", ...font },
+                    { shape: "box", ...font },
+                    { shape: "ellipse", ...font },
+                ].map((data, k) => [snapshot.ids.requireIndex(ids[k]), data]),
+            ),
+            { idOf: (row) => String(snapshot.ids.idOf(row)) },
+        );
+        const ours = await layout(toDot(snapshot, {}, [0.2, 0.2, 0.2, 0.2], undefined, new Map(), structure), "dot");
+        const theirs = await layout(file, "dot");
+
+        assert.isTrue(ours.ok && theirs.ok);
+        const mine = centersByName(ours.ok ? ours.json : "{}");
+        const own = centersByName(theirs.ok ? theirs.json : "{}");
+        for (const id of ids) {
+            const [x, y] = mine.get(`n${snapshot.ids.requireIndex(id)}`) ?? [Number.NaN, Number.NaN];
+            const [ox, oy] = own.get(id) ?? [Number.NaN, Number.NaN];
+            assert.closeTo(x, ox, 0.01, `${id} x`);
+            assert.closeTo(y, oy, 0.01, `${id} y`);
+        }
+    });
+
+    it("is what a layout's nodeSize: label hands over, and drawn sizes stay the default", () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const input = { stored: snapshot } as unknown as SnapshotLayoutInput;
+        const nodes = [
+            { id: "a", data: { shape: "box" } },
+            { id: "b", data: {} },
+        ] as unknown as Node[];
+
+        const sized = layoutStructure(input, nodes, [], new Map(), false, true);
+        assert.isTrue(sized.labelSized);
+        assert.deepEqual(sized.nodeAttributes?.get(snapshot.ids.requireIndex("a")), { shape: "box", label: "a" });
+        assert.deepEqual(sized.nodeAttributes?.get(snapshot.ids.requireIndex("b")), { label: "b" });
+
+        const drawn = layoutStructure(input, nodes, [], new Map());
+        assert.isUndefined(drawn.labelSized);
+        assert.isUndefined(drawn.nodeAttributes);
+        const option = layoutDescriptor("graphviz-dot")?.options.find(({ name }) => name === "nodeSize");
+        assert.strictEqual(option?.default, "drawn");
+    });
+
+    it("never turns a quoted label into a syntax error: record ports, stray angle brackets, odd backslashes", async () => {
+        const labels = [
+            "<f0>|<f1>",
+            "<in> left|<out> right",
+            "<x < y>",
+            "<b>x</b>",
+            String.raw`a\"b`,
+            String.raw`a\\"b`,
+            "<<b>bold</b>>",
+        ];
+        const ids = labels.map((_, k) => `v${k}`);
+        const snapshot = graph(
+            true,
+            ids.slice(1).map((id, k) => [ids[k], id]),
+        );
+        const dot = toDot(snapshot, {}, undefined, undefined, new Map(), {
+            labelSized: true,
+            nodeAttributes: new Map(
+                labels.map((label, k): [number, Record<string, string>] => [
+                    snapshot.ids.requireIndex(ids[k]),
+                    k < 2 ? { label, shape: "record" } : { label },
+                ]),
+            ),
+        });
+
+        const result = await layout(dot, "dot");
+        assert.isTrue(result.ok, `Graphviz read every label: ${result.ok ? "" : JSON.stringify(result)}`);
+        assert.include(dot, 'label="<f0>|<f1>"', "a record label is quoted, not read as HTML");
+        assert.include(dot, "label=<<b>bold</b>>", "an HTML label stays HTML");
+    });
+
+    it("hands over an empty label as empty, not as the node's name", () => {
+        const structure = graphvizStructure(rowOf, [], new Map(), [], new Map([[0, { label: "" }]]), {
+            idOf: (row) => ids[row],
+        });
+
+        assert.deepEqual(structure.nodeAttributes?.get(0), { label: "" });
+    });
+
+    it("hands over a cluster's label place, which a graph's labelloc gives its clusters too", () => {
+        const structure = graphvizStructure(rowOf, [], new Map([[3, { label: "g", labelloc: "b" }]]), []);
+
+        assert.deepEqual(structure.groupAttributes?.get(3), { label: "g", labelloc: "b" });
+    });
+});
+
+describe("where Graphviz put each edge label read back", () => {
+    it("reads each edge's lp as along and across its two nodes' centers, and none for an edge with no label", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "0,0" },
+                { name: "n1", pos: "100,0" },
+            ],
+            edges: [
+                { id: "e0", pos: "0,0 100,0", lp: "50,20" },
+                { id: "e1", pos: "100,0 0,0", lp: "25,-10" },
+                { id: "e2", pos: "0,0 100,0" },
+                { id: "e3", pos: "0,0 0,0", lp: "5,5" },
+            ],
+        });
+        const places = edgeLabelPlaces(json, [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 0 },
+            { src: 0, dst: 1 },
+            { src: 0, dst: 0 },
+        ]);
+
+        assert.deepEqual([...places.keys()], [0, 1], "no lp, or a loop with no line to measure along, reads none");
+        assert.deepEqual(places.get(0), [0.5, 0.2]);
+        // from n1 toward n0: 75 points along of 100, and 10 below the line is to its left going that way
+        const [along, across] = places.get(1) ?? [Number.NaN, Number.NaN];
+        assert.closeTo(along, 0.75, 1e-9);
+        assert.closeTo(across, 0.1, 1e-9);
+    });
+
+    it("reads the place dot gives a labelled edge", async () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const edges = [{ src: 0, dst: 1, attributes: { label: "a label" } }];
+        const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map(), { edges }), "dot");
+
+        assert.isTrue(reply.ok);
+        const [along, across] = edgeLabelPlaces(reply.ok ? reply.json : "{}", edges).get(0) ?? [Number.NaN, Number.NaN];
+        assert.closeTo(along, 0.5, 0.1, "about halfway down the edge");
+        assert.isAbove(Math.abs(across), 0.05, "beside the line, not on it");
     });
 });

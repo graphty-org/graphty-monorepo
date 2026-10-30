@@ -173,7 +173,12 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   queued with no job created; superseded runs still running. Every GitHub-hosted job counts against
   the limit of 60 and a macOS job also against its own 5; machine.dev T4 jobs are not counted.
 - **Local runs**: local vs CI disagreement, local shard time and test-slot waits, and the local
-  runs themselves (gate runs from the push log, shard times). Its members are informational, never
+  runs themselves. Since the pre-push gate retired (no push runs it), a local run is any test run
+  on this machine -- `check:quick`, `test:changed`, an agent's `tools/low-priority.sh` run -- seen
+  as the machine-wide test slot it holds (`tools/test-slots.mjs` logs each hold, with its package
+  or shard family and exit code, to the wait log): runs and failures by what ran, and time by what
+  ran. Gate runs from the push log and shard times from the test ledger still count when the gate
+  is run by hand. Its members are informational, never
   judged, so they have no SLA entry: the page builder reads them from the local writer's rollups.
   The page state follows the local writer: OK while it reports, a gray IDLE when no local runs
   happen (members idle with hatched "no history" sparklines, 3.1), NO DATA when the writer is stale
@@ -449,11 +454,14 @@ logic is unchanged, so a non-gating job still never fails a lane.
 - **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms)
   and the T4 lane (webgpu-graph-algorithms) post each benchmark's result after the benchmark passed
   (`tools/results/post-benchmarks.mjs`, `POST /v1/benchmarks`, OIDC like the flaky feed, fire and
-  forget), only from master's workflows. Each benchmark keeps its newest 20 results, one per run
-  (source `benchmarks`). A benchmark regressed when the median of its last 3 results is over 1.2
-  times the median of the 10 before them, so it is judged only with 13 results and one slow run
-  never counts. The Benchmarks section lists every benchmark with its newest result, that ratio and
-  its results as a line, regressions first. A benchmark job that fails before it produces numbers
+  forget), only from master's workflows. Each result names the machine that measured it (the
+  runner's CPU model): GitHub's hosted runners land on CPU models about 2x apart, so a result is
+  compared only with results of the same machine. Each benchmark keeps its newest 20 results per
+  machine, one per run, 100 in all (source `benchmarks`). A benchmark regressed when the median of
+  its last 3 results on the newest result's machine is over 1.2 times the median of the 10 before
+  them on that machine, so it is judged only with 13 such results and one slow run never counts.
+  The Benchmarks section lists every benchmark with its newest result, that ratio and that
+  machine's results as a line, regressions first. A benchmark job that fails before it produces numbers
   posts nothing: that is the chronic member's to catch. graphty-element's timing benchmarks print
   rows of differing shapes and are not posted; the weekly paired T4 benchmark compares against a
   release and files its own issue.
@@ -645,7 +653,7 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 | Billing (Cost Explorer, Cloudflare, Sentry)         | daily                | 36 h                |
 | Feed of CI's flaky detections (issue #3610)         | each new flaky entry | not set up          |
 | Benchmark results (CI's benchmark jobs)             | each full run        | 2 d; idle until set |
-| Local writer (test ledger, push log, slot waits)    | each local run       | idle, not judged    |
+| Local writer (slot holds and waits, test ledger)    | each local run       | idle, not judged    |
 
 Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
 results, rows per local run that happened for the local writer, so a quiet week or a retired local

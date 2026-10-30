@@ -102,6 +102,20 @@ interface Pick {
     readonly fallback: Entry | null;
 }
 
+/** The camera as tile picking sees it, in the map root's own space. */
+interface TileView {
+    readonly camera: Camera;
+    /** The camera's position in the root's space. */
+    readonly eye: Vector3;
+    /** The root's world matrix. */
+    readonly world: Matrix;
+    readonly planes: ReturnType<typeof Frustum.GetPlanes>;
+    /** The orthographic view's height in the root's units, or 0 for a perspective camera. */
+    readonly ortho: number;
+    /** The render height in pixels. */
+    readonly height: number;
+}
+
 /** The longest wait before a failed tile is asked for again, in milliseconds. */
 const MAX_RETRY_MS = 60_000;
 
@@ -347,9 +361,40 @@ export abstract class MapSurface {
         this.clock++;
         const now = Date.now();
         const planes = Frustum.GetPlanes(viewProjection(camera));
+        this.queue.length = 0;
+        const { shown, drawn } = this.pickAll(camera, planes, now);
+        // The credits follow what is drawn: a host showing them hears when that changes.
+        const creditsChanged = drawn.size !== this.drawn.size || [...drawn].some((l) => !this.drawn.has(l));
+        this.drawn = drawn;
+        const meshesChanged = this.showOnly(shown);
+        for (const e of [...this.entries.values()]) {
+            if (e.state === "queued" && !this.queue.includes(e)) {
+                this.entries.delete(e.key); // out of view before it started: never fetched
+            }
+        }
+        this.pump();
+        this.evict(shown);
+        // A host that draws only on demand (or freezes its list of drawn meshes) draws the frame
+        // these meshes and credits appeared in again.
+        if (creditsChanged || meshesChanged) {
+            this.onChangedObservable.notifyObservers(this);
+        }
+    }
+
+    /**
+     * Picks and requests every layer's tiles for the camera.
+     * @param camera - The active camera.
+     * @param planes - Its frustum.
+     * @param now - The time, for retries.
+     * @returns The entries to show, and the layers that draw something.
+     */
+    private pickAll(
+        camera: Camera,
+        planes: ReturnType<typeof Frustum.GetPlanes>,
+        now: number,
+    ): { shown: Set<Entry>; drawn: Set<Layer> } {
         const shown = new Set<Entry>();
         const drawn = new Set<Layer>();
-        this.queue.length = 0;
         for (const layer of this.layers) {
             // The caps' tiles first, so they load ahead of the finer ones.
             if (this.fillsPoles() && layer.resolved.projection.maxLatitude < 90 && this.drawCaps(layer, now)) {
@@ -363,35 +408,30 @@ export abstract class MapSurface {
                 }
             }
         }
-        // The credits follow what is drawn: a host showing them hears when that changes.
-        const creditsChanged = drawn.size !== this.drawn.size || [...drawn].some((l) => !this.drawn.has(l));
-        this.drawn = drawn;
-        let meshesChanged = false;
+        return { shown, drawn };
+    }
+
+    /**
+     * Enables the meshes of the entries shown and disables every other.
+     * @param shown - The entries to show.
+     * @returns Whether any mesh appeared, disappeared or was built.
+     */
+    private showOnly(shown: Set<Entry>): boolean {
+        let changed = false;
         for (const e of this.entries.values()) {
             if (e.mesh && e.mesh.isEnabled(false) !== shown.has(e)) {
                 e.mesh.setEnabled(shown.has(e));
-                meshesChanged = true;
+                changed = true;
             }
         }
         for (const e of shown) {
             e.lastUsed = this.clock;
             if (!e.mesh) {
-                meshesChanged = true;
+                changed = true;
             }
             this.showMesh(e);
         }
-        for (const e of [...this.entries.values()]) {
-            if (e.state === "queued" && !this.queue.includes(e)) {
-                this.entries.delete(e.key); // out of view before it started: never fetched
-            }
-        }
-        this.pump();
-        this.evict(shown);
-        // A host that draws only on demand (or freezes its list of drawn meshes) draws the frame
-        // these meshes and credits appeared in again.
-        if (creditsChanged || meshesChanged) {
-            this.onChangedObservable.notifyObservers(this);
-        }
+        return changed;
     }
 
     /** Disposes every mesh, material and texture, and stops following the camera. */
@@ -436,6 +476,17 @@ export abstract class MapSurface {
     protected abstract occluded(samples: Vector3[], eye: Vector3): boolean;
 
     /**
+     * How near the eye a tile comes, for picking its level: the nearest of its sample points. A
+     * surface whose tiles can pass under the eye between their sample points answers less.
+     * @param samples - Nine points on the tile, in the root's own space.
+     * @param eye - The camera, in the root's own space.
+     * @returns The distance.
+     */
+    protected nearest(samples: Vector3[], eye: Vector3): number {
+        return Math.min(...samples.map((s) => Vector3.Distance(s, eye)));
+    }
+
+    /**
      * The copies of the world a source is drawn in, as whole-world offsets: `[0]` for one world,
      * more where a flat map shows past 180 degrees.
      * @returns The offsets.
@@ -461,6 +512,25 @@ export abstract class MapSurface {
         return false;
     }
 
+    /**
+     * How bright the picture is at a point of the surface, from 0 to 1, multiplied into its
+     * colour; null draws every point at full brightness.
+     * @returns The shading of a point in the root's own space, or null.
+     */
+    protected pointShade(): ((x: number, y: number, z: number) => number) | null {
+        return null;
+    }
+
+    /**
+     * Moves a mesh of a layer drawn under others out of their way, in place. A flat map's layers
+     * are coplanar and the depth offset orders them; the default does nothing.
+     * @param _positions - The mesh's positions, flat x, y, z, in the root's own space.
+     * @param _below - How many layers are drawn over this one.
+     */
+    protected sink(_positions: number[], _below: number): void {
+        // flat layers lie in one plane
+    }
+
     /** Drops every tile's mesh (the geometry changed) and redraws; keeps loaded textures. */
     protected invalidateGeometry(): void {
         for (const e of this.entries.values()) {
@@ -471,7 +541,7 @@ export abstract class MapSurface {
     }
 
     /** Something changed the picture: update before the next render, and tell the host to render. */
-    private changed(): void {
+    protected changed(): void {
         this.dirty = true;
         this.onChangedObservable.notifyObservers(this);
     }
@@ -568,6 +638,7 @@ export abstract class MapSurface {
             camera.mode === Camera.ORTHOGRAPHIC_CAMERA && camera.orthoTop !== null && camera.orthoBottom !== null
                 ? (camera.orthoTop - camera.orthoBottom) / this.root.absoluteScaling.x
                 : 0;
+        const view: TileView = { camera, eye, world, planes, ortho, height };
         const pending = resolved.roots();
         const wanted: TileId[] = [];
         while (pending.length > 0) {
@@ -577,28 +648,10 @@ export abstract class MapSurface {
                 continue;
             }
             const samples = this.samplesOf(layer, rect);
-            if (tile.z >= this.cullFromZoom) {
-                const min = samples.reduce((a, b) => Vector3.Minimize(a, b), samples[0]);
-                const max = samples.reduce((a, b) => Vector3.Maximize(a, b), samples[0]);
-                const info = new BoundingInfo(min, max, world);
-                if (!info.isInFrustum(planes) || this.occluded(samples, eye)) {
-                    continue;
-                }
+            if (tile.z >= this.cullFromZoom && this.culled(samples, view)) {
+                continue;
             }
-            const whole = this.samplesOf(layer, this.shifted(resolved.rect(tile), copy));
-            const edge = Math.max(
-                Vector3.Distance(whole[0], whole[2]),
-                Vector3.Distance(whole[6], whole[8]),
-                Vector3.Distance(whole[0], whole[6]),
-                Vector3.Distance(whole[2], whole[8]),
-            );
-            let pixels: number;
-            if (ortho > 0) {
-                pixels = (edge * height) / ortho;
-            } else {
-                const distance = Math.max(1e-9, Math.min(...samples.map((s) => Vector3.Distance(s, eye))));
-                pixels = (edge * height) / (2 * distance * Math.tan(camera.fov / 2));
-            }
+            const pixels = this.pixelsOf(layer, tile, copy, samples, view);
             const children = tile.z < resolved.maxZoom ? resolved.children(tile) : [];
             const split =
                 children.length > 0 &&
@@ -611,6 +664,44 @@ export abstract class MapSurface {
             }
         }
         return wanted;
+    }
+
+    /**
+     * Whether a tile is out of sight: outside the frustum, or hidden for the surface's own reasons.
+     * @param samples - The tile's sample points.
+     * @param view - The camera, in the root's own space.
+     * @returns True when it is not seen.
+     */
+    private culled(samples: Vector3[], view: TileView): boolean {
+        const min = samples.reduce((a, b) => Vector3.Minimize(a, b), samples[0]);
+        const max = samples.reduce((a, b) => Vector3.Maximize(a, b), samples[0]);
+        const info = new BoundingInfo(min, max, view.world);
+        return !info.isInFrustum(view.planes) || this.occluded(samples, view.eye);
+    }
+
+    /**
+     * How many screen pixels a tile's longest edge covers, as the whole tile even where the map's
+     * edge cuts it.
+     * @param layer - The source's layer.
+     * @param tile - The tile.
+     * @param copy - The world copy.
+     * @param samples - The (clipped) tile's sample points, for its distance from the eye.
+     * @param view - The camera, in the root's own space.
+     * @returns The pixels.
+     */
+    private pixelsOf(layer: Layer, tile: TileId, copy: number, samples: Vector3[], view: TileView): number {
+        const whole = this.samplesOf(layer, this.shifted(layer.resolved.rect(tile), copy));
+        const edge = Math.max(
+            Vector3.Distance(whole[0], whole[2]),
+            Vector3.Distance(whole[6], whole[8]),
+            Vector3.Distance(whole[0], whole[6]),
+            Vector3.Distance(whole[2], whole[8]),
+        );
+        if (view.ortho > 0) {
+            return (edge * view.height) / view.ortho;
+        }
+        const distance = Math.max(1e-9, this.nearest(samples, view.eye));
+        return (edge * view.height) / (2 * distance * Math.tan(view.camera.fov / 2));
     }
 
     /**
@@ -763,7 +854,7 @@ export abstract class MapSurface {
         }
         const square = this.shifted(layer.resolved.square(tile), entry.copy);
         const { projection } = layer.resolved;
-        const [cols, rows] = this.segments(
+        const grid = this.segments(
             (rect.x1 - rect.x0) * 360,
             projection.inverse({ x: 0, y: rect.y0 }).lat - projection.inverse({ x: 0, y: rect.y1 }).lat,
             projection.id !== this.surfaceProjection(),
@@ -772,16 +863,7 @@ export abstract class MapSurface {
             (x - square.x0) / (square.x1 - square.x0),
             1 - (y - square.y0) / (square.y1 - square.y0),
         ];
-        entry.mesh = this.patch(
-            `${this.root.name}-tile-${entry.key}`,
-            layer,
-            tile.z,
-            entry.texture,
-            rect,
-            cols,
-            rows,
-            uv,
-        );
+        entry.mesh = this.patch(`${this.root.name}-tile-${entry.key}`, layer, tile.z, entry.texture, rect, grid, uv);
     }
 
     /**
@@ -791,8 +873,7 @@ export abstract class MapSurface {
      * @param z - The tile level, for the stacking order.
      * @param texture - The picture.
      * @param rect - The rectangle in map units.
-     * @param cols - Columns of the grid.
-     * @param rows - Rows of the grid.
+     * @param grid - Columns and rows of the grid.
      * @param uv - The texture coordinates of a map point.
      * @returns The mesh, a child of the root.
      */
@@ -802,10 +883,10 @@ export abstract class MapSurface {
         z: number,
         texture: BaseTexture,
         rect: MapRect,
-        cols: number,
-        rows: number,
+        grid: [number, number],
         uv: (x: number, y: number) => [number, number],
     ): Mesh {
+        const [cols, rows] = grid;
         const positions: number[] = [];
         const uvs: number[] = [];
         const indices: number[] = [];
@@ -838,6 +919,7 @@ export abstract class MapSurface {
     ): Mesh {
         const mesh = new Mesh(name, this.scene);
         const vertexData = new VertexData();
+        this.sink(positions, this.layers.length - 1 - layer.index);
         vertexData.positions = positions;
         vertexData.uvs = uvs;
         vertexData.indices = indices;
@@ -848,6 +930,16 @@ export abstract class MapSurface {
                 const at = i - (i % 3);
                 return v / (Math.hypot(positions[at], positions[at + 1], positions[at + 2]) || 1);
             });
+        }
+        const shade = this.pointShade();
+        if (shade) {
+            // Multiplied into the unlit picture by the standard material, per vertex.
+            const colors: number[] = [];
+            for (let i = 0; i < positions.length; i += 3) {
+                const b = shade(positions[i], positions[i + 1], positions[i + 2]);
+                colors.push(b, b, b, 1);
+            }
+            vertexData.colors = colors;
         }
         vertexData.applyToMesh(mesh);
         const material = new StandardMaterial(`${mesh.name}-material`, this.scene);

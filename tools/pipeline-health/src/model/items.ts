@@ -218,7 +218,7 @@ export interface CostItem extends RawBase {
 
 export interface LocalRunItem extends RawBase {
     kind: "local_run";
-    what: string; // gate | ledger | ...
+    what: string; // gate (a push log line), or a package or shard family (a test slot's hold)
     outcome: string;
     startedAt: number;
     endedAt: number;

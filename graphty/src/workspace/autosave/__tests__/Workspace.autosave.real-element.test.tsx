@@ -119,15 +119,18 @@ function openedElement(): { element: ElementUnderTest; session: GraphSession } {
  * @returns the entry id autosave wrote.
  */
 async function leave(element: ElementUnderTest, view: ReturnType<typeof render>): Promise<string> {
-    await waitFor(
+    // The chip is drawn on React's next render after the element's status event, so the element's
+    // own status reads "saved" a moment before the chip exists or says so: wait for both.
+    const chip = await waitFor(
         () => {
             assert.strictEqual(element.autosaver.status.state, "saved");
             assert.isNotNull(element.autosaver.status.savedAt);
+            const shown = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
+            assert.strictEqual(shown.textContent, "Autosave: saved");
+            return shown;
         },
         { timeout: TIMEOUT_MS },
     );
-    const chip = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
-    assert.strictEqual(chip.textContent, "Autosave: saved");
     // The chip's words are readable: 4.5:1 or more against what is behind them.
     assert.isAtLeast(textContrast(chip), 4.5);
     const { entry } = element.autosaver.status;

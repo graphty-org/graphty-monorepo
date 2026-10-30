@@ -999,3 +999,94 @@ p.more {
     display: inline;
     margin-left: 4px;
 }
+
+/* ---- release channel tiles on the overview (#4460; the mockup's version 1 "Releases" band) ---- */
+h2.top {
+    margin-top: 6px;
+}
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 240px));
+    gap: 12px;
+    margin-bottom: 26px;
+}
+.tile {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 6px 10px 8px;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--line);
+    border-radius: 4px;
+}
+.tile.ok {
+    border-left-color: var(--ok);
+}
+.tile.warn {
+    border-left-color: var(--warn);
+}
+.tile.bad {
+    border-left-color: var(--bad);
+}
+.tile.none {
+    background: repeating-linear-gradient(135deg, var(--page) 0 6px, var(--faint) 6px 8px);
+}
+.tile:hover {
+    background: var(--hover);
+}
+.tile:focus-visible {
+    outline: 3px solid var(--ink);
+    outline-offset: 2px;
+}
+.th {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.tn {
+    font-weight: 600;
+}
+.tst {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--ink2);
+}
+.tv {
+    font-size: 17px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    margin-top: 6px;
+}
+.ts {
+    color: var(--ink2);
+    font-size: 12px;
+}
+.dots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 8px;
+}
+.dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--ok);
+}
+.d-bad {
+    background: var(--bad);
+}
+.d-held {
+    background: var(--warn);
+    box-shadow: inset 0 0 0 1px var(--warnedge);
+}
+.d-cancelled,
+.d-none {
+    background: transparent;
+    border: 1px solid var(--muted);
+}
+@media (max-width: 700px) {
+    .tiles {
+        grid-template-columns: 1fr;
+    }
+}

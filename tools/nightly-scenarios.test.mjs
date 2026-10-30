@@ -58,6 +58,7 @@ const load = (file) => {
 
 const CONTEXTS = [
     "github",
+    "jobs",
     "inputs",
     "needs",
     "steps",
@@ -229,9 +230,19 @@ function run(file, sc, inputs, prefix, out) {
                 : inner.some((i) => i.r === "cancelled")
                   ? "cancelled"
                   : "success";
+            // a called workflow's outputs read its jobs' results and outputs (the `jobs` context)
+            const jobsCtx = Object.fromEntries(
+                Object.keys(load(called).jobs).map((j) => [
+                    j,
+                    { result: out.jobs[`${path}/${j}`].result, outputs: out.jobs[`${path}/${j}`].outputs },
+                ]),
+            );
+            const declared = Object.fromEntries(
+                Object.entries(load(called).on?.workflow_call?.outputs ?? {}).map(([k, o]) => [k, o.value]),
+            );
             out.jobs[path] = {
                 result: result(sc.results?.[path] ?? derived),
-                outputs: sc.outputs?.[path] ?? {},
+                outputs: sc.outputs?.[path] ?? templateAll(declared, { ...base, jobs: jobsCtx }),
                 steps: {},
                 ran: true,
                 rerun: true,
@@ -730,6 +741,25 @@ describe("the nightly path's scenario matrix", () => {
         );
     });
 
+    it("(8b) a candidate older than master: handed to channel/full-run, tested there with its own workflow files", () => {
+        // run 40926721806: ci.yml from the dispatch commit called a script the candidate did not have
+        const parent = fullRun({ pick: { release: "false", handoff: "true" } });
+        ran(parent, "pick", "handoff");
+        skipped(parent, ...LANE_JOBS, ...RED_EARLY, "recapture", "verdict", "held", "version", "watchers");
+        assert.equal(parent.conclusion, "success", "the hand-off files nothing and announces nothing");
+        const child = simulate("release.yml", {
+            github: github({ ref: "refs/heads/channel/full-run", sha: H, run_id: "4001" }),
+            inputs: { mode: "full", scheduled: true },
+            results: {},
+            outputs: { pick: pickOutputs(), "ci/packages": ciPackages, "ci/build": ciPackages },
+            steps: { verdict: verdictSteps({ held: "" }), ...promoted },
+        });
+        ran(child, "pick", ...LANE_JOBS, "recapture", "verdict", "watchers");
+        skipped(child, "candidate_fix", "handoff", "resume");
+        assert.equal(child.conclusion, "success");
+        assert.deepEqual(child.reads, []);
+    });
+
     it("(9) mode promote-nightly: no lane runs; the approved candidate's kept builds are versioned, landed, published", () => {
         // the run that judged H green-images and held it: keep_builds keeps H's builds under H's name
         const judging = simulate("release.yml", {
@@ -872,6 +902,22 @@ describe("the nightly path's scenario matrix", () => {
         assert.deepEqual([v.state, v.red], ["red", ["captures"]]);
     });
 
+    // run 40950661827 attempt 2: GitHub stopped CI's Performance Benchmarks (continue-on-error) after 18 minutes,
+    // the CI call ended cancelled although every job that gates passed, the LLM lane skipped and the verdict filed
+    // "CI cancelled" as red with a bisect (#4556)
+    it("(18) an advisory CI job cancelled, every gating job green: the CI lane passes and the LLM lane still runs", () => {
+        const r = fullRun({ results: { "ci/performance": "cancelled" }, judged: { held: "" } });
+        assert.equal(r.jobs.ci.result, "cancelled", "continue-on-error covers a failure, not a cancel");
+        assert.equal(r.jobs.ci.outputs.checks, "success");
+        ran(r, "llm", "recapture", "verdict");
+        skipped(r, ...RED_EARLY);
+        assert.equal(r.jobs.verdict.outputs.state, "green-clean");
+        // a gating job that ends cancelled (its own timeout) still makes the lane red
+        const gating = fullRun({ results: { "ci/performance": "cancelled", "ci/all-checks": "failure" }, judged: {} });
+        assert.equal(gating.jobs.verdict.outputs.state, "red");
+        skipped(gating, "llm");
+    });
+
     it("(16) the automatic abandon: before a full or restart pick only, failing open, never on changed screenshots", () => {
         const auto = "Abandon a stale or pipeline-made hold";
         for (const mode of ["full", "restart"]) {
@@ -901,6 +947,18 @@ describe("the nightly path's scenario matrix", () => {
         assert.equal(autoAbandon({ hold: old, chain, sites: [N], recent: [code] }).abandon, true, "a stale red ends");
         const images = { sha: H, state: "green-images", lane: "" };
         assert.equal(autoAbandon({ hold: old, chain, sites: [N], recent: [images] }).abandon, false);
+    });
+
+    it("(17) a candidate tested in place whose workflow files differ (#4522): the run's own commit is tested, its site assembled", () => {
+        // the hand-off to channel/full-run unavailable (an older candidate, or environments that do not allow it),
+        // the handoff step tests M in place of H, whose workflows lack M's new Checks step's script; M's master build
+        // has kept no site yet
+        const r = fullRun({ judged: { held: "" }, pick: { sha: M, build_run: "", site: "build" } });
+        assert.deepEqual([r.jobs.ci.inputs.ref, r.jobs.ci.inputs.reuse_build_run], [M, ""]);
+        ran(r, "pick", ...LANE_JOBS, "verdict", "candidate_site", "version", "land", "publish", "site");
+        assert.equal(r.conclusion, "success");
+        // a candidate that shares the run's workflows reuses its own master build and site
+        skipped(fullRun({ judged: { held: "" } }), "candidate_site");
     });
 
     describe("(15) a GitHub 5xx", () => {

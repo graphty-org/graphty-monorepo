@@ -26,7 +26,15 @@ import { categoryOf, type Evaluation, type MemberStatus, type SourceStatus } fro
 import type { ViewRoute } from "./keys.js";
 import { CATEGORY, iso, LOCAL, localMember, memberAt, Reads, sourceState, SPEC } from "./members.js";
 import { benchmarksTable, chronicTable, nonGatingTable } from "./job-sections.js";
-import { lanesTable, ownerTable, prTime, quarantineTable, trainsTable, workflowsTable } from "./snapshot-sections.js";
+import {
+    channelTiles,
+    lanesTable,
+    ownerTable,
+    prTime,
+    quarantineTable,
+    trainsTable,
+    workflowsTable,
+} from "./snapshot-sections.js";
 import {
     causes,
     dimBars,
@@ -389,6 +397,7 @@ class Builder {
 export async function buildViews(store: Store, nowMs: number, ev: Evaluation, cfg: SlaConfig = SLAS): Promise<View[]> {
     const b = new Builder(new Reads(store, nowMs, ev, cfg));
     const status = await b.status();
+    const channels = await channelTiles(b.reads);
     const out: View[] = [{ route: { kind: "status" }, body: status }];
     const pages: Exclude<PageId, "overview" | "costs">[] = [
         "master",
@@ -403,13 +412,17 @@ export async function buildViews(store: Store, nowMs: number, ev: Evaluation, cf
     for (const range of RANGES) {
         out.push({
             route: { kind: "page", page: "overview", range },
-            body: { ...status, page: "overview", range, categories: await b.categories(range) },
+            body: { ...status, page: "overview", range, categories: await b.categories(range), channels },
         });
         for (const page of pages) {
             out.push({ route: { kind: "page", page, range }, body: await b.page(page, range) });
         }
     }
     const generated = iso(nowMs);
+    out.push({
+        route: { kind: "section", page: "runners", section: "jobs", range: "7d" },
+        body: { page: "runners", range: "7d", generated, section: await jobs(b.reads, "7d") },
+    });
     for (const range of SLOW_RANGES) {
         out.push({ route: { kind: "page", page: "costs", range }, body: await b.costs(range) });
         for (const runKind of ["full", "pr-bins"] as const) {

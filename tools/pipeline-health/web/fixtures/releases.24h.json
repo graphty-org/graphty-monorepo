@@ -240,6 +240,97 @@
                     "issue": 3418
                 }
             }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 6,
+                    "unit": "h"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 24,
+                    "unit": "h"
+                }
+            },
+            "link": "/releases",
+            "id": "releases.review_lag",
+            "value": {
+                "n": 3.5,
+                "unit": "h"
+            },
+            "n": 6,
+            "minN": 3
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 25,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 75,
+                    "unit": "pct"
+                }
+            },
+            "link": "/releases/trains",
+            "id": "releases.slots_unreviewed",
+            "value": {
+                "n": 50,
+                "unit": "pct"
+            },
+            "n": 4,
+            "minN": 3
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 50,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": "<",
+                    "n": 25,
+                    "unit": "pct"
+                }
+            },
+            "link": "/releases/trains",
+            "id": "releases.green_clean",
+            "value": {
+                "n": 33,
+                "unit": "pct"
+            },
+            "n": 6,
+            "minN": 3
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": ">=",
+                    "n": 2
+                },
+                "red": {
+                    "op": "<",
+                    "n": 1
+                }
+            },
+            "link": "/releases",
+            "id": "releases.nightly_promotions",
+            "value": {
+                "n": 1.3
+            }
         }
     ],
     "sections": [

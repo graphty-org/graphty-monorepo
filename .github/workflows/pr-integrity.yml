@@ -1,7 +1,7 @@
 name: PR Integrity
 
 # The rules agents cannot be trusted to keep by themselves (design/ci/channels-pipeline.md section 6.4,
-# tools/pr-integrity.mjs): no test weakened, the owned closure, no unapproved breaking change, baselines
+# tools/pr-integrity.mjs): no test weakened, no unapproved breaking change, baselines
 # signed by the owner, and for the agent account's pull requests a Proof and a fresh review of the
 # branch's own diff. A code owner's approval of the head clears test integrity and the breaking-change
 # rule, so review events re-run it: an approval needs no push. Never on comment events, whose runs attach
@@ -23,8 +23,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 10
         steps:
-            # The head itself, not the merge ref: every rule is measured from the merge base with master, except
-            # the owned closure, which the script judges on its own merge of the head with master (ownedClosure).
+            # The head itself, not the merge ref: every rule is measured from the merge base with master.
             # Full history, for the merge base, the commits and the revert check.
             - uses: actions/checkout@v7
               with:

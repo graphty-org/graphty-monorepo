@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// The month's spend on the paid LLM regression tests, checked before each paid run of release.yml's LLM lane: about
-// $0.94 a run, a warning (budget key spend:llm) at $60 in a calendar month, the owner's ceiling (2026-10-12). It
+// The month's spend on the paid LLM regression tests, checked before each paid run of release.yml's LLM lane: each
+// run's logged cost (the "LLM regression cost: <usd> USD" step after its tests), or about $0.94 for a run that logged
+// none, and a warning (budget key spend:llm) at $60 in a calendar month, the owner's ceiling (2026-10-12). It
 // never stops the run: the lane runs in every release test of a candidate (owner, 2026-10-29), and the warning is
 // for the owner.
 //
@@ -13,19 +14,49 @@
 // Actions API; the store's query replaces fetchPaid.
 //
 //   GH_TOKEN=... GITHUB_REPOSITORY=o/r [GITHUB_RUN_ID=n] node tools/llm-spend.mjs
+//   node tools/llm-spend.mjs cost <log>   prints the run's cost in USD from its vitest log, or nothing
 //   node --test tools/llm-spend.test.mjs
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 export const STEP = "LLM regression tests";
 export const BISECT_STEP = "Run the failing files";
-const COST_PER_RUN = 0.94;
+/** The step after the tests whose name carries the run's cost (release.yml). */
+export const COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
+/** A run that logged no cost: the measured average before caching and Flex (tmp/ai-cost/report.md, 2026-10-12). */
+export const COST_PER_RUN = 0.94;
 const MONTHLY_CEILING = 60;
 
 // Conclusions of a test step that sent paid calls: a failed or cancelled run cost money too.
 export const PAID = ["success", "failure", "cancelled"];
+
+/**
+ * A run's cost from its vitest log: the sum of the costs on its `[llm-regression] API calls` lines (one per test
+ * file), or null when no line has one (a provider with no price in the harness, or an older harness).
+ * @param log the log's text
+ * @returns USD, or null
+ */
+export function logCost(log) {
+    const costs = log
+        .split("\n")
+        .filter((line) => line.includes("[llm-regression] API calls: "))
+        .map((line) => line.slice(line.lastIndexOf(", cost $") + ", cost $".length))
+        .filter((usd) => /^\d+(\.\d+)?$/.test(usd.trim()));
+    return costs.length ? costs.reduce((sum, usd) => sum + Number(usd), 0) : null;
+}
+
+/**
+ * The cost a run's jobs logged in their cost step's name, or undefined when none did.
+ * @param jobs the Actions API's jobs
+ * @returns USD, or undefined
+ */
+export function loggedCost(jobs) {
+    const costs = jobs.flatMap((job) => (job.steps ?? []).map((s) => COST_STEP.exec(s.name)?.[1]).filter(Boolean));
+    return costs.length ? costs.reduce((sum, usd) => sum + Number(usd), 0) : undefined;
+}
 
 /**
  * Completion times of the paid test steps in one run's jobs.
@@ -43,10 +74,10 @@ export function paidSteps(jobs, step = STEP) {
  * The spend:llm warning, or null under the ceiling.
  * @param count runs this month, this one included
  * @param month YYYY-MM
+ * @param spend USD this month (default: every run at the flat cost)
  * @returns the warning
  */
-export function spendWarning(count, month) {
-    const spend = count * COST_PER_RUN;
+export function spendWarning(count, month, spend = count * COST_PER_RUN) {
     if (spend < MONTHLY_CEILING) return null;
     return `spend:llm: ${count} LLM regression runs in ${month} is about $${spend.toFixed(2)}, at or over the $${MONTHLY_CEILING} monthly ceiling`;
 }
@@ -134,16 +165,22 @@ export async function runJobs(get, repo, id) {
  * @param repo owner/name
  * @param runs [{ id, updated_at }]
  * @param step the paid step's name
- * @returns the paid steps' ISO times (`paid`) and the run ids not read (`unread`)
+ * @returns the paid steps' ISO times (`paid`), the run ids not read (`unread`), and the costs runs with paid steps
+ *   logged (`logged`: [{ at, usd }])
  */
 export async function countPaid(get, repo, runs, step) {
     const queue = [...runs];
     const paid = [];
     const unread = [];
+    const logged = [];
     const worker = async () => {
         for (let run = queue.pop(); run !== undefined; run = queue.pop()) {
             try {
-                paid.push(...paidSteps(await runJobs(get, repo, run.id), step));
+                const jobs = await runJobs(get, repo, run.id);
+                const times = paidSteps(jobs, step);
+                paid.push(...times);
+                const usd = loggedCost(jobs);
+                if (usd !== undefined && times.length) logged.push({ at: times.at(-1), usd, steps: times.length });
             } catch {
                 paid.push(run.updated_at);
                 unread.push(run.id);
@@ -151,7 +188,7 @@ export async function countPaid(get, repo, runs, step) {
         }
     };
     await Promise.all(Array.from({ length: 8 }, worker));
-    return { paid, unread };
+    return { paid, unread, logged };
 }
 
 const DAY_MS = 86_400_000;
@@ -218,23 +255,34 @@ async function fetchPaid(repo, since, ownRun) {
     const bisect = (await listRuns(repo, "bisect.yml", since)).filter((r) => /\bllm lane\b/.test(r.display_title));
     const a = await countPaid(ghGet, repo, release, STEP);
     const b = await countPaid(ghGet, repo, bisect, BISECT_STEP);
-    return { paid: [...a.paid, ...b.paid], unread: [...a.unread, ...b.unread] };
+    return { paid: [...a.paid, ...b.paid], unread: [...a.unread, ...b.unread], logged: [...a.logged, ...b.logged] };
 }
 
 /** Prints the month's count and spend, as a warning at or over the ceiling. Never fails the job. */
 async function main() {
+    if (process.argv[2] === "cost") {
+        const usd = logCost(readFileSync(process.argv[3], "utf8"));
+        if (usd !== null) console.log(usd.toFixed(4));
+        return;
+    }
+
     const { GITHUB_REPOSITORY: repo, GITHUB_RUN_ID: ownRun } = process.env;
     const month = new Date().toISOString().slice(0, 7);
     const monthStart = new Date(Date.parse(`${month}-01`) - DAY_MS).toISOString().slice(0, 10);
     await fetchPaid(repo, monthStart, ownRun).then(
-        ({ paid, unread }) => {
+        ({ paid, unread, logged }) => {
             if (unread.length)
                 console.log(
                     `::warning::spend:llm: could not read the jobs of run(s) ${unread.join(", ")}; each is counted as one paid run`,
                 );
             const count = paid.filter((t) => t?.startsWith(month)).length + 1;
-            const warning = spendWarning(count, month);
-            const spend = (count * COST_PER_RUN).toFixed(2);
+            // runs that logged their cost at it, every other paid step (this run's included) at the flat cost
+            const known = logged.filter((r) => r.at?.startsWith(month));
+            const usd =
+                known.reduce((sum, r) => sum + r.usd, 0) +
+                (count - known.reduce((sum, r) => sum + r.steps, 0)) * COST_PER_RUN;
+            const warning = spendWarning(count, month, usd);
+            const spend = usd.toFixed(2);
             console.log(
                 warning
                     ? `::warning::${warning}`

@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url";
 
 import type {
     CategoryStatus,
+    ChannelOutcome,
+    ChannelTile,
     Cmp,
     Episode,
     Fact,
@@ -420,6 +422,41 @@ ciMembers.push(
         sla: { target: cmp("<=", 0), red: cmp(">=", 3) },
         link: "/ci/benchmarks",
     }),
+    // Rolling screenshot capture (design/visual-testing/early-capture.md, plan step 6).
+    member({
+        id: "ci.screenshot_set_age",
+        window: "7d",
+        state: "slow",
+        value: num(2.4, "h"),
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 12, "h") },
+        link: "/ci",
+    }),
+    ...(
+        [
+            ["ci.slice_base_budget", 41],
+            ["ci.slice_idle_budget", 63],
+            ["ci.slice_idle_hour_budget", 24],
+        ] as const
+    ).map(([id, pct]) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(pct, "pct"),
+            sla: { target: cmp("<=", 100, "pct"), red: cmp(">", 125, "pct") },
+            link: "/ci",
+        }),
+    ),
+    ...(["ci.slice_contended", "ci.slice_queue_wait"] as const).map((id) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(id === "ci.slice_contended" ? 5 : 0, "min"),
+            sla: { target: cmp("<=", 35, "min"), red: cmp(">", 105, "min") },
+            link: "/ci/runners",
+        }),
+    ),
 );
 const runnerMembers: Member[] = [runnerWait, longestQueued, saturated, notAssigned, superseded];
 
@@ -526,6 +563,44 @@ const releaseMembers: Member[] = [
         sla: SLA.channels,
         reason: f("unblock.channels", { issue: 3418 }),
         link: "/data-sources/not-set-up",
+    }),
+    member({
+        id: "releases.review_lag",
+        window: "7d",
+        state: "slow",
+        value: num(3.5, "h"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 24, "h") },
+        link: "/releases",
+    }),
+    member({
+        id: "releases.slots_unreviewed",
+        window: "7d",
+        state: "slow",
+        value: num(50, "pct"),
+        n: 4,
+        minN: 3,
+        sla: { target: cmp("<=", 25, "pct"), red: cmp(">", 75, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.green_clean",
+        window: "7d",
+        state: "slow",
+        value: num(33, "pct"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp(">=", 50, "pct"), red: cmp("<", 25, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.nightly_promotions",
+        window: "7d",
+        state: "slow",
+        value: num(1.3),
+        sla: { target: cmp(">=", 2), red: cmp("<", 1) },
+        link: "/releases",
     }),
 ];
 
@@ -831,7 +906,55 @@ const sources: SourceAge[] = [
     { id: "local", lastWrite: t("14:30"), limitS: null, state: "idle" },
 ];
 
-const overview: OverviewResponse = { page: "overview", range: "1h", generated: GEN, categories, episodes, sources };
+// ---------------------------------------------------------------- release channels
+
+/** Attempts from a string of outcomes, oldest first ("o" ok, "x" failed, "h" held, "c" cancelled), every `everyMin`. */
+function attempts(spec: string, last: string, everyMin: number, run: number): ChannelTile["attempts"] {
+    const OUT: Record<string, ChannelOutcome> = { o: "ok", x: "bad", h: "held", c: "cancelled" };
+    const end = Date.parse(t(last));
+    return [...spec].map((c, i) => ({
+        at: new Date(end - (spec.length - 1 - i) * everyMin * 60_000).toISOString(),
+        outcome: OUT[c],
+        run: run + i,
+    }));
+}
+
+const channels: ChannelTile[] = [
+    {
+        id: "canary",
+        state: "ok",
+        sha: "3f2a91c0d5e4b7a8c9d0e1f2a3b4c5d6e7f8a9b0",
+        at: t("22:48"),
+        attempts: attempts("oooooooooooxoo", "22:48", 25, 40245000001),
+        link: "/releases",
+    },
+    {
+        id: "nightly",
+        state: "warn",
+        sha: "9c41d07e2b8a6f3c1d5e7a9b0c2d4e6f8a1b3c5d",
+        at: t("12:41"),
+        attempts: attempts("ooxoohoooh", "18:24", 360, 40240000001),
+        link: "/releases",
+    },
+    {
+        id: "production",
+        state: "ok",
+        sha: "b7e03a1f9d2c4e6a8b0c1d3e5f7a9b2c4d6e8f0a",
+        at: t("10-22 17:05"),
+        attempts: attempts("ocxo", "10-22 17:05", 1440, 40200000001),
+        link: "/releases",
+    },
+];
+
+const overview: OverviewResponse = {
+    page: "overview",
+    range: "1h",
+    generated: GEN,
+    categories,
+    episodes,
+    sources,
+    channels,
+};
 
 // ---------------------------------------------------------------- sections
 
@@ -1991,6 +2114,26 @@ for (const range of RANGES) {
             sections: p.sections.map((s) => sectionFor(s, range)),
         } satisfies PageResponse);
 }
+// The 7 d runner history (runners/jobs): its last 3 hours here, a quiet night giving way to a merge burst.
+write("runners.jobs.7d", {
+    page: "runners",
+    range: "7d",
+    generated: GEN,
+    section: {
+        kind: "jobs",
+        id: "jobs",
+        step: "15m",
+        start: "2026-10-24T20:30:00Z",
+        running: [4, 2, 0, 0, 0, 6, 9, 24, 41, 57, 57, 52],
+        queued: [0, 0, 0, 0, 0, 0, 0, 0, 12, 30, 18, 4],
+        runningMax: [6, 4, 2, 0, null, 8, 12, 30, 52, 60, 60, 57],
+        queuedMax: [0, 0, 0, 0, null, 0, 0, 3, 26, 79, 40, 18],
+        longestQueuedMs: [0, 0, 0, 0, null, 0, 0, 40_000, 260_000, 610_000, 540_000, 120_000],
+        saturatedMs: [0, 0, 0, 0, null, 0, 0, 0, 0, 600_000, 900_000, 300_000],
+        limit: 60,
+        peak: { n: 60, at: "2026-10-24T22:45:00Z" },
+    },
+} satisfies SectionResponse);
 for (const range of ["7d", "28d"] as SlowRange[]) {
     write(
         `costs.${range}`,
@@ -2108,6 +2251,11 @@ for (const range of RANGES)
         page: "overview",
         range,
         categories: grayStatus.categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
+        channels: [
+            channels[0],
+            { id: "nightly", state: "nodata", sha: null, at: null, attempts: [], link: "/releases" },
+            channels[2],
+        ],
     } satisfies OverviewResponse);
 for (const range of ["7d", "28d"] as SlowRange[]) {
     const secs = costSections(range).map((s) =>

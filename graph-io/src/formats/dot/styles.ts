@@ -2154,23 +2154,33 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
 }
 
 /**
- * Reads one end's arrow: its shape, or none when the edge's direction draws no arrow there, and the side it keeps.
+ * Reads one end's arrow: its shape, or none when the edge's direction draws no arrow there, the side it keeps and the
+ * shapes drawn behind it. Read so by the DOT reader and by the GML reader for gv2gml's `targetArrow` / `sourceArrow`.
  * @param end - which end
  * @param raw - its `arrowhead` or `arrowtail`, or null
  * @param on - whether the edge's direction draws an arrow there
  * @param put - receives the values
  * @param at - the sites
  */
-function readEdgeArrow(end: "target" | "source", raw: string | null, on: boolean, put: Put, at: At): void {
+export function readEdgeArrow(end: "target" | "source", raw: string | null, on: boolean, put: Put, at: At): void {
     const arrow = on ? graphvizArrowValue(raw ?? "normal", at(`${end}Arrow`)) : null;
     put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
     if (arrow?.side !== null && arrow?.side !== undefined) {
         put(`${end}ArrowSide`, arrow.side);
     }
+    if (arrow?.parts !== null && arrow?.parts !== undefined) {
+        put(`${end}ArrowParts`, arrow.parts);
+    }
 }
 
 /** The sides an `l` or `r` arrow modifier keeps, by their first letters. */
 const ARROW_SIDES = ["left", "right"] as const;
+
+/** One shape of a Graphviz arrow name: its own name and the side an `l` or `r` keeps (null for the whole shape). */
+interface GraphvizArrowShape {
+    readonly name: string;
+    readonly side: (typeof ARROW_SIDES)[number] | null;
+}
 
 /** The open forms of Graphviz arrows that a neutral shape draws; the others are drawn filled. */
 const GRAPHVIZ_OPEN_ARROWS: ReadonlySet<string> = new Set(["normal", "diamond", "dot", "box", "inv"]);
@@ -2184,52 +2194,64 @@ const GRAPHVIZ_OTHER_ARROWS: ReadonlyMap<string, string> = new Map([
 /**
  * The neutral arrow value Graphviz draws for an arrow name (`onormal`, `lbox`, `invempty`), with an open shape the
  * neutral vocabulary has no name for (`obox`, `oinv`) as the value graphty draws it as, and the side an `l` or `r`
- * keeps. Read so by the DOT reader and by the GML reader for gv2gml's `targetArrow` / `sourceArrow`.
+ * keeps. A name of several shapes (`boxdotnormal`, `lteeoldiamond`) draws them in a row along the line, the first
+ * against the node: the first is the value, the rest its `parts`.
  * @param raw - the arrow name
  * @param site - where it was read
- * @returns the value and its side (null for the whole shape)
+ * @returns the value, its side (null for the whole shape), and the shapes drawn behind it as the `targetArrowParts`
+ * value (null for none)
  */
-export function graphvizArrowValue(
+function graphvizArrowValue(
     raw: string,
     site: CanonSite,
-): { readonly value: string | null; readonly side: "left" | "right" | null } {
-    const first = graphvizArrow(raw);
-    const other = first === null ? undefined : GRAPHVIZ_OTHER_ARROWS.get(first.name);
+): { readonly value: string | null; readonly side: GraphvizArrowShape["side"]; readonly parts: string | null } {
+    const shapes = graphvizArrows(raw);
+    const valueOf = (name: string | undefined): string | null =>
+        (name === undefined ? undefined : GRAPHVIZ_OTHER_ARROWS.get(name)) ??
+        canonEnum("arrow", name ?? raw, "graphviz", site);
+    const [first, ...rest] = shapes ?? [];
+    const parts = rest.flatMap((part) => {
+        const value = valueOf(part.name);
+        return value === null ? [] : [part.side === null ? value : `${value}:${part.side}`];
+    });
     return {
-        value: other ?? canonEnum("arrow", first?.name ?? raw, "graphviz", site),
+        value: valueOf(first?.name),
         side: first?.side ?? null,
+        parts: parts.length === 0 ? null : parts.join(" "),
     };
 }
 
 /**
- * The arrow Graphviz draws at an edge's very end, from an arrow name of up to four shapes (`dotodot`,
- * `lteeoldiamond`): the first shape that is not `none`, with its `o` (open) kept where a neutral shape draws it, and
- * the side an `l` or `r` keeps alone ("clip the shape, leaving only the part to the left of the edge", looking along
- * the edge toward the arrow's tip).
+ * The arrows Graphviz draws at an edge's very end, from an arrow name of up to four shapes (`dotodot`,
+ * `lteeoldiamond`), in order from the node: each shape that is not `none`, with its `o` (open) kept where a neutral
+ * shape draws it, and the side an `l` or `r` keeps alone ("clip the shape, leaving only the part to the left of the
+ * edge", looking along the edge toward the arrow's tip).
  * @param raw - the arrow name
- * @returns the shape's own name and its side (null for the whole shape), or null for a name outside the grammar (a
+ * @returns each shape's own name and its side (null for the whole shape), or null for a name outside the grammar (a
  * synonym such as `empty`)
  */
-function graphvizArrow(raw: string): { readonly name: string; readonly side: "left" | "right" | null } | null {
+function graphvizArrows(raw: string): GraphvizArrowShape[] | null {
     let rest = raw.trim().toLowerCase();
     // the one synonym the grammar would misread (as `inv`): arrows.c's `invempty` is an open `inv`
     if (rest === "invempty") {
         rest = "oinv";
     }
-    while (rest.length > 0) {
+    const shapes: GraphvizArrowShape[] = [];
+    // arrows.c reads at most NUMB_OF_ARROWHEADS (4) shapes, a `none` among them, and ignores the rest
+    for (let slot = 0; rest.length > 0 && slot < 4; slot++) {
         const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
         if (m === null) {
-            return null;
+            return shapes.length === 0 ? null : shapes;
         }
         rest = rest.slice(m[0].length);
         const [, mods, shape] = m;
         if (shape !== "none") {
             const side = ARROW_SIDES.find((s) => mods.includes(s[0])) ?? null;
             const open = mods.includes("o") && GRAPHVIZ_OPEN_ARROWS.has(shape) ? "o" : "";
-            return { name: open + shape, side };
+            shapes.push({ name: open + shape, side });
         }
     }
-    return null;
+    return shapes.length === 0 ? null : shapes;
 }
 
 /**

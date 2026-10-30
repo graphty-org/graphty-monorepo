@@ -2,9 +2,13 @@
 // Local collector for the pipeline health dashboard (design/ci/health-dashboard.md, issue #3602).
 //
 // Posts this machine's test runs to the health API, each record once:
+//   tmp/waits.jsonl (test-slot-held, gpu-slot-held: every local test run, tools/test-slots.mjs)
+//                                             -> POST <HEALTH_API_URL>/v1/local/push-runs
+//   tmp/waits.jsonl (test-slot, gpu-slot)     -> POST <HEALTH_API_URL>/v1/local/waits
 //   tmp/test-ledger/records/<date>/*.json.gz  -> POST <HEALTH_API_URL>/v1/local/invocations
 //   tmp/push-log.jsonl (push gate runs)       -> POST <HEALTH_API_URL>/v1/local/push-runs
-//   tmp/waits.jsonl (test-slot, gpu-slot)     -> POST <HEALTH_API_URL>/v1/local/waits
+// The last two were written only by the retired pre-push gate (tools/prepush.sh), which still writes them
+// when someone runs it by hand.
 // Every body is { rows: [...] }, at most 200 rows and 1 MB. Every row has an id derived from its
 // content, so a retried post is harmless. Host paths, gate logs, cwd and session ids are never
 // posted.
@@ -102,6 +106,25 @@ export function mapPush(p) {
     if (p.queuedAt) row.queuedAt = Date.parse(p.queuedAt);
     if (p.startedAt) row.startedAt = Date.parse(p.startedAt);
     return row;
+}
+
+const HELD_KINDS = new Set(["test-slot-held", "gpu-slot-held"]);
+
+/**
+ * A test run's slot hold as a local run row: what ran (a package or shard family), when, and its exit code.
+ * A hold whose exit code is unknown says nothing about the run: not posted.
+ * @param w the wait log line
+ * @returns the push-run row, or null
+ */
+export function mapHeld(w) {
+    if (!HELD_KINDS.has(w.kind) || typeof w.exit !== "number" || typeof w.what !== "string") return null;
+    return {
+        id: `local.held.${w.kind}.${w.start}.${w.pid}`,
+        at: Date.parse(w.end),
+        startedAt: Date.parse(w.start),
+        exit: w.exit,
+        what: w.what,
+    };
 }
 
 /**
@@ -244,7 +267,8 @@ function jsonlItems(root, rel, key, map) {
 }
 
 /**
- * The three local sources, each with its route kind and a reader of what is new past a cursor.
+ * The local sources, each with its name, the route it posts to (default: its name) and a reader of what is new
+ * past a cursor.
  * @param root the checkout whose tmp/ is read
  * @returns the sources
  */
@@ -253,6 +277,8 @@ export function sources(root) {
         { kind: "invocations", items: (c) => ledgerItems(root, c) },
         { kind: "push-runs", items: jsonlItems(root, "tmp/push-log.jsonl", "pushOffset", mapPush) },
         { kind: "waits", items: jsonlItems(root, "tmp/waits.jsonl", "waitsOffset", mapWait) },
+        // Posted as local runs (the push-runs route), counted under their own name.
+        { kind: "held", route: "push-runs", items: jsonlItems(root, "tmp/waits.jsonl", "heldOffset", mapHeld) },
     ];
 }
 
@@ -274,7 +300,7 @@ export async function collect({
 }) {
     let cursor = readCursor(cursorFile);
     const counts = {};
-    for (const { kind, items: list } of sources(root)) {
+    for (const { kind, route = kind, items: list } of sources(root)) {
         const items = list(cursor);
         const ready = items.flatMap((i) => {
             const row = i.row && fit(i.row);
@@ -291,7 +317,7 @@ export async function collect({
         // row is logged and skipped, so one bad row never blocks its source. Any other failure stops here,
         // so an outage (ingest answers 500 for DynamoDB throttling, SSM, a deny action) never skips rows.
         const send = async (body) => {
-            const r = await post(kind, { rows: body.map((i) => i.row) });
+            const r = await post(route, { rows: body.map((i) => i.row) });
             if (r === true) {
                 counts[kind].posted += body.length;
                 save(body.at(-1));
@@ -299,7 +325,7 @@ export async function collect({
             }
             if (r !== "refused") return false;
             if (body.length === 1) {
-                log(`POST /v1/local/${kind}: row ${body[0].row.id} refused, skipped`);
+                log(`POST /v1/local/${route}: row ${body[0].row.id} refused, skipped`);
                 save(body[0]);
                 return true;
             }

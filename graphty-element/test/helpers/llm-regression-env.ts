@@ -8,6 +8,7 @@
  * - `LLM_REGRESSION_PROVIDER`: openai, anthropic or google (default google, as the release job runs)
  * - the provider's key: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` or `GOOGLE_API_KEY`
  * - `LLM_REGRESSION_MODEL`: overrides the provider's default model
+ * - `LLM_REGRESSION_GEMINI_TIER`: standard (default) or flex, the Gemini service tier (test/helpers/llm-regression-gemini.ts)
  *
  * None has the `VITE_` prefix: Vite copies every `VITE_` variable of the environment onto
  * `import.meta.env`, so a key named that way is one reference away from a browser bundle (the
@@ -119,4 +120,19 @@ export function getLlmRegressionCaseTimeoutMs(): number {
  */
 export function getLlmRegressionModel(): string {
     return readEnv("LLM_REGRESSION_MODEL") ?? DEFAULT_MODELS[getLlmRegressionProvider()];
+}
+
+/**
+ * The Gemini service tier the tests ask for: Standard, unless the variable says flex. Flex is half the price but
+ * queues each call for 20 to over 120 s (2026-10-29), which outlasts the case and job limits (#4579).
+ * @returns flex or standard
+ * @throws Error when LLM_REGRESSION_GEMINI_TIER names another tier
+ */
+export function getLlmRegressionGeminiTier(): "flex" | "standard" {
+    const tier = readEnv("LLM_REGRESSION_GEMINI_TIER") ?? "standard";
+    if (tier !== "flex" && tier !== "standard") {
+        throw new Error(`LLM_REGRESSION_GEMINI_TIER must be flex or standard, not "${tier}"`);
+    }
+
+    return tier;
 }

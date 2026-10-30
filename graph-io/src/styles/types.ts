@@ -508,6 +508,14 @@ export interface NodeStyleValues {
     readonly chartHorizontal: boolean;
     /** The size of the chart's plot box, as a fraction of the node's; unset, 1. */
     readonly chartSize: number;
+    /** The width of the chart's plot box, as a fraction of the node's width; unset, `chartSize`. */
+    readonly chartWidth: number;
+    /** The height of the chart's plot box, as a fraction of the node's height; unset, `chartSize`. */
+    readonly chartHeight: number;
+    /** How far right of the node's middle the plot box's middle is (a length); unset, 0. */
+    readonly chartOffsetX: number;
+    /** How far down from the node's middle the plot box's middle is (a length); unset, 0. */
+    readonly chartOffsetY: number;
     /** How much of the category side is left empty at each end, as a fraction of it; unset, 0. */
     readonly chartMargin: number;
     /** How much of the category side is left between the categories in all, as a fraction of it; unset, 0. */
@@ -650,6 +658,15 @@ export interface EdgeStyleValues {
     readonly sourceArrowSide: StyleArrowSide;
     /** The side of its line the target arrowhead is drawn on alone, as `sourceArrowSide` says. */
     readonly targetArrowSide: StyleArrowSide;
+    /**
+     * More arrowheads drawn in a row behind the source arrowhead, nearest first, each from where the one before it
+     * ends, the line stopping at the last (Graphviz's `boxdotnormal`, `lteeoldiamond`): arrow shapes separated by
+     * spaces, each optionally followed by `:left` or `:right` for the side it keeps alone (`circle triangle`,
+     * `diamond-open:left`). Unset, the arrowhead alone.
+     */
+    readonly sourceArrowParts: string;
+    /** More arrowheads drawn in a row behind the target arrowhead, as `sourceArrowParts` says. */
+    readonly targetArrowParts: string;
     /**
      * Where along the line each arrowhead is drawn, as a fraction of the line measured from the arrow's own end: 0 (the
      * default) at the end, 0.5 at the middle, at most 1.

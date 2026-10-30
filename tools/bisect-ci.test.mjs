@@ -10,6 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
+import { parse as parseYaml } from "yaml";
+
 import {
     judge,
     laneFiles,
@@ -269,6 +271,75 @@ describe("bisect.yml", () => {
             3,
             "every lane call passes it",
         );
+    });
+});
+
+describe("a lane point runs with its own workflow files", () => {
+    const read = (f) => readFileSync(new URL(`../.github/workflows/${f}`, import.meta.url), "utf8");
+    const bisect = parseYaml(read("bisect.yml")).jobs;
+    const LANE_FILES = { gpu: "gpu.yml", hosts: "hosts.yml", macos: "work-protection-macos.yml" };
+
+    it("every lane workflow can be dispatched as a bisect point, as own_lane's check reads it", () => {
+        for (const f of Object.values(LANE_FILES)) {
+            const inputs = parseYaml(read(f)).on.workflow_dispatch?.inputs ?? {};
+            assert.ok(inputs.bisect_point && inputs.files, f);
+        }
+    });
+
+    it("calls the lane in place only when the point could not be handed off, and judges by the handed-off run", () => {
+        for (const lane of Object.keys(LANE_FILES)) {
+            assert.deepEqual(bisect[lane].needs, ["plan", "own_lane"], lane);
+            assert.match(bisect[lane].if, /!cancelled\(\) .*needs\.own_lane\.outputs\.own != 'true'/, lane);
+        }
+        assert.ok(bisect.judge.needs.includes("own_lane"));
+        const status = bisect.judge.steps.find((s) => s.env?.STATUS).env.STATUS;
+        assert.match(status, /needs\.own_lane\.outputs\.own == 'true' && needs\.own_lane\.outputs\.result \|\|/);
+        assert.equal(bisect.own_lane.environment, "release");
+    });
+
+    // the dispatch step's script, with git, gh and yq stubbed: each logs its arguments
+    const dispatch = (pointKnows) => {
+        const dir = mkdtempSync(join(tmpdir(), "bisect-own-lane-"));
+        const stub = (name, body) =>
+            writeFileSync(join(dir, name), `#!/bin/bash\necho "${name} $*" >> "${dir}/calls"\n${body}\n`, {
+                mode: 0o755,
+            });
+        stub("git", pointKnows ? 'if [ "$1" = show ]; then echo "    workflow_dispatch:"; fi' : "");
+        stub("gh", "");
+        stub("yq", pointKnows ? "cat > /dev/null; echo true" : "cat > /dev/null; echo false");
+        writeFileSync(join(dir, "out"), "");
+        const step = bisect.own_lane.steps.find((s) => s.id === "dispatch");
+        execFileSync("bash", ["-c", step.run], {
+            env: {
+                PATH: `${dir}:${process.env.PATH}`,
+                SHA: "a".repeat(40),
+                BAD: "b".repeat(40),
+                FILES: "x.test.ts y.test.ts",
+                WF: "gpu.yml",
+                GITHUB_SHA: "c".repeat(40),
+                GITHUB_OUTPUT: join(dir, "out"),
+            },
+            stdio: "pipe",
+        });
+        const res = { calls: readFileSync(join(dir, "calls"), "utf8"), out: readFileSync(join(dir, "out"), "utf8") };
+        rmSync(dir, { recursive: true, force: true });
+        return res;
+    };
+
+    it("moves bisect/<red>-<point> to the point and dispatches its lane workflow there with the point's files", () => {
+        const { calls, out } = dispatch(true);
+        assert.match(calls, /git push --no-verify --force origin a{40}:refs\/heads\/bisect\/b{12}-a{12}\n/);
+        assert.match(
+            calls,
+            /gh workflow run gpu\.yml --ref bisect\/b{12}-a{12} -f files=x\.test\.ts y\.test\.ts -f bisect_point=b{40}-a{40}\n/,
+        );
+        assert.match(out, /^own=true\nbranch=bisect\/b{12}-a{12}\nsince=/);
+    });
+
+    it("leaves a point from before the hand-off to be called in place, pushing and dispatching nothing", () => {
+        const { calls, out } = dispatch(false);
+        assert.doesNotMatch(calls, /git push|gh workflow/);
+        assert.equal(out, "");
     });
 });
 

@@ -1,3 +1,4 @@
+tools/acceptance.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs
@@ -11,10 +12,10 @@ tools/channel/recapture.test.mjs
 tools/channel/rehearse.test.mjs
 tools/channel/resume.test.mjs
 tools/channel/site-deploy.test.mjs
+tools/channel/story-slices.test.mjs
 tools/check-committed-images.test.mjs
 tools/check-features.test.mjs
 tools/check-figma-lock.test.mjs
-tools/check-owned-closure.test.mjs
 tools/check-quick.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs

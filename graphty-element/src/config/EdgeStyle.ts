@@ -79,6 +79,16 @@ const ArrowStyle = z.strictObject({
      */
     gap: z.number().nonnegative().optional(),
     /**
+     * More caps drawn in a row behind this one, as Graphviz draws `boxdotnormal` and `lteeoldiamond`: cap types
+     * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
+     * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
+     * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
+     * `width`): `"dot normal"`, `"open-diamond:left*1.2x0.7"`. A word that is not a cap type draws nothing. Unset,
+     * this cap alone. At most 8 are drawn; later ones are left out. A cap drawn part-way along (`position`) draws its
+     * row there too.
+     */
+    stack: z.string().optional(),
+    /**
      * The colour to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
@@ -107,7 +117,7 @@ const ArrowStyle = z.strictObject({
 });
 
 /** A cap drawn part-way along the line: an end cap's settings, with no caption. */
-const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true });
+const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true, stack: true });
 
 /**
  * Every line pattern the edge renderer can draw, in schema order.
@@ -322,8 +332,9 @@ const LineStyle = z.strictObject({
     route: z.enum(["straight", "arc", "great-circle"]).optional(),
     /**
      * How high a raised route (`route` "arc" or "great-circle") rises at its middle, as a share of
-     * the distance between its ends along the map or the globe. Unset, 0.25 for an arc and 0.1 for a
-     * great circle; 0 draws it flat.
+     * the straight distance between its ends (across the map for an arc). Unset, 0.25 for an arc
+     * and 0.1 for a great circle, which then rises at most a fifth of the globe's radius; 0 draws it
+     * flat.
      */
     arcHeight: z.number().nonnegative().optional(),
     /**

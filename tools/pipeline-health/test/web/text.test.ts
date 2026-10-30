@@ -237,16 +237,70 @@ describe("page state", () => {
         expect(html).toContain('<div class="row"');
         expect(html).toContain('href="#/releases/lanes?range=1h"');
     });
+
+    it("puts the rows not judged now under a divider, after every judged row", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "releases", range: "1h", q: new URLSearchParams() });
+        const html = pageView(
+            page([
+                member({ id: "releases.review_lag", state: "few", n: 0, minN: 3 }),
+                member({ id: "releases.lanes_red", window: "now", state: "ok", link: "/releases/lanes" }),
+            ]),
+        );
+        const divider = html.indexOf('class="rowsep"');
+        expect(divider).toBeGreaterThan(html.indexOf("Red lanes on the candidate"));
+        expect(divider).toBeLessThan(html.indexOf("Screenshot review time"));
+        expect(pageView(page([member({ state: "ok" })]))).not.toContain("rowsep");
+    });
+
+    it("says at 6 h and 24 h that the state column is judged on the last hour", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "releases", range: "24h", q: new URLSearchParams() });
+        expect(pageView(page([member({ state: "ok" })]))).toContain("<span>state now (rates: last 1 h)</span>");
+        setHere({ page: "releases", range: "1h", q: new URLSearchParams() });
+        expect(pageView(page([member({ state: "ok" })]))).toContain("<span>state</span>");
+    });
+
+    it("gives a yellow word value its yellow meaning, not its red one", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "flaky", range: "1h", q: new URLSearchParams() });
+        const stress = member({
+            id: "data-sources.stress_run",
+            window: "now",
+            state: "warn",
+            value: { word: "quiet" },
+            link: "/flaky/stress",
+        });
+        const html = pageView({
+            ...(page([stress]) as object),
+            page: "flaky",
+            state: "warn",
+            setBy: { member: "data-sources.stress_run", state: "warn", value: { word: "quiet" } },
+        } as never);
+        const sentence = html.split('<div class="rows">')[0];
+        expect(sentence).toContain("found nothing 3 weeks running. It found nothing 3 weeks running");
+        expect(sentence).not.toContain("issue filing failed");
+    });
 });
 
 describe("fmtSpan", () => {
     it("dates both ends when either is not today, and marks a start cut by the 24 h window", async () => {
-        const { clock, fmtSpan } = await import("../../web/src/text.js");
+        const { clock, fmtSpan: html } = await import("../../web/src/text.js");
+        const fmtSpan = (...a: Parameters<typeof html>) => html(...a).replace(/<[^>]+>/g, "");
         clock.generated = "2026-10-30T10:00:00Z";
         expect(fmtSpan("2026-10-30T08:00:00Z", null)).toBe("08:00 - now");
         expect(fmtSpan("2026-10-29T22:10:00Z", "2026-10-30T01:05:00Z")).toBe("10-29 22:10 - 10-30 01:05");
         expect(fmtSpan("2026-10-29T10:02:00Z", null, { edge: true })).toBe("before 10-29 10:02 - now");
         expect(fmtSpan("2026-10-30T08:00:00Z", null, { startUnknown: true })).toBe("before 10-30 08:00 - now");
+        clock.generated = "";
+    });
+
+    it("keeps each end on one line, so a narrow column never breaks inside a date", async () => {
+        const { clock, fmtSpan } = await import("../../web/src/text.js");
+        clock.generated = "2026-10-30T10:00:00Z";
+        expect(fmtSpan("2026-10-29T22:10:00Z", "2026-10-30T01:05:00Z")).toBe(
+            '<span class="nw">10-29 22:10</span> - <span class="nw">10-30 01:05</span>',
+        );
         clock.generated = "";
     });
 });
@@ -357,6 +411,32 @@ describe("last 24 hours", () => {
         expect(html).toContain("3 more ongoing");
         expect(html).toContain("1 more cleared");
     });
+
+    it("calls an open episode whose member is not judged now neither ongoing nor cleared, and lists cleared ones newest first", async () => {
+        const { overviewView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        const ep = (id: string, end: string | null, notJudgedNow?: boolean) => ({
+            id,
+            category: "pull-requests",
+            member: "pull-requests.merge_ratio",
+            worst: "warn",
+            start: "2026-10-25T20:00:00Z",
+            end,
+            ...(notJudgedNow ? { notJudgedNow } : {}),
+            fact: { code: "ep.past_threshold", params: { member: id } },
+            link: "/pull-requests",
+        });
+        const html = overviewView({
+            generated: "2026-10-25T23:30:00Z",
+            range: "1h",
+            categories: [],
+            episodes: [ep("old", "2026-10-25T20:30:00Z"), ep("paused", null, true), ep("new", "2026-10-25T23:00:00Z")],
+        } as never);
+        expect(html).toContain("not judged now");
+        expect(html).not.toContain(">ongoing<");
+        expect(html.indexOf("paused out of target")).toBeLessThan(html.indexOf("new out of target"));
+        expect(html.indexOf("new out of target")).toBeLessThan(html.indexOf("old out of target"));
+    });
 });
 
 describe("tables", () => {
@@ -418,6 +498,31 @@ describe("tables", () => {
         expect(html).not.toContain(">new<");
         expect(html).toContain("2 of 3 have the 13 runs detection needs");
     });
+
+    it("draw no header and no fold when nothing can be listed", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "ci", range: "1h", q: new URLSearchParams() });
+        const html = pageView({
+            page: "ci",
+            range: "1h",
+            generated: "2026-10-25T23:30:00Z",
+            state: "ok",
+            others: [],
+            notes: [],
+            members: [],
+            sections: [
+                {
+                    kind: "table",
+                    id: "benchmarks",
+                    rows: [{ cells: { benchmark: { t: "name", v: "new" } } }],
+                },
+            ],
+        } as never);
+        expect(html).toContain("No benchmark regressed.");
+        expect(html).toContain("0 more within 1.2x; 1 with fewer than 13 runs");
+        expect(html).not.toContain("<details");
+        expect(html).not.toContain('class="tbl t-bench');
+    });
 });
 
 describe("the overview's most urgent line", () => {
@@ -437,6 +542,24 @@ describe("the overview's most urgent line", () => {
         expect(html).toContain("Also not OK: Costs (WARNING).");
         expect(html).not.toContain("Master");
         expect(urgent([cat("master", "ok")])).toContain("Nothing needs action");
+    });
+
+    it("names every member of the top category past a line, not only the worst", async () => {
+        const { urgent, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        const html = urgent([
+            {
+                id: "costs",
+                state: "bad",
+                setBy: { member: "costs.llm", state: "bad", value: { n: 95, unit: "usd" } },
+                others: [
+                    { member: "costs.t4", state: "bad", value: { n: 233, unit: "usd" } },
+                    { member: "costs.spend", state: "warn", value: { n: 342, unit: "usd" } },
+                ],
+            } as never,
+        ]);
+        expect(html).toContain("also T4 GPU 233 USD and spend 342 USD.");
+        expect(html).toContain("already over its limit");
     });
 });
 
@@ -468,5 +591,22 @@ describe("range notes", () => {
         const { budgetBar } = await import("../../web/src/charts.js");
         const row = { shard: "s", runs: 9, minRuns: 5, medianS: 900, p90S: 1000, budgetS: 600 } as never;
         expect(budgetBar(row, 1200).note).toBe("median over budget 10 min");
+    });
+});
+
+describe("a test's history", () => {
+    it("never claims no issue tracks a test, since it does not look issues up", async () => {
+        const { testView } = await import("../../web/src/render.js");
+        const html = testView({
+            generated: "2026-10-25T23:30:00Z",
+            range: "7d",
+            file: "graphty/src/Fields.real-element.test.tsx",
+            test: "lists the label",
+            family: "graphty",
+            events: [],
+        } as never);
+        expect(html).not.toContain("No open issue tracks this test");
+        expect(html).toContain("issues?q=is%3Aissue+%22Fields.real-element.test.tsx%22");
+        expect(html).toContain("draft the issue");
     });
 });

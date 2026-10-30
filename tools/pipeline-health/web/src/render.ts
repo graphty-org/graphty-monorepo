@@ -26,6 +26,7 @@ import type {
     TreeSection,
 } from "./contract";
 import {
+    and,
     CATEGORY_NAME,
     CHANNEL,
     CHANNELS_HEAD,
@@ -296,9 +297,11 @@ function memberRow(m: Member): string {
           )
         : "";
     const val = m.state === "nodata" ? "--" : bigValue(m.value);
-    // What red means is on every row ("If red:"), and reads "Red:" in ink when the row is past a line.
-    const lead = breached(m) ? "Red: " : m.sla?.red ? "If red: " : "";
-    const red = t.red ? `<small class="redm${breached(m) ? " on" : ""}">${lead}${esc(t.red)}</small>` : "";
+    // What red means is on every row ("If red:"), and reads "Red:" in ink when the row is past its red line; a
+    // yellow row says what yellow means when that differs, then what red would mean.
+    const lead = m.state === "bad" ? "Red: " : m.sla?.red ? "If red: " : "";
+    const yellow = m.state === "warn" && t.yellow ? `Yellow now: ${esc(t.yellow)} ` : "";
+    const red = t.red ? `<small class="redm${breached(m) ? " on" : ""}">${yellow}${lead}${esc(t.red)}</small>` : "";
     const title = t.red ? ` title="${esc(`Red: ${t.red}`)}"` : "";
     // A row whose link is the page it is on goes nowhere, so it is no link and has no chevron; its own links work.
     const still = linksHere(m.link);
@@ -320,15 +323,26 @@ function rank(m: Member): number {
     return 4;
 }
 
+/**
+ * The member rows: the judged ones (past a line first), then, under a divider, the rows not judged now, which
+ * cannot set the page's color. At 6 h and 24 h the state column says it is the last hour's, since a value for the
+ * picked range can be past a line while the row is OK now.
+ */
 function memberRows(members: Member[]): string {
     if (!members.length) return "";
     const by = here.range === "24h" ? "24 h by hour" : "6 h by 15 min";
+    const state = here.range === "1h" ? "state" : "state now (rates: last 1 h)";
+    const sorted = [...members].sort((a, b) => rank(a) - rank(b));
+    const judged = sorted.filter((m) => rank(m) < 4);
+    const gray = sorted.filter((m) => rank(m) === 4);
+    const divider = gray.length
+        ? `<p class="rowsep">Not judged now: these rows show context and do not set the page's color.</p>`
+        : "";
     return (
-        `<div class="rows"><div class="thead rowh"><span>measure</span><span>value</span><span>target</span><span>${by}</span><span>state</span><span></span></div>` +
-        [...members]
-            .sort((a, b) => rank(a) - rank(b))
-            .map(memberRow)
-            .join("") +
+        `<div class="rows"><div class="thead rowh"><span>measure</span><span>value</span><span>target</span><span>${by}</span><span>${state}</span><span></span></div>` +
+        judged.map(memberRow).join("") +
+        divider +
+        gray.map(memberRow).join("") +
         `</div>`
     );
 }
@@ -364,13 +378,19 @@ function pageState(p: PageResponse): string {
             // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing", and
             // is followed by what that state means rather than a target phrase.
             const word = m.value !== null && "word" in m.value;
+            const meaning = p.setBy.state === "warn" && MEMBER[m.id].yellow ? MEMBER[m.id].yellow : MEMBER[m.id].red;
             parts.push(
                 word
-                    ? `${capital(MEMBER[m.id].short)}: ${fmtValue(m.value)}. ${esc(MEMBER[m.id].red)}`
+                    ? `${capital(MEMBER[m.id].short)}: ${fmtValue(m.value)}. ${esc(meaning)}`
                     : `${capital(MEMBER[m.id].short)} is ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`,
             );
         } else parts.push(`${capital(refText(p.setBy))}.`);
-    } else if (p.state === "ok") parts.push("Every judged member is within its target.");
+    } else if (p.state === "ok")
+        parts.push(
+            isPickerRange(p.range) && p.range !== "1h"
+                ? `Every judged member is within its target now; rates are judged on the last 1 h, while the values show the last ${rangeLabel(p.range)}.`
+                : "Every judged member is within its target.",
+        );
     const named = (state: MemberRef["state"]) =>
         p.others
             .filter((r) => r.state === state)
@@ -397,8 +417,10 @@ function budgetLine(sections: Section[]): string[] {
     const sofar = total?.sofar;
     const projected = total?.projected;
     if (sofar?.t !== "budget" || sofar.budget === null) return [];
-    const forecast = projected?.t === "num" ? `; month-end forecast ${fmtN(projected.n)} USD` : "";
-    return [`${fmtN(sofar.so)} USD of the ${fmtN(sofar.budget)} USD monthly budget spent${forecast}.`];
+    // Whole dollars, as the member's own value reads in the sentence before it ("342 USD projected").
+    const usd = (n: number) => fmtN(Math.round(n));
+    const forecast = projected?.t === "num" ? `; month-end forecast ${usd(projected.n)} USD` : "";
+    return [`${usd(sofar.so)} USD of the ${usd(sofar.budget)} USD monthly budget spent${forecast}.`];
 }
 
 // ---------------------------------------------------------------- sections
@@ -415,6 +437,8 @@ interface TableDef {
     noneNow?: string;
     /** Folded rows worth listing; the rest are only counted in the fold's words (benchmarks with too few runs). */
     listFolded?: (r: TableSection["rows"][number]) => boolean;
+    /** Column widths, in fr, once an empty column is dropped; unnamed columns take 1, the first 1.6. */
+    weights?: Record<string, number>;
 }
 
 const isMark = (c: Cell | undefined) => c?.t === "mark";
@@ -439,6 +463,8 @@ export const TABLES: Record<string, TableDef> = {
             ["issue", "issue and fix"],
         ],
         noneNow: "No shared failure now.",
+        // The suspects are merge titles: most of the width, so a row is not six lines of one narrow column.
+        weights: { check: 1, prs: 0.8, since: 0.9, suspects: 3, issue: 0.9 },
     },
     owner: {
         cls: "t-owner",
@@ -518,7 +544,7 @@ export const TABLES: Record<string, TableDef> = {
             ["attempt", "started"],
             ["candidate", "candidate"],
             ["lanes", "lanes"],
-            ["nightly", "nightly"],
+            ["nightly", "nightly: promoted, or why not"],
         ],
     },
     workflows: {
@@ -611,7 +637,7 @@ function table(s: TableSection): string {
     // Dropped columns: the rest share the width, the first a little more (style.css, .tbl.dropped).
     const dropped = cols.length < def.cols.length;
     const style = dropped
-        ? ` style="--cols: minmax(0, 1.6fr)${cols.length > 1 ? ` repeat(${cols.length - 1}, minmax(0, 1fr))` : ""}"`
+        ? ` style="--cols: ${cols.map(([k], i) => `minmax(0, ${def.weights?.[k] ?? (i === 0 ? 1.6 : 1)}fr)`).join(" ")}"`
         : "";
     const head = `<div class="thead">${cols.map(([, h]) => `<span>${esc(h)}</span>`).join("")}</div>`;
     // Each cell carries its column's name, which a phone shows beside it when the row stacks (style.css).
@@ -641,15 +667,21 @@ function table(s: TableSection): string {
     const endedNote = def.foldText || !shown.length || !ended ? "" : ` (${fmtN(ended)} ended or idle)`;
     // With no row open, the header goes inside the fold, over the rows it names.
     const headOpen = shown.length > 0 || totals.length > 0;
-    const fold = folded.length
-        ? `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${endedNote}${chev()}</summary>${headOpen ? "" : head}${(def.listFolded ? folded.filter(def.listFolded) : folded).map(row).join("")}</details>`
-        : "";
+    const listed = def.listFolded ? folded.filter(def.listFolded) : folded;
+    // A fold that would open onto nothing (benchmarks with too few runs are only counted) is a plain sentence.
+    const fold = !folded.length
+        ? ""
+        : listed.length
+          ? `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${endedNote}${chev()}</summary>${headOpen ? "" : head}${listed.map(row).join("")}</details>`
+          : `<p class="more">${capital(what)}.</p>`;
     // Nothing live: say so in words above the fold, so a table never reads as a header with no rows.
     const none =
         s.rows.length && !shown.length && !totals.length
             ? `<p class="empty">${esc(def.noneNow ?? (def.open ? "None past its line." : "None ongoing now."))}</p>`
             : "";
     const empty = s.rows.length ? "" : `<p class="empty">none in this range</p>`;
+    // No row to draw, open or folded: no header over nothing, only the sentences.
+    if (!headOpen && !listed.length) return `${none}${fold}${empty}`;
     return `${none}<div class="tbl ${def.cls}${dropped ? " dropped" : ""}" role="table"${style}>${headOpen ? head : ""}${shown.map(row).join("")}${totals.map(row).join("")}${fold}</div>${empty}`;
 }
 
@@ -868,7 +900,7 @@ function sectionHead(s: Section): string {
         case "by-workflow":
             return h(
                 "By workflow",
-                "only the money a workflow spends (T4 GPU, LLM tests), so it is less than the total: flat plans and AWS are not split by workflow; money and list-price value are never summed",
+                "only the money a workflow spends, so it is less than the total: a workflow's name alone is its T4 GPU jobs, and ', LLM step' is its LLM tests, so the two bars are separate money, never counted twice; flat plans and AWS are not split by workflow; money and list-price value are never summed",
             );
         case "stress":
             return h("Weekly stress run", subText);
@@ -978,7 +1010,8 @@ export function headline(m: Member, setBy?: MemberRef, driver?: Member): string 
         // No full row for it: its name and value, and where its target is.
         const t = MEMBER[setBy.member];
         const kv = setBy.value === null ? "--" : bigValue(setBy.value);
-        return `<a class="kpi set" href="${href(m.link)}"><span class="kn"><b class="knot">Set the color:</b> ${esc(t.name)}</span><span class="kv">${kv}</span><span class="kt">its target is on the page</span></a>`;
+        const page = CATEGORY_NAME[setBy.member.split(".")[0] as CategoryStatus["id"]] ?? "its";
+        return `<a class="kpi set" href="${href(m.link)}"><span class="kn"><b class="knot">Set the color:</b> ${esc(t.name)}</span><span class="kv">${kv}</span><span class="kt">${setBy.state === "bad" || setBy.state === "warn" ? `${STATE_WORD[setBy.state]}; ` : ""}target and red line on the ${esc(page)} page</span></a>`;
     }
     return measure(m, false);
 }
@@ -1003,7 +1036,7 @@ function measure(m: Member, set: boolean): string {
         );
     else if (m.window === "now" && m.spark && m.value && !("word" in m.value)) {
         const v = m.value.n;
-        if (m.spark.trend.every((x) => x === v)) kt.push(`${fmtN(v)} all of the last 6 h`);
+        if (m.spark.trend.every((x) => x === v)) kt.push(`unchanged for the last 6 h`);
         else if (m.id.startsWith("costs.")) kt.push("billing is daily");
     }
     kt.push(slaText(m.sla));
@@ -1019,10 +1052,12 @@ function measure(m: Member, set: boolean): string {
 
 function episode(e: Episode): string {
     const past = e.end !== null;
+    const span = fmtSpan(e.start, e.end, { edge: true, startUnknown: e.startUnknown });
+    const status = past ? `cleared ${fmtAgo(e.end as string)}` : e.notJudgedNow ? "not judged now" : "ongoing";
     return (
-        `<a class="ep${past ? " past" : ""}" href="${href(e.link)}"><span class="eb ${e.worst}"></span><span class="et">${fmtSpan(e.start, e.end, { edge: true, startUnknown: e.startUnknown })}</span>` +
+        `<a class="ep${past || e.notJudgedNow ? " past" : ""}" href="${href(e.link)}"><span class="eb ${e.worst}"></span><span class="et">${span}</span>` +
         `<span class="ec">${esc(CATEGORY_NAME[e.category])}</span><span class="ex">${unlinked(sentence(e.fact))}</span>` +
-        `<span class="en">${past ? `cleared ${fmtAgo(e.end as string)}` : "ongoing"}</span>${chev()}</a>`
+        `<span class="en">${status}</span>${chev()}</a>`
     );
 }
 
@@ -1061,7 +1096,8 @@ const prio = (id: CategoryStatus["id"]) => PRIORITY.indexOf(id);
 /** The legend of the status blocks; the long form is its tooltip. */
 const LEGEND =
     "OK: within target; WARNING (yellow): past target, look soon; FAILING (red): past the red line, act now; " +
-    "NO DATA (hatched): the source is not reporting.";
+    "NO DATA (hatched): the source is not reporting; IDLE (gray): nothing to judge. " +
+    "On a small chart a yellow or red dot or stretch is time past the target or the red line, the gray band the target, the hollow dot now.";
 
 const SEVERITY: Record<CategoryState, number> = { bad: 0, warn: 1, nodata: 2, ok: 3, idle: 4 };
 
@@ -1077,7 +1113,13 @@ export function urgent(categories: CategoryStatus[]): string {
         return `<p class="urgent ok"><b>Nothing needs action:</b> every category is within its targets.</p>`;
     const [top, ...rest] = bad;
     const by = top.setBy;
-    const what = by ? `${unlinked(refText(by))}. ${esc(MEMBER[by.member].red)}` : "";
+    // The other members of the same category past a line, so the line names every overrun, not only the worst.
+    const also = top.others
+        .filter((r) => r.state === "bad" || r.state === "warn")
+        .map((r) => unlinked(refText(r, true)));
+    const what = by
+        ? `${unlinked(refText(by))}${also.length ? `; also ${and(also)}` : ""}. ${esc(MEMBER[by.member].red)}`
+        : "";
     const others = rest.length
         ? ` Also not OK: ${rest.map((c) => `${esc(CATEGORY_NAME[c.id])} (${STATE_WORD[c.state]})`).join(", ")}.`
         : "";
@@ -1103,9 +1145,16 @@ export function overviewView(o: OverviewResponse): string {
         .map((c) => `<li class="col">${block(c)}${headline(c.headline, c.setBy, c.driver)}</li>`)
         .join("");
     const ongoing = o.episodes
-        .filter((e) => e.end === null)
+        .filter((e) => e.end === null && !e.notJudgedNow)
         .sort((a, b) => Number(a.worst !== "bad") - Number(b.worst !== "bad") || prio(a.category) - prio(b.category));
-    const cleared = o.episodes.filter((e) => e.end !== null);
+    // Open episodes whose member cannot be judged now come after the ongoing ones, then the cleared ones, the most
+    // recently cleared first.
+    const cleared = [
+        ...o.episodes.filter((e) => e.end === null && e.notJudgedNow),
+        ...o.episodes
+            .filter((e) => e.end !== null)
+            .sort((a, b) => Date.parse(b.end as string) - Date.parse(a.end as string)),
+    ];
     // Every ongoing red episode shows, then ongoing yellow ones up to the cap; cleared ones only once nothing ongoing
     // is folded, so a cleared row never sits above an ongoing one that is hidden.
     const reds = ongoing.filter((e) => e.worst === "bad").length;
@@ -1129,8 +1178,14 @@ export function overviewView(o: OverviewResponse): string {
         urgent(o.categories) +
         `<p class="kcap" title="${esc(long)}">${LEGEND} ${trend}</p>` +
         `<ol class="status" aria-label="Category status">${cols}</ol>` +
-        `<h2>Last 24 hours<span class="h2sub">every time an hourly or current measure went past its target, ongoing first; the bar is the worst it reached: red past the red line, yellow past the target</span></h2><div class="eps">${eps}</div>`
+        `<h2>Last 24 hours<span class="h2sub">every time an hourly or current measure went past its target: ongoing first (red, then yellow), then those not judged now, then cleared, the most recent first; the bar is the worst it reached: red past the red line, yellow past the target; 7- and 28-day measures are on their pages, not here</span></h2><div class="eps">${eps}</div>`
     );
+}
+
+/** GitHub's issue search for the test file's name, open and closed: the issues the flaky counter could match. */
+function issueSearch(h: TestHistoryResponse): string {
+    const file = h.file.split("/").pop() ?? h.file;
+    return `${REPO}/issues?${new URLSearchParams({ q: `is:issue "${file}"` }).toString()}`;
 }
 
 /** A new-issue link with the test's facts filled in; GitHub opens it as a draft the reader submits or drops. */
@@ -1179,7 +1234,7 @@ export function testView(h: TestHistoryResponse): string {
             true,
         ) +
         `<p class="pstate"><span>${esc(h.file)}, in the ${esc(h.family.split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
-        `<p class="note">${h.issue ? `Tracked by ${issueLink(h.issue)}.` : `No open issue tracks this test. <a class="ln" href="${esc(draftIssue(h))}" target="_blank" rel="noopener">Draft the issue on GitHub</a>`}</p>` +
+        `<p class="note">${h.issue ? `Tracked by ${issueLink(h.issue)}.` : `This page does not look up issues. <a class="ln" href="${esc(issueSearch(h))}" target="_blank" rel="noopener">Search GitHub for issues naming this file</a>; if none tracks it, <a class="ln" href="${esc(draftIssue(h))}" target="_blank" rel="noopener">draft the issue</a>. Flaky tests with no issue on the Flaky tests page counts a test as tracked while an issue naming it is open or was closed after its last flaky result.`}</p>` +
         `<div class="tbl t-hist" role="table"><div class="thead"><span>when</span><span>where</span><span>commit</span><span>result</span><span>message</span><span>run</span></div>${rows}</div>`
     );
 }

@@ -85,11 +85,13 @@ first cell as the card's title and every other cell as a "column: value" line, a
 put the name on its own line over the numbers. From the top: the title,
 the range picker (1 h, 6 h, 24 h; 1 h by default) and "updated 2 min ago, 23:30 UTC"; a muted legend
 of the state words ("OK: within target; WARNING (yellow): past target, look soon; FAILING (red):
-past the red line, act now; NO DATA (hatched): the source is not reporting") and what the small
+past the red line, act now; NO DATA (hatched): the source is not reporting; IDLE (gray): nothing to judge"),
+what a small chart's colored dots and stretches, gray band and hollow dot mean, and what the small
 chart shows, with the long explanation as its tooltip; one line naming the most urgent category
 ("Most urgent: Releases FAILING: full runs able to promote 0%. Below 25%: nightly rarely moves ...",
-the worst state first, then the blocks' order), the member that set it, what its red means and who
-acts, and the other categories not OK, so a reader does not assemble the story from the blocks, tiles
+the worst state first, then the blocks' order), the member that set it, the other members of that category
+past a line ("; also T4 GPU 233 USD and spend 342 USD"), what its red means and who acts, and the other
+categories not OK, so a reader does not assemble the story from the blocks, tiles
 and episodes, and "Nothing needs action" when all are OK; the seven category blocks, each with its
 headline measure under it; then "Last 24 hours", the list of episodes. The order follows Few ("a single screen read at a glance") and Google
 SRE ("symptoms first, causes second"): the blocks say whether anything is wrong and where, the
@@ -139,16 +141,18 @@ history" area. There are no end labels: the value is beside it.
 ### 2.4 Last 24 hours
 
 A list of episodes: each time an hourly or current member went past its target; its caption says the
-bar is the worst state reached, red past the red line, yellow past the target. Ongoing episodes first, red before
-yellow, then by the blocks' order. Every ongoing red episode shows, however many there are; ongoing
+bar is the worst state reached, red past the red line, yellow past the target, and the order the list is in.
+Ongoing episodes first, red before yellow, then by the blocks' order; then open episodes whose member cannot be
+judged now ("not judged now": too few samples or no data, so its row shows no state and cannot set its block's
+color); then cleared ones, the most recently cleared first. Every ongoing red episode shows, however many there are; ongoing
 yellow ones show up to five rows of ongoing in all; cleared ones fill the list up to six rows only when
 no ongoing episode is folded, so a cleared row never sits above a hidden ongoing one. The rest fold
 into "N more ongoing" and "N more cleared". Each row: a 4 px bar in the worst state the episode
 reached, its span ("20:01 - now", "19:48 - 20:20"; both ends dated when either is not today, and
 "before 10-29 14:40 - now" when the 24 h window cut its start or the engine cannot tell when it
-began), the category, one sentence naming the member, its worst value ("worst 39.5%", never "peak",
+began; each end stays on one line, so a narrow column breaks only between them), the category, one sentence naming the member, its worst value ("worst 39.5%", never "peak",
 which misreads for a measure where low is bad) and the cause when the
-collector knows it, "ongoing" or "cleared 2.3 h ago", and a chevron to the section where it is
+collector knows it, "ongoing", "not judged now" or "cleared 2.3 h ago", and a chevron to the section where it is
 acted on. Cleared rows are muted. This is how an incident that ended before the reader looked is
 still seen, and how a 1 h member that stays red for up to an hour after its cause ended says so.
 The list always covers 24 h, whatever the picker shows. A 7-day or 28-day measure has no episodes (it has
@@ -181,7 +185,13 @@ right above its evidence.
 Every category page has a breadcrumb, its title and range picker, its state word with one sentence
 naming the member that set it and the others not OK, one row per member (name and one-line
 definition with n for a rate; value with its window under it, "1 h; 6 h 24 min", "now" or "7 d";
-SLA; sparkline; state; chevron; an OK member carries an outlined, unfilled "OK"), then its sections. Sections follow the
+SLA; sparkline; state; chevron; an OK member carries an outlined, unfilled "OK"), then its sections. The judged
+rows come first, past a line first; the rows not judged now (too few samples, partial window, idle, not set up,
+for information) follow under a divider that says they do not set the page's color, so the rows that drive the
+status are never buried among context. At 6 h and 24 h the state column is headed "state now (rates: last 1 h)":
+the value covers the picked range, but the state is always the last hour's (3.1), so a 24 h value past a line
+beside an OK reads as what it is. A row's "If red" says what red means; a yellow row whose yellow means something
+other than "on the way to red" (the stress run's "found nothing 3 weeks running") says that first. Sections follow the
 picker: a table or count covers the picked window, a chart covers 6 h at 1 h and 6 h and 24 h at
 24 h. A section whose window holds too few events to say anything widens to 6 h and says so ("only
 2 merged in the last 1 h, so the last 6 h").
@@ -216,7 +226,10 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
 - **Flaky tests**: Hotspots (section 5, a slow measure with its own 7 d / 28 d choice); Quarantine,
   which states that no entries exist; the weekly stress run's history. A test's history page names its
   test group, says where each result ran (a pull request, a full run, locally), and links the issue
-  that tracks the test or, when none does, a GitHub new-issue draft filled with the test's facts.
+  that tracks the test. The history route does not look issues up, so without one the page never says no
+  issue tracks the test: it links GitHub's issue search for the file's name and a new-issue draft filled with
+  the test's facts, and says what "Flaky tests with no issue" counts as tracked (an issue naming the test that
+  is open, or closed after its last flaky result).
 - **Releases**: the lanes of the newest tested candidate; train attempts, including those that
   skipped every lane; release workflows; the channels once they exist.
 - **Costs**: section 7. **Data sources**: one row per source (last
@@ -370,7 +383,7 @@ plain phrase ("a lane red 6 h or more", "any source past twice its age limit"); 
 reads "no target (shown for information)". Rows are listed FAILING, WARNING, NO DATA, OK, then the
 gray ones, in config order within each. A row whose link is the page it is
 on has no chevron and is not a link. The words live in `web/src/text.ts` (`MEMBER`: name, definition
-and red line per member).
+and red line per member, and a yellow meaning where it differs).
 
 **How a table reads.** A column no row fills is left out; an empty cell reads "--". Ended or idle rows,
 and rows past a table's cap (10 unless the table sets its own), fold into "N more (M ended or idle)";
@@ -378,7 +391,10 @@ a total row always shows. A table with no ongoing row says so in words above its
 failure now.", "None ongoing now.") and keeps its header inside the fold, over the rows it names, so it
 never reads as a header with no rows. Benchmarks show only the regressed ones; the rest fold into "N
 more: M within 1.2x, K with fewer than 13 runs, not judged yet", and the heading says how many have the
-13 runs detection needs. A list in a cell shows three items and "+N more". Sorted bars show eight and
+13 runs detection needs. A fold that would open onto nothing (every folded benchmark has too few runs) is a
+plain sentence, and a table with no row to draw, open or folded, draws no header. When a table drops an empty
+column the rest share the width by the table's own weights (Shared failures gives its suspect merges most of
+it). A list in a cell shows three items and "+N more". Sorted bars show eight and
 fold the rest.
 
 **How a page's state reads.** After the chip, the sentence names the member that set the state, then
@@ -585,7 +601,10 @@ attempt whether it moved nightly: "promoted", "held: screenshots to review, or a
 or "not promoted". Its time column is when the run started; a channel tile's dot is titled with when the
 same run finished ("finished 15:22: promoted"), so the two never read as different runs. A channel
 tile's color is its newest finished attempt: OK promoted, WARNING passed but not promoted, FAILING
-failed, NO DATA none recorded; the tiles' caption says so.
+failed, NO DATA none recorded; the tiles' caption says so, and that the tiles do not set the Releases block,
+whose color comes from the Releases rows (nightly promotions per day among them), so a yellow tile over a
+block of another color is not read as a contradiction. The Train attempts column that says whether a run moved nightly is headed
+"nightly: promoted, or why not".
 
 "PR screenshot approvals waiting" counts only pull requests carrying a pending "Visual review" status
 (the owner's approval pull requests); changed pictures that hold nightly are "Full runs held for

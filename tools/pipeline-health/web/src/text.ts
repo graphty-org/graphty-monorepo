@@ -131,7 +131,9 @@ export function fmtSpan(start: Iso, end: Iso | null, o: { edge?: boolean; startU
     const dated = day(start) !== day(gen) || (end !== null && day(end) !== day(gen));
     const t = (at: Iso) => (dated ? fmtDated(at) : fmtTime(at));
     const clipped = o.startUnknown || (o.edge && Math.abs(Date.parse(start) - (gen - 24 * 3600_000)) <= 5 * 60_000);
-    return `${clipped ? `before ${fmtDated(start)}` : t(start)} - ${end ? t(end) : "now"}`;
+    // Each end stays on one line (style.css .nw), so a narrow column breaks only between the two.
+    const nw = (x: string) => `<span class="nw">${x}</span>`;
+    return `${nw(clipped ? `before ${fmtDated(start)}` : t(start))} - ${nw(end ? t(end) : "now")}`;
 }
 
 /** "20 s", "44 min", "1.9 h", "8 d". */
@@ -247,8 +249,8 @@ export function stateChip(
         case "idle":
             return `<span class="sw low">nothing ran</span>`;
         case "slow":
-            // Sent only by an API built before 7- and 28-day members were judged.
-            return `<span class="sw low">${dayMeasure(m.window ?? "7d")}</span>`;
+            // Sent only by an API built before 7- and 28-day members were judged: it never sets the color.
+            return `<span class="sw low">${dayMeasure(m.window ?? "7d")}, not judged</span>`;
         case "notsetup":
             return `<span class="sw low">not set up</span>`;
     }
@@ -259,7 +261,7 @@ export function stateChip(
 /** The overview's release channel tiles: the heading, each channel's name and how its attempts read. */
 export const CHANNELS_HEAD = "Releases";
 export const CHANNELS_SUB =
-    "what each channel serves; each dot a release attempt, oldest to newest; the color is the newest finished attempt: OK promoted, WARNING passed but not promoted (pictures wait for review), FAILING failed, NO DATA none recorded yet";
+    "what each channel serves; each dot a release attempt, oldest to newest; the color is the newest finished attempt: OK promoted, WARNING passed but not promoted (pictures wait for review), FAILING failed, NO DATA none recorded yet. These tiles do not set the Releases block below: its color comes from the rows on the Releases page, such as nightly promotions per day";
 
 export const CHANNEL: Record<ChannelId, { name: string; ok: string; none: string }> = {
     canary: { name: "Canary", ok: "deployed", none: "no deploys recorded" },
@@ -311,6 +313,8 @@ interface MemberText {
     def: string;
     /** What a red row means and where to look; empty for a member with no red line. */
     red: string;
+    /** What a yellow row means, when it is not simply "on the way to red" (the stress run's "found nothing"). */
+    yellow?: string;
     /** What n counts ("jobs"). */
     nOf?: string;
     /** The headline's name under a status block, when it differs. */
@@ -333,15 +337,15 @@ export const MEMBER: Record<MemberId, MemberText> = {
         red: "Master was red for more than a quarter of the last hour. See Red spans below.",
     },
     "master.same_check": {
-        name: "Checks failing in several PRs",
-        short: "checks failing in several PRs",
-        def: "The most open PRs failing one check (or one test group) right now. Several PRs failing one check usually means master broke it, not the PRs.",
+        name: "Most PRs failing one check",
+        short: "most PRs failing one check",
+        def: "The largest number of open PRs failing the same check (or test group) right now; 1 or 0 means no failure is shared. Several PRs failing one check usually means master broke it, not the PRs. On the overview, 'worst' is the highest count reached.",
         red: "3 or more PRs fail the same check: fix it on master first. See the ongoing rows of Shared failures below.",
     },
     "master.full_run_verdict": {
         name: "Latest full test run",
         short: "latest full test run",
-        def: "Whether every test shard (the CI lane) passed in the newest full run, which tests master every 6 hours. Passed here means master's tests are green; nightly can still wait on other lanes or on screenshot review (see Releases).",
+        def: "Passed or failed: whether every test shard (the CI lane) passed in the newest full run, which tests master every 6 hours. Passed here means master's tests are green; nightly can still wait on other lanes or on screenshot review (see Releases).",
         red: "The newest full run's tests failed on master, so nothing promotes to nightly until agents fix or revert the change its bisect names. See Releases > Lanes on the candidate.",
     },
     "master.untested_age": {
@@ -354,7 +358,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Reverted merges",
         short: "reverted merges",
         def: "Share of merges into master in the last 7 days that a later merge reverted, in %.",
-        red: "Over 10%: changes land broken, so reviews and PR tests miss real failures. It turns Master red like any other row. See Master builds.",
+        red: "Over 10%: changes land broken, so reviews and PR tests miss real failures. Judged on 7 days, it sets Master's color like any other row once its state shows. See Master builds.",
     },
     "pull-requests.time_to_merge": {
         name: "Time to merge",
@@ -373,7 +377,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Oldest open PR",
         short: "oldest open PR",
         def: "Age in hours of the oldest open PR not waiting on the owner.",
-        red: "Over 72 h: that PR is stuck. It is named in this row; its author fixes or closes it.",
+        red: "Over 72 h: that PR is stuck; its author fixes or closes it. The PR's number is linked under the row's description whenever the collector knows it.",
     },
     "pull-requests.merge_ratio": {
         name: "Merged per opened",
@@ -404,8 +408,8 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "pull-requests.screenshot_backlog": {
         name: "PR screenshot approvals waiting",
         short: "PR screenshot approvals waiting",
-        def: "Hours the oldest open pull request has waited on its 'Visual review' status, which only the owner's approval pull requests carry. Changed pictures that hold nightly back are counted on Releases, Full runs held for screenshot review, not here.",
-        red: "Over 72 h: an approval pull request waits on the owner, so nightly waits too. The owner finishes it on the review page.",
+        def: "Hours the oldest open screenshot-approval pull request has waited for the owner. Only the owner's approval pull requests (their 'Visual review' status) count, so 0 means none is open. Full runs held because pictures changed are a different measure, on Releases.",
+        red: "Over 72 h: an approval pull request has waited 3 days on the owner, so nightly waits too. The owner finishes it on the review page.",
     },
     "ci.runner_wait": {
         name: "Runner wait (p90)",
@@ -418,13 +422,13 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.longest_queued": {
         name: "Longest queued now",
         short: "longest queued now",
-        def: "Minutes the oldest job still waiting for a runner has waited.",
+        def: "Minutes the oldest job still waiting for a runner has waited, read now.",
         red: "Over 15 min: a job is stuck in the queue. See CI > Runners.",
     },
     "ci.saturated": {
         name: "Minutes at capacity",
         short: "minutes at capacity",
-        def: "Minutes in the last hour the organization ran within 3 jobs of its concurrent-job limit (see Runners) while other jobs queued.",
+        def: "Minutes in the last hour the organization ran within 3 jobs of its concurrent-job limit (500 jobs on Linux and Windows, 50 on macOS) while other jobs queued.",
         red: "15 min or more: CI is full. See CI > Runners.",
     },
     "ci.not_assigned": {
@@ -456,7 +460,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.bins_over": {
         name: "PR test groups over 8 min",
         short: "PR test groups over 8 min",
-        def: "Share of a pull request's test groups that ran longer than 8 min in the last hour, in %. CI splits each PR's tests into groups meant to finish within 8 min. Shard times below, pull request bins, shows the same groups over 7 days.",
+        def: "Share of a pull request's test groups that ran longer than 8 min in the last hour, in %. CI splits each PR's tests into groups meant to finish within 8 min. Shard times below, pull request bins, shows the same groups over 7 days, so it can list groups over budget while this hour has few.",
         red: "Over 25%: the way PR tests are split into groups needs rebalancing, so PRs wait on their slowest group. See Shard times, pull request bins.",
         nOf: "bins",
     },
@@ -543,7 +547,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "flaky.no_issue": {
         name: "Flaky tests with no issue",
         short: "flaky tests with no issue",
-        def: "Tests seen flaky in CI in the last 7 days that have no open issue, read now. Each test's page in Hotspots links its issue or drafts one.",
+        def: "Tests CI proved flaky (failed, then passed on its retry) in the last 7 days with no issue naming them, read now. A test counts as tracked while an issue naming it is open, or once one closed after its last flaky result; a test that only failed is not counted. Each test's page in Hotspots searches its issues or drafts one.",
         red: "3 or more: flakes go untracked. Open the test from Hotspots below; its page drafts the issue on GitHub.",
     },
     "flaky.flake_rate": {
@@ -569,7 +573,8 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Weekly stress run",
         short: "weekly stress run",
         def: "The newest weekly run of every test shard under half the runner's CPU, which files an issue per test that fails under load. Its value is what the newest run did: passed, failed, or found nothing 3 weeks running.",
-        red: "The weekly run or its issue filing failed, so tests that fail under load go untracked; agents fix the stress workflow. Yellow means it found nothing 3 weeks running, so it may no longer limit the CPU; agents check that it does.",
+        red: "The weekly run or its issue filing failed, so tests that fail under load go untracked; agents fix the stress workflow.",
+        yellow: "It found nothing 3 weeks running, so it may no longer limit the CPU; agents check that it does.",
     },
     "releases.lanes_red": {
         name: "Red lanes on the candidate",
@@ -603,15 +608,15 @@ export const MEMBER: Record<MemberId, MemberText> = {
         red: "Below 75%: master is often broken when a full run tests it, so nightly waits for fixes. Agents fix the lanes that fail most in Train attempts.",
     },
     "releases.channels": {
-        name: "Channel members",
-        short: "channel members",
-        def: "Canary, nightly and production age.",
+        name: "Release channel ages",
+        short: "release channel ages",
+        def: "How old the commit each channel (canary, nightly, production) serves is. Not measured yet: it needs the release channel records, which are still being built.",
         red: "Not set up yet, so it is never red; its red line comes with the channel ages.",
     },
     "releases.review_lag": {
         name: "Screenshot review time",
         short: "screenshot review time",
-        def: "Median hours from a changed picture's first capture to its approval merging, over 7 days.",
+        def: "Median hours from a changed picture's first capture to its approval merging, over 7 days. Only pictures whose approval merged count, so while pictures still wait (see Full runs held for screenshot review) this can read 0 pictures.",
         red: "Over 24 h: changed pictures wait a day for the owner, so nightly waits too.",
         nOf: "pictures",
     },
@@ -639,7 +644,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Spend this month",
         short: "spend",
         def: "Every paid service, projected to month-end, in USD.",
-        red: "Spent so far is past the monthly budget. Yellow means only the month-end forecast is past it. The owner picks a new limit or accepts the overrun.",
+        red: "The money spent this month is already over the monthly limit (yellow: only the month-end forecast is over it). The owner raises the limit or accepts the overrun.",
         headline: "Spend projected",
         when: " projected for month-end",
     },
@@ -647,14 +652,14 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "T4 GPU",
         short: "T4 GPU",
         def: 'The machine.dev bill for the paid T4 GPU runner, projected to month-end, in USD. "Money by workflow" below is GitHub\'s list-price value, not this bill.',
-        red: "Spent so far is past its limit. Yellow means only the month-end forecast is past it. The owner picks a new limit or accepts the overrun.",
+        red: "The money spent on it this month is already over its limit (yellow: only the month-end forecast is over it). The owner raises the limit or accepts the overrun.",
         when: " projected for month-end",
     },
     "costs.llm": {
         name: "LLM tests (estimated)",
         short: "LLM tests spend",
         def: "Gemini calls made by the CI LLM regression tests, at a flat estimated rate, projected to month-end, in USD.",
-        red: "Spent so far is past its limit. Yellow means only the month-end forecast is past it. The owner picks a new limit, or agents cut the LLM test runs.",
+        red: "The money spent on it this month is already over its limit (yellow: only the month-end forecast is over it). The owner raises the limit, or agents cut the LLM test runs.",
         when: " projected for month-end",
     },
     "costs.aws": {
@@ -692,7 +697,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "data-sources.collector": {
         name: "Collector last ran",
         short: "collector last ran",
-        def: "Time since the dashboard's own data collector last ran.",
+        def: "Time since the dashboard's own data collector last ran. A source's last write in Sources below is the newest data it wrote, which can be older when a run brought nothing new.",
         red: "Over 20 min: every page is stale. The owner gets a phone alert.",
     },
     "data-sources.app_rate": {

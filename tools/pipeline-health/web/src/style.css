@@ -747,7 +747,7 @@ h3 {
 }
 .t-shared .thead,
 .t-shared .tr {
-    grid-template-columns: minmax(150px, 1fr) minmax(150px, 1.2fr) 96px minmax(170px, 1.4fr) 140px;
+    grid-template-columns: minmax(120px, 0.9fr) minmax(110px, 0.8fr) 96px minmax(260px, 3fr) 120px;
 }
 .t-owner .thead,
 .t-owner .tr {
@@ -1008,7 +1008,7 @@ a.more:hover {
     }
     .t-shared .thead,
     .t-shared .tr {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 80px minmax(0, 1.3fr) minmax(0, 110px);
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.8fr) 80px minmax(0, 2.4fr) minmax(0, 110px);
         gap: 10px;
     }
     .t-cost .thead,
@@ -1037,6 +1037,21 @@ a.more:hover {
     padding: 2px 10px;
     color: var(--muted);
     border-radius: 4px;
+    /* "7 d" never wraps inside itself; a long caption next to the toggle wraps instead. */
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+/* One end of a time span, kept on one line. */
+.nw {
+    white-space: nowrap;
+}
+/* Between the judged rows and the rows that cannot set the page's color. */
+.rowsep {
+    margin: 14px 0 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--faint);
+    color: var(--muted);
+    font-size: 12px;
 }
 .range a:hover,
 .seg a:hover {
@@ -1105,6 +1120,13 @@ p.more {
 .t-hist .thead,
 .t-hist .tr {
     grid-template-columns: 100px 90px minmax(0, 130px) 110px minmax(12ch, 1fr) 110px;
+}
+/* On a tablet an episode's span wraps between its two ends, so its sentence keeps most of the row. */
+@media (max-width: 1100px) and (min-width: 701px) {
+    .ep {
+        grid-template-columns: 4px 140px 76px minmax(0, 1fr) 72px 10px;
+        gap: 10px;
+    }
 }
 /* Narrower, the failure message takes a line of its own under the other cells, never a column a letter wide. */
 @media (max-width: 1100px) and (min-width: 701px) {

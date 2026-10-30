@@ -124,7 +124,9 @@ async function addField(
     column: string,
 ): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-    await userEvent.click(await place.findByRole("button", { name: `Add to ${side} fields` }, storyWaitOptions(1000)));
+    await userEvent.click(
+        await place.findByRole("button", { name: `Add to ${side} attributes` }, storyWaitOptions(1000)),
+    );
     await userEvent.click(await within(document.body).findByRole("menuitem", { name: kind }, storyWaitOptions(1000)));
     await userEvent.click(await within(document.body).findByRole("option", { name: column }, storyWaitOptions(1000)));
 }
@@ -135,7 +137,9 @@ export const AddFieldMenu: Story = {
     play: async ({ canvasElement }) => {
         await loadLog(canvasElement);
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-        await userEvent.click(await place.findByRole("button", { name: "Add to edge fields" }, storyWaitOptions(1000)));
+        await userEvent.click(
+            await place.findByRole("button", { name: "Add to edge attributes" }, storyWaitOptions(1000)),
+        );
         await within(document.body).findByRole("menuitem", { name: "Weight" }, storyWaitOptions(1000));
     },
 };
@@ -213,9 +217,9 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
 }
 
 /**
- * Filter cards, each added by clicks: a Hide card on group, a Select card on the largest
+ * Filter cards, each added by clicks: a Filter to card on group, a Select card on the largest
  * component, a Neighbors card on the selected node, and a card a rule no card edits holds (an
- * old Hide step), read-only (design/data/filter-cards.md section 5).
+ * old filter step), read-only (design/data/filter-cards.md section 5).
  */
 export const FilterCards: Story = {
     args: { initialState: OPEN },
@@ -224,18 +228,20 @@ export const FilterCards: Story = {
         const { session } = element;
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
 
-        // Hide: group 2 or more, typed in its From box and committed.
+        // Filter to: group 2 or more, typed in its From box and committed; a new card starts on
+        // Select, so its toggle is switched to Filter to.
         await addFilter(canvasElement, "group");
         const from = await place.findByRole("textbox", { name: "group from, number" }, storyWaitOptions(1000));
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
         await holds(element, 1);
+        const group = await place.findByRole("group", { name: /^group is/ }, storyWaitOptions(1000));
+        await userEvent.click(within(group).getByRole("radio", { name: /^Filter to:/ }));
 
-        // Select: the largest component, its toggle switched to Select.
+        // Select: the largest component, as a new card starts.
         await addFilter(canvasElement, "Largest component");
         await holds(element, 2);
-        const largest = await place.findByRole("group", { name: /^in the largest component/ }, storyWaitOptions(1000));
-        await userEvent.click(within(largest).getByRole("radio", { name: "Select" }));
+        await place.findByRole("group", { name: /^in the largest component, Select/ }, storyWaitOptions(1000));
 
         // Neighbors of the selected node.
         const marius = session.data.nodes().find((node) => String(node.id) === "4")?.id;
@@ -245,7 +251,7 @@ export const FilterCards: Story = {
         await addFilter(canvasElement, "Neighbors of selection");
         await holds(element, 3);
 
-        // An old Hide step, as a saved project opens it: kept, read-only.
+        // An old filter step, as a saved project opens it: kept, read-only.
         await session.visibility.addCondition({
             effect: "keep",
             rule: { kind: "not", of: { kind: "text", reads: "data.label", mode: "substring", text: "Cos" } },

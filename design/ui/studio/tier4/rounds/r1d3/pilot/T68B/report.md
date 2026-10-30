@@ -77,3 +77,34 @@ already a backlog row):
 - success-2, success-3, keyboard-2 and keyboard-3: repeat walks of the same routes as success and
   keyboard, which matched in full.
 - T65A, T65B, T66A/T66B, T64A/T64B and T68A routes in the touched list: they belong to other tasks.
+
+## Second targeted re-walk (same build a53beb7179)
+
+Each route replayed from the newest walk of it on this build, one browser at a time.
+
+| Route | Session | Result |
+| --- | --- | --- |
+| Success path by pointer | v01-success | 16 of 16 steps matched; ended |
+| Detours: Control+S, Save local copy, Image and Project tabs, turning flows.csv back on, the gauges.csv row's Export..., the Graph panel's menu | v02-detours | 15 of 15 matched; ended |
+| Detours, second set | v03-detours-2 | 18 of 24 matched, no divergence; the run was stopped before its end and the session ended by hand |
+
+Success path: the start reads "11 of 12 nodes, 13 of 14 edges" with the Data source card on Hide
+(gauges.csv ticked, chip "11 of 12") (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/01.png). Export opens on Data; Format GraphML;
+Scope "All 12 nodes, 14 edges" (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/06.png); Export shows "Styles lost in GraphML" with
+Save anyway (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/09.png); Save anyway shows "Exported gauges_graph.graphml"
+(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/10.png). The file holds 12 nodes and 14 edges
+(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/downloads/gauges_graph.graphml). Matches the answer key; the data stayed the task's own.
+
+Detours: Control+S with "gauges.graphml" saves the project in the browser only
+(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v02-detours/03.png). Turning flows.csv back on, then GraphML, writes 12 nodes and 14 edges at once.
+The gauges.csv row's Export... opens on "gauges.csv 11 of 12 nodes, 0 of 14 edg..." with chips "11 of 12"
+and "0 of 14" (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v02-detours/13.png) and writes 11 nodes, 0 edges with no Save anyway step, as the answer
+key records.
+
+No new mismatch or defect. The carried defects listed above are unchanged.
+
+Not walked in this pass: detours-3 and the keyboard route (both matched in full earlier on this build,
+above), and the touched routes of other tasks (T65A path, order, keys, redo; T65B path, order, keys,
+Which nodes; T66A/T66B Data source card; T68A and T68B starts; T64A path and table role, T64B table role
+and Analyze weight). The run had to stop before reaching them. Another task's pilot replayed all of them
+on this build with every route matching to the end (tmp/design-studio/tier4/r1d3/pilot/T62A/r-routes.status).

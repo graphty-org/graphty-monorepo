@@ -283,7 +283,16 @@ const CREDENTIAL =
  * Sources that page no credential error of their own: those the collector reads through its GitHub App
  * (data.collector reports that credential), and Coveralls, which is public (a 401 or 403 there is not a key to renew).
  */
-const COLLECTOR_WRITES = new Set(["collector", "release", "npm", "stress", "hosts", "deploy", "coverage"]);
+const COLLECTOR_WRITES = new Set([
+    "collector",
+    "collector-parts",
+    "release",
+    "npm",
+    "stress",
+    "hosts",
+    "deploy",
+    "coverage",
+]);
 /**
  * The sources whose credential only the owner can make (alerts/index.ts CREDENTIALS): one of these erroring is the
  * cause, ahead of an older error on a credential agents can fix, so the owner's page is never masked.
@@ -406,9 +415,11 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
     }
     if (m.type === "month") {
         const value = monthValue(ctx, m, p.end);
-        // A projection also gives what is spent so far: the alerts page early in a month only on real spend.
-        const mtd = m.projected && p.end === ctx.now ? monthValue(ctx, { ...m, projected: false }, p.end) : undefined;
-        return { value, ...(mtd === undefined ? {} : { facts: { month_to_date: mtd } }) };
+        // A projection also gives what is spent so far (the alerts page early in a month only on real spend), and
+        // spend so far its projection (the AWS page's forecast is the one the Costs page shows).
+        const other = p.end === ctx.now ? monthValue(ctx, { ...m, projected: !m.projected }, p.end) : undefined;
+        const fact = m.projected ? "month_to_date" : "projected";
+        return { value, ...(other === undefined ? {} : { facts: { [fact]: other } }) };
     }
     if (m.type === "dims_median_over") {
         return null;

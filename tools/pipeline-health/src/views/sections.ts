@@ -421,7 +421,8 @@ export async function moneyTable(reads: Reads, range: SlowRange, members: Map<st
             return undefined;
         }
         const projected = projectMonth((t) => sumOf(daily.get(t), line), reads.now);
-        const budget = memberId ? (reads.config(memberId).ok?.[1] ?? null) : null;
+        // The red line: the limit the cost pages name and ask the owner to raise.
+        const budget = memberId ? (reads.config(memberId).fail?.[1] ?? reads.config(memberId).ok?.[1] ?? null) : null;
         const trend = Array.from({ length: days }, (_, i) => {
             const b = daily.get(today - (days - 1 - i) * DAY);
             return b ? round(sumOf(b, line)) : null;

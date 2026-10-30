@@ -1172,12 +1172,19 @@ async function captureMetrics(c: Cycle, body: StoryCaptures) {
     await recordSource(c.d.store, "story-slices", c.now, { ok: true });
 }
 
-/** Every GitHub part of one cycle; the collector source is OK when the runs, pull requests and issues were. */
+/** The source of the GitHub parts other than the runs read. */
+const PARTS = "collector-parts";
+
+/**
+ * Every GitHub part of one cycle. The collector source is OK when the runs were read: its age is how long the
+ * dashboard has been blind (data.collector pages on it), and its error is the runs read's. The other parts are the
+ * collector-parts source, OK when the pull requests, runners and issues were: one of them failing is agent work and
+ * never pages.
+ */
 async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: boolean) {
     const d = c.d;
-    let ok = true;
     let collected: Collected[] | undefined;
-    ok &&= await c.part("github", "collector", async () => {
+    const ok = await c.part("github", "collector", async () => {
         const repos = await activeRepos(c, gh);
         const masterList = (
             (
@@ -1199,24 +1206,24 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     });
     const missing = async (name: string) => (await c.cursor(name)) === undefined;
     if (hourly || (await missing("quarantine")) || (await missing("non-gating")) || (await missing("ci-jobs")))
-        await c.part("repo files", "collector", () => repoFiles(c, gh));
-    ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
+        await c.part("repo files", PARTS, () => repoFiles(c, gh));
+    let parts = await c.part("pull requests", PARTS, () => pullRequests(c, gh));
     const xs = collected;
-    if (xs) ok = (await c.part("runners", "collector", () => runners(c, xs, elapsed))) && ok;
+    if (xs) parts = (await c.part("runners", PARTS, () => runners(c, xs, elapsed))) && parts;
     let heldSince = 0;
     const readIssues = async () => {
         heldSince = await issues(c, gh);
     };
-    ok = (await c.part("issues", "collector", readIssues)) && ok;
+    parts = (await c.part("issues", PARTS, readIssues)) && parts;
     await c.part("releases", "release", () => releases(c, gh, heldSince));
     await c.part("channels", undefined, () => channels(c, gh));
     const open = c.openPrs;
     if (open)
-        await c.part("flaky", "collector", async () => {
+        await c.part("flaky", PARTS, async () => {
             for (const [metric, value] of Object.entries(await flakyMembers(d.store, gh, d.repo, open, c.now)))
                 c.o(metric, value);
         });
-    await c.part("jobs", "collector", async () => {
+    await c.part("jobs", PARTS, async () => {
         const { list, obs: o } = await jobMembers(d.store, gh, d.repo, c.now);
         await c.setJson("chronic-jobs", list);
         for (const [metric, value] of Object.entries(o)) c.o(metric, value);
@@ -1232,6 +1239,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
     const partial = c.skipped.join("; ").slice(0, 300);
     if (ok) await recordSource(d.store, "collector", d.now, { ok: true, ...(partial ? { partial } : {}) });
+    if (parts) await recordSource(d.store, PARTS, d.now, { ok: true });
 }
 
 export async function collect(d: Deps): Promise<CycleReport> {

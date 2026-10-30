@@ -399,24 +399,51 @@ describe("the policy's conditions", () => {
         expect((await run(store, ev, early + 6 * HOUR, p.fetch, SLAS)).sent).toHaveLength(1);
     });
 
-    it("AWS pages once past its $8 yellow line, well before its $10 lockout", async () => {
-        const aws = (v: number) => evaluation({ ...cost("cost.aws", v, v), state: "WARNING" });
-        const sent = async (v: number, day: number) => {
+    it("AWS pages once past its $8 yellow line, well before its $10 lockout, with the Costs page's forecast", async () => {
+        const aws = (v: number, projected: number) =>
+            evaluation({ ...cost("cost.aws", v, v), state: "WARNING", facts: { projected } });
+        const sent = async (v: number, projected: number) => {
             const p = pushover();
             const store = new MemoryStore();
-            await run(store, aws(v), day, p.fetch, SLAS);
-            await run(store, aws(v), day + HOUR, p.fetch, SLAS);
+            const day = Date.UTC(2026, 9, 29, 20); // 13:00 Pacific
+            await run(store, aws(v, projected), day, p.fetch, SLAS);
+            await run(store, aws(v, projected), day + HOUR, p.fetch, SLAS);
             return p.calls.map((c) => c.get("title"));
         };
-        const oct = (d: number) => Date.UTC(2026, 9, d, 20); // 13:00 Pacific
-        expect(await sent(7.9, oct(29))).toEqual([]); // under the yellow line
-        // Billing data lags a day: past $8 it pages, even with the pace under $10.
-        expect(await sent(8.4, oct(29))).toEqual([
+        expect(await sent(7.9, 9.5)).toEqual([]); // under the yellow line
+        // Billing data lags a day: past $8 it pages, even with the forecast under $10.
+        expect(await sent(8.4, 9.02)).toEqual([
             "Health alerts stop at $10 AWS spend (forecast $9.02): raise the limit?",
         ]);
-        expect(await sent(8.4, oct(20))).toEqual([
-            "Health alerts stop at $10 AWS spend (forecast $13): raise the limit?",
-        ]);
+        // The forecast is the engine's month-end projection (facts.projected), the one the Costs page shows.
+        expect(await sent(8.4, 13.1)).toEqual(["Health alerts stop at $10 AWS spend (forecast $13): raise the limit?"]);
+    });
+
+    it("a cost group pages once per floor, naming every limit over, though members cross their lines apart", async () => {
+        const sentFor = async (spendFrom: number) => {
+            const p = pushover();
+            const store = new MemoryStore();
+            const start = Date.UTC(2026, 9, 14, 16); // 09:00 Pacific
+            const sent: string[][] = [];
+            for (let t = start; t < start + DAY; t += 5 * MIN) {
+                const llm = { ...cost("cost.llm", 90, 40) };
+                const ms = t >= spendFrom ? [llm, cost("cost.spend", 420, 180)] : [llm];
+                const ev = evaluation(ms);
+                ev.episodes = ev.episodes.map((e) => ({ ...e, start: e.member === "cost.llm" ? start : spendFrom }));
+                const r = await run(store, ev, t, p.fetch, SLAS);
+                if (r.sent.length) sent.push(r.sent.map((x) => x.member).sort());
+            }
+            return { sent, p };
+        };
+        // The total crosses an hour after the LLM tests: still red but short of its own 6 h when the LLM tests are
+        // due, it goes out with them, in one message that offers the LLM cut against the total.
+        const apart = await sentFor(Date.UTC(2026, 9, 14, 17));
+        expect(apart.sent).toEqual([["cost.llm", "cost.spend"]]);
+        expect(apart.p.calls[0].get("title")).toBe("Over budget for Oct: $420 of $360 (LLM tests). Pick new limits");
+        expect(apart.p.calls[0].get("message")).toContain("Cutting LLM test runs from today");
+        // The total crosses after the LLM page went out: the group's floor holds it, so no second decision.
+        const after = await sentFor(Date.UTC(2026, 9, 14, 23));
+        expect(after.sent).toEqual([["cost.llm"]]);
     });
 
     it("master red pages after 3 h, and not while GitHub is not starting jobs", async () => {
@@ -692,6 +719,23 @@ describe("the policy's conditions", () => {
         );
     });
 
+    it("the LLM cut is said to bring the total within budget only when the real amounts say so", () => {
+        const at = Date.UTC(2026, 9, 14, 19);
+        const due = (id: string, value: number) => {
+            const c = SLAS.members.find((x) => x.id === id)! as Required<Pick<MemberConfig, "alert">> & MemberConfig;
+            const e: Episode = { member: id, category: c.category, worst: "FAILING", start: at - 7 * HOUR };
+            const m: MemberStatus = { ...member(id, c.category), ok: c.ok, fail: c.fail, value };
+            return { key: { pk: "", sk: "" }, e, m, c, start: e.start };
+        };
+        // $5.40 over the total and $4.50 over the LLM tests: each rounds to $5, but the cut leaves $0.90 over.
+        const msg = openMessage({ evaluation: evaluation([]), now: at }, [
+            due("cost.spend", 365.4),
+            due("cost.llm", 79.5),
+        ]).message;
+        expect(msg).not.toContain("within budget");
+        expect(msg).toContain("saves about $4.50, but the total stays about $0.90 over.");
+    });
+
     it("rounds money to cents before choosing its format", () => {
         expect([9.999, 0.004, 9.5, 8.4].map((v) => human("cost.llm", v))).toEqual(["$10", "$0", "$9.50", "$8.40"]);
     });
@@ -727,6 +771,121 @@ describe("the policy's conditions", () => {
         // From the episode's start to the first run that saw it fixed (110 min), never less than the peak (2 h).
         expect(p.calls[1].get("message")).toBe("The health dashboard was down for about 2 h.\nNothing to do.");
     });
+
+    it("the collector's resolved counts from its last good read, the engine's episode start, adding nothing", () => {
+        const c = SLAS.members.find((x) => x.id === "data.collector")! as Required<Pick<MemberConfig, "alert">> &
+            MemberConfig;
+        // Blind from 40 min before the run that saw it fixed; the last bad run, 5 min earlier, saw 35 min.
+        const e: Episode = {
+            member: c.id,
+            category: c.category,
+            worst: "FAILING",
+            start: DAY_T0 - 40 * MIN,
+            peak: 35 * MIN,
+        };
+        const m: MemberStatus = { ...member(c.id, c.category, "OK"), value: MIN, ok: c.ok, fail: c.fail };
+        const done = resolvedMessage(
+            { evaluation: evaluation([]), now: DAY_T0 + 15 * MIN },
+            { key: { pk: "", sk: "" }, e, m, c, start: e.start },
+            DAY_T0,
+        );
+        expect(done.message).toBe("The health dashboard was down for about 40 min.\nNothing to do.");
+    });
+
+    it("a credential's resolved counts from when the credential failed, not from an older stale source", async () => {
+        const src = (credMs: number): MemberStatus => ({
+            ...member("data.sources_age", "data_sources"),
+            value: 2,
+            facts: { credential_error_ms: credMs },
+            cause: { code: "error", params: { source: "cloudflare-token", label: "Cloudflare", error: "HTTP 403" } },
+        });
+        const p = pushover();
+        const store = new MemoryStore();
+        // The episode began 5 h ago with a stale billing feed; the token has failed for 65 min.
+        for (const t of [0, 10, 20]) {
+            await run(
+                store,
+                evaluation(src(65 * MIN + t * MIN), { start: DAY_T0 - 5 * HOUR }),
+                DAY_T0 + t * MIN,
+                p.fetch,
+                SLAS,
+            );
+        }
+        const ok = { ...evaluation({ ...src(0), state: "OK" as const, value: 0, cause: undefined }), episodes: [] };
+        await run(store, ok, DAY_T0 + 30 * MIN, p.fetch, SLAS);
+        await run(store, ok, DAY_T0 + 45 * MIN, p.fetch, SLAS);
+        expect(p.calls.map((c) => c.get("title"))).toEqual([
+            "Cloudflare token rejected: make a new one",
+            "Cloudflare token works again",
+        ]);
+        // Failing from 65 min before the page until the first run that saw it fixed, 30 min after it.
+        expect(p.calls[1].get("message")).toBe(
+            "The dashboard reads Cloudflare costs and usage again, after about 1 h 35 min.\nNothing to do.",
+        );
+    });
+
+    it("a new cause in the same collector episode pages once: a GitHub outage, then the App key refused", async () => {
+        const p = pushover();
+        const store = new MemoryStore();
+        const blind = (value: number, error: string): MemberStatus => ({
+            ...member("data.collector", "data_sources"),
+            value,
+            cause: { code: "error", params: { source: "collector", error } },
+        });
+        for (let t = 0; t <= 12 * HOUR; t += 30 * MIN) {
+            const error = t < 3 * HOUR ? "GitHub graphql: HTTP 502" : "GitHub graphql: HTTP 401 Bad credentials";
+            await run(store, evaluation(blind(30 * MIN + t, error)), T0 + t, p.fetch, SLAS);
+        }
+        // The key page waits out the 6 h floor after the outage page, then goes out once.
+        expect(p.calls.map((c) => c.get("title"))).toEqual([
+            "Health dashboard down (GitHub API down) for 2 h 30 min",
+            "Health dashboard down (GitHub App key refused) for 8 h 30 min",
+        ]);
+        expect(p.calls[1].get("message")).toMatch(/^What to do: Make a new private key/);
+    });
+
+    it("a second owner's credential failing in the same sources episode pages too: Cloudflare, then Sentry", async () => {
+        const p = pushover();
+        const store = new MemoryStore();
+        const src = (source: string, credMs: number): MemberStatus => ({
+            ...member("data.sources_age", "data_sources"),
+            value: 2,
+            facts: { credential_error_ms: credMs },
+            cause: { code: "error", params: { source, label: source, error: "HTTP 401" } },
+        });
+        for (let t = 0; t <= 7 * HOUR; t += 30 * MIN) {
+            const m = t < HOUR ? src("cloudflare-token", 2 * HOUR + t) : src("sentry-token", 90 * MIN + t);
+            await run(store, evaluation(m), DAY_T0 + t, p.fetch, SLAS);
+        }
+        expect(p.calls.map((c) => c.get("title"))).toEqual([
+            "Cloudflare token rejected: make a new one",
+            "Sentry token rejected: make a new one",
+        ]);
+    });
+
+    it("a stopped release scheduler pages once a day from 13 h without a full run, in the daytime only", async () => {
+        const untested = (sinceSlot?: number): MemberStatus => ({
+            ...member("master.untested_age", "master"),
+            value: 25 * HOUR,
+            ...(sinceSlot === undefined ? {} : { facts: { "release.since_slot_ms": sinceSlot } }),
+        });
+        const titles = async (m: MemberStatus, times: number[]) => {
+            const p = pushover();
+            const store = new MemoryStore();
+            for (const t of times) await run(store, evaluation(m), t, p.fetch, SLAS);
+            return p.calls.map((c) => c.get("title"));
+        };
+        expect(await titles(untested(14 * HOUR), [DAY_T0, DAY_T0 + HOUR, DAY_T0 + 6 * HOUR])).toEqual([
+            "No full test run in 14 h: release scheduler may be down",
+        ]);
+        expect(await titles(untested(12 * HOUR), [DAY_T0, DAY_T0 + HOUR])).toEqual([]);
+        expect(await titles(untested(), [DAY_T0, DAY_T0 + HOUR])).toEqual([]);
+        // T0 is 05:00 Pacific: the page waits for 09:00.
+        expect(await titles(untested(14 * HOUR), [T0])).toEqual([]);
+        expect(await titles(untested(14 * HOUR), [T0, T0 + 4 * HOUR])).toEqual([
+            "No full test run in 14 h: release scheduler may be down",
+        ]);
+    });
 });
 
 describe("messages", () => {
@@ -738,7 +897,7 @@ describe("messages", () => {
         "cost.spend": { value: 412.3, facts: { month_to_date: 280 } },
         "cost.t4": { value: 232.1, facts: { month_to_date: 150 } },
         "cost.llm": { value: 87.55, facts: { month_to_date: 70 } },
-        "cost.aws": { value: 8.4, state: "WARNING" },
+        "cost.aws": { value: 8.4, state: "WARNING", facts: { projected: 9.9 } },
         "data.sources_age": {
             value: 1,
             facts: { credential_error_ms: 70 * MIN },
@@ -828,7 +987,11 @@ describe("messages", () => {
         expect(words("TypeError: x is undefined").fix).toContain("fix the health dashboard");
         // The collector's own allowance or slowness is agent work, not a GitHub outage.
         expect(words("GitHub graphql: HTTP 429 secondary rate limit").problem).toBe("bug in its code");
-        expect(words("TimeoutError: The operation was aborted due to timeout").problem).toBe("bug in its code");
+        // A request timing out and GitHub's degraded GraphQL reply are GitHub failing, not the collector's code.
+        expect(words("github: The operation was aborted due to timeout").problem).toBe("GitHub API down");
+        expect(
+            words("issues: GitHub graphql: Something went wrong while executing your query. Please try again.").problem,
+        ).toBe("GitHub API down");
         // The token endpoint rate limiting the collector is not a refused key; an uninstalled App (404) is.
         expect(words("installation token: HTTP 429").problem).toBe("bug in its code");
         expect(words("installation token: HTTP 403").problem).toBe("bug in its code");

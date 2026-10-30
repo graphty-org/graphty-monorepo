@@ -5,7 +5,10 @@
 // only when the member is judged OK again (or, for a member paging on facts, once they no longer hold), so a gap of
 // NO DATA or a stale source in between neither ends it nor starts another. A member pages at most once per its floor
 // (6 h by default), even across episodes: a page inside that floor waits until the floor has passed, and an episode
-// that ends before its page was sent sends no "resolved". Each send is claimed with a conditional write first, so a
+// that ends before its page was sent sends no "resolved". A group (the costs) shares one floor (ALERT#<group>, sk
+// "group"), and a member of it that is red but not yet past its own afterMs goes out with one that is due, so the
+// owner gets one decision per floor naming every limit that is over. A page sent for one cause pages again when the
+// cause changes to another (a GitHub outage, then the App key refused). Each send is claimed with a conditional write first, so a
 // retried or overlapping collector run never sends twice; a failed send releases the claim and the next run retries.
 
 import { DAY, HOUR, MIN } from "../model/items.js";
@@ -66,6 +69,8 @@ export interface Due {
     m: MemberStatus;
     c: Paging;
     start: number;
+    /** Red but not yet past its afterMs: it goes out only with a member of its group that is due. */
+    early?: boolean;
 }
 
 /**
@@ -98,7 +103,9 @@ export async function sendAlerts(input: AlertsInput): Promise<AlertsResult> {
             groups.set(g, [...(groups.get(g) ?? []), d]);
         }
         for (const group of groups.values()) {
-            await sendOpen(ctx, group);
+            if (group.some((d) => !d.early)) {
+                await sendOpen(ctx, group);
+            }
         }
         return result;
     } catch (err) {
@@ -218,9 +225,14 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
     // sources) has neither left once it is OK, and the "resolved" must still say how long and which feed.
     const peak = Math.max(Number(mark.peak ?? 0), m.value ?? 0);
     const cause = m.cause && JSON.stringify(m.cause) !== JSON.stringify(mark.cause) ? { cause: m.cause } : {};
-    if (peak > Number(mark.peak ?? 0) || cause.cause) {
-        await ctx.store.update(key, { set: { peak, ...cause, ttl: ttl(ctx) } });
+    // When the credential error began (data.sources_age): its "resolved" counts from there, not from the episode's
+    // start, which is the oldest bad source of any kind.
+    const credMs = m.facts?.credential_error_ms;
+    const cred = credMs && ctx.now - credMs !== mark.credSince ? { credSince: ctx.now - credMs } : {};
+    if (peak > Number(mark.peak ?? 0) || cause.cause || cred.credSince) {
+        await ctx.store.update(key, { set: { peak, ...cause, ...cred, ttl: ttl(ctx) } });
     }
+    let rearm = false;
     if (mark.open === SENT) {
         // A reminder (alert.repeatMs) re-arms once that span has passed since it was sent; the condition on
         // lastOpenAt lets only one of two overlapping runs re-arm it.
@@ -232,21 +244,48 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
                 { set: { open: 0, ttl: ttl(ctx) } },
                 { field: "lastOpenAt", op: "<=", value: ctx.now - r },
             ));
-        if (!again) {
+        rearm = !again && newCause(mark, m, c);
+        if (!again && !rearm) {
             return undefined;
         }
     }
-    if (!(await due(ctx, key, m, c.alert, mark.redSince as number | undefined))) {
+    const { red, ready } = await due(ctx, key, m, c.alert, mark.redSince as number | undefined);
+    if (!red || (!ready && (!c.alert.group || rearm))) {
         return undefined;
     }
     if (c.alert.daytime && !daytime(ctx.now)) {
         return undefined; // a cost page waits for the morning; the next daytime run sends it
     }
-    // Inside the floor the page waits; a later run sends it once the floor has passed, if the episode is still on.
-    if (ctx.now - ((mark.lastOpenAt as number | undefined) ?? 0) < (c.alert.floorMs ?? REALERT_MS)) {
+    // Inside the floor (the group's, for a group) the page waits; a later run sends it once the floor has passed.
+    const group = c.alert.group ? await ctx.store.get(groupKey(c.alert.group)) : undefined;
+    const last = Math.max(Number(mark.lastOpenAt ?? 0), Number(group?.lastOpenAt ?? 0));
+    if (ctx.now - last < (c.alert.floorMs ?? REALERT_MS)) {
         return undefined;
     }
-    return { key, e, m, c, start: Math.min(e.start, (mark.start as number | undefined) ?? e.start) };
+    // A new cause re-arms the page only now that it will be sent, so the sent page's "resolved" is kept until then;
+    // the condition lets only one of two overlapping runs re-arm it.
+    if (rearm && !(await ctx.store.update(key, { set: { open: 0 } }, { field: "open", op: "=", value: SENT }))) {
+        return undefined;
+    }
+    return {
+        key,
+        e,
+        m,
+        c,
+        start: Math.min(e.start, (mark.start as number | undefined) ?? e.start),
+        ...(ready ? {} : { early: true }),
+    };
+}
+
+const groupKey = (group: string): Key => ({ pk: `ALERT#${group}`, sk: "group" });
+
+/** The cause a page was sent for, for a member whose page names its cause. */
+const causeKey = (m: MemberStatus, c: Paging) => (c.alert.action === "{fix}" ? causeWords(m).problem : undefined);
+
+/** The page was sent for one cause, and now another with a step to take holds (a GitHub outage, then the key refused). */
+function newCause(mark: Item, m: MemberStatus, c: Paging): boolean {
+    const now = causeKey(m, c);
+    return !!mark.pagedCause && !!now && now !== mark.pagedCause && !!causeWords(m).fix;
 }
 
 /**
@@ -278,7 +317,7 @@ async function end(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging): 
             e: { ...e, ...(peak > 0 ? { peak } : {}) },
             m: { ...m, ...(cause ? { cause } : {}) },
             c,
-            start: Math.min(e.start, (mark.start as number | undefined) ?? e.start),
+            start: Number(mark.credSince) || Math.min(e.start, (mark.start as number | undefined) ?? e.start),
         };
         const until = okSince || ctx.now;
         if (!(await once(ctx, key, "clear", [d], resolvedMessage(ctx, d, until)))) {
@@ -288,13 +327,19 @@ async function end(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging): 
     await ctx.store.update(key, { set: { endedAt: ctx.now, ttl: ttl(ctx) } });
 }
 
-/** Due once the condition has held for alert.afterMs without a break. */
-async function due(ctx: Ctx, key: Key, m: MemberStatus, a: AlertConfig, redSince = 0): Promise<boolean> {
+/** Red: the condition holds; ready: it has held for alert.afterMs without a break. */
+async function due(
+    ctx: Ctx,
+    key: Key,
+    m: MemberStatus,
+    a: AlertConfig,
+    redSince = 0,
+): Promise<{ red: boolean; ready: boolean }> {
     const red = await condition(ctx, m, a);
     if (red !== redSince > 0) {
         await ctx.store.update(key, { set: { redSince: red ? ctx.now : 0, ttl: ttl(ctx) } });
     }
-    return red && (a.afterMs <= 0 || (redSince > 0 && ctx.now - redSince >= a.afterMs));
+    return { red, ready: red && (a.afterMs <= 0 || (redSince > 0 && ctx.now - redSince >= a.afterMs)) };
 }
 
 /** One message for the group's members whose page this run could claim. */
@@ -330,12 +375,18 @@ async function claim(ctx: Ctx, key: Key, kind: "open" | "clear"): Promise<boolea
 async function deliver(ctx: Ctx, kind: "open" | "clear", ds: Due[], msg: Message): Promise<boolean> {
     const ok = await post(ctx, msg);
     for (const d of ds) {
+        const cause = causeKey(d.m, d.c);
+        const opened = { lastOpenAt: ctx.now, ...(cause ? { pagedCause: cause } : {}) };
         await ctx.store.update(d.key, {
-            set: ok ? { [kind]: SENT, ...(kind === "open" ? { lastOpenAt: ctx.now } : {}) } : { [kind]: 0 },
+            set: ok ? { [kind]: SENT, ...(kind === "open" ? opened : {}) } : { [kind]: 0 },
         });
         if (ok) {
             ctx.result.sent.push({ member: d.m.id, kind });
         }
+    }
+    const group = ds[0].c.alert.group;
+    if (ok && kind === "open" && group) {
+        await ctx.store.update(groupKey(group), { set: { lastOpenAt: ctx.now, ttl: ttl(ctx) } });
     }
     if (!ok) {
         ctx.result.failed++;
@@ -458,9 +509,13 @@ export function causeWords(m: MemberStatus): CauseWords {
     const p = m.cause?.params ?? {};
     const error = String(p.error ?? "");
     if (m.id === "data.collector") {
-        // First: "installation token: HTTP 502" is GitHub failing, not the key. A rate limit or a timeout falls
-        // through to "bug in its code": the collector is blind either way, so it pages, and an agent fixes it.
-        if (/\bHTTP 5\d\d\b|ECONN|fetch failed|socket/i.test(error)) {
+        // First: "installation token: HTTP 502", a request timing out or GitHub's degraded GraphQL reply is GitHub
+        // failing, not the key. A rate limit falls through to "bug in its code": an agent fixes it.
+        if (
+            /\bHTTP 5\d\d\b|ECONN|fetch failed|socket|timed? ?out|aborted|Something went wrong while executing/i.test(
+                error,
+            )
+        ) {
             return {
                 feed: "Collector",
                 frozen: "GitHub",
@@ -540,14 +595,6 @@ function budgetMonth(now: number): { choose: string; pick: string; cutFrom: stri
 /** The line a member's page is judged against: red, or the OK line when it has no red. */
 const line = (m: MemberStatus) => m.fail?.[1] ?? m.ok?.[1];
 
-/** The value at month end at this month's pace so far (UTC days, as the engine's months are). */
-function pace(v: number, now: number): number {
-    const d = new Date(now);
-    const start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
-    const days = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-    return (v * days * DAY) / Math.max(now - start, DAY);
-}
-
 function fill(template: string, d: Due, now: number): string {
     const { m, e, start } = d;
     const p = m.cause?.params ?? {};
@@ -566,11 +613,13 @@ function fill(template: string, d: Due, now: number): string {
         end: monthEnd(now),
         ...budgetMonth(now),
         peak: human(m.id, peak),
-        pace: human(m.id, m.value === undefined ? undefined : pace(m.value, now)),
+        // The engine's month-end projection, the one the Costs page shows (it allows for billing's day of lag).
+        pace: human(m.id, m.facts?.projected),
         for: duration(now - start),
-        // How long an age-like member (its value is how long the problem has lasted) was bad, to `now`: the episode
-        // starts once the value passes its OK line, so that much is added; never less than the peak seen.
-        lasted: duration(Math.max(peak ?? 0, now - start + (m.ok?.[1] ?? 0))),
+        // How long an age-like member (its value is how long the problem has lasted) was bad, to `now`: a member with
+        // history starts its episode once the value passes its OK line, so that much is added; an engine member's
+        // episode starts when the problem did (the collector's last good read). Never less than the peak seen.
+        lasted: duration(Math.max(peak ?? 0, now - start + (d.c.measure.type === "engine" ? 0 : (m.ok?.[1] ?? 0)))),
         // A GitHub error page or a long GraphQL error must not push the step out of Pushover's 1024 characters.
         error: clip(String(p.error ?? "none recorded"), 200),
         since: duration(m.facts?.credential_error_ms ?? now - start),
@@ -646,18 +695,20 @@ function groupTitle(ds: Due[], f: (t: string, d: Due) => string): string {
  * back to their budget would and would not fix, for a group the LLM tests are in.
  */
 function cut(ds: Due[], f: (t: string, d: Due) => string): string {
-    // Whole dollars against each red line, so the sum the page states is one the reader can check.
-    const over = (d?: Due) => Math.round((d?.m.value ?? 0) - (d ? (line(d.m) ?? 0) : 0));
+    const raw = (d?: Due) => (d?.m.value ?? 0) - (d ? (line(d.m) ?? 0) : 0);
     const llm = ds.find((d) => d.c.id === "cost.llm");
     if (!llm) {
         return "";
     }
     const total = ds.find((d) => d.c.id === "cost.spend");
-    const left = over(total) - over(llm);
+    // Whether the cut fits is judged on the real amounts; what is left is said in whole dollars against each red
+    // line, so the sum the page states is one the reader can check (cents when it is under a dollar).
+    const left = raw(total) - raw(llm);
+    const whole = Math.round(raw(total)) - Math.round(raw(llm));
     const fits = total && left <= 0 ? " and brings the total within budget" : "";
     const still = [
         ...ds.filter((d) => d !== llm && d !== total).map((d) => `${d.c.alert.short ?? d.c.label} stays over`),
-        ...(total && left > 0 ? [`the total stays about ${human(total.m.id, left)} over`] : []),
+        ...(total && left > 0 ? [`the total stays about ${human(total.m.id, whole > 0 ? whole : left)} over`] : []),
     ];
     const but = still.length ? `, but ${still.join(" and ")}` : "";
     return ` Cutting LLM test runs from ${f("{cutFrom}", llm)} to fit their ${f("{limit}", llm)} limit saves about ${f("{over}", llm)}${fits}${but}.`;

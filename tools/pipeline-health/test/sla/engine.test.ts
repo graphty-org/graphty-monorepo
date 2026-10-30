@@ -399,6 +399,28 @@ describe("credential errors (alerts, section 13)", () => {
         const store = await world([]);
         expect((await member(store, "cost.t4")).facts).toEqual({ month_to_date: 0 });
     });
+
+    it("a cost line of spend so far also gives its month-end projection, the one the Costs page shows", async () => {
+        // A flat $0.3207 a day of AWS through yesterday; billing has nothing for today yet.
+        const now = Date.UTC(2026, 9, 30, 19);
+        const today = floorTo(now, "1d");
+        const days = Array.from({ length: 29 }, (_, i): CostItem => ({
+            kind: "cost",
+            id: `aws-${i}`,
+            attempt: 1,
+            line: "aws",
+            workflow: "aws",
+            day: today - (i + 1) * DAY,
+            usd: 0.3207,
+        }));
+        const m = await member(await world(days, now), "cost.aws", now);
+        expect(m.value).toBeCloseTo(9.3, 2);
+        expect(m.facts?.projected).toBeCloseTo(
+            projectMonth((t) => (t < today ? 0.3207 : 0), now),
+            6,
+        );
+        expect(m.facts?.projected).toBeCloseTo(9.94, 2);
+    });
 });
 
 describe("categories", () => {

@@ -32,7 +32,12 @@
     ],
     "sources": {
         "collector": {
-            "label": "Collector: GitHub runs, jobs, pull requests, issues",
+            "label": "Collector: GitHub runs",
+            "yellowAfterMs": 900000,
+            "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
+        },
+        "collector-parts": {
+            "label": "Collector: GitHub pull requests, runners, issues, jobs",
             "yellowAfterMs": 900000,
             "notSetUp": "the collector's GitHub App is not installed yet (owner decision, design section 16)"
         },

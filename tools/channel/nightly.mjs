@@ -328,31 +328,47 @@ const s7 = (sha) => (sha ?? "").slice(0, 7);
  */
 export function missedSlot(f, started) {
     if (f.moved || f.deferred === "true") return null;
-    const sha = s7(f.sha);
-    const held = s7(f.held);
-    let cause;
-    let detail = "";
-    if (f.pickResult && f.pickResult !== "success") cause = `the pick failed (${f.pickResult})`;
-    else if (f.release !== "true" && f.resume !== "true") cause = `no new candidate: ${f.pickWhy || "nothing to test"}`;
-    else if (!f.state) cause = "no verdict: the run ended before judging its candidate";
-    else if (f.state === "red")
-        cause = `red lane on ${sha}: ${f.what || "see the run"}${f.issue ? ` (#${f.issue})` : ""}`;
-    else if (f.state === "owner-item") cause = `owner item on ${sha}: ${f.what || "see the run"}`;
-    else if (f.state === "green-images" && (f.hold === "start" || f.hold === "update")) {
-        cause = `waiting on the owner's screenshot review of ${sha}`;
-        detail = `Review it on ${REVIEW_PAGE}.`;
-    } else if (f.state === "green-images" && f.heldState === "green-images") {
-        cause = `waiting on the owner's screenshot review of the held ${held}`;
-        detail = `${sha} also changed screenshots but is not held: the held ${held} is reviewed first, on ${REVIEW_PAGE}.`;
-    } else if (f.state === "green-images") {
-        cause = `hold on ${held || "an unknown commit"} is not reviewable (${f.heldState || "not judged"})`;
-        detail =
-            "A green run should have replaced it: fix it forward from its head, or abandon it (`gh workflow run nightly-abandon.yml --ref master -f reason=...`).";
-    } else if (f.promote === "true") cause = `the promotion of ${sha} failed before it landed`;
-    else cause = `${sha} is green-clean but did not promote: ${f.why || "see the run"}`;
+    const { cause, detail = "" } = pickCause(f) ?? verdictCause(f);
     const slot = new Date(Math.floor(started / SLOT) * SLOT).toISOString().slice(0, 16).replace("T", " ");
-    const short = cause.length > 90 ? `${cause.slice(0, 87)}...` : cause;
+    const short = cause.length > 90 ? cause.slice(0, 87) + "..." : cause;
     return { title: `${MISSED_TITLE} ${slot} UTC: ${short}`, cause, detail };
+}
+
+// a slot that judged nothing: the pick failed, found nothing new, or the run ended before its verdict
+function pickCause(f) {
+    if (f.pickResult && f.pickResult !== "success") return { cause: `the pick failed (${f.pickResult})` };
+    if (f.release !== "true" && f.resume !== "true")
+        return { cause: `no new candidate: ${f.pickWhy || "nothing to test"}` };
+    if (!f.state) return { cause: "no verdict: the run ended before judging its candidate" };
+    return null;
+}
+
+// what the verdict on the slot's commit kept from nightly
+function verdictCause(f) {
+    const sha = s7(f.sha);
+    const what = f.what || "see the run";
+    if (f.state === "red") return { cause: `red lane on ${sha}: ${what}` + (f.issue ? ` (#${f.issue})` : "") };
+    if (f.state === "owner-item") return { cause: `owner item on ${sha}: ${what}` };
+    if (f.state === "green-images") return imagesCause(f, sha);
+    if (f.promote === "true") return { cause: `the promotion of ${sha} failed before it landed` };
+    return { cause: `${sha} is green-clean but did not promote: ${f.why || "see the run"}` };
+}
+
+// changed screenshots: held for the owner's review, behind another held candidate, or behind a hold nobody reviews
+function imagesCause(f, sha) {
+    const held = s7(f.held);
+    if (f.hold === "start" || f.hold === "update")
+        return { cause: `waiting on the owner's screenshot review of ${sha}`, detail: `Review it on ${REVIEW_PAGE}.` };
+    if (f.heldState === "green-images") {
+        return {
+            cause: `waiting on the owner's screenshot review of the held ${held}`,
+            detail: `${sha} also changed screenshots but is not held: the held ${held} is reviewed first, on ${REVIEW_PAGE}.`,
+        };
+    }
+    return {
+        cause: `hold on ${held || "an unknown commit"} is not reviewable (${f.heldState || "not judged"})`,
+        detail: "A green run should have replaced it: fix it forward from its head, or abandon it (`gh workflow run nightly-abandon.yml --ref master -f reason=...`).",
+    };
 }
 
 // What a held candidate (channels-pipeline.md section 3) waits for: the owner's screenshot review once its head is

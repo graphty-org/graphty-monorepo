@@ -87,10 +87,10 @@ export function ownerQuery(repo, numbers, members) {
     const fields =
         "__typename ... on Issue { number state updatedAt closedByPullRequestsReferences(first: 5, includeClosedPrs: false) { nodes { state } } } ... on PullRequest { number state updatedAt }";
     const items = [...new Set(numbers)].map((n) => `n${n}: issueOrPullRequest(number: ${n}) { ${fields} }`);
-    const searches = members.map(
-        (id, i) =>
-            `m${i}: search(query: ${JSON.stringify(`repo:${repo} is:open "${id}"`)}, type: ISSUE, first: 5) { nodes { ${fields} } }`,
-    );
+    const searches = members.map((id, i) => {
+        const query = JSON.stringify(`repo:${repo} is:open "${id}"`);
+        return `m${i}: search(query: ${query}, type: ISSUE, first: 5) { nodes { ${fields} } }`;
+    });
     const repoPart = items.length ? `repository(owner: "${owner}", name: "${name}") { ${items.join(" ")} }` : "";
     return `{ ${repoPart} ${searches.join(" ")} }`;
 }
@@ -112,7 +112,11 @@ export function liveness(node, now) {
     return { live: false, why: `open, but untouched ${Math.floor(age / HOUR)} h` };
 }
 
-const ref = (node) => (node ? `${node.__typename === "PullRequest" ? "PR " : ""}#${node.number}` : "");
+function ref(node) {
+    if (!node) return "";
+    const kind = node.__typename === "PullRequest" ? "PR " : "";
+    return `${kind}#${node.number}`;
+}
 const hours = (since, now) => (since ? `${Math.floor((now - Date.parse(since)) / HOUR)} h` : "? h");
 
 /**
@@ -145,7 +149,8 @@ export function sweep({ status, pages, gql, now }) {
             .map((f) => ({ ...f, l: liveness(f.n, now) }));
         const best = found.find((f) => f.l.live) ?? found[0];
         if (!best?.l.live) unowned++;
-        const who = best ? `${best.n ? ref(best.n) : `#${best.x.n}`} (${best.l.why})` : "no issue in its row";
+        let who = "no issue in its row";
+        if (best) who = `${best.n ? ref(best.n) : "#" + best.x.n} (${best.l.why})`;
         lines.push(`${best?.l.live ? "owned  " : "NO OWNER"} ${r.table} "${r.label}": ${who}`);
     }
     const total = members.length + rows.length;

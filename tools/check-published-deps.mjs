@@ -65,8 +65,9 @@ const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));
 const IMPORT_PATTERNS = [
     /(?:^|;)(?:import|export)\b[^;]*?\bfrom\s*["']([^"'\n]+)["']/gm,
     /(?:^|;)import\s*["']([^"'\n]+)["']/gm,
-    /\bimport\(\s*["']([^"'\n]+)["']\s*\)/g,
-    /\brequire\(\s*["']([^"'\n]+)["']\s*\)/g,
+    // Rolldown writes a literal dynamic specifier as a template string: import(`x`).
+    /\bimport\(\s*["'`]([^"'`$\n]+)["'`]\s*\)/g,
+    /\brequire\(\s*["'`]([^"'`$\n]+)["'`]\s*\)/g,
     /^\/\/\/\s*<reference\s+types\s*=\s*["']([^"'\n]+)["']/gm,
 ];
 

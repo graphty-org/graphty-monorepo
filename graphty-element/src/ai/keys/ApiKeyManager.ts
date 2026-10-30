@@ -1,13 +1,14 @@
 /**
  * API Key Manager Module - Session and persistent storage for API keys.
- * Uses encrypt-storage for AES encryption of persisted keys.
+ * Uses encrypt-storage for AES encryption of persisted keys (an optional peer; see ./encryptStorage).
  * @module ai/keys/ApiKeyManager
  */
 
-import { EncryptStorage } from "encrypt-storage";
+import type { EncryptStorage } from "encrypt-storage";
 
 import type { ProviderType } from "../providers";
 import { deriveKeyFromPassphrase } from "./deriveKeyFromPassphrase";
+import { encryptStorage } from "./encryptStorage";
 
 type StorageType = "localStorage" | "sessionStorage";
 
@@ -382,9 +383,11 @@ export class ApiKeyManager {
      * Open the encrypted store for a configuration.
      * @param config - The persistence configuration
      * @returns The encrypted store
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `encrypt-storage` is not installed.
      */
     private openStorage(config: Required<PersistenceConfig>): EncryptStorage {
-        return new EncryptStorage(config.encryptionKey, {
+        const EncryptStorageClass = encryptStorage();
+        return new EncryptStorageClass(config.encryptionKey, {
             prefix: config.prefix,
             storageType: config.storage,
         });

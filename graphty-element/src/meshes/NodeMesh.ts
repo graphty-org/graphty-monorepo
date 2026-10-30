@@ -1,5 +1,5 @@
 // Installs Mesh.prototype.createInstance, which createModelInstance calls.
-import "@babylonjs/core/Meshes/instancedMesh";
+import "@babylonjs/core/Meshes/instancedMesh.js";
 
 import {
     AbstractMesh,

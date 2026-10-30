@@ -5,7 +5,7 @@
  * own assets. The guide's per-kind encoding draws each kind as its sample.
  */
 
-import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { assert, describe, it } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";

@@ -1,6 +1,6 @@
 // Installs Mesh.prototype.thinInstanceSetBuffer and its siblings, which this module calls. Loaded
 // here so any path that reaches a batch has them. See test/packaging/babylon-side-effects.test.ts.
-import "@babylonjs/core/Meshes/thinInstanceMesh";
+import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { Buffer, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 

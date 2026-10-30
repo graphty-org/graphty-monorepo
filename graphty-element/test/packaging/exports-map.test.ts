@@ -85,6 +85,8 @@ const REGISTRATION_MODULES = [
     "./src/algorithms/index.ts",
     "./src/data/index.ts",
     "./src/layout/index.ts",
+    // Registers encrypt-storage for the ./ai and ./credentials entry points (src/ai/keys/encryptStorage.ts).
+    "./src/ai/keys/withEncryptStorage.ts",
 ];
 
 /**

@@ -1781,10 +1781,11 @@ export const STORY_BIN_LIMIT_MS = 3 * 60_000;
  * STORY_BIN_MAX_MS) until the bins fit. It was 9 after 37 bins of 3 min queued for runners (2026-10-29), but the
  * organization runs up to 500 Linux jobs at once: in PR runs 41061566840, 41067254808 and 41073371165 (2026-10-30)
  * every job started 2 to 3 s after it was created at up to 66 jobs at once, while the budget stretched bins to 9 to
- * 12 minutes of capture (graphty-2: 718 s planned, 662 s captured), the pull request's last job. At 36 a change
- * that runs every story keeps its bins at about 3 minutes (#3448).
+ * 12 minutes of capture (graphty-2: 718 s planned, 662 s captured), the pull request's last job. A change that runs
+ * every story plans 53 bins at 3 minutes (2026-10-30), so 36 still stretched them to 4.5 minutes; at 56 they stay
+ * at 3 (#3448).
  */
-export const STORY_JOB_BUDGET = 36;
+export const STORY_JOB_BUDGET = 56;
 /** The longest a Stories bin's capture may be planned when the job budget packs it: under the job's 20-minute limit. */
 export const STORY_BIN_MAX_MS = 12 * 60_000;
 
@@ -1813,7 +1814,9 @@ export const STORY_MS = {
     // for graphty-element-1, the pull request's last job in 7 of 19 runs), so it was 2.5 s; six PR runs of
     // 2026-10-28 (40613759747 to 40620698652) captured its bins at 1.11 times their plan at 2.5 s, so it is 2.8 s
     "graphty-element": 2_800,
-    "compact-mantine": 1_000,
+    // PR runs 41101050547, 41102606273 and 41102573361 (2026-10-30): its two bins, 270 and 240 stories planned at
+    // 1 s, captured in 354 to 434 s, 1.3 to 1.6 s a story, the pull request's last Stories jobs at 7.8 to 8.7 min
+    "compact-mantine": 1_600,
     algorithms: 1_200,
     layout: 900,
 };

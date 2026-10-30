@@ -1,97 +1,73 @@
 # T63B pilot (targeted re-walk) -- gauges + flows, "where and when"
 
-Build 037e96e9bb (frozen, `/home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d1-037e96e9bb`).
-Every walk starts from the task's real start (setup `gauges-joined.txt`). Screenshots are under
+Build ff17391bb1 (frozen, /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d2-ff17391bb1).
+Every walk starts from the task's real start (setup `gauges-joined.txt`) and drives the app only
+by clicks and keys. Screenshots are plain paths under
 /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T63B/ (not in git).
 
 ## Verdict
 
-Reached on every walk, by pointer and by keyboard. The time ends designated as `installed`
-(Fields: Time = installed; the table's `installed` header carries a "Time" chip); the place stays
-Latitude `lat`, Longitude `lon` as designated at load. The data stays the task's own data the whole
-way (11 gauges G01-G11 plus G12 from flows.csv, 12 nodes, 14 edges; no value changed).
+Reached by pointer and by keyboard. Of the routes the fix pass touched, only "T63A/T63B success
+path" belongs to this task, and it is this task's success path. The time ends designated as
+`installed` (Fields: Time = installed; the table's `installed` header carries a "Time" chip); the
+place stays Latitude `lat`, Longitude `lon` as designated at load. The data stays the task's own
+the whole way: 12 nodes, 14 edges, G01-G12, no value changed. Nothing crashes, blocks the task or
+would spoil its grading.
 
-The one change from the earlier build that every earlier route hit: a text-kind column now draws its
-cells as written, whatever its role. Once `installed` is the time, its cells read `1998-05-12`
-(they read "May 12, 1998" before). This is the decided behavior "a column's kind alone draws its
-cells", not a defect; the header keeps the text glyph and the "Time" chip, and the Timeline still
-reads the values as dates ("Jun 30, 1995 - Jun 27, 2018", detours/14.png).
+## Routes walked on this build
 
-## Routes walked
+Each route replayed in its own session from its newest earlier walk, matched at every check point
+to the end and was ended (exit 0). Every screenshot where something changes was looked at.
 
-- **success** (pointer; the inspector's "Set in Data", then Fields > Time list): replayed to step 4,
-  then by hand. "Set in Data" sets Time = installed at once; the "Time: installed" row leaves the
-  Overview; Fields shows Time = installed, Latitude = lat, Longitude = lon (success/05.png). In the
-  Time list: Escape closes it and keeps `installed` (07.png); Enter reopens it with `installed`
-  checked (08.png); ArrowDown then Escape keeps `installed` (09.png); Enter then Tab commits and moves
-  on (10-12.png).
-- **success-direct** (pointer; "Set in Data" with nothing else first): the time is set, gauges.csv
-  stays collapsed in Fields (02.png). Expanding it and opening the Latitude list shows `lat` checked
-  (03.png); Enter keeps it; Escape; the Undo tooltip reads "Undo changing a column's role Ctrl+Z"
-  (04.png).
-- **success-2, success-3** (pointer, longer: Time list keys, a sort, Latitude changed to another
-  column and undone): replayed on this build; every check point matched once the date-only row
-  changes were allowed; ends with Time = installed, Latitude = lat (success-2/19.png).
-- **detours** (by hand after step 5): table header `installed` > Role > Time sets the time
-  (detours/06.png); Control+Z undoes it with "Undid changing a column's role." and the "Time:
-  installed / Set in Data" row returns to the Overview (07.png); Layout > Map shows Location
-  "lat, lon" (08.png); Escape closes it; Data > Fields > gauges.csv "+" > Time opens an empty Time
-  row with its list (10-11.png); Escape, then Enter and `installed` set it (13.png); Timeline opens
-  over 1995-2018 (14.png); search "installed" offers "Select the 11 nodes (installed: has a value)"
-  (16.png); search "time" finds nothing and suggests a rule (17.png); right-click on G02 selects it
-  and the inspector lists `installed 2003-07-01` (19.png); the `lat` header's Role submenu shows
-  Latitude checked (22.png).
-- **detours-2, detours-3** (the same detours, longer): replayed to the end, every check point
-  matched with the date-only row changes allowed.
-- **keyboard** (keys only; replayed to step 37, then by hand): Enter on "Set in Data" sets the time;
-  the button goes and focus moves to "About Direction" (keyboard/39.png), never to the page body.
-  Shift+Tab reaches "Expand gauges.csv"; the Fields rows read "Rows are", "Add to node fields", "Id",
-  "Node time" value "installed", "Remove node time", "Node latitude column" value "lat", "Remove
-  node latitude", "Node longitude column" value "lon", "Remove node longitude". Control+Z announces
-  "Undid setting the time field."; "+" > Time > ArrowDown > Enter sets it again (45.png).
-- **keyboard-2, keyboard-3** (the same with a Label row added and Escaped): replayed to the end,
-  every check point matched.
-- **keyboard-f6**: matched in full earlier on this build; its earlier findings stand.
+- p6-success (pointer, 11 steps; "T63A/T63B success path"): the inspector's "Set in Data" sets
+  Time = installed in place (02.png against 05.png); Fields shows Time = installed, Latitude = lat,
+  Longitude = lon; in the Time list Escape keeps `installed`, Enter reopens it, ArrowDown then
+  Escape keeps it, Enter then Tab moves on (12.png).
+- p6-success-direct (pointer, 3 steps): "Set in Data" first, then the Latitude list re-picked;
+  Undo tooltip "Undo changing a column's role" (04.png).
+- p6-success-2, p6-success-3 (pointer, 18 steps each): sort by `installed`, Time list keys,
+  Latitude changed to `lon` and undone with Control+Z ("Undid changing a column's role.");
+  ends Time = installed, Latitude = lat (19.png).
+- p6-detours, p6-detours-3 (31 steps each): table header `installed` > Role > Time (06.png);
+  Control+Z undoes it (07.png); Layout > Map shows "Location lat, lon" (12.png, 13.png); Fields
+  "+" > Time on an empty row (17.png); Timeline over "Jun 30, 1995 - Jun 27, 2018, 12 nodes, 14
+  edges" (21.png); search "time" finds nothing and suggests a rule (25.png); right-click and click
+  on nodes show the node's own values (27.png, 28.png); the `lat` header's Role submenu shows
+  Latitude checked (31.png).
+- p6-keyboard, p6-keyboard-3 (keys only, 93 steps each): Tab walk to "Set in Data", Enter sets
+  the time, focus to "About Direction" (39.png); Shift+Tab back to Fields; Time list keys;
+  Control+Z announces "Undid setting the time field." (77.png); "+" > Time re-added and set;
+  a Label row added and Escaped; ends Time = installed, Latitude = lat, Longitude = lon (94.png).
+  Focus never fell to the page body.
+- p6-keyboard-f6 (6 steps): F6 cycles the left panel ("flows.csv 13 of 15 rows joined"), the inspector ("From 2 files"), the canvas ("Graph drawing"), the toolbar ("Analyze"), the table pane (on its "Resize table" handle) and back to the left panel; no step lands on the page body.
+
+## Mismatches between the answer key and the screen
+
+None. "Set in Data" sets Time = installed in place, Fields does not open, nothing is announced and
+the "Time: installed" row leaves the Overview, as the key says (p6-success/02.png against 05.png).
+The table marks only `installed` ("Time" chip), and Layout > Map shows "Location lat, lon" on a
+button that does nothing, both as the key records.
 
 ## Defects (none blocks the task or spoils its grading)
 
-1. The table marks the place only after the reader re-picks it. At the start `lat` and `lon` show
-   no Latitude / Longitude chip in the table, though Fields and the header's Role menu say they are
-   the place; after the reader opens the Latitude list in Fields and presses Enter on the same `lat`,
-   both headers gain "Latitude" and "Longitude" chips (success-direct/03.png against 04.png).
-   A participant who checks the table first sees the time marked and the place not.
-2. "Set in Data" sets the time with nothing announced and Fields left closed (success-direct/02.png,
-   keyboard/39.png); a keyboard or screen-reader user hears only focus landing on "About Direction".
-   The answer key already records this behavior.
-3. Layout > Map's Location button ("lat, lon") does nothing when clicked (detours/08.png against
-   09.png).
-4. Keyboard, in the Fields Time list: Tab with the list open leaves it open and focus where it was
-   (still "expanded"); on a freshly added empty "Node time" row Enter does not open the list, and
-   Space after ArrowDown closes the row's editing with focus back on "Add to node fields" (keyboard
-   route steps after 45.png, same as the earlier build).
-
-## Second pass on the same build
-
-- **p2-success** (pointer; replayed from the success route): all 11 steps matched and the session
-  ended. "Set in Data" sets Time = installed; Fields shows Time = installed, Latitude = lat,
-  Longitude = lon; 12 nodes, 14 edges, values unchanged
-  (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T63B/p2-success/05.png,
-  12.png). The table's `lat` and `lon` headers still show no Latitude / Longitude chip while
-  `installed` shows "Time" (12.png): defect 1 above stands.
-- The rest of this pass, on the same build, each replayed from the walk named and matched at every
-  check point to the end (exit 0, session ended), so the results above stand unchanged:
-  - **p3-success-direct** ("Set in Data" first, then the Latitude list): Time = installed,
-    Latitude = lat, Longitude = lon; Undo reads "Undo changing a column's role"
-    (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T63B/p3-success-direct/04.png).
-    That screenshot shows the Latitude / Longitude chips only after the Latitude list was re-picked
-    (defect 1).
-  - **p3-success-2** (the longer pointer walk, 18 steps).
-  - **p3-detours** (22 steps) and **p3-detours-2** (31 steps): header Role > Time, Control+Z, Layout >
-    Map, Fields "+" > Time, Timeline, search, the `lat` header's Role submenu.
-  - **p3-keyboard** (44 steps) and **p3-keyboard-2** (93 steps): keys only, reached the end with
-    Time = installed, Latitude = lat, Longitude = lon, 12 nodes, 14 edges
-    (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T63B/p3-keyboard/45.png).
-    In that screenshot the table's `installed` header carries "Time" while `lat` and `lon` carry no
-    place chip (defect 1).
-- Not replayed again: success-3, detours-3, keyboard-3 (the same routes as the -2 walks, which matched)
-  and keyboard-f6 (unchanged since it matched in full on this build).
+1. The table marks the place only after the reader re-picks it: `lat` and `lon` carry no Latitude /
+   Longitude chip while `installed` carries "Time", though Fields says they are the place
+   (p6-success/12.png). After the Latitude list is opened and Enter pressed on the same `lat`, both
+   headers gain chips (p6-success-direct/04.png), and that no-op re-pick is put on the Undo stack
+   ("Undo changing a column's role"). After Latitude is changed and undone the chips are gone again
+   (p6-success-2/19.png).
+2. "Set in Data" sets the time with nothing announced and Fields left closed; a keyboard or
+   screen-reader user hears only focus landing on "About Direction" (p6-keyboard/39.png). The
+   answer key records this behavior.
+3. Layout > Map's Location button ("lat, lon") does nothing when clicked (p6-detours/12.png against
+   13.png). The Map options popover also opens with its top cut off above the window (its first
+   line reads only "the graph.", 12.png).
+4. Keyboard, Fields "Node time" list: Tab with the list open and nothing typed leaves the list open
+   with focus where it was ("expanded"; p6-keyboard/71.png, p6-success-2/12.png), where the decided
+   behavior is that Tab closes the list and takes nothing.
+5. Keyboard, a freshly added "Node time" row: its list opens at once but the combobox announces
+   "collapsed" (p6-keyboard/83.png, 84.png); after ArrowDown highlights `installed` (still announced
+   "collapsed", 85.png), Space removes the empty row and puts focus on "Add to node fields" instead
+   of choosing the option (86.png). Enter after ArrowDown does choose it (p6-keyboard/91.png).
+6. Latitude and Longitude can both be set to the same column (`lon`) with nothing said
+   (p6-success-2/18.png); Control+Z puts it back.

@@ -22,7 +22,7 @@ function repo() {
     dirs.push(dir);
     const env = isolatedGitEnv();
     const git = (...args) =>
-        execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args], {
+        execFileSync("git", args, {
             cwd: dir,
             env,
             encoding: "utf8",

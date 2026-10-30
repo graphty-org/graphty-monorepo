@@ -702,7 +702,7 @@ function table(s: TableSection): string {
     // With no row open, the header goes inside the fold, over the rows it names.
     const headOpen = shown.length > 0 || totals.length > 0;
     const listed = def.listFolded ? folded.filter(def.listFolded) : folded;
-    const inner = listed.length ? (headOpen ? "" : head) : "";
+    const inner = listed.length && !headOpen ? head : "";
     const fold = tableFold(s.id, folded.length, words, inner + listed.map(row).join(""));
     // Nothing live: say so in words above the fold, so a table never reads as a header with no rows.
     const noneText = def.noneNow ?? (def.open ? "None past its line." : "None ongoing now.");

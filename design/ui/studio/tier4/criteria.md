@@ -1,4 +1,4 @@
-The study runs on build bccf8fe47f served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d2-bccf8fe47f
+The study runs on build a53beb7179 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d3-a53beb7179
 
 Frozen on 2026-10-29 for the tier 4 rounds.
 
@@ -330,3 +330,6 @@ first two by itself; the dry run owns the rest.
       reads a raw number.
     - T60, T61, T66, T67 and T68: the walks matched the key; the T67 points came from a walk on
       0ffeae2ef5 and were already in the key; "Select | Hide" stays the screen's words.
+- 2026-10-29: frozen on build a53beb7179 (served from .study-builds/tier4-r1d3-a53beb7179), replacing
+  bccf8fe47f (.study-builds/tier4-r1d2-bccf8fe47f). The Select card's count change stays taken back,
+  so the chip still counts over the whole graph; the build adds master's overlay behavior changes.

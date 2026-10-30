@@ -697,30 +697,30 @@ export function TableDock(): React.JSX.Element {
 
     const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groups.length, "group");
 
+    // Every tab names a rendered tab panel (aria-controls); the showing one holds the table.
+    const tabValues = ["nodes", ...(hasEdges ? ["edges"] : []), ...groups.map((run) => `g:${run.id}`)];
     const table = (
-        <div className="ws-table-main">
+        <Tabs
+            className="ws-table-main"
+            value={active}
+            onChange={(value) => {
+                if (value !== null) {
+                    store.set({ dockTab: value });
+                }
+            }}
+        >
             <div className="ws-table-strip">
-                <Tabs
-                    className="ws-table-tabs"
-                    value={active}
-                    onChange={(value) => {
-                        if (value !== null) {
-                            store.set({ dockTab: value });
-                        }
-                    }}
-                >
-                    <Tabs.List>
-                        <Tabs.Tab ref={nodesTab} value="nodes">
-                            Nodes
+                <Tabs.List className="ws-table-tabs">
+                    <Tabs.Tab ref={nodesTab} value="nodes">
+                        Nodes
+                    </Tabs.Tab>
+                    {hasEdges ? <Tabs.Tab value="edges">Edges</Tabs.Tab> : null}
+                    {groups.map((run) => (
+                        <Tabs.Tab key={run.id} value={`g:${run.id}`}>
+                            {run.label}
                         </Tabs.Tab>
-                        {hasEdges ? <Tabs.Tab value="edges">Edges</Tabs.Tab> : null}
-                        {groups.map((run) => (
-                            <Tabs.Tab key={run.id} value={`g:${run.id}`}>
-                                {run.label}
-                            </Tabs.Tab>
-                        ))}
-                    </Tabs.List>
-                </Tabs>
+                    ))}
+                </Tabs.List>
                 <Text size="xs" c="dimmed" className="ws-table-count ws-table-ellipsis">
                     {count}
                 </Text>
@@ -776,7 +776,12 @@ export function TableDock(): React.JSX.Element {
             <Text size="xs" c="dimmed" className="ws-table-caption">
                 {groupRun === undefined ? sortCaption(sorted, view.sort?.desc ?? false) : "Largest group first"}
             </Text>
-            <div className="ws-table-body" ref={bodyRef}>
+            {tabValues
+                .filter((value) => value !== active)
+                .map((value) => (
+                    <Tabs.Panel key={value} value={value} />
+                ))}
+            <Tabs.Panel value={active} className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (
                     <RecordTable
                         key={tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}
@@ -824,8 +829,8 @@ export function TableDock(): React.JSX.Element {
                         }}
                     />
                 )}
-            </div>
-        </div>
+            </Tabs.Panel>
+        </Tabs>
     );
 
     return (

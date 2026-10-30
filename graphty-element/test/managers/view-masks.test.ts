@@ -172,6 +172,8 @@ describe("UpdateManager view masks", () => {
         const scene = {
             onAfterRenderObservable: observable,
             onBeforeDrawPhaseObservable: observable,
+            onNewMeshAddedObservable: observable,
+            onMeshRemovedObservable: observable,
             getEngine: () => ({ onResizeObservable: observable }),
         };
         const graphContext = { getScene: () => scene } as unknown as GraphContext;

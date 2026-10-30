@@ -45,7 +45,7 @@ import { type LazyShaderHost, lendSceneShaders } from "../shaders/chunk";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
 import type { Manager } from "./interfaces";
-import { trackOnScene } from "./PendingWork";
+import { pendingWorkOf, trackOnScene } from "./PendingWork";
 import { FlashCounter, FlashReadback, QUALITY_LEVELS, RenderTargetBudget, ShaderGuard } from "./ShaderGuard";
 
 /**
@@ -1335,10 +1335,13 @@ export class RenderManager implements Manager {
      *
      * For a change the loop cannot see by itself: one that moves no node, queues no style work,
      * leaves the camera where it is and announces no event. A graph drawing every frame (the
-     * default) needs none of this.
+     * default) needs none of this to draw it, but the frame on screen is no longer the final one:
+     * every caller is saying the picture changed, so it is entered in the graph's record of
+     * pending work and `waitForStableFrame()` waits for a frame that draws it (issue #3287).
      */
     requestFrame(): void {
         this.drawOwed = true;
+        pendingWorkOf(this.scene)?.changed();
     }
 
     /** See {@link setPixelRatio}. */

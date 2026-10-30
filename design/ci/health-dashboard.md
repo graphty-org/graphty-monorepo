@@ -423,7 +423,7 @@ request with auto-merge off, which `tools/pr-open.sh` leaves for him to merge. T
 | Runs failed by their change | first runs red on a test the change touched / first runs | 7 d             | 20 runs   | < 5 %     | --     |
 | Green but not merging       | auto-merge armed, green and unmerged 2 h                 | now             | --        | 0         | >= 2   |
 | Armed too long              | auto-merge armed 24 h                                    | now             | --        | <= 1      | >= 4   |
-| Screenshot backlog          | oldest pictures waiting for the owner                    | now             | --        | < 24 h    | > 72 h |
+| PR screenshot approvals     | oldest open PR waiting on its "Visual review" status     | now             | --        | < 24 h    | > 72 h |
 
 The open count's target assumed the quieter repository of early October; at 107 merges on 2026-10-26,
 the agents' open pull requests sat at a median of 12 and a 90th percentile of 22 (31 at most) while
@@ -582,7 +582,14 @@ also records a failed run for a push to any branch whose copy of the file it can
 
 Train attempts mark a failed attempt red and an untested new commit yellow, and say for each tested
 attempt whether it moved nightly: "promoted", "held: screenshots to review, or a hold is open" (yellow)
-or "not promoted".
+or "not promoted". Its time column is when the run started; a channel tile's dot is titled with when the
+same run finished ("finished 15:22: promoted"), so the two never read as different runs. A channel
+tile's color is its newest finished attempt: OK promoted, WARNING passed but not promoted, FAILING
+failed, NO DATA none recorded; the tiles' caption says so.
+
+"PR screenshot approvals waiting" counts only pull requests carrying a pending "Visual review" status
+(the owner's approval pull requests); changed pictures that hold nightly are "Full runs held for
+screenshot review", and the row's definition says so, so the two are not read as contradicting.
 
 "Train skipped a new commit" is yellow at once, so a skipped candidate is seen hours before
 untested master age passes its target. The channel members (canary, nightly and production age,

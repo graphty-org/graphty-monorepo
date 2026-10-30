@@ -118,13 +118,15 @@ export function budgetBar(r: ShardRow, maxS: number): { svg: string; note: strin
         `<rect class="p90${p90Over ? " warn" : ""}" x="0" y="3" width="${x(r.p90S)}" height="8" />` +
         `<rect class="${judged ? `med${medOver ? " bad" : ""}` : "p90"}" x="0" y="3" width="${x(r.medianS)}" height="8" />` +
         `<line class="bud" x1="${x(r.budgetS)}" y1="0" x2="${x(r.budgetS)}" y2="14" /></svg>`;
+    // The budget is printed, not only drawn, so "over budget" says over what.
+    const budget = `budget ${fmtN(Math.round((r.budgetS / 60) * 10) / 10)} min`;
     const note = !judged
-        ? `n=${r.runs}, not judged`
+        ? `n=${r.runs}, not judged; ${budget}`
         : medOver
-          ? "median over budget"
+          ? `median over ${budget}`
           : p90Over
-            ? "p90 over budget"
-            : "";
+            ? `p90 over ${budget}`
+            : budget;
     return { svg, note };
 }
 

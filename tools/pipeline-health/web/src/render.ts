@@ -515,7 +515,7 @@ export const TABLES: Record<string, TableDef> = {
     trains: {
         cls: "t-trains",
         cols: [
-            ["attempt", "attempt"],
+            ["attempt", "started"],
             ["candidate", "candidate"],
             ["lanes", "lanes"],
             ["nightly", "nightly"],

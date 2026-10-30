@@ -201,11 +201,17 @@ export function showsRangeValue(
 
 /** "not judged: 4 merged this hour, needs 5": a rate with too few events to judge. */
 export function fewText(
-    m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "id">>,
+    m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "id" | "window">>,
     range?: Range | SlowRange,
 ): string {
     const nOf = m.id ? MEMBER[m.id].nOf : undefined;
-    const when = range === undefined || range === "1h" ? "this hour" : `in the last ${rangeLabel(range)}`;
+    // A 7- or 28-day measure counts its own days, whatever the picker shows.
+    const days = m.window === "7d" || m.window === "28d" ? m.window : undefined;
+    const when = days
+        ? `in the last ${rangeLabel(days)}`
+        : range === undefined || range === "1h"
+          ? "this hour"
+          : `in the last ${rangeLabel(range)}`;
     return `not judged: ${fmtN(m.n ?? 0)}${nOf ? ` ${esc(nOf)}` : ""} ${when}, needs ${fmtN(m.minN ?? 0)}`;
 }
 
@@ -252,7 +258,8 @@ export function stateChip(
 
 /** The overview's release channel tiles: the heading, each channel's name and how its attempts read. */
 export const CHANNELS_HEAD = "Releases";
-export const CHANNELS_SUB = "what each channel serves; each dot a release attempt, oldest to newest";
+export const CHANNELS_SUB =
+    "what each channel serves; each dot a release attempt, oldest to newest; the color is the newest finished attempt: OK promoted, WARNING passed but not promoted (pictures wait for review), FAILING failed, NO DATA none recorded yet";
 
 export const CHANNEL: Record<ChannelId, { name: string; ok: string; none: string }> = {
     canary: { name: "Canary", ok: "deployed", none: "no deploys recorded" },
@@ -270,11 +277,11 @@ const OUTCOME: Record<Exclude<ChannelOutcome, "ok">, string> = {
 export const channelSince = (id: ChannelId, at: Iso | null): string =>
     at ? `${CHANNEL[id].ok} ${fmtAgo(at)}` : CHANNEL[id].none;
 
-/** One attempt's dot title: "19:20: failed, 3f2a91c". */
+/** One attempt's dot title: "finished 19:20: failed, 3f2a91c" (Train attempts lists the same runs by start time). */
 export function attemptText(id: ChannelId, a: { at: Iso; outcome: ChannelOutcome; sha?: string }): string {
     const word = a.outcome === "ok" ? CHANNEL[id].ok : OUTCOME[a.outcome];
     const sha = a.sha ? ", " + esc(a.sha.slice(0, 7)) : "";
-    return `${fmtTime(a.at)}: ${word}${sha}`;
+    return `finished ${fmtTime(a.at)}: ${word}${sha}`;
 }
 
 /** The dot row's label for a screen reader. */
@@ -334,20 +341,20 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "master.full_run_verdict": {
         name: "Latest full test run",
         short: "latest full test run",
-        def: "Whether the CI lane (every test shard) of the newest full run passed. A full run tests master every 6 hours.",
-        red: "The newest full run's CI lane failed, so nothing promotes to nightly until agents fix or revert the change its bisect names. See Releases > Lanes on the candidate.",
+        def: "Whether every test shard (the CI lane) passed in the newest full run, which tests master every 6 hours. Passed here means master's tests are green; nightly can still wait on other lanes or on screenshot review (see Releases).",
+        red: "Red: the newest full run's tests failed on master, so nothing promotes to nightly until agents fix or revert the change its bisect names. See Releases > Lanes on the candidate.",
     },
     "master.untested_age": {
         name: "Hours since master was fully tested",
         short: "hours since master was fully tested",
-        def: "Age of the oldest master commit no 6-hourly full run has judged yet, in hours.",
-        red: "Over 13 h: full runs are falling behind or not starting. See Releases > Train attempts.",
+        def: "Hours since the oldest master commit that no full run has tested yet was merged. Full runs start every 6 hours, so up to about 7 h is normal.",
+        red: "Over 13 h: two full runs in a row did not test new master commits, so they are failing to start or falling behind. See Releases > Train attempts.",
     },
     "master.reverts": {
         name: "Reverted merges",
         short: "reverted merges",
-        def: "Share of merges in the last 7 days that were reverted, in %.",
-        red: "Over 10% of merges in 7 days were reverted: changes land broken, so reviews and PR tests miss real failures. See Master builds.",
+        def: "Share of merges into master in the last 7 days that a later merge reverted, in %.",
+        red: "Over 10%: changes land broken, so reviews and PR tests miss real failures. It turns Master red like any other row. See Master builds.",
     },
     "pull-requests.time_to_merge": {
         name: "Time to merge",
@@ -395,10 +402,10 @@ export const MEMBER: Record<MemberId, MemberText> = {
         red: "4 or more: PRs sit for a day with auto-merge on, mostly red. The PRs are named in this row; their authors fix or close them.",
     },
     "pull-requests.screenshot_backlog": {
-        name: "Screenshots waiting for review",
-        short: "screenshots waiting for review",
-        def: "Age in hours of the oldest changed screenshot waiting for the owner's approval.",
-        red: "Over 72 h: nightly cannot promote. The owner reviews the held candidate.",
+        name: "PR screenshot approvals waiting",
+        short: "PR screenshot approvals waiting",
+        def: "Hours the oldest open pull request has waited on its 'Visual review' status, which only the owner's approval pull requests carry. Changed pictures that hold nightly back are counted on Releases, Full runs held for screenshot review, not here.",
+        red: "Over 72 h: an approval pull request waits on the owner, so nightly waits too. The owner finishes it on the review page.",
     },
     "ci.runner_wait": {
         name: "Runner wait (p90)",
@@ -442,15 +449,15 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.pr_duration": {
         name: "PR check time vs budget",
         short: "PR check time vs budget",
-        def: "Median PR check run time divided by its budget (1.0 = on budget; each kind of run has its own budget in tools/ci-budgets.json).",
-        red: "Over 2x: PR checks take twice their budget. See Shard times.",
+        def: "Median time of a pull request's checks divided by its time budget (1.0 = on budget). Each kind of PR run (a few packages, or every package) has its own budget in minutes.",
+        red: "Over 2x: PR checks take twice their budget, so every PR waits longer. Agents look at the slowest shards in Shard times.",
         nOf: "runs",
     },
     "ci.bins_over": {
         name: "PR test groups over 8 min",
         short: "PR test groups over 8 min",
-        def: "Share of PR test groups (the test selector's bins) that ran longer than 8 min in the last hour, in %. The selector aims to keep each under 8 min. Shard times below, pull request bins, covers 7 days instead.",
-        red: "Over 25%: the PR test split needs rebalancing. See Shard times, pull request bins.",
+        def: "Share of a pull request's test groups that ran longer than 8 min in the last hour, in %. CI splits each PR's tests into groups meant to finish within 8 min. Shard times below, pull request bins, shows the same groups over 7 days.",
+        red: "Over 25%: the way PR tests are split into groups needs rebalancing, so PRs wait on their slowest group. See Shard times, pull request bins.",
         nOf: "bins",
     },
     "ci.reruns": {
@@ -463,51 +470,51 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.shards_over": {
         name: "Full-run shards over budget",
         short: "full-run shards over budget",
-        def: "Full-run test shards whose 7-day median time is over their budget. Shard times below shows the same shards; while CI test results sends too little this row says NO DATA rather than count from data that may be missing.",
-        red: "3 or more: full runs are slowing down. See Shard times.",
+        def: "Full-run test shards whose 7-day median time is over their own time budget. Shard times below shows each shard's median against its budget (the line in its bar). While CI test results sends too little, this row says NO DATA rather than count from data that may be missing.",
+        red: "3 or more: full runs are slowing down and may hit their timeouts. Agents speed up or split the shards listed over budget in Shard times.",
     },
     "ci.runner_minutes": {
         name: "Runner-minutes per merge",
         short: "runner-minutes per merge",
         def: "Runner-minutes CI used, across every kind of run, per PR merged into master, over 7 days.",
-        red: "Over 600: CI load per change is growing, so everyone queues longer. Minutes cost no money; the queue costs time.",
+        red: "Over 600: CI load per change is growing, so everyone queues longer. Minutes cost no money; the queue costs time. The table below shows which kind of run uses them.",
         nOf: "merged",
     },
     "ci.screenshot_set_age": {
         name: "Oldest screenshot set",
         short: "oldest screenshot set",
-        def: "Hours since the least recently captured group of Storybook stories got a new screenshot from the background captures that run many times a day.",
-        red: "Over 12 h: the background screenshot captures stopped, so the owner reviews stale pictures. Agents check story-slices.yml runs.",
+        def: "Hours since the least recently captured group of Storybook stories got a new screenshot from the background captures that run many times a day. A current age, read now.",
+        red: "Over 12 h: the background screenshot captures stopped, so the owner reviews stale pictures. Agents check the background screenshot capture workflow's runs.",
     },
     "ci.slice_base_budget": {
         name: "Scheduled screenshot captures, daily cap",
         short: "scheduled screenshot captures, share of daily cap",
-        def: "Runner-minutes used today (UTC) by the scheduled background screenshot captures, as a share of their daily cap, in %.",
-        red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
+        def: "Runner-minutes used today (UTC) by the scheduled background screenshot captures, as a share of the daily cap their workflow sets for itself, in %. Read now; 100% means the cap is used up.",
+        red: "Over 125%: the captures use more runner time than their own cap allows, taking runners from real work; agents check the capture workflow's cap. See Runners > Who holds the runners.",
     },
     "ci.slice_idle_budget": {
         name: "Spare-time screenshot captures, daily cap",
         short: "spare-time screenshot captures, share of daily cap",
-        def: "Runner-minutes used today by the extra screenshot captures that run only when runners are free, as a share of their daily cap, in %.",
-        red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
+        def: "Runner-minutes used today (UTC) by the extra screenshot captures that run only when runners are free, as a share of the daily cap their workflow sets for itself, in %. Read now.",
+        red: "Over 125%: the captures use more runner time than their own cap allows, taking runners from real work; agents check the capture workflow's cap. See Runners > Who holds the runners.",
     },
     "ci.slice_idle_hour_budget": {
         name: "Spare-time screenshot captures, hourly cap",
         short: "spare-time screenshot captures, share of hourly cap",
-        def: "Runner-minutes used in the last hour by the extra screenshot captures that run only when runners are free, as a share of their hourly cap, in %.",
-        red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
+        def: "Runner-minutes used in the last hour by the extra screenshot captures that run only when runners are free, as a share of the hourly cap their workflow sets for itself, in %. Read now.",
+        red: "Over 125%: the captures use more runner time than their own cap allows, taking runners from real work; agents check the capture workflow's cap. See Runners > Who holds the runners.",
     },
     "ci.slice_contended": {
         name: "Capture minutes while CI was busy",
         short: "capture minutes while CI was busy",
-        def: "Runner-minutes screenshot captures held while other jobs were queued or the pool was full.",
-        red: "Over 105 min: captures slow real work.",
+        def: "Runner-minutes background screenshot captures held today while other jobs were queued or every runner was busy.",
+        red: "Over 105 min: captures slow real work; agents make the captures yield to queued jobs.",
     },
     "ci.slice_queue_wait": {
         name: "Queue wait caused by captures",
         short: "queue wait caused by captures",
-        def: "Minutes other jobs waited while a screenshot capture held a runner.",
-        red: "Over 105 min: captures slow real work.",
+        def: "Minutes other jobs waited today while a background screenshot capture held a runner.",
+        red: "Over 105 min: captures slow real work; agents make the captures yield to queued jobs.",
     },
     "ci.superseded": {
         name: "Superseded runs still running",
@@ -530,13 +537,13 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "flaky.blocked": {
         name: "PRs blocked by a flake",
         short: "PRs blocked by a flake",
-        def: "Open PRs whose newest failure was a flaky test or an unstable story.",
-        red: "3 or more PRs, or one blocked 24 h: flakes are stopping merges.",
+        def: "Open PRs whose newest failure was a flaky test or an unstable story, read now.",
+        red: "3 or more PRs, or one blocked 24 h: flakes are stopping merges. Agents fix the flaky tests in Hotspots first.",
     },
     "flaky.no_issue": {
         name: "Flaky tests with no issue",
         short: "flaky tests with no issue",
-        def: "Tests seen flaky in CI in the last 7 days that have no open issue.",
+        def: "Tests seen flaky in CI in the last 7 days that have no open issue, read now. Each test's page in Hotspots links its issue or drafts one.",
         red: "3 or more: flakes go untracked. Open the test from Hotspots below; its page drafts the issue on GitHub.",
     },
     "flaky.flake_rate": {
@@ -549,13 +556,13 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "flaky.net_new": {
         name: "Net new flaky tests",
         short: "net new flaky tests",
-        def: "Tests that became flaky minus tests fixed, over 7 days.",
-        red: "More than 3: flakiness grows faster than it is fixed.",
+        def: "Tests that became flaky minus tests fixed (10 clean runs or their issue closed), over 7 days.",
+        red: "More than 3: flakiness grows faster than agents fix it. Agents take flaky issues before new work.",
     },
     "flaky.detected_to_fixed": {
         name: "Days to fix a flaky test",
         short: "days to fix a flaky test",
-        def: "Median days from a test first flaking to its fix merging, over 28 days.",
+        def: "Median days from a flaky test's issue being opened to its fix merging, over the fixes of the last 28 days. Not judged until 5 fixes have merged.",
         red: "Over 7 d: flaky tests stay broken for a week or more. Agents take the oldest flaky issues first.",
     },
     "flaky.stress_run": {
@@ -567,8 +574,8 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "releases.lanes_red": {
         name: "Red lanes on the candidate",
         short: "red lanes on the candidate",
-        def: "Lanes of the full run (CI, T4 GPU, host matrix, macOS autosave, audit, LLM tests) that failed on the held nightly candidate: the commit the newest full run tested and holds back from nightly until it passes.",
-        red: "A lane has been red 6 h or more, or a passed candidate has waited 6 h for screenshot review, so nightly cannot move. Agents fix forward from the candidate; changed screenshots wait on the owner.",
+        def: "Lanes of the full run (CI, T4 GPU, host matrix, macOS autosave, audit, LLM tests) that failed on the newest tested commit, the candidate for nightly. A run that passed but changed pictures counts on Full runs held for screenshot review instead, unless an open 'Nightly held' issue holds it.",
+        red: "Red: a lane has been red 6 h or more, or a held candidate with an open 'Nightly held' issue has waited 6 h for screenshot review, so nightly cannot move. Agents fix forward from the candidate; changed screenshots wait on the owner.",
         headline: "Release lanes red",
     },
     "releases.workflows_failing": {
@@ -580,8 +587,8 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "releases.train_skipped": {
         name: "Newest commit skipped",
         short: "newest commit skipped",
-        def: "Whether the newest full-run attempt skipped testing a new master commit.",
-        red: "Full runs are not testing new work.",
+        def: "Whether the newest full-run attempt skipped every lane although master had a new commit to test (yes or no).",
+        red: "If yes: full runs are not testing new work, so nothing new can reach nightly. Agents check the newest Release run in Train attempts.",
     },
     "releases.tagged_not_npm": {
         name: "Tagged, not on npm",
@@ -593,7 +600,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Full runs passing first try",
         short: "full runs passing first try",
         def: "Share of full-run attempts in the last 7 days that passed on their first attempt, in %.",
-        red: "Below 75%: master is often broken when tested. See Train attempts.",
+        red: "Below 75%: master is often broken when a full run tests it, so nightly waits for fixes. Agents fix the lanes that fail most in Train attempts.",
     },
     "releases.channels": {
         name: "Channel members",
@@ -612,27 +619,27 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Full runs held for screenshot review",
         short: "full runs held for screenshot review",
         def: "Share of green full runs in 7 days held because a picture changed and waits for the owner, in %.",
-        red: "Over 75%: nightly waits on review almost every time.",
+        red: "Over 75%: nightly waits on the owner's screenshot review almost every time. The owner reviews the changed pictures on the review page's master rolling target.",
         nOf: "green runs",
     },
     "releases.green_clean": {
         name: "Full runs able to promote",
         short: "full runs able to promote",
         def: "Share of full runs in 7 days that passed with no changed pictures, so they could promote to nightly at once, in %.",
-        red: "Below 25%: nightly rarely moves.",
+        red: "Below 25%: nightly rarely moves, because full runs fail or change pictures. Train attempts below says which, for each run.",
         nOf: "full runs",
     },
     "releases.nightly_promotions": {
         name: "Nightly promotions per day",
         short: "nightly promotions per day",
         def: "Times nightly moved to a new commit, per day, 7-day average.",
-        red: "Below 1 a day: nightly and npm next fall behind master.",
+        red: "Below 1 a day: nightly and npm next fall behind master. The rows above say why: failing lanes, or pictures waiting for review.",
     },
     "costs.spend": {
         name: "Spend this month",
         short: "spend",
         def: "Every paid service, projected to month-end, in USD.",
-        red: "Spent past the monthly budget. Yellow when only the month-end forecast is over it. The owner picks a new limit or accepts the overrun.",
+        red: "Red: spent so far is past the monthly budget; yellow: only the month-end forecast is past it. The owner picks a new limit or accepts the overrun.",
         headline: "Spend projected",
         when: " projected for month-end",
     },
@@ -640,14 +647,14 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "T4 GPU",
         short: "T4 GPU",
         def: 'The machine.dev bill for the paid T4 GPU runner, projected to month-end, in USD. "Money by workflow" below is GitHub\'s list-price value, not this bill.',
-        red: "Spent past its budget. Yellow when only the month-end forecast is over it. The owner picks a new limit or accepts the overrun.",
+        red: "Red: spent so far is past its limit; yellow: only the month-end forecast is past it. The owner picks a new limit or accepts the overrun.",
         when: " projected for month-end",
     },
     "costs.llm": {
         name: "LLM tests (estimated)",
         short: "LLM tests spend",
         def: "Gemini calls made by the CI LLM regression tests, at a flat estimated rate, projected to month-end, in USD.",
-        red: "Spent past its budget. Yellow when only the month-end forecast is over it. The owner picks a new limit, or agents cut the LLM test runs.",
+        red: "Red: spent so far is past its limit; yellow: only the month-end forecast is past it. The owner picks a new limit, or agents cut the LLM test runs.",
         when: " projected for month-end",
     },
     "costs.aws": {

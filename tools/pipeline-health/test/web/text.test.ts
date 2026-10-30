@@ -74,7 +74,8 @@ describe("release channel tiles", () => {
         expect(html).toContain(">9c41d07<");
         expect(html).toContain("promoted 60 min ago");
         expect([...html.matchAll(/class="dot d-(\w+)"/g)].map((m) => m[1])).toEqual(["bad", "ok", "held"]);
-        expect(html).toContain('title="12:00: failed, 1111111"');
+        // Finish times: Train attempts lists the same runs by when they started.
+        expect(html).toContain('title="finished 12:00: failed, 1111111"');
         expect(html).toContain("last 3 release attempts, oldest first");
         clock.now = () => Date.now();
     });
@@ -416,5 +417,56 @@ describe("tables", () => {
         expect(html.split("<details")[1]).toContain("steady");
         expect(html).not.toContain(">new<");
         expect(html).toContain("2 of 3 have the 13 runs detection needs");
+    });
+});
+
+describe("the overview's most urgent line", () => {
+    it("names the worst category, the member that set it, what red means, and the others not OK", async () => {
+        const { urgent, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        const cat = (id: string, state: string, setBy?: unknown) => ({ id, state, others: [], setBy }) as never;
+        const html = urgent([
+            cat("costs", "warn", { member: "costs.spend", state: "warn", value: { n: 342, unit: "usd" } }),
+            cat("master", "ok"),
+            cat("releases", "bad", { member: "releases.green_clean", state: "bad", value: { n: 0, unit: "pct" } }),
+        ]);
+        expect(html).toContain("Most urgent:");
+        expect(html.indexOf("Releases")).toBeLessThan(html.indexOf("Costs"));
+        expect(html).toContain("full runs able to promote 0%");
+        expect(html).toContain("Below 25%: nightly rarely moves");
+        expect(html).toContain("Also not OK: Costs (WARNING).");
+        expect(html).not.toContain("Master");
+        expect(urgent([cat("master", "ok")])).toContain("Nothing needs action");
+    });
+});
+
+describe("range notes", () => {
+    it("say a 28-day member's sample count over its own days, not this hour", async () => {
+        const { fewText } = await import("../../web/src/text.js");
+        expect(fewText({ id: "releases.review_lag", window: "28d", n: 0, minN: 5 } as never, "1h")).toBe(
+            "not judged: 0 pictures in the last 28 d, needs 5",
+        );
+    });
+
+    it("say under a 24 h headline that its block is judged on the last hour", async () => {
+        const { headline, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "overview", range: "24h", q: new URLSearchParams() });
+        const m = {
+            id: "ci.runner_wait",
+            window: "1h",
+            state: "ok",
+            value: { n: 29.9, unit: "min" },
+            sla: null,
+            link: "/ci/runners",
+        } as never;
+        expect(headline(m)).toContain("the block's color is judged on the last 1 h");
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        expect(headline(m)).not.toContain("judged on the last 1 h");
+    });
+
+    it("print a shard's budget beside its bar", async () => {
+        const { budgetBar } = await import("../../web/src/charts.js");
+        const row = { shard: "s", runs: 9, minRuns: 5, medianS: 900, p90S: 1000, budgetS: 600 } as never;
+        expect(budgetBar(row, 1200).note).toBe("median over budget 10 min");
     });
 });

@@ -79,3 +79,13 @@ Nothing on these routes crashes, blocks the task or spoils its grading. Still pr
 
 - The fix-list routes, which all belong to other tasks.
 - No route of this task was skipped; every session was ended.
+
+## Targeted re-walk on a53beb7179 (not completed)
+
+A re-walk of this task's success path, its detours and keyboard walk, and every route the fix pass
+touched (T65A, T65B, T66A/B, T68A/B, T61A, T61B and T67A/B) was queued on the frozen build
+(`.study-builds/tier4-r1d3-a53beb7179`), each in its own replay session under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T62B/q00-* to q19-*
+(list in q-list.txt). Every replay was still waiting for a free browser slot when this pass had to
+report, so none of these routes was walked here and nothing new is recorded. The last completed walk
+of this task on the same build is in rounds/r1d3/pilot/T62B/report.md (reached, no mismatches).

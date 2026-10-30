@@ -1,56 +1,56 @@
-# Pilot: T60 B (yeast gene network from a web address), targeted re-walk
+# Pilot: T60 B (yeast gene network from a web address), targeted re-walk after the fix pass
 
-Build: ff17391bb1 (frozen, .study-builds/tier4-r1d2-ff17391bb1). Start: empty. Every session ended.
-Screenshots stay out of git, under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B.
+Build: a53beb7179 (frozen, .study-builds/tier4-r1d3-a53beb7179). Start: empty. Every session was
+ended. Screenshots stay out of git, under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B (folders whose
+names start rp4-).
 
-Result: reached on every walk. The loaded network is the task's own file the whole way: 331 nodes,
-361 edges; the Sources row shows 331 and 361; the Edges table lists 361 edges.
+Result: reached. The loaded network is the task's own file the whole way: 331 nodes and 361 edges
+(Overview, the Sources row, the source's Loaded section and the Edges table agree). These are the
+answer key's counts (331 genes, 361 interactions).
 
-The routes the latest fixes touched are routes of other tasks (shortest path, filters, selection,
-table header roles); none of them is on this task's path, so none was walked here. Walks that
-matched the first pass to the end (detours-3, detours-5, detours-6) were not walked again. Every
-other walk was replayed from the previous re-walk's route on this build.
+## Routes walked
 
-## Success path, by pointer (success, success-2, success-3)
+1. Success path by pointer (rp4-success): replayed from the last walk of this route; all 10 steps
+   matched and the session ended.
+   - The web address typed into "Web address of a graph file" in Open network data (rp4-success/05.png).
+   - Enter opens project "yeast-galactose"; Overview shows Nodes 331, Edges 361 (rp4-success/06.png).
+   - Data: the Sources row shows the link glyph, 331 and 361, no issue chip (rp4-success/07.png).
+   - The source's inspector shows Loaded Nodes 331, Edges 361; Table > Edges reads "361 edges" with no
+     warning marks (rp4-success/09.png, rp4-success/11.png).
+2. Keyboard only, started --keys --sr (rp4-keyboard): replayed from the last keyboard walk; all 50
+   steps matched (the dialog's tab order, Escape with text typed, the address typed again, Enter,
+   then Data by arrow key) and the session ended. --read at the end lists the Sources row as
+   "yeast-galactose.graphml 331 nodes, 361 edges" (rp4-keyboard/51.png).
+3. Detours (rp4-detours): replayed the detour walk that covers Open a file and cancel, the Web API
+   card's Server form, Sources "+" > Server... and Network data..., Enter in the address box inside
+   an Untitled project, Main menu > Open project or file... and Escape, the address pasted into Find,
+   and a right-click on empty canvas. All 32 steps matched and the session ended. Find answers
+   "No match for ..." and leaves the data unchanged (rp4-detours/30.png).
 
-All three replays matched every check point to the end.
+## Routes the fix pass touched
 
-- Start screen > Open network data > the box "Web address of a graph file" > type the address >
-  Enter: the graph opens as project "yeast-galactose"; Overview shows Nodes 331, Edges 361
-  (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/success/06.png).
-- Data: the Sources row has the link glyph, "yeast-...", a 331 node chip and a 361 edge chip, no
-  issue chip (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/success/07.png).
-- Table > Edges: 361 edges (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/success-2/09.png, /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/success-3/07.png); the source's inspector:
-  file glyph, "Source", Nodes 331, Edges 361 (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/success-2/10.png).
+None of the fourteen listed routes (the keep card and its chip's count, a style layer's Which
+nodes, the Data source card's count and the source row's issue chip, the narrowed Hide card's
+count, the Edges "With issues" filter, the deliveries/pantries detour and the column issue marks)
+belongs to this task: each starts from another task's own data and setup (T61, T65, T66, T67,
+T68) and none lies on this task's path from the start screen to a network opened from a web
+address. They are walked in those tasks' own pilot folders, not here.
 
-Answer key against the screen: no mismatch.
+## Mismatches between the answer key and the screen
 
-## Detours (detours, detours-2, detours-4)
-
-All three replays matched every check point to the end: Open a file and cancel; the Web API card
-with the address in Endpoint (Test and Load stay disabled); Sources "+" > Server... (no kind takes
-a file address); Sources "+" > Network data... and Enter in the box loads 331 / 361
-(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/detours/23.png, 24.png); the main menu has no door to an address; the address typed into Find
-gives "No match"; the canvas menu has nothing about data (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/detours-2/24.png to 31.png;
-/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/detours-4/24.png to 27.png).
-
-## Keyboard only (keyboard, keyboard-2, keyboard-3; --keys --sr)
-
-keyboard and keyboard-3 matched to the end. keyboard-2 differed only at Enter in the box: the
-load's status is now spoken three times ("yeast-galactose: 331 nodes, 361 edges", then "331 nodes,
-361 edges" twice) where the previous build spoke it twice; the rest was walked by hand and matched
-the earlier walk (Shift+Tab to "Local only", Tab from Main menu through Project, Undo, Redo, Graph,
-Find, Add a layer, the Everything layer "331 nodes, 361 edges", Graph settings, Resize left panel)
-(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/keyboard-2/31.png to 34.png).
+None that change the grading. The source's inspector shows a file glyph and "Source", not the web
+address (rp4-success/09.png), as the key already says.
 
 ## Defects
 
-1. After Enter in the web address box the graph loads but focus falls to the page body ("focus:
-   nothing (the page itself)"); the next Tab starts again at Main menu (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/keyboard/31.png,
-   /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/keyboard-2/31.png, /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/keyboard-3/31.png). Does not block the task.
-2. The load's live status is spoken three times: "yeast-galactose: 331 nodes, 361 edges", then
-   "331 nodes, 361 edges" twice (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/keyboard-2/31.png).
-3. Unchanged: the Sources row's accessible name repeats its counts ("... Node 331 Edge 361 331
-   nodes, 361 edges") (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/success/08.png).
-4. Unchanged: the only button beside the web address box is "Choose file", which opens the file
-   chooser and ignores the typed address; Enter is the only way to open it (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T60B/success/05.png).
+1. After Enter in the address box on the keyboard walk, focus falls to the page itself; the next Tab
+   starts again at Main menu (rp4-keyboard/31.png, rp4-keyboard/32.png). Already in the backlog.
+2. The load's status is announced "yeast-galactose: 331 nodes, 361 edges" then "331 nodes, 361
+   edges" twice (the third arrives with the text already in the region, so many screen readers will
+   not read it) (rp4-keyboard/31.png).
+3. The only control beside the web address box is the file-upload icon button; Enter is the only
+   way to open the address (rp4-success/05.png). Already in the backlog.
+4. The Edges table's "Columns: 2 of 2" reads grayed as if disabled (rp4-success/11.png).
+
+No defect blocks the task or changes the counts.

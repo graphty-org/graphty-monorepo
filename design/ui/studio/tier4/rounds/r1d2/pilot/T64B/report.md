@@ -22,10 +22,15 @@ end, and the session was ended.
 
 ## Not walked
 
-Every other route in this re-pilot's list belongs to another task and its own pilot: the T65 A and
-T65 B success paths, follow-ups, keyboard walk and style-layer detour; the T66 A/B Data source card
-and source row issue chip; the T68 A/B starts; the T61 A/B Edges issue routes and keyboard walk;
-the T67 A/B column issue marks. None of them uses this task's start or asks this task's question.
+These routes were queued as replays on this build (folders r9-z01 to r9-z17 under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T64B, script r9-replay.sh there)
+but never got a browser: all eight of the machine's browser slots stayed taken, and the walk had to
+report before one freed. They are still to be walked: the T65 A success path, its other card order and
+its keyboard walk; the T65 B success path, its other card order and the style layer's Which nodes
+detour; the T66 A/B Data source card's count and the source row's issue chip after it; the T68 A/B
+starts; the T61 A success path, the T61 B success path, the T61 A deliveries.csv-first detour and the
+T61 A keyboard walk; the T67 A/B column issue marks. This task's own detours and keyboard walk were
+not part of this targeted pass.
 
 ## Defects
 

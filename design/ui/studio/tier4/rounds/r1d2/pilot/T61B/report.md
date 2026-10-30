@@ -301,3 +301,38 @@ and 15 with "1 repeated edge" are that network's own counts.
 None. Unchanged from the earlier builds and not grading risks: the focused end header does not say it has an
 issue (m6-keys/103.png); "Open as a separate graph" shows "Join canceled" (m2-menu-open/32.png); in the reverse
 order the repeated edge's mark sits on "from" only (m3-flows-first/21.png).
+
+## Targeted re-walk on build a53beb7179 after the fix pass (q walks)
+
+Build a53beb7179 (frozen, `.study-builds/tier4-r1d3-a53beb7179`), 1440 x 900, start `empty`. Screenshots are
+under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T61B/ (q1). The data stayed
+the task's own: gauges.csv (G01-G11) and flows.csv (15 rows, G09 -> G12 among them).
+
+Of the routes the fix pass touched, the one that belongs to this task is "T61B success path (Edges > With
+issues)"; the rest belong to T61 A, T65, T66, T67 and T68.
+
+| Walk | How | Result |
+| ---- | --- | ------ |
+| q1-success (pointer, on to Edges > With issues) | replay of m1-success | All 23 steps matched; reached |
+| q2-menu-open, q3-flows-first, q4-quick-actions, q5-drop (detours) | replays of m2 to m5 | Not walked: every browser slot was taken, with 11 starts queued ahead, and the walk was stopped before it got a browser |
+| q6-keys (keyboard only) | replay of m6-keys | Not walked, for the same reason |
+
+### What the screens show (q1-success)
+
+- Join screen: "Join flows.csv -> gauges.csv", Edges, Source from = Id, Target to = Id, "14 edges added",
+  "1 new node", "1 not in graph", "1 repeated key" with its warning glyph (q1-success/05.png).
+- After Join: Nodes 12, Edges 14, "From 2 files"; the flows.csv row reads 12, 14 and issue chip 1
+  (q1-success/13.png). The chip opens "Issues in flows.csv": edges, 1 unknown end, Add nodes, Leave out,
+  Ignore (q1-success/19.png).
+- Edges > "With issues 1": the warning glyph on the Target header, the one row G09 -> G12, 4 km, with G12
+  tinted (q1-success/23.png). Hovering the glyph shows no tooltip; its name is "Issues in Target"
+  (q1-success/24.png).
+
+### Mismatches between the answer key and the screen
+
+None: 12 gauges (11 and G12), 14 stretches, 14 on the second file's Sources row.
+
+### Defects (crash, block, or a result that would spoil grading)
+
+None on the success path. The detours and the keyboard walk still need walking on this pass; their last
+walks on this same build (m2 to m6, above) found none.

@@ -6,7 +6,16 @@
 
 import type { EdgeId, NodeId, SourceKey } from "../catalog/types";
 import { GraphtyError } from "../errors";
-import type { JoinChoices, JoinKey, JoinRecord, JoinReport, JoinShape, JoinSuggestion, RowUpdate } from "./types";
+import type {
+    JoinChoices,
+    JoinKey,
+    JoinRecord,
+    JoinReport,
+    JoinRowFate,
+    JoinShape,
+    JoinSuggestion,
+    RowUpdate,
+} from "./types";
 
 /** A table as a join reads it. */
 export interface JoinTable {
@@ -491,6 +500,8 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
             updatedNodes: 0,
             rowMatches: Object.freeze([]),
             withoutValueIds: Object.freeze([]),
+            rowFates: Object.freeze([]),
+            unknownEndRows: 0,
             ...counts,
             clashes: Object.freeze(
                 clashesOf(elements, columns).map((column) => Object.freeze({ column, code: "clash" as const })),
@@ -528,9 +539,37 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
             updatedNodes: chosen === "node-values" ? changedCount(table, graph, choices, chosen) : 0,
             rowMatches: frozen(now.rowIds.map((ids) => [...ids])),
             withoutValueIds: frozen(elements.map((element) => element.id).filter((id) => !now.matched.has(id))),
+            rowFates: frozen(valueFates(now.rowKeys, now.rowIds, choices)),
         },
         elements,
     );
+}
+
+/**
+ * What a join of values does with each row: a row matching nothing is left out; of several rows
+ * with one key, `repeated` keeps the first or the last and the rest repeat it, or keeps them all.
+ * @param rowKeys - Each row's key, undefined for a blank one.
+ * @param rowIds - Each row's matches.
+ * @param choices - The join.
+ * @returns Each row's fate.
+ */
+function valueFates(
+    rowKeys: readonly (string | undefined)[],
+    rowIds: readonly (readonly unknown[])[],
+    choices: JoinChoices,
+): JoinRowFate[] {
+    const kept = new Map<string, number>();
+    rowKeys.forEach((key, at) => {
+        if (key !== undefined && rowIds[at].length > 0 && (choices.repeated === "last" || !kept.has(key))) {
+            kept.set(key, at);
+        }
+    });
+    return rowKeys.map((key, at) => {
+        if (key === undefined || rowIds[at].length === 0) {
+            return "left-out";
+        }
+        return choices.repeated === "both" || kept.get(key) === at ? "joined" : "repeat";
+    });
 }
 
 /**
@@ -570,10 +609,12 @@ function edgeReport(
     choices: JoinChoices,
     report: (counts: Partial<JoinReport>, elements: readonly JoinElement[]) => JoinReport,
 ): JoinReport {
-    const rows = matchEdges(table, graph, choices, looseOf(choices));
+    const all = matchEdges(table, graph, choices, looseOf(choices));
     const both = (edgeRows: readonly EdgeRow[]): number =>
         edgeRows.filter((row) => row.found[0] && row.found[1]).length;
     const loosest = matchEdges(table, graph, choices, { ignoreCase: true, ignoreSpaces: true });
+    // The rows the join loads: with unknownEnds "leave-out", only those whose two ends are known.
+    const rows = all.filter((row) => choices.unknownEnds !== "leave-out" || (row.found[0] && row.found[1]));
     const pairs = new Map<string, number>();
     const fresh = new Set<string>();
     const touched = new Set<unknown>();
@@ -585,9 +626,27 @@ function edgeReport(
 
     const repeatedKeys = [...pairs.values()].filter((count) => count > 1).length;
     const rowMatches: (readonly (NodeId | EdgeId)[])[] = table.rows.map(() => []);
-    for (const row of rows) {
+    for (const row of all) {
         if (row.found[0] && row.found[1]) {
             rowMatches[row.at] = [row.ends[0] as NodeId, row.ends[1] as NodeId];
+        }
+    }
+
+    // Each row's fate: the row a repeated pair keeps is the first (the last with "last").
+    const keptAt = new Map<string, number>();
+    for (const row of rows) {
+        const pair = `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
+        if (choices.repeated === "last" || !keptAt.has(pair)) {
+            keptAt.set(pair, row.at);
+        }
+    }
+    const rowFates: JoinRowFate[] = table.rows.map(() => "left-out");
+    for (const row of rows) {
+        const pair = `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
+        if (choices.repeated !== "both" && keptAt.get(pair) !== row.at) {
+            rowFates[row.at] = "repeat";
+        } else {
+            rowFates[row.at] = row.found[0] && row.found[1] ? "joined" : "new-end";
         }
     }
 
@@ -613,6 +672,8 @@ function edgeReport(
             updatedNodes: 0,
             rowMatches: frozen(rowMatches),
             withoutValueIds: frozen(graph.nodes.map((node) => node.id).filter((id) => !touched.has(id))),
+            rowFates: frozen(rowFates),
+            unknownEndRows: all.filter((row) => !row.found[0] || !row.found[1]).length,
         },
         graph.edges,
     );
@@ -728,7 +789,10 @@ function planEdges(
     // One edge per pair, the first row's or the last row's, or one per row with "both"; a Map
     // keeps the pair where it first appeared either way.
     const byPair = new Map<string, { edge: Record<string, unknown>; both: boolean }>();
-    for (const [at, row] of matchEdges(table, graph, choices, looseOf(choices)).entries()) {
+    const loaded = matchEdges(table, graph, choices, looseOf(choices)).filter(
+        (row) => choices.unknownEnds !== "leave-out" || (row.found[0] && row.found[1]),
+    );
+    for (const [at, row] of loaded.entries()) {
         const pair = choices.repeated === "both" ? String(at) : `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
         if (choices.repeated !== "last" && byPair.has(pair)) {
             continue;

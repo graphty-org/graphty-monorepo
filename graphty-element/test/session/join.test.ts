@@ -394,6 +394,54 @@ describe("joining edges between the nodes a graph holds", () => {
         assert.isDefined(session.data.edges().find((edge) => edge.source === "S3" && edge.target === "S4"));
         session.dispose();
     });
+
+    it("names each row's fate, and leaves out a row with an unknown end when asked", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: SUPPLIERS }, name: "suppliers.csv" });
+        // A pair, the same pair again, an end the graph lacks, a blank end.
+        const draft = await session.data.prepare(
+            { config: { data: "from,to\nS1,S2\nS1,S2\nS1,NEW\nS3,\n" }, name: "extra.csv" },
+            { onto: "graph" },
+        );
+        const { keys } = draft.suggestJoin();
+        assert.deepEqual(draft.joinReport({ keys }).rowFates, ["joined", "repeat", "new-end", "left-out"]);
+        assert.deepEqual(draft.joinReport({ keys, repeated: "last" }).rowFates, [
+            "repeat",
+            "joined",
+            "new-end",
+            "left-out",
+        ]);
+        assert.deepEqual(draft.joinReport({ keys, repeated: "both" }).rowFates, [
+            "joined",
+            "joined",
+            "new-end",
+            "left-out",
+        ]);
+        const leaving = draft.joinReport({ keys, unknownEnds: "leave-out" });
+        assert.deepEqual(leaving.rowFates, ["joined", "repeat", "left-out", "left-out"]);
+        assert.deepInclude(leaving, { newNodes: 0, newEdges: 1, unknownEndRows: 1 });
+        await draft.load({ join: { keys, unknownEnds: "leave-out" } });
+        assert.strictEqual(session.data.nodes().length, 40, "no node made for NEW");
+        assert.lengthOf(session.data.edges(), 1);
+        session.dispose();
+    });
+
+    it("names a values row's fate: joined, a repeat, or left out", async () => {
+        const session = await proteins();
+        const draft = await session.data.prepare(
+            { config: { data: "symbol,x\nTP53,1\nTP53,2\nNOPE,3\n" }, name: "x.csv" },
+            { onto: "graph" },
+        );
+        const keys = [{ file: "symbol", graph: "id" }];
+        const shape = "node-values";
+        assert.deepEqual(draft.joinReport({ keys, shape }).rowFates, ["joined", "repeat", "left-out"]);
+        assert.deepEqual(draft.joinReport({ keys, shape, repeated: "both" }).rowFates, [
+            "joined",
+            "joined",
+            "left-out",
+        ]);
+        session.dispose();
+    });
 });
 
 describe("join cost", () => {

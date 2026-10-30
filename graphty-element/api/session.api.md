@@ -2603,6 +2603,7 @@ export interface JoinChoices {
     readonly keys: readonly JoinKey[];
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
+    readonly unknownEnds?: "add" | "leave-out";
     readonly via?: SourceKey;
 }
 
@@ -2642,11 +2643,16 @@ export interface JoinReport {
     readonly newNodes: number;
     readonly notInGraph: number;
     readonly repeatedKeys: number;
+    readonly rowFates: readonly JoinRowFate[];
     readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
+    readonly unknownEndRows: number;
     readonly updatedNodes: number;
     readonly withoutValue: number;
     readonly withoutValueIds: readonly (NodeId_2 | EdgeId)[];
 }
+
+// @public
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
 
 // @public
 export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";

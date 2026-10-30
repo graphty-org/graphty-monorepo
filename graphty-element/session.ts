@@ -110,6 +110,7 @@ export type {
     JoinKey,
     JoinRecord,
     JoinReport,
+    JoinRowFate,
     JoinShape,
     JoinSuggestion,
     JoinWarning,

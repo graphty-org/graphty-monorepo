@@ -25,19 +25,21 @@ const familyOf = (shard) => shard.replace(/-\d+$/, "");
  * full-run-only one, such as the On shards), flags off, both run shapes.
  * @param shards SHARDS entries
  * @param affected package directory names
+ * @param [storyShards] the shards ci.yml's story-tests job runs (STORY_SHARDS), whose `-shots` family is asked too
  * @returns variant names, sorted
  */
-export function variantsOf(shards, affected) {
+export function variantsOf(shards, affected, storyShards = []) {
     const families = new Set(
         shards.filter((s) => !s["full-run-only"] && affected.includes(s.package)).map((s) => familyOf(s.shard)),
     );
     // a story shard's screenshot run (ci.yml's story-tests job) is a family of its own, `<family>-shots`
+    const shots = new Set(storyShards.map(familyOf));
     return [...families]
         .sort()
         .flatMap((f) => [
             `${f}|flags=off|whole`,
             `${f}|flags=off|selected`,
-            ...(f.endsWith("storybook") ? [`${f}-shots|flags=off|shots`] : []),
+            ...(shots.has(f) ? [`${f}-shots|flags=off|shots`] : []),
         ]);
 }
 
@@ -71,8 +73,8 @@ export function durationsOf(plan) {
  * @returns `{ plan, durations }`
  */
 export async function planRead({ root, affected, out, sha, base, files = [], env = process.env }) {
-    const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-    const variants = variantsOf(SHARDS, affected);
+    const { SHARDS, STORY_SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
+    const variants = variantsOf(SHARDS, affected, STORY_SHARDS);
     const cfg = config(env, root);
     let plan = null;
     let why = cfg ? "no answer" : "results store not configured";

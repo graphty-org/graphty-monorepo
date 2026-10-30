@@ -1,8 +1,10 @@
 # Early screenshot capture: rolling slices and idle-time capture
 
-Date: 2026-10-29. Issue #4540. Status: design and plan, revised after three reviews (CI cost, owner rules,
-owner flow); plan steps 1 to 3 built (step 3: the slice planner, the reach rows and `story-slices.yml`, which
-nothing dispatches yet).
+Date: 2026-10-29. Issue #4540. Status (2026-10-29 evening): plan steps 1, 2, 3, 5, 6 and 7 are on master
+(the pick rule switched off); step 4, the review page's rolling target, is in review (#4559) and already
+runs in the owner's review server. The dispatcher runs as a dry run until the owner's AWS parameters exist
+(section 7), so the only slice so far was dispatched by hand. Trial results so far: "Trial status" at the
+end of section 5.
 
 Every story's picture is rendered fresh from master many times a day, in small slices: a fixed small
 slice after green master builds while runners are free, and more slices while GitHub's runners are
@@ -466,6 +468,32 @@ as today. This uses rolling captures only to choose which commit to render, neve
 full run still renders that commit completely and its verdict comes from its own captures. The cost is a
 nightly a few hours older. It is flagged as ordering-only and measured in the trial against today's rule.
 
+How it is built (`rollingPick` in `tools/full-run.mjs`):
+
+- **Switch.** The repository variable `FULL_RUN_PICK_RULE` set to `rolling` lets the rule choose. Unset, the
+  pick still works out the rule's choice and only logs it, so every slot records both choices: a notice line
+  and a step summary line "ordering pick rule on|off (shadow): <sha> (<why>); today's rule: <sha>", and the
+  outputs `today`, `rolling_sha` and `rolling_why`. The trial compares the two from these lines.
+- **Only a full slot.** A restart, a candidate run, a held head and a pick without the store are unchanged.
+- **"Holds the newest approval merge"** is "has head's `visual-baselines` tree".
+- **"Unapproved"** is a story's newest rolling capture with status changed, new or unseeded, rendered under
+  head's baselines tree. A capture rendered under an older tree is left out (an approval merged since may
+  cover it; the next slice renders it again). The "first commit" is the oldest render on master's first
+  parents of such a story since it last rendered unchanged under that tree (the store answers it as
+  `firstUnapprovedSha`), so a story re-rendered since it changed still bounds the rule at its first changed
+  render. That render is not the merge that changed the picture: a picture changed between the story's last
+  unchanged render and its first changed one is held by the full run, as today.
+- **Never idles a slot.** A preferred commit that would only inherit an older verdict (nothing but versions
+  or approval records since a judged commit) would test nothing, so the slot keeps today's rule.
+- **No preference** (today's rule chooses) when no capture is unapproved, when no kept-site commit older than
+  the first one holds head's tree, or when that commit is already judged or older than nightly. So the rule
+  never makes a slot idle: a commit the rule would pick a second time is judged, and the slot tests master's
+  newest instead.
+- **Known limit.** A candidate older than the dispatch commit runs on channel/full-run with its own workflow
+  files (release.yml's hand-off); when those differ from the dispatch commit's, the hand-off tests the
+  dispatch commit instead, as it does today for any older candidate. The rule's choice is then not tested in
+  that slot; the summary line still shows it.
+
 ### 4f. What stays the gate
 
 Unchanged: the full run's complete capture (ci.yml's story tests and release.yml's re-capture) of the exact
@@ -544,14 +572,55 @@ gate step and story-test jobs.
    rule, the separate base and idle budgets, the in-flight check, the slice runner-minutes from GitHub's
    job durations; unit tests for the decision table. Needs the release-scheduler App key in AWS (#3608,
    owner item).
-6. **Dashboard metrics** (the CI page) with SLA targets: freshness of the full set (oldest
-   newest-capture, target under 6 hours); slice runner-minutes a day by share against the caps; slice
-   runner-minutes held while the pool was saturated or any job queued (from the collector's `nextHolders`
-   tracking); queue wait of non-slice jobs that queued while a slice job held a runner; review lag (first
-   rolling capture of a changed picture to its approval merging); share of slots that met an unreviewed
-   change; green-clean rate and nightly promotions per day.
+6. **Dashboard metrics** with SLA targets, built as ten members of the health dashboard
+   (`tools/pipeline-health`, `src/collector/slice-metrics.ts`, `config/slas.json`). Every one is a slow
+   measure: shown with its target and color, never judged into a category's state and never a Pushover
+   alert, so a trial week of busy runners does not page the owner. After the 7-day trial, the set's age
+   may become a judged state.
+
+    | Page     | Member                                 | Value                                                                                                    | Target, red      | Source       |
+    | -------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------- | ------------ |
+    | CI       | Screenshot set age                     | newest value: the oldest of every rotation unit's newest capture                                         | <= 6 h, > 12 h   | story-slices |
+    | CI       | Base / idle slices, share of daily cap | today's (UTC) runner-minutes of the share / its cap in `config/slices.json`                              | <= 100%, > 125%  | collector    |
+    | CI       | Idle slices, share of hourly cap       | idle runner-minutes in the last hour / the hourly cap                                                    | <= 100%, > 125%  | collector    |
+    | CI       | Slice minutes held while contended     | 7-day sum of slice jobs running x cycle minutes, in cycles that were saturated or had another job queued | <= 35 min, > 105 | collector    |
+    | CI       | Queue wait during slices               | 7-day sum of other jobs queued x cycle minutes, in cycles where a slice job ran                          | <= 35 min, > 105 | collector    |
+    | Releases | Screenshot review lag                  | 7-day median, first rolling capture of a changed or new picture to the approval merge that took it in    | <= 6 h, > 24 h   | story-slices |
+    | Releases | Slots meeting an unapproved picture    | green-images / (green-clean + green-images) full-run verdicts, 7 days                                    | <= 25%, > 75%    | release      |
+    | Releases | Green-clean full runs                  | green-clean / every full-run verdict, 7 days (a same-commit re-run replaces)                             | >= 50%, < 25%    | release      |
+    | Releases | Nightly promotions per day             | channel/nightly moving to a new commit, 7-day count / 7                                                  | >= 2, < 1        | collector    |
+
+    How each is measured, and why:
+
+    - **Contention from the collector's own 5-minute cycle**, not from `nextHolders`: each cycle already has
+      every unfinished run's jobs, so it counts slice jobs `in_progress` and other jobs queued in the pool
+      GitHub limits (machine.dev and self-hosted left out). 35 minutes a week is one burst meeting one full
+      slice (7 jobs, 5 minutes), the bound section 4b accepts.
+    - **The store is read every 15 minutes** for the dashboard (and whenever the dispatcher needs it), one
+      `GET /v1/story-captures` (D1 rows on Workers Paid, no GitHub call). A read that succeeds marks the
+      `story-slices` source, so its members stay "not set up" until the owner puts the store's token in SSM.
+    - **Orphan units.** A unit not rendered for 7 days (the store's retention) is treated as gone, which fixes
+      the step 5 review's finding that a renamed story file held the set's age, and so idle slices, forever.
+      The count is written as the observation `slices.units_dropped` (not yet a dashboard row), so a unit that really stopped rendering can be found. The
+      dispatcher's `storeSummary` uses the same rule.
+    - **Review lag** follows each changed picture by its newest capture: it starts at the first newest
+      capture seen as changed or new, and ends when the newest capture is unchanged against another
+      baselines tree, at the newest `visual/approve-*` merge between the two (from the pull requests the
+      collector already reads), or at the capture when none was seen. A picture whose change was reverted
+      (unchanged under the same tree) counts nothing. It measures candidate approvals too, so it compares
+      the two routes.
+    - **Verdicts** come from the health API's `POST /v1/verdicts`, which release.yml's verdict step already
+      sends: each now writes `release.green_clean` and, for a green run, `release.slot_unreviewed`, keyed by
+      commit. A red run says nothing about pictures, so it is left out of the unreviewed share.
+
+    Baseline for the trial comparison (the week before rolling capture, from the 2026-10-29 review in
+    section 1): green-clean 0%, every green run green-images (100%), about 0.4 nightly promotions a day,
+    and about 19 hours of owner review per promotion. Tried on fixtures in the dashboard's dev server (CI
+    and Releases pages draw all ten rows with targets) and on a seeded store (`test/views/views.test.ts`).
+
 7. **Pick rule** (section 4e) in `tools/full-run.mjs pick`, ordering-only, behind a repository variable so
-   the trial can compare it with today's rule.
+   the trial can compare it with today's rule. Built as `FULL_RUN_PICK_RULE=rolling`; unset, it logs its
+   choice beside today's on every slot (section 4e).
 
 **Trial on real CI** (in step order, each recorded in `tmp/early-screenshots/journal.md`):
 
@@ -568,6 +637,21 @@ bins=2 post=false`, then `post=true`. Check: 3 jobs, about 10 runner-minutes fro
    0; slice runner-minutes stay under each cap every day; freshness stays under 6 hours; and against the
    7 days before, review lag, the share of slots meeting an unreviewed change, green-clean rate and
    promotions per day all improve. Then turn on the pick rule (step 7) for 7 more days and compare.
+
+**Trial status (2026-10-29 evening).** Trial 1 passed by hand: run 40982899865, `mode=base bins=2
+post=true` on master 907fab6ed4, 3 jobs and 7.5 runner-minutes (the estimate was 10), 54 of the 280
+rotation units, 387 renders posted to the store (385 unchanged, 2 changed). The slice waited 23 to 30
+minutes in the queue behind pull request work, as a dispatched workflow does; it took nothing ahead of
+it. The `post=false` dry run was skipped. Trial 3, its listing half: the owner's review server lists
+"master rolling: rendered from 907fab6ed4, 2 images" first under "Ready for you", and opens it as its own
+target with baseline and new side by side; the Finish half waits for the owner. Trial 2 and the automatic
+half of trial 1 wait for the owner's two AWS parameters, and the pool was never quiet in the trial window.
+A replay of the quiet rule over the health API's 15-minute runner series (2026-10-26 to 2026-10-30)
+allows an idle slice in 13.3% of buckets, about 3.2 hours a day, and a base slice in 16.7%. Found: since
+the move to the Enterprise plan the health stack's runner limit is 500, and on the evening of 2026-10-29
+only 15 to 30 jobs ran while 150 to 700 waited, so `ci.saturated` read 0 throughout. The quiet rule still
+yields, because it also needs nothing queued, but "slice minutes held while contended" must be read from
+its queued half while jobs wait without the pool being full.
 
 ## 6. Review answers
 

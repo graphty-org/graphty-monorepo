@@ -283,6 +283,24 @@ describe("the mouse", () => {
             assert.isNull(element.getSelectedNode(), "a click on empty canvas clears the selection");
         });
 
+        it("a click that changes the selection switches a select condition off, and undo switches it back on", async () => {
+            const element = await mounted(viewMode);
+            const { session } = element;
+            await session.visibility.addCondition({ id: "hub", effect: "select", rule: { kind: "degree", min: 2 } });
+            assert.sameMembers([...session.selection.nodes], ["a"], "the condition selected the hub");
+
+            await click(element, at(element, "b"));
+            await applied(element);
+            await vi.waitFor(() => {
+                assert.isFalse(session.visibility.conditions[0]?.on, "the reader's click switched the condition off");
+            });
+            assert.sameMembers([...session.selection.nodes], ["b"], "the reader's selection stands");
+
+            await session.undo();
+            assert.isTrue(session.visibility.conditions[0]?.on);
+            assert.sameMembers([...session.selection.nodes], ["a"], "undo selects the condition's matches again");
+        });
+
         it("Shift-click adds a node to the selection, a plain click replaces it", async () => {
             const element = await mounted(viewMode);
 

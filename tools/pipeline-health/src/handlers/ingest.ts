@@ -270,7 +270,7 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
                 source: who.kind === "deploy" || who.kind === "site" ? "site" : "ci-results",
             };
         default:
-            return { items: [verdictItem(body, who, now)], extra: [], source: "release" };
+            return { items: verdictItems(body, who, now), extra: [], source: "release" };
     }
 }
 
@@ -436,7 +436,7 @@ function durationItems(b: Record<string, unknown>, who: Who, now: number): StepI
 }
 
 /**
- * A benchmark job's results (`{ source, sha?, unit?, rows: [{ name, value }] }`, tools/results/post-benchmarks.mjs),
+ * A benchmark job's results (`{ source, sha?, machine?, unit?, rows: [{ name, value }] }`, tools/results/post-benchmarks.mjs),
  * each added to its benchmark's item (model/benchmarks.ts) as this run's point. Only from master's workflows: a pull
  * request's numbers would move master's trend.
  */
@@ -450,12 +450,13 @@ async function benchItems(b: Record<string, unknown>, who: Who, db: Store, now: 
     const old = new Map(((await db.query(BENCH_PK)) as BenchItem[]).map((i) => [i.sk, i]));
     const run = Number(who.claims.run_id);
     const sha = typeof b.sha === "string" ? b.sha.slice(0, 40) : undefined;
+    const machine = typeof b.machine === "string" ? b.machine.slice(0, MAX_BENCH_NAME) : undefined;
     const out = new Map<string, Extra>();
     for (const r of rows) {
         need(r, { name: "string", value: "number" });
         if ((r.value as number) < 0) refuse(400, "bad_field", { field: "value", type: "non-negative" });
         const benchmark = `${source}: ${(r.name as string).slice(0, MAX_BENCH_NAME)}`;
-        const point = { at: now, v: r.value as number, run, ...(sha ? { sha } : {}) };
+        const point = { at: now, v: r.value as number, run, ...(sha ? { sha } : {}), ...(machine ? { machine } : {}) };
         out.set(benchmark, withPoint(old.get(benchKey(benchmark).sk), benchmark, unit, point, now) as Extra);
     }
     return [...out.values()];
@@ -467,19 +468,31 @@ function siteItem(b: Record<string, unknown>, who: Who, now: number): Extra {
     return { pk: "SITE", sk: b.sha as string, sha: b.sha, builtAt: now, runId: Number(who.claims.run_id) };
 }
 
-function verdictItem(b: Record<string, unknown>, who: Who, now: number): ObservationItem {
+/**
+ * A full-run verdict, one observation per measure, each keyed by the commit so a same-commit re-run replaces it: red,
+ * green-clean (a slot that promotes without waiting for the owner), and, for a green run, whether it met a changed
+ * picture nobody had approved yet (green-images; early-capture.md, plan step 6).
+ */
+function verdictItems(b: Record<string, unknown>, who: Who, now: number): ObservationItem[] {
     if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@"))
         refuse(403, "verdicts_from_release_only");
     need(b, { sha: "string", state: "string" });
     if (!VERDICTS.has(b.state as string)) refuse(400, "bad_field", { field: "state", type: "verdict" });
-    return {
+    const o = (metric: string, value: number): ObservationItem => ({
         kind: "obs",
-        id: `master.full_run_failed#${b.sha as string}`,
+        id: `${metric}#${b.sha as string}`,
         attempt: 1,
-        metric: "master.full_run_failed",
-        value: b.state === "red" ? 1 : 0,
+        metric,
+        value,
         at: now,
-    };
+    });
+    const items = [
+        o("master.full_run_failed", b.state === "red" ? 1 : 0),
+        o("release.green_clean", b.state === "green-clean" ? 1 : 0),
+    ];
+    if (b.state === "green-clean" || b.state === "green-images")
+        items.push(o("release.slot_unreviewed", b.state === "green-images" ? 1 : 0));
+    return items;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

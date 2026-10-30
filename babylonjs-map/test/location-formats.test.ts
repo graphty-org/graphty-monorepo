@@ -202,6 +202,11 @@ describe("geohash detection", () => {
         expect(detectLocationFormat(["10001", "94105", "60614", "02139"]).format).toBeNull();
     });
 
+    it("never reads phone numbers as a place", () => {
+        expect(detectLocationFormat(["555-0101", "555-0102", "555-0104", "555-0177"]).format).toBeNull();
+        expect(isLocationError(parseLocation("555-0101", "dms"))).toBe(true);
+    });
+
     it("never reads short words or words of mixed lengths as geohashes", () => {
         expect(detectLocationFormat(["bed", "cup", "pen"]).format).toBeNull();
         expect(detectLocationFormat(["berry", "rhythm", "nymph", "crypt"]).format).toBeNull();

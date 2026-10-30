@@ -752,10 +752,16 @@ export class Edge {
      *
      * A curve is a run of slots in a shared batch and has no mesh of its own whose vertices say
      * how far it bows, so the points are read back out of the slots: where each segment starts,
-     * and where the last one ends.
+     * and where the last one ends. A patterned line laid along a curve, bends or a loop gives the
+     * route it was laid along (issue #3102). Either way the points are in graph-root's space.
      * @returns The points, in order along the curve, as fresh vectors.
      */
     get drawnCurve(): Vector3[] | null {
+        if (this.mesh instanceof PatternedLineMesh) {
+            const route = this.mesh.drawnRoute();
+            return route !== null && route.length > 2 ? route : null;
+        }
+
         const batch = this.lineBatch;
         const last = this.lineSlots.at(-1);
 
@@ -1019,7 +1025,7 @@ export class Edge {
             return Vector3.FromArray(bendPoints(src, dst, labelAt));
         }
 
-        return (bent || this.bundled) && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
+        return (bent || this.bundled ? this.routeMiddle() : null) ?? Vector3.Center(src, dst);
     }
 
     /**
@@ -1082,9 +1088,9 @@ export class Edge {
         const src = new Vector3(lnk.src.x, lnk.src.y, lnk.src.z ?? 0);
         const dst = new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z ?? 0);
         const lift = this.liftDrawn();
-        this.lifted = lift !== 0 && this.lineBatch !== null && !drawsNoLine(this.drawnStyle);
+        this.lifted = lift !== 0 && this.laysRoute();
         let bent = this.lifted;
-        if (this.lifted && this.lineBatch) {
+        if (this.lifted) {
             this.bundled = false;
             this.placeLifted(this.lineBatch, src, dst, lift);
         } else {
@@ -1115,19 +1121,20 @@ export class Edge {
      * @returns Whether the line was laid along its bends.
      */
     private placeLine(src: Vector3, dst: Vector3, laid?: readonly number[]): boolean {
-        const batch = drawsNoLine(this.drawnStyle) ? null : this.lineBatch;
+        const lays = this.laysRoute();
+        const batch = lays ? this.lineBatch : null;
         const stored = this.lineRoute;
-        const bent = batch !== null && stored !== null && this.placeBent(batch, src, dst, stored);
-        // ponytail: a patterned line (no batch) keeps its straight line under a laid route
+        const bent = lays && stored !== null && this.placeBent(batch, src, dst, stored);
+        // a patterned line (no batch) follows the route as its elements (issue #3102)
         const followsLayout =
             !bent &&
-            batch !== null &&
+            lays &&
             stored === null &&
             laid !== undefined &&
             this.srcNode !== this.dstNode &&
             this.placeBent(batch, src, dst, { bends: [...laid], srcPort: null, dstPort: null, loop: false });
-        const route = !bent && !followsLayout && batch !== null ? this.bundleRoute(src, dst) : null;
-        this.bundled = followsLayout || (route !== null && batch !== null && this.placeRoute(batch, src, dst, route));
+        const route = !bent && !followsLayout && lays ? this.bundleRoute(src, dst) : null;
+        this.bundled = followsLayout || (route !== null && this.placeRoute(batch, src, dst, route));
         if (!bent && !this.bundled) {
             const { srcPoint, dstPoint } = this.transformArrowCap();
             // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
@@ -1143,6 +1150,26 @@ export class Edge {
         }
 
         return bent;
+    }
+
+    /**
+     * Whether this edge's line can be laid along a route: a slot run in its batch, or a patterned line's elements.
+     * @returns False for a line of width 0 or one not built.
+     */
+    private laysRoute(): boolean {
+        return !drawsNoLine(this.drawnStyle) && (this.lineBatch !== null || this.mesh instanceof PatternedLineMesh);
+    }
+
+    /**
+     * The middle of the route this edge's line was last laid along: of its run of slots, or of its pattern's route.
+     * @returns The point, or null when the line has no route to take it from.
+     */
+    private routeMiddle(): Vector3 | null {
+        if (this.lineBatch) {
+            return this.curveMiddle(this.lineBatch);
+        }
+
+        return this.mesh instanceof PatternedLineMesh ? this.mesh.routeMiddle() : null;
     }
 
     /**
@@ -1787,12 +1814,12 @@ export class Edge {
      * straight) between the node centers, raised along the plane's normal as an arc, then trimmed
      * at the node surfaces and for its arrow caps like a bent edge, so the caps, the label, the
      * band, the effects and picking all follow the lifted route.
-     * @param batch - The batch the run is in.
+     * @param batch - The batch the run is in, or null for a patterned line's elements.
      * @param src - The source node's center.
      * @param dst - The target node's center.
      * @param lift - How far the middle rises.
      */
-    private placeLifted(batch: EdgeLineBatch, src: Vector3, dst: Vector3, lift: number): void {
+    private placeLifted(batch: EdgeLineBatch | null, src: Vector3, dst: Vector3, lift: number): void {
         const bezier = this.drawnStyle?.line?.bezier === true;
         const stored = this.lineRoute;
         let base: number[];
@@ -1924,6 +1951,8 @@ export class Edge {
             return this.lineBatch.mesh;
         }
 
+        // a patterned line is laid along its bends too (issue #3102)
+        this.readRoute(style);
         return EdgeMesh.createPatternedLine(options, style, this.context.getScene());
     }
 
@@ -2193,7 +2222,17 @@ export class Edge {
      */
     private syncBends(style: EdgeStyleConfig): boolean {
         const batch = this.lineBatch;
-        if (Edge.routeKey(style) === this.drawnBends || batch === null) {
+        if (Edge.routeKey(style) === this.drawnBends) {
+            return false;
+        }
+
+        // a patterned line holds no slots: its elements are laid along the new route when it is placed
+        if (batch === null) {
+            if (this.mesh instanceof PatternedLineMesh) {
+                this.readRoute(style);
+                return true;
+            }
+
             return false;
         }
 
@@ -2762,13 +2801,13 @@ export class Edge {
     /**
      * Draw this edge along a route from one node center to the other: the part outside both
      * nodes, each end trimmed for its arrow cap along the route's own direction there.
-     * @param batch - The batch the run is in.
+     * @param batch - The batch the run is in, or null for a patterned line's elements.
      * @param src - The source node's center.
      * @param dst - The target node's center.
      * @param route - The route, flat x, y, z, from `src` to `dst`.
      * @returns False, drawing nothing, when no part of the route is outside both nodes.
      */
-    private placeRoute(batch: EdgeLineBatch, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
+    private placeRoute(batch: EdgeLineBatch | null, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
         const [srcGap, dstGap] = [this.gapAt("source"), this.gapAt("target")];
         const outSrc = Edge.outside(this.srcNode, src, srcGap);
         const outDst = Edge.outside(this.dstNode, dst, dstGap);
@@ -2889,7 +2928,7 @@ export class Edge {
      * segment -- with the corners rounded when the line is also curved. Bends inside a node are
      * passed over, as a tool that clips a line at the outlines draws it. A selected edge's band and
      * its effects follow the same run.
-     * @param batch - The batch the run is in.
+     * @param batch - The batch the run is in, or null for a patterned line's elements.
      * @param src - The source node's center.
      * @param dst - The target node's center.
      * @param stored - The route: the style's, or the one the layout laid.
@@ -2897,7 +2936,7 @@ export class Edge {
      *     points all lie inside its node), so the edge is drawn as it would be without a route.
      */
     private placeBent(
-        batch: EdgeLineBatch,
+        batch: EdgeLineBatch | null,
         src: Vector3,
         dst: Vector3,
         stored: NonNullable<Edge["lineRoute"]>,
@@ -2966,14 +3005,14 @@ export class Edge {
      * leaves the source node toward the first point, through every point, to where it meets the
      * target node from the last -- each end trimmed for its arrow cap along its own segment -- with
      * the corners rounded when asked. A selected edge's band and its effects follow the same run.
-     * @param batch - The batch the run is in.
+     * @param batch - The batch the run is in, or null for a patterned line's elements.
      * @param src - The source node's center.
      * @param dst - The target node's center.
      * @param mid - The points, flat x, y, z: at least one.
      * @param round - Whether to round the corners.
      */
     private placeThrough(
-        batch: EdgeLineBatch,
+        batch: EdgeLineBatch | null,
         src: Vector3,
         dst: Vector3,
         mid: readonly number[],
@@ -3132,13 +3171,24 @@ export class Edge {
      * Lay this edge's line along points, and everything drawn along the line with it: its run of
      * slots, the selection band, the outline and the underlay and overlay bands, the gradient's
      * pieces and the effects.
-     * @param batch - The line's batch.
+     * @param batch - The line's batch, or null for a patterned line's elements.
      * @param flat - The points, flat x, y, z.
      */
-    private placeLineRun(batch: EdgeLineBatch, flat: readonly number[]): void {
-        this.placeRun(batch, this.lineSlots, flat, (slot) => {
-            this.prepareLineSlot(slot);
-        });
+    private placeLineRun(batch: EdgeLineBatch | null, flat: readonly number[]): void {
+        if (batch !== null) {
+            this.placeRun(batch, this.lineSlots, flat, (slot) => {
+                this.prepareLineSlot(slot);
+            });
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            // a patterned line's elements are spread along the route (issue #3102); it has no outline, gradient or effect
+            this.mesh.updatePath(points(flat));
+            if (this.haloBatch) {
+                this.placeRun(this.haloBatch, this.haloSlots, flat);
+            }
+
+            return;
+        }
+
         if (this.haloBatch) {
             this.placeRun(this.haloBatch, this.haloSlots, flat);
         }

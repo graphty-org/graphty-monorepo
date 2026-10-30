@@ -33,7 +33,7 @@ const globToRegExp = (glob) =>
     new RegExp(
         `^${glob
             .split("*")
-            .map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+            .map((s) => s.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`))
             .join(".+")}$`,
     );
 

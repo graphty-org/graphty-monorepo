@@ -79,22 +79,27 @@ design is "not set up", gray and out of the status, so a category can be green o
 
 ### 2.1 Front page
 
-It fits 1440 x 900 without scrolling, and every page works down to 1024 wide with no sideways
-scroll (the mockup's overview). From the top: the title, the range picker (1 h, 6 h, 24 h; 1 h by
-default) and "updated 2 min ago, 23:30 UTC"; a muted caption saying that rates are judged on the
-last 1 h and states now, and what the sparkline shows; the seven category blocks, each with its
+It fits 1440 x 900 without scrolling, and every page works from 1920 wide down to a 390 px phone
+with no sideways scroll of the page (a wide table scrolls inside itself). From the top: the title,
+the range picker (1 h, 6 h, 24 h; 1 h by default) and "updated 2 min ago, 23:30 UTC"; a muted legend
+of the state words ("OK: within target; WARNING (yellow): past target, look soon; FAILING (red):
+past the red line, act now; NO DATA (hatched): the source is not reporting") and what the small
+chart shows, with the long explanation as its tooltip; the seven category blocks, each with its
 headline measure under it; then "Last 24 hours", the list of episodes. The order follows Few ("a single screen read at a glance") and Google
 SRE ("symptoms first, causes second"): the blocks say whether anything is wrong and where, the
 measures give each category's number, and the episodes say what happened and link to where to act.
 
 ### 2.2 The category status line
 
-Seven blocks in pipeline order: **Master, Pull requests, CI, Flaky tests, Releases, Costs, Data
-sources**. Each block is filled with its state's color and holds the category name; the state word
+Seven blocks, in the order of what matters most to the pipeline: **Master, Releases, Pull requests,
+Flaky tests, CI, Costs, Data sources** (the page sorts them; the API keeps pipeline order). Each block is filled with its state's color and holds the category name; the state word
 (OK, WARNING, FAILING, NO DATA); when not OK, the member that set it in a few words ("runner wait
 p90 31 min"; the threshold is on the detail page); the others not OK, named when there is one
-("+ promote.yml failing") and counted when there are more ("+ 3 more"); and a chevron. The whole block links
-to the category's page. Below 1280 px the blocks wrap into rows of four.
+("+ promote.yml failing") and counted when there are more ("+ 3 more"); its 7-day measures past their
+red line, counted ("1 7-day measure past red", with a red edge), since they never set the color; and a
+chevron. Each line holds at most two lines of text; the block's tooltip and accessible name hold all of
+it. The whole block links to the category's page. Below 1280 px the blocks wrap into rows of four, and
+on a phone into two columns.
 
 The blocks always show the status: each member is judged on the last 1 h or, for a state, now
 (section 4), whatever range the picker shows, so a problem reaches its block within one collector
@@ -108,8 +113,11 @@ Under each block, in its column, sits the category's headline measure (name with
 (DORA; the SRE golden signals): Master green time (errors), time to merge (latency), runner wait p90
 (saturation, 2026's largest delay), flake rate per 1,000 test-file runs (normalized), lanes red on
 the release candidate (a hold from any lane), spend this month projected (the one thing that cannot
-be rerun), and sources not OK. A headline with too few samples in the last hour says "too few, n=2
-of 5" in gray in place of its value, with its 6 h value beside it.
+be rerun), and sources not OK. A headline with too few samples in the last hour says "not judged: 2
+merged this hour, needs 5" in gray in place of its value, with its 6 h value beside it. Its line
+gives the 6 h value with its unit and the whole target ("good <= 5 min; red > 15 min"). When another
+member set the block's color, the headline is labelled "Headline measure:", so a calm headline never
+reads as the reason for a red block.
 
 A sparkline is the last 6 h in 15-minute buckets, with the last hour (the window that sets the
 state) shaded and the target as a thin gray band. To its left, in a faint line, the rest of the last
@@ -120,18 +128,24 @@ history" area. There are no end labels: the value is beside it.
 
 ### 2.4 Last 24 hours
 
-A list of episodes: each time a member went past its target. Ongoing episodes first, then cleared
-ones. Each row: a 4 px bar in the worst state the episode reached, its span ("20:01 - now",
-"19:48 - 20:20"), the category, one sentence naming the member, its value and the cause when the
+A list of episodes: each time a member went past its target. Ongoing episodes first, red before
+yellow, then by the blocks' order; at most five ongoing and six rows in all show, and the rest fold
+into "N more ongoing" and "N more cleared". Each row: a 4 px bar in the worst state the episode
+reached, its span ("20:01 - now", "19:48 - 20:20"; both ends dated when either is not today, and
+"before 10-29 14:40 - now" when the 24 h window cut its start or the engine cannot tell when it
+began), the category, one sentence naming the member, its value and the cause when the
 collector knows it, "ongoing" or "cleared 2.3 h ago", and a chevron to the section where it is
 acted on. Cleared rows are muted. This is how an incident that ended before the reader looked is
 still seen, and how a 1 h member that stays red for up to an hour after its cause ended says so.
-The list always covers 24 h, whatever the picker shows.
+The list always covers 24 h, whatever the picker shows. A 7-day or 28-day measure has no episodes (it has
+no 5-minute history, so its start would read "now" on every refresh); its breach shows on its row and
+block instead. An episode whose member cannot be judged for an hour (too few samples, no value) ends
+there, so a stale incident does not stay ongoing.
 
 ### 2.5 Navigation and drill-down
 
 - **Left navigation**, 200 px, always visible (NN/g: vertical lists scan faster than tabs and grow
-  better). Overview, then the seven categories, each with a 4 px bar of its state color, so every
+  better); on a phone it becomes a strip of links that scrolls sideways above the page. Overview, then the seven categories, each with a 4 px bar of its state color, so every
   page repeats the status line; the state word is in the link's accessible name. Sub-items open
   under the current category: CI has Runners and Local runs (pages) and Shard times (a section);
   Flaky tests has Hotspots and Quarantine (sections).
@@ -311,16 +325,35 @@ Pass` belonged to the retired Mergify queue and never counts.
   budgets are states: a 24 h target for them does not become a 1 h target, it is simply read now.
 - **slow**: a measure over weeks (reverts, net new flaky, detected to fixed, train first-attempt
   pass, full-run shard medians). It is drawn on its detail section with its own 7 d / 28 d choice,
-  labeled "slow measure", and never sets a state: at hour scale it would either never move or move
-  on one event.
+  labeled "7-day measure" or "28-day measure", and never sets a state: at hour scale it would either
+  never move or move on one event. Past its target or red line it is still shown as the breach it is:
+  its row carries the WARNING or FAILING chip with "7-day measure, not in the page state", its block
+  counts it ("1 7-day measure past red"), and the page's sentence names it ("1 7-day measure is past
+  its red line: full runs able to promote 17%."). No text may say every member is within target while
+  one is breached. Whether a breached 7-day measure should color its category is the owner's call;
+  today it does not (`categoryOf`).
 
 The 6 h value is the trend: shown beside every 1 h value and as the sparkline. 24 h never decides a
 color.
 
 **Min n** is the fewest events the last hour must hold before a rate is judged; below it the member is
-gray "too few" (3.1). It is set so that one event moves the rate by no more than the gap between its
+gray "not judged: 4 merged this hour, needs 5" (3.1). It is set so that one event moves the rate by no more than the gap between its
 target and its red threshold (first-attempt pass: a 15-point gap, so 8 suites), and at least 5 for a
 median. Every row states its n.
+
+**How a row reads.** Every member row says what is measured, over what window and in what unit (its
+definition); its target as "good <= 5 min; red > 15 min", the red threshold with its unit, and "(in the
+last hour and the last 6 h)" for a 1 h, 6 h agrees member; and, when it is past a line, a "Red:" line
+saying what red means and where to look (the same text is the row's tooltip). A member with no SLA
+reads "no target (shown for information)". Rows are listed FAILING, WARNING, 7-day measures past a
+line, NO DATA, OK, then the gray ones, in config order within each. A row whose link is the page it is
+on has no chevron and is not a link. The words live in `web/src/text.ts` (`MEMBER`: name, definition
+and red line per member).
+
+**How a table reads.** A column no row fills is left out; an empty cell reads "--". Ended or idle rows,
+and rows past a table's cap (10 unless the table sets its own), fold into "N more (M ended or idle)";
+a total row always shows. A list in a cell shows three items and "+N more". Sorted bars show eight and
+fold the rest.
 
 Thresholds below give the target (green) and red; yellow lies between. All are for the window named
 and were re-derived for one hour, not copied from the 24 h version. (H) marks a category's headline.
@@ -575,7 +608,7 @@ never mixed.
 ## 6. Shard and test-file times
 
 The Shard times section of the CI page is a slow measure, with its own 7 d / 28 d choice (7 d by
-default) and the label "slow measure". It has one row per shard of the **full runs** (the release
+default) and the label "7- or 28-day measure". It has one row per shard of the **full runs** (the release
 train's `ci` lane), worst against budget first: runs (n; shadow trains run at most four a day and
 skip an unchanged master, so expect 5 to 15 in 7 days, and a shard under 5 runs is drawn gray as
 "n=4" and left out of "full-run shards over budget"), median and p90 of the test step (attempt 1,
@@ -610,7 +643,7 @@ The page shows the money lines (projected, so far against the limit the cost pag
 total, which equals the headline; the usage members; "unit costs" for comparison only (money per
 release train, list-price value per merged pull request); money and list-price value by workflow as
 two sorted-bar lists, never summed. Every Costs value is month to date, so this page alone has no
-1 h / 6 h / 24 h picker: its header offers 7 d and 28 d (default), labeled "slow measure", for the
+1 h / 6 h / 24 h picker: its header offers 7 d and 28 d (default), labeled "7-day / 28-day history", for the
 projection-by-day lines and the unit costs. Rates live in
 `tools/pipeline-health/config/rates.json` with the date each was checked; a missing rate or a
 rejected token shows NO DATA, never zero, and a token not yet created is not set up.
@@ -624,7 +657,7 @@ A problem must show within hours, not days, so the windows are measured in hours
 | 1 h    | 5 minutes    | decides every state: a member past its threshold shows within one collector cycle (5 minutes)  |
 | 6 h    | 15 minutes   | the trend: the value beside every 1 h value, the sparkline, and the agreement noisy rates need |
 | 24 h   | 1 hour       | backdrop only: the faint part of the sparkline and the "Last 24 hours" list; never a color     |
-| 7 d    | 1 day or raw | slow measures, on their detail sections only, labeled "slow measure"                           |
+| 7 d    | 1 day or raw | slow measures, on their detail sections only, labeled "7- or 28-day measure"                   |
 | 28 d   | 1 day        | slow measures, likewise: costs, full-run shard medians, flake hotspots over weeks              |
 
 The picker on the overview and on every category page except Costs (section 7) is **1 h, 6 h and 24

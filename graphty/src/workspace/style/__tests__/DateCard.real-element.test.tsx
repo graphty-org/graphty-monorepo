@@ -98,6 +98,16 @@ describe("the date condition card", () => {
                 [BEFORE_2005],
             );
         });
+        // A new card selects; Filter to keeps only what it matches.
+        const radio = within(
+            await within(list).findByRole("group", { name: /^installed/ }),
+        ).getByRole<HTMLInputElement>("radio", { name: /^Filter to:/ });
+        // A segmented control's input is hidden: the reader clicks its label.
+        const label = radio.labels?.[0];
+        assert.isDefined(label);
+        if (label !== undefined) {
+            await userEvent.click(label);
+        }
         await waitFor(() => {
             assert.strictEqual([...session.visibility.nodes].length, 3);
         });

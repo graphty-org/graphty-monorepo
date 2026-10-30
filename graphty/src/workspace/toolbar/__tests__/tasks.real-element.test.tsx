@@ -576,7 +576,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 [false],
             );
         });
-        assert.isNotNull(within(filters).getByRole("group", { name: `${cardWords}, Hide` }));
+        assert.isNotNull(within(filters).getByRole("group", { name: `${cardWords}, Filter to` }));
         // With the card off, the command is enabled again.
         await waitFor(() => {
             assert.isNull(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"));

@@ -589,7 +589,7 @@ export function TableDock(): React.JSX.Element {
         const askedKind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
         setArrangement((now) => ({
             ...now,
-            views: { ...now.views, [askedKind]: { ...now.views[askedKind], issue: issueAsked as IssueId } },
+            views: { ...now.views, [askedKind]: { ...now.views[askedKind], issue: issueAsked } },
         }));
         store.set({ dockIssue: null });
     }, [issueAsked, store]);

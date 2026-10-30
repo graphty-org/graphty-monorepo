@@ -89,7 +89,10 @@ const CATEGORY_BY_CODE: Readonly<Partial<Record<GraphFormatErrorCode, IssueCateg
  * The params of an error that dropped one value while its node or edge was kept.
  * @category Issue and loss codes
  */
-export const SKIPPED_VALUE: Readonly<{ skipped: "value" }> = Object.freeze({ skipped: "value" });
+export const SKIPPED_VALUE: Readonly<{
+    /** What the error dropped: one value, while its node or edge was kept. */
+    skipped: "value";
+}> = Object.freeze({ skipped: "value" });
 
 /**
  * No longer recorded; kept so code that switches on older reports still compiles.

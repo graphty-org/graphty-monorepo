@@ -81,7 +81,8 @@
     align-items: center;
     gap: 6px;
     width: 0;
-    min-width: min(100%, 11em);
+    /* Never wider than the button less its icon, so the icon and the name share the first line. */
+    min-width: min(calc(100% - 22px), 9em);
 }
 
 .dp-source-name {

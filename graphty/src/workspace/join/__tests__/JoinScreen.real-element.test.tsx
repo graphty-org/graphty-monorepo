@@ -464,6 +464,16 @@ describe("the join screen on the real element", () => {
             assert.isAbove(ratio.getBoundingClientRect().width, 0);
             // At least "deliver" of the name shows (about seven characters at 12 px).
             assert.isAtLeast(name.clientWidth, 45, "the name is readable");
+            // The kind icon and the name share one line; only the count chips may wrap below.
+            const icon = row.querySelector<HTMLElement>(".dp-source-icon");
+            assert.isNotNull(icon);
+            const middle = (each: HTMLElement): number => {
+                const box = each.getBoundingClientRect();
+                return box.top + box.height / 2;
+            };
+            if (icon !== null) {
+                assert.isAtMost(Math.abs(middle(icon) - middle(name)), 4, "the icon is on the name's line");
+            }
         });
     });
 });

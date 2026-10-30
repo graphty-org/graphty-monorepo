@@ -1,4 +1,4 @@
-# gauges.csv joined with flows.csv, then a Data source filter card that keeps what came from gauges.csv (G12 left out), the state T66 leaves
+# gauges.csv joined with flows.csv, then a Data source filter card (switched to Filter to) that keeps what came from gauges.csv (G12 left out), the state T66 leaves
 --click Open a file
 --upload gauges.csv
 --click Data
@@ -9,3 +9,4 @@
 --click Add filter
 --click Data source
 --click role=checkbox:gauges.csv
+--click role=radio:Filter to

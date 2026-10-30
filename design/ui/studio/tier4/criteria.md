@@ -1,6 +1,6 @@
-The study runs on build a53beb7179 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d3-a53beb7179
+The study runs on build 71230abff1 served from /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/builds/tier4-r1d4-71230abff1
 
-Frozen on 2026-10-29 for the tier 4 rounds.
+Frozen on 2026-10-30 for the tier 4 rounds (the build before it was a53beb7179, at /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d3-a53beb7179).
 
 # Success criteria and round plan: data management (tier 4)
 

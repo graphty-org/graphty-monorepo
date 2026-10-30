@@ -204,15 +204,13 @@ showing.
   selected" with 4 rings, and turning the keep card off selects the fifth staff member again.
   (Builds 0ffeae2ef5 and 037e96e9bb selected over the whole graph: 5 for A, 5 for B. ff17391bb1
   and bccf8fe47f select only what is in the picture: 4 for A, 3 for B.)
-- **Card counts**: on bccf8fe47f and a53beb7179 (as on every earlier build) the Select card's chip
-  counts over the whole graph, not what it marks: A's role card reads **5 of 24** while "4 nodes
-  selected", B's installed card **5 of 12** while "3 nodes selected", in either order, and a screen
-  reader hears "Node 5 of 12" for B's card. On a53beb7179 A's chip has no accessible name and is
-  not in the focus order, so a screen-reader participant hears A's marked count only from the
-  live message "4 nodes selected". The keep card reads 14 of 24 (A) and 5 of 12 (B), and the top bar
-  reads 14 of 24 (A) and 5 of 12 (B). A report of 5 marked that was read off the Select card's
-  chip, with both cards built right and the screen reading 4 (B 3) selected, is graded on the cards
-  and the selection, not failed for the chip's number; note in the grade that the chip said 5.
+- **Card counts**: from 71230abff1 on, the Select card's chip counts what it marks, among what the
+  keep card leaves in the picture: A's role card reads **4 of 14** with "4 nodes selected", B's
+  installed card **3 of 5** with "3 nodes selected", in either order, and a screen reader hears
+  "Node 3 of 5" for B's card. With A's keep card off, the role card reads 5 of 24 and selects 5;
+  on again, 4 of 14 and 4. The keep card reads 14 of 24 (A) and 5 of 12 (B), and the top bar reads
+  14 of 24 (A) and 5 of 12 (B). On a53beb7179 and every earlier build the Select card's chip counted
+  over the whole graph (A 5 of 24, B 5 of 12) while 4 (B 3) were selected.
 - **Path**: Data > Filters "+" (Add filter) > trained > Yes; on that card "Add a condition" >
   hours > Between, "from" 10 (the "to" stays 52) > Enter. A new card starts on Hide, so this one
   needs no Select / Hide step (14 of 24). Add filter > role > staff ("Is any of"); switch that

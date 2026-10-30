@@ -17,19 +17,29 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-- (2026-10-29) Re-walk of "an unknown end's warning marks the end that is unknown" (67de06e337) on
-  `graphty/dist` stamp ac8586556932: nine pilot routes replayed with every check point matching
-  (`design/ui/studio/tmp/r1-dry2-recheck-U2/`: T61A success, deliveries-first detour, keyboard;
-  T61B success, detours; T67A table; T67B table marks; T66A path; T66B success). Nothing worse; the
-  acceptance holds: T61A-success/20.png glyph on Target, P13 tinted, P05 plain; T61B-keys/23.png
-  the same for G12 / G09; T66B-success/15.png the mark on Target with the Data source card on.
-  Keys on the Edges header (T61B-keys/24-36.png): Tab reaches Source's header then leaves the
-  grid, ArrowRight reaches Target, Enter sorts Target A to Z, Escape leaves the grid; `--read`
-  names the header row "Key Target Issues in Target", nothing on Source. Seen, not caused: in the
-  deliveries-first order (T61A-deliveries-first-edges/10.png) there is no unknown end at all, the
-  one issue is the repeated edge, on From with P03 tinted, and the deliveries.csv row shows no
-  issue chip while the table says "With issues 1" (the frozen route's 09.png shows the same row).
-  Focus lines print only in an `--sr` session; in a plain one read focus from the screenshot.
+- (2026-10-30) A Select card's count counts what it marks, built as 71230abff1 (`git revert
+0b1175dabc`, restoring 355022569a: `conditionCounts` counts a select condition by
+  `selectsOverGraph`, among the synced keep and exclude masks, cache keyed on their version). The
+  re-walk finished one browser at a time (`design/ui/studio/tmp/r1-dry3-U1/r/`, `results.txt`),
+  every chip screenshot looked at: A 4 of 14 with 4 selected, keep off 5 of 24 and 5, either order,
+  undo and redo equal each time; B 3 of 5 with 3, 3 of 6 after Undo of the depth edit; browse mode
+  "Node 3 of 5". Unchanged: keep cards, Which nodes 5 of 12, Data source cards, T68 starts, T64
+  weight routes. Frozen as `tmp/design-studio/tier4/builds/tier4-r1d4-71230abff1` (main checkout).
+
+- (2026-10-30) Lesson: two attempts at this fix were reverted only because their re-walks were cut
+  off; queue every route in one background script (one browser, `REAL_WARM_POOL=0`) and judge each
+  as it lands, rather than starting replays by hand that a session end strands.
+
+- (2026-10-30) A replay of a pilot route recorded before a count fix diverges exactly on the spoken
+  count (`--read` lines are compared, chip text on screen is not). Check the divergence is only
+  that line, then replay a copy of the route with the fixed line expected
+  (`tmp/u1-select-count/expect-fixed.py` in the worktree) to reach the route's end.
+
+- (2026-10-29) Re-walks of the unknown-end mark (67de06e337), inspector node names (d612c60665) and
+  Select-in-picture / default-weight re-run fixes all matched every check point
+  (`design/ui/studio/tmp/r1-dry2-recheck-U1..U3/`). Seen then, not caused: the date card's name reads
+  in ms ("installed is at most 1104537599999"), the live region says "1 edges". Full entries:
+  `git show 71230abff1:design/ui/studio/notes/engineer.md`.
 
 - (2026-10-29) An unknown end's warning marks the end that is unknown. graphty-element: the
   `unknown-end` issue's params gain `ends` ("source", "target", "both"), from the touching edges
@@ -48,11 +58,6 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   replay tolerance did not flag the moved glyph: look at the screenshot, not only "matches". No
   keyboard route reaches the Edges header's spoken issue; the real-element test covers its name.
 
-- (2026-10-29) Re-walk of "every inspector node row is called by its name" (d612c60665): ten
-  routes matched every check point (`design/ui/studio/tmp/r1-dry2-recheck-U3/`); keys on the rows
-  work (Tab order, Enter selects and opens Values). Not walked: a grouping run's Members, a run's
-  Top list. The legend card does not open the run: reach a path's rows through its layer's Values.
-
 - (2026-10-29) Every inspector node row is called by its name: path "Nodes in order", a set or
   group run's Members, a layer's Top list, Members and Selected (RunValues.tsx, LayerValues.tsx)
   now go through `nodeName` (inspector/words.ts, the element's `session.data.name`), as From/To
@@ -62,20 +67,6 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   the names. Re-walk `design/ui/studio/tmp/r1-dry2-U3/`: T64B detour 09.png Old Bridge, Heron
   Marsh, Lake Inlet (the only divergence, the fix); T64A-label-path 09.png Central Warehouse,
   Harbor Market; T64A success, table-role-rerun and T64B success match every check point.
-
-- (2026-10-29) Re-walk of the Select-in-picture and default-weight re-run fixes on dist stamp
-  9f9f23b3981e (`REAL_WARM_POOL=0`): all 11 routes replayed with every check point matching
-  (`design/ui/studio/tmp/r1-dry2-recheck-U1/`); nothing worse, both acceptances hold (T65A path
-  17.png 4 selected and 4 rings; T65B path 09.png 3 selected; T64B table-role-rerun 09.png new run,
-  km (farther), Total km 5.3; T64A 11.png new run, "trips means closer"). Keys on the Select / Hide
-  radio (`T65B-keys-toggle/`): Arrow keys switch and move the selection, Enter does nothing, Escape
-  puts focus on the on box (by design), Tab / Shift+Tab move in order, undo and redo restore
-  "3 nodes selected". Seen, not caused by these fixes: (a) a Select card's own chip still counts its
-  matches over the whole graph ("5 of 12", "5 of 24") while the selection under a Hide card is 3 or
-  4 -- a participant reading the chip may answer 5; (b) the date card's condition name reads in ms
-  to the reader: "Apply installed is at most 1104537599999" (on box name, remove button) and the
-  redo toast "Redid editing the filter "installed is at most 1104537599999"" (also in the r1d1
-  pilot); (c) the live region says "1 edges".
 
 - (2026-10-29) A run asked again after the default weight changed computes again. A run's
   identity (`RunsApi.resolve`) is explicit params + scope + seed + sample; the weight the Data role
@@ -228,6 +219,11 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-30 worked: one background script replaying every route in turn, plus a Monitor on its
+  results file; a foreground wait loop is refused by the hook, so check the file between other work.
+- 2026-10-30 worked: a strip of each screenshot's Filters column and selection header
+  (`tmp/u1-select-count/strip.py`) reads chip counts and "N nodes selected" side by side.
 
 - 2026-10-29 worked: `--replay <route> <folder> --keep` on a route that ends just short of the
   changed screen, then hand `--step`s (With issues, Tab, ArrowRight, `--read`) to reach it; the

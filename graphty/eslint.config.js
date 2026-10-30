@@ -70,6 +70,12 @@ const POPOVER_EXCEPTIONS = [
     "src/workspace/toolbar/WorkspaceToolbar.tsx",
 ];
 const WITHOUT_POPOVER_BAN = APP_REPLACEMENTS.filter((entry) => !entry.importNames.includes("Popover"));
+// vi.mock and vi.doMock, banned in every browser-project file (the block that uses it says why).
+const NO_MODULE_MOCK = {
+    selector: "CallExpression[callee.object.name='vi'][callee.property.name=/^(mock|doMock)$/]",
+    message:
+        "No vi.mock in a browser test: it switches the page's HTTP cache off (#3416). Pass the test double in through a prop, an option or a test-only setter.",
+};
 const NO_LUCIDE = { name: "lucide-react", message: "Use GLYPHS from src/workspace/glyphs.ts: one icon per concept." };
 
 export default tseslint.config(
@@ -188,6 +194,17 @@ export default tseslint.config(
         rules: { "jsdoc/no-types": "off" },
     },
 
+    // No module mocks in the app's own code: every test file and story under src/ runs in a browser
+    // project, and there every vi.mock makes Vitest add a Playwright route to the page's context.
+    // While a context has a route, Playwright switches the browser's HTTP cache off and holds every
+    // request until the one Vitest process answers it, so the file fetches its whole module graph
+    // again and slows every page beside it (issues #3350 and #3416). Pass a test double in instead:
+    // a prop, an option, or a test-only setter on the module.
+    {
+        files: ["src/**/*.{ts,tsx}"],
+        rules: { "no-restricted-syntax": ["error", NO_MODULE_MOCK] },
+    },
+
     // A real-element test waits for an open on the workspace's `opened` (openBy in
     // src/test/open.tsx), never by polling the node count, which arrives before the rest of an
     // open (styles, history, focus), so a test that waits on it acts on a half-opened workspace (#3544).
@@ -198,6 +215,7 @@ export default tseslint.config(
         rules: {
             "no-restricted-syntax": [
                 "error",
+                NO_MODULE_MOCK,
                 {
                     // waitFor, vi.waitFor and expect.poll; statistics().nodeCount read or destructured inside
                     // one. A helper that reads it outside the call is not seen.

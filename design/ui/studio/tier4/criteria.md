@@ -363,3 +363,15 @@ first two by itself; the dry run owns the rest.
   71230abff1 (tmp/design-studio/tier4/builds/tier4-r1d4-71230abff1). The app, graphty-element and
   compact-mantine sources are the same as 71230abff1; the new build adds only master's CI tool
   changes and study documents, so the answer key's build ranges for 71230abff1 hold.
+- 2026-10-30: answer key checked against the pilots of T60 A, T66 A, T66 B and T67 A (no bar,
+  success definition, prompt or step count changed):
+    - T66: on 79ed770292 every A route matched the key: the Data source card reads 12 of 13 on its
+      chip, the top bar and inspector 12 of 13 nodes and 17 of 18 edges, and with both files ticked
+      the top bar reads "13 of 13 nodes" with no edge count while the inspector shows 18 of 18. The
+      key's list of builds with this behavior now names 79ed770292. The card still reads
+      "Select | Hide", the screen's words the key already holds.
+    - T60 A, T66 B and T67 A: nothing new for the key. The T60 A walk was on a53beb7179 and its
+      points (no Open button, Server... loads no address, the raw "Paste failed" error) are already
+      in it; the key's in-project route is Network data..., and it already names Server... a dead
+      end. T66 B walked no route on 79ed770292. The T67 A walk was on 0ffeae2ef5 against an older
+      key, and its points are already settled there.

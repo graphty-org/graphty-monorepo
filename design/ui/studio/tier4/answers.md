@@ -246,7 +246,7 @@ showing.
   009087a540 the Data source card keeps every edge whose two ends it keeps: the screen reads "12 of
   13 nodes, 17 of 18 edges" (B "11 of 12 nodes, 13 of 14 edges"), the routes stay drawn, and the
   card's own chip counts nodes only ("12 of 13"); ticking the second file shows 13 of 13 and 18 of
-  18 (B 12 of 12 and 14 of 14). 037e96e9bb and ff17391bb1 are such builds; with both files ticked
+  18 (B 12 of 12 and 14 of 14). 037e96e9bb, ff17391bb1 and 79ed770292 are such builds; with both files ticked
   the top bar reads "13 of 13 nodes" (B "12 of 12 nodes") with no edge count, and only the
   inspector shows 18 of 18 (B 14 of 14). The card's effect control reads "Select | Hide", with Hide
   on.

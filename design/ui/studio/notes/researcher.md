@@ -15,9 +15,9 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   number (11). Prompt now "Take it out"; key grades on "11 of 12", not the number. Grep prompts
   against detour controls too, not only the success path; any route whose deletion yields the
   success count needs a Not-success line.
-- (2026-10-30) Key now names a53beb7179; its re-pilot of T60, T65 A and T66 matched the key's
-  counts. Pilot "mismatches" there were decided.md wording, the key's existing dead ends or another
-  task's routes ("PASS INCOMPLETE" for other tasks' routes is not a gap in this task).
+- (2026-10-30) First check of any pilot finding: the build in its walk's session.json. Of four
+  findings on 79ed770292's round, only T66 A walked that build (all matched); T60 A was a53beb7179,
+  T67 A 0ffeae2ef5, T66 B walked nothing. Stale walks and decided.md wording are not key changes.
 - (2026-10-29) Earlier key named bccf8fe47f. On it T65's Select card chip counts the whole graph
   (A 5 of 24, B 5 of 12) while 4 / 3 are selected: a key line written ahead of a fix (42ce7201c7)
   outlived its revert (5b25463780). Before trusting a key line, check that the commit behind it is
@@ -88,6 +88,14 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-30 (key checked against T60A, T66A, T66B, T67A pilots):** Only change: T66's
+  build list for the Data source card behavior now names 79ed770292 (r1d3 T66A r/p1-path/05, 13:
+  12 of 13 / 17 of 18; both ticked, top bar "13 of 13 nodes" with no edge count, inspector 18 of
+  18). Left alone: T60A (walked on a53beb7179, already logged), T67A (0ffeae2ef5, settled), T66B
+  (no walk), "Select | Hide" (screen's words). Reason: the key writes the screen of the frozen build;
+  findings from other builds or none change nothing. Not key matters: T60 focus to body, F6
+  order, double status announcement, raw paste error -- design defects for the fix list.
+
 - **2026-10-30 (T66 prompt and Leave out route):** Changed T66's prompts from "Leave it out of the
   picture" to "Take it out of the picture" and added "leave out" to the avoided words; named the
   issue list's Leave out under T66 Not success. Reason: the button deletes G12 and its stretch and
@@ -117,18 +125,11 @@ logged). Their reasons, in short:
   0ffeae2ef5 against an older key; all were already settled in the key, so no change. Mismatches
   that cite decided.md (T60 Open button, T63 R10 Set in Data, T66 "Filter to | Filter out") stay
   out of the key: the key writes the screen.
-- **2026-10-29 (key matched to ff17391bb1):** Changed only notes the r1d2 re-pilots contradicted
-  or extended; earlier-build notes stay as history. T68 B's source-row export of 11 nodes / 0 edges
-  graded F by the existing definition (neither the network nor the picture's 13 edges), not a bar
-  change. T62's right-click written per half (A opens, B nothing) from the T62A/T62B reports.
-  "Select | Hide" recorded as the screen's words, not rewritten toward decided.md.
-- **2026-10-29 (key matched to 037e96e9bb):** Rewrote only notes the re-pilot contradicted, kept
-  each 0ffeae2ef5 note as history beside its 037 note (graders may meet either reading in old
-  reports). T64's table-weight line changed grade for B (was "the asked reading", now P): not a bar
-  change, because the success definition already requires the reading set; the old line was an
-  exception that rested on a default the build no longer has. Conflicting pilot reports (right-click
-  on a header works in T63/T66, did nothing on T62 B's off-screen column; Shift+F10 vs ContextMenu
-  key) are written as observed per route, not resolved by guess.
+- **2026-10-29 (keys matched to 037e96e9bb and ff17391bb1):** Rewrote only notes a re-pilot
+  contradicted or extended; earlier-build notes kept as history beside the new ones. T68 B's
+  11 nodes / 0 edges export graded F by the existing definition; T64 B's table-weight line moved to
+  P because the default it rested on is gone; conflicting reports (right-click, Shift+F10) written
+  per route, not resolved by guess. No bar changed.
 
 - **2026-10-29 (tier 4 key from pilots):** Read every pilot finding into answers.md without
   changing a bar; the key counts the screen. Removed the T66 id-card route (cannot be built: no

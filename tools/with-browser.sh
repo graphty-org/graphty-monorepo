@@ -16,7 +16,9 @@
 #
 # The low-priority lane: with BROWSER_SLOT_PRIORITY=low (tools/low-priority.sh) the command waits for slot 4
 # only, the one every other command tries last, so it never holds more than one of the four and never one an
-# ordinary command would have taken first.
+# ordinary command would have taken first. Low-lane commands take slot 4 in the order they began to wait: each
+# leaves a ticket (<slot dir>/.low-<epoch ns>-<pid>) while it waits, and tries the slot only while its ticket is
+# the oldest one of a live process, so a command that looks more often cannot keep the slot from the others.
 #
 # The high lane: with BROWSER_SLOT_PRIORITY=high (the cut's screenshot preview, which the owner reviews before
 # a ship: tools/visual-preview.sh sets it) the command takes the next free slot of the four,
@@ -51,6 +53,18 @@ high_waiting() {
     return 1
 }
 
+# Whether this command's low-lane ticket is the oldest of a live process; dead tickets are removed.
+low_turn() {
+    local f pid
+    for f in "$dir"/.low-*; do
+        [ -e "$f" ] || continue
+        pid=${f##*-}
+        if kill -0 "$pid" 2>/dev/null; then [ "$f" = "$low" ]; return; fi
+        rm -f "$f"
+    done
+    return 1
+}
+
 start=$(date +%s%3N)
 held_by=()
 high=""
@@ -59,20 +73,28 @@ if [ "${BROWSER_SLOT_PRIORITY:-}" = high ]; then
     : >"$high"
     trap 'rm -f "$high"' EXIT
 fi
+low=""
+if [ "${BROWSER_SLOT_PRIORITY:-}" = low ]; then
+    low="$dir/.low-$(date +%s%N)-$$"
+    : >"$low"
+    trap 'rm -f "$low"' EXIT
+fi
 while :; do
     slots="1 2 3 4"
     if [ -n "$high" ]; then
         :
     elif high_waiting; then
         slots=""
-    elif [ "${BROWSER_SLOT_PRIORITY:-}" = low ]; then
-        slots=4
+    elif [ -n "$low" ]; then
+        slots=""
+        if low_turn; then slots=4; fi
     fi
     for i in $slots; do
         exec {fd}>"$dir/slot$i"
         if flock -n "$fd"; then
             echo "$$ $(date -u +%Y-%m-%dT%H:%M:%SZ) $PWD :: $*" >"$dir/slot$i.holder"
             [ -z "$high" ] || rm -f "$high"
+            [ -z "$low" ] || rm -f "$low"
             if [ ${#held_by[@]} -gt 0 ]; then
                 node "$here/wait-log.mjs" browser-slot "$start" "$PWD :: $*" "${held_by[@]}" 2>/dev/null
             fi

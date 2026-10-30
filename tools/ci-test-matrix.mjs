@@ -399,7 +399,8 @@ export const SHARDS = FEATURES_DECLARED ? [...OFF_SHARDS, ...FEATURES_ON_SHARDS]
  *                  githerd 0.7                                       about 4 + setup = 6 minutes
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
- *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8
+ *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8,
+ *                  graph-io-storybook 1.6 (on this machine)
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS) and graphty-storybook (2.1 minutes;

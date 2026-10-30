@@ -142,11 +142,15 @@
                 "notWhileFailing": ["ci.runners_not_assigned"],
                 "title": "Master broken for {value}, no agent has fixed it",
                 "text": "Master's build has been failing for {value}. Agents normally fix or revert it within an hour, so no agent loop seems to be running. Canary deploys and the full test runs are blocked.",
-                "action": "Start a Claude session in graphty-monorepo and run /loop 30m /pipeline-round there; it fixes or reverts master. Do not merge the automatic revert pull request by hand. Failing builds: https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml?query=branch%3Amaster",
+                "action": "Start a Claude session in graphty-monorepo and run /loop 30m /pipeline-round there; it fixes or reverts master.",
                 "resolved": {
                     "title": "Master is green again",
-                    "text": "Master was broken for about {peak}.",
+                    "text": "Master was broken for about {lasted}.",
                     "clearAfterMs": 900000
+                },
+                "link": {
+                    "url": "https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml?query=branch%3Amaster",
+                    "title": "Open master's failing builds"
                 }
             }
         },
@@ -216,8 +220,8 @@
                     "release.since_slot_ms": [">", 25200000]
                 },
                 "title": "Full test runs stopped: none started for {ms:release.since_slot_ms}",
-                "text": "No scheduled full test run has started for {ms:release.since_slot_ms} (one starts every 6 h), so master's newest commits have gone untested for {value}. Nothing reaches nightly or npm next until one runs. The release scheduler, which starts them, has stopped.",
-                "action": "Make a new private key for the graphty-release-scheduler GitHub App at https://github.com/organizations/graphty-org/settings/apps/graphty-release-scheduler and give the .pem file to any Claude session; it installs the key in the scheduler.",
+                "text": "No scheduled full test run has started for {ms:release.since_slot_ms} (one starts every 6 h), so master's newest commits have gone untested for {value}. Nothing reaches nightly or npm next until one runs. The release scheduler, which starts them, seems to have stopped.",
+                "action": "Ask any Claude session to find out why the release scheduler stopped and fix it. You are needed only if it finds GitHub refused the scheduler's App key: then make a new key at https://github.com/organizations/graphty-org/settings/apps/graphty-release-scheduler and give the .pem file to that session.",
                 "resolved": {
                     "title": "Full test runs are starting again",
                     "text": "A scheduled full test run has started again.",
@@ -405,11 +409,11 @@
                 "afterMs": 3600000,
                 "priority": 1,
                 "title": "GitHub not starting CI jobs for {value}",
-                "text": "CI jobs have waited {value} to start although we are under GitHub's job limit. All CI and merging is stalled.",
+                "text": "GitHub has not started any CI job for {value}; all CI and merging is stalled.",
                 "action": "Check https://www.githubstatus.com/ for an Actions outage. If GitHub reports none, check graphty-org's billing and Actions settings (spending limit, payment method, Actions disabled): https://github.com/organizations/graphty-org/settings/billing",
                 "resolved": {
                     "title": "GitHub is starting CI jobs again",
-                    "text": "CI jobs were stuck for up to {peak}.",
+                    "text": "CI jobs were stuck for about {lasted}.",
                     "clearAfterMs": 900000
                 }
             }
@@ -752,7 +756,7 @@
                 },
                 "title": "Nightly waiting on your screenshot review",
                 "text": "The held nightly candidate passed all its tests but has changed screenshots, and has waited {ms:release.review_wait_ms} for your review. Nightly and npm next stay frozen until you approve or reject them.",
-                "action": "Ask any Claude session for the screenshot review link (the page runs on your dev machine), then approve or reject the changed pictures there.",
+                "action": "Tell any Claude session \"start the screenshot review for the held nightly\". It starts the review page on your dev machine and replies with its link (this message cannot carry it); approve or reject the changed pictures there.",
                 "link": {
                     "url": "{issue:release.review_issue}",
                     "title": "Open the hold issue"
@@ -968,10 +972,11 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "Total spend projected at {value} this month",
+                "title": "Budget decision: total spend heading for {value} (budget {target})",
                 "text": "All paid services: {mtd} spent so far in {month}, {value} projected vs the {target} budget (+{over}).",
-                "action": "Decide for next month: raise the total budget to {suggest}, or tell the agents which line to cut (the Costs page shows them). Tell any Claude session your choice; it applies it.",
-                "daytime": true
+                "action": "Decide for next month: raise the total budget to {suggest}, or name a line for the agents to cut.",
+                "daytime": true,
+                "then": "Tell any Claude session your choice; it applies it."
             }
         },
         {
@@ -994,10 +999,11 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "T4 GPU lane projected at {value} this month",
+                "title": "Budget decision: T4 GPU lane heading for {value} (budget {target})",
                 "text": "T4 GPU test lane: {mtd} spent so far in {month}, {value} projected vs the {target} budget (+{over}).",
-                "action": "Decide for next month: accept it and raise the T4 budget to {suggest}, or tell the agents what else to cut (the Costs page shows the other lines). Tell any Claude session your choice.",
-                "daytime": true
+                "action": "Decide for next month: raise the T4 budget to {suggest}, or name another line for the agents to cut.",
+                "daytime": true,
+                "then": "Tell any Claude session your choice; it applies it."
             }
         },
         {
@@ -1020,10 +1026,11 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "LLM test spend projected at {value} this month",
+                "title": "Budget decision: LLM tests heading for {value} (ceiling {target})",
                 "text": "LLM regression tests (Gemini): {mtd} spent so far in {month}, {value} projected vs your {target} ceiling (+{over}).",
-                "action": "Decide for next month: raise the ceiling to {suggest}, or run the LLM regression tests less often. Tell any Claude session your choice; it applies it.",
-                "daytime": true
+                "action": "Decide for next month: raise the ceiling to {suggest}, or run the LLM regression tests less often.",
+                "daytime": true,
+                "then": "Tell any Claude session your choice; it applies it."
             }
         },
         {
@@ -1046,10 +1053,11 @@
                 "floorMs": 604800000,
                 "group": "costs",
                 "value": [">", 8],
-                "title": "AWS hosting at {value} this month, lockout at $10",
-                "text": "AWS hosting for the dashboard: {value} spent so far this month (budget {target}). At $10 the graphty-health AWS Budget locks the dashboard, stopping it and these alerts.",
-                "action": "Decide: approve raising the dashboard's AWS budget, or have an agent find and cut the line that grew (AWS Billing: https://console.aws.amazon.com/billing/home). Tell any Claude session your choice; an agent applies and deploys it.",
-                "daytime": true
+                "title": "Budget decision: AWS at {value}, dashboard locks at $10",
+                "text": "AWS hosting for the dashboard: {value} spent so far this month, about {pace} by month end at this pace. At $10 the AWS spending cap locks the dashboard, stopping it and these alerts.",
+                "action": "Raise the AWS spending cap to $15, or have an agent find and cut the line that grew.",
+                "daytime": true,
+                "then": "Tell any Claude session your choice; it applies it."
             }
         },
         {
@@ -1111,12 +1119,12 @@
                 "facts": {
                     "credential_error_ms": [">=", 3600000]
                 },
-                "title": "{feed}: {problem}",
-                "text": "The health dashboard's {feed} has failed for {since} with a credential error: '{error}'. Its numbers are frozen until it is fixed. {off}",
+                "title": "{problem}: dashboard cannot read {frozen}",
+                "text": "The health dashboard has not been able to read {frozen} for {since}: '{error}'. Those numbers stay frozen until the token is replaced. {off}",
                 "action": "{fix}",
                 "resolved": {
-                    "title": "{feed} is reading again",
-                    "text": "The credential works again.",
+                    "title": "{feed} works again",
+                    "text": "The dashboard reads {frozen} again.",
                     "clearAfterMs": 900000
                 }
             }
@@ -1150,12 +1158,12 @@
             "alert": {
                 "afterMs": 600000,
                 "priority": 1,
-                "title": "Dashboard blind for {value}: {problem}",
-                "text": "The dashboard has not read GitHub for {value}, so nothing is being watched. Last error: '{error}'.",
+                "title": "Health dashboard blind for {value}: {problem}",
+                "text": "The health dashboard has not read GitHub for {value}, so nothing is being watched. Last error: '{error}'.",
                 "action": "{fix}",
                 "resolved": {
                     "title": "Health dashboard is reading GitHub again",
-                    "text": "It was blind for up to {peak}.",
+                    "text": "It was blind for about {lasted}.",
                     "clearAfterMs": 900000
                 }
             }

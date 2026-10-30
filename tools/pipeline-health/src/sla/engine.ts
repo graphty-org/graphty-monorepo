@@ -284,6 +284,11 @@ const CREDENTIAL =
  * (data.collector reports that credential), and Coveralls, which is public (a 401 or 403 there is not a key to renew).
  */
 const COLLECTOR_WRITES = new Set(["collector", "release", "npm", "stress", "hosts", "deploy", "coverage"]);
+/**
+ * The sources whose credential only the owner can make (alerts/index.ts CREDENTIALS): one of these erroring is the
+ * cause, ahead of an older error on a credential agents can fix, so the owner's page is never masked.
+ */
+const OWNER_CREDENTIALS = new Set(["cloudflare-token", "sentry-token"]);
 /** A credential error this old turns data.sources_age red, even while the source's last good values hold. */
 const CREDENTIAL_RED_MS = HOUR;
 
@@ -298,7 +303,11 @@ function sourcesNotOk(ctx: Ctx): Computed {
     const cred = all
         .filter((s) => s.state === "error" && !COLLECTOR_WRITES.has(s.id))
         .filter((s) => CREDENTIAL.test(String(s.reason?.params.error ?? "")))
-        .sort((a, b) => (a.since ?? ctx.now) - (b.since ?? ctx.now))[0];
+        .sort(
+            (a, b) =>
+                Number(OWNER_CREDENTIALS.has(b.id)) - Number(OWNER_CREDENTIALS.has(a.id)) ||
+                (a.since ?? ctx.now) - (b.since ?? ctx.now),
+        )[0];
     const credMs = cred ? ctx.now - (cred.since ?? ctx.now) : undefined;
     const credential: Computed =
         cred && credMs !== undefined
@@ -309,9 +318,9 @@ function sourcesNotOk(ctx: Ctx): Computed {
                       params: { source: cred.id, label: cred.label, error: String(cred.reason?.params.error) },
                   },
               }
-            : {};
+            : { facts: { credential_error_ms: 0 } }; // no credential error: ends its alert (an absent fact is a gap)
     if (!bad.length && !cred) {
-        return { value: 0 };
+        return { value: 0, ...credential };
     }
     return {
         // A holding source with a credential error counts too, so a red member never reads "0 sources".

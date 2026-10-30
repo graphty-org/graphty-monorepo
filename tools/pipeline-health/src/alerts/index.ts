@@ -111,6 +111,10 @@ const BAD = (m: MemberStatus) => m.state === "WARNING" || m.state === "FAILING";
 const factsHold = (m: MemberStatus, a: AlertConfig) =>
     Object.entries(a.facts ?? {}).every(([k, t]) => m.facts?.[k] !== undefined && hit(m.facts[k], t));
 
+/** A fact the page needs is missing (a collector part failed): a gap, like NO DATA, that neither opens nor ends. */
+const factsGap = (m: MemberStatus, a: AlertConfig) =>
+    Object.keys(a.facts ?? {}).some((k) => m.facts?.[k] === undefined);
+
 /** Judged OK, or bad but no longer meeting the facts its page needs: the episode ends. */
 const settled = (m: MemberStatus, a: AlertConfig) => m.state === "OK" || (BAD(m) && !!a.facts && !factsHold(m, a));
 
@@ -145,7 +149,7 @@ function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
 async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undefined> {
     // Any other state (NO DATA, a stale source past its limit, partial, not set up) is a gap: it neither opens nor
     // ends one.
-    if (m.state !== "OK" && !BAD(m)) {
+    if ((m.state !== "OK" && !BAD(m)) || (BAD(m) && factsGap(m, c.alert))) {
         return undefined;
     }
     const key = { pk: `ALERT#${m.id}`, sk: "episode" };
@@ -368,8 +372,10 @@ export function human(id: string, v: number | undefined): string {
     const spec = SPEC[id];
     const n = v * (spec?.k ?? 1);
     switch (spec?.unit) {
-        case "usd":
-            return `$${n >= 10 || Number.isInteger(n) ? Math.round(n) : n.toFixed(2)}`;
+        case "usd": {
+            const c = Math.round(n * 100) / 100; // cents first, so 9.999 is $10 and not "$10.00"
+            return `$${c >= 10 || Number.isInteger(c) ? Math.round(c) : c.toFixed(2)}`;
+        }
         case "pct":
             return `${Math.round(n)}%`;
         case undefined:
@@ -385,6 +391,8 @@ export function human(id: string, v: number | undefined): string {
  */
 interface CauseWords {
     feed: string;
+    /** What the dashboard cannot read while the cause lasts. */
+    frozen: string;
     problem: string;
     fix: string;
     off: string;
@@ -400,12 +408,14 @@ const SSM = (name: string) => `SSM parameter ${name} (any Claude session can sto
  */
 const CREDENTIALS: Record<string, Omit<CauseWords, "off"> & { off?: string }> = {
     "cloudflare-token": {
-        feed: "Cloudflare feed",
+        feed: "Cloudflare token",
+        frozen: "Cloudflare costs and usage",
         problem: "Cloudflare token rejected",
         fix: `Make a new read-only token (Account Analytics: Read, Billing: Read) at https://dash.cloudflare.com/profile/api-tokens and put it in ${SSM("/graphty-health/cloudflare/token")}.`,
     },
     "sentry-token": {
-        feed: "Sentry feed",
+        feed: "Sentry token",
+        frozen: "Sentry usage",
         problem: "Sentry token rejected",
         fix: `Make a new token with org:read at https://sentry.io/settings/account/api/auth-tokens/ and put it in ${SSM("/graphty-health/sentry/token")}.`,
     },
@@ -419,10 +429,12 @@ export function causeWords(m: MemberStatus): CauseWords {
     const p = m.cause?.params ?? {};
     const error = String(p.error ?? "");
     if (m.id === "data.collector") {
-        // First: "installation token: HTTP 502" is GitHub failing, not the key.
-        if (/\bHTTP (?:5\d\d|429)\b|rate limit|timed? ?out|TimeoutError|ECONN|fetch failed|socket/i.test(error)) {
+        // First: "installation token: HTTP 502" is GitHub failing, not the key. A rate limit or a timeout is the
+        // collector's own load (agent work), so it falls through to "code error".
+        if (/\bHTTP 5\d\d\b|ECONN|fetch failed|socket/i.test(error)) {
             return {
                 feed: "Collector",
+                frozen: "GitHub",
                 problem: "GitHub API down",
                 fix: "Nothing: GitHub's API is failing (https://www.githubstatus.com/), so CI is likely stalled too. The dashboard catches up by itself when GitHub recovers.",
                 off: "",
@@ -433,6 +445,7 @@ export function causeWords(m: MemberStatus): CauseWords {
         if (/\b401\b|bad credentials|private key|installation|jwt/i.test(error)) {
             return {
                 feed: "Collector",
+                frozen: "GitHub",
                 problem: "GitHub App key refused",
                 fix: `Make a new private key for the graphty-pipeline-health App at https://github.com/organizations/graphty-org/settings/apps/graphty-pipeline-health and put it in ${SSM("/graphty-health/github-app/private-key")}. If the App was uninstalled, reinstall it there.`,
                 off: "",
@@ -440,15 +453,17 @@ export function causeWords(m: MemberStatus): CauseWords {
         }
         return {
             feed: "Collector",
-            problem: "collector failing",
-            fix: "Ask a Claude session to read the collector's logs and fix it (CloudWatch, us-east-2: https://us-east-2.console.aws.amazon.com/cloudwatch/home?region=us-east-2#logsV2:log-groups$3FlogGroupNameFilter$3DCollector).",
+            frozen: "GitHub",
+            problem: "code error",
+            fix: "Ask any Claude session to read the collector's CloudWatch logs (us-east-2) and fix it.",
             off: "",
         };
     }
     const known = CREDENTIALS[String(p.source ?? "")];
     const label = String(p.label ?? p.source ?? "A dashboard feed");
     return {
-        feed: known?.feed ?? `${label} feed`,
+        feed: known?.feed ?? label,
+        frozen: known?.frozen ?? "its numbers",
         problem: known?.problem ?? "its credential was refused",
         fix: known?.fix ?? "",
         off: known?.off ?? "",
@@ -458,12 +473,23 @@ export function causeWords(m: MemberStatus): CauseWords {
 /** A cause's words as placeholders. */
 function words(m: MemberStatus): Record<string, string> {
     const w = causeWords(m);
-    return { feed: w.feed, problem: w.problem, fix: w.fix, off: w.off };
+    return { feed: w.feed, frozen: w.frozen, problem: w.problem, fix: w.fix, off: w.off };
+}
+
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
+
+/** The value at month end at this month's pace so far (UTC days, as the engine's months are). */
+function pace(v: number, now: number): number {
+    const d = new Date(now);
+    const start = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+    const days = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    return (v * days * DAY) / Math.max(now - start, DAY);
 }
 
 function fill(template: string, d: Due, now: number): string {
     const { m, e, start } = d;
     const p = m.cause?.params ?? {};
+    const peak = e.peak ?? m.value;
     const vars: Record<string, string> = {
         value: human(m.id, m.value),
         limit: human(m.id, m.fail?.[1]),
@@ -473,11 +499,16 @@ function fill(template: string, d: Due, now: number): string {
         suggest: human(m.id, m.value === undefined ? undefined : Math.floor(m.value / 10) * 10 + 10),
         mtd: human(m.id, m.facts?.month_to_date),
         month: new Date(now).toLocaleString("en-US", { month: "long", timeZone: "UTC" }),
-        peak: human(m.id, e.peak ?? m.value),
+        peak: human(m.id, peak),
+        pace: human(m.id, m.value === undefined ? undefined : pace(m.value, now)),
         for: duration(now - start),
-        error: String(p.error ?? "none recorded"),
+        // How long an age-like member (its value is how long the problem has lasted) was bad, to `now`: the episode
+        // starts once the value passes its OK line, so that much is added; never less than the peak seen.
+        lasted: duration(Math.max(peak ?? 0, now - start + (m.ok?.[1] ?? 0))),
+        // A GitHub error page or a long GraphQL error must not push the step out of Pushover's 1024 characters.
+        error: clip(String(p.error ?? "none recorded"), 200),
         since: duration(m.facts?.credential_error_ms ?? now - start),
-        ...(template.match(/\{(feed|problem|fix|off)\}/) ? words(m) : {}),
+        ...(template.match(/\{(feed|frozen|problem|fix|off)\}/) ? words(m) : {}),
     };
     return template
         .replace(/\{ms:([\w.]+)\}/g, (_, k: string) => duration(m.facts?.[k] ?? 0))
@@ -510,17 +541,26 @@ export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Me
     const text = (d: Due) => fill(d.c.alert.text, d, ctx.now);
     const action = (d: Due) => fill(d.c.alert.action, d, ctx.now);
     const one = ds.length === 1;
+    // The closing step ("Tell any Claude session your choice") is said once, however many members are due.
+    const then = [...new Set(ds.map((d) => d.c.alert.then).filter((t) => !!t))].join(" ");
+    const tail = then ? `\n${then}` : "";
+    const top = Math.max(...ds.map((d) => d.c.alert.priority));
     return {
         title: one
             ? fill(ds[0].c.alert.title, ds[0], ctx.now)
-            : `Over budget: ${ds
-                  .map((d) => `${d.c.label} ${human(d.m.id, d.m.value)}${projected(d) ? " projected" : ""}`)
+            : `Budget decisions: ${ds
+                  .map(
+                      (d) =>
+                          `${d.c.label} ${human(d.m.id, d.m.value)}` +
+                          (projected(d) ? ` projected vs ${human(d.m.id, d.m.ok?.[1])}` : ""),
+                  )
                   .join(", ")}`,
         message: one
-            ? `${text(ds[0])}\nWhat to do: ${action(ds[0])}`
-            : `${ds.map(text).join("\n")}\nWhat to do:\n${ds.map((d) => `- ${d.c.label}: ${action(d)}`).join("\n")}`,
+            ? `${text(ds[0])}\nWhat to do: ${action(ds[0])}${tail}`
+            : `${ds.map(text).join("\n")}\nWhat to do:\n${ds.map((d) => `- ${d.c.label}: ${action(d)}`).join("\n")}${tail}`,
         ...link(ctx, ds[0].m.category, one ? ds[0] : undefined),
-        priority: String(Math.max(...ds.map((d) => d.c.alert.priority))),
+        // Loud only in the day: at night an outage page is held by the owner's quiet hours (as health-dead-man.sh).
+        priority: String(top === 1 && !daytime(ctx.now) ? 0 : top),
     };
 }
 
@@ -542,7 +582,14 @@ export function resolvedMessage(ctx: Pick<Ctx, "evaluation" | "now">, d: Due, un
 
 async function post(ctx: Ctx, m: Message): Promise<boolean> {
     try {
-        const body = new URLSearchParams({ token: ctx.token, user: ctx.user, ...m });
+        // Pushover refuses a title over 250 or a message over 1024 characters.
+        const body = new URLSearchParams({
+            token: ctx.token,
+            user: ctx.user,
+            ...m,
+            title: clip(m.title, 250),
+            message: clip(m.message, 1024),
+        });
         const res = await ctx.fetch(PUSHOVER_URL, { method: "POST", body });
         if (!res.ok) {
             (ctx.log ?? console.warn)(`alerts: Pushover answered ${res.status} for "${m.title}"; retrying next run`);

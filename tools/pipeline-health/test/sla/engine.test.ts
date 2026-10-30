@@ -372,13 +372,26 @@ describe("credential errors (alerts, section 13)", () => {
         });
     });
 
-    it("an ordinary error, a credential error the collector reports, or a public feed's 403 gives no credential fact", async () => {
+    it("an owner's credential is the cause ahead of an older one agents can fix", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 3 * HOUR, { ok: false, error: "ExpiredTokenException" });
+        await recordSource(store, "billing", T0, { ok: false, error: "ExpiredTokenException" });
+        await recordSource(store, "cloudflare-token", T0 - 70 * MIN, { ok: false, error: "HTTP 403" });
+        await recordSource(store, "cloudflare-token", T0, { ok: false, error: "HTTP 403" });
+        expect(await member(store, "data.sources_age")).toMatchObject({
+            facts: { credential_error_ms: 70 * MIN },
+            cause: { params: { source: "cloudflare-token" } },
+        });
+    });
+
+    it("an ordinary error, a credential error the collector reports, or a public feed's 403 gives no credential error", async () => {
         const store = await world([]);
         await recordSource(store, "billing", T0 - 70 * MIN, { ok: false, error: "Cost Explorer: HTTP 500" });
         await recordSource(store, "npm", T0 - 70 * MIN, { ok: false, error: "HTTP 401" });
         await recordSource(store, "coverage", T0 - 70 * MIN, { ok: false, error: "coveralls: HTTP 403" }); // public
         const m = await member(store, "data.sources_age");
-        expect(m.facts?.credential_error_ms).toBeUndefined();
+        // Zero, not absent: an absent fact is a gap to the alerts, which would keep a credential page's episode open.
+        expect(m.facts?.credential_error_ms).toBe(0);
         expect(m.cause).toBeUndefined();
     });
 

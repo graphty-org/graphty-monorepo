@@ -10,7 +10,8 @@
 set -uo pipefail
 
 api=${1:-https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com/v1/status}
-generated=$(curl -fsS --max-time 20 "$api" 2>/dev/null | jq -r '.generated // empty' 2>/dev/null || true)
+# Retried, so one cold start or one 5xx from API Gateway does not page.
+generated=$(curl -fsS --max-time 20 --retry 3 --retry-all-errors --retry-delay 10 "$api" 2>/dev/null | jq -r '.generated // empty' 2>/dev/null || true)
 if [ -n "$generated" ]; then
     min=$((($(date +%s) - $(date -d "$generated" +%s)) / 60))
     if [ "$min" -le 30 ]; then
@@ -20,8 +21,10 @@ if [ -n "$generated" ]; then
     ago="${min} min"
     [ "$min" -ge 60 ] && ago="$((min / 60)) h $((min % 60)) min"
     what="The pipeline health dashboard last updated ${ago} ago"
+    cause="Likely causes: the collector crashed (CloudWatch emails its alarm), AWS paused the project (spend limit), or the graphty-health Budget locked it at \$10."
 else
     what="The pipeline health dashboard's API does not answer"
+    cause="Usual cause: AWS paused the project (spend limit) or the graphty-health Budget locked it at \$10."
 fi
 echo "::warning::${what}"
 if [ "${GITHUB_RUN_ATTEMPT:-1}" != 1 ] || [ "${RELEASE_MODE:-full}" != full ]; then
@@ -40,7 +43,7 @@ curl -fsS --max-time 20 https://api.pushover.net/1/messages.json \
     --form-string "user=${PUSHOVER_USER_KEY}" \
     --form-string "priority=${priority}" \
     --form-string "title=Health dashboard down: nothing is being watched" \
-    --form-string "message=${what}, so none of its alerts can reach you. Usual cause: AWS paused the project (spend limit) or the graphty-health Budget locked it at \$10. Check AWS Settings > Billing (https://settings.aws.com/), then ask a Claude session to look." \
+    --form-string "message=${what}, so none of its alerts can reach you. ${cause} Check AWS Settings > Billing (https://settings.aws.com/), then ask a Claude session to look." \
     --form-string "url=https://health.graphty.app" >/dev/null ||
     echo "::warning::the Pushover page failed"
 exit 0

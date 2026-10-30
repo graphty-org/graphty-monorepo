@@ -99,11 +99,11 @@ describe("allowed to fail, and failing", () => {
         const items = [
             // Performance Benchmarks in full runs: 3 of 4 failed
             ...["failure", "failure", "success", "failure"].map((c, i) => job(i, "CI / Performance Benchmarks", c)),
-            // a story-test matrix job, in a pull request run and a full run
+            // a story-test matrix job, which gates since #4613, in a pull request run and a full run
             job(10, "Story tests (graphty-element)", "success", { workflow: "ci.yml", load: "pr" }),
             job(11, "CI / Story tests (graphty)", "failure"),
             job(12, "CI / Story tests (graphty)", "cancelled"),
-            // gating jobs are not listed here
+            // other gating jobs are not listed here either
             job(13, "CI / Build", "failure"),
         ];
         await putRaw(store, items, NOW);
@@ -117,7 +117,7 @@ describe("allowed to fail, and failing", () => {
             failed: { t: "num", n: 3 },
             rate: { t: "mark", state: "bad", cell: { t: "num", n: 25, unit: "pct" } },
         });
-        expect(row("Story tests (${{ matrix.name || matrix.project }})")?.failed).toEqual({ t: "num", n: 1 });
+        expect(row("Story tests (${{ matrix.name || matrix.project }})")).toBeUndefined();
         expect(row("Build")).toBeUndefined();
         expect(s.rows[0].cells.job).toEqual({ t: "name", v: "Performance Benchmarks" });
     });

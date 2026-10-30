@@ -50,9 +50,10 @@ export interface MemberConfig {
 /**
  * When and how a member pages. Only critical outages and what only the owner can do page; agents handle the rest.
  * Texts take {value}, {limit} (red threshold), {target} (the budget or normal value), {over} (value minus target),
- * {suggest} (the value rounded up to the next $10), {for} (how long), {peak}, {error}, {since} (how long the cause
- * has lasted), {feed}, {problem}, {fix} and {off} (what the cause means, alerts/index.ts causeWords), {ms:<fact>} (a
- * fact as a duration) and {issue:<fact>} (a fact as an issue URL), all in human units.
+ * {suggest} (the value rounded up to the next $10), {pace} (the value at month end at this month's pace), {for} (how
+ * long), {peak}, {lasted} (how long an age-like member was bad, for a "resolved"), {error}, {since} (how long the
+ * cause has lasted), {feed}, {frozen}, {problem}, {fix} and {off} (what the cause means, alerts/index.ts
+ * causeWords), {ms:<fact>} (a fact as a duration) and {issue:<fact>} (a fact as an issue URL), all in human units.
  */
 export interface AlertConfig {
     /** Pages once its condition has held this long without a break. */
@@ -77,6 +78,8 @@ export interface AlertConfig {
     text: string;
     /** The owner's action, sent as "What to do: ...". */
     action: string;
+    /** A closing step after the action, said once when several members of a group go out together. */
+    then?: string;
     /** The page's link, when the place to act is not the member's dashboard page (placeholders allowed). */
     link?: { url: string; title: string };
     /** Sends a quiet "resolved" once the member has been OK for clearAfterMs; absent, nothing is sent. */

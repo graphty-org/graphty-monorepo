@@ -196,10 +196,7 @@ export interface FilterConditionMatches {
      * only within the picture, among what is drawn.
      */
     readonly matched: number;
-    /**
-     * How many the graph holds, or, for a select condition that selects only within the picture,
-     * how many are drawn.
-     */
+    /** How many the graph holds, for every condition. */
     readonly total: number;
 }
 
@@ -1721,7 +1718,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
             }
 
-            return Object.freeze({ matched, total: among === undefined ? count : among.size });
+            // One basis for every condition: the whole graph's count, so a Select card and a Filter
+            // to card beside it are read against the same number.
+            return Object.freeze({ matched, total: count });
         };
         const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes);
         const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges);

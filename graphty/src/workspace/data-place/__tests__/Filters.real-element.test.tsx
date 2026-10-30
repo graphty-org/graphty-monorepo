@@ -201,8 +201,8 @@ describe("Filter cards on the real element", () => {
             assert.lengthOf(session.selection.nodes, 4);
         });
         assert.equal(session.visibility.conditions[1]?.within, "picture");
-        // Its chip counts what it marks, out of what is drawn.
-        await (await card("label contains e")).findByText("4 of 5");
+        // Its chip counts what it marks, out of the whole graph, as every card counts.
+        await (await card("label contains e")).findByText("4 of 8");
 
         // Turning the Filter to card off brings the other three back into the picture, the selection and the chip.
         const apply = (await card(VALUE)).getByRole("checkbox", { name: `Apply ${VALUE}` });
@@ -215,7 +215,7 @@ describe("Filter cards on the real element", () => {
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 4);
         });
-        await (await card("label contains e")).findByText("4 of 5");
+        await (await card("label contains e")).findByText("4 of 8");
     });
 
     it("the box switches the card, Undo and Redo name it, and an off card keeps its count", async () => {

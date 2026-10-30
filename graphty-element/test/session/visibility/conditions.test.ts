@@ -97,8 +97,8 @@ describe("filter conditions", () => {
             // b is a host the keep condition hides, so it is not selected, whichever came first.
             assert.deepStrictEqual(visible(session).nodes, ["a", "c", "e"]);
             assert.deepStrictEqual(selected(session).nodes, ["a", "e"], `order ${order[0].id} first`);
-            // Its count is what it selects, out of what is drawn; the keep condition's is over the graph.
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
+            // Its count is what it selects, out of the whole graph, as the keep condition counts.
+            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 5 });
             assert.deepStrictEqual(countOf(session, "kept"), { matched: 3, total: 5 });
 
             // The selection and the count follow the keep condition off and on, and its undo and redo.
@@ -107,27 +107,27 @@ describe("filter conditions", () => {
             assert.deepStrictEqual(countOf(session, "hosts"), { matched: 3, total: 5 });
             await session.visibility.updateCondition("kept", { on: true });
             assert.deepStrictEqual(selected(session).nodes, ["a", "e"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
+            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 5 });
             // Off, it still says what switching it on would select.
             await session.visibility.updateCondition("hosts", { on: false });
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
+            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 5 });
             await session.undo();
             await session.undo();
             assert.deepStrictEqual(selected(session).nodes, ["a", "b", "e"]);
             assert.deepStrictEqual(countOf(session, "hosts"), { matched: 3, total: 5 }, "undo recounts");
             await session.redo();
             assert.deepStrictEqual(selected(session).nodes, ["a", "e"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 }, "redo recounts");
+            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 5 }, "redo recounts");
             // Editing the keep condition's rule recounts it too, and its undo and redo.
             await session.visibility.updateCondition("kept", {
                 rule: { kind: "range", attribute: "data.score", min: 0.85 },
             });
             assert.deepStrictEqual(selected(session).nodes, ["a"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 1, total: 1 });
+            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 1, total: 5 });
             await session.undo();
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
+            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 5 });
             await session.redo();
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 1, total: 1 });
+            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 1, total: 5 });
             assert.strictEqual(
                 session.visibility.conditions.find((each) => each.id === "hosts")?.within,
                 order.includes(hosts) ? "picture" : undefined,
@@ -169,10 +169,10 @@ describe("filter conditions", () => {
             // Select selects only what is in the picture.
             const picked = on[2] ? ["c", "d"].filter((id) => shown.includes(id)) : [];
             assert.deepStrictEqual(selected(session).nodes, picked, `selection, mask ${mask}`);
-            // The select condition's count is what it marks, out of what is drawn, on or off.
+            // The select condition counts what it marks, out of the whole graph, on or off.
             assert.deepStrictEqual(
                 countOf(session, "services"),
-                { matched: ["c", "d"].filter((id) => shown.includes(id)).length, total: shown.length },
+                { matched: ["c", "d"].filter((id) => shown.includes(id)).length, total: 5 },
                 `count, mask ${mask}`,
             );
         }

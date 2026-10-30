@@ -80,6 +80,15 @@ const OFF_SHARDS = [
         "test-command": "cd graph-io && pnpm exec vitest run --config vitest.browser.config.ts",
         "needs-browser": true,
     },
+    // graph-io-fidelity's stories (graph-io/fidelity-stories): every play function run as a test, so the
+    // selector has an import graph that picks the stories a change reaches. No coverage: the graph-io shard
+    // measures graph-io.
+    {
+        shard: "graph-io-storybook",
+        package: "graph-io",
+        "test-command": "cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
+    },
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
     // pass (four node shards, below), and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
@@ -415,6 +424,7 @@ export const GROUPS = {
         "visual-review",
         "webgpu-graph-algorithms-browser",
         "algorithms-storybook",
+        "graph-io-storybook",
     ],
 };
 
@@ -427,6 +437,7 @@ const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
     "graphty-storybook",
     "algorithms-storybook",
+    "graph-io-storybook",
     "graph-io-browser",
     ...FEATURES_ON_SHARDS.map((s) => s.shard),
 ]);

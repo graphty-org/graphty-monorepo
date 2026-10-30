@@ -26,6 +26,9 @@ import { parseEnvFile } from "../sonar/api.mjs";
 
 export const SCHEMA = 1;
 export const RECORD_MS = 5000;
+// The plan read: one per run, and its answer sizes every test bin (no answer packs bins without history, many
+// times too many jobs), so it may take longer than a record write.
+export const PLAN_MS = 20000;
 export const EVENT_MS = 2000;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const AUDIENCE = "graphty-results";
@@ -288,6 +291,6 @@ export function postFailures(cfg, invocation, failures) {
 export async function readPlan(cfg, query) {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(query)) if (v !== undefined) q.set(k, Array.isArray(v) ? v.join(",") : v);
-    const r = await call(cfg, "GET", `/v1/plan?${q}`);
+    const r = await call(cfg, "GET", `/v1/plan?${q}`, undefined, PLAN_MS);
     return r.ok ? r.data : null;
 }

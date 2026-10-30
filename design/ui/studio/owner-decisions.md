@@ -4,6 +4,27 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-29 -- Decided by the team: a select condition can select only what is in the picture (graphty-element)
+
+From the tier 4 dry run, pass 2 (`tier4/dry-run-r1-2.md`, unit U1).
+
+- **graphty-element, non-breaking.** `FilterCondition` takes an optional `within: "graph" | "picture"`,
+  read only when `effect` is `"select"`. Absent, or `"graph"`, the condition selects over the whole graph,
+  exactly as today. With `"picture"`, the selection is the AND of the on select conditions intersected
+  with what the on keep and exclude conditions leave drawn; it is recomputed when a keep or exclude
+  condition, its rule or its on box changes, and on undo and redo of such a change, and it never depends
+  on the order of the conditions. A project file that holds the field reads it back; one without it
+  reads as before. Why: the team settled that a select condition selects only what is in the picture
+  (`interaction-patterns.md` lines 321 and 333; this file's "tier 4 data management questions", item 9),
+  and the T65 pilots read "5 nodes selected" with 4 rings. An opt-in field, not a changed default,
+  because changing what `effect: "select"` does for every consumer would be a breaking change and
+  another consumer may want selection over the whole graph (a select that reaches hidden matches is a
+  reasonable choice for an app that reveals them). The graphty app's Filters Select cards write
+  `within: "picture"`.
+- **graphty-element, defect fix.** A run's reuse (`runs.start()` handing back a stored run, and
+  `runs.answered()`) takes into account the weight the Data role supplies by default and its reading, so
+  a run asked again after the weight role or its reading changed computes again. No API change.
+
 ## 2026-10-29 -- Decided by the team: an import error that dropped only a value says so (graph-io, graphty-element)
 
 - **graph-io, non-breaking.** An `ImportIssue` of severity "error" that dropped one value while its

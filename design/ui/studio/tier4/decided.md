@@ -396,3 +396,38 @@ Each settled by an existing source; `../owner-decisions.md` "2026-10-29 -- Decid
 - **Open network data has an Open button beside the address box**, through FileSource's opt-in
   `openLabel`; Enter still opens. Why: the owner's hotkey rule and R8; FileSource has no Figma
   counterpart, and an opt-in prop changes no existing look.
+
+## Dry run pass 2 (director, 2026-10-29)
+
+Settled by the triage of the re-pilot walks on build 037e96e9bb (`dry-run-r1-2.md`, which names each
+defect by its row). Screenshots are under the main checkout's `tmp/design-studio/tier4/r1d1/pilot/`.
+
+- **REVERSAL: a select condition selects only what is in the picture.** This entry records that the
+  team entry above ("A select condition selects only what is in the picture", tier 4 data management
+  questions) REVERSES dry run pass 1's "A Select card selects every match in the graph"; the team entry
+  did not name it. Reason: `interaction-patterns.md` line 333 ("A filter step drops from the selection
+  the ids it leaves out") and line 321 (what is ringed and what is described never differ) settle it,
+  and `design/data/filter-cards.md` "Selection" follows them. Evidence: T65 A reads "5 nodes selected"
+  with 4 rings (`T65A/p3-path/17.png`); T65 B reads "5 nodes selected" with 3 marked and a screen reader
+  hears "5 of 5 rows, 5 selected" (`T65B/y1-path/09.png`, `y3-keys-sr/10.png`). Built in
+  graphty-element as an opt-in: a select condition with `within: "picture"` selects only what the keep
+  and exclude conditions leave drawn; with no `within` it selects over the whole graph as before. The
+  graphty app's Select cards opt in. The answer key's T65 counts become A 4 and B 3.
+
+- **A run asked again after its data's weight changed computes again.** Shortest path (or any run that
+  reads the weight by default) with the same ends, asked again after the weight role or its "Higher
+  means" reading changed in Data, computes a new result; nothing changed still hands back the stored
+  run. Why: after Higher means > farther, the form showed "km (farther, loaded)" but the inspector kept
+  the first run, Weight None and "Each edge counts as 1" (`T64B/rp2/detour-table-role-rerun/09.png`).
+
+- **A node is called by its name wherever a result lists it**: a path's nodes in order, a run's or a
+  layer's members and top lists, as the inspector title, the path form and find name it. Why: with
+  the label set to station, Nodes in order listed G05, G08, G09 (`T64B/rp2/detour-table-role/09.png`),
+  and T64 asks for the name everywhere the program names a gauge.
+
+- **A route walked on the frozen build counts as walked.** A targeted re-pilot need not walk again a
+  route that a replay on the same build already walked (each task's `rewalk.json`, or an earlier walk
+  folder on the build); its PASS INCOMPLETE for that route is not a block. Why: eighteen reports on this
+  pass said PASS INCOMPLETE, and every task had its success path, its detours and a keyboard walk on
+  037e96e9bb. Narrows nothing: it extends "A PASS INCOMPLETE that left no route unwalked is not a
+  block" (dry run pass 1) to replays.

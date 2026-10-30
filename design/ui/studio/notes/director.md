@@ -5,26 +5,30 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-29 (tier 4 dry run pass 1 triaged on build 0ffeae2ef5).
-Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21 and 2026-10-29; the full
-earlier text is in this file's git history.
+Last updated: 2026-10-29 (tier 4 dry run pass 2 triaged on build 037e96e9bb).
+Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21 and 2026-10-29 (twice); the
+full earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-10-29) TIER 4 DRY RUN PASS 1 on 0ffeae2ef5 (`tier4/dry-run-r1-1.md`): 318 pilot defects; 23
-  fix-now in 8 units (1 block: no date condition for T65 B; 22 spoils: covered source-row counts,
-  a false "6 rows refused", Quick actions' old Add data page, a column's kind drawn two ways, the
-  Data source card dropping every edge, Export's node-only scope that sticks, a Data weight the
-  analyses ignore); 6 regressions from the review fixes (R9 chip over R11 counts; R14's sticky
-  scope); 27 decided, 9 design questions, 245 to the backlog. One fix pass, then a targeted re-walk.
-- (2026-10-29) Rule I used: "graded around by the answer key" is not harmless. If the final screen
+- (2026-10-29) TIER 4 DRY RUN PASS 2 on 037e96e9bb (`tier4/dry-run-r1-2.md`): 144 re-pilot defects;
+  4 fix-now in 3 units, all spoils: a Select card counting nodes out of the picture (U1, element
+  opt-in `within: "picture"`), a re-run that hands back the stale unweighted Shortest path (U2,
+  regression of pass 1's weight fix: run identity ignores the Data weight), a path result listing
+  codes after the label is set (U3, app). 3 decided, 4 design questions, 117 to the backlog, 16 not
+  defects. 1 reversal (pass 1's Select-over-whole-graph entry). After the fixes: re-walk only the
+  units' routes and update `answers.md` T65 (A 4, B 3) and T64 (re-run, path names).
+- (2026-10-29) PASS 1 (0ffeae2ef5): 318 defects, 23 fix-now in 8 units; all 8 held on 037e96e9bb
+  (no repeat in pass 2).
+- (2026-10-29) Rule I use: "graded around by the answer key" is not harmless. If the final screen
   or a saved file still shows a wrong result, fix it; if the key's rule is settled design, it is (n).
-- (2026-10-29) A PASS INCOMPLETE that left no route unwalked is not a block (decided.md): the
-  harness refuses report files from subagents; the tool cannot take a chooser address or a paste.
-- (2026-10-29) Owner list now 9 open tier 4 items (`owner-decisions.md`), item 9 new: a Select card
-  selects nodes out of the picture. Team API calls: range `as: "time"`; weight role read by runs.
-- (2026-10-29) After pass 1's fixes: re-walk only the units' routes; update `answers.md` (T65 B
-  path and count, T66/T68 edge counts 17 of 18 / 13 of 14, T64 weight) from the screen.
+  A check the prompt itself invites (re-run the analysis, "everywhere the program names") counts.
+- (2026-10-29) Decided but not built is backlog, not (n): the team's Open button, Filter to /
+  Filter out, detected-role marks wait in the backlog's team table; the build still matches the key.
+- (2026-10-29) A route walked on the frozen build (replays in `rewalk.json`) counts as walked; a
+  PASS INCOMPLETE that left no route unwalked is not a block (decided.md, passes 1 and 2).
+- (2026-10-29) A team entry that contradicts an earlier decided entry must name it; I record the
+  reversal myself when it did not (pass 2 did this for Select).
 - (2026-10-29) Bars: 1 success (pointer only, 2 of 2 / 3 of 4); 2 false done 0; 3 wrong turns
   median <= 2; 4 severity 3-4 open 0 (end-state check counts); 5 keyboard (Sam S/SD + axe); 6 owner's
   data rules 0; 7 core median steps <= key path + 3.
@@ -78,6 +82,18 @@ earlier text is in this file's git history.
 
 ## Decisions and reasons
 
+- **2026-10-29, tier 4 dry run pass 2 on 037e96e9bb (`tier4/dry-run-r1-2.md`).** 144 rows from a new
+  rows file plus generator (`tmp/director-dryrun2/gen.mjs`, per-task count asserts). Fix now: U1
+  Select within the picture (graphty-element additive `FilterCondition.within`, app opts in; reason:
+  the team's later entry reverses pass 1's, and the screen's 5 is then a wrong count the participant
+  reads); U2 run reuse counts the Data weight (graphty-element, `RunsApi.resolve` identity; regression
+  of 47566a688f); U3 inspector node rows named through `nodeName` (graphty app, shared rows). Not (a),
+  with reasons: T62A's "keyboard block" (the context-menu keys work; Sam has no T62); the T68 focus
+  escapes (Shift+Tab reaches Save anyway); T66's Hide-keeps-only-G12 (decided Filter out not built,
+  screen tells the truth, so backlog); T67B "With issues 0" (a participant who stops is graded right);
+  the raw-millisecond date card (key grades the card). Every PASS INCOMPLETE: each task had all routes
+  on this build. Settled in `decided.md` (dry run pass 2, four entries). Recorded the additive API in
+  `owner-decisions.md` under "decided by the team".
 - **2026-10-29, tier 4 dry run pass 1 on 0ffeae2ef5 (`tier4/dry-run-r1-1.md`).** 318 rows, made from
   one rows file plus a generator with per-task count asserts (`tmp/director-dryrun/gen.mjs` in the
   studio worktree). Fix now (8 units): source-row chips never cover a count (graphty app, shared
@@ -110,33 +126,12 @@ earlier text is in this file's git history.
   spec in git history). Headings for both lists, every row under one, no indentation; Layout's
   sections come from the catalog's `family` fact (Force-directed, Shapes, Hierarchy, Other), the
   app owning words and order. Rejected: indentation, flat lists, an expanding Force row.
-- **2026-10-21, tier 3 report after round 1.** Rewrote the report around round 1 (bars table per
-  round, per-task table, learnings in insight order, changes by package with whether round 1
-  confirmed them). Reasons for the calls in it: bar 1's F is reported as the rule's, not the
-  reader's, but stands (frozen rule); the earlier "contrast fails on every screen" is corrected to
-  one chip because round 1 measured it; the owner list recounted entry by entry against owner
-  rulings (eleven; fold region dropped as settled 2026-10-10); a Cube synonym listed as rejected
-  (one task's word). Next steps put instrument work (bar 4 start, keyword-in-hue rule, token
-  measure, leading check, start-before-turn) ahead of product fixes because it costs no sessions.
-- **2026-10-21, round 1 closed, studio stops.** Accepted the skeptic-settled insights as the
-  round's record: no new severity 3; bar 5 held open only by carried-in backlog items; bar 1's F
-  stands under the frozen rule though the reader was right. Reason: changing a frozen rule after
-  seeing results would make the grade mean nothing; the rule question goes to criteria between
-  rounds instead. The next fix list leads with `colorWord` (shared, fixes grade and speech), then
-  bars 6 and 8, then the four severity 2 design problems.
-- **2026-10-21, tier 3 report with round 1 not run** (superseded the same day). Bars 6 and 8 not
-  fixed before round 1 (round cannot pass by plan; a fix restarts the walks); the tool's 900 x 700
-  gap did block the round.
-- **2026-10-21, dry run pass 3 on 758b8e8081 (`tier3/dry-run-r1-3.md`).** 141 lines, 0 (a). Not
-  (a), with reasons: the selection-held jump (layer graded from `styles.json`, names only as read
-  from screen, Fit recovers, T41's success path already needs Fit after the owner's glide); the raw
-  `>` threshold card (T42 only, `>=` or Remove reaches the line); T46 B's key dropping Louvain
-  after Undo (only after reopening an app-exported GraphML; T48 B's plain-file Replace and Undo
-  keep the key, `q-findlayer-replace-undo/10.png`); the unset Width Enter (a width over 8, the
-  success step, works); T42 A's Filter-to focus (a click reaches the box). T48 A's PASS INCOMPLETE
-  is covered by `758c-pointer` on the same build. Settled in `decided.md` 2026-10-21: a held
-  selection asks for nothing after the pick (narrows the 2026-10-20 glide). Left (b): whether a
-  different file offers Replace on Control+O (T50 B). No API change.
+- **2026-10-21, tier 3 round 1, its report and dry run pass 3** (summarized 2026-10-29; full text in
+  git history, `tier3/dry-run-r1-3.md` and the tier 3 report). Round 1 closed on the skeptic-settled
+  insights; bar 1's F stood under the frozen rule (a frozen rule changed after results makes the grade
+  mean nothing); the report put instrument work ahead of product fixes and recounted the owner list
+  entry by entry. Dry run pass 3 (758b8e8081): 141 lines, 0 (a); a held selection asks for nothing
+  after the pick (narrows the glide).
 - **2026-10-20, dry run passes 1 and 2 on 7d87760756 and 6de5f95d12** (summarized 2026-10-21; full
   text in git history and `tier3/dry-run-r1-1.md`, `-r1-2.md`). Five units, all fixed and held: a
   project opens with its look across a channel rename; the table names community groups as the key
@@ -156,6 +151,13 @@ earlier text is in this file's git history.
 
 ## Tried: worked / did not work
 
+- 2026-10-29 (dry run pass 2) -- Worked: `git log` on decided.md showed a team commit landing after
+  pass 1 that silently contradicted a pass 1 entry; reading it before classing turned a (n) into a
+  fix. Worked: reading the run identity (`RunsApi.resolve`) named U2's cause and its origin (pass 1's
+  weight fix) in minutes. Worked: grepping `String(entry.id)` found the sibling node rows for U3.
+  Worked: `jq` over every `rewalk.json` plus folder times proved every task was walked on the frozen
+  build, so 16 PASS INCOMPLETE notes were not blocks. Did not work: the pilots' "BLOCKS keyboard"
+  label; checked against the roster and the working keys, it was friction.
 - 2026-10-29 (dry run pass 1) -- Worked: reading the element before classing (`selectedBy` says
   "over the whole graph" and filter-cards.md says why, so T65's count is (n); the source leaf already
   has `side: "nodes"`, so T66's fix is the app's; `loadedWeight()` reads only the load's mapping, so
@@ -168,30 +170,12 @@ earlier text is in this file's git history.
   `volunteers.txt` setup on the frozen build before committing it (a PageRank layer coloring 24
   people, no SETUP FAILED). Did not work (found by review): a roster whose per-task starts were
   right but whose persona histories never mentioned those files.
-- 2026-10-21 (round 1) -- Worked: two independent skeptic checks with a drop/weaken rule; they cut
-  every new severity 3 to 2 and caught a tool artifact (wheel zoom from one synthetic event) and
-  an automation artifact (storage notice). Did not work: tasks whose wording leads (the answer key
-  describes the problems graders cite; "Cube", "clusters" in B prompts) and a success bar on tasks
-  the model always finishes -- 55 of 56 told us little.
-- 2026-10-21 (report after round 1) -- Worked: re-reading every "For the owner" heading in
-  `owner-decisions.md` and the tier 2 report's owner section instead of copying the earlier list;
-  it found two open items the earlier draft dropped and one it should have dropped. Worked:
-  checking each pre-round claim against round 1's measurement (contrast was one chip). Did not
-  work: the Write tool again refused `tier3/report.md` from a subagent; the text goes back in the
-  return value. Do not retry it next time; write it straight into the return.
-- 2026-10-21 (tier 3 report) -- Worked: checking the round folder and the briefing folders before
-  writing (56 briefings, no `01.png` anywhere) so the report did not invent a round. Worked:
-  reading `owner-decisions.md` entries for an owner answer before listing them (the number box
-  one was answered on 2026-10-10; the fold-region one may be covered by it, so it is listed to confirm). Did not work: writing `tier3/report.md` from a subagent; the
-  harness refuses report files from subagents. Return the text instead.
-- 2026-10-21 (dry run pass 3) -- Worked: reading the element's camera code before classing the
-  most-walked jump: `followSelection` plus `setViewInsets` explained "only with a selection held"
-  and the 140 px (half the key's inset) in ten minutes, so the backlog item and the decided entry
-  name a cause. Worked: checking an unjudged task's (a) candidate on round 1 data already on disk
-  (T48 B's plain-file Replace and Undo kept the Louvain key) instead of a new walk. Worked:
-  `session.json` commits showed T48 A's "unwalked" success path was walked on the same build by an
-  earlier session. Worked: the rows file plus generator again (141 rows, per-task counts asserted).
-
+- 2026-10-21 (round 1, its report, dry run pass 3; summarized 2026-10-29) -- Worked: two
+  independent skeptic checks with a drop/weaken rule; re-reading every owner heading instead of
+  copying a list; checking pre-round claims against the round's measurement; reading the element's
+  camera code before classing a jump; `session.json` commits to prove an "unwalked" route was walked.
+  Did not work: leading task wording and a success bar the model always meets (55 of 56); writing a
+  report file from a subagent (the harness refuses it; return the text).
 - 2026-10-20 (dry run passes 1 and 2, criteria review; summarized 2026-10-21, full text in git
   history) -- Worked: a Node repro against the built element before writing a unit (the problem
   code led to the cause in minutes); walking an unjudged task's (a) candidate myself; reading
@@ -212,6 +196,12 @@ earlier text is in this file's git history.
 
 ## Thinking
 
+- **2026-10-29, dry run pass 2:** pass 1's 8 units all held, and pass 2 found 4 rows, one of them a
+  regression from a fix that added a default input (the Data weight) without adding it to the cache
+  key. A fix that makes the element read something new by default must also make every cache and
+  reuse check read it. The other three came from the decision log moving under a frozen build; a
+  team entry written after the freeze is an untriaged fix request and must be classed in the next
+  pass, not left to the answer key.
 - **2026-10-29, dry run pass 1:** the answer key had quietly become a list of workarounds: each
   build defect the pilots found got a grading rule instead of a fix. A key that grades around a
   wrong screen keeps the round honest but measures the build's defects as the participants' cost.
@@ -267,7 +257,9 @@ earlier text is in this file's git history.
 
 ## Sources
 
-- Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog}.md`; dry run `tier4/dry-run-r1-1.md`
+- Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog}.md`; dry runs `tier4/dry-run-r1-2.md`
+  (build 037e96e9bb, re-pilots in `tmp/design-studio/tier4/r1d1/pilot/`, generator `tmp/director-dryrun2/gen.mjs`)
+  and `tier4/dry-run-r1-1.md`
   (build 0ffeae2ef5, pilots in the main checkout's `tmp/design-studio/tier4/r1/pilot/`; generator
   `tmp/director-dryrun/gen.mjs` and `units.json` in the studio worktree).
 - Tier 3 study: `tier3/{criteria,tasks,answers,roster,decided}.md`; dry runs `tier3/dry-run-r1-3.md` (build 758b8e8081, 2026-10-21, pilots in `tier3/rounds/r1d2/pilot/`; the 2026-10-18 pass on 5bd16cda6e is at b296635060), `tier3/dry-run-r1-1.md` (build 7d87760756, 2026-10-20; the 2026-10-17 pass on 58556989e8 is at 7c241de4b), `tier3/dry-run-r1-2.md` (build 6de5f95d12, 2026-10-20, pilots in `tier3/rounds/r1d1/pilot/`; the 2026-10-17 pass on ed4351b258 is at 98b7f9a4df), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`); tools `tool/{real,bars,score,wording}.mjs`,

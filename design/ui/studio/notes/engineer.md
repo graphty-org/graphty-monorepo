@@ -21,6 +21,27 @@ Trimmed 2026-10-30 (the file passed 25 KB); the full earlier Top of mind (the Se
 fix 71230abff1, the unknown-end mark, inspector node names, the weight re-run, Select within the
 picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360dd57f:design/ui/studio/notes/engineer.md`.
 
+- (2026-10-30) Tier 4 round 1 closed; the studio stopped at its 1-round cap with bars 2, 3, 5, 6
+  and 7 failing (`tier4/rounds/round-1/insights.md`). No severity 3 or 4 survived the skeptic
+  checks. Most severe open problem (sev 2): the join preview tags the wrong rows -- the
+  unknown-end row looks "left out" though Join adds it as an empty node, and a repeated key is
+  tagged as added. Fix there first: the preview must show exactly what Join will do.
+- (2026-10-30) Cheapest bar fixes when work resumes: bar 6 -- the joined source row clips the
+  approved "17/19 rows joined" ratio and cuts the second file's name (one layout fix: truncate the
+  name last, never the ratio; also "17 of 19 joined" beside 18 edges reads as a contradiction).
+  Bar 5 -- the table's Nodes tab `aria-controls` names a panel that is never rendered (axe
+  critical on 14 of 16 screens): render the panel or drop the attribute, in compact-mantine if the
+  Tabs component is the cause.
+- (2026-10-30) Lesson: choices that act before the reader decides cost the most -- the unknown
+  end defaults to "Add nodes" after Join, a new filter card starts on Hide, "Leave out" does not
+  say it deletes. Prefer showing the choice before the act over picking a default for it.
+- (2026-10-30) Lesson: one fact drawn two ways sends readers to a second menu. Setting a column as
+  the time must change its header kind glyph to date (the timeline already draws dates); place
+  roles need a header chip; a filter card's count must use one basis under Hide and Select.
+- (2026-10-30) The study tool printed `tooltip: null` on hovers that open a popover (the issue
+  mark's fix list), which produced false findings and wrong turns. `real.mjs` must report an open
+  popover or hover card before any further round. A tool line is a claim; check the screenshot.
+
 - (2026-10-30) Round 1 screenshot audit on 79ed770292 at 1200x900 and 900x700:
   `tier4/rounds/round-1/expert/engineer.md`. No severity 3 or 4. Top severity 2s, all app: the
   table dock header overflows at 900 (issues chip drawn over the Edges tab, Edges tab gone with a
@@ -44,11 +65,6 @@ picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360d
   `bars` (dark) and `bars-light` (light), each `--tier 4` with every bar 5 screen at both sizes and
   a non-empty `vocabulary.json`. On 2026-10-30 the gate on round 1 still refuses T66A (no success
   walk on 79ed770292); the bars runs exist and fail only on the axe finding below.
-- (2026-10-30) OPEN DEFECT, bar 5 (app; severity is the accessibility specialist's): the table
-  dock's Nodes tab (`#mantine-...-tab-nodes`) has `aria-controls` naming a panel that is not in the
-  page; axe `aria-valid-attr-value` critical on every Data screen with the table open, both sizes
-  and themes (`tier4/rounds/round-1/bars*/bars.json`). The fix belongs where the table's Tabs are
-  built (a panel per tab, or no aria-controls while the panel is not rendered).
 - (2026-10-30) The wording check on 79ed770292 lists 65 shared words and 1 phrase across 22
   prompts (most from the start screen's marketing text and its links); that is the researcher's
   "Kept on purpose" work, not a tool fault.
@@ -267,3 +283,13 @@ Weight given in Data read by analyses (element only, `loadedWeight` follows the 
 Add data... and the canvas drop open the join screen (`chooseAndOpenFile`, `openFiles`); a Data
 source filter card writes `side: "nodes"` and the Filter chip names edges when any are hidden.
 Full reasons, tests and walks: `git show b14af76f0e:design/ui/studio/notes/engineer.md`.
+
+## Round 1 close (2026-10-30)
+
+- Decided: when work resumes, fix in this order -- join preview truthful (sev 2, most severe),
+  joined source row layout (bar 6), table Tabs aria-controls (bar 5), the time column's kind glyph,
+  the study tool's popover reporting. Reason: bars 5 and 6 are single mechanical fixes; the join
+  preview is the costliest core task (about 12 inputs against a path of 7).
+- Learned: bars 2 and 3 failed partly on the answer key's definition and on the tool's
+  `tooltip: null`, not on the design. Check a failing bar's evidence before building a fix for it.
+- Learned: every participant is the same model, so a failure is strong evidence and a pass weak.

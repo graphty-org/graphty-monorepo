@@ -56,6 +56,12 @@ import { frozenRecord } from "./draft";
 const LEFT_OUT_KEPT = 100;
 
 /**
+ * The records {@link Ingest} gave the nodes an edge made and no node record named. Kept by
+ * identity, so undo and redo, which put the same record objects back, keep the answer right.
+ */
+const MADE_RECORDS = new WeakSet();
+
+/**
  * The column an endpoint expression reads: the name itself, or a quoted name unquoted (as a draft
  * writes a column name that is not a plain identifier).
  * @param expression - The JMESPath expression.
@@ -103,6 +109,7 @@ function leftOutEdge(
     });
 }
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
+import type { GraphRecord } from "./state";
 
 /**
  * The kinds a draft gave the rows it hands over, by those rows: the report's `kinds`. Kept beside
@@ -491,7 +498,10 @@ export class Ingest<K extends KnownEdge> {
     /** The tally of the load that finished last, which `importSource` reads its issue facts from. */
     private sealedTally: ImportTally | null = null;
 
-    /** Endpoints an edge of the load in progress created with no node record to draw them from. */
+    /**
+     * Endpoints an edge created with no node record to draw them from: of the load in progress,
+     * or of the `addEdges` batch in progress outside a load.
+     */
     private readonly loadMadeEndpoints = new Set<NodeIdType>();
 
     /** The load in progress drops an edge naming a node no node record holds. */
@@ -896,7 +906,11 @@ export class Ingest<K extends KnownEdge> {
             }
 
             if (this.hasNode(nodeId)) {
-                if (this.updateExisting && this.host.hasNode(nodeId)) {
+                if (MADE_RECORDS.has(writer.nodeRecord(nodeId) ?? {})) {
+                    // A node an edge made holds only its id: the first record that names it is
+                    // its own record, whatever the repeat policy says about a declared one.
+                    writer.setAttributes("node", nodeId, frozenRecord(node), true);
+                } else if (this.updateExisting && this.host.hasNode(nodeId)) {
                     writer.setAttributes("node", nodeId, frozenRecord(node));
                 }
 
@@ -1022,6 +1036,12 @@ export class Ingest<K extends KnownEdge> {
         );
 
         const batch: EdgeBatch = { endpoints, policy, recordIdPath, weightPath, legacyFallback, tally };
+        if (this.loadTally === null) {
+            // An earlier push that threw mid-batch was rolled back, and the endpoints it noted
+            // with it: they are not this batch's to draw.
+            this.loadMadeEndpoints.clear();
+        }
+
         for (const edge of edges) {
             if (this.addEdgeRecord(edge, batch, writer)) {
                 legacyWeights++;
@@ -1038,6 +1058,11 @@ export class Ingest<K extends KnownEdge> {
         }
 
         if (this.loadTally === null) {
+            // A push of records has no enclosing load to draw the endpoints its edges made at
+            // its end (#3192): give them their records now, and the pass that draws the graph
+            // slice builds them, or the store holds them and nothing draws them.
+            this.recordMadeEndpoints(writer);
+            this.loadMadeEndpoints.clear();
             // A push of records rather than a file, so there is no enclosing load to seal the
             // report. Seal one here, or `session.data.lastImport()` would answer about the last
             // FILE for a graph whose edges came from a consumer's own array.
@@ -1091,10 +1116,9 @@ export class Ingest<K extends KnownEdge> {
 
         // The STORE takes the edge now, whether or not the endpoints have render objects:
         // the builder creates a missing endpoint itself, so the snapshot is complete while
-        // the scene is still catching up. A load remembers which, to draw them at its end.
-        if (this.loadTally !== null) {
-            this.rememberMadeEndpoints(srcNodeId, dstNodeId);
-        }
+        // the scene is still catching up. Remember which, to draw them once the batch (or, for
+        // a load, the whole load) is in.
+        this.rememberMadeEndpoints(srcNodeId, dstNodeId);
 
         const { index: edgeIndex, edgeId } = writer.addEdge(
             srcNodeId,
@@ -1174,8 +1198,8 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
-     * Remember the endpoints of a load's edge that the store will create because no node record
-     * named them, so the load draws them at its end.
+     * Remember the endpoints of an edge that the store will create because no node record named
+     * them, so the load, or the batch outside a load, draws them at its end.
      * @param ids - The edge's endpoint ids.
      */
     private rememberMadeEndpoints(...ids: NodeIdType[]): void {
@@ -1852,25 +1876,40 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
-     * Draw the nodes the load's edges created and no node record of the load named, as a node
-     * holding only its id, which is what a file of edges alone means by them. Without this the
-     * store holds them and nothing draws them, nor the edges waiting on them.
+     * Draw the nodes the load's (or the batch's) edges created and no node record named, as a node
+     * holding only its id, which is what a file of edges alone means by them. A node record that
+     * names one later becomes its record. Without this the store holds them and nothing draws
+     * them, nor the edges waiting on them.
      * @param writer - the graph primitives to write through
      */
     private drawMadeEndpoints(writer: GraphWriter): void {
-        let drawn = 0;
+        const made = this.recordMadeEndpoints(writer);
+        for (const { id, record, index } of made) {
+            this.host.nodeStored(id, record, index);
+        }
+
+        if (made.length > 0) {
+            this.host.nodesArrived(made.length);
+        }
+    }
+
+    /**
+     * Give each node the edges created and no node record named a record holding only its id,
+     * leaving the drawing to the caller or to the pass that draws the graph slice.
+     * @param writer - the graph primitives to write through
+     * @returns The nodes given a record, with their rows.
+     */
+    private recordMadeEndpoints(writer: GraphWriter): { id: NodeIdType; record: GraphRecord; index: number }[] {
+        const made: { id: NodeIdType; record: GraphRecord; index: number }[] = [];
         for (const id of this.loadMadeEndpoints) {
             if (!this.host.hasNode(id)) {
                 const record = frozenRecord({ id });
-                const { index } = writer.addNode(id, record, null);
-                this.host.nodeStored(id, record, index);
-                drawn++;
+                MADE_RECORDS.add(record);
+                made.push({ id, record, index: writer.addNode(id, record, null).index });
             }
         }
 
-        if (drawn > 0) {
-            this.host.nodesArrived(drawn);
-        }
+        return made;
     }
 
     /**

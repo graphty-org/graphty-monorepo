@@ -37,7 +37,7 @@ open (except "open" for a file in Excel), import, merge, match, blank, trim.
 web address, picked, stronger, farther, apart, at least, leave out (the issue list's button that
 deletes an unknown end's node).
 
-**Kept on purpose:** `file`, `spreadsheet`, `list` -- the everyday words for what the person has; the
+**Kept in every task:** `file`, `spreadsheet`, `list` -- the everyday words for what the person has; the
 start screen and the file chooser use them too, and no everyday word replaces them. The address
 itself is given, never named: it says what it is.
 The file names (`pantries.csv`, `deliveries.csv`, `gauges.csv`, `flows.csv`, `volunteers.graphml`,
@@ -47,6 +47,10 @@ for what a site or station is called; the files' columns are `site` and `station
 `map` -- the person's plan for next month (T63); the app's map is a layout the task never needs.
 `Excel` -- where the treasurer will read the file (T68). `GraphML` -- the format the colleague's
 program reads (T68 B); the person would name it, as Maren and Dana would.
+`pantries`, `deliveries`, `gauges`, `flows`, `volunteers`, `csv` -- the file names' own words, said
+as the person says them ("the delivery log"). `route` -- the food bank's word for a van's run between
+two sites; the screens show it only in a sample's name. `put` -- an everyday verb ("put in", "put
+right"); the screens show it only in the start screen's "Put it on your own site", which no path uses.
 
 ## The tasks
 
@@ -73,14 +77,20 @@ their fixes (T67); export of tables and of a network file (T68).
 
 ### T60. From a web address (two datasets)
 
-- **Prompt A (sources.graphml):** "A colleague put the newest copy of your sources network online
+- **Prompt A (sources.graphml):** "A colleague put the newest copy of your reporting network online
   instead of emailing it. It is at
   https://raw.githubusercontent.com/graphty-org/graphty-monorepo/master/design/ui/studio/tool/files/sources.graphml
-  -- bring it into the program straight from there, without saving it to your computer first. Then tell us how many people and organizations it holds, and how many ties join them."
+  -- bring it into the program straight from there, without saving it to your computer first. Then tell us how many people and organizations it holds, and how many ties connect them."
 - **Prompt B (yeast-galactose.graphml):** "The lab's yeast gene network is published online at
   https://raw.githubusercontent.com/graphty-org/graphty-monorepo/master/design/ui/studio/tool/files/yeast-galactose.graphml
   -- bring it into the program straight from there, without downloading it first. Then
-  tell us how many genes it holds and how many interactions join them."
+  tell us how many genes it holds and how many interactions connect them."
+- **Kept on purpose:** `sources`, `files`, `graphml`, `yeast` -- words of the address itself, which is
+  given whole and never named. `saving`, `computer` -- the condition the task sets (not a file on the
+  person's machine); the screens say "saved project" and "never leaves your computer", no control on
+  the path. `genes`, `interactions`, `yeast` -- the lab's own words for its data; the screens show
+  them only in sample names. `connect` -- what ties do; the screens say it only in a generator's name,
+  "Connected caveman".
 
 ### T61. Two spreadsheets as one network (two datasets)
 
@@ -89,11 +99,14 @@ their fixes (T67); export of tables and of a network file (T68).
   trips the van made. Put them together so the sites and the routes between them are one network.
   Then tell us how many sites and how many routes the network has, and whether anything in the
   route list did not fit the site list."
-- **Prompt B (gauges.csv + flows.csv):** "The river project keeps two spreadsheets. gauges.csv
+- **Prompt B (gauges.csv + flows.csv):** "The river team keeps two spreadsheets. gauges.csv
   lists every gauge on the river, and flows.csv lists each stretch of river that runs from one
   gauge to the next, with its length in kilometers. Put them together so the gauges and the
   stretches between them are one network. Then tell us how many gauges and how many stretches the
   network has, and whether anything in the stretch list did not fit the gauge list."
+- **Kept on purpose:** `trips` -- the person's own column; the join screen lists it, and the success
+  path never touches it. `runs` -- a stretch of river runs between gauges; the screens' "Run a Cypher
+  query" is a server choice no path uses.
 - **Follow-up** (asked after the participant's first `--end`):
     - A: "How many of the routes came from the second spreadsheet, and where did you read that?"
     - B: "How many of the stretches came from the second spreadsheet, and where did you read that?"
@@ -101,34 +114,41 @@ their fixes (T67); export of tables and of a network file (T68).
 ### T62. Read the wrong way (two datasets)
 
 - **Prompt A (pantries.csv):** "Your site list records the day each site opened, but the program
-  treats those days as plain words, so it cannot put the sites in order of when they opened. Get it
+  treats those days as plain words, so it cannot tell which sites opened first. Get it
   to understand that those are calendar days. Then tell us which site opened most recently."
 - **Prompt B (gauges.csv):** "Your gauge list records the day each gauge was put in, but the
-  program treats those days as plain words, so it cannot put the gauges in order of age. Get it to
+  program treats those days as plain words, so it cannot tell which gauges are oldest. Get it to
   understand that those are calendar days. Then tell us which gauge was put in most recently."
+- **Kept on purpose:** `opened`, `site opened` -- what the person's own column records, in their
+  words; the phrase is only on screen across two controls of the start screen ("own site", "Open
+  network data").
 
 ### T63. Ready for a map and a year-by-year view (two datasets)
 
 - **Prompt A (pantries + deliveries):** "Next month you will show the board where the food bank's
-  sites are and how the network grew year by year. Set the program up now so it knows where each
-  site is and when each one opened. Tell us when it is set, and what in your list it goes by for
+  sites are and how the network grew year by year. Get the program ready now so it knows where each
+  site is and when each one opened. Tell us when it is ready, and what in your list it goes by for
   where each site is and for when each one opened."
 - **Prompt B (gauges + flows):** "Next month you will show the river council where the gauges are
-  and how the network grew over the years. Set the program up now so it knows where each gauge is
-  and when each one was put in. Tell us when it is set, and what in your list it goes by for where
+  and how the network grew over the years. Get the program ready now so it knows where each gauge is
+  and when each one was put in. Tell us when it is ready, and what in your list it goes by for where
   each gauge is and for when each one was put in."
+- **Kept on purpose:** `opened` -- what the person's own column records, in their words.
 
 ### T64. What it is called, and what makes a tie strong (two datasets)
 
 - **Prompt A (pantries + deliveries):** "Everywhere the program names a site, it should use the
   site's own name, not its code. And when the program measures the network, a route the van drove
-  more often should matter more. Set both up, then tell us what the program now calls
+  more often should matter more. Get both done, then tell us what the program now calls
   the site whose code is P05."
 - **Prompt B (gauges + flows):** "Everywhere the program names a gauge, it should use the
-  station's own name, not its code. And when the program measures the network, a path between two
-  gauges should be judged by how many kilometers of river it covers, not by how many stretches it
-  crosses. Set both up, then tell us what the
+  station's own name, not its code. And when the program measures the network, a way along the river
+  from one gauge to another should be judged by how many kilometers of river it covers, not by how
+  many stretches it crosses. Get both done, then tell us what the
   program now calls the gauge whose code is G05."
+- **Kept on purpose:** `measures` -- the everyday word for what the person wants the program to do;
+  the screens use it only in the start screen's "Lay it out, measure it". `more` -- the tie that
+  matters more; the screens say it only in a live caption of the start screen's sample.
 
 ### T65. Only some in the picture, and some marked (two datasets)
 
@@ -137,15 +157,17 @@ their fixes (T67); export of tables and of a network file (T68).
   without deleting anyone. Then, among those still in the picture, mark the staff members as the
   ones you are working with right now, without taking anyone else away. Tell us how many people are
   still in the picture and how many are marked."
-- **Prompt B (gauges + flows, tidied):** "For the council's field day you only want to see the
+- **Prompt B (gauges + flows, tidied):** "For the council's day out on the river you only want to see the
   gauges that send their readings by themselves and are 70 cm deep or deeper; every other gauge
   should be out of the picture for now, without deleting any. Then, among those still in the
   picture, mark the ones put in before 2005 as the ones you are working with right now, without
   taking any other gauge away. Tell us how many gauges are still in the picture and how many are
   marked."
 - **Follow-up** (asked after the participant's first `--end`):
-    - A: "Would it have made any difference if you had set those up in the other order? How can you tell?"
-    - B: "Would it have made any difference if you had set those up in the other order? How can you tell?"
+    - A: "Would it have made any difference if you had done those the other way round? How can you tell?"
+    - B: "Would it have made any difference if you had done those the other way round? How can you tell?"
+- **Kept on purpose:** `volunteers` -- the person's own word for the people in their file; the
+  screens show it only in another file's column, `volunteer_run`.
 
 ### T66. Only what is on your own list (two datasets)
 
@@ -153,8 +175,10 @@ their fixes (T67); export of tables and of a network file (T68).
   log; it is not one of the food bank's own sites. Take it out of the picture without deleting it
   from the network, and tell us how many sites are still in the picture."
 - **Prompt B (gauges + flows):** "One gauge in this network turned up only in the stretch list; it
-  is not one of the project's own gauges. Take it out of the picture without deleting it from the
+  is not one of the team's own gauges. Take it out of the picture without deleting it from the
   network, and tell us how many gauges are still in the picture."
+- **Kept on purpose:** `turned` -- "turned up", an everyday idiom; the screens say "Pause the
+  turning" of the start screen's sample, no control on the path.
 
 ### T67. What looks wrong, put right (two datasets)
 
@@ -164,6 +188,8 @@ their fixes (T67); export of tables and of a network file (T68).
 - **Prompt B (gauges.csv):** "Before you pass this gauge list on, check whether the program thinks
   anything in it looks wrong. Where the program can put something right for you, do it. Tell us
   what it found and what you changed."
+- **Kept on purpose:** `found` -- the everyday past of find; the screens' "Find an attribute" is the
+  Filters picker's box, which this task's path never opens.
 
 ### T68. Sending it on (two datasets)
 
@@ -173,6 +199,9 @@ their fixes (T67); export of tables and of a network file (T68).
 - **Prompt B (gauges + flows):** "A colleague on the river council uses another network program
   that reads GraphML. Make a GraphML file of this whole network for him, and tell us where it ended
   up."
+- **Kept on purpose:** `open` -- a file opened in Excel, the one use the avoided list allows. `ended`
+  -- "ended up", an everyday idiom; the screens' "unknown end" is the issue list's, which this task
+  never needs.
 
 ## Detours each pilot walks
 

@@ -232,6 +232,12 @@ describe("Data > Fields as a + list on the real element", () => {
             assert.equal(shown(section, "Node latitude column"), "lat");
         });
         await userEvent.keyboard("{Shift>}T{/Shift}");
+        // The header marks the role too, as it marks a designated one.
+        const grid = await screen.findByRole("grid", { name: "Nodes" }, { timeout: TIMEOUT_MS });
+        await waitFor(() => {
+            const pills = [...grid.querySelectorAll<HTMLElement>(".ws-th-role")].map((each) => each.textContent);
+            assert.includeMembers(pills, ["Latitude", "Longitude"]);
+        });
         await userEvent.click(await screen.findByRole("button", { name: "Options for lat" }, { timeout: TIMEOUT_MS }));
         await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
         const latitude = await screen.findByRole("menuitemradio", { name: "Latitude" });

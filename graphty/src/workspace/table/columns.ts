@@ -127,11 +127,20 @@ function roleOf(
  */
 export function columnChoices(session: GraphSession, kind: RecordKind, roles = headerRoles(kind)): TableColumnChoice[] {
     const sources = session.data.sources();
+    // A location the element found in a node column is that column's role, as Fields lists it and
+    // the Role menu checks it, though no one designated it: its header shows it too.
+    const located = new Map(
+        kind === "node"
+            ? Object.entries(session.layout.locationColumns().kinds).flatMap(([role, name]) =>
+                  typeof name === "string" && roles.includes(role as ColumnRole) ? [[name, role as ColumnRole]] : [],
+              )
+            : [],
+    );
     const loaded = session.data
         .attributes()
         .filter((attribute) => attribute.kind === kind && attribute.origin !== "result")
         .map((attribute): TableColumnChoice => {
-            const role = roleOf(attribute, sources, roles);
+            const role = roleOf(attribute, sources, roles) ?? located.get(attribute.name);
             return {
                 id: `a:${attribute.name}`,
                 header: attribute.name,

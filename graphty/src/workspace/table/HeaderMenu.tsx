@@ -106,13 +106,8 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
     };
     const { ref } = column;
     const current = valueTypeOf(column.descriptor);
-    // A location the element found in a node column is its role as Fields lists it, though no
-    // one designated it.
-    const located =
-        session === null || ref === undefined || kind !== "node"
-            ? undefined
-            : Object.entries(session.layout.locationColumns().kinds).find(([, name]) => name === ref.name)?.[0];
-    const role = column.role ?? (located as ColumnRole | undefined) ?? null;
+    // A found location is already the column's role (columnChoices).
+    const role = column.role ?? null;
     const from = column.descriptor?.sources;
     const load = session?.data
         .sources()

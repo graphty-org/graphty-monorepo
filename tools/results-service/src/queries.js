@@ -192,8 +192,11 @@ export async function getPlan(q, who, db, now) {
     if (variants.length !== inputs.length) refuse(400, "variants and inputs must be lists of the same length");
     const pairs = variants.map((v, i) => [v, inputs[i]]);
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
-    const facts = {};
-    for (const [v, k] of pairs) facts[v] = await variantFacts(db, v, k, now);
+    // in parallel: one after another, an everything run's ~55 variants took past the client's wait, so its bins
+    // were packed without history, about eight times too many test jobs, and they queued pull requests for an hour
+    const facts = Object.fromEntries(
+        await Promise.all(pairs.map(async ([v, k]) => [v, await variantFacts(db, v, k, now)])),
+    );
     const files = list(q.get("files"));
     return {
         quarantine: await activeQuarantine(db, families, now),

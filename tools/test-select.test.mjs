@@ -26,6 +26,7 @@ import {
     measuredOf,
     outsideOf,
     packBins,
+    binCost,
     BIN_LIMIT_MS,
     FILE_OVERHEAD_MS,
     rootImportGraph,
@@ -1772,6 +1773,52 @@ describe("packBins", () => {
         }
         assert.equal(bins.flatMap((b) => b.files).length, 300);
     });
+
+    it("plans a family's bins at what they ran, so a bin that ran over 8 minutes is planned over (#5048)", () => {
+        // [family, files, recorded ms, run-group wall ms]: every bin over 8 minutes in pull request runs
+        // 41040420195, 41058628979 and 41061566840, each planned at 8 minutes or less with 5 s a file
+        const ran = [
+            ["graphty", 15, 404956, 502000],
+            ["graphty", 10, 429763, 537000],
+            ["graphty-element-browser", 52, 219997, 533000],
+            ["graphty-element-browser", 31, 324812, 533000],
+            ["graphty-element-browser", 93, 14386, 555000],
+            ["graphty-element-browser", 88, 37527, 571000],
+            ["graphty-element-browser", 80, 76658, 560000],
+            ["graphty", 15, 404917, 536000],
+            ["graphty", 10, 428700, 506000],
+            ["graphty-element-browser", 88, 40000, 578000],
+            ["graphty-element-browser", 51, 224963, 504000],
+            ["graphty-element-browser", 93, 14218, 554000],
+            ["graphty-element-browser", 30, 327984, 523000],
+            ["graphty-element-storybook", 34, 309521, 544000],
+            ["graphty", 14, 409993, 503000],
+            ["graphty", 21, 374911, 485000],
+            ["graphty", 10, 429847, 499000],
+            ["graphty-element-browser", 71, 124990, 489000],
+            ["graphty-element-browser", 88, 39978, 594000],
+            ["graphty-element-browser", 51, 224972, 517000],
+            ["graphty-element-browser", 30, 329835, 545000],
+            ["graphty-element-browser", 93, 13825, 559000],
+            ["graphty-element-browser", 80, 76558, 529000],
+            ["graphty-element-storybook", 34, 309752, 556000],
+        ];
+        for (const [family, n, recorded, wall] of ran) {
+            const files = Array.from({ length: n }, (_, i) => `p/f${i}.test.ts`);
+            const ms = new Map(files.map((f) => [f, recorded / n]));
+            const { overheadMs, scale } = binCost(family);
+            const planned = packBins(files, ms, Infinity, overheadMs, scale)[0].ms;
+            assert.ok(planned >= wall, `${family}, ${n} files: planned ${planned} ms, ran ${wall} ms`);
+        }
+    });
+
+    it("packs a family that runs its files in parallel workers by its small per-file cost (#5048)", () => {
+        // graphty-element-default: 95 files, 52 s recorded, ran 38 s; 5 s a file made it one of ten bins
+        const files = Array.from({ length: 380 }, (_, i) => `p/f${i}.test.ts`);
+        const ms = new Map(files.map((f) => [f, 550]));
+        const { overheadMs, scale } = binCost("graphty-element-default");
+        assert.equal(packBins(files, ms, BIN_LIMIT_MS, overheadMs, scale).length, 1);
+    });
 });
 
 describe("light-check-replay", () => {
@@ -1789,7 +1836,7 @@ describe("light-check-replay", () => {
         [
             "graphty",
             new Map([
-                ["graphty/a.test.ts", 6 * MIN],
+                ["graphty/a.test.ts", 5 * MIN],
                 ["graphty/b.test.ts", 3 * MIN],
             ]),
         ],
@@ -1810,8 +1857,8 @@ describe("light-check-replay", () => {
             key: "run:ci.yml:pr",
             at: record.at,
             bins: 2,
-            testMs: 6 * MIN + FILE_OVERHEAD_MS,
-            runMs: SETUP_MS + 6 * MIN + FILE_OVERHEAD_MS,
+            testMs: 5 * MIN * binCost("graphty").scale + binCost("graphty").overheadMs,
+            runMs: SETUP_MS + 5 * MIN * binCost("graphty").scale + binCost("graphty").overheadMs,
             overLimit: false,
         });
     });
@@ -1894,7 +1941,8 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
             sel("layout", "none"),
             sel("githerd", "all"),
         ];
-        const durations = { graphty: Object.fromEntries(app.map((f) => [f, 3 * MIN])) };
+        // 2 min recorded is 2.7 min planned with graphty's cost (binCost()): two files a bin
+        const durations = { graphty: Object.fromEntries(app.map((f) => [f, 2 * MIN])) };
         const out = lightPlan(ROOT, shards, selection, durations);
         assert.deepEqual(out.whole, ["githerd"]);
         assert.deepEqual(out.none, ["layout"]);

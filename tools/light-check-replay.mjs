@@ -33,7 +33,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { familyOf, openLedger } from "./test-ledger.mjs";
-import { BIN_LIMIT_MS, loadRules, packBins } from "./test-select.mjs";
+import { BIN_LIMIT_MS, binCost, loadRules, packBins } from "./test-select.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MIN = 60_000;
@@ -106,7 +106,8 @@ export function replayRecord(record, durations, fileLevel, limitMs = BIN_LIMIT_M
     let bins = 0;
     for (const [family, fam] of familiesOf(record)) {
         const fileMs = durations.get(family) ?? new Map();
-        const packed = packBins(filesToRun(fam, fileMs), fileMs, limitMs);
+        const { overheadMs, scale } = binCost(family);
+        const packed = packBins(filesToRun(fam, fileMs), fileMs, limitMs, overheadMs, scale);
         bins += packed.length;
         longest.push({ package: fam.package, ms: packed[0]?.ms ?? 0 });
     }

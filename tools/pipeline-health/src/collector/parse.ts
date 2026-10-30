@@ -287,15 +287,22 @@ export interface RunnerUse {
     longestQueuedMs: number;
 }
 
+/**
+ * Whether a job is waiting for a Linux or Windows runner: status "queued" for over 2 minutes. Only "queued" waits for
+ * a runner: "waiting" is an environment approval and "pending" a concurrency group, so neither says GitHub is short
+ * of runners (the owner's own Promote run read as an outage). macOS jobs queue behind their own 5-job limit while
+ * Linux runners sit free: that is no outage. A job queued under 2 minutes is GitHub's normal assignment delay.
+ */
+export function waitsForRunner(j: GhJob, nowMs: number): boolean {
+    return j.status === "queued" && pool(j.labels) === "linux_windows" && nowMs - Date.parse(j.created_at) > 2 * MIN;
+}
+
 /** Counts one job that has not started (queued, waiting or pending) into `use`. */
 function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number) {
     if (p === "other") return; // machine.dev and self-hosted pools are outside GitHub's limit
     const age = nowMs - Date.parse(j.created_at);
     use.queued++;
-    // Only "queued" waits for a runner: "waiting" is an environment approval and "pending" a concurrency
-    // group, so neither says GitHub is short of runners (the owner's own Promote run read as an outage).
-    // macOS jobs queue behind their own 5-job limit while Linux runners sit free: that is no outage.
-    if (age > 2 * MIN && j.status === "queued" && p === "linux_windows") use.queuedOver2++;
+    if (waitsForRunner(j, nowMs)) use.queuedOver2++;
     use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
 }
 

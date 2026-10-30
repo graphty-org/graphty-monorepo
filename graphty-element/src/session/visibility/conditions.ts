@@ -82,13 +82,14 @@ export function conditionOf(condition: FilterCondition, rule: RuleTree): FilterC
 }
 
 /**
- * Whether the selection follows what is drawn: some select condition that is on reads
- * `within: "picture"`.
+ * Whether the selection reaches past what is visible: every select condition that is on reads
+ * `within: "graph"`.
  * @param conditions - The conditions.
  * @returns True when it does.
  */
-export function selectsInPicture(conditions: readonly FilterCondition[]): boolean {
-    return conditions.some((each) => each.on && each.effect === "select" && each.within === "picture");
+export function selectsOverGraph(conditions: readonly FilterCondition[]): boolean {
+    const selects = conditions.filter((each) => each.on && each.effect === "select");
+    return selects.length > 0 && selects.every((each) => each.within === "graph");
 }
 
 /**

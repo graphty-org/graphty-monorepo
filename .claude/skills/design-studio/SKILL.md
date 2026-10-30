@@ -365,3 +365,12 @@ Each rule below exists because breaking it cost a run.
   a studio agent deleted a pre-push gate's shard log that way and failed a passing gate (#2197). Husky's `.husky/_/h` runs the hook script one folder above itself,
   so the older recipe (copy only `.husky/_`) skipped the secret scan, formatting and commit-message
   checks without a word on every studio commit until 2026-10-08.
+- **Check the framework before escalating to the owner.** Before raising any item "for the owner",
+  check `design/ui/framework` (`glossary.md`, `interaction-patterns.md`, `decided-doors.md`), the
+  approved specs, the tier's `decided.md`, and the owner's own statements in `.claudehistory`. An
+  item those settle is decided by the team, recorded with its citation in `owner-decisions.md`
+  under "decided by the team", and built. Only a true one-way door -- a breaking change to a
+  published API, a departure from compact-mantine's Figma lock -- goes to the owner. On 2026-10-29
+  all nine tier 4 data management questions raised for the owner turned out to be settled by those
+  sources (the glossary already named the filter effects, the owner had already said where a
+  column's type is set), and the study waited on questions that had answers.

@@ -505,7 +505,7 @@ function readResult(file) {
 }
 
 /**
- * What runShard() judges a group by: on a pull request with the store's answer, its quarantine and prJudge(); with
+ * What runShard() judges a group by: with the store's answer, its quarantine, and on a pull request prJudge(); with
  * only what the pull request touched, the committed list and newFlakyJudge(); else the committed list.
  * @param o the group
  * @param o.root the checkout
@@ -519,19 +519,18 @@ function readResult(file) {
  * @returns runShard()'s `list`, `judge` and `family`
  */
 function judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, base }) {
-    const rules =
-        env.GITHUB_EVENT_NAME === "pull_request" && plan
-            ? {
-                  list: storeList(plan),
-                  judge: prJudge(plan, {
-                      shard: shardName,
-                      family,
-                      variant,
-                      base: plan.base ?? base,
-                      out: env.RESULTS_BASE_CHECKS_OUT,
-                  }),
-              }
-            : {};
+    // the store's quarantine whenever its plan holds the family (the full run's story tests read one too: their
+    // `-shots` quarantines are never committed); the base-check judging only on a pull request
+    const rules = plan ? { list: storeList(plan) } : {};
+    if (plan && env.GITHUB_EVENT_NAME === "pull_request") {
+        rules.judge = prJudge(plan, {
+            shard: shardName,
+            family,
+            variant,
+            base: plan.base ?? base,
+            out: env.RESULTS_BASE_CHECKS_OUT,
+        });
+    }
     rules.family = family;
     rules.list ??= activeList(committedList(root), emptyState());
     // the gate never writes a screenshot run's own family (`<family>-shots`; only the store's plan holds it), so

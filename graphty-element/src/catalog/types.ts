@@ -2107,8 +2107,8 @@ export type FilterEffect = "keep" | "exclude" | "select";
  *
  * Conditions are independent and order never matters: every keep condition that is on narrows
  * what stays, every exclude condition that is on hides its matches (two of them hide what either
- * matches), and the select conditions that are on select what all of them match, over the whole
- * graph, visible or not, or only within what is drawn (see {@link FilterCondition.within}).
+ * matches), and the select conditions that are on select what all of them match among what is
+ * visible, or over the whole graph (see {@link FilterCondition.within}).
  *
  * A `range`, `categories` or `text` leaf on an edge value that names no `nodes` reading gets one
  * from the effect: keep keeps the matching edges and the nodes at their ends, exclude hides only
@@ -2126,12 +2126,11 @@ export interface FilterCondition {
     readonly rule: RuleTree;
     /**
      * Where a select condition looks for its matches; read only when `effect` is `"select"`.
-     * `"graph"` (the default, when absent): every match in the graph, visible or not. `"picture"`:
-     * only the matches the keep and exclude conditions that are on leave drawn. With any select
-     * condition that is on reading `"picture"`, the selection is what every select condition that
-     * is on matches AND what those keep and exclude conditions keep; it is recomputed whenever a
-     * keep or exclude condition is added, removed, switched or edited, and on undo and redo of
-     * such a change. The order of the conditions never matters.
+     * `"picture"` (the default, when absent): only the matches that are visible. `"graph"`: every
+     * match in the graph, visible or not, used only when every select condition that is on reads
+     * `"graph"`. The selection is recomputed whenever a keep or exclude condition is added,
+     * removed, switched or edited while a select condition is on, and on undo and redo of such a
+     * change. The order of the conditions never matters.
      * @since 3.33.0
      */
     readonly within?: FilterSelectWithin;

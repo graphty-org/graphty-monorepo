@@ -4,6 +4,17 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-29 -- Decided by the team: a select condition's `within` after master's select rule (graphty-element)
+
+- **graphty-element, non-breaking.** Master now makes every select condition select only among the
+  visible elements and recompute when a keep or exclude condition changes (neither published to npm).
+  The studio branch's optional `within` field stays, with its default turned around to match: absent or
+  `"picture"`, a select condition selects among what is visible; `"graph"` selects over the whole
+  graph, visible or not, and applies only when every select condition that is on reads `"graph"`. Why:
+  master's rule is the product's rule (what is ringed and what is reported as selected never differ),
+  and `"graph"` keeps the choice open for a consumer that reveals hidden matches. The graphty app's
+  Select cards still write `"picture"`, which is now the same as leaving it out.
+
 ## 2026-10-29 -- Decided by the team: an unknown-end issue says which end is unknown (graphty-element)
 
 From the tier 4 dry run, pass 4 (`tier4/dry-run-r1-2.md`, unit U2).

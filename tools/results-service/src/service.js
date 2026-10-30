@@ -41,6 +41,8 @@ const MASTER_KINDS = {
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
     "deploy-pages.yml": "site",
+    // the nightly site job release.yml calls (and a hand-dispatched redeploy): its channel move only (#5135)
+    "nightly-site.yml": "nightly-site",
     // the rolling screenshot slices (design/visual-testing/early-capture.md): story captures only
     "story-slices.yml": "slice",
 };
@@ -48,6 +50,7 @@ const MASTER_KINDS = {
 const NO_TESTS = {
     deploy: "a site repository writes only durations",
     site: "deploy-pages.yml writes only its site and durations",
+    "nightly-site": "nightly-site.yml writes only its channel move and durations",
     master: "a push to master runs ci.yml as a build only, with no tests",
     slice: "story-slices.yml writes only story captures",
 };
@@ -488,9 +491,11 @@ const SHA256 = /^[0-9a-f]{64}$/;
 // of the site asset and channel.json, one row per run: a re-run of the site job (which re-packs channel.json, so
 // its sha256 changes) replaces that run's hashes, so promote.yml compares against what is hung now. It keeps the
 // row's time: a re-run never makes an older promotion the newest nightly.
-// Only master's own release.yml writes it; age:nightly (GET /v1/release-state) counts from the newest row.
+// Only master's own release.yml writes it, through the nightly-site.yml it calls (whose token names that file: #5135,
+// every record was refused until then); age:nightly (GET /v1/release-state) counts from the newest row.
 async function postChannelMove(body, who, db, nowMs) {
-    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+    const release = who.kind === "full" && String(who.claims.job_workflow_ref).includes("/release.yml@");
+    if (!release && who.kind !== "nightly-site") {
         refuse(403, "only master's own release.yml records a channel move");
     }
     if (body?.channel !== "nightly") refuse(400, "channel must be nightly");

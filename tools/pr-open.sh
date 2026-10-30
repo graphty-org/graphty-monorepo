@@ -31,9 +31,9 @@
 #      to one of the few files that guard the owner (GUARD_PATHS below), and a pull request someone other than
 #      the agent opened. A change to CI or to what guards the owner merges like any
 #      other once green (owner, 2026-10-25: "I don't agree that I should be required to manually merge to change
-#      CI"). Until code-owner review is turned on (the last rollout step, .github/CODEOWNERS), such a pull
-#      request -- one that can change the very checks that judge it -- merges with only the fresh review and
-#      PR Integrity looking at it; the owner accepted that gap.
+#      CI"). Such a pull request -- one that can change the very checks that judge it -- merges with only the
+#      fresh review and PR Integrity looking at it; the guard planned for that gap is to run master's copy of
+#      those checks, not the pull request's (issue #4421).
 #
 # Every git and gh call runs as the agent account, never as the owner: GIT_CONFIG_GLOBAL is the agent's
 # git config (its name, its signing key, its SSH key), GH_CONFIG_DIR its gh login, and the session's

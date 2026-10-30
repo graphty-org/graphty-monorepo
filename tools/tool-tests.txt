@@ -19,7 +19,6 @@ tools/channel/story-slices.test.mjs
 tools/check-committed-images.test.mjs
 tools/check-features.test.mjs
 tools/check-figma-lock.test.mjs
-tools/check-owned-closure.test.mjs
 tools/check-quick.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs

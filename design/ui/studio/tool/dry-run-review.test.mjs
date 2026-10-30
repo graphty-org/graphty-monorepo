@@ -7,7 +7,10 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { isolateGit } from "../../../../tools/isolated-git-env.mjs";
 import { checkVerdicts, citeChecker, MACHINE, requestText, SCHEMA, toJudge, VERDICTS } from "./dry-run-review.mjs";
+
+isolateGit();
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CLI = join(here, "dry-run-review.mjs");

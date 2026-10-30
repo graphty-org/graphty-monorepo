@@ -17,6 +17,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-10-29) Re-walk of the Select-in-picture and default-weight re-run fixes on dist stamp
+  9f9f23b3981e (`REAL_WARM_POOL=0`): all 11 routes replayed with every check point matching
+  (`design/ui/studio/tmp/r1-dry2-recheck-U1/`); nothing worse, both acceptances hold (T65A path
+  17.png 4 selected and 4 rings; T65B path 09.png 3 selected; T64B table-role-rerun 09.png new run,
+  km (farther), Total km 5.3; T64A 11.png new run, "trips means closer"). Keys on the Select / Hide
+  radio (`T65B-keys-toggle/`): Arrow keys switch and move the selection, Enter does nothing, Escape
+  puts focus on the on box (by design), Tab / Shift+Tab move in order, undo and redo restore
+  "3 nodes selected". Seen, not caused by these fixes: (a) a Select card's own chip still counts its
+  matches over the whole graph ("5 of 12", "5 of 24") while the selection under a Hide card is 3 or
+  4 -- a participant reading the chip may answer 5; (b) the date card's condition name reads in ms
+  to the reader: "Apply installed is at most 1104537599999" (on box name, remove button) and the
+  redo toast "Redid editing the filter "installed is at most 1104537599999"" (also in the r1d1
+  pilot); (c) the live region says "1 edges".
+
 - (2026-10-29) A run asked again after the default weight changed computes again. A run's
   identity (`RunsApi.resolve`) is explicit params + scope + seed + sample; the weight the Data role
   supplies is not in it, so the same From/To handed back the stored unweighted run after the
@@ -211,6 +225,9 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-29 worked: replaying the fix author's own re-walk folders (they carry the hand steps past
+  the pilot's divergence) gives a full-length match check of the new screens in one pass.
 
 - 2026-10-29 worked: a `--replay` without `--end-on-diverge` stays open on the diverged
   screen; carry on by hand with `--step`, then `--end`. `--end-on-diverge` when only the first

@@ -205,6 +205,7 @@ class Builder {
                     start: iso(e.start),
                     end: e.endedAt === undefined ? null : iso(e.endedAt),
                     ...(e.startUnknown ? { startUnknown: true } : {}),
+                    ...(e.endedAt === undefined && !this.judgedNow(e.member) ? { notJudgedNow: true } : {}),
                     fact: f("ep.past_threshold", {
                         member: spec.id,
                         ...(peak === undefined ? {} : { peak, ...(spec.unit ? { unit: spec.unit } : {}) }),
@@ -212,6 +213,16 @@ class Builder {
                     link: spec.link,
                 };
             });
+    }
+
+    /**
+     * Whether a member is past a line now: an episode stays open through an hour of gray steps, but a member too
+     * thin to judge now shows no state, so the overview must not call its episode ongoing.
+     * @param id
+     */
+    private judgedNow(id: string): boolean {
+        const s = this.reads.ev.members.find((m) => m.id === id)?.state;
+        return s === "WARNING" || s === "FAILING";
     }
 
     sources(): SourceAge[] {

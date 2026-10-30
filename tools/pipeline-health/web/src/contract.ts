@@ -290,6 +290,11 @@ export interface Episode {
     end: Iso | null;
     /** The episode began before the history the engine keeps, or at a time it cannot tell: `start` is a bound. */
     startUnknown?: boolean;
+    /**
+     * Still open (`end` is null), but the member is not judged now (too few samples, no data): the page says so
+     * rather than "ongoing", because the member's row shows no state that could set its category's color.
+     */
+    notJudgedNow?: boolean;
     /** What happened: the member, its value and the cause when the collector knows it. */
     fact: Fact;
     link: Route;

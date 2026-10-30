@@ -128,6 +128,22 @@ describe("views", () => {
         ).toBe(true);
     });
 
+    it("an episode still open while its member cannot be judged now is not called ongoing", async () => {
+        const store = await world([obs("master.red_span_ms", 20 * MIN, T0 - 2 * MIN)]);
+        const ev = await evaluate(store, T0);
+        const ongoing = (vs: View[]) =>
+            (vs[0].body as StatusResponse).episodes.find((e) => e.member === "master.red_now" && e.end === null)!;
+        expect(ongoing(await buildViews(store, T0, ev)).notJudgedNow).toBeUndefined();
+        // The same open episode, with the member gray now (as after a source stops for under an hour).
+        const gray = {
+            ...ev,
+            members: ev.members.map((m) =>
+                m.id === "master.red_now" ? { ...m, state: "NO DATA" as const, judged: true } : m,
+            ),
+        };
+        expect(ongoing(await buildViews(store, T0, gray)).notJudgedNow).toBe(true);
+    });
+
     it("every payload has the keys, section ids and member ids of its fixture", async () => {
         const vs = await views(await world([job(1), obs("pr.open", 4, T0 - MIN)]));
         expect(vs).toHaveLength(2 + 3 * 9 + 2 * 4);

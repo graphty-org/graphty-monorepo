@@ -800,7 +800,7 @@ servherd_start({ name: "visual-review", cwd: "<repo>", protocol: "https",
 
 The page runs from the visual-review live copy: put a visual-review change into it with
 `tools/live.sh visual-review <branch>` as soon as it is committed. `--candidate next` serves the held nightly
-candidate, `--master-run <run id>` a master run for seeding, `--results <dir>` ad hoc local captures as a
+candidate and the master rolling target (below), `--master-run <run id>` a master run for seeding, `--results <dir>` ad hoc local captures as a
 look-only preview. A server an agent starts signs Finish with the agent's key; the page prints the command that
 starts the same server from the owner's own shell.
 
@@ -808,9 +808,22 @@ starts the same server from the owner's own shell.
   its test, compare it with its baseline and upload `visual-<project>-<attempt>`, which the review page, the
   `Visual report` step and release.yml read. A pull request's changed stories are listed in its `Stories` jobs'
   summaries.
-- **The owner reviews changed pictures only on the held nightly candidate**, which release.yml announces on the
-  `Release status` issue. Never ask him to review a pull request's screenshots: a changed picture holds the
-  promotion to nightly, not the pull request.
+- **The owner reviews changed pictures early, on the master rolling target, and on a held candidate when one is
+  held.** `story-slices.yml` renders small slices of every story from a master commit many times a day
+  (design/visual-testing/early-capture.md); a changed picture shows on the review page's "master rolling" target
+  (`tools/channel/rolling.mjs`), and the slice jobs tell his phone (Pushover) when the queue fills and before each
+  full-run slot. His Finish there opens `visual/approve-rolling-<sha12>`, an accept-only pull request with the
+  subject "rolling approval of visual baselines rendered at <sha12>", so the next full run finds the pictures
+  approved and promotes green-clean. A rolling render never approves, gates or promotes anything by itself; the
+  full run's complete capture stays the release gate. Never ask him to review a pull request's screenshots: a
+  changed picture holds the promotion to nightly, not the pull request.
+- **One approval in flight.** The page refuses a rolling Finish while a candidate is held or another approval pull
+  request is open, and a candidate's Finish closes the open rolling ones. Merge a rolling approval pull request
+  only with `node tools/channel/rolling-merge.mjs <pr>` (it waits while a candidate is held or a full run is between
+  its pick and its verdict; exit 2 means try later), never with `gh pr merge`. ci.yml's Build job fails a pull
+  request that changes `visual-baselines/` when merging it would leave master a baselines tree its head does not
+  carry (`tools/channel/baselines-tree.mjs`): run `node visual-review/trusted/cli.mjs update <pr>`, and the owner
+  signs again.
 - Every story needs an owner-approved baseline; every project is gated, and no setting turns the gate off
   (`visual-review.config.json` refuses `"gate"`). Seed a story with no baseline from master (`visual-seed.yml`,
   `serve --master-run`, Finish, merge the seed pull request), only from a commit whose images a person reviewed.
@@ -999,8 +1012,9 @@ Rules:
   capture the stories a change can reach, and `All Checks Pass` needs them: a story that fails to render,
   whose play function throws, or that draws two different pictures on the same inputs (`[BROKEN]`,
   `[UNSTABLE]`) fails the pull request; fix it on the branch. A changed or new picture blocks the promotion
-  to nightly until the owner approves it there (`node visual-review/trusted/cli.mjs serve --candidate next`),
-  so it needs no `ACTION NEEDED` line on the pull request.
+  to nightly until the owner approves it, on the master rolling target or the held candidate
+  (`node visual-review/trusted/cli.mjs serve --candidate next`), so it needs no `ACTION NEEDED` line on the
+  pull request.
 - **Nothing tests master itself between full runs.** Master's build runs no tests, and required checks are
   not "strict", so two pull requests that each pass can break the tests together; the 6-hour full run catches
   that, bisects and files it.

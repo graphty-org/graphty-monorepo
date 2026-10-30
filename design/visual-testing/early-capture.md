@@ -1,10 +1,10 @@
 # Early screenshot capture: rolling slices and idle-time capture
 
-Date: 2026-10-29. Issue #4540. Status (2026-10-29 evening): plan steps 1, 2, 3, 5, 6 and 7 are on master
-(the pick rule switched off); step 4, the review page's rolling target, is in review (#4559) and already
-runs in the owner's review server. The dispatcher runs as a dry run until the owner's AWS parameters exist
-(section 7), so the only slice so far was dispatched by hand. Trial results so far: "Trial status" at the
-end of section 5.
+Date: 2026-10-29. Issue #4540. Status (2026-10-29 evening): plan steps 1 to 7 are built and on master (the
+pick rule switched off; step 4, the review page's rolling target and the one-approval-in-flight rules, is
+described in "Step 4 as built" under section 5). The dispatcher runs as a dry run until the owner's AWS
+parameters exist (section 7), so the only slice so far was dispatched by hand. Trial results so far: "Trial
+status" at the end of section 5.
 
 Every story's picture is rendered fresh from master many times a day, in small slices: a fixed small
 slice after green master builds while runners are free, and more slices while GitHub's runners are
@@ -403,7 +403,9 @@ later green-clean candidate, and `pick()` would mark each "a newer commit promot
    its pick and its verdict. The merging session uses `tools/channel/rolling-merge.mjs`, which checks the
    store and merges or says when to retry (these pull requests change `visual-baselines/`, so `pr-open.sh`
    leaves auto-merge off and a session merges them once green).
-4. **A required check backs this up in code**: ci.yml's Checks job runs `tools/channel/baselines-tree.mjs`,
+4. **A required check backs this up in code**: ci.yml's Build job runs `tools/channel/baselines-tree.mjs`
+   (not the Checks job: an approval head that only adds screenshot records reuses an earlier run's results and
+   skips Checks, which is exactly the case to check),
    which fails a pull request that changes `visual-baselines/` unless the merge result's baselines tree
    equals its head's tree. A stale approval pull request therefore fails its own CI and never reaches
    master. Recovery: `node visual-review/trusted/cli.mjs update <pr>` merges master, and the owner reviews
@@ -561,13 +563,30 @@ gate step and story-test jobs.
    render-bound decisions and no hash carry, `accept.mjs`'s rolling branch rule (accept parented on the
    render commit X, accept-only against X, branch `visual/approve-rolling-<sha12>`, the distinct subject),
    `config.mjs` accepting the `rolling` key; the one-approval-in-flight rules 1 and 2. Tools:
-   `tools/channel/baselines-tree.mjs` in ci.yml's Checks job (rule 4), `tools/channel/rolling-merge.mjs`
+   `tools/channel/baselines-tree.mjs` in ci.yml's Build job (rule 4), `tools/channel/rolling-merge.mjs`
    (rule 3), the unsigned-tree alarm in `tools/full-run.mjs pick` (rule 5), and tests that `acceptsIn`
    and `approvalsIn` ignore the rolling subject. Notifications: the bin job's Pushover messages, rate
    limited by the store. Docs: CLAUDE.md's Visual review section and `visual-review/README.md` for the new
    rule. visual-review's own tests (a fake store and fake artifacts); put into the live review server with
    `tools/live.sh visual-review` once committed. `pr-open.sh` leaves auto-merge off for the visual-review
    files; a session merges it once green.
+
+    **Step 4 as built** (issue #4540):
+    - The rolling target is offered by `serve --candidate next` whenever the config has `rolling`, so the
+      owner's running server needs no new flag. One target, id `rolling`, for the newest render commit with
+      an item to decide; older commits are counted, not shown. Its decisions are kept per render commit
+      (`state/rolling-<sha>.json`) and each records the render (run and attempt) it was taken on.
+    - A Finish that rejects anything posts only the rejects, as on a candidate (a signed tree must reject
+      nothing). The accepts stay bound to that render; a newer render brings the story back undecided.
+    - Reach holds an item back by project, not by story file: capture rows do not name a story's file, and
+      today every reach row is `<project>:*` anyway (selectProjects is empty). A merge whose reach row is
+      missing counts as reaching nothing, as in the slice order.
+    - Not built: filing a rolling `unstable` render as flaky (they are never offered; the slice summary lists
+      them), and marking a later render "rejected in #N". The Pushover link is the repository variable
+      `VISUAL_REVIEW_URL` when set, else the slice run.
+    - The unsigned-tree alarm checks that an approval statement for the tree exists at the commit; the gate
+      itself checks the signature.
+
 5. **Dispatcher.** tools/pipeline-health: `decideSlice()` at the end of the collector cycle, the quiet
    rule, the separate base and idle budgets, the in-flight check, the slice runner-minutes from GitHub's
    job durations; unit tests for the decision table. Needs the release-scheduler App key in AWS (#3608,

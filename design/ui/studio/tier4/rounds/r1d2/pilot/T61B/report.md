@@ -247,3 +247,57 @@ and 15 with "1 repeated edge" are that network's own counts.
 None. Unchanged from the first re-walk on this build: the focused "Key to" header's description is
 still empty (`--expect described=issue` failed again), so focus alone does not say the column has an
 issue; browse mode reads "Issues in to" (g6-keys/101.png, 102.png).
+
+## Re-walk on build a53beb7179 (every route of this task)
+
+Build a53beb7179 (frozen, `.study-builds/tier4-r1d3-a53beb7179`), 1440 x 900, start `empty`. Screenshots are
+under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T61B/ (m1 to m6). Every walk
+starts from the empty start screen and reaches the app by clicks, typing and keys only. The data stayed the
+task's own on every walk: gauges.csv (G01-G11, Upper Falls, Mill Pond, ...) and flows.csv (15 rows, G09 -> G12
+among them).
+
+Of the routes the fix pass touched, the one that belongs to this task is "T61B success path (Edges > With
+issues)"; it is the success path below, which goes on to Edges > With issues. The rest belong to T61 A, T65, T66,
+T67 and T68 and are walked by those pilots. The detour set is the one held from the earlier passes.
+
+| Walk | How | Result |
+| ---- | --- | ------ |
+| m1-success (pointer, on to Edges > With issues) | replay of g1-success | All 23 steps matched; reached |
+| m2-menu-open (detour: main menu, Replace and Control+Z, Cancel and Undo, Enter, Tab and Escape in the join boxes, a separate graph, the reverse order) | replay of g2-menu-open | All 36 steps matched |
+| m3-flows-first (detour: Replace, a canceled join, then flows.csv first and gauges.csv second, on to Edges > With issues) | replay of g3-flows-first | All 23 steps matched; reached (12 nodes, 15 edges) |
+| m4-quick-actions (detour: Quick actions > Add data..., then Edges > With issues 1) | replay of g4-quick-actions | All 61 steps matched; reached |
+| m5-drop (detour: flows.csv dropped on the open network; Enter, Tab, Escape, Space in the join boxes) | replay of g5-drop | All 10 steps matched; reached |
+| m6-keys (keyboard only, screen-reader mode, on to the Edges table's end header) | replay of g6-keys | All 104 steps matched; reached |
+
+### What the screens show
+
+- Success path: the join screen reads "Join flows.csv -> gauges.csv", Edges, Source from = Id, Target to = Id,
+  "14 edges added", "1 new node", "1 not in graph", "1 repeated key" with its warning glyph; the repeat's menu
+  offers Keep first, Keep both, Ignore (m1-success/05.png, 10.png). After Join: Nodes 12, Edges 14, "From 2
+  files", the flows.csv row 12, 14 and issue chip 1 (m1-success/13.png). The chip opens "Issues in flows.csv":
+  edges, 1 unknown end, Add nodes, Leave out, Ignore (19.png). Edges > "With issues 1": the warning glyph on the
+  Target header, the one row G09 -> G12, 4 km, with G12 tinted (23.png). The same after Quick actions > Add
+  data... (m4-quick-actions/62.png) and after the drop (m5-drop/11.png).
+- Replace: 12 / 14 with only flows.csv in Sources and the notice "Replaced gauges.csv with flows.csv"
+  (m2-menu-open/08.png), as the answer key says.
+- Separate graph: a second project "flows", 12 nodes, 15 edges, "1 repeated edge", still showing "Join
+  canceled" with Undo (m2-menu-open/32.png).
+- Reverse order: 12 nodes, 15 edges, "1 repeated edge", both sources (m2-menu-open/37.png,
+  m3-flows-first/24.png); Edges "With issues 1" is G03 -> G04 with the mark on "from" and G03 alone tinted
+  (m3-flows-first/21.png), the backlog item of dry run pass 5.
+- Keyboard: the whole route matched. Shift+F10 on the "to" header opens "1 unknown end" with Add nodes
+  (checked), Leave out, Ignore, Show rows (m6-keys/104.png); Escape returns to "Key to", ArrowDown to row header
+  "G12" (105.png). No focus fell to the page body. The focused "Key to" header's description is still empty
+  (`--expect described=issue` failed as on the earlier build, m6-keys/103.png); browse mode reads "Issues in to"
+  (102.png).
+
+### Mismatches between the answer key and the screen
+
+None. 12 gauges (11 and G12), 14 stretches and 14 on the second file's Sources row hold; the reverse order's 12
+and 15 with "1 repeated edge" are that network's own counts.
+
+### Defects (crash, block, or a result that would spoil grading)
+
+None. Unchanged from the earlier builds and not grading risks: the focused end header does not say it has an
+issue (m6-keys/103.png); "Open as a separate graph" shows "Join canceled" (m2-menu-open/32.png); in the reverse
+order the repeated edge's mark sits on "from" only (m3-flows-first/21.png).

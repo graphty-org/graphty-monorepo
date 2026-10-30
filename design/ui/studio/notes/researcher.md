@@ -10,6 +10,10 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-10-30) Brief every row before a round: tier 4's answer key listed T65 B's counts as bare
+  `5` and `3`, which match every briefing's own text, so `--brief` refused all 28 sessions. A fact
+  in "Facts no briefing may hold" must be a phrase no persona or README holds (now `5 gauges`,
+  `3 gauges`). Round 1's plan: 28 rows from roster.md, script `tmp/researcher/plan-t4r1.py`.
 - (2026-10-30) A prompt word that is a detour control's label steers into that control: T66's
   "Leave it out" echoed the issue list's "Leave out", which deletes G12 and leaves the success
   number (11). Prompt now "Take it out"; key grades on "11 of 12", not the number. Grep prompts
@@ -26,9 +30,6 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   findings are the record. A finding's names can steer a report the wrong way even with right
   counts: T61's Edges table marks P05 (Source) for P13's unknown end, so the key tells graders to
   note the steer rather than credit or excuse it silently.
-- (2026-10-29) Pilot "mismatches" that are stale (T67A on 0ffeae2ef5, T64A on 037) or name
-  decided.md wording ("Select | Hide" vs "Filter to | Filter out") are not key changes: the key
-  writes the screen. Check the build each finding names before editing.
 - (2026-10-29) Build defects that change a reported count get a grading line while they stand:
   T61 deliveries-first keeps the repeat (19), T61 Replace looks like a join (13 / 18). Grade the
   act, not the build's number.
@@ -88,6 +89,17 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-30 (tier 4 round 1 plan):** 28 sessions, exactly roster.md's "Who takes which task"
+  (under the cap of 30; adding two would change the bar arithmetic the criteria froze). Order:
+  core tasks first (T61, T62, T65, T67), A and B alternating, then the other five, then Sam's two
+  (`--keys`). Starts from roster.md's "Where each session starts" (T60 and T61 `empty`, the rest
+  `setup:` files). Follow-ups for T61 and T65 come from tasks.md through the tool. Changed one
+  answer-key line: T65 B's facts from bare `5`/`3` to `5 gauges`/`3 gauges`. Reason: the bare
+  digits made `--brief` refuse every session (whole-word match on any "5" or "3"); the noun keeps
+  the leak check on the phrase an answer would take. Evidence: all 28 rows briefed, one
+  `REAL_DIST` (79ed770292) on every briefing, setup tally matches the roster table, no follow-up
+  words in any briefing.
+
 - **2026-10-30 (key checked against T60A, T66A, T66B, T67A pilots):** Only change: T66's
   build list for the Data source card behavior now names 79ed770292 (r1d3 T66A r/p1-path/05, 13:
   12 of 13 / 17 of 18; both ticked, top bar "13 of 13 nodes" with no edge count, inspector 18 of
@@ -111,25 +123,11 @@ logged). Their reasons, in short:
   each pilot mismatch was either the screen agreeing with the key or decided.md wording the build
   does not have; the key writes the screen. Evidence: r1d3 pilot T60A/T60B/T65A/T66A/T66B walks.
 
-- **2026-10-29 (key matched to bccf8fe47f):** Replaced T65's "Card counts" (4 of 14 / 3 of 5, an
-  engineer's line for a change reverted before the freeze) with the screen's 5 of 24 / 5 of 12, and
-  added a grading line: a 5 read off the chip, with both cards right, is graded on the cards and the
-  selection. Reason: the key writes the screen; failing a reader for the build's number grades the
-  defect. Evidence: T65A, T65B and T68B walks agree in both card orders; the revert is an ancestor of
-  bccf8fe47f. Left alone: T60 focus and F6 order (build defects, not key), T61A and T66A (not walked
-  this pass), T67A (walk on 0ffeae2ef5), "Select | Hide" (screen's words).
-
-- **2026-10-29 (second ff re-pilot, T60/T61/T63/T66/T67):** Extended build lists ("037e96e9bb and
-  ff17391bb1") only where the walk confirmed the note on ff. Did not add a T60 step count: T60 is
-  not a bar-7 core task, and a new count would change a bar. T67A's "mismatches" came from a walk on
-  0ffeae2ef5 against an older key; all were already settled in the key, so no change. Mismatches
-  that cite decided.md (T60 Open button, T63 R10 Set in Data, T66 "Filter to | Filter out") stay
-  out of the key: the key writes the screen.
-- **2026-10-29 (keys matched to 037e96e9bb and ff17391bb1):** Rewrote only notes a re-pilot
-  contradicted or extended; earlier-build notes kept as history beside the new ones. T68 B's
-  11 nodes / 0 edges export graded F by the existing definition; T64 B's table-weight line moved to
-  P because the default it rested on is gone; conflicting reports (right-click, Shift+F10) written
-  per route, not resolved by guess. No bar changed.
+- **2026-10-29 (keys matched to 037e96e9bb, ff17391bb1, bccf8fe47f; folded):** Rewrote only
+  notes a re-pilot contradicted; earlier-build notes kept beside the new ones; build lists extended
+  only where a walk confirmed them; a count the build gets wrong (T65's chip 5 of 24 / 5 of 12)
+  became a grading line, never the key's number; no step count, bar or prompt changed; mismatches
+  citing decided.md wording stay out (the key writes the screen).
 
 - **2026-10-29 (tier 4 key from pilots):** Read every pilot finding into answers.md without
   changing a bar; the key counts the screen. Removed the T66 id-card route (cannot be built: no
@@ -196,6 +194,11 @@ logged). Their reasons, in short:
   reaches; more sessions cannot move either.
 
 ## Tried: worked / did not work
+
+- 2026-10-30 (tier 4 round 1 plan) -- Worked: generating the plan from roster.md's table with
+  asserts (28 rows, n per half, no persona on both halves of a task), then briefing all 28 and
+  tallying `REAL_DIST` and `setup:` lines. Did not work at first: `--brief` on r1-s01 refused for
+  the answer key's bare-digit facts; no earlier pass had briefed a tier 4 row (pilots do not brief).
 
 - 2026-10-30 (T66 Leave out) -- Worked: grepping graphty/src for the prompt's verb found it is a
   control label ("leave-out": "Leave out" in table/columns.ts and DataPage.tsx). The avoided-word

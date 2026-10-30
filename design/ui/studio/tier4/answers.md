@@ -24,7 +24,8 @@ role from Data > Fields, a card from Data > Filters.
 - `Old Bridge` -- T64 B's answer
 - `Library Annex` -- the site whose families count is "n/a" (T67 A)
 - `Stone Weir` -- the gauge whose depth is "-" (T67 B)
-- `5` and `3` -- T65 B's counts (gauges in the picture, gauges marked)
+- `5 gauges` and `3 gauges` -- T65 B's counts (gauges in the picture, gauges marked); the bare
+  numbers would match every briefing's own text, so the check looks for them with their noun
 
 ## The files
 

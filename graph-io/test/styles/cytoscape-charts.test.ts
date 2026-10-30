@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 import { readCytoscapeCharts } from "../../src/styles/cytoscape/charts.js";
 import type { StyleColumn } from "../../src/styles/types.js";
 
-const PIE =
-    'org.cytoscape.PieChart:{"cy_startAngle":0.0,"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]}';
+const PIE_OPTIONS = '"cy_startAngle":0.0,"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]';
+const PIE = `org.cytoscape.PieChart:{${PIE_OPTIONS}}`;
 const DATA: Record<string, unknown> = { a: 3, b: 5, c: 2, series: [2, 5, 3, 8, 4], chartLabels: ["X", "Y", "Z"] };
 
 /**
@@ -40,7 +40,7 @@ describe("Cytoscape charts", () => {
 
     it("reads a ring's hole, CX2's chart objects, and a chart's own size and position", () => {
         const ring = read({
-            NODE_CUSTOMGRAPHICS_1: PIE.replace("PieChart", "RingChart").replace("{", '{"cy_holeSize":0.7,'),
+            NODE_CUSTOMGRAPHICS_1: `org.cytoscape.RingChart:{"cy_holeSize":0.7,${PIE_OPTIONS}}`,
         });
         expect(ring.pieHole).toBe(0.7);
         const cx2 = read(
@@ -69,7 +69,7 @@ describe("Cytoscape charts", () => {
 
     it("draws a pie's item labels on its slices, from the options or a column, at their size", () => {
         const labelled = (options: string): unknown => {
-            const v = read({ NODE_CUSTOMGRAPHICS_1: PIE.replace("{", `{${options},`) });
+            const v = read({ NODE_CUSTOMGRAPHICS_1: `org.cytoscape.PieChart:{${options},${PIE_OPTIONS}}` });
             return typeof v.shapeTexts === "string" ? JSON.parse(v.shapeTexts) : v.shapeTexts;
         };
         // a = 3 of 10 from 3 o'clock counter-clockwise: its middle at 54 degrees, 0.62 of the 27 px disc's radius out
@@ -183,5 +183,216 @@ describe("Cytoscape charts", () => {
             chartValues: "2 5 3",
             chartHorizontal: false,
         });
+    });
+
+    describe("a bar or line chart's axes, as Cytoscape 3.10.5 draws them with JFreeChart", () => {
+        const BAR =
+            'org.cytoscape.BarChart:{"cy_range":[0.0,10.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"],"cy_type":"GROUPED"';
+        const axes = (options: string, chart = BAR): Record<string, unknown> =>
+            read({ NODE_CUSTOMGRAPHICS_1: `${chart}${options}}` });
+        /** Each further text as [x, y, text, size, rotation] in the node's lengths, y down, from its 60 x 60 frame. */
+        const texts = (v: Record<string, unknown>): [number, number, string, number, number][] =>
+            (JSON.parse(String(v.shapeTexts)) as [number, number, string, { size: number; rotation?: number }][]).map(
+                ([x, y, t, look]) => [x * 30, -y * 30, t, look.size * 60, look.rotation ?? 0],
+            );
+
+        it("shrinks the plot by its axes' labels and draws their words where Cytoscape does", () => {
+            // xgmml-specimen-images-charts-p7 bar-axis-label-font-size-10: the plot from 9.33 left of the node's
+            // middle to 26.05 right and from 26.05 up to 10.41 down (the oracle's clip, at half its chart scale)
+            const v = axes(',"cy_showRangeAxis":true,"cy_showDomainAxis":true,"cy_axisLabelFontSize":10');
+            expect(v.chartWidth as number).toBeCloseTo(35.38 / 60, 3);
+            expect(v.chartHeight as number).toBeCloseTo(36.46 / 60, 3);
+            expect(v.chartOffsetX as number).toBeCloseTo(8.36, 2);
+            expect(v.chartOffsetY as number).toBeCloseTo(-7.82, 2);
+            const t = texts(v);
+            // the range axis ticked every 5, each number's right end 3.5 left of the plot, its middle on its tick
+            const range = t.filter(([, , w]) => /^\d+$/.test(w));
+            expect(range.map(([, , w]) => w)).toEqual(["0", "5", "10"]);
+            const [zero, , ten] = range;
+            expect(zero[0] + (10 * 0.636) / 2).toBeCloseTo(-9.33 - 3.5, 1);
+            expect(ten[0] + (10 * 1.272) / 2).toBeCloseTo(-9.33 - 3.5, 1);
+            // the oracle's baselines: 0 at 13.87 below the middle, 10 at 22.59 above, 3.46 under each line's middle
+            expect(zero[1] + 3.46).toBeCloseTo(13.87, 1);
+            expect(ten[1] + 3.46).toBeCloseTo(-22.59, 1);
+            // the categories' names under the plot, each centered on its bar, 10 tall
+            const names = t.filter(([, , w]) => /^[a-c]$/.test(w));
+            expect(names.map(([x]) => x)).toEqual([
+                expect.closeTo(-2.84, 1),
+                expect.closeTo(8.36, 1),
+                expect.closeTo(19.57, 1),
+            ]);
+            // the oracle's baseline 23.2 below the middle
+            expect(names[0][1] + 3.46).toBeCloseTo(23.2, 0);
+            expect(names[0][3]).toBeCloseTo(10, 3);
+        });
+
+        it("turns the categories' names as cy_domainLabelPosition says, about the corner JFreeChart anchors", () => {
+            const turned = (position: string): [number, number, string, number, number][] =>
+                texts(
+                    axes(`,"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelPosition":"${position}"`),
+                ).filter(([, , w]) => w === "a");
+            // the oracle's text origins (baseline, left end) for "a", 12.26 wide at 20 chart units, put back to the
+            // middle of its box: UP_45 at (-14.27, 23.72), DOWN_45 at (-23.06, 19.39), UP_90 (-13.04, 25.33),
+            // DOWN_90 (-19.96, 19.21)
+            const middle = (ox: number, oy: number, deg: number): number[] => {
+                const r = (deg * Math.PI) / 180;
+                const [dx, dy] = [6.13 / 2, -6.92 / 2];
+                return [ox + Math.cos(r) * dx - Math.sin(r) * dy, oy + Math.sin(r) * dx + Math.cos(r) * dy];
+            };
+            const expectAt = (t: [number, number, string, number, number], at: number[], deg: number): void => {
+                expect(t[4]).toBe(deg);
+                expect(t[0]).toBeCloseTo(at[0], 0);
+                expect(t[1]).toBeCloseTo(at[1], 0);
+            };
+            expectAt(turned("UP_45")[0], middle(-14.27, 23.72, -45), -45);
+            expectAt(turned("DOWN_45")[0], middle(-23.06, 19.4, 45), 45);
+            expectAt(turned("UP_90")[0], middle(-13.04, 25.33, -90), -90);
+            expectAt(turned("DOWN_90")[0], middle(-19.96, 19.21, 90), 90);
+            // a turned name takes its turned box's height: UP_45's plot ends 16.72 above the node's bottom
+            const up45 = axes(',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelPosition":"UP_45"');
+            expect((up45.chartOffsetY as number) + (up45.chartHeight as number) * 30).toBeCloseTo(9.33, 1);
+        });
+
+        it("names the categories from cy_domainLabelsColumn, and widens the ticks when the labels are tall", () => {
+            const named = texts(
+                axes(',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelsColumn":"chartLabels"'),
+            );
+            expect(named.map(([, , w]) => w)).toEqual(["X", "Y", "Z"]);
+            // at size 20 the range axis is ticked every 25: only 0 is drawn (bar-axis-label-font-size-20)
+            const big = texts(axes(',"cy_showRangeAxis":true,"cy_showDomainAxis":true,"cy_axisLabelFontSize":20'));
+            expect(big.filter(([, , w]) => /^\d+$/.test(w)).map(([, , w]) => w)).toEqual(["0"]);
+            // a line chart's categories past its names are left unnamed
+            const line = texts(
+                axes(
+                    ',"cy_showDomainAxis":true,"cy_axisLabelFontSize":10,"cy_domainLabelsColumn":"chartLabels"',
+                    'org.cytoscape.LineChart:{"cy_range":[0.0,10.0],"cy_colors":["#1F77B4"],"cy_dataColumns":["series"]',
+                ),
+            );
+            expect(line.map(([, , w]) => w)).toEqual(["X", "Y", "Z"]);
+            // the oracle's X at 21.36 chart units apart, from 42.72 left of the middle
+            expect(line[0][0]).toBeCloseTo(-21.36, 1);
+        });
+
+        it("leaves a chart without axes as it was, and the default label size at 1", () => {
+            const plain = axes("");
+            expect(plain.chartWidth).toBeUndefined();
+            expect(plain.shapeTexts).toBeUndefined();
+            // images-charts bar-domain-axis: the plot's bottom 5.16 up from where it would be
+            const small = axes(',"cy_showDomainAxis":true');
+            expect((small.chartOffsetY as number) + (small.chartHeight as number) * 30).toBeCloseTo(20.89, 1);
+        });
+
+        it("never throws or floods on malformed axis options", () => {
+            const both = ',"cy_showRangeAxis":true,"cy_showDomainAxis":true';
+            // a position naming an Object.prototype member reads as STANDARD
+            for (const p of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf", "LEFT"]) {
+                const v = axes(`${both},"cy_domainLabelPosition":"${p}"`);
+                expect(
+                    texts(v)
+                        .filter(([, , w]) => /^[a-c]$/.test(w))
+                        .every(([, , , , r]) => r === 0),
+                ).toBe(true);
+            }
+            // bad font sizes and ranges fall back or draw no ticks, never throw
+            for (const o of ['"x"', "-3", "1e-9", "1e9", "1e400", "null"]) {
+                expect(() => axes(`${both},"cy_axisLabelFontSize":${o}`)).not.toThrow();
+            }
+            // a plot its labels squeeze to nothing gets no axes at all, so nothing is offset far off the node
+            const huge = axes(`${both},"cy_axisLabelFontSize":1e9`);
+            expect(huge.chartOffsetX).toBeUndefined();
+            expect(huge.shapeTexts).toBeUndefined();
+            // a labels column holding objects names nothing with them
+            DATA.oddLabels = ["X", null, {}];
+            const odd = texts(axes(`${both},"cy_domainLabelsColumn":"oddLabels"`)).map(([, , w]) => w);
+            delete DATA.oddLabels;
+            expect(odd).not.toContain("[object Object]");
+            expect(odd).toContain("X");
+        });
+
+        it("draws at most 100 tick numbers however tall the node, with the unit's own decimals", () => {
+            const out: Partial<Record<string, StyleColumn>> = { width: [1e7], height: [1e7] };
+            const graphics: Record<string, unknown> = {
+                NODE_CUSTOMGRAPHICS_1: `${BAR},"cy_showRangeAxis":true}`,
+            };
+            readCytoscapeCharts(
+                out,
+                1,
+                (vp) => graphics[vp] ?? null,
+                (column) => DATA[column] ?? null,
+                true,
+            );
+            expect((JSON.parse(String(out.shapeTexts?.[0])) as unknown[]).length).toBeLessThanOrEqual(100);
+            // a range far from zero, where counting ticks one by one would never pass its top: no ticks, no hang
+            const far = axes(
+                ',"cy_showRangeAxis":true,"cy_showDomainAxis":true',
+                BAR.replace("[0.0,10.0]", "[1e19,1.0000000000000004096e19]"),
+            );
+            expect(texts(far).filter(([, , w]) => /\d/.test(w))).toEqual([]);
+            // a unit of 2.5 writes one decimal, as JFreeChart's "0.0" does: 0.0 2.5 5.0 ...
+            const tall: Partial<Record<string, StyleColumn>> = { width: [60], height: [60] };
+            readCytoscapeCharts(
+                tall,
+                1,
+                () => `${BAR},"cy_showRangeAxis":true,"cy_axisLabelFontSize":4}`,
+                (column) => DATA[column] ?? null,
+                true,
+            );
+            const ticks = (JSON.parse(String(tall.shapeTexts?.[0])) as [number, number, string][]).map(([, , w]) => w);
+            expect(ticks).toContain("2.5");
+            expect(ticks).not.toContain("2.50");
+        });
+    });
+
+    it("colors a chart by its cy_colorScheme when it names no colors, as Cytoscape's ColorScheme does", () => {
+        const bars = (scheme: string): unknown =>
+            read({
+                NODE_CUSTOMGRAPHICS_1: `org.cytoscape.BarChart:{"cy_range":[0.0,10.0],"cy_type":"GROUPED","cy_colorScheme":"${scheme}","cy_dataColumns":["a","b","c"]}`,
+            }).chartColors;
+        // the colors Cytoscape 3.10.5 drew on xgmml-specimen-images-charts-p5 and -p6
+        expect(bars("RAINBOW")).toBe("#ff0000 #00ff00 #0000ff");
+        expect(bars("CONTRASTING")).toBe("#ff0000 #ff00ff #0000ff");
+        expect(bars("MODULATED")).toBe("#ff0000 #7dfd7d #1e1ef6");
+        expect(bars("YL_OR_RD")).toBe("#ffeda0 #feb24c #f03b20");
+        // a gradient with no zero color has two: the bar past them is JFreeChart's light gray
+        expect(bars("BLUE_RED")).toBe("#ff0000 #0000ff #c0c0c0");
+        expect(bars("Blue-Red")).toBe("#ff0000 #0000ff #c0c0c0");
+        // an unknown or random scheme gives no colors, so nothing is drawn
+        expect(bars("NO_SUCH_SCHEME")).toBeUndefined();
+        const pie = read({
+            NODE_CUSTOMGRAPHICS_1: 'org.cytoscape.PieChart:{"cy_colorScheme":"RAINBOW","cy_dataColumns":["a","b","c"]}',
+        });
+        expect(pie.pieColors).toBe("#0000ff #00ff00 #ff0000");
+    });
+
+    it("picks heat strips' and up-down bars' up, zero and down colors from a color scheme as BarLayer does", () => {
+        const bars = (type: string, scheme: string, values: string): unknown =>
+            read({
+                NODE_CUSTOMGRAPHICS_1: `org.cytoscape.BarChart:{"cy_range":[-3.0,3.0],"cy_type":"${type}","cy_colorScheme":"${scheme}","cy_values":${values}}`,
+            }).chartColors;
+        // two colors: up red, down blue, and zero black (BarLayer takes colors[1] as zero only from three colors)
+        expect(bars("HEAT_STRIPS", "Blue-Red", "[1.0,-2.0,3.0]")).toBe("#550000 #0000aa #ff0000");
+        // down is colors[2], never the last of RAINBOW's one color per value
+        expect(bars("UP_DOWN", "RAINBOW", "[1.0,-1.0,2.0,-2.0,3.0]")).toBe("#ff0000 #00ff66 #ff0000 #00ff66 #ff0000");
+        // down is colors[1] from two colors, Java's gray from one
+        expect(bars("UP_DOWN", "Blue-Red", "[1.0,-1.0]")).toBe("#ff0000 #0000ff");
+        expect(
+            read({
+                NODE_CUSTOMGRAPHICS_1:
+                    'org.cytoscape.BarChart:{"cy_range":[-3.0,3.0],"cy_type":"UP_DOWN","cy_colors":["#D62728"],"cy_values":[1.0,-1.0]}',
+            }).chartColors,
+        ).toBe("#d62728 #808080");
+    });
+
+    it("reads a chart's own cy_values before its data columns", () => {
+        const v = read({
+            NODE_CUSTOMGRAPHICS_1:
+                'org.cytoscape.PieChart:{"cy_values":[1.0,1.0,2.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]}',
+        });
+        expect(v.pieSizes).toBe("0.5 0.25 0.25");
+        const noColumns = read({
+            NODE_CUSTOMGRAPHICS_1:
+                'org.cytoscape.PieChart:{"cy_values":[1.0,1.0,2.0],"cy_colors":["#D62728","#2CA02C","#1F77B4"]}',
+        });
+        expect(noColumns.pieColors).toBe("#1f77b4 #2ca02c #d62728");
     });
 });

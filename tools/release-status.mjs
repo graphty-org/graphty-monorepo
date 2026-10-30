@@ -28,7 +28,7 @@
 // sends nothing. A Pushover failure is logged, never fatal.
 //
 // Usage: node tools/release-status.mjs <outcome> [--sha S] [--run URL] [--attempt N] [--issue N|URL]
-//            [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME]
+//            [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME] [--hold ACTION]
 // Needs GITHUB_TOKEN (issues: write; run-ended also actions: read) and
 // GITHUB_REPOSITORY (started needs neither); RELEASE_NOTIFY is optional. run-ended reads only the comments made
 // since --since (the attempt's start).
@@ -36,6 +36,19 @@ import { parseArgs } from "node:util";
 
 export const LABEL = "release-status";
 export const TITLE = "Release status";
+/**
+ * Where the owner reviews a held candidate's changed screenshots (CLAUDE.md, "Visual review"). Here, not in
+ * channel/nightly.mjs: release.yml's held job checks out this file alone.
+ */
+export const REVIEW_PAGE =
+    "the review page (servherd `visual-review-v3`, `node visual-review/trusted/cli.mjs serve --candidate next`): the tokenized URL its log prints, plus `&target=master`";
+
+/**
+ * Whether a green-images run held its commit for the owner's review (the hold step's action, #5052).
+ * @param f the outcome's fields; hold is the hold step's action
+ * @returns true when it holds a candidate he can review now
+ */
+const heldForReview = (f) => f.hold === "start" || f.hold === "update";
 
 const ref = (issue) => (/^\d+$/.test(issue ?? "") ? `#${issue}` : issue || 'the "Release held" issue');
 const list = (tags) => (tags ?? "").split(",").filter(Boolean).join(", ");
@@ -70,8 +83,11 @@ export function statusComment(outcome, f, notify = "") {
             text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
             break;
         case "green-images":
-            // a green-images candidate waits for the owner's review, and the run ends green: he must hear of it
-            text = `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}, so nightly.graphty.app does not move. Review them on the review page (\`visual-review serve --candidate next\`), whose Finish opens the pull request that approves them, or fix forward.\n\nACTION NEEDED: review the changed screenshots of the full run on ${sha}`;
+            // a held green-images candidate waits for the owner's review, and the run ends green: he must hear of it.
+            // One that held nothing (another candidate is held) has nothing to review, so it never asks (#5052)
+            text = heldForReview(f)
+                ? `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}, so nightly.graphty.app waits for your review of ${sha}, which is now the held candidate. Review it on ${REVIEW_PAGE}; its Finish opens the pull request that approves them. Or fix forward.\n\nACTION NEEDED: review the changed screenshots of the held candidate ${sha}`
+                : `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}. It is not held (another candidate is), so there is nothing new to review; nightly.graphty.app does not move.`;
             break;
         case "nightly":
             text = `**Nightly promoted**${rerun}: ${sha} is on nightly.graphty.app${list(f.tags) ? " and npm `next` holds " + list(f.tags) : " (no package changed, so npm `next` did not move)"}.`;
@@ -168,6 +184,25 @@ export async function announce({ request, repo, body, unlessReported }) {
     return number;
 }
 
+/**
+ * When a green-images outcome is old news. The same changed screenshots stay changed on every full run until master's
+ * baselines move, so a run that only re-finds them says it once a week. A run that holds its commit for the owner's
+ * review (--hold start or update) always says it: that held candidate is what he reviews, and an earlier comment on
+ * another commit with the same counts did not tell him it is waiting (#4630).
+ * @param f - the outcome's fields: what, hold (the hold step's action: start, update or none)
+ * @param now - the time in ms
+ * @returns announce's unlessReported, or undefined to always announce
+ */
+export function screenshotsReported(f, now = Date.now()) {
+    if (f.hold === "start" || f.hold === "update") {
+        return undefined;
+    }
+    return {
+        since: new Date(now - 7 * 24 * 3_600_000).toISOString(),
+        reported: (b) => b.includes("**Screenshots changed**") && b.includes(f.what ?? ""),
+    };
+}
+
 export const PUSHOVER_URL = "https://api.pushover.net/1/messages.json";
 
 /**
@@ -229,7 +264,10 @@ export function pushMessage(outcome, f) {
         },
         "green-images": {
             title: "Full run SCREENSHOTS CHANGED",
-            lines: [`${f.what || "Screenshots differ"} (${sha})`, "Nightly waits for your review"],
+            lines: [
+                `${f.what || "Screenshots differ"} (${sha})`,
+                heldForReview(f) ? "Nightly waits for your review on the review page" : "Not held: nothing to review",
+            ],
             priority: 0,
             sound: "pushover",
         },
@@ -252,6 +290,19 @@ export function pushMessage(outcome, f) {
             ],
             ...fail,
         },
+        // the rolling screenshot slices (design/visual-testing/early-capture.md, 4d): told by story-slices.yml's bins
+        "rolling-queue": {
+            title: "Screenshots CHANGED on master",
+            lines: [f.what || "Pictures changed on master", "Review them on the master rolling target"],
+            priority: 0,
+            sound: "pushover",
+        },
+        "rolling-slot": {
+            title: "Screenshots WAITING for review",
+            lines: [f.what || "Pictures wait for review", "Approve them before the slot so nightly can promote"],
+            priority: 0,
+            sound: "pushover",
+        },
         "run-ended": {
             title: "Release RUN ENDED BADLY",
             lines: [`Run ${f.what || "failed"} on ${sha} before announcing`, retry],
@@ -266,7 +317,7 @@ export function pushMessage(outcome, f) {
         title: k.title,
         message: k.lines.filter(Boolean).join("\n").slice(0, 1024),
         url: f.run,
-        url_title: "Open run",
+        url_title: f.urlTitle ?? "Open run",
         priority: String(k.priority),
         sound: k.sound,
     };
@@ -306,7 +357,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { values, positionals } = parseArgs({
         allowPositionals: true,
         options: Object.fromEntries(
-            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix", "bisect"]
+            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix", "bisect", "hold"]
                 .map((k) => [k, { type: "string" }])
                 .concat([["restart", { type: "boolean" }]]),
         ),
@@ -352,11 +403,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         };
     }
     if (positionals[0] === "green-images") {
-        // the same changed screenshots stay changed on every full run until master's baselines move: say it once a week
-        unlessReported = {
-            since: new Date(Date.now() - 7 * 24 * 3_600_000).toISOString(),
-            reported: (b) => b.includes("**Screenshots changed**") && b.includes(values.what ?? ""),
-        };
+        unlessReported = screenshotsReported(values);
     }
     const body = statusComment(positionals[0], values, process.env.RELEASE_NOTIFY ?? "");
     const number = await announce({ request, repo, body, unlessReported });

@@ -413,6 +413,34 @@ function lineStyleToCyjs(value: string): Written {
     return near({ "line-style": value === "dash-dot" || value === "long-dash" ? "dashed" : "solid" });
 }
 
+const BY_PROPERTY = new WeakMap<
+    ReadonlyMap<string, CyjsPropertySpec>,
+    ReadonlyMap<string, readonly [string, CyjsPropertySpec]>
+>();
+
+/**
+ * A target's properties by the neutral property each carries (the first that carries it), built once per table: a
+ * scan per value made writing a graph's values cost its size times the table's.
+ * @param specs - the target's properties
+ * @returns the Cytoscape.js name and spec, by neutral property
+ */
+function specsByProperty(
+    specs: ReadonlyMap<string, CyjsPropertySpec>,
+): ReadonlyMap<string, readonly [string, CyjsPropertySpec]> {
+    let index = BY_PROPERTY.get(specs);
+    if (index === undefined) {
+        const built = new Map<string, readonly [string, CyjsPropertySpec]>();
+        for (const [name, spec] of specs) {
+            if (!built.has(spec.property)) {
+                built.set(spec.property, [name, spec]);
+            }
+        }
+        index = built;
+        BY_PROPERTY.set(specs, index);
+    }
+    return index;
+}
+
 /**
  * Any other property: the Cytoscape.js property that carries it, the value as it is.
  * @param property - the neutral property
@@ -425,7 +453,7 @@ function propertyToCyjs(
     value: StyleValue,
     specs: ReadonlyMap<string, CyjsPropertySpec>,
 ): Written | null {
-    const entry = Array.from(specs).find(([, spec]) => spec.property === property);
+    const entry = specsByProperty(specs).get(property);
     if (entry === undefined) {
         return null;
     }

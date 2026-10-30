@@ -73,17 +73,18 @@ Base URL: the `ApiUrl` output of the `graphty-health` stack, today
 https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com. Every route is a public `GET`, cached for 60
 seconds and throttled (20 requests/s, burst 40). CORS allows https://health.graphty.app.
 
-| Route                                                 | Returns                                                |
-| ----------------------------------------------------- | ------------------------------------------------------ |
-| `/v1/health`                                          | Whether the API is up                                  |
-| `/v1/status`                                          | Each category's state and the last 24 h of episodes    |
-| `/v1/page/overview?range=1h\|6h\|24h`                 | The status, with each headline's value and sparkline   |
-| `/v1/page/<page>?range=1h\|6h\|24h`                   | One page: its members (value, SLA, state) and sections |
-| `/v1/page/costs?range=7d\|28d`                        | The Costs page                                         |
-| `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins` | Shard times, for full runs or pull request runs        |
-| `/v1/page/flaky/hotspots?range=7d\|28d`               | Flake hotspots                                         |
-| `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`  | One test file's (or test's) flaky and failed results   |
-| `/v1/run/<run id>`                                    | One workflow run with its jobs                         |
+| Route                                                 | Returns                                                                      |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `/v1/health`                                          | Whether the API is up                                                        |
+| `/v1/status`                                          | Each category's state and the last 24 h of episodes                          |
+| `/v1/page/overview?range=1h\|6h\|24h`                 | The status, with each headline's value and sparkline                         |
+| `/v1/page/<page>?range=1h\|6h\|24h`                   | One page: its members (value, SLA, state) and sections                       |
+| `/v1/page/costs?range=7d\|28d`                        | The Costs page                                                               |
+| `/v1/page/ci/shards?range=7d\|28d&kind=full\|pr-bins` | Shard times, for full runs or pull request runs                              |
+| `/v1/page/flaky/hotspots?range=7d\|28d`               | Flake hotspots                                                               |
+| `/v1/page/runners/jobs?range=7d`                      | Runner history: 15-minute running, queued, longest queued and saturated time |
+| `/v1/test-history?file=<f>[&test=<t>]&range=7d\|28d`  | One test file's (or test's) flaky and failed results                         |
+| `/v1/run/<run id>`                                    | One workflow run with its jobs                                               |
 
 `<page>` is `master`, `pull-requests`, `ci`, `runners`, `flaky`, `releases`, `data-sources` or
 `local-runs`. The range defaults to `1h` (`7d` for Costs and the slow sections). A view with nothing
@@ -147,6 +148,16 @@ daily rollups and the page items the API serves, and sends the Pushover alerts.
 
 Until the App's parameters are in SSM (below), the GitHub sources show "not set up" on Data sources.
 
+At the end of each cycle it also decides whether to start one rolling screenshot slice
+(`story-slices.yml`, design `design/visual-testing/early-capture.md` section 4b): only after a quiet half hour
+on the runners, within the daily runner-minute caps in [`config/slices.json`](config/slices.json), and never
+while a slice is in flight. Without the dispatch App's parameters, or with `dispatch` false there, it only logs
+its decision (`slice` in the cycle's log line). Every 15 minutes it also reads the store's story captures for the CI and Releases
+pages' rolling screenshot measures (the set's age, slice minutes against each cap, what slices cost other jobs,
+the screenshot review lag, green-clean full runs, slots meeting an unapproved picture and nightly promotions
+per day; design `design/visual-testing/early-capture.md`, plan step 6). They are slow measures: shown with their
+targets, never judged into a page's state or alerted.
+
 ### CI
 
 CI posts test results through [`tools/results/client.mjs`](../results/client.mjs): when the repository
@@ -167,11 +178,16 @@ write (pull request runs, or the listed workflows on master). A body is at most 
 
 [`local/collector.mjs`](local/collector.mjs) posts this machine's test runs, each record once:
 
-| Source in the main checkout                | Route                        |
-| ------------------------------------------ | ---------------------------- |
-| `tmp/test-ledger/records/<date>/*.json.gz` | `POST /v1/local/invocations` |
-| `tmp/push-log.jsonl` (push gate runs)      | `POST /v1/local/push-runs`   |
-| `tmp/waits.jsonl` (test and GPU slots)     | `POST /v1/local/waits`       |
+| Source in the main checkout                                | Route                        |
+| ---------------------------------------------------------- | ---------------------------- |
+| `tmp/waits.jsonl` (each test run's slot hold: what, exit)  | `POST /v1/local/push-runs`   |
+| `tmp/waits.jsonl` (test and GPU slot waits)                | `POST /v1/local/waits`       |
+| `tmp/test-ledger/records/<date>/*.json.gz` (pre-push gate) | `POST /v1/local/invocations` |
+| `tmp/push-log.jsonl` (pre-push gate runs)                  | `POST /v1/local/push-runs`   |
+
+Every test run on this machine holds a test slot (`tools/test-slots.mjs`), which logs the hold with what ran
+(the package, or the shard family `tools/run-tests.sh` ran) and its exit code: those are the Local runs page's
+runs and local time. The test ledger and the push log are written only by the pre-push gate, now run by hand.
 
 Host paths, gate logs, working directories and session ids are never posted. Every row has an id from
 its content, so a retried post is harmless.
@@ -214,18 +230,22 @@ and keeps the cursor, so the next pass sends the same rows; delete the cursor to
 - [`config/slas.json`](config/slas.json): every member's target (`ok`) and red threshold (`fail`), its
   window, its minimum samples (`minN`), each data source's age limit, the runner limits, the pull
   request budgets and the daily write budget. Change a threshold here, not in code.
+- [`config/slices.json`](config/slices.json): the screenshot slice dispatcher's caps, thresholds and
+  kill switch (`dispatch`).
 - [`config/rates.json`](config/rates.json): the money rates for Costs (T4 minutes, paid LLM runs, fixed
   monthly plans, Actions list prices), each with the date it was checked. A `null` rate shows NO DATA.
 - SSM SecureStrings under `/graphty-health/`, read by the Lambdas. A member whose parameter is missing
   shows "not set up":
 
-| Parameter                                                             | Used for                                       |
-| --------------------------------------------------------------------- | ---------------------------------------------- |
-| `/graphty-health/github-app/app-id`, `installation-id`, `private-key` | The collector's GitHub App                     |
-| `/graphty-health/local-token-sha256`                                  | The local collector's token (its SHA-256, hex) |
-| `/graphty-health/pushover/app-token`, `user-key`                      | Alerts                                         |
-| `/graphty-health/cloudflare/token`, `account-id`                      | The Cloudflare line on Costs (optional)        |
-| `/graphty-health/sentry/token`                                        | The Sentry line on Costs (optional)            |
+| Parameter                                                                    | Used for                                       |
+| ---------------------------------------------------------------------------- | ---------------------------------------------- |
+| `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                     |
+| `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex) |
+| `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                         |
+| `/graphty-health/cloudflare/token`, `account-id`                             | The Cloudflare line on Costs (optional)        |
+| `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)            |
+| `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads   |
+| `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher dispatches as     |
 
 **When everything goes dark.** The backend stops itself before it costs money: a daily write budget
 (past it, writes get 429 and Data sources turns red), a 10 USD monthly AWS Budget whose action denies
@@ -260,7 +280,9 @@ invoke it again and it continues from its cursor. `AWS_PROFILE=graphty AWS_REGIO
 backfill -- --days 28` runs the same from a workstation. `-- --repair-days 2026-10-09,2026-10-11
 --repair-workflows release.yml,bisect.yml` re-reads only those days' runs of those workflows, whatever the cursors
 say: a backfill made before days were read an hour at a time kept only the newest 1,000 runs of a busier day. The
-Lambda takes the same as `"repair": {"days": [...], "workflows": [...]}` in its payload.
+Lambda takes the same as `"repair": {"days": [...], "workflows": [...]}` in its payload. A repair keeps its own
+cursor: invoke it again while it answers `"done": false` and it continues where it stopped; once done, the same
+repair reads nothing, and a repair of other days or workflows starts from its beginning.
 
 It loads newest first, so a call that stops early has loaded the most recent days. Flaky tests come first:
 each warning annotation `[FLAKY]`, `[FLAKY-UNRELATED]` or `[QUARANTINED] ... failed and passed` that the test

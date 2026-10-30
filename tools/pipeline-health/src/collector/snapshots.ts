@@ -38,14 +38,22 @@ export interface FailingCheck {
 }
 
 /**
- * One open pull request's failing checks, bins folded; an aggregator only when it failed alone. With `now`, none
+ * One open pull request's failing checks, each judged by its newest run, bins folded; an aggregator only when it failed alone. With `now`, none
  * when its newest check started over STALE_CHECKS_MS before it (an abandoned pull request's old red).
  */
 export function failingChecks(p: GqlPr, now?: number): FailingCheck[] {
     const ctx = p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? [];
     const newest = Math.max(...ctx.map((c) => ms(c.startedAt) ?? -Infinity));
     if (now !== undefined && Number.isFinite(newest) && now - newest > STALE_CHECKS_MS) return [];
-    const failed = ctx.filter((c) => c.__typename === "CheckRun" && c.name && FAILED.has(c.conclusion ?? ""));
+    // A check re-run for another event (PR Integrity after the review lands) adds a run; only its newest counts.
+    // ponytail: keyed by name alone, since the query has no workflow; add checkSuite's workflow if two collide.
+    const latest = new Map<string, (typeof ctx)[number]>();
+    for (const c of ctx) {
+        if (c.__typename !== "CheckRun" || !c.name) continue;
+        const old = latest.get(c.name);
+        if (!old || (ms(c.startedAt) ?? -Infinity) >= (ms(old.startedAt) ?? -Infinity)) latest.set(c.name, c);
+    }
+    const failed = [...latest.values()].filter((c) => FAILED.has(c.conclusion ?? ""));
     const own = failed.filter((c) => !EXCLUDED.has(c.name!));
     const pick = own.length ? own : failed.filter((c) => AGGREGATORS.has(c.name!));
     return pick.map((c) => {

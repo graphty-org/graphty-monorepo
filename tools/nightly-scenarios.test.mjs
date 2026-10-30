@@ -35,7 +35,7 @@ import { parse } from "yaml";
 
 import { captureLane, deferred, differingImages, heldLine, holdAction, verdictOf } from "./full-run.mjs";
 import { autoAbandon } from "./channel/hold.mjs";
-import { promotion } from "./channel/nightly.mjs";
+import { missedSlot, promotion } from "./channel/nightly.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import { readPolicy } from "./release-hold.mjs";
 import { decide as rerunDecide } from "./release-rerun.mjs";
@@ -58,6 +58,7 @@ const load = (file) => {
 
 const CONTEXTS = [
     "github",
+    "jobs",
     "inputs",
     "needs",
     "steps",
@@ -229,9 +230,19 @@ function run(file, sc, inputs, prefix, out) {
                 : inner.some((i) => i.r === "cancelled")
                   ? "cancelled"
                   : "success";
+            // a called workflow's outputs read its jobs' results and outputs (the `jobs` context)
+            const jobsCtx = Object.fromEntries(
+                Object.keys(load(called).jobs).map((j) => [
+                    j,
+                    { result: out.jobs[`${path}/${j}`].result, outputs: out.jobs[`${path}/${j}`].outputs },
+                ]),
+            );
+            const declared = Object.fromEntries(
+                Object.entries(load(called).on?.workflow_call?.outputs ?? {}).map(([k, o]) => [k, o.value]),
+            );
             out.jobs[path] = {
                 result: result(sc.results?.[path] ?? derived),
-                outputs: sc.outputs?.[path] ?? {},
+                outputs: sc.outputs?.[path] ?? templateAll(declared, { ...base, jobs: jobsCtx }),
                 steps: {},
                 ran: true,
                 rerun: true,
@@ -470,24 +481,31 @@ const ciPackages = {
 // The verdict job's "Judge the run" step, as tools/full-run.mjs verdict decides it from the LANES and the other
 // values the workflow hands it: the hold is read from the store as it is now (`held`), as heldNow does; with no
 // store answer, the pick's HELD.
+// heldState is the held head's own verdict, newer whether the judged commit's history holds the held one.
 const judge =
-    ({ held, images = 0, missing = [] } = {}) =>
+    ({ held, images = 0, missing = [], heldState = "", newer = true } = {}) =>
     ({ env }) => {
         const lanes = JSON.parse(env.LANES);
         lanes.captures = captureLane(missing);
         const { state, red } = verdictOf(lanes, images, env.LLM_OWNER_ITEM, env.VERSION_HELD);
         const wait = deferred({ attempt: Number(env.RUN_ATTEMPT), mode: env.MODE, state, red, lanes });
         const now = held ?? env.HELD;
-        const hold = wait || red[0] === "pick" ? "none" : holdAction({ held: now, sha: env.SHA, state });
+        const facts = { held: now, sha: env.SHA, state, heldState, newer };
+        const hold = wait || red[0] === "pick" ? "none" : holdAction(facts);
+        const owner = heldLine(env.VERSION_HELD);
         return {
-            outputs: { state, deferred: String(wait), hold, held: now, owner: heldLine(env.VERSION_HELD), what: "" },
+            outputs: { state, deferred: String(wait), hold, held: now, owner, what: "", held_state: heldState },
         };
     };
 
 // The verdict job's later steps: the hold step does what it was asked, the gate passes, the promotion decides.
 const verdictSteps = (judged, { gate = { outputs: { outcome: "success", first: "false" } } } = {}) => ({
     "Judge the run": judge(judged),
-    hold: ({ env }) => ({ outputs: { action: env.HOLD } }),
+    // replace (tools/channel/hold.mjs): the red hold ends; green-images then holds this commit (start)
+    hold: ({ env }) =>
+        env.HOLD === "replace"
+            ? { outputs: { replaced: env.HELD, action: env.STATE === "green-images" ? "start" : "replace" } }
+            : { outputs: { action: env.HOLD } },
     gate,
     promote: ({ env }) => ({
         outputs: {
@@ -730,6 +748,25 @@ describe("the nightly path's scenario matrix", () => {
         );
     });
 
+    it("(8b) a candidate older than master: handed to channel/full-run, tested there with its own workflow files", () => {
+        // run 40926721806: ci.yml from the dispatch commit called a script the candidate did not have
+        const parent = fullRun({ pick: { release: "false", handoff: "true" } });
+        ran(parent, "pick", "handoff");
+        skipped(parent, ...LANE_JOBS, ...RED_EARLY, "recapture", "verdict", "held", "version", "watchers");
+        assert.equal(parent.conclusion, "success", "the hand-off files nothing and announces nothing");
+        const child = simulate("release.yml", {
+            github: github({ ref: "refs/heads/channel/full-run", sha: H, run_id: "4001" }),
+            inputs: { mode: "full", scheduled: true },
+            results: {},
+            outputs: { pick: pickOutputs(), "ci/packages": ciPackages, "ci/build": ciPackages },
+            steps: { verdict: verdictSteps({ held: "" }), ...promoted },
+        });
+        ran(child, "pick", ...LANE_JOBS, "recapture", "verdict", "watchers");
+        skipped(child, "candidate_fix", "handoff", "resume");
+        assert.equal(child.conclusion, "success");
+        assert.deepEqual(child.reads, []);
+    });
+
     it("(9) mode promote-nightly: no lane runs; the approved candidate's kept builds are versioned, landed, published", () => {
         // the run that judged H green-images and held it: keep_builds keeps H's builds under H's name
         const judging = simulate("release.yml", {
@@ -872,6 +909,22 @@ describe("the nightly path's scenario matrix", () => {
         assert.deepEqual([v.state, v.red], ["red", ["captures"]]);
     });
 
+    // run 40950661827 attempt 2: GitHub stopped CI's Performance Benchmarks (continue-on-error) after 18 minutes,
+    // the CI call ended cancelled although every job that gates passed, the LLM lane skipped and the verdict filed
+    // "CI cancelled" as red with a bisect (#4556)
+    it("(18) an advisory CI job cancelled, every gating job green: the CI lane passes and the LLM lane still runs", () => {
+        const r = fullRun({ results: { "ci/performance": "cancelled" }, judged: { held: "" } });
+        assert.equal(r.jobs.ci.result, "cancelled", "continue-on-error covers a failure, not a cancel");
+        assert.equal(r.jobs.ci.outputs.checks, "success");
+        ran(r, "llm", "recapture", "verdict");
+        skipped(r, ...RED_EARLY);
+        assert.equal(r.jobs.verdict.outputs.state, "green-clean");
+        // a gating job that ends cancelled (its own timeout) still makes the lane red
+        const gating = fullRun({ results: { "ci/performance": "cancelled", "ci/all-checks": "failure" }, judged: {} });
+        assert.equal(gating.jobs.verdict.outputs.state, "red");
+        skipped(gating, "llm");
+    });
+
     it("(16) the automatic abandon: before a full or restart pick only, failing open, never on changed screenshots", () => {
         const auto = "Abandon a stale or pipeline-made hold";
         for (const mode of ["full", "restart"]) {
@@ -901,6 +954,18 @@ describe("the nightly path's scenario matrix", () => {
         assert.equal(autoAbandon({ hold: old, chain, sites: [N], recent: [code] }).abandon, true, "a stale red ends");
         const images = { sha: H, state: "green-images", lane: "" };
         assert.equal(autoAbandon({ hold: old, chain, sites: [N], recent: [images] }).abandon, false);
+    });
+
+    it("(17) a candidate tested in place whose workflow files differ (#4522): the run's own commit is tested, its site assembled", () => {
+        // the hand-off to channel/full-run unavailable (an older candidate, or environments that do not allow it),
+        // the handoff step tests M in place of H, whose workflows lack M's new Checks step's script; M's master build
+        // has kept no site yet
+        const r = fullRun({ judged: { held: "" }, pick: { sha: M, build_run: "", site: "build" } });
+        assert.deepEqual([r.jobs.ci.inputs.ref, r.jobs.ci.inputs.reuse_build_run], [M, ""]);
+        ran(r, "pick", ...LANE_JOBS, "verdict", "candidate_site", "version", "land", "publish", "site");
+        assert.equal(r.conclusion, "success");
+        // a candidate that shares the run's workflows reuses its own master build and site
+        skipped(fullRun({ judged: { held: "" } }), "candidate_site");
     });
 
     describe("(15) a GitHub 5xx", () => {
@@ -1064,6 +1129,70 @@ describe("the nightly path's static rules", () => {
             }
         }
         assert.deepEqual(bad, []);
+    });
+
+    // 2026-10-29/30 (#5052): a4c81c3 was held red by workflow skew alone (#4522); the green-images runs on e87f65b and
+    // 6ee5bc7 could not hold, nightly sat 18 hours, and the owner was never offered a review
+    describe("(19) a red hold is replaced by a newer green run, never a hold awaiting the owner's review", () => {
+        const A = "a4c81c3".padEnd(40, "0");
+        const E = "e87f65b".padEnd(40, "0");
+        const S = "6ee5bc7".padEnd(40, "0");
+        const slotFacts = (r) => {
+            const e = r.jobs.slot.steps["File or close the missed-slot issue"].env;
+            const f = { moved: e.PUSHED === "true", pickResult: e.PICK_RESULT, release: e.RELEASE, sha: e.SHA };
+            const more = { state: e.STATE, deferred: e.DEFERRED, hold: e.HOLD, held: e.HELD, promote: e.PROMOTE };
+            return missedSlot({ ...f, ...more, heldState: e.HELD_STATE, why: e.WHY }, Date.UTC(2026, 9, 30, 6, 4));
+        };
+        it("green-images on e87f65b: the red hold on a4c81c3 ends and e87f65b is held for review", () => {
+            const r = fullRun({
+                pick: { sha: E, held: A },
+                judged: { held: A, heldState: "red", images: 3 },
+            });
+            const v = r.jobs.verdict;
+            assert.deepEqual([v.outputs.state, v.outputs.hold, v.outputs.replaced], ["green-images", "start", A]);
+            ran(r, "keep_builds", "candidate_branch");
+            const b = r.jobs.candidate_branch.steps["Push channel/candidate"].env;
+            assert.deepEqual([b.REPLACED, b.HOLD, b.SHA], [A, "start", E], "the red branch goes, e87f65b's comes");
+            const ann = v.steps["Announce a red run, an owner item or changed screenshots"];
+            assert.equal(ann.env.HOLD, "start", "announced as held, so the owner is asked to review it");
+            ran(r, "slot");
+            assert.match(slotFacts(r).cause, /^waiting on the owner's screenshot review of e87f65b$/);
+        });
+        it("green-images on 6ee5bc7 behind e87f65b awaiting review: nothing replaced, the review stays pending", () => {
+            const r = fullRun({
+                pick: { sha: S, held: E },
+                judged: { held: E, heldState: "green-images", images: 4 },
+            });
+            const v = r.jobs.verdict;
+            assert.deepEqual([v.outputs.hold, v.outputs.replaced ?? ""], ["none", ""]);
+            assert.ok(!stepRan(r, "verdict", "hold"));
+            skipped(r, "keep_builds", "candidate_branch");
+            const ann = v.steps["Announce a red run, an owner item or changed screenshots"];
+            assert.equal(ann.env.HOLD ?? "", "", "not announced as held: release-status says it is not");
+            assert.match(slotFacts(r).cause, /review of the held e87f65b/);
+        });
+        it("green-clean behind the red hold: the hold ends, the commit promotes, the missed-slot alarm closes", () => {
+            const r = fullRun({ pick: { sha: E, held: A }, judged: { held: A, heldState: "red" } });
+            const v = r.jobs.verdict;
+            assert.deepEqual([v.outputs.hold, v.outputs.replaced], ["replace", A]);
+            assert.equal(v.steps.promote.env.HELD, "", "nothing is held once replaced");
+            assert.equal(v.outputs.promote, "true");
+            ran(r, "version", "land", "candidate_branch");
+            const b = r.jobs.candidate_branch.steps["Push channel/candidate"].env;
+            assert.deepEqual([b.REPLACED, b.HOLD], [A, "replace"], "only deleted, nothing pushed");
+            skipped(r, "keep_builds", "unhold");
+            assert.equal(slotFacts(r), null, "nightly moved");
+        });
+        it("red behind the red hold: nothing replaced, and the slot names the red lane", () => {
+            const r = fullRun({
+                attempt: "2",
+                pick: { sha: E, held: A },
+                results: { t4: "failure" },
+                judged: { held: A, heldState: "red" },
+            });
+            assert.equal(r.jobs.verdict.outputs.hold, "none");
+            assert.match(slotFacts(r).cause, /^red lane on e87f65b/);
+        });
     });
 
     it("every pattern download of visual-* is nested (recapture.mjs nest) before it is read", () => {

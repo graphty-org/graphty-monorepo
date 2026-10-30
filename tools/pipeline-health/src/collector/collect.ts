@@ -8,7 +8,15 @@ import { DAY, HOUR, homeKey, MIN, ttlAt } from "../model/items.js";
 
 const WEEK = 7 * DAY;
 import { getCursor, putRaw, recordSource, setCursor } from "../model/raw.js";
-import type { OwnerWait, QuarantineEntry, ReleaseSeen, WorkflowState } from "../model/snapshots.js";
+import {
+    CHANNEL_ATTEMPTS,
+    type ChannelAttempt,
+    type ChannelsSnapshot,
+    type OwnerWait,
+    type QuarantineEntry,
+    type ReleaseSeen,
+    type WorkflowState,
+} from "../model/snapshots.js";
 import { readBenches, trend } from "../model/benchmarks.js";
 import type { Store } from "../model/store.js";
 import type { DeployBuilds } from "./aws.js";
@@ -16,6 +24,7 @@ import { flakyMembers } from "./flaky.js";
 import { definedJobs, jobMembers, nonGatingJobs } from "./jobs.js";
 import { type Fetch, type GitHub, HttpError, runJobs } from "./github.js";
 import {
+    canaryAttempts,
     classifyCancel,
     codeownerPatterns,
     fixedCosts,
@@ -27,6 +36,7 @@ import {
     offMaster,
     ownerWaitOf,
     prOfRun,
+    promotion,
     prRunOf,
     prStages,
     oldestUntested,
@@ -66,6 +76,19 @@ import {
 } from "./parse.js";
 import { markPrCaused } from "./pr-caused.js";
 import {
+    decideSlice,
+    newestGreen,
+    nextState,
+    type RunnerSample,
+    type SliceConfig,
+    type SliceDecision,
+    type SliceMode,
+    type SliceState,
+    storeSummary,
+} from "./slices.js";
+import { budgetShares, contention, type ReviewState, reviewLags, setAge, type StoryCaptures } from "./slice-metrics.js";
+import {
+    CHANNEL_REFS_QUERY,
     ISSUE_QUERY,
     OPEN_PAGE,
     ownerFilesQuery,
@@ -100,6 +123,20 @@ export interface Deps {
     repo: string;
     /** The health stack's deploy build. Undefined: the stack is not redeployed from master. */
     deploy?: DeployBuilds;
+    /**
+     * The quarantine in force, from the results store (slices.ts quarantineReader). Undefined: the committed
+     * tools/test-quarantine.json is read instead.
+     */
+    readQuarantine?: () => Promise<QuarantineEntry[]>;
+    /**
+     * The rolling screenshot slice dispatcher (slices.ts). Without `readStore` it never decides to dispatch; without
+     * `dispatch` it decides and reports, and dispatches nothing (a dry run).
+     */
+    slices?: {
+        cfg: SliceConfig;
+        readStore?: () => Promise<StoryCaptures>;
+        dispatch?: (sha: string, mode: SliceMode) => Promise<void>;
+    };
 }
 
 export interface CycleReport {
@@ -109,6 +146,8 @@ export interface CycleReport {
     errors: Record<string, string>;
     /** Items skipped because one GitHub request kept failing (section 10.4). */
     skipped: string[];
+    /** The slice dispatcher's decision this cycle, and whether it dispatched. */
+    slice?: SliceDecision & { dispatched: boolean };
 }
 
 const iso = (t: number) => new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -150,6 +189,12 @@ class Cycle {
     openRuns?: GhRun[];
     /** Open pull requests with their checks (pull requests part), for "Blocked by a flake". */
     openPrs?: GqlPr[];
+    /** This cycle's runner use (runners part) and master's newest green build (github part), for the slices. */
+    runnerSample?: RunnerSample;
+    newestGreen?: { sha: string };
+    /** Merge times of screenshot approval pull requests (visual/approve-*) seen this cycle, for the review lag. */
+    approvalMerges: number[] = [];
+    slice?: SliceDecision & { dispatched: boolean };
     private readonly jsonCursors = new Map<string, unknown>();
 
     readonly d: Deps;
@@ -529,6 +574,19 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);
+    c.runnerSample = {
+        at: c.now,
+        running: use.running.linux_windows,
+        queued: use.queued,
+        saturated,
+        longestQueuedMs: use.longestQueuedMs,
+    };
+    if (c.d.slices) {
+        // What slices cost other work (early-capture.md, plan step 6): 0 whenever no slice job holds a runner.
+        const cost = contention(open, c.d.slices.cfg.workflow, saturated, elapsed / MIN);
+        c.o("slices.contended_min", cost.contendedMin);
+        c.o("slices.queue_wait_min", cost.queueWaitMin);
+    }
     const prev = await c.json<HoldersSnapshot | undefined>(SNAPSHOT.holders, undefined);
     await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now));
 }
@@ -578,6 +636,9 @@ async function pullRequests(c: Cycle, gh: GitHub) {
     }
     await pendingPrRuns(c, gh, [...open, ...recentSeen]);
     for (const p of recentSeen) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
+    c.approvalMerges = recentSeen
+        .filter((p) => p.mergedAt && p.headRefName?.startsWith("visual/approve-"))
+        .map((p) => Date.parse(p.mergedAt as string));
     for (const p of open) c.items.push(toPrItem(p, c.d.repo));
     c.openPrs = open;
     await ownerWaits(c, gh, open);
@@ -617,7 +678,7 @@ async function ownerWaits(c: Cycle, gh: GitHub, open: GqlPr[]) {
 }
 
 /**
- * The committed quarantine list, CODEOWNERS, ci.yml's jobs and those allowed to fail, from master (one query;
+ * CODEOWNERS, the committed quarantine list (only without the results store), ci.yml's jobs and those allowed to fail, from master (one query;
  * hourly, and once before any exists).
  */
 async function repoFiles(c: Cycle, gh: GitHub) {
@@ -637,20 +698,30 @@ async function repoFiles(c: Cycle, gh: GitHub) {
         await c.setJson("non-gating", nonGatingJobs(ci, jobs));
         await c.setJson("ci-jobs", definedJobs(ci));
     }
+    await c.setJson("codeowners", codeownerPatterns(data.repository.codeowners?.text ?? ""));
+    if (c.d.readQuarantine) return; // the store's quarantine is read every cycle (storeQuarantine)
     const q = data.repository.quarantine?.text;
     const list = q ? ((JSON.parse(q) as { quarantine?: QuarantineEntry[] }).quarantine ?? []) : [];
-    await c.setJson(
-        "quarantine",
-        list.map(({ file, name: test, family, issue, since, expires }) => ({
-            file,
-            name: test,
-            family,
-            issue,
-            since,
-            expires,
-        })),
-    );
-    await c.setJson("codeowners", codeownerPatterns(data.repository.codeowners?.text ?? ""));
+    await c.setJson("quarantine", list.map(quarantineEntry));
+}
+
+const quarantineEntry = ({ file, name, family, issue, since, expires }: QuarantineEntry): QuarantineEntry => ({
+    file,
+    name,
+    family,
+    issue,
+    since,
+    expires,
+});
+
+/**
+ * The quarantine in force from the results store, where CI's retry step reads it since the committed
+ * tools/test-quarantine.json was emptied (results-service.md 6.1); every cycle, since a test enters it within one.
+ * @param c the cycle
+ * @param read the store's quarantine
+ */
+async function storeQuarantine(c: Cycle, read: () => Promise<QuarantineEntry[]>) {
+    await c.setJson("quarantine", (await read()).map(quarantineEntry));
 }
 
 /** Issues updated since the cursor, and the open "Release held" issues (their age is a hold's age). */
@@ -696,7 +767,7 @@ function releaseTodo(runs: GhRun[], seen: Record<string, ReleaseSeen>): { newest
         for (const [key, s] of Object.entries(seen))
             if (key.startsWith(`${r.id}.`)) s.mode ??= releaseMode(r.display_title);
         for (let n = 1; n <= r.run_attempt; n++)
-            if (!seen[`${r.id}.${n}`]?.lanes)
+            if (!seen[`${r.id}.${n}`]?.lanes || seen[`${r.id}.${n}`].nightly === undefined)
                 todo.push({ newest: r, path: n === r.run_attempt ? `${r.id}` : `${r.id}/attempts/${n}` });
     }
     return todo;
@@ -734,6 +805,8 @@ async function readReleaseAttempt(
         lanes: a.lanes,
         jobs: a.jobs,
         ...(a.failedJob ? { failedJob: a.failedJob } : {}),
+        nightly: a.nightly,
+        ...(r.conclusion ? { conclusion: r.conclusion } : {}),
     };
     c.items.push(toRunItem(r, repo, { tested: a.tested }));
 }
@@ -790,6 +863,43 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
         c.o("master.untested_age_ms", oldest === undefined ? 0 : c.now - oldest);
     }
     if (newest) await recordSource(c.d.store, "release", newest.at, { ok: true });
+}
+
+/**
+ * The release channels (#4460): canary's deploy-pages.yml runs on master, production's promote.yml runs (each
+ * finished run's jobs read once) and what channel/nightly and channel/production hold. Nightly's attempts are the
+ * release attempts above.
+ */
+async function channels(c: Cycle, gh: GitHub) {
+    const repo = c.d.repo;
+    const list = async (q: string) =>
+        (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/${q}`))?.workflow_runs ?? [];
+    const deploys = await list("deploy-pages.yml/runs?per_page=30&branch=master&event=workflow_run");
+    const promotes = await list("promote.yml/runs?per_page=30&event=workflow_dispatch");
+    const prev = await c.json<ChannelsSnapshot | undefined>("channels", undefined);
+    const promotions: Record<string, ChannelAttempt | null> = {};
+    for (const r of promotes.filter((x) => x.status === "completed")) {
+        const key = `${r.id}.${r.run_attempt}`;
+        const old = prev?.promotions[key];
+        promotions[key] = old === undefined ? promotion(r, await allJobs(gh, repo, r.id)) : old;
+    }
+    const [owner, name] = repo.split("/");
+    type Ref = { target: { oid: string } } | null;
+    const refs = (
+        await gh.graphql<{ repository: { nightly: Ref; production: Ref } }>(CHANNEL_REFS_QUERY, { owner, name })
+    ).repository;
+    const snap: ChannelsSnapshot = {
+        canary: canaryAttempts(deploys).slice(0, CHANNEL_ATTEMPTS),
+        promotions,
+        refs: {
+            ...(refs.nightly ? { nightly: refs.nightly.target.oid } : {}),
+            ...(refs.production ? { production: refs.production.target.oid } : {}),
+        },
+    };
+    // A nightly promotion is channel/nightly moving to another commit.
+    if (prev?.refs.nightly && snap.refs.nightly && prev.refs.nightly !== snap.refs.nightly)
+        c.o("release.nightly_promotions", 1);
+    await c.setJson("channels", snap);
 }
 
 /** The weekly stress run (4.7), hourly: its newest run's filing, and three weeks finding nothing. */
@@ -980,6 +1090,80 @@ async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
     return items.filter((_, i) => keep[i]);
 }
 
+/**
+ * The rolling screenshot slice dispatcher (slices.ts): records this cycle's runner sample and the runner-minutes of
+ * slice runs that finished, decides, and makes at most one dispatch. The store is read only when nothing else stops
+ * a slice.
+ */
+async function slices(c: Cycle, xs: Collected[]) {
+    const s = c.d.slices;
+    if (!s) return;
+    const runs = xs.filter((x) => x.repo === c.d.repo && workflowFile(x.run.path) === s.cfg.workflow);
+    const finished = runs.filter((x) => x.run.status === "completed").map((x) => ({ run: x.run, jobs: x.jobs ?? [] }));
+    const state: SliceState = nextState(
+        await c.json<SliceState>("slices", { samples: [], spent: [] }),
+        c.now,
+        c.runnerSample,
+        finished,
+    );
+    const d = state.dispatched;
+    if (d && runs.some((x) => Date.parse(x.run.created_at) >= d.at - MIN)) d.seen = true;
+    const input = {
+        now: c.now,
+        cfg: s.cfg,
+        state,
+        running: runs.some((x) => x.run.status !== "completed"),
+        ...(c.newestGreen ? { newestGreen: c.newestGreen } : {}),
+    };
+    let decision = decideSlice({ ...input, store: null });
+    const needed = decision.action === "none" && decision.reason === "store-unavailable";
+    let read = false;
+    // The dashboard reads the store every 15 minutes too, so the set's age and the review lag stay current.
+    if (s.readStore && (needed || (await c.due("capture-read", 15 * MIN)))) {
+        const body = await s.readStore().catch((e: unknown) => {
+            c.errors.slicesStore = message(e);
+            return undefined;
+        });
+        if (body) await captureMetrics(c, body);
+        if (needed) decision = decideSlice({ ...input, store: body && storeSummary(body, c.now) });
+        read = !!body;
+    }
+    // Pull requests are read every cycle and the store every 15 minutes: keep this cycle's approval merges for the next read.
+    if (!read && c.approvalMerges.length) {
+        const prev = await c.json<ReviewState>("review-lag", { pending: {}, approvals: [] });
+        await c.setJson("review-lag", { ...prev, approvals: [...new Set([...prev.approvals, ...c.approvalMerges])] });
+    }
+    c.slice = { ...decision, dispatched: false };
+    const share = budgetShares(state.spent, c.now, s.cfg);
+    c.o("slices.base_cap_share", share.base);
+    c.o("slices.idle_cap_share", share.idle);
+    c.o("slices.idle_hour_cap_share", share.idleHour);
+    await c.setJson("slices", state);
+    if (decision.action !== "dispatch" || !s.dispatch) return;
+    await s.dispatch(decision.sha, decision.mode);
+    c.slice.dispatched = true;
+    await c.setJson("slices", { ...state, dispatched: { at: c.now, sha: decision.sha, mode: decision.mode } });
+}
+
+/** The set's age and the review lag from one read of the story captures (source story-slices). */
+async function captureMetrics(c: Cycle, body: StoryCaptures) {
+    const age = setAge(body, c.now);
+    if (age.oldestAt !== null) c.o("slices.set_age_ms", c.now - age.oldestAt);
+    c.o("slices.units_dropped", age.dropped);
+    const review = reviewLags(
+        await c.json<ReviewState | undefined>("review-lag", undefined),
+        body.captures ?? [],
+        c.approvalMerges,
+        c.now,
+    );
+    review.lags.forEach((lag, k) =>
+        c.items.push({ ...obs("release.review_lag_ms", lag, c.now), id: `release.review_lag_ms#${c.now}.${k}` }),
+    );
+    await c.setJson("review-lag", review.state);
+    await setCursor(c.d.store, "capture-read", String(c.now), c.now);
+    await recordSource(c.d.store, "story-slices", c.now, { ok: true });
+}
+
 /** Every GitHub part of one cycle; the collector source is OK when the runs, pull requests and issues were. */
 async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: boolean) {
     const d = c.d;
@@ -1002,10 +1186,19 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         collected = xs;
         c.openRuns = xs.filter((x) => x.run.status !== "completed").map((x) => x.run);
         await master(c, masterList, cancels, elapsed);
+        const green = newestGreen(masterList.map((x) => x.run));
+        if (green) c.newestGreen = green;
     });
     const missing = async (name: string) => (await c.cursor(name)) === undefined;
-    if (hourly || (await missing("quarantine")) || (await missing("non-gating")) || (await missing("ci-jobs")))
+    if (
+        hourly ||
+        (!d.readQuarantine && (await missing("quarantine"))) ||
+        (await missing("non-gating")) ||
+        (await missing("ci-jobs"))
+    )
         await c.part("repo files", "collector", () => repoFiles(c, gh));
+    const readQuarantine = d.readQuarantine;
+    if (readQuarantine) await c.part("quarantine", undefined, () => storeQuarantine(c, readQuarantine));
     ok = (await c.part("pull requests", "collector", () => pullRequests(c, gh))) && ok;
     const xs = collected;
     if (xs) ok = (await c.part("runners", "collector", () => runners(c, xs, elapsed))) && ok;
@@ -1015,6 +1208,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
     };
     ok = (await c.part("issues", "collector", readIssues)) && ok;
     await c.part("releases", "release", () => releases(c, gh, heldSince));
+    await c.part("channels", undefined, () => channels(c, gh));
     const open = c.openPrs;
     if (open)
         await c.part("flaky", "collector", async () => {
@@ -1031,6 +1225,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         await c.part("hosts", "hosts", () => hosts(c, gh));
         await c.part("npm", "npm", () => npm(c, gh));
     }
+    if (xs) await c.part("slices", undefined, () => slices(c, xs));
     const builds = d.deploy;
     if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
     if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
@@ -1066,5 +1261,6 @@ export async function collect(d: Deps): Promise<CycleReport> {
         calls: gh?.calls ?? 0,
         errors: c.errors,
         skipped: c.skipped,
+        ...(c.slice ? { slice: c.slice } : {}),
     };
 }

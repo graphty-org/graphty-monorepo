@@ -18,6 +18,7 @@
 // event is `{ invocation, file, name, status, message }`.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpus } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +26,9 @@ import { parseEnvFile } from "../sonar/api.mjs";
 
 export const SCHEMA = 1;
 export const RECORD_MS = 5000;
+// The plan read: one per run, and its answer sizes every test bin (no answer packs bins without history, many
+// times too many jobs), so it may take longer than a record write.
+export const PLAN_MS = 20000;
 export const EVENT_MS = 2000;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const AUDIENCE = "graphty-results";
@@ -165,7 +169,8 @@ export function postFlaky(env, shard, family, flaky) {
 /**
  * Sends one benchmark job's results to the health API (`POST /v1/benchmarks`), through sendHealth(), so the dashboard
  * keeps each benchmark's trend. Like postFlaky(): only HEALTH_API_URL and an OIDC token in GitHub Actions; anything
- * else sends nothing. Never throws.
+ * else sends nothing. Never throws. Names the machine that measured them (this runner's CPU model): hosted runners
+ * land on CPUs about 2x apart, and the dashboard compares a result only with results of the same machine.
  * @param env the environment
  * @param source what measured them ("algorithms", "webgpu-graph-algorithms")
  * @param rows the results `{ name, value }`, milliseconds
@@ -184,6 +189,7 @@ export function postBenchmarks(env, source, rows) {
         source,
         unit: "ms",
         ...(env.GITHUB_SHA ? { sha: env.GITHUB_SHA } : {}),
+        ...(cpus()[0]?.model ? { machine: cpus()[0].model.trim() } : {}),
         rows,
     });
     return true;
@@ -285,6 +291,6 @@ export function postFailures(cfg, invocation, failures) {
 export async function readPlan(cfg, query) {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(query)) if (v !== undefined) q.set(k, Array.isArray(v) ? v.join(",") : v);
-    const r = await call(cfg, "GET", `/v1/plan?${q}`);
+    const r = await call(cfg, "GET", `/v1/plan?${q}`, undefined, PLAN_MS);
     return r.ok ? r.data : null;
 }

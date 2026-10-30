@@ -102,9 +102,20 @@ End the round after starting one job; the next round starts the next while the c
 Each: signal, meaning, action. Add to this list (see the next section).
 
 - **An open pull request names the issue.** It is in flight; do not pick it again.
-- **A `ready` marker with no pull request** (the subagent's `pr-open.sh` failed): pipeline-round opens it (its step 5).
+- **A `ready` marker with no pull request** (the subagent's `pr-open.sh` failed): pipeline-round opens it (its step 9).
 - **A subagent released every issue of its group** (none reproduced, or all unrelated). The job is over: it no longer
   counts against the cap.
+- **A health dashboard member with no owner** (not ok in `health_status`, no open issue named for it, no open pull
+  request, no claim in `tmp/health-green-owner/journal.md`): a candidate to start, picked by its impact like an issue;
+  file its issue first. Never change an SLA target.
+- **A critical sweep** (the owner orders the critical issues worked, as on 2026-10-29). Group them by shared
+  mechanism, not by package or title: one job per mechanism, up to four issues. A load-sensitive test failure is
+  critical, and its job must reproduce it under CPU restriction (`taskset -c 0 <test command>`) and name the
+  mechanism before fixing it; never a longer wait or a raised timeout.
+- **A critical issue labelled `in-progress` with no open pull request.** Check its owner first: the branch's
+  progress note, the branch's last commit time, the session's journal in `.claudehistory/`, and `ListAgents`. Take
+  it only when the owner has been inactive for 6 hours or more, and say so on the issue
+  (`pipeline-round: taken by session ... -- previous owner <session>, inactive since <time>`).
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, the Release status
   issue, `Release held:` issues and `lane red on master` issues.
 

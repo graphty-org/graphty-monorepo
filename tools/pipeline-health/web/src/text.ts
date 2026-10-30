@@ -5,6 +5,8 @@
  */
 import type {
     CategoryId,
+    ChannelId,
+    ChannelOutcome,
     Cmp,
     Fact,
     Iso,
@@ -193,6 +195,41 @@ export function stateChip(
     }
 }
 
+// ---------------------------------------------------------------- release channels
+
+/** The overview's release channel tiles: the heading, each channel's name and how its attempts read. */
+export const CHANNELS_HEAD = "Releases";
+export const CHANNELS_SUB = "what each channel serves; each dot a release attempt, oldest to newest";
+
+export const CHANNEL: Record<ChannelId, { name: string; ok: string; none: string }> = {
+    canary: { name: "Canary", ok: "deployed", none: "no deploys recorded" },
+    nightly: { name: "Nightly", ok: "promoted", none: "no promotions recorded" },
+    production: { name: "Production", ok: "promoted", none: "no promotions recorded" },
+};
+
+const OUTCOME: Record<Exclude<ChannelOutcome, "ok">, string> = {
+    bad: "failed",
+    held: "passed, not promoted",
+    cancelled: "cancelled",
+};
+
+/** "deployed 42 min ago", or "no deploys recorded". */
+export const channelSince = (id: ChannelId, at: Iso | null): string =>
+    at ? `${CHANNEL[id].ok} ${fmtAgo(at)}` : CHANNEL[id].none;
+
+/** One attempt's dot title: "19:20: failed, 3f2a91c". */
+export function attemptText(id: ChannelId, a: { at: Iso; outcome: ChannelOutcome; sha?: string }): string {
+    const word = a.outcome === "ok" ? CHANNEL[id].ok : OUTCOME[a.outcome];
+    const sha = a.sha ? ", " + esc(a.sha.slice(0, 7)) : "";
+    return `${fmtTime(a.at)}: ${word}${sha}`;
+}
+
+/** The dot row's label for a screen reader. */
+export function attemptsLabel(n: number): string {
+    if (!n) return "no release attempts recorded";
+    return `last ${n} release ${n === 1 ? "attempt" : "attempts"}, oldest first`;
+}
+
 // ---------------------------------------------------------------- catalog
 
 export const CATEGORY_NAME: Record<CategoryId, string> = {
@@ -325,8 +362,38 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.runner_minutes": {
         name: "Runner-minutes per merge",
         short: "runner-minutes per merge",
-        def: "job minutes, every run kind, / pull requests merged into master; slow measure, 7 d",
+        def: "job minutes, every run kind, / pull requests merged into master",
         nOf: "merged",
+    },
+    "ci.screenshot_set_age": {
+        name: "Screenshot set age",
+        short: "screenshot set age",
+        def: "oldest of every story group's newest rolling capture, newest value",
+    },
+    "ci.slice_base_budget": {
+        name: "Base slices, share of their daily cap",
+        short: "base slice budget used",
+        def: "runner-minutes of base slices today (UTC) / their daily cap",
+    },
+    "ci.slice_idle_budget": {
+        name: "Idle slices, share of their daily cap",
+        short: "idle slice budget used",
+        def: "runner-minutes of idle slices today (UTC) / their daily cap",
+    },
+    "ci.slice_idle_hour_budget": {
+        name: "Idle slices, share of their hourly cap",
+        short: "idle slice hourly budget used",
+        def: "runner-minutes of idle slices in the last hour / their hourly cap",
+    },
+    "ci.slice_contended": {
+        name: "Slice minutes held while contended",
+        short: "slice minutes held while contended",
+        def: "slice runner-minutes while the pool was saturated or other jobs queued",
+    },
+    "ci.slice_queue_wait": {
+        name: "Queue wait during slices",
+        short: "queue wait during slices",
+        def: "minutes other jobs queued while a slice job held a runner",
     },
     "ci.superseded": {
         name: "Superseded runs running",
@@ -388,6 +455,29 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "attempts that tested",
     },
     "releases.channels": { name: "Channel members", short: "channel members", def: "canary, nightly, production" },
+    "releases.review_lag": {
+        name: "Screenshot review lag",
+        short: "screenshot review lag",
+        def: "median, a changed picture's first rolling capture to its approval merging",
+        nOf: "pictures",
+    },
+    "releases.slots_unreviewed": {
+        name: "Slots meeting an unapproved picture",
+        short: "slots meeting an unapproved picture",
+        def: "green full runs held for changed pictures (green-images)",
+        nOf: "green runs",
+    },
+    "releases.green_clean": {
+        name: "Green-clean full runs",
+        short: "green-clean full runs",
+        def: "full runs that could promote to nightly with no wait for the owner",
+        nOf: "full runs",
+    },
+    "releases.nightly_promotions": {
+        name: "Nightly promotions per day",
+        short: "nightly promotions per day",
+        def: "channel/nightly moving to a new commit",
+    },
     "costs.spend": {
         name: "Spend this month",
         short: "spend",
@@ -722,8 +812,7 @@ const S: Record<string, (p: P) => string> = {
         `All in ${str(p, "repo")}; no other graphty-org repository ran a job in ${fmtN(num(p, "h"))} h.`,
 
     // flaky
-    "flaky.quarantine.empty": () =>
-        "No quarantine entries: CI keeps no quarantine state and tools/test-quarantine.json is empty. Flaky tests are counted by open issue instead (member above).",
+    "flaky.quarantine.empty": () => "No quarantine entries: the results store has no quarantined test in force.",
     "tag.screenshots": () => "Storybook capture",
     "tag.unstable": () => "unstable, blocks merge",
     "tag.issue": (p) => `#${num(p, "issue")}`,

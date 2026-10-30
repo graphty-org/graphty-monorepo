@@ -12,8 +12,15 @@ import type {
     StepItem,
     TestItem,
 } from "../model/items.js";
-import { DAY, HOUR, MIN } from "../model/items.js";
-import { type LaneJob, NOT_A_TRAIN, type OwnerWait, type ReleaseSeen, type WorkflowState } from "../model/snapshots.js";
+import { DAY, HOUR, isOffMaster, loadOf, MIN } from "../model/items.js";
+import {
+    type ChannelAttempt,
+    type LaneJob,
+    NOT_A_TRAIN,
+    type OwnerWait,
+    type ReleaseSeen,
+    type WorkflowState,
+} from "../model/snapshots.js";
 import { failingChecks } from "./snapshots.js";
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -132,27 +139,16 @@ export function runnerOs(labels: string[]): JobItem["os"] {
 const isSkipped = (j: GhJob) => j.conclusion === "skipped";
 
 /**
- * The kind of load a run puts on the runners (4.3, runner-minutes per merge).
+ * The kind of load a run puts on the runners (4.3, runner-minutes per merge): model/items.ts loadOf.
  * @param run the run
- * @returns full for release.yml (whose called workflows run inside it), pr (a pull request's, including CodeQL's
- *     default setup scanning one: event `dynamic` on `refs/pull/<n>/head`), master for a push to master, else other
  */
 export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
-    if (workflowFile(run.path) === "release.yml") return "full";
-    if (run.event === "pull_request" || run.event === "pull_request_target") return "pr";
-    if (run.event === "dynamic" && run.head_branch?.startsWith("refs/pull/")) return "pr";
-    if (run.event === "push" && run.head_branch === "master") return "master";
-    return "other";
+    return loadOf(workflowFile(run.path), run.event, run.head_branch);
 }
 
-/**
- * Whether a run is on a branch other than its repository's default one (a dispatch on a work branch, a probe, a
- * bisect point, a pull request's CodeQL scan), whose failures may be the branch's own.
- * ponytail: takes master or main as the default branch; read the repository's default_branch if one ever differs.
- */
+/** Whether a run is on a branch other than master (model/items.ts isOffMaster). */
 export function offMaster(run: Pick<GhRun, "head_branch">): boolean {
-    const branch = run.head_branch?.replace(/^refs\/heads\//, "");
-    return branch !== "master" && branch !== "main";
+    return isOffMaster(run.head_branch);
 }
 
 export function toJobItem(
@@ -624,6 +620,9 @@ const BAD = new Set(["failure", "timed_out", "cancelled", "startup_failure", "ac
 /** "full" from "Release (full)"; runs before 2026-10-25 18:00 say just "Release" (legacy). */
 export const releaseMode = (title: string | undefined): string => /\(([\w-]+)\)/.exec(title ?? "")?.[1] ?? "legacy";
 
+/** release.yml's job that deploys nightly.graphty.app once the candidate was promoted. */
+const NIGHTLY_SITE = "Deploy the nightly site";
+
 const jobsOf = (jobs: GhJob[], name: string) => jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
 
 function laneOf(jobs: GhJob[], name: string): LaneResult {
@@ -645,6 +644,8 @@ export interface ReleaseAttempt {
     jobs: Partial<Record<Lane, LaneJob>>;
     /** The first job that failed, wherever it is (for an attempt that failed before its lanes). */
     failedJob?: string;
+    /** Its "Deploy the nightly site" job: passed means it promoted the candidate to nightly. */
+    nightly: LaneResult;
 }
 
 function laneJob(mine: GhJob[], name: string): LaneJob | undefined {
@@ -705,7 +706,46 @@ export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
     const failed = jobs
         .filter((j) => BAD.has(j.conclusion ?? ""))
         .sort((a, b) => msOr(a.completed_at) - msOr(b.completed_at))[0];
-    return { mode, lanes, tested, red, jobs: laneJobs, ...(failed ? { failedJob: failed.name } : {}) };
+    const nightly = laneOf(jobs, NIGHTLY_SITE);
+    return { mode, lanes, tested, red, jobs: laneJobs, nightly, ...(failed ? { failedJob: failed.name } : {}) };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The release channels (#4460): canary's deploys and production's promotions. Nightly's are release attempts.
+
+/** A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed. */
+const runOutcome = (conclusion: string | null): ChannelAttempt["outcome"] => {
+    if (conclusion === "success") return "ok";
+    return conclusion === "cancelled" ? "cancelled" : "bad";
+};
+
+/** Canary's attempts, newest first: finished deploy-pages.yml runs; a skipped run (master's build was red) is none. */
+export function canaryAttempts(runs: GhRun[]): ChannelAttempt[] {
+    return runs
+        .filter((r) => r.status === "completed" && r.conclusion !== "skipped")
+        .map((r) => ({
+            at: Date.parse(r.updated_at),
+            outcome: runOutcome(r.conclusion),
+            // run-name is "Deploy <the built commit>"; the run's own head is master's newest commit.
+            sha: /\b[0-9a-f]{40}\b/.exec(r.display_title ?? "")?.[0] ?? r.head_sha,
+            run: r.id,
+        }))
+        .sort((a, b) => b.at - a.at);
+}
+
+/**
+ * A finished promote.yml run as a production promotion: it moved channel/production, or its promotion failed. A dry
+ * run, a configuration redeploy or a nightly rollback is null. ponytail: a failed dry run counts as a failed
+ * promotion, since the jobs API does not say which runs were dry; read the run's inputs if that misleads.
+ */
+export function promotion(run: GhRun, jobs: GhJob[]): ChannelAttempt | null {
+    const move = jobs.find((j) => j.name.startsWith("Move channel/"));
+    if (move?.name !== "Move channel/production") return null;
+    const moved = laneOf(jobs, move.name);
+    if (moved !== "passed" && moved !== "failed" && laneOf(jobs, "Promote (owner approval)") !== "failed") return null;
+    // A run that succeeded without moving the channel failed its promotion (its promote job did).
+    const failed = run.conclusion === "success" ? "failure" : run.conclusion;
+    return { at: Date.parse(run.updated_at), outcome: moved === "passed" ? "ok" : runOutcome(failed), run: run.id };
 }
 
 /** The scheduler's App dispatches the train; anything else is ad hoc. */
@@ -764,7 +804,7 @@ export function trainSkipped(attempts: ReleaseSeen[], runs: GhRun[]): boolean {
 export const RELEASE_WORKFLOW_EVENTS: Record<string, string[]> = {
     "release.yml": ["workflow_dispatch"],
     "promote.yml": ["workflow_dispatch"],
-    "release-watch.yml": ["workflow_run"],
+    "release-watch.yml": ["workflow_run", "workflow_dispatch"],
 };
 
 /** The runs of an event the workflow declares; every run when the workflow's events are not known. */
@@ -892,9 +932,13 @@ export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string):
 const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates) =>
     !!run && (/\bllm lane\b/.test(run.display_title ?? "") || rates.llm.legacyBisectRuns.includes(run.id));
 
+/** The step after the LLM tests whose name carries the run's logged cost (release.yml, tools/llm-spend.mjs). */
+const LLM_COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
+
 /**
  * Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost: release.yml's LLM regression step,
- * and the test step of each point of a bisect of the llm lane.
+ * and the test step of each point of a bisect of the llm lane. A job whose cost step logged its real cost is priced at
+ * that instead.
  */
 export function llmCost(
     j: GhJob,
@@ -910,6 +954,7 @@ export function llmCost(
         (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
     );
     if (!paid.length) return undefined;
+    const logged = (j.steps ?? []).map((s) => LLM_COST_STEP.exec(s.name)?.[1]).find((v) => v !== undefined);
     const end = Date.parse(paid[paid.length - 1].completed_at ?? j.completed_at ?? j.created_at);
     return {
         kind: "cost",
@@ -918,7 +963,7 @@ export function llmCost(
         line: "llm",
         ...opt("workflow", workflow),
         day: dayOf(end),
-        usd: paid.length * rates.llm.usdPerPaidStep,
+        usd: logged === undefined ? paid.length * rates.llm.usdPerPaidStep : Number(logged),
     };
 }
 

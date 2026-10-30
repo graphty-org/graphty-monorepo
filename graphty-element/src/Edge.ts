@@ -16,11 +16,13 @@ import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
+import type { EdgePosition } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
+import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
 import { gradientPieceColors } from "./meshes/edgeGradient";
 import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
@@ -28,6 +30,7 @@ import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
     arcThroughBend,
+    bendPoints,
     bezierThroughControls,
     centerArc,
     clearOfCaps,
@@ -436,6 +439,12 @@ export class Edge {
     /** The cap part-way along this edge's line pointing toward its target (`arrowMiddleHead`), the same way. */
     arrowMiddleHeadCap: ArrowCap | null = null;
 
+    /** The caps drawn in a row behind the head (`arrowHead.stack`), each with the part it draws, nearest first. */
+    private headStack: { cap: ArrowCap; part: ArrowStackPart }[] = [];
+
+    /** The caps drawn in a row behind the tail (`arrowTail.stack`), the same way. */
+    private tailStack: { cap: ArrowCap; part: ArrowStackPart }[] = [];
+
     /** The cap part-way along this edge's line pointing toward its source (`arrowMiddleTail`), the same way. */
     arrowMiddleTailCap: ArrowCap | null = null;
 
@@ -819,7 +828,9 @@ export class Edge {
     get drawnCaps(): { end: EdgeCapEnd; name: string; span: number; visibility: number }[] {
         const caps: { end: EdgeCapEnd; cap: ArrowCap | null }[] = [
             { end: "arrowHead", cap: this.arrowCap },
+            ...this.headStack.map(({ cap }) => ({ end: "arrowHead" as const, cap })),
             { end: "arrowTail", cap: this.arrowTailCap },
+            ...this.tailStack.map(({ cap }) => ({ end: "arrowTail" as const, cap })),
             { end: "arrowMiddleHead", cap: this.arrowMiddleHeadCap },
             { end: "arrowMiddleTail", cap: this.arrowMiddleTailCap },
         ];
@@ -829,6 +840,22 @@ export class Edge {
                 ? []
                 : [{ end, name: cap.name, span: cap.span, visibility: cap.visibility }],
         );
+    }
+
+    /**
+     * The caps drawn in a row behind this edge's head (`arrowHead.stack`), nearest the head first.
+     * @returns The caps, each a slot in its appearance's batch as the head is.
+     */
+    get arrowHeadStackCaps(): readonly ArrowCap[] {
+        return this.headStack.map(({ cap }) => cap);
+    }
+
+    /**
+     * The caps drawn in a row behind this edge's tail (`arrowTail.stack`), nearest the tail first.
+     * @returns The caps.
+     */
+    get arrowTailStackCaps(): readonly ArrowCap[] {
+        return this.tailStack.map(({ cap }) => cap);
     }
 
     /**
@@ -980,6 +1007,22 @@ export class Edge {
     }
 
     /**
+     * Where the edge's label goes: where the layout put it (Graphviz's `lp`), else the middle of the line.
+     * @param src - the source end
+     * @param dst - the target end
+     * @param bent - whether the line was drawn bent
+     * @param labelAt - the layout's label place, relative to the two ends
+     * @returns the point
+     */
+    private labelPoint(src: Vector3, dst: Vector3, bent: boolean, labelAt: EdgePosition["labelAt"]): Vector3 {
+        if (labelAt !== undefined && !this.lifted) {
+            return Vector3.FromArray(bendPoints(src, dst, labelAt));
+        }
+
+        return (bent || this.bundled) && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
+    }
+
+    /**
      * Updates the edge's visual representation based on current node positions and style changes.
      * Performs dirty checking to skip updates when nodes haven't moved.
      */
@@ -1048,12 +1091,11 @@ export class Edge {
             bent = this.placeLine(src, dst, lnk.bends);
         }
 
-        // Update label position if exists
-        if (this.label) {
-            const midPoint =
-                (bent || this.bundled) && this.lineBatch ? this.curveMiddle(this.lineBatch) : Vector3.Center(src, dst);
-            this.label.attachTo(midPoint, this._labelAttachPosition, this._labelOffset);
-        }
+        this.label?.attachTo(
+            this.labelPoint(src, dst, bent, lnk.labelAt),
+            this._labelAttachPosition,
+            this._labelOffset,
+        );
 
         this.placeArrowCaptions(src, dst);
 
@@ -2251,7 +2293,7 @@ export class Edge {
 
         this.arrowTailCap = null;
 
-        for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap]) {
+        for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap, ...this.stackCaps()]) {
             if (cap && !cap.isDisposed()) {
                 cap.dispose();
             }
@@ -2259,6 +2301,8 @@ export class Edge {
 
         this.arrowMiddleHeadCap = null;
         this.arrowMiddleTailCap = null;
+        this.headStack = [];
+        this.tailStack = [];
 
         this.label?.dispose();
         this.label = null;
@@ -2382,6 +2426,9 @@ export class Edge {
             this.arrowTailCap?.setDrawn(false);
             this.arrowMiddleHeadCap?.setDrawn(false);
             this.arrowMiddleTailCap?.setDrawn(false);
+            for (const cap of this.stackCaps()) {
+                cap.setDrawn(false);
+            }
         }
 
         for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
@@ -2596,6 +2643,7 @@ export class Edge {
                 centralGravity: line?.supportCentralGravity ?? SUPPORT_DEFAULTS.centralGravity,
                 // a unit of 0 has no size: drawn as unset, as the channel refuses it
                 unit: line?.supportUnit || 1,
+                scale: line?.supportScale ?? "unit",
             },
         };
     }
@@ -2767,7 +2815,8 @@ export class Edge {
     }
 
     /**
-     * What decides how far a line runs on under an end cap: the line's width and the cap's size and breadth.
+     * What decides how far a line runs on under an end cap: the line's width, the cap's size and breadth, and the
+     * caps drawn in a row behind it.
      * @param style - The edge's style
      * @param arrow - The end cap's style
      * @returns The values
@@ -2775,8 +2824,8 @@ export class Edge {
     private static capOf(
         style: EdgeStyleConfig,
         arrow: EdgeStyleConfig["arrowHead"],
-    ): { lineWidth?: number; size?: number; breadth?: number } {
-        return { lineWidth: style.line?.width, size: arrow?.size, breadth: arrow?.width };
+    ): { lineWidth?: number; size?: number; breadth?: number; stack?: string } {
+        return { lineWidth: style.line?.width, size: arrow?.size, breadth: arrow?.width, stack: arrow?.stack };
     }
 
     /**
@@ -3391,6 +3440,7 @@ export class Edge {
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
 
         arrowCap.place(arrowPosition, direction);
+        Edge.placeStack(this.headStack, arrowStyle.arrowHead, dstPoint, direction);
     }
 
     /**
@@ -3455,6 +3505,7 @@ export class Edge {
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
 
         arrowCap.place(arrowPosition, direction);
+        Edge.placeStack(this.headStack, style.arrowHead, dstSurfacePoint, direction);
 
         return {
             srcPoint: srcSurfacePoint,
@@ -3511,6 +3562,7 @@ export class Edge {
             const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
             const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
             arrowTailCap.place(EdgeMesh.calculateArrowPosition(tip, toward, tailLength, tailGeometry), toward);
+            Edge.placeStack(this.tailStack, tailStyle.arrowTail, tip, toward);
             return srcPoint;
         }
 
@@ -3530,6 +3582,7 @@ export class Edge {
         const reversedDirection = direction.scale(-1);
 
         arrowTailCap.place(tailPosition, reversedDirection);
+        Edge.placeStack(this.tailStack, tailStyle.arrowTail, srcPoint, tailDirection.scale(-1));
 
         // Adjust line start point to create gap for tail arrow
         return EdgeMesh.calculateLineEndpoint(
@@ -3570,6 +3623,73 @@ export class Edge {
             );
         this.arrowMiddleHeadCap = make(style.arrowMiddleHead, "mid-head");
         this.arrowMiddleTailCap = make(style.arrowMiddleTail, "mid-tail");
+
+        for (const cap of this.stackCaps()) {
+            if (!cap.isDisposed()) {
+                cap.dispose();
+            }
+        }
+        // a row of caps behind an end cap, each part in the end cap's colour and opacity
+        const stack = (
+            arrow: EdgeStyleConfig["arrowHead"],
+            suffix: string,
+        ): { cap: ArrowCap; part: ArrowStackPart }[] =>
+            !arrow?.type || arrow.type === "none" || (arrow.size ?? 1) <= 0
+                ? []
+                : parseArrowStack(arrow.stack).flatMap((part, i) => {
+                      const cap = make(
+                          {
+                              ...arrow,
+                              type: part.type as NonNullable<typeof arrow.type>,
+                              size: part.size ?? arrow.size,
+                              width: part.width,
+                              side: part.side,
+                          },
+                          `${suffix}-${String(i)}`,
+                      );
+                      return cap === null ? [] : [{ cap, part }];
+                  });
+        this.headStack = stack(style.arrowHead, "head-stack");
+        this.tailStack = stack(style.arrowTail, "tail-stack");
+    }
+
+    /**
+     * Every cap drawn in a row behind an end cap, head's then tail's.
+     * @returns The caps.
+     */
+    private stackCaps(): ArrowCap[] {
+        return [...this.headStack, ...this.tailStack].map(({ cap }) => cap);
+    }
+
+    /**
+     * Place the caps drawn in a row behind an end cap: each with its tip where the one before it ends, pointing the
+     * way the end cap points, the first behind the end cap itself.
+     * @param stack - The caps and the parts they draw.
+     * @param arrow - The end cap's style.
+     * @param tip - Where the end cap's tip is.
+     * @param toward - The way the end cap points, a unit vector.
+     */
+    private static placeStack(
+        stack: readonly { cap: ArrowCap; part: ArrowStackPart }[],
+        arrow: EdgeStyleConfig["arrowHead"],
+        tip: Vector3,
+        toward: Vector3,
+    ): void {
+        const size = arrow?.size ?? 1;
+        let back = EdgeMesh.capExtent(arrow?.type ?? "normal", size);
+        for (const { cap, part } of stack) {
+            const partSize = part.size ?? size;
+            const geometry = EdgeMesh.getArrowGeometry(part.type);
+            if (cap.is2D && geometry.scaleFactor !== undefined) {
+                geometry.scaleFactor = 1;
+            }
+            const at = tip.subtract(toward.scale(back));
+            cap.place(
+                EdgeMesh.calculateArrowPosition(at, toward, EdgeMesh.calculateArrowLength() * partSize, geometry),
+                toward,
+            );
+            back += EdgeMesh.capExtent(part.type, partSize);
+        }
     }
 
     /**

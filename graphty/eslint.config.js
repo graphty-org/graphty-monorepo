@@ -178,6 +178,16 @@ export default tseslint.config(
         rules: { "@typescript-eslint/no-restricted-imports": "off" },
     },
 
+    // The dry run (acceptance/) is a Node script that drives the built app in Playwright: its own code
+    // runs in Node, and the functions it hands to page.evaluate run in the page, so it declares both.
+    // As in visual-review, a JSDoc type is the only type annotation a plain .mjs file has.
+    {
+        files: ["acceptance/**/*.mjs"],
+        languageOptions: { globals: { ...globals.node, ...globals.browser } },
+        settings: { jsdoc: { mode: "typescript" } },
+        rules: { "jsdoc/no-types": "off" },
+    },
+
     // A real-element test waits for an open on the workspace's `opened` (openBy in
     // src/test/open.tsx), never by polling the node count, which arrives before the rest of an
     // open (styles, history, focus), so a test that waits on it acts on a half-opened workspace (#3544).

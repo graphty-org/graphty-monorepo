@@ -9,6 +9,7 @@ import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
 import { Reads } from "../../src/views/members.js";
 import {
+    channelTiles,
     lanesTable,
     ownerTable,
     prTime,
@@ -180,5 +181,73 @@ describe("snapshot sections", () => {
             [{ t: "name", v: "promote.yml" }, false],
             [{ t: "name", v: "release-watch.yml" }, true],
         ]);
+    });
+});
+
+describe("release channels", () => {
+    const at = (min: number) => NOW - min * MIN;
+    const seen = (run: number, min: number, more: Partial<Snapshots["release"][string]>) => ({
+        sha: `${run}`.padEnd(40, "0"),
+        at: at(min),
+        tested: true,
+        red: [],
+        ciFailed: false,
+        run,
+        mode: "full",
+        ok: true,
+        conclusion: "success",
+        nightly: "passed",
+        ...more,
+    });
+
+    it("is NO DATA for every channel before anything is collected", async () => {
+        const tiles = await channelTiles(await reads({}));
+        expect(tiles.map((t) => [t.id, t.state, t.sha, t.at, t.attempts.length])).toEqual([
+            ["canary", "nodata", null, null, 0],
+            ["nightly", "nodata", null, null, 0],
+            ["production", "nodata", null, null, 0],
+        ]);
+    });
+
+    it("draws each channel's attempts oldest first, its state from the newest and what it serves", async () => {
+        const r = await reads({
+            channels: {
+                canary: [
+                    { at: at(10), outcome: "bad", sha: "c2".padEnd(40, "0"), run: 12 },
+                    { at: at(40), outcome: "ok", sha: "c1".padEnd(40, "0"), run: 11 },
+                ],
+                promotions: {
+                    "21.1": { at: at(3000), outcome: "ok", run: 21 },
+                    "22.1": null,
+                    "23.1": { at: at(60), outcome: "cancelled", run: 23 },
+                },
+                refs: { production: "p".padEnd(40, "0") },
+            },
+            release: {
+                "1.1": seen(1, 900, {}),
+                "2.1": seen(2, 500, { ok: false, conclusion: "failure", nightly: "skipped", red: ["t4"] }),
+                "3.1": seen(3, 100, { nightly: "skipped" }),
+                // not nightly attempts: a shadow run, a skip with nothing new, one read before nightly was kept
+                "4.1": seen(4, 50, { mode: "shadow" }),
+                "5.1": seen(5, 40, { tested: false, nightly: "skipped" }),
+                "6.1": seen(6, 30, { nightly: undefined }),
+            },
+        });
+        const [canary, nightly, production] = await channelTiles(r);
+        expect(canary).toMatchObject({ state: "bad", sha: "c1".padEnd(40, "0"), at: new Date(at(40)).toISOString() });
+        expect(canary.attempts.map((a) => [a.run, a.outcome])).toEqual([
+            [11, "ok"],
+            [12, "bad"],
+        ]);
+        // no channel/nightly ref collected: the newest promoted attempt's commit
+        expect(nightly).toMatchObject({ state: "warn", sha: "1".padEnd(40, "0") });
+        expect(nightly.attempts.map((a) => [a.run, a.outcome])).toEqual([
+            [1, "ok"],
+            [2, "bad"],
+            [3, "held"],
+        ]);
+        // a cancelled newest attempt does not set the state; the ref says what production serves
+        expect(production).toMatchObject({ state: "ok", sha: "p".padEnd(40, "0"), link: "/releases" });
+        expect(production.attempts.map((a) => a.outcome)).toEqual(["ok", "cancelled"]);
     });
 });

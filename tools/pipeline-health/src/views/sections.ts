@@ -21,8 +21,10 @@ import rates from "../../config/rates.json" with { type: "json" };
 import type { StressCursorRun } from "../collector/parse.js";
 import { quantile } from "../model/histogram.js";
 import { type Agg, type Bucket, DAY, floorTo, HOUR, type LoadKind, MIN, STEP_MS } from "../model/items.js";
+import { fileRunKey, hotspotFamily } from "../model/metrics.js";
 import { getCursor } from "../model/raw.js";
 import { aggQuantile, emptyAgg, mergeAgg } from "../model/rollup.js";
+import { readSnapshot } from "../model/snapshots.js";
 import { type MemberStatus, PROJECTION_DAYS, projectMonth } from "../sla/engine.js";
 import {
     type HoldersSnapshot,
@@ -96,38 +98,63 @@ export function redSpans(strip: StripSection | undefined, now: number): Section 
     return { kind: "table", id: "red-spans", rows };
 }
 
+/** Each jobs chart's bucket and length: 1 h and 6 h draw the last 6 hours, 7 d is the runner history. */
+const JOB_STEPS: Record<Range | "7d", { step: "15m" | "1h"; count: number }> = {
+    "1h": { step: "15m", count: 24 },
+    "6h": { step: "15m", count: 24 },
+    "24h": { step: "1h", count: 24 },
+    // 15-minute buckets are the finest kept for 7 days (KEEP_MS).
+    "7d": { step: "15m", count: 7 * 96 },
+};
+
 /**
- * Running and queued jobs (collector stocks `ci.jobs_running`, `ci.jobs_queued`), gaps carried forward.
+ * Running and queued jobs (collector stocks `ci.jobs_running`, `ci.jobs_queued`), gaps carried forward, and per
+ * bucket the peaks, the longest queued job and the saturated time (null where the collector wrote nothing).
  * @param reads
  * @param range
  */
-export async function jobs(reads: Reads, range: Range): Promise<Section> {
-    const w = range === "24h" ? "24h" : "6h";
-    const [run, q] = await Promise.all([reads.window("ci.jobs_running", w), reads.window("ci.jobs_queued", w)]);
-    const first = run.series.findIndex((s) => s.bucket.lastAt !== undefined);
+export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> {
+    const { step, count } = JOB_STEPS[range];
+    const to = floorTo(reads.now, step);
+    const from = to - (count - 1) * STEP_MS[step];
+    const [run, q, lq, sat] = await Promise.all(
+        ["ci.jobs_running", "ci.jobs_queued", "ci.longest_queued_ms", "ci.saturated_ms"].map((m) =>
+            reads.series(m, step, from, to),
+        ),
+    );
+    const starts = Array.from({ length: count }, (_, i) => from + i * STEP_MS[step]);
+    const first = starts.findIndex((s) => run.get(s)?.lastAt !== undefined);
     if (first < 0) {
         return notCollected("jobs");
     }
-    const carry = (series: typeof run.series) => {
+    const shown = starts.slice(first);
+    const carry = (series: Map<number, Bucket>) => {
         let prev = 0;
-        return series.slice(first).map((s) => (prev = s.bucket.last ?? prev));
+        return shown.map((s) => (prev = series.get(s)?.last ?? prev));
     };
-    const running = carry(run.series);
-    const queued = carry(q.series);
-    let peak = { n: -1, at: iso(run.series[first].start) };
-    run.series.slice(first).forEach((s) => {
-        const n = s.bucket.max ?? -1;
+    const per = (series: Map<number, Bucket>, v: (b: Bucket) => number | undefined) =>
+        shown.map((s) => {
+            const b = series.get(s);
+            return b?.n ? (v(b) ?? null) : null;
+        });
+    let peak = { n: -1, at: iso(shown[0]) };
+    for (const s of shown) {
+        const n = run.get(s)?.max ?? -1;
         if (n > peak.n) {
-            peak = { n, at: iso(s.start) };
+            peak = { n, at: iso(s) };
         }
-    });
+    }
     const out: JobsSection = {
         kind: "jobs",
         id: "jobs",
-        step: range === "24h" ? "1h" : "15m",
-        start: iso(run.series[first].start),
-        running,
-        queued,
+        step,
+        start: iso(shown[0]),
+        running: carry(run),
+        queued: carry(q),
+        runningMax: per(run, (b) => b.max),
+        queuedMax: per(q, (b) => b.max),
+        longestQueuedMs: per(lq, (b) => b.max),
+        saturatedMs: per(sat, (b) => b.sum),
         limit: reads.cfg.runnerLimits.linux_windows ?? 60,
         peak: { n: Math.max(0, peak.n), at: peak.at },
     };
@@ -209,39 +236,56 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
 
 /**
  * Flake hotspots (section 5): family, file, test, ranked by distinct flaky tests, from CI's flaky detections
- * (tools/test-quarantine.mjs through /v1/failures, and a passing retry's lookback). Quarantine and held pull
- * requests have no writer yet, so they are null.
+ * (tools/test-quarantine.mjs through /v1/failures, and a passing retry's lookback). The rate per 1,000 runs is
+ * flaky events over runs at that level: a family's over the test files its shard runs ran, a file's over its own
+ * runs, a test's over its file's runs (a test runs whenever its file does). Quarantined counts the quarantine
+ * in force (the results store's entries); held pull requests have no writer yet, so they are null.
  * @param reads
  * @param range
  */
 export async function hotspots(reads: Reads, range: SlowRange): Promise<Section> {
     const days = daysOf(range);
-    const [tests, rate] = await Promise.all([
+    const [tests, rateDims, fileRuns, quarantine] = await Promise.all([
         dimsOver(reads, "flaky.tests", days),
         dimsOver(reads, "flaky.rate", days),
+        dimsOver(reads, "flaky.file_runs", days),
+        readSnapshot(reads.store, "quarantine"),
     ]);
+    // Shard runs are stored by variant (`graphty|flags=off|selected`), flaky tests by family (`graphty`).
+    const rate = new Map<string, Agg>();
+    for (const [variant, a] of rateDims) {
+        const into = rate.get(hotspotFamily(variant)) ?? emptyAgg();
+        rate.set(hotspotFamily(variant), into);
+        mergeAgg(into, a);
+    }
     const fams = new Map<string, Map<string, Map<string, number>>>();
     for (const [key, a] of tests) {
-        const [family, file, test] = JSON.parse(key) as [string, string, string];
+        const [raw, file, test] = JSON.parse(key) as [string, string, string];
+        const family = hotspotFamily(raw);
         const files = fams.get(family) ?? new Map<string, Map<string, number>>();
         fams.set(family, files);
         const ts = files.get(file) ?? new Map<string, number>();
         files.set(file, ts);
         ts.set(test, (ts.get(test) ?? 0) + a.sum);
     }
+    const per1000 = (events: number, runs: number | undefined) => (runs ? round((events / runs) * 1000) : null);
+    const quarantined = (file: string, test?: string) =>
+        quarantine ? quarantine.filter((q) => q.file === file && (test === undefined || q.name === test)).length : null;
+    const sum = (ns: (number | null)[]) => (quarantine ? ns.reduce<number>((s, n) => s + (n ?? 0), 0) : null);
     const node = (
         level: TreeNode["level"],
         name: string,
         distinct: number,
         events: number,
-        per1000: number | null,
+        rateOf: number | null,
+        q: number | null,
     ) => ({
         level,
         name,
         distinct,
         events,
-        per1000,
-        quarantined: null,
+        per1000: rateOf,
+        quarantined: q,
         prsHeld: null,
     });
     const byDistinct = (a: TreeNode, b: TreeNode) => b.distinct - a.distinct || b.events - a.events;
@@ -249,21 +293,31 @@ export async function hotspots(reads: Reads, range: SlowRange): Promise<Section>
     for (const [family, files] of fams) {
         const fileNodes: TreeNode[] = [];
         for (const [file, ts] of files) {
+            const runs = fileRuns.get(fileRunKey(family, file))?.n;
             const children: TreeNode[] = [...ts].map(([test, n]) => ({
-                ...node("test", test, 1, n, null),
+                ...node("test", test, 1, n, per1000(n, runs), quarantined(file, test)),
                 link: `/flaky/test?${new URLSearchParams({ file, test }).toString()}`,
             }));
             const events = children.reduce((s, c) => s + c.events, 0);
             fileNodes.push({
-                ...node("file", file, children.length, events, null),
+                ...node("file", file, children.length, events, per1000(events, runs), quarantined(file)),
                 children: children.toSorted(byDistinct),
             });
         }
-        const r = rate.get(family);
         const events = fileNodes.reduce((s, c) => s + c.events, 0);
         const distinct = fileNodes.reduce((s, c) => s + c.distinct, 0);
-        const per1000 = r && r.n > 0 ? round((r.sum / r.n) * 1000) : null;
-        nodes.push({ ...node("family", family, distinct, events, per1000), children: fileNodes.toSorted(byDistinct) });
+        const r = rate.get(family);
+        nodes.push({
+            ...node(
+                "family",
+                family,
+                distinct,
+                events,
+                r && r.n > 0 ? per1000(r.sum, r.n) : null,
+                sum(fileNodes.map((f) => f.quarantined)),
+            ),
+            children: fileNodes.toSorted(byDistinct),
+        });
     }
     const quiet = [...rate.keys()].filter((fam) => !fams.has(fam)).length;
     return { kind: "tree", id: "hotspots", range, nodes: nodes.toSorted(byDistinct), quiet };

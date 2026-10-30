@@ -47,6 +47,18 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     readonly weight?: boolean | string | null | undefined;
     /** Accepted for compatibility with Gephi's options and not used yet. */
     readonly dissuadeHubs?: boolean | undefined;
+    /**
+     * Approximate the repulsion with a Barnes-Hut tree, as Gephi does: a group of nodes far enough away repels as one
+     * body at its centre of mass. Each iteration then costs O(n log n) instead of O(n^2), so graphs of thousands of
+     * nodes settle in a fraction of the time, with a slightly different drawing. The CPU simulation reads it; a
+     * GPU simulation computes every pair. Default false.
+     */
+    readonly barnesHutOptimize?: boolean | undefined;
+    /**
+     * The Barnes-Hut opening angle: a group repels as one body when its width over its distance is below it. Lower
+     * is closer to every pair and slower; Gephi uses 1.2 too. Read only with `barnesHutOptimize`. Default 1.2.
+     */
+    readonly barnesHutTheta?: number | undefined;
 }
 
 /** Design 9.3 FruchtermanReingoldOptions. */

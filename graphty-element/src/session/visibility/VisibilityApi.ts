@@ -177,7 +177,9 @@ export interface VisibilityChange extends FilterResult {
 
 /**
  * How many elements of one kind a filter condition's rule matches, out of all of them.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export interface FilterConditionMatches {
     /** How many the rule matches over the whole graph. */
@@ -190,7 +192,9 @@ export interface FilterConditionMatches {
  * What one filter condition's rule matches, as written, over the whole graph: the same whatever
  * its effect, whether it is on, and whatever the other conditions are, so a condition that is off
  * still says what switching it on would match.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export interface FilterConditionCount {
     /** The condition's id. */
@@ -343,11 +347,16 @@ export interface VisibilityApi {
      * How the conditions sit with the rest: what is visible is {@link VisibilityApi.filter} AND
      * the time window AND every keep condition that is on AND no exclude condition that is on.
      * Select conditions hide nothing: whenever the select conditions change (one is added,
-     * edited, switched on or off, or removed), the selection becomes what every select condition
-     * that is on matches, over the whole graph, replacing a selection the reader made; with none
-     * on, nothing is selected. Opening a project never applies them; undo puts the selection
-     * back.
+     * edited, switched on or off, or removed), or a keep or exclude condition changes while a
+     * select condition is on, the selection becomes what every select condition that is on
+     * matches among the elements that are visible, replacing a selection the reader made; with
+     * none on, nothing is selected. The result depends only on the set of conditions, never on
+     * their order. A selection change the reader makes by hand (a `"user"` cause) switches every
+     * select condition that is on off, in one undoable step, and keeps the reader's selection.
+     * Opening a project never applies them; undo puts the selection back.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     readonly conditions: readonly FilterCondition[];
     /**
@@ -358,7 +367,9 @@ export interface VisibilityApi {
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when a condition is malformed or two share an id,
      *     or one whose rule needs something this session lacks.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     setConditions(conditions: readonly FilterConditionInput[], options?: RunOptions): Run<FilterResult>;
     /**
@@ -373,7 +384,9 @@ export interface VisibilityApi {
      * @param options - A signal to cancel with, and a progress handler.
      * @returns The run, which resolves with the counts and the condition's id.
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when it is malformed or its id is taken.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     addCondition(condition: FilterConditionInput, options?: RunOptions): Run<FilterResult & { readonly id: string }>;
     /**
@@ -384,7 +397,9 @@ export interface VisibilityApi {
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when no condition has that id, or the change is
      *     malformed.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     updateCondition(id: string, change: Partial<Omit<FilterCondition, "id">>, options?: RunOptions): Run<FilterResult>;
     /**
@@ -393,7 +408,9 @@ export interface VisibilityApi {
      * @param options - A signal to cancel with, and a progress handler.
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when no condition has that id.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     /**
@@ -401,7 +418,9 @@ export interface VisibilityApi {
      * Synchronous and kept per condition, so editing one condition counts that one again and no
      * other. Read again on `visibility:changed` or `history:changed`.
      * @returns The counts.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     conditionCounts(): readonly FilterConditionCount[];
     /**
@@ -585,6 +604,11 @@ export interface ConditionSelection {
         ids: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] },
         cause: "command" | "history",
     ): void;
+    /**
+     * Be told after the reader changes the selection by hand (a `"user"` cause).
+     * @param listener - Called after each such change.
+     */
+    onHandChange?(listener: () => void): void;
 }
 
 /** What the filter follows its sets through: the session's change notifier and cache. */
@@ -1469,20 +1493,24 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return { nodes: [], edges: [] };
         }
 
+        // Only what is in the picture: a filter step drops from the selection the ids it leaves
+        // out (design/ui/framework/interaction-patterns.md, "When selected elements leave").
         const active = upToDate();
         const compiled = compiledOver(active, rule);
         const nodes: NodeId[] = [];
         const edges: EdgeId[] = [];
         const { node, edge } = compiled;
         for (let at = 0; node !== null && at < active.graph.nodeCount; at++) {
-            if (node(at)) {
-                nodes.push(active.nodeSpace.idOf(at));
+            const id = active.nodeSpace.idOf(at);
+            if (node(at) && nodeMaskValue.has(nodeMaskValue.indexOf(id))) {
+                nodes.push(id);
             }
         }
 
         for (let at = 0; edge !== null && at < active.graph.edgeCount; at++) {
-            if (edge(at)) {
-                edges.push(active.edgeSpace.idOf(at));
+            const id = active.edgeSpace.idOf(at);
+            if (edge(at) && edgeMaskValue.has(edgeMaskValue.indexOf(id))) {
+                edges.push(id);
             }
         }
 
@@ -1490,11 +1518,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * What the select conditions that are on say, by value: equal keys select the same.
+     * What the select conditions that are on say, and while one is on what the keep and exclude
+     * conditions leave in the picture, by value: equal keys select the same.
      * @param conditions - The conditions.
      * @returns The key.
      */
-    const selectKey = (conditions: readonly FilterCondition[]): string => JSON.stringify(selectRule(conditions));
+    const selectKey = (conditions: readonly FilterCondition[]): string => {
+        const rule = selectRule(conditions);
+        const picture = rule === null ? [] : stepsOf(conditions).filter((step) => step.on);
+        return JSON.stringify(rule === null ? null : [rule, picture.map((step) => step.rule)]);
+    };
 
     /** The selection before each select change, by the conditions list it produced: what undo puts back. */
     const selectionBefore = new WeakMap<
@@ -1549,23 +1582,45 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * Record a conditions list: one step; when its select conditions differ from the ones in
-     * force, the selection becomes what they match, and the selection it replaced is kept for
-     * undo.
+     * What an edit to the conditions does to the selection once it is recorded: when what the
+     * select conditions would select changes, the selection becomes what they match, and the
+     * selection it replaced is kept for undo.
+     * @param conditions - The conditions the edit records.
+     * @param follow - Whether the selection follows the change; false keeps the reader's.
+     * @returns What to run after the edit is recorded.
+     */
+    const followSelection = (conditions: readonly FilterCondition[], follow = true): (() => void) => {
+        const { selection } = sources;
+        if (!follow || selection === undefined || selectKey(conditionsNow()) === selectKey(conditions)) {
+            return () => undefined;
+        }
+
+        const before = selection.current();
+        const base = conditionsNow();
+        return () => {
+            const recorded = conditionsNow();
+            selectionBefore.set(recorded, before);
+            selectionWhile.set(base, before);
+            selectFollowed = recorded;
+            selection.replace(selectedBy(recorded), "command");
+        };
+    };
+
+    /**
+     * Record a conditions list: one step, which the selection follows ({@link followSelection}).
      * @param conditions - The admitted conditions.
      * @param options - A signal, and a progress handler.
      * @param extra - What else the run resolves with.
+     * @param follow - Whether the selection follows the change; false keeps the reader's.
      * @returns The run.
      */
     const editConditions = <TExtra extends object = object>(
         conditions: readonly FilterCondition[],
         options: RunOptions,
         extra?: TExtra,
+        follow = true,
     ): Run<FilterResult & TExtra> => {
-        const { selection } = sources;
-        const selects = selection !== undefined && selectKey(conditionsNow()) !== selectKey(conditions);
-        const before = selects ? selection.current() : null;
-        const base = conditionsNow();
+        const after = followSelection(conditions, follow);
         editedBy = "conditions";
 
         return edit(
@@ -1573,22 +1628,25 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             combinedRule(dispatcher.state.visibility.filter, conditions),
             dispatcher.state.visibility.window,
             options,
-            {
-                ...(extra === undefined ? {} : { extra }),
-                after: () => {
-                    if (before === null || selection === undefined) {
-                        return;
-                    }
-
-                    const recorded = conditionsNow();
-                    selectionBefore.set(recorded, before);
-                    selectionWhile.set(base, before);
-                    selectFollowed = recorded;
-                    selection.replace(selectedBy(recorded), "command");
-                },
-            },
+            { ...(extra === undefined ? {} : { extra }), after },
         );
     };
+
+    // A selection the reader changes by hand switches the select conditions off, so a card never
+    // claims a selection that is gone (interaction-patterns.md: what is ringed and what is
+    // described never differ). The reader's selection stays; undo switches them back on.
+    sources.selection?.onHandChange?.(() => {
+        const now = conditionsNow();
+        if (!now.some((each) => each.on && each.effect === "select")) {
+            return;
+        }
+
+        const off = now.map((each) =>
+            each.on && each.effect === "select" ? Object.freeze({ ...each, on: false }) : each,
+        );
+        // A refused edit leaves the conditions as they were; nothing waits on this run.
+        editConditions(Object.freeze(off), {}, undefined, false).then(undefined, () => undefined);
+    });
 
     /** The counts kept for one graph and one set of run results, by rule. */
     let countBucket: {
@@ -1930,13 +1988,16 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         setSteps(steps: readonly FilterStep[], options: RunOptions = {}): Run<FilterResult> {
             const admitted = admitSteps(steps);
+            const conditions = conditionsOfSteps(admitted, conditionsNow());
+            const after = followSelection(conditions);
             editedBy = "steps";
 
             return edit(
                 { op: "visibility.steps", steps: admitted },
-                combinedRule(dispatcher.state.visibility.filter, conditionsOfSteps(admitted, conditionsNow())),
+                combinedRule(dispatcher.state.visibility.filter, conditions),
                 dispatcher.state.visibility.window,
                 options,
+                { after },
             );
         },
 

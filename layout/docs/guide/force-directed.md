@@ -31,7 +31,9 @@ console.log(result.n); // 200
 Other options: `strongGravity` (gravity that grows with the distance from the center), `distributedAction` (divide a
 node's attraction by its mass, so hubs move less), `jitterTolerance` (higher is faster and less precise), `nodeMass` (a
 mass per node, or the name of a node column; default the node's degree plus one), and `weight` (`true` for the
-snapshot's edge weights, or the name of a numeric edge column).
+snapshot's edge weights, or the name of a numeric edge column). On a graph of thousands of nodes, `barnesHutOptimize: true`
+approximates the repulsion with a Barnes-Hut tree, as Gephi does, so each iteration costs O(n log n) instead of
+O(n^2); `barnesHutTheta` (default 1.2) trades accuracy for speed.
 
 ## Fruchterman-Reingold
 

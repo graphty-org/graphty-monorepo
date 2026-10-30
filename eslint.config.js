@@ -80,8 +80,9 @@ export default tseslint.config(
             "jsdoc/check-tag-names": [
                 "error",
                 {
-                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them
-                    definedTags: ["since", "internal", "remarks", "category", "defaultValue"],
+                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them;
+                    // beta marks an API that may change or be removed in a minor release (api-extractor prints `// @beta`)
+                    definedTags: ["since", "internal", "remarks", "category", "defaultValue", "beta"],
                 },
             ],
             "jsdoc/require-jsdoc": [

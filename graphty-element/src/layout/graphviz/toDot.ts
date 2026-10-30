@@ -38,7 +38,21 @@ export interface DotStructure {
      * run that routes the edges between placed nodes and moves none of them (`neato -n2`). NaN for a row left free.
      */
     readonly positions?: ArrayLike<number>;
+    /**
+     * Whether each row with `nodeAttributes` is sized by Graphviz to fit its label (its own label, font, shape and least
+     * size, Graphviz's defaults where it has none), as Graphviz lays out a DOT file, instead of at its drawn size. A row
+     * without attributes keeps its drawn size.
+     */
+    readonly labelSized?: boolean;
 }
+
+/** Graphviz's own defaults for a node it sizes to its label: an ellipse at least 0.75 by 0.5 inch, grown to fit. */
+const LABEL_SIZED_DEFAULTS: Readonly<Record<string, string>> = {
+    shape: "ellipse",
+    fixedsize: "false",
+    width: "0.75",
+    height: "0.5",
+};
 
 /**
  * patchwork's cell area per square inch of node width. patchwork ignores `width` and gives each
@@ -59,6 +73,56 @@ function quote(value: string): string {
         .replaceAll('"', String.raw`\"`)
         .replaceAll(/\r?\n/g, String.raw`\n`);
     return `"${escaped}"`;
+}
+
+/**
+ * Whether a label is an HTML-like label, as Graphviz's lexer reads one: its first `<` closes exactly at its last
+ * character, with the angle brackets between balanced. A quoted record label (`<f0>|<f1>`) or a stray bracket
+ * (`<x < y>`) is not one. graph-io stores a quoted label and an HTML one alike, so this is the only test there is.
+ * @param label - the label
+ * @returns true for an HTML-like label
+ */
+export function isHtmlLabel(label: string): boolean {
+    if (label.length < 2 || !label.startsWith("<") || !label.endsWith(">")) {
+        return false;
+    }
+    let depth = 0;
+    for (let i = 0; i < label.length; i++) {
+        if (label[i] === "<") {
+            depth++;
+        } else if (label[i] === ">" && --depth === 0 && i !== label.length - 1) {
+            return false;
+        }
+    }
+
+    return depth === 0;
+}
+
+/**
+ * A label as Graphviz reads it: an HTML-like label (`<...>`) as it is, any other quoted with its escapes (`\n`,
+ * `\l`) kept, so Graphviz lays it out in lines as the file wrote it.
+ * @param label - the label as the file gave it (graph-io keeps a quoted label's backslashes as written)
+ * @returns the DOT value
+ */
+function labelValue(label: string): string {
+    if (isHtmlLabel(label)) {
+        return label;
+    }
+
+    let out = "";
+    let run = 0;
+    for (const c of label) {
+        // a quote after an even run of backslashes (none included) would end the string; after an odd run it is
+        // escaped already
+        if (c === '"' && run % 2 === 0) {
+            out += "\\";
+        }
+        out += c;
+        run = c === "\\" ? run + 1 : 0;
+    }
+
+    // a trailing lone backslash would escape the closing quote
+    return `"${out}${run % 2 === 1 ? "\\" : ""}"`;
 }
 
 /**
@@ -114,11 +178,37 @@ function nodeLine(
  */
 function nodeExtras(row: number, structure: DotStructure): string {
     const own = Object.entries(structure.nodeAttributes?.get(row) ?? {}).filter(([name]) => isPlainName(name));
+    if (structure.labelSized === true && own.length > 0) {
+        const all = Object.entries({ ...LABEL_SIZED_DEFAULTS, ...Object.fromEntries(own) });
+        return all.map(([name, value]) => `${name}=${name === "label" ? labelValue(value) : quote(value)}`).join(", ");
+    }
     const x = structure.positions?.[2 * row];
     const y = structure.positions?.[2 * row + 1];
     const pinned = x !== undefined && y !== undefined && Number.isFinite(x) && Number.isFinite(y);
     const all = pinned ? [...own, ["pos", `${x},${y}!`]] : own;
     return all.map(([name, value]) => `, ${name}=${quote(value)}`).join("");
+}
+
+/**
+ * One node's statement, without its closing `];`: sized by Graphviz to its label, or at its drawn size.
+ * @param row - the node's row
+ * @param sizes - the drawn size of each node
+ * @param extents - the drawn width and height of each node
+ * @param cellAreas - also give the node a patchwork `area`
+ * @param structure - the node attributes and positions
+ * @returns the statement
+ */
+function nodeStatement(
+    row: number,
+    sizes: ArrayLike<number> | undefined,
+    extents: ArrayLike<number> | undefined,
+    cellAreas: boolean,
+    structure: DotStructure,
+): string {
+    const extras = nodeExtras(row, structure);
+    return structure.labelSized === true && structure.nodeAttributes?.has(row) === true
+        ? `n${row} [${extras}`
+        : `${nodeLine(row, sizes, extents, cellAreas)}${extras}`;
 }
 
 /**
@@ -159,7 +249,7 @@ export function toDot(
     lines.push('node [shape=circle, fixedsize=true, label=""];');
     for (let row = 0; row < stored.nodeCount; row++) {
         if (!skip(row)) {
-            lines.push(`${nodeLine(row, sizes, extents, cellAreas)}${nodeExtras(row, structure)}];`);
+            lines.push(`${nodeStatement(row, sizes, extents, cellAreas, structure)}];`);
         }
     }
 

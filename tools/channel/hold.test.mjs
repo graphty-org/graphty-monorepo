@@ -57,6 +57,11 @@ async function withStore(cmd, hold, env, postStatus = 200) {
         req.on("data", (d) => (body += d));
         req.on("end", () => {
             if (req.method === "POST") posts.push({ url: req.url, body: JSON.parse(body) });
+            // the store's one hold row, as POST /v1/hold leaves it
+            if (req.method === "POST" && req.url === "/v1/hold" && postStatus === 200) {
+                const b = JSON.parse(body);
+                hold = b.clear ? null : { base: b.base, head: b.head, issue: b.issue };
+            }
             res.setHeader("content-type", "application/json");
             if (req.method === "POST") res.statusCode = postStatus;
             res.end(JSON.stringify(req.method === "POST" ? { ok: true } : { hold, recent: [] }));
@@ -179,6 +184,45 @@ describe("end", () => {
             r.posts.map((p) => p.url),
             ["/v1/hold"],
         );
+    });
+});
+
+// 2026-10-29/30 (#5052): a4c81c3 was held red only by workflow skew (#4522); the green-images runs on e87f65b and
+// 6ee5bc7 behind it could not hold, so nightly sat for 18 hours with nothing to review
+describe("replace", () => {
+    const A = "a4c81c3".padEnd(40, "0");
+    const E = "e87f65b".padEnd(40, "0");
+    const red = { base: A, head: A, issue: 4513 };
+    it("ends the red hold and holds the newer green-images commit in its place, for the owner's review", async () => {
+        const r = await withStore("replace", red, { SHA: E, STATE: "green-images", WHAT: "3 differ", HELD: A });
+        assert.equal(r.code, 0);
+        assert.deepEqual(r.posts, [
+            { url: "/v1/hold", body: { clear: true, base: A, head: A } },
+            { url: "/v1/hold", body: { base: E, head: E, issue: null } },
+            { url: "/v1/hold", body: { base: E, head: E, issue: 31 } },
+        ]);
+        assert.match(
+            r.calls,
+            /^issue close 4513 --comment Hold on a4c81c3\S* ended: replaced by the newer green-images/m,
+        );
+        assert.match(r.calls, /issue create --title Nightly held on e87f65b00000/);
+        assert.match(r.stdout, /^replaced=a4c81c3/m);
+        assert.match(r.stdout, /^action=start$/m, "so keep_builds and candidate_branch follow");
+    });
+    it("ends the red hold and leaves nothing held for a newer green-clean commit, which then promotes", async () => {
+        const r = await withStore("replace", red, { SHA: E, STATE: "green-clean", WHAT: "", HELD: A });
+        assert.equal(r.code, 0);
+        assert.deepEqual(r.posts, [{ url: "/v1/hold", body: { clear: true, base: A, head: A } }]);
+        assert.doesNotMatch(r.calls, /issue create/);
+        assert.match(r.stdout, /^action=replace$/m);
+    });
+    it("replaces nothing when the hold moved since the verdict read it", async () => {
+        const moved = { ...red, head: "f".repeat(40) };
+        const r = await withStore("replace", moved, { SHA: E, STATE: "green-images", WHAT: "", HELD: A });
+        assert.equal(r.code, 0);
+        assert.deepEqual(r.posts, []);
+        assert.equal(r.calls, "");
+        assert.match(r.stdout, /^action=none$/m);
     });
 });
 

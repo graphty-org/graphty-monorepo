@@ -178,6 +178,36 @@ const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
 };
 
+/**
+ * A real mouse drag: press at a point measured from the top-right corner of the first element
+ * matching `selector` (where a vertical scrollbar sits), move `dy` pixels down in steps, release.
+ * @param ctx - the browser command context
+ * @param selector - CSS selector of the element, inside the test frame
+ * @param fromRight - pixels in from the element's right edge
+ * @param fromTop - pixels down from the element's top edge
+ * @param dy - vertical distance to drag, in pixels (0 for a press and release)
+ */
+const mouseDragAt: BrowserCommand<[selector: string, fromRight: number, fromTop: number, dy: number]> = async (
+    ctx,
+    selector,
+    fromRight,
+    fromTop,
+    dy,
+) => {
+    const box = await (await ctx.frame()).locator(selector).first().boundingBox();
+    if (!box) {
+        throw new Error(`${selector} is not on screen`);
+    }
+    const x = box.x + box.width - fromRight;
+    const y = box.y + fromTop;
+    await ctx.page.mouse.move(x, y);
+    await ctx.page.mouse.down();
+    if (dy !== 0) {
+        await ctx.page.mouse.move(x, y + dy, { steps: 8 });
+    }
+    await ctx.page.mouse.up();
+};
+
 /** One node of Chromium's accessibility tree, reduced to what a screen reader announces. */
 interface AxNode {
     /** The computed role. */
@@ -278,6 +308,7 @@ const browserCommands = {
     mouseAway,
     mouseDown,
     mouseUp,
+    mouseDragAt,
     touchDrag,
     touchTap,
     emulateReducedMotion,
@@ -327,7 +358,7 @@ const config = defineConfig({
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.browser.test.{ts,tsx}"],
-                    exclude: ["**/node_modules/**", "**/dist/**"],
+                    exclude: ["**/node_modules/**", "**/dist/**", "tests/**/*.scrollbars.browser.test.{ts,tsx}"],
                     // Disable file parallelism to prevent race conditions
                     fileParallelism: false,
                     browser: {
@@ -337,6 +368,44 @@ const config = defineConfig({
                         instances: [{ browser: "chromium" }],
                         // Disable file parallelism to prevent race conditions
                         fileParallelism: false,
+                        commands: browserCommands,
+                    },
+                },
+            },
+            // Touch project - the files named *.touch.browser.test.tsx again, on a touch screen. Its own
+            // browser context, because touch emulation leaves `(hover: none)` on for the rest of a run.
+            {
+                optimizeDeps: browserOptimizeDeps,
+                test: {
+                    name: "touch",
+                    globals: true,
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
+                    include: ["tests/**/*.touch.browser.test.{ts,tsx}"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: playwright({ contextOptions: { hasTouch: true } }),
+                        instances: [{ browser: "chromium" }],
+                        commands: browserCommands,
+                    },
+                },
+            },
+            // Scrollbars project - the files named *.scrollbars.browser.test.tsx, with the native
+            // scrollbars drawn and pressable, which headless Chromium hides (--hide-scrollbars).
+            {
+                optimizeDeps: browserOptimizeDeps,
+                test: {
+                    name: "scrollbars",
+                    globals: true,
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
+                    include: ["tests/**/*.scrollbars.browser.test.{ts,tsx}"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: playwright({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } }),
+                        instances: [{ browser: "chromium" }],
                         commands: browserCommands,
                     },
                 },

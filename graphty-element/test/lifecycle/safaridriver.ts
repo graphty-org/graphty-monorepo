@@ -6,11 +6,12 @@
  */
 
 import { type ChildProcess, execFile, spawn } from "node:child_process";
+import http from "node:http";
 import net from "node:net";
 import { promisify } from "node:util";
 
 import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
-import { ownChild } from "./processes";
+import { ownChild, processes } from "./processes";
 
 /** A WebDriver session in Safari. */
 export interface Safari {
@@ -50,10 +51,53 @@ function freePort(): Promise<number> {
 }
 
 /**
- * Start safaridriver and wait until it answers.
+ * Launch Safari once, wait until it has loaded a page, and quit it, unless Safari is already running.
+ *
+ * safaridriver gives Safari a fixed 30 seconds to launch and connect when a session is created. On a
+ * fresh macOS runner Safari has never run: its first launch does its first-run setup on cold disk
+ * caches, can take longer than that, and POST /session fails with "The session timed out while
+ * connecting to a Safari instance" (#4580). After one launch that got as far as loading a page,
+ * the Safari safaridriver launches is a warm one.
+ */
+async function warmSafari(): Promise<void> {
+    if (processes().some((p) => p.cmdline.includes("Safari.app/Contents/MacOS/Safari"))) {
+        return;
+    }
+
+    let loaded = (): void => undefined;
+    const seen = new Promise<void>((resolve) => (loaded = resolve));
+    const server = http.createServer((_request, response) => {
+        response.end("<!doctype html><title>warm</title>");
+        loaded();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const started = Date.now();
+    // -W: `open` exits when Safari does, which is how its quit is awaited below.
+    const safari = spawn("open", [
+        "-W",
+        "-g",
+        "-a",
+        "Safari",
+        `http://127.0.0.1:${(server.address() as net.AddressInfo).port}/`,
+    ]);
+    const quit = new Promise<void>((resolve) => safari.once("exit", () => resolve()));
+    try {
+        await seen; // a launch that never loads the page is bounded by the workflow step's limit
+    } finally {
+        server.close();
+    }
+
+    console.log(`[safari] first launch loaded a page after ${Date.now() - started} ms`);
+    await promisify(execFile)("killall", ["Safari"]);
+    await quit;
+}
+
+/**
+ * Start safaridriver and wait until it answers, with Safari launched once beforehand (warmSafari).
  * @returns The driver.
  */
 export async function startSafariDriver(): Promise<SafariDriver> {
+    await warmSafari();
     const port = await freePort();
     const driver: ChildProcess = ownChild(spawn("safaridriver", ["--port", String(port)], { stdio: "ignore" }));
     const exited = new Promise<void>((resolve) => driver.once("exit", () => resolve()));

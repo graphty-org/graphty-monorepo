@@ -4,6 +4,8 @@
 // named by the observation, so a new stock or age needs no code here.
 
 // The repository's CI budgets; the deploy builds from a full checkout, so the root file is bundled in.
+import { createHash } from "node:crypto";
+
 import budgets from "../../../../ci-budgets.json" with { type: "json" };
 import { MIN, type RawItem, type RawKind } from "./items.js";
 
@@ -19,7 +21,8 @@ export interface Contribution {
 export interface MetricSource {
     kind: RawKind;
     field: string;
-    fold: (item: never) => Contribution | null;
+    /** One contribution, or several (one per dimension), or none. */
+    fold: (item: never) => Contribution | Contribution[] | null;
 }
 
 export interface MetricDef {
@@ -28,7 +31,11 @@ export interface MetricDef {
 }
 
 type Of<K extends RawKind> = Extract<RawItem, { kind: K }>;
-const src = <K extends RawKind>(kind: K, field: string, fold: (item: Of<K>) => Contribution | null): MetricSource => ({
+const src = <K extends RawKind>(
+    kind: K,
+    field: string,
+    fold: (item: Of<K>) => Contribution | Contribution[] | null,
+): MetricSource => ({
     kind,
     field,
     fold: fold,
@@ -42,13 +49,34 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job`;
+
+/**
+ * A flake hotspot family (design section 5): a shard run's variant `<family>|flags=..|<shape>` and a flaky test's
+ * family (`graphty`, `graphty-storybook-shots`) name the same family once the variant's flags and shape are dropped.
+ * @param family a shard run's or flaky test's family
+ */
+export const hotspotFamily = (family: string): string => family.split("|")[0];
+
+/**
+ * The flaky.file_runs dimension of one test file in one family: a short hash, not the path, so a day's bucket of
+ * every file CI ran (about 3,000) stays near 80 KB, under DynamoDB's 400 KB item limit and cheap to rewrite.
+ * @param family the shard run's or the flaky test's family
+ * @param file the test file, repository-relative
+ */
+export const fileRunKey = (family: string, file: string): string =>
+    createHash("sha256")
+        .update(`${hotspotFamily(family)}\0${file}`)
+        .digest("base64url")
+        .slice(0, 8);
 
 const FINISHED = new Set(["success", "failure", "timed_out", "startup_failure"]);
 const isMaster = (base: string) => base === "master" || base === "main";
 /** A finished job's own verdict: cancelled and skipped jobs say nothing about the job. */
 const JOB_PASS = new Set(["success"]);
 const JOB_FAIL = new Set(["failure", "timed_out", "startup_failure"]);
+/** A test job that ran its tests: cancelled, skipped and startup failures post no shard run. */
+const JOB_POSTS = new Set(["success", "failure", "timed_out"]);
 
 /**
  * A job's name with its bin or shard number folded, as checks are grouped by family (section 4):
@@ -222,6 +250,17 @@ export const METRICS: MetricDef[] = [
             ),
         ],
     },
+    // Flake hotspots (section 5): how often each test file ran, the denominator of a file's and its tests' rate.
+    {
+        id: "flaky.file_runs",
+        from: [
+            src("shard_run", "endedAt", (s) =>
+                s.source === "ci" && s.attempt === 1
+                    ? s.files.map(([file]) => ({ dim: fileRunKey(s.family, file) }))
+                    : null,
+            ),
+        ],
+    },
     // Flake hotspots (section 5): flaky events per distinct test, the dimension a JSON [family, file, test].
     {
         id: "flaky.tests",
@@ -295,12 +334,19 @@ export const METRICS: MetricDef[] = [
         id: "release.trains",
         from: [src("run", "completedAt", (r) => (r.workflow === "release.yml" && r.tested ? { n: 1 } : null))],
     },
-    // 4.7 Data sources: rows of CI results per CI run, for "thin for its activity" (section 9).
+    // 4.7 Data sources: rows of CI results per CI test job, for "thin for its activity" (section 9). Each Test (...)
+    // job (ci.yml, or "CI / Test (...)" in a release.yml or bisect.yml full run) posts one shard run, its invocation
+    // id `<run>.<attempt>.test.<shard>` (tools/results/run-group.mjs baseId()), so a healthy feed reads about 1 and
+    // only lost posts lower it. Counting ci.yml runs instead swung with the hour's master builds, which run no tests.
     {
         id: "source.ci_results_per_run",
         from: [
-            src("shard_run", "endedAt", (s) => (s.source === "ci" ? { n: 0, sum: 1 } : null)),
-            src("run", "completedAt", (r) => (r.workflow === "ci.yml" && r.conclusion !== "skipped" ? { n: 1 } : null)),
+            src("shard_run", "endedAt", (s) =>
+                s.source === "ci" && s.id.split(".")[2] === "test" ? { n: 0, sum: 1 } : null,
+            ),
+            src("job", "completedAt", (j) =>
+                j.family !== undefined && JOB_POSTS.has(j.conclusion ?? "") ? { n: 1 } : null,
+            ),
         ],
     },
     // Local runs page.
@@ -312,6 +358,10 @@ export const METRICS: MetricDef[] = [
         id: "local.shard_time",
         from: [
             src("shard_run", "endedAt", (s) => (s.source === "local" ? { value: s.secs * 1000, dim: s.family } : null)),
+            // Every local test run since the pre-push gate retired: a test slot's hold, by package or shard family.
+            src("local_run", "endedAt", (l) =>
+                l.what === "gate" ? null : { value: l.endedAt - l.startedAt, dim: l.what },
+            ),
         ],
     },
 ];

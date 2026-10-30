@@ -788,6 +788,28 @@ describe("a file's arrowheads", () => {
         session.dispose();
     });
 
+    it("draws each shape of a Graphviz stacked arrowhead behind the first, each in its own proportions", async () => {
+        const session = createGraphSession();
+        const dot = "digraph { a -> b [arrowhead=boxdotnormal]; b -> c [arrowhead=lteeoldiamond]; c -> d }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [bdn, tod, plain] = session.data.edges();
+        const head = drawn(session, { edge: bdn.id }, "edge.arrowHeadSize") as number;
+        assert.strictEqual(drawn(session, { edge: bdn.id }, "edge.arrowHead"), "box");
+        // arrows.c: a box and a dot 0.8 of the arrow's length, a normal the whole of it, 0.7 of its length wide
+        const parts = String(drawn(session, { edge: bdn.id }, "edge.arrowHeadStack")).split(" ");
+        assert.deepEqual(
+            parts.map((p) => p.replace(/[*x].*$/, "")),
+            ["dot", "normal"],
+        );
+        const sizeOf = (part: string): number => Number(/\*([\d.]+)/.exec(part)?.[1]);
+        assert.approximately(sizeOf(parts[0]), head, 1e-6);
+        assert.approximately(sizeOf(parts[1]), head / 0.8, 1e-6);
+        assert.match(parts[1], /x0\.875$/);
+        assert.match(String(drawn(session, { edge: tod.id }, "edge.arrowHeadStack")), /^open-diamond:left\*/);
+        assert.isUndefined(drawn(session, { edge: plain.id }, "edge.arrowHeadStack"));
+        session.dispose();
+    });
+
     it("draws Graphviz's obox as its box, 0.8 of the arrow's length (arrows.c arrow_type_box)", async () => {
         const session = createGraphSession();
         const dot = "digraph { a -> b [arrowhead=obox]; b -> c [arrowhead=box]; }";

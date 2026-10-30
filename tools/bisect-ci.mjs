@@ -37,9 +37,11 @@ export const T4_POINT_MINUTES = 80;
  * Per lane: points per round (the matrix's max-parallel, or 1 for a lane workflow, whose points run one after
  * another), confirming runs on the red commit (0: the lane's red is taken as one consistent run), runs per point,
  * runs of a culprit's parent for a newly intermittent test, and whether an intermittent failure is bisected.
+ * `minutes` (ci and LLM points): the most one run of a shard may take, the lane's own job timeout in the full run
+ * (ci.yml's Test job by ci-budgets.json, release.yml's LLM regression job); a run past it fails, as it would there.
  */
 export const LANES = {
-    ci: { width: 8, confirm: CONFIRM_RUNS, runs: CONFIRM_RUNS, rateParent: 20, intermittent: true },
+    ci: { width: 8, confirm: CONFIRM_RUNS, runs: CONFIRM_RUNS, rateParent: 20, intermittent: true, minutes: 30 },
     llm: {
         width: 8,
         confirm: 2,
@@ -48,6 +50,7 @@ export const LANES = {
         intermittent: false,
         paths: AI_PATHS,
         shard: "llm-regression",
+        minutes: 20,
     },
     gpu: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false, dir: "webgpu-graph-algorithms/" },
     hosts: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false, dir: "webgpu-graph-algorithms/" },
@@ -285,11 +288,22 @@ export async function runArgs(shard, files) {
     return command ? ["--command", shard, command] : [shard];
 }
 
+// One run of tools/run-tests.sh, stopped at `limit`. coreutils timeout signals the run's whole process group
+// (vitest and its browsers too) and exits 124.
+function runLimited(spawn, limit, args, what) {
+    const command = ["--kill-after=1m", limit, join(ROOT, "tools/run-tests.sh"), ...args];
+    const code = spawn("timeout", command, { cwd: ROOT, stdio: "inherit" }).status;
+    if (code === 124) console.log(`::warning::${what}: no result in the lane's ${limit}; failed`);
+    return code;
+}
+
 /**
  * Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
  * A target whose file or shard does not exist at the point (a later merge adds or renames it) passes there:
  * vitest would fail on "no test files", or the run would throw and write no result, so every point before
  * that merge would read as bad, or be lost and picked again every round.
+ * A run past the lane's `minutes` is stopped and fails its targets, as the lane's job timeout fails the full run,
+ * so the point writes a result instead of holding its job to bisect.yml's timeout and being picked again.
  * ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
  * @param s the state
  * @param sha the point
@@ -306,7 +320,7 @@ export async function runPoint(s, sha, runs, spawn = spawnSync, exists = (f) => 
         for (const [shard, ts] of byShard) {
             const args = await runArgs(shard, [...new Set(ts.map((t) => t.file).filter(Boolean))]);
             if (!args) continue;
-            const code = spawn(join(ROOT, "tools/run-tests.sh"), args, { cwd: ROOT, stdio: "inherit" }).status;
+            const code = runLimited(spawn, `${(LANES[s.lane] ?? LANES.ci).minutes}m`, args, `${short(sha)} ${shard}`);
             if (code !== 0) for (const t of ts) r.failed[t.id] = (r.failed[t.id] ?? 0) + 1;
         }
     return r;

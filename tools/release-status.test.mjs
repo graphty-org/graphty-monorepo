@@ -13,6 +13,7 @@ import {
     pushMessage,
     replacedWhilePending,
     reportsFailure,
+    screenshotsReported,
     statusComment,
     TITLE,
 } from "./release-status.mjs";
@@ -74,13 +75,27 @@ describe("statusComment", () => {
         assert.equal(pushMessage("red", { run: RUN, sha: "abcdef123", what: "CI", issue: "41" }).title, "Full run RED");
         assert.equal(pushMessage("owner-item", { run: RUN, sha: "abcdef123" }).priority, "0");
         const what = "10 screenshots differ from master's baselines: graphty 10";
-        const images = statusComment("green-images", { run: RUN, sha: "abcdef123", what });
+        const images = statusComment("green-images", { run: RUN, sha: "abcdef123", what, hold: "start" });
         assert.match(
             images,
             /^\*\*Screenshots changed\*\*: the full run on abcdef1 passed every lane, but 10 screenshots/,
         );
-        assert.match(images, /\nACTION NEEDED: review the changed screenshots of the full run on abcdef1\n/);
+        assert.match(images, /\nACTION NEEDED: review the changed screenshots of the held candidate abcdef1\n/);
+        assert.match(images, /serve --candidate next/, "with the review page");
+        assert.match(images, /&target=master/);
         assert.equal(reportsFailure(images, RUN, "1"), false, "changed screenshots are not a failed run");
+        assert.match(
+            pushMessage("green-images", { run: RUN, sha: "abcdef123", what, hold: "update" }).message,
+            /waits for your review/,
+        );
+        // 2026-10-30, 6ee5bc7 (#5052): a run that held nothing never says nightly waits for a review
+        for (const hold of ["none", "", undefined]) {
+            const idle = statusComment("green-images", { run: RUN, sha: "abcdef123", what, hold });
+            assert.doesNotMatch(idle, /ACTION NEEDED|waits for your review/, String(hold));
+            assert.match(idle, /It is not held/);
+            const m = pushMessage("green-images", { run: RUN, sha: "abcdef123", what, hold }).message;
+            assert.doesNotMatch(m, /waits for your review/);
+        }
         assert.equal(
             pushMessage("green-images", { run: RUN, sha: "abcdef123", what }).title,
             "Full run SCREENSHOTS CHANGED",
@@ -365,5 +380,59 @@ describe("push", () => {
             assert.match(r.logs[0], /^::warning::Pushover notification not sent: .*invalid/);
             assert.doesNotMatch(r.logs.join("\n"), /secret/);
         }
+    });
+});
+
+// Recorded 2026-10-28 (issue #4630): full run 40605944822 announced 271 changed screenshots on c2a8836 without holding
+// it; 1.5 hours later full run 40616061520 found the same 271 on 3ddf13d and held it ("Nightly held on 3ddf13d"), but
+// the weekly deduplication called that "already reported", so the owner got no comment and no push for the candidate
+// actually waiting on his review.
+describe("screenshotsReported", () => {
+    const what =
+        "271 screenshots differ from master's baselines: compact-mantine 4, graph-io-fidelity 16, graphty-element 209, graphty 42";
+    const earlier = {
+        body: statusComment("green-images", {
+            sha: "c2a8836137387f6c69b1e1aa472d107c29e1513d",
+            what,
+            run: "https://github.com/graphty-org/graphty-monorepo/actions/runs/40605944822",
+        }),
+    };
+    const held = {
+        sha: "3ddf13da890926e8fbaaf455b4fa7a14b88541e5",
+        what,
+        hold: "start",
+        run: "https://github.com/graphty-org/graphty-monorepo/actions/runs/40616061520",
+    };
+    const now = Date.parse("2026-10-28T02:32:24Z");
+    const replay = async (f) => {
+        const posted = [];
+        const request = async (method, path, body) => {
+            if (method === "GET") return path.includes("/comments") ? [earlier] : [{ number: 1749 }];
+            posted.push(body.body);
+            return {};
+        };
+        const body = statusComment("green-images", f);
+        const number = await announce({ request, repo: "o/r", body, unlessReported: screenshotsReported(f, now) });
+        return { number, posted };
+    };
+
+    it("announces a run that holds its commit for review, though the same counts were announced before", async () => {
+        const { number, posted } = await replay(held);
+        assert.equal(number, 1749);
+        assert.match(posted[0], /Screenshots changed\*\*: the full run on 3ddf13d/);
+    });
+
+    it("announces a held head's re-test (hold update) too", async () => {
+        assert.equal((await replay({ ...held, hold: "update" })).number, 1749);
+    });
+
+    it("stays quiet about the same changed screenshots on a commit it does not hold", async () => {
+        for (const hold of [undefined, "", "none"]) {
+            assert.equal((await replay({ ...held, hold })).number, null);
+        }
+    });
+
+    it("looks back one week", () => {
+        assert.equal(screenshotsReported({ what }, now).since, "2026-10-21T02:32:24.000Z");
     });
 });

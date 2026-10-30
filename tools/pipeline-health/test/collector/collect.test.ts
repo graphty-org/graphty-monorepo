@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import rates from "../../config/rates.json" with { type: "json" };
 import { collect, type Deps } from "../../src/collector/collect.js";
-import { GitHub } from "../../src/collector/github.js";
+import { type Fetch, GitHub } from "../../src/collector/github.js";
+import { quarantineReader, SLICE_STORE_PARAMS } from "../../src/collector/slices.js";
 import type { GhJob, GhRun, Rates } from "../../src/collector/parse.js";
 import { MIN, sourceKey, type ObservationItem } from "../../src/model/items.js";
 import { getCursor } from "../../src/model/raw.js";
@@ -86,6 +87,12 @@ describe("collector with the GitHub App", () => {
             "release-watch.yml",
         ]);
         expect(Array.isArray(await readSnapshot(store, "owner-wait"))).toBe(true);
+        // The release channels (#4460): what channel/nightly holds; no deploy or promotion runs recorded.
+        expect(await readSnapshot(store, "channels")).toEqual({
+            canary: [],
+            promotions: {},
+            refs: { nightly: "a".repeat(40) },
+        });
         expect(observed(store, "npm.tagged_missing")).toBeGreaterThan(0);
         expect(observed(store, "ci.jobs_running")).toBe(0);
         expect(observed(store, "ci.jobs_queued")).toBe(0);
@@ -98,6 +105,50 @@ describe("collector with the GitHub App", () => {
         expect(await getCursor(store, "runs#graphty-org/graphty-monorepo")).toBe("2026-10-26T00:35:00Z");
         expect(JSON.parse((await getCursor(store, "open#graphty-org/graphty-monorepo"))!)).toContain(40238975833);
         expect(await getCursor(store, "cycle")).toBe(String(NOW));
+    });
+
+    it("reads the quarantine in force from the results store, not the emptied committed list", async () => {
+        // 2026-10-30: tools/test-quarantine.json has been empty since the store took the quarantine over, so the
+        // flaky page said nothing was quarantined while #5038 and #5039 were.
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const asked: string[] = [];
+        const storeFetch: Fetch = async (url, init) => {
+            asked.push(`${String(url)} ${new Headers(init?.headers).get("authorization")}`);
+            return new Response(
+                JSON.stringify({
+                    quarantine: [
+                        {
+                            family: "graphty-element-lifecycle",
+                            file: "test/autosave.test.ts",
+                            name: "unmount and remount",
+                            issue: 5038,
+                            since: Date.parse("2026-10-30T12:21:00Z"),
+                            expires: Date.parse("2026-11-13T12:21:00Z"),
+                            passes: 0,
+                        },
+                    ],
+                }),
+            );
+        };
+        const readQuarantine = quarantineReader(
+            { [SLICE_STORE_PARAMS.url]: "https://results.test/", [SLICE_STORE_PARAMS.token]: "tok" },
+            storeFetch,
+        );
+        const report = await collect({ ...deps(store, fake), readQuarantine });
+        expect(report.errors).toEqual({});
+        expect(asked).toEqual(["https://results.test/v1/quarantine Bearer tok"]);
+        expect(await readSnapshot(store, "quarantine")).toEqual([
+            {
+                file: "test/autosave.test.ts",
+                name: "unmount and remount",
+                family: "graphty-element-lifecycle",
+                issue: 5038,
+                since: "2026-10-30T12:21:00.000Z",
+                expires: "2026-11-13T12:21:00.000Z",
+            },
+        ]);
+        expect(await readSnapshot(store, "codeowners")).toEqual(["/.github/", "/visual-review/"]);
     });
 
     it("a 502 on one run's jobs skips that run only, keeps every other value, and reads it again next cycle", async () => {

@@ -160,7 +160,13 @@ Detail: [channels.md](channels-pipeline/channels.md).
   newest master first-parent commit whose push build is green and whose `site-<sha>` exists, from
   the store (canary's build stamp is a cross-check after step 8). It skips a commit already judged,
   or one whose diff from the last judged commit is only release-version merges and accept merges
-  (`tools/release-diff.mjs`). The version and major-bump dry run is its own lane, and the `version`
+  (`tools/release-diff.mjs`). A candidate other than the dispatching commit is handed to a run on
+  `channel/full-run` at that commit, so its own workflow files test it; when the hand-off cannot
+  run (a candidate from before it, or environments that do not allow the branch) and the
+  candidate's `.github/workflows` differ from the dispatching commit's, the dispatching commit is
+  tested in its place and the run assembles its site (`candidate_site`), so a new CI step and the
+  script it runs always meet (#4522). The held head is the exception: the hold exists to test it.
+  The version and major-bump dry run is its own lane, and the `version`
   job reuses its plan. Lanes: ci.yml (each On shard starts when its Off twin ends), `gpu.yml`,
   `hosts.yml`, `work-protection-macos.yml`, the audit, and LLM regression in every full, restart and candidate run (owner,
   2026-10-29), started when the ci.yml lane
@@ -192,7 +198,8 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   owner-wait recorded as its own key.
 - **Nightly fixes the run it has.** Master moves every 6 hours with new fixes and new problems, so
   waiting for a clean newest full run may never publish. A full run that is not green-clean is
-  checked once more on its own commit, then held and fixed in place, never replaced by newer master.
+  checked once more on its own commit, then held and fixed in place. Newer master replaces it only
+  through a green run while it is red (below, #5052), never while it waits for the owner's review.
 - **Same-commit re-run, once.** A release.yml `recapture` job (needs ci; ci.yml's visual job and
   gate step are untouched) re-shoots on a fresh runner only the stories attempt 1 found changed or
   new (`capture --stories`). A story is changed only when both shots differ from its baseline and
@@ -222,7 +229,13 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   `channel/nightly`), writes the store's one-row `candidate` table (`base` C, `head`), and opens
   "Nightly held on <sha12>" (priority:high) listing the red lanes, changed images and owner items,
   announced on the Release status issue and Pushover. Master keeps merging; master slots still run
-  and file red issues, but never promote or replace C. Catch-up order: a due promotion, an untested
+  and file red issues, but never promote past C, with one exception (#5052; owner, 2026-10-30: a red
+  hold must never outlive a green run behind it): a newer master commit (C in its history) whose
+  verdict is `green-clean` or `green-images` replaces a held head judged `red`, `owner-item` or
+  `rejected` (`hold=replace`, `tools/channel/hold.mjs replace`): the hold ends (its issue closed,
+  `channel/candidate` deleted by lease at that head), then a green-clean commit promotes in the same
+  run and a green-images one is held in its place. A head judged `green-images` (the owner's pending
+  review), `approved` or not judged yet is never replaced. Catch-up order: a due promotion, an untested
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
   closes the issue) or it is abandoned; newer master supersedes it only through an abandon, which
   records `rejected` on the held head, so an approval of it that merges later promotes nothing.
@@ -416,23 +429,13 @@ auto-merge. The owner's own pipeline edits are made by an agent session and appr
 Agents run as the owner's Unix user: the split holds only once his `gh` token, his git credential
 helpers and cache, his SSH keys and ssh-agent, his npm token and his GPG key are out of their reach (section 13 item 2).
 
-### 6.2 CODEOWNERS
+### 6.2 CODEOWNERS (removed)
 
-Owned are only the paths that can loosen a check or take authority: `/.github/workflows/`,
-`/.github/CODEOWNERS`, `/.claude/`, `/CLAUDE.md`, `/ci-budgets.json`, `/release-hold.json`,
-`/release-approvals.json`, `/nx.json`, `/vitest.shared.config.ts`, `/vitest.ci-junit.mjs`,
-`**/.storybook/vitest.setup.*`, `/visual-review/trusted/`, `/visual-review/capture/`,
-`/visual-review/passkeys.json`, `/visual-review.config.json`, `/graphty/sites/nightly.json`, `/graphty/sites/production.json`, and in
-`tools/` the results, cache, scheduler and channel directories, `bisect-core`, the release tools,
-`ci-test-matrix`, `run-tests`, the selector and its rules, and the integrity, features, budgets,
-`pr-open`, `pr-review` and quick-check scripts. `visual-baselines/` is guarded by the signature
-(section 5). **Owned closure:** PR Integrity fails when an owned script's or workflow's static import
-closure (the selector's import graph) holds an unowned file, so a helper an owned tool imports is
-owned too; the list grows by the files that check names, in its own pull request. Of
-the 117 golden landings of 2026-10-18 to 10-24, 27 touched this list, about 4 a day; the integrity
-check adds an unknown number, replayed over the same landings before step 3. A code-owned pull
-request that references an open red, release-held or red-master issue, or a rollout step's pull
-request, gets its own `ACTION NEEDED` line when green; the rest go in one daily review list.
+Removed on 2026-10-29 by the owner's decision (#4599). `.github/CODEOWNERS` named only a team that
+never existed, the master ruleset never required code-owner review, and its one live use, PR
+Integrity's owned-closure check, failed pull requests whenever the hand-kept list drifted. PR
+Integrity counts the owner's approval through its `OWNER` login. The guard against a pull request
+editing the checks that judge it is to run master's copy of those checks (issue #4421).
 
 ### 6.3 Rulesets and secrets
 
@@ -512,11 +515,19 @@ Detail: [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md) section 1
   60 s slower, per key and within run kind (pull request kinds included). The Worker computes it; the
   `timings` job that sees it files or updates one issue per key naming the merge range. The Sentry
   regression would have alarmed in about 5 hours.
-- **Stall alarm:** every release.yml run's `timings` job checks `age:nightly`, the time since
-  `channel/nightly` last moved while canary holds an unpromoted commit. Over 24 hours it files or
-  updates one `priority:critical` issue "Nightly stalled since <date>" naming the blocking state (red
-  with or without a culprit, waiting for screenshots, an owner item, a hold); the pipeline round owns
-  a red with no culprit and fixes forward. Over 48 hours, the issue gets an `ACTION NEEDED` line.
+- **Missed-slot alarm (#5052):** the goal is a nightly promotion every 6-hour slot, and a slot that
+  does not promote is an incident with a named cause. release.yml's `slot` job, at the end of every
+  full, restart and candidate run that ends without moving nightly (not one that handed off to
+  channel/full-run, nor an attempt 1 waiting for its re-run), files or updates one
+  `priority:critical` issue "Nightly missed slot <date hh:mm> UTC: <cause>": a red lane and its red
+  issue, the owner's screenshot review with the review page, a hold nobody can review, a green-clean
+  commit that did not promote and why, or no new candidate. It closes when nightly moves
+  (`tools/channel/nightly.mjs slot`).
+- **Stall alarm (fallback):** every release.yml run's `timings` job checks `age:nightly`, the time
+  since `channel/nightly` last moved while canary holds an unpromoted commit. Over 8 hours (a slot
+  and a run) with no missed-slot issue open, so a slot produced no run at all, it files or updates one
+  `priority:critical` issue "Nightly stalled since <date>" naming the blocking state. Over 48 hours,
+  the issue gets an `ACTION NEEDED` line.
 
 ### 7.1 Load and runner capacity (owner, 2026-10-26)
 
@@ -622,7 +633,7 @@ signature checked on every path.
 - graphty.app ran code no full run passed: one tarball and version set per promotion, frozen during the rollout (3, 12)
 - Agents held the owner's authority: Write-only machine account, credential helpers removed, signed baselines, protected tags, master-only secrets (6)
 - Agents raised timeouts and narrowed checks: test integrity, proof, fresh review (6.4)
-- Fixes waited days for the owner: code-owned fixes for a red pipeline get their own `ACTION NEEDED` (6.2)
+- Fixes waited days for the owner: only breaking and owner-guarded pull requests wait for him (`tools/pr-open.sh`)
 
 ## 11. Costs
 
@@ -649,7 +660,7 @@ step's code-owned edits go in one pull request per step, listed in migration sec
    for 3 days; none slowed over 5 s.
 3. **Switch identity and freeze npm**, one owner-reviewed pull request and the owner's settings:
    release.yml publishes nothing except the owner-approved interim mode (section 13 item 9),
-   CODEOWNERS, environments, the tag ruleset, the agent account, bypass removed, PR Integrity
+   environments, the tag ruleset, the agent account, bypass removed, PR Integrity
    required after its replay. After: 0, 1. Done: graphty.app's stamp unchanged since step 0; on a scratch
    ruleset first: an owned-path pull request waits, an unowned one auto-merges, `--admin` is refused,
    a revert, an accept-only and a Dependabot pull request pass PR Integrity, a `!` title and an
@@ -720,7 +731,7 @@ Answers to review findings that the sections above do not settle by themselves.
   configurations; whether editing an existing one restarts it is unknown. So item 8 binds them on
   the day a nightly is due to publish, and a failed publish is today's publish hold, cleared by
   re-running the publish job.
-- **Owned scripts that import unowned code** are closed by the owned-closure rule (section 6.2).
+- **A pull request that edits the checks that judge it** is guarded by running master's copy of those checks (issue #4421; section 6.2).
 - **Nightly stalling silently** and **a red with no culprit** have the stall alarm (section 7).
 - **Huge or old branches** have the branch ceiling (section 2).
 
@@ -756,9 +767,10 @@ In rollout order. Each item says when it is needed, the exact steps, and how to 
    one's secrets from the list the session gives. At step 7, turn on immutable releases once the
    session reports that `gh release edit --prerelease` and `--latest` still work on one. _Check:_ a
    `promote.yml` dry run waits for you.
-5. **Ruleset and settings.** _When:_ step 3, after the session's scratch-ruleset tests pass. Approve
-   the CODEOWNERS pull request; on ruleset 23973898 remove the admin role from the bypass list, keep
-   deploy keys, turn on code-owner review (0 approvals), dismiss stale reviews, leave last-push
+5. **Ruleset and settings.** _When:_ step 3, after the session's scratch-ruleset tests pass. On
+   ruleset 23973898 remove the admin role from the bypass list, keep
+   deploy keys, leave code-owner review off (the guard against a pull request editing the checks that
+   judge it is to run master's copy of those checks, issue #4421), dismiss stale reviews, leave last-push
    approval off, require `All Checks Pass`, `Lint PR Title`, `Link PR Issue` and `PR Integrity`; add
    the tag ruleset on `*@*` and `site-*` (create: deploy key only; update and delete: nobody) and the
    `channel/*` branch rule; switch off squash merging; set Actions' default permissions to read-only

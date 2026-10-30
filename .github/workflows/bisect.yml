@@ -95,6 +95,7 @@ jobs:
         runs-on: ubuntu-24.04 # the full run's test runner class
         # GOOGLE_API_KEY is a secret of environment full-run, as for release.yml's llm job
         environment: ${{ inputs.lane == 'llm' && 'full-run' || '' }}
+        # the build and every run; each run of a shard stops at its lane's own limit (bisect-ci.mjs LANES.minutes)
         timeout-minutes: 120
         strategy:
             fail-fast: false
@@ -148,8 +149,8 @@ jobs:
             - name: Run the failing files
               env:
                   BISECT_ROOT: ${{ github.workspace }}
-                  VITE_LLM_REGRESSION_PROVIDER: ${{ inputs.lane == 'llm' && 'google' || '' }}
-                  VITE_GOOGLE_API_KEY: ${{ inputs.lane == 'llm' && secrets.GOOGLE_API_KEY || '' }}
+                  LLM_REGRESSION_PROVIDER: ${{ inputs.lane == 'llm' && 'google' || '' }}
+                  GOOGLE_API_KEY: ${{ inputs.lane == 'llm' && secrets.GOOGLE_API_KEY || '' }}
                   SHA: ${{ matrix.sha }}
               run: |
                   mkdir -p "$RUNNER_TEMP/result"
@@ -172,9 +173,78 @@ jobs:
               with: { name: "bisect-result-${{ matrix.sha }}", path: "${{ runner.temp }}/result/", retention-days: 14 }
 
     # The lane workflows, one point a round, each in a concurrency group of its own (bisect-<bad>-<point>).
-    gpu:
+    # A lane point runs with its own workflow files. A called workflow (`uses: ./.github/...`) comes from this run's
+    # commit while its jobs check out the point, so a point older than it met steps, scripts and flags it does not
+    # have (the full run's skew, run 40926721806). So the point goes to a branch bisect/<red>-<point> (the deploy
+    # key), the lane workflow is dispatched there with the point's files and waited for, and its conclusion is the
+    # point's. A point whose lane workflow cannot be dispatched as a point (from before this) is called as before.
+    own_lane:
+        name: Run the lane point with its own workflow files
         needs: plan
-        if: ${{ needs.plan.outputs.done != 'true' && inputs.lane == 'gpu' }}
+        if: ${{ needs.plan.outputs.done != 'true' && (inputs.lane == 'gpu' || inputs.lane == 'hosts' || inputs.lane == 'macos') }}
+        runs-on: ubuntu-24.04
+        # ponytail: holds a runner while the lane runs; a dispatched callback would free it if that ever matters
+        timeout-minutes: 360
+        environment: release # the deploy key
+        permissions:
+            contents: read # the push goes over SSH with the deploy key, not with this token
+            actions: write # dispatch the lane workflow on the point's branch
+        outputs:
+            own: ${{ steps.dispatch.outputs.own }}
+            result: ${{ steps.wait.outputs.result }}
+        env:
+            GH_TOKEN: ${{ github.token }}
+            SHA: ${{ fromJSON(needs.plan.outputs.points)[0] }}
+            BAD: ${{ inputs.bad }}
+            FILES: ${{ needs.plan.outputs.files }}
+            WF: ${{ inputs.lane == 'gpu' && 'gpu.yml' || inputs.lane == 'hosts' && 'hosts.yml' || 'work-protection-macos.yml' }}
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  sparse-checkout: tools
+                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+            - name: Move the point's branch and dispatch its lane workflow
+              id: dispatch
+              run: |
+                  set -euo pipefail
+                  git fetch --quiet origin "$SHA"
+                  if [ "$(git show "${SHA}:.github/workflows/${WF}" | yq '.on.workflow_dispatch.inputs.bisect_point != null')" != true ]; then
+                      echo "::warning::${SHA}'s ${WF} cannot run a bisect point: called with ${GITHUB_SHA}'s workflow files"
+                      exit 0
+                  fi
+                  branch="bisect/${BAD:0:12}-${SHA:0:12}"
+                  git push --no-verify --force origin "${SHA}:refs/heads/${branch}"
+                  since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+                  gh workflow run "$WF" --ref "$branch" -f files="$FILES" -f bisect_point="${BAD}-${SHA}"
+                  { echo "own=true"; echo "branch=${branch}"; echo "since=${since}"; } >> "$GITHUB_OUTPUT"
+            - name: Wait for the point's lane run
+              id: wait
+              if: ${{ steps.dispatch.outputs.own == 'true' }}
+              env:
+                  BRANCH: ${{ steps.dispatch.outputs.branch }}
+                  SINCE: ${{ steps.dispatch.outputs.since }}
+              run: |
+                  set -euo pipefail
+                  id=""
+                  for _ in $(seq 30); do
+                      id=$(gh run list --workflow "$WF" --branch "$BRANCH" --event workflow_dispatch --limit 5 \
+                          --json databaseId,createdAt --jq "[.[] | select(.createdAt >= \"$SINCE\")][0].databaseId // empty")
+                      [ -n "$id" ] && break
+                      sleep 10
+                  done
+                  [ -n "$id" ] || { echo "::error::no ${WF} run started on ${BRANCH}"; exit 1; }
+                  echo "::notice::point ${SHA} runs as $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/${id}"
+                  gh run watch "$id" --interval 60 > /dev/null || true
+                  # success or failure is the point's verdict; anything else (cancelled, lost) is no run, tested again
+                  echo "result=$(gh run view "$id" --json conclusion --jq .conclusion)" >> "$GITHUB_OUTPUT"
+            - name: Delete the point's branch
+              if: ${{ always() && steps.dispatch.outputs.branch }}
+              env:
+                  BRANCH: ${{ steps.dispatch.outputs.branch }}
+              run: git push --no-verify origin --delete "$BRANCH" || true
+    gpu:
+        needs: [plan, own_lane]
+        if: ${{ !cancelled() && needs.plan.outputs.done != 'true' && inputs.lane == 'gpu' && needs.own_lane.outputs.own != 'true' }}
         # the called timings job lists the run's jobs and takes OIDC for the store, as release.yml grants
         permissions: { contents: read, actions: read, id-token: write }
         uses: ./.github/workflows/gpu.yml
@@ -183,8 +253,8 @@ jobs:
             files: ${{ needs.plan.outputs.files }}
             bisect_point: ${{ inputs.bad }}-${{ fromJSON(needs.plan.outputs.points)[0] }}
     hosts:
-        needs: plan
-        if: ${{ needs.plan.outputs.done != 'true' && inputs.lane == 'hosts' }}
+        needs: [plan, own_lane]
+        if: ${{ !cancelled() && needs.plan.outputs.done != 'true' && inputs.lane == 'hosts' && needs.own_lane.outputs.own != 'true' }}
         permissions: { contents: read, actions: read, id-token: write }
         uses: ./.github/workflows/hosts.yml
         with:
@@ -192,8 +262,8 @@ jobs:
             files: ${{ needs.plan.outputs.files }}
             bisect_point: ${{ inputs.bad }}-${{ fromJSON(needs.plan.outputs.points)[0] }}
     macos:
-        needs: plan
-        if: ${{ needs.plan.outputs.done != 'true' && inputs.lane == 'macos' }}
+        needs: [plan, own_lane]
+        if: ${{ !cancelled() && needs.plan.outputs.done != 'true' && inputs.lane == 'macos' && needs.own_lane.outputs.own != 'true' }}
         permissions: { contents: read, actions: read, id-token: write }
         uses: ./.github/workflows/work-protection-macos.yml
         with:
@@ -203,7 +273,7 @@ jobs:
 
     judge:
         name: Judge the round
-        needs: [plan, point, gpu, hosts, macos]
+        needs: [plan, point, own_lane, gpu, hosts, macos]
         if: ${{ always() && needs.plan.result == 'success' }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10
@@ -220,7 +290,7 @@ jobs:
               if: ${{ needs.plan.outputs.done != 'true' && inputs.lane != 'ci' && inputs.lane != 'llm' }}
               env:
                   SHA: ${{ fromJSON(needs.plan.outputs.points)[0] }}
-                  STATUS: ${{ needs[inputs.lane].result }}
+                  STATUS: ${{ needs.own_lane.outputs.own == 'true' && needs.own_lane.outputs.result || needs[inputs.lane].result }}
                   STARTED: ${{ needs.plan.outputs.started }}
               run: |
                   mkdir -p results

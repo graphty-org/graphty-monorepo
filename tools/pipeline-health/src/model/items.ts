@@ -84,6 +84,32 @@ export interface RunItem extends RawBase {
  */
 export type LoadKind = "pr" | "master" | "full" | "other";
 
+/**
+ * A run's kind of load from its workflow file, event and head branch (collector/parse.ts loadKind): full for
+ * release.yml (whose called workflows run inside it), pr for a pull request's (including CodeQL's default setup
+ * scanning one: event `dynamic` on `refs/pull/<n>/head`), master for a push to master, else other.
+ */
+export function loadOf(workflow: string, event: string, branch: string | null | undefined): LoadKind {
+    if (workflow === "release.yml") return "full";
+    if (event === "pull_request" || event === "pull_request_target") return "pr";
+    if (event === "dynamic" && branch?.startsWith("refs/pull/")) return "pr";
+    if (event === "push" && branch === "master") return "master";
+    return "other";
+}
+
+/**
+ * Whether a run's head branch is not master: a dispatch on a work branch, a probe, a bisect point, a pull request's
+ * CodeQL scan, whose failures may be the branch's own.
+ * ponytail: takes master or main as the default branch; read the repository's default_branch if one ever differs.
+ */
+export function isOffMaster(branch: string | null | undefined): boolean {
+    const b = branch?.replace(/^refs\/heads\//, "");
+    return b !== "master" && b !== "main";
+}
+
+/** A dependency-bump pull request's head branch (Dependabot's, or tools/dependency-refresh.mjs's grouped refresh). */
+export const BUMP_BRANCH = /^(dependabot\/|chore\/deps-refresh-)/;
+
 /** A job of a run attempt (the jobs API, filter=latest). */
 export interface JobItem extends RawBase {
     kind: "job";
@@ -95,7 +121,7 @@ export interface JobItem extends RawBase {
     pool: "linux_windows" | "macos" | "other"; // which runner limit it counts against (4.3)
     /** A GitHub-hosted runner's OS, for the list-price value of its minutes (section 7); absent elsewhere. */
     os?: "linux" | "windows" | "macos";
-    /** Its run's kind; absent on jobs stored before it was recorded (a backfill adds it). */
+    /** Its run's kind; absent on jobs stored before it was recorded (the fold reads it from the stored run). */
     load?: LoadKind;
     /**
      * Its run is on a branch other than master (a dispatch on a work branch, a probe, a bisect point): its failures
@@ -218,7 +244,7 @@ export interface CostItem extends RawBase {
 
 export interface LocalRunItem extends RawBase {
     kind: "local_run";
-    what: string; // gate | ledger | ...
+    what: string; // gate (a push log line), or a package or shard family (a test slot's hold)
     outcome: string;
     startedAt: number;
     endedAt: number;

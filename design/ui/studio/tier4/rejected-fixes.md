@@ -26,3 +26,8 @@ Unit: a within-picture Select card's chip counts what it would select, by the sa
   355022569a unchanged (nothing under it has changed since). Under the new decided entry "A fix-now unit is taken
   back only for a regression its re-walk shows", an unfinished re-walk is finished, not reverted; close both
   entries above when it is.
+- 2026-10-30, dry run pass 7 (`dry-run-r1-3.md`, unit U1): sent a fifth time, unchanged. Pass 6's
+  `git revert 0b1175dabc` was never applied, so the re-pilot ran on the same build a53beb7179 and four pilots met
+  the chip again. `git diff 0b1175dabc HEAD` on the fix's files is still empty at b5ad13efa1. Apply the revert,
+  finish the re-walk, then freeze; decided.md "No re-pilot on a build the last triage judged while its fix-now
+  units are unbuilt" (dry run pass 7) holds the next pilot pass until it is built.

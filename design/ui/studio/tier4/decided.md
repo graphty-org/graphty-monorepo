@@ -504,3 +504,36 @@ reversed.
   build four pilots read 5 of 24 with 4 selected and 5 of 12 with 3 selected
   (`T65A/q1-T65A-path/17.png`, `T65B/g1-path/14.png`). No replay of either attempt that finished disagreed
   with the fix.
+
+## Dry run pass 7 (director, 2026-10-30)
+
+Settled by the triage of the second re-pilot on build a53beb7179 (`dry-run-r1-3.md` as committed with this entry;
+the earlier triages of that name are at cc562d52cd and aa8763fc28). Screenshots are under the main checkout's
+`tmp/design-studio/tier4/r1d2/pilot/` and `r1d3/pilot/`. No earlier entry is reversed.
+
+- **An issue fix that removes data says what it removes, and is not a filter.** A fix in a source's issue list
+  that takes rows out of the network (Leave out on an unknown end drops the edges that name the unknown node,
+  and the node they made) carries a tooltip and a notice that name what left the network ("Left out G12 and
+  1 edge"), and stays one undoable step with no confirmation. Taking a node out of the picture while the
+  network keeps it is Filters' job; the issue list never does it. Why: on T66 B, asked to take G12 out of the
+  picture without deleting it, the pilot took flows.csv's issue list's Leave out, which has no tooltip; it
+  deleted G12 and its stretch, and the screen then read 11, the success number
+  (`T66B/w2-chip-leave/03.png` to `05.png`). The screen is true (11 nodes in the network, no "of" count), so
+  the answer key grades it as not success and it is backlog, not fix-now; the word sits beside the decided
+  filter effect "Filter out" and says nothing about the network. Whether participants read Leave out as a
+  filter is for the sessions.
+
+- **A pilot row whose evidence is from an earlier build is judged on the frozen build's walk of the same
+  route.** When a re-pilot report cites walks made on an earlier build (a `session.json` build stamp that is
+  not the frozen build's), the triage looks for the same route walked on the frozen build, judges the row on
+  that walk and cites it; with no such walk, the route counts as unwalked. Why: the T67 A report on this pass
+  cited the first build's walks (`r1/pilot/T67A`, 0ffeae2ef5) for all 21 of its rows; the same routes were
+  replayed on a53beb7179 in pass 6 (`r1d3/pilot/T67A`) with every step matching. Extends "A route walked on
+  the frozen build counts as walked" (dry run pass 2).
+
+- **No re-pilot on a build the last triage judged while its fix-now units are unbuilt.** After a triage sends
+  fix-now units, the next pilot pass starts only on a new frozen build that holds them (criteria.md's first
+  line changed), or on the same build once every unit is recorded as not fixed with its reason in
+  `rejected-fixes.md`. Why: pass 6 sent one unit (the Select card's count, `git revert 0b1175dabc`); nothing
+  was built after it, so this pass re-piloted a53beb7179: of its 81 rows, 5 were that unit's defect again (four
+  pilots), 56 repeated backlog rows, and nothing new could be learned about the unit.

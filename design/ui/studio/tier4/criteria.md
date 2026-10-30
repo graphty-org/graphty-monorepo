@@ -257,3 +257,25 @@ first two by itself; the dry run owns the rest.
   .study-builds/tier4-r1-0ffeae2ef5) to 037e96e9bb (served from .study-builds/tier4-r1d1-037e96e9bb),
   which holds the fix pass's committed changes to the data panel and export with the current master
   merged in. No criteria changed.
+- 2026-10-29: answer key matched to build 037e96e9bb from the targeted re-pilot (no bar, success
+  definition or step count changed; tasks.md needed no change):
+    - Header: the key names 037e96e9bb; a 0ffeae2ef5 note no 037e96e9bb note replaces still holds.
+    - T61: the second file's row shows A's 18 whole (tooltip unchanged, file name cut to "d..");
+      Quick actions > Add data... now opens the join screen and gives the path's result, so it is
+      graded as the path; "Open as a separate graph" is written as two projects.
+    - T62: after "Set in Data" or Fields > Time the cells stay ISO text (still P by the header
+      glyph); the captions and top rows of both paths are written; B's header past the table's
+      edge needs two clicks and its right-click did nothing; the header menu's keyboard opening is
+      named.
+    - T63: Role > Time undo notice, no Latitude/Longitude mark in the table, and the Map layout's
+      dead "Location" button are noted.
+    - T64: a weight set from the table is no longer read as farther; Analyze does not read it, so
+      that route is P on A and B until "Higher means" is set. The Analyze list's per-run weight,
+      the re-run that keeps the old result and the code-named path result are noted.
+    - T65: B's date condition exists on 037e96e9bb, so B is no longer blocked; the date card's raw
+      number wording is noted.
+    - T66: 037e96e9bb keeps the other file's edges (12 of 13, 17 of 18); the id card offers no
+      Has a value; the id column's "Filter to..." does nothing; the hiding style layer is written
+      as not success.
+    - T68: a Shown export now writes 17 edges and the screen says "Shown 17 of 18", so it can be
+      the equally-right case; the source row and table options export doors are noted.

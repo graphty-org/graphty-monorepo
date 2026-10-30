@@ -10,10 +10,10 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-29) Tier 4 key read off 0ffeae2ef5: no "(pilot to confirm)" left, step counts written
-  (T61 6, T62 5, T65 A 12, T67 3). Open blockers for the orchestrator: no `data.json` from `--end`
-  (roles, kinds, cards, fixes graded from screenshots, which see them only if the participant
-  ends there); T65 B's date condition not offered (blocked).
+- (2026-10-29) Tier 4 key now names 037e96e9bb; 0ffeae2ef5 notes stand unless a 037 note replaces
+  them. On 037: T65 B unblocked (date cards), T61 Quick actions door = path, T64 table-set weight
+  is NOT read by Analyze (P on both halves), T66/T68 keep the other file's edges (17 of 18).
+  Still open: no `data.json` from `--end`; T67 and T60 not re-walked on 037.
 - (2026-10-29) Build defects that change a reported count get a grading line while they stand:
   T65 Select counts hidden nodes (5 not 4), T66/T68 Data source card drops every edge of the other
   file, T61 deliveries-first keeps the repeat (19). Grade the act, not the build's number.
@@ -81,6 +81,14 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-29 (key matched to 037e96e9bb):** Rewrote only notes the re-pilot contradicted, kept
+  each 0ffeae2ef5 note as history beside its 037 note (graders may meet either reading in old
+  reports). T64's table-weight line changed grade for B (was "the asked reading", now P): not a bar
+  change, because the success definition already requires the reading set; the old line was an
+  exception that rested on a default the build no longer has. Conflicting pilot reports (right-click
+  on a header works in T63/T66, did nothing on T62 B's off-screen column; Shift+F10 vs ContextMenu
+  key) are written as observed per route, not resolved by guess.
+
 - **2026-10-29 (tier 4 key from pilots):** Read every pilot finding into answers.md without
   changing a bar; the key counts the screen. Removed the T66 id-card route (cannot be built: no
   negative match, Hide keeps matches) instead of keeping a success no session can reach; kept T62's
@@ -146,6 +154,10 @@ logged). Their reasons, in short:
   reaches; more sessions cannot move either.
 
 ## Tried: worked / did not work
+
+- 2026-10-29 (key to 037) -- Worked: one Python edit script with exact-match asserts per
+  replacement (caught a wrapped-line miss before any write). Did not work: matching a sentence
+  across a line wrap; match a short unique fragment instead.
 
 - 2026-10-29 (tier 4 key from pilots) -- Worked: counting path steps from each walk's
   `route.jsonl` `steps` lists (skip hovers and inspection clicks); `wc -l` and `grep -c '<node '`

@@ -2,11 +2,12 @@
 
 Never shown to participants. Each task: its success definition, the success path, and what the
 final screen, the end-state records or the saved file must show. Paths name controls as the
-frozen build (0ffeae2ef5) draws them; the dry run read every value and path off that build and
-logged each change in `criteria.md`. Each core task's path step count is written as "Path steps: N"
+frozen build (037e96e9bb) draws them. The dry run read every value and path off the earlier build
+0ffeae2ef5, the re-pilot re-read the changed ones off 037e96e9bb, and each change is logged in
+`criteria.md`. A note naming 0ffeae2ef5 that no 037e96e9bb note replaces still holds on 037e96e9bb. Each core task's path step count is written as "Path steps: N"
 (bar 7).
 
-On 0ffeae2ef5, `real.mjs --end` writes `work.json`, `key.json` and `styles*.json` but no
+On 0ffeae2ef5 and 037e96e9bb, `real.mjs --end` writes `work.json`, `key.json` and `styles*.json` but no
 `data.json`, and none of those records a column's kind or role, a filter card or a fix. Until
 `data.json` exists, everything this key grades "from `data.json`" is read from the screenshots and
 the step log: a column's kind from its table header glyph (calendar for date, `Aa` for text), a
@@ -37,7 +38,7 @@ role from Data > Fields, a card from Data > Filters.
 - `flows.csv`: 15 rows `from,to,km`. `G09,G12` names a gauge not in gauges.csv; `G03,G04,2.1`
   appears twice.
 
-As loaded on 0ffeae2ef5: `opened` and `installed` are read as text (header `Aa`); the inspector's
+As loaded on 0ffeae2ef5 and 037e96e9bb: `opened` and `installed` are read as text (header `Aa`); the inspector's
 Overview shows "Time: opened" (B "Time: installed") with a "Set in Data" button before any time is
 set, and that button sets the time in place; `lat` and `lon` are designated Latitude and Longitude
 by themselves under Fields (the table does not mark them); no Label is designated (the columns are
@@ -72,14 +73,16 @@ showing.
   routes; something did not fit: P13 is not on the site list, and one route is listed twice. B:
   **12** gauges (11 and **G12**) and **14** stretches (read off `gauges-joined.txt`'s first
   screenshot); G12 is not on the gauge list and one stretch is listed twice. Reporting 12 sites (11
-  gauges) plus the one unknown is equally right. On 0ffeae2ef5 the repeat can be read only on the
+  gauges) plus the one unknown is equally right. On 0ffeae2ef5 and 037e96e9bb the repeat can be read only on the
   join screen, before Join (a warning glyph beside the "1 repeated key" menu); after Join, the
   issue list names only "1 unknown end" and Overview has no repeated-edge line.
 - **Follow-up** (fix coverage for the source row's counts, not graded): A **18** routes, B **14**
   stretches, on the second file's Sources row. On 0ffeae2ef5 the row's issue chip is drawn over the
   edge count (A reads as a slash, a glyph and "8"; B's 14 is hidden), so the count is readable only
   in the row's hover tooltip ("13 nodes, 18 edges"; B "12 nodes, 14 edges"); the row's accessible
-  name says "17 of 19 rows joined" (B "13 of 15").
+  name says "17 of 19 rows joined" (B "13 of 15"). On 037e96e9bb A's 18 reads whole on the row,
+  beside a node count of 13 and an issue chip "1"; the tooltip still reads "13 nodes, 18 edges", and
+  the row's file name is cut to "d.." (B's row was not re-walked on this build).
 - **Path**: start screen > Open a file > pantries.csv (opens 12 nodes) > Data > Sources "+" (Add
   source) > File... > deliveries.csv > the join screen ("Join deliveries.csv -> pantries.csv",
   Edges, from = Id, to = Id; chips "18 edges added", "1 new node", "1 not in graph", and "1
@@ -96,24 +99,40 @@ showing.
   is in the network. On 0ffeae2ef5 Replace (the Join split button's, or the source row's "Replace
   with file...") keeps the first file's columns and gives the same counts as a join (A 13 / 18, B
   12 / 14); only the Sources list, which then holds the second file alone, shows it.
-- **A second door on 0ffeae2ef5**: Quick actions (Control+K) > Add data... opens an older "Add to"
-  page whose default leaves G12 and its stretch out (B: 11 nodes, 14 edges) and shows no unknown
-  gauge afterwards. A report of 11 and 14 that names nothing that did not fit is P.
+- **A second door**: on 0ffeae2ef5, Quick actions (Control+K) > Add data... opened an older "Add
+  to" page whose default left G12 and its stretch out (B: 11 nodes, 14 edges) and showed no unknown
+  gauge afterwards; a report of 11 and 14 that names nothing that did not fit was P. On 037e96e9bb
+  it opens the same join screen as the path, and Join gives the path's result (A 13 nodes, 18 edges,
+  both sources): graded as the path.
+- **Separate graph on 037e96e9bb**: the join screen's "Open as a separate graph" (or Control+O with
+  a network open) makes a second project from deliveries.csv alone (13 nodes, 19 edges, "1 repeated
+  edge"): two separate projects, not success. Replace leaves the issue chip at 2, attributed to the
+  second file.
 
 ## T62. Read the wrong way
 
 - **Success**: the `opened` (B `installed`) column's kind is a date (its table header shows the
   calendar glyph), and the participant names **Bayview Clinic** (opened 2023-03-08; B **Birch
   Hollow**, put in 2018-06-27). Designating it as the time while its kind stays text is P: that is
-  T63's act, and it leaves the column kind untested. On 0ffeae2ef5 designating the time does not
-  change the kind: after the inspector's "Set in Data" or Data > Fields "+" > Time > opened, the
-  header keeps `Aa`, yet the cells draw as dates and the sort gives the right name. Those routes are
-  P (a false success on screen; grade by the header glyph).
+  T63's act, and it leaves the column kind untested. Designating the time does not change the
+  kind: after the inspector's "Set in Data" or Data > Fields "+" > Time > opened, the header keeps
+  `Aa`. On 0ffeae2ef5 the cells then drew as dates; on 037e96e9bb they stay ISO text
+  ("2023-03-08") under a "Time" chip on the header, and a header click sorts "A to Z" / "Z to A".
+  Either way the ISO days sort in date order, so the right name can come out on top. Those routes
+  are P (a false success on screen; grade by the header glyph).
 - **Path**: the table (already showing at the start) > the `opened` header's menu (its "Options
   for opened" button, or right-click on the header) > Type > date; then sort newest first (the
   header menu's "Sort descending", or the header clicked twice) and read the top row. The menu calls
-  the kind "Type" (text, number, yes/no, date, category); the caption then reads "newest first".
-  No control in the Data place sets a column's kind on this build. Path steps: 5.
+  the kind "Type" (text, number, yes/no, date, category); the caption then reads "newest first"
+  (A: "Sorted by opened, newest first", top row P12 Bayview Clinic, Mar 8, 2023). After "date" the
+  caption stays "In the order loaded" until the first header click ("oldest first"); the second
+  gives "newest first" (B: Birch Hollow, Jun 27, 2018 on top). No control in the Data place sets a
+  column's kind on this build. Path steps: 5.
+- **On 037e96e9bb**: B's `installed` header lies past the table's right edge at 1440 px; a
+  right-click on it did nothing, and the first click on "Options for installed" only scrolls the
+  table to it, the second opens the menu. By keyboard the Options button is not a Tab stop: the
+  menu opens from the focused header with the menu key (Shift+F10 in the T62 pilots, the
+  ContextMenu key or Alt+ArrowDown in T67's), which nothing on screen names.
 - **Not success**: the right name read off by eye with the column still read as text.
 
 ## T63. Where and when
@@ -126,7 +145,9 @@ showing.
 - **Path**: the inspector's Overview "Set in Data" (on 0ffeae2ef5 it sets Time = `opened` in place:
   Fields does not open, nothing is announced, and the "Time: opened" row leaves the Overview); or
   Data > Fields "+" > Time > opened (B: expand gauges.csv first); or the table's `opened` header
-  menu > Role > Time.
+  menu > Role > Time (on 037e96e9bb, Control+Z undoes it with "Undid changing a column's role.").
+  On 037e96e9bb the table marks neither `lat` nor `lon` (only `opened` gets a "Time" chip), and the
+  Map layout's options show "Location lat, lon" on a button that does nothing.
 - **Not success**: the time left undesignated; a column changed to the wrong kind.
 
 ## T64. Its name, and what makes a tie strong
@@ -142,8 +163,17 @@ showing.
   "P05", or click it; the canvas toolbar's search (Quick actions) answers "No results" for a node.
   B path steps: 9.
 - **Weight set from the table**: the trips (B km) header menu > Role > Weight sets the weight but
-  leaves "Higher means" empty, and Analyze then reads it as farther. For A that is the opposite of
-  the prompt (P unless "Higher means" is set); for B it is the asked reading.
+  leaves "Higher means" empty. On 0ffeae2ef5 Analyze then read it as farther. On 037e96e9bb Analyze
+  does not read it at all: Shortest path opens on Weight None ("Each edge counts as 1"), lists the
+  column as "trips (loaded, not read)" (B "km (loaded, not read)") and counts steps. The reading is
+  not set, so this route is P on both A and B until "Higher means" is set in Data > Fields.
+- **The Analyze list on 037e96e9bb**: Shortest path's Weight list offers the column with its
+  reading ("km (farther)") for that run only; Fields keeps no weight, so a run weighted there with
+  no weight set in Data is P. With the weight set in Data, PageRank and Shortest path open on it
+  ("trips (closer, loaded)"). Running Shortest path a second time with the same ends keeps the
+  first run's result in the inspector (same time, same Weight), so a participant who fixes the
+  reading and re-runs sees the old answer; grade on Data > Fields, not on that result. The path
+  result lists nodes by code (G05, G08, G09) even with the label set.
 - **Not success**: a Style text line that draws the name but leaves the label unset is half (P):
   the program still names the site by its code elsewhere.
 
@@ -163,19 +193,19 @@ showing.
   needs no Select / Hide step (14 of 24). Add filter > role > staff ("Is any of"); switch that
   card from Hide to Select (left on Hide it leaves 4 of 24 in the picture). Order free: the other
   order gives the same 14 of 24 and 5 selected. Path steps: 12 (A).
-- **B on 0ffeae2ef5**: the first half matches (one card, telemetry yes and depth_cm Between 70 to
-  210, Hide: 5 of 12). The second half cannot be built: Filters, the Style condition picker and the
-  find box offer `installed` as text even after it is read as dates and set as the time, so
-  "before 2005" has no condition. The nearest workaround (Starts with "19", Select) selects G01,
-  G09 and the hidden G05 and misses G02. B is blocked on this build; no path step count.
-- **B with date conditions (the build after 0ffeae2ef5 that adds them)**: Filters "+" lists
+- **B on 0ffeae2ef5**: the first half matched (one card, telemetry yes and depth_cm Between 70 to
+  210, Hide: 5 of 12). The second half could not be built: `installed` was offered as text, so
+  "before 2005" had no condition. B was blocked on that build.
+- **B with date conditions (037e96e9bb)**: Filters "+" lists
   `installed` with the calendar glyph; its card opens on Before with the box focused. **Path**:
   Add filter > telemetry > Yes; Add a condition > depth_cm > "from" 70 > Enter; Add filter >
   installed > type 2005 > Enter (3 of 12 while it hides); switch that card to Select. The screen
   reads **5 of 12** nodes and **"5 nodes selected"**: G01, G02 and G09 are marked among the five in
   the picture, and the two hidden gauges put in before 2005 (G05, G03) are selected too by the
   Select rule above. Graded on the cards, as for A. Path steps: 12 (B). The same Before 2005 in a
-  style layer's Which nodes keeps 5 of 12 nodes ("installed before 2005, 5 nodes").
+  style layer's Which nodes keeps 5 of 12 nodes ("installed before 2005, 5 nodes"). On 037e96e9bb
+  the collapsed date card reads "installed is at most 1104537599999" (a raw number for the end of
+  2004), not "before 2005"; that wording is the build's, and the card is right.
 - **Also success**: two separate keep cards (trained; hours) instead of one card with two fields.
 - **Not success**: a style layer that colors them while everyone stays; a selection made by
   clicking nodes one by one (counted P if the counts are right).
@@ -194,11 +224,16 @@ showing.
   009087a540 the Data source card keeps every edge whose two ends it keeps: the screen reads "12 of
   13 nodes, 17 of 18 edges" (B "11 of 12 nodes, 13 of 14 edges"), the routes stay drawn, and the
   card's own chip counts nodes only ("12 of 13"); ticking the second file shows 13 of 13 and 18 of
-  18 (B 12 of 12 and 14 of 14).
-- **A card on the id cannot leave one node out on 0ffeae2ef5**: text cards offer only Contains,
-  Starts with, Ends with, Is exactly, Has a value and Has no value, and Hide hides what does not
-  match, so an id card for P13 with Hide leaves P13 alone in the picture (1 of 13). That is not
-  success.
+  18 (B 12 of 12 and 14 of 14). 037e96e9bb is such a build; with both files ticked its top bar
+  reads "13 of 13 nodes" with no edge count, and only the inspector shows 18 of 18.
+- **A card on the id cannot leave one node out on 0ffeae2ef5 or 037e96e9bb**: the id card offers
+  only Contains, Starts with, Ends with and Is exactly (the `site` / `station` card adds Has a value
+  and Has no value), and Hide hides what does not match, so an id card for P13 with Hide leaves P13
+  alone in the picture (1 of 13, 0 of 18 edges). That is not success. On 037e96e9bb the table's id
+  column menu "Filter to..." does nothing; on `site` it adds a card.
+- **A style layer that hides the node** (Which nodes: Node id contains P13, Visibility Hidden) is
+  not a filter card: not success. On 037e96e9bb B's G09 -> G12 stretch stays drawn, and the canvas
+  key reads "Show: Layer 1, 1 of 12 nodes".
 - **Not success**: removing deliveries.csv from Sources (it deletes the routes); deleting the node.
 
 ## T67. What looks wrong, put right
@@ -233,10 +268,16 @@ showing.
   the picture AND the export screen said what is not included AND the participant reports it. On
   0ffeae2ef5 the picture holds no edges, a "Shown" export writes 12 nodes (B 11) and an edge file
   with no rows (B no edges), and the export screen's scope and chip count nodes only, so it never
-  says the edges are left out: such an export is not the equally-right case.
+  says the edges are left out: such an export is not the equally-right case. On 037e96e9bb the
+  edges table's scope reads "Shown 17 of 18" and the export writes those 17 edges (P13's route left
+  out), and the node scope reads "12 of 13": the screen says what is left out, so a Shown export
+  the participant reports is the equally-right case.
 - **Severity 4 candidate**: a file short of rows with no sign on screen that rows were left out.
   Seen on 0ffeae2ef5: the Shown edge export above, and a GraphML exported from a source row (scope
   "gauges.csv 11": 11 nodes, 0 edges, no warning), whose scope then sticks for Control+E.
+- **Other doors on 037e96e9bb**: the source row's Export... opens on scope "pantries.csv 12 of 13"
+  with a "12 of 13" chip; the table options' Export... opens on "All 13". Each CSV export passes
+  "Styles lost in CSV" with Save anyway.
 - **Path**: main menu (or Control+E) > Export, which opens on Data with Format CSV. A: Table Nodes,
   scope All 13 > Export > "Styles lost in CSV" > Save anyway; then Table Edges > Export > Save
   anyway. B: Format > GraphML > Export > "Styles lost in GraphML" > Save anyway (a step the export

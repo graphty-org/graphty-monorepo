@@ -115,10 +115,6 @@ showing.
   edge"): two separate projects, not success. On ff17391bb1 that new project still shows the old
   project's last notice (for example "Undid replacing deliveries.csv."). Replace leaves the issue
   chip at 2, attributed to the second file.
-- **The Edges table on ff17391bb1**: "With issues 1" marks the Source column's header and draws
-  P05 in the warning color, though the end not on the site list is the target, P13. A report that
-  names P05 as the site that did not fit misses "P13 is not on the site list"; note in the grade
-  that the table drew it that way.
 
 ## T62. Read the wrong way
 
@@ -205,6 +201,11 @@ showing.
   selected" with 4 rings, and turning the keep card off selects the fifth staff member again.
   (Builds 0ffeae2ef5 and 037e96e9bb selected over the whole graph: 5 for A, 5 for B. ff17391bb1
   selects only what is in the picture: 4 for A, 3 for B.)
+- **Card counts**: the Select card's chip counts what it marks, out of what is drawn: A's role card
+  reads **4 of 14**, B's installed card **3 of 5**, in either order; the keep card reads 14 of 24
+  (A) and 5 of 12 (B). Turning the keep card off makes A's role card read 5 of 24 (5 selected);
+  on again, 4 of 14. (Builds up to ff17391bb1 counted the Select card over the whole graph: 5 of 24
+  for A, 5 of 12 for B, while 4 and 3 were selected.)
 - **Path**: Data > Filters "+" (Add filter) > trained > Yes; on that card "Add a condition" >
   hours > Between, "from" 10 (the "to" stays 52) > Enter. A new card starts on Hide, so this one
   needs no Select / Hide step (14 of 24). Add filter > role > staff ("Is any of"); switch that

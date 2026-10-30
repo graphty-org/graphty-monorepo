@@ -147,9 +147,18 @@ describe("the table dock's words and sorts", () => {
         const base = { count: 1, params: {}, fixes: [], ignored: false, status: "open" as const };
         assert.deepEqual(
             issuePlace({ ...base, id: "a", code: "decimal-comma", column: { kind: "edge", name: "amount" } }, session),
-            { kind: "edge", column: "a:amount", name: "amount" },
+            { kind: "edge", columns: ["a:amount"], name: "amount" },
         );
-        assert.equal(issuePlace({ ...base, id: "b", code: "repeated-id" }, session).column, "id");
+        assert.deepEqual(issuePlace({ ...base, id: "b", code: "repeated-id" }, session).columns, ["id"]);
+        const ends = (value?: string): readonly string[] =>
+            issuePlace(
+                { ...base, id: "e", code: "unknown-end", params: value === undefined ? {} : { ends: value } },
+                session,
+            ).columns;
+        assert.deepEqual(ends("target"), ["target"]);
+        assert.deepEqual(ends("source"), ["source"]);
+        assert.deepEqual(ends("both"), ["source", "target"]);
+        assert.deepEqual(ends(), ["source"], "an issue saved before ends existed stays on Source");
         assert.equal(issuePlace({ ...base, id: "c", code: "refused-row", source: "s1" }, session).kind, "edge");
         assert.equal(
             issuePlace({ ...base, id: "d", code: "blank-id", params: { rowsAre: "nodes" } }, session).kind,

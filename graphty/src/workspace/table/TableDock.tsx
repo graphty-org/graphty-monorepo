@@ -446,8 +446,10 @@ function issuesByColumn(
     for (const issue of session.data.issues()) {
         const place = issuePlace(issue, session);
         if (place.kind === kind) {
-            const column = keyColumnOf(place.column, choices);
-            byColumn.set(column, [...(byColumn.get(column) ?? []), issue]);
+            for (const id of place.columns) {
+                const column = keyColumnOf(id, choices);
+                byColumn.set(column, [...(byColumn.get(column) ?? []), issue]);
+            }
         }
     }
     return byColumn;

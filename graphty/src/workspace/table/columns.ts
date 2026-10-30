@@ -441,19 +441,26 @@ export function fixDone(fix: FixCode): string {
     return FIX_DONE[fix] ?? "fixed";
 }
 
-/** Where an issue shows: the table and the column whose header carries its warning. */
+/** The end columns an unknown-end issue's `params.ends` names; an issue without it is on Source. */
+const UNKNOWN_END_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+    source: ["source"],
+    target: ["target"],
+    both: ["source", "target"],
+};
+
+/** Where an issue shows: the table and the columns whose headers carry its warning. */
 interface IssuePlace {
     readonly kind: RecordKind;
-    /** The column id, as `TableColumnChoice.id`. */
-    readonly column: string;
+    /** The column ids, as `TableColumnChoice.id`: one, or both ends of an edge. */
+    readonly columns: readonly string[];
     /** What the Issues list names it by: the column's name, or "nodes" or "edges". */
     readonly name: string;
 }
 
 /**
  * Where an issue's warning shows. A column issue is in its column's header. An issue about rows
- * rather than a column is in the key header of the rows it is about: an edge's unknown end or
- * repeat in From, a repeated node id in Id; a refused or blank row in the key of the rows its
+ * rather than a column is in the key header of the rows it is about: an edge's unknown end in the
+ * end the element names (Source, Target or both), a repeat in Source, a repeated node id in Id; a refused or blank row in the key of the rows its
  * load made (edges when it made any).
  * @param issue - the element's issue.
  * @param session - the element's session, for the load's counts.
@@ -461,7 +468,7 @@ interface IssuePlace {
  */
 export function issuePlace(issue: DataIssue, session: GraphSession): IssuePlace {
     if (issue.column !== undefined) {
-        return { kind: issue.column.kind, column: `a:${issue.column.name}`, name: issue.column.name };
+        return { kind: issue.column.kind, columns: [`a:${issue.column.name}`], name: issue.column.name };
     }
     const edgeRows = (): boolean => {
         const { rowsAre } = issue.params;
@@ -473,9 +480,14 @@ export function issuePlace(issue: DataIssue, session: GraphSession): IssuePlace 
             .filter((each) => issue.source === undefined || each.key === issue.source);
         return sources.some((each) => each.counts.edges > 0);
     };
-    const onEdges =
-        issue.code === "unknown-end" || issue.code === "repeated-edge" || (issue.code !== "repeated-id" && edgeRows());
-    return onEdges ? { kind: "edge", column: "source", name: "edges" } : { kind: "node", column: "id", name: "nodes" };
+    if (issue.code === "unknown-end") {
+        const columns = UNKNOWN_END_COLUMNS[String(issue.params.ends)] ?? ["source"];
+        return { kind: "edge", columns, name: "edges" };
+    }
+    const onEdges = issue.code === "repeated-edge" || (issue.code !== "repeated-id" && edgeRows());
+    return onEdges
+        ? { kind: "edge", columns: ["source"], name: "edges" }
+        : { kind: "node", columns: ["id"], name: "nodes" };
 }
 
 /**

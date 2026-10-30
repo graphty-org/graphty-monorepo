@@ -28,7 +28,7 @@ const TIMEOUT_MS = 60_000;
 
 /** The fraud fixture's issues as the element counts them, and the header that carries each. */
 const ISSUES: readonly { label: string; tab: "Nodes" | "Edges"; header: string }[] = [
-    { label: "18 unknown ends", tab: "Edges", header: "from" },
+    { label: "18 unknown ends", tab: "Edges", header: "to" },
     { label: "2 repeated ids", tab: "Nodes", header: "account" },
     { label: "row 412 refused", tab: "Edges", header: "from" },
     { label: "5 repeated edges", tab: "Edges", header: "from" },

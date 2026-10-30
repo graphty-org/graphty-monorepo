@@ -2,8 +2,9 @@
  * The table's rows with issues on the REAL graphty-element, with the airline sample: the `id`
  * header is its key glyph and name with no role pill; "With issues" narrows the Nodes table to the
  * one row its case variant is on, BRISTOL, drawn in the warning's tint; "Ignore all" on the
- * header's hover clears the warning, and Undo brings it back. Every assertion reads what the
- * element reports or what the table draws from it.
+ * header's hover clears the warning, and Undo brings it back. An edge file whose unknown node is
+ * only ever a target carries its warning on the target column, and only the target cell is tinted.
+ * Every assertion reads what the element reports or what the table draws from it.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -106,5 +107,47 @@ describe("the table's rows with issues", () => {
         await waitFor(() => {
             within(headerCell(dock, "city")).getByRole("img", { name: "Issues in city" });
         });
+    });
+
+    it("marks the target column, and only the target cell, when the unknown end is a target", async () => {
+        render(<Workspace store={createWorkspaceStore({ project: { name: "Sites", id: 2 } })} />);
+        let session: GraphSession | undefined;
+        await waitFor(
+            () => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const draft = await session.data.prepare({
+            config: {
+                nodeFile: new File(["id\nP01\nP02\nP03\n"], "sites.csv"),
+                edgeFile: new File(["from,to\nP01,P02\nP02,P03\nP03,P09\n"], "trips.csv"),
+            },
+        });
+        await draft.load();
+        assert.strictEqual(session.data.issues()[0]?.params.ends, "target");
+
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const dock = await screen.findByRole("region", { name: "Table" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(await within(dock).findByRole("tab", { name: "Edges" }));
+        const chip = await within(dock).findByRole("checkbox", { name: /^With issues/ }, { timeout: TIMEOUT_MS });
+        const label = (chip as HTMLInputElement).labels?.[0];
+        assert.isDefined(label, "the chip has a label");
+        await userEvent.click(label);
+        await waitFor(() => {
+            const grid = within(dock).getByRole("grid", { name: "Edges" });
+            const rows = within(grid).getAllByRole("row").slice(1);
+            assert.lengthOf(rows, 1, "one edge has an unknown end");
+            const tinted = [...(rows[0]?.querySelectorAll('[data-tone="warning"]') ?? [])].map(
+                (cell) => cell.textContent,
+            );
+            assert.deepEqual(tinted, ["P09"], "only the unknown target is tinted");
+        });
+        within(headerCell(dock, "to")).getByRole("img", { name: "Issues in to" });
+        assert.isNull(within(headerCell(dock, "from")).queryByRole("img", { name: "Issues in from" }));
     });
 });

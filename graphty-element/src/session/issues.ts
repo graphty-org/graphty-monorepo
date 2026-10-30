@@ -34,7 +34,8 @@ export type IssueId = string; // NOSONAR(S6564): a named public type in the API 
  * - `not-a-number`: a column of numbers holds values that are not (`"N/A"`); `params.examples`.
  * - `decimal-comma`: a column of numbers holds numbers written with a decimal comma (`"12,5"`).
  * - `unknown-end`: edges name a node no node row gave, so the load made it; `count` is the
- *   edges, `params.nodes` the nodes, `params.examples` a few of their ids.
+ *   edges, `params.nodes` the nodes, `params.examples` a few of their ids, `params.ends` which
+ *   end of those edges names an unknown node (`"source"`, `"target"` or `"both"`).
  * - `repeated-edge`: edges join a pair an earlier edge already joins; `count` is the repeats,
  *   `params.pairs` the pairs.
  * - `repeated-id`: node rows repeat an id an earlier row gave, and were left out;
@@ -660,6 +661,12 @@ function loadIssues(input: IssueInput): FoundIssue[] {
     const touching = edges.filter((edge) => unknown.has(edge.source) || unknown.has(edge.target));
     if (touching.length > 0) {
         const ids = [...unknown];
+        const atSource = touching.some((edge) => unknown.has(edge.source));
+        const atTarget = touching.some((edge) => unknown.has(edge.target));
+        let ends = atSource ? "source" : "target";
+        if (atSource && atTarget) {
+            ends = "both";
+        }
         const forget = (facts: LoadFacts): LoadFacts => ({
             ...facts,
             unknownEnds: facts.unknownEnds.filter((id) => !unknown.has(id)),
@@ -670,7 +677,7 @@ function loadIssues(input: IssueInput): FoundIssue[] {
                 code: "unknown-end",
                 ...oneSource(unknownFrom),
                 count: touching.length,
-                params: { nodes: ids.length, examples: ids.slice(0, EXAMPLES) },
+                params: { nodes: ids.length, examples: ids.slice(0, EXAMPLES), ends },
                 fixes: ["leave-out"],
                 current: "add-nodes",
             },

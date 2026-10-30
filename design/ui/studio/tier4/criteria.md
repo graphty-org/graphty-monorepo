@@ -1,4 +1,4 @@
-The study runs on build ff17391bb1 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d2-ff17391bb1
+The study runs on build bccf8fe47f served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d2-bccf8fe47f
 
 Frozen on 2026-10-29 for the tier 4 rounds.
 
@@ -317,3 +317,6 @@ first two by itself; the dry run owns the rest.
     - T67: the pilot named the earlier key and build 0ffeae2ef5; every point it raised (no Data
       step, no yes/no offer for A's volunteer_run, the header list's "Ignore all") is already in
       the key, so nothing changed.
+- 2026-10-29: frozen on build bccf8fe47f (served from .study-builds/tier4-r1d2-bccf8fe47f), replacing
+  ff17391bb1 (.study-builds/tier4-r1d2-ff17391bb1). It adds the issue that names which end of an edge
+  is unknown, and a redone condition change that selects among what it leaves visible.

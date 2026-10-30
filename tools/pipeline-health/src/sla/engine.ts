@@ -73,6 +73,8 @@ export interface Episode {
     /** The state left WARNING and FAILING; absent while ongoing. */
     endedAt?: number;
     peak?: number;
+    /** The start is a bound, not a time: the episode began before the history kept, or when the engine cannot tell. */
+    startUnknown?: boolean;
 }
 
 export interface SourceStatus {
@@ -793,15 +795,51 @@ function extend(open: OpenEpisode | undefined, c: MemberConfig, h: StepState, st
 
 const closed = ({ score: _score, ...e }: OpenEpisode): Episode => e;
 
+/** Gray steps in a row after which an open episode ends: an hour the member could not be judged. */
+const GRAY_ENDS = HOUR_SPAN / STEP;
+
+/**
+ * The member's episodes over the last 24 h. A 7- or 28-day member has none: it has no 5-minute history, so its
+ * start would be "now" on every cycle; its rows and blocks show its breach instead. An episode ends after an hour
+ * of gray steps, so one the member stopped being judged on (too few samples) does not stay ongoing.
+ * @param ctx
+ * @param c
+ * @param current
+ */
 function episodesOf(ctx: Ctx, c: MemberConfig, current: MemberStatus): Episode[] {
     const out: Episode[] = [];
+    if (c.window === "slow") {
+        return out;
+    }
     const now5 = floorTo(ctx.now, "5m");
     let open: OpenEpisode | undefined;
+    let gray = 0;
+    let prev: MemberState | null = null;
     for (let i = HISTORY_STEPS - 1; i >= 0; i--) {
         const t = now5 - i * STEP;
         const h = i === 0 ? currentStep(current) : historicState(ctx, c, { t, end: t + STEP });
+        const before = prev;
+        prev = h.state;
+        if (h.state === null && open) {
+            gray++;
+            if (gray >= GRAY_ENDS) {
+                const end = t - (GRAY_ENDS - 1) * STEP;
+                open.clearedAt ??= end;
+                open.endedAt = end;
+                out.push(closed(open));
+                open = undefined;
+            }
+            continue;
+        }
+        gray = 0;
         if (BAD(h.state)) {
+            const fresh = open === undefined;
             open = extend(open, c, h, i === 0 ? (current.since ?? t) : t);
+            // Opened by the current step after steps that could not be judged, with no time the engine can tell:
+            // it may have begun any time in that gray stretch, so its start is unknown.
+            if (fresh && i === 0 && current.since === undefined && before === null) {
+                open.startUnknown = true;
+            }
             clearing(open, recovered(ctx, c, t), t);
         } else if (h.state === "OK" && open) {
             // Gray or unknown steps (null) neither open nor clear an episode.

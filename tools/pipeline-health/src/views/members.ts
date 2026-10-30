@@ -20,6 +20,7 @@ import type {
 } from "../../web/src/contract.js";
 import { type Bucket, DAY, floorTo, HOUR, MIN, type Step, STEP_MS } from "../model/items.js";
 import { loadSeries, type MetricWindow, windowValue, type WindowName } from "../model/rollup.js";
+import { type PrStockPrs, readSnapshot } from "../model/snapshots.js";
 import type { Store } from "../model/store.js";
 import type { Measure, MemberConfig, SlaConfig, Threshold } from "../sla/config.js";
 import {
@@ -51,7 +52,7 @@ const toMin = 1 / MIN;
 const toH = 1 / HOUR;
 const f = (code: string, params?: Fact["params"]): Fact => (params ? { code, params } : { code });
 
-const STRESS_WORD: WordValue[] = [{ word: "passed" }, { word: "filed", n: 0 }, { word: "failed" }];
+const STRESS_WORD: WordValue[] = [{ word: "passed" }, { word: "quiet" }, { word: "failed" }];
 
 /** Engine member id -> its row. The six channel members share one row (all not set up until #3418). */
 export const SPEC: Record<string, Spec> = {
@@ -63,6 +64,7 @@ export const SPEC: Record<string, Spec> = {
         link: "/releases/lanes",
         word: (v) => ({ word: v >= 1 ? "failed" : "passed" }),
         target: f("sla.word", { word: "passed" }),
+        red: f("sla.word", { word: "failed" }),
     },
     "master.untested_age": { id: "master.untested_age", unit: "h", k: toH, link: "/releases/trains" },
     "master.reverts": { id: "master.reverts", unit: "pct", k: PCT, link: "/master" },
@@ -77,7 +79,8 @@ export const SPEC: Record<string, Spec> = {
         id: "pull-requests.screenshot_backlog",
         unit: "h",
         k: toH,
-        link: "/pull-requests/owner",
+        // The owner reviews a changed picture on the held candidate (Releases), not per pull request.
+        link: "/releases",
     },
     "ci.runner_wait": { id: "ci.runner_wait", unit: "min", k: toMin, link: "/ci/runners" },
     "ci.longest_queued": { id: "ci.longest_queued", unit: "min", k: toMin, link: "/ci/runners" },
@@ -89,14 +92,19 @@ export const SPEC: Record<string, Spec> = {
         link: "https://www.githubstatus.com/",
     },
     "ci.first_attempt": { id: "ci.first_attempt", unit: "pct", k: PCT, link: "/ci/causes" },
-    "ci.hangs": { id: "ci.hangs", link: "/master/red" },
+    "ci.hangs": { id: "ci.hangs", link: "/ci/runners" },
     "ci.pr_check_duration": { id: "ci.pr_duration", unit: "x", link: "/ci" },
     "ci.bins_over_8": { id: "ci.bins_over", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.reruns": { id: "ci.reruns", unit: "pct", k: PCT, link: "/ci" },
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
     "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
-    "ci.chronic_jobs": { id: "ci.chronic_jobs", link: "/ci/chronic", red: f("sla.any_no_issue") },
+    "ci.chronic_jobs": {
+        id: "ci.chronic_jobs",
+        link: "/ci/chronic",
+        target: f("sla.none"),
+        red: f("sla.any_no_issue"),
+    },
     "ci.bench_regressions": { id: "ci.bench_regressions", link: "/ci/benchmarks" },
     // Rolling screenshot capture (design/visual-testing/early-capture.md, plan step 6).
     "slices.set_age": { id: "ci.screenshot_set_age", unit: "h", k: toH, link: "/ci" },
@@ -121,6 +129,7 @@ export const SPEC: Record<string, Spec> = {
         link: "/releases/trains",
         word: (v) => ({ word: v >= 1 ? "yes" : "no" }),
         target: f("sla.word", { word: "no" }),
+        red: f("sla.word", { word: "yes" }),
     },
     "release.review_lag": { id: "releases.review_lag", unit: "h", k: toH, link: "/releases" },
     "release.slots_unreviewed": { id: "releases.slots_unreviewed", unit: "pct", k: PCT, link: "/releases/trains" },
@@ -186,6 +195,8 @@ export const CATEGORY: Record<string, Exclude<PageId, "overview" | "runners" | "
     data_sources: "data-sources",
 };
 
+const BREACH: Partial<Record<MemberStatus["state"], "warn" | "bad">> = { WARNING: "warn", FAILING: "bad" };
+
 const STATE: Record<MemberStatus["state"], MemberState> = {
     OK: "ok",
     WARNING: "warn",
@@ -249,6 +260,11 @@ export class Reads {
         return this.once(`s:${metric}:${step}:${from}:${to}`, () =>
             loadSeries(this.store, metric, step, from, to, this.now),
         );
+    }
+
+    /** The pull requests behind the PR stocks, as the collector last wrote them. */
+    prStocks(): Promise<PrStockPrs | undefined> {
+        return this.once("snapshot:pr-stocks", () => readSnapshot(this.store, "pr-stocks"));
     }
 
     /**
@@ -383,7 +399,6 @@ export function stateOf(s: MemberStatus, c: MemberConfig): MemberState {
     return c.window === "slow" && (st === "ok" || st === "warn" || st === "bad") ? "slow" : st;
 }
 
-const BREACH: Partial<Record<MemberStatus["state"], "warn" | "bad">> = { WARNING: "warn", FAILING: "bad" };
 const GRAY = new Set<MemberState>(["nodata", "notsetup", "idle", "info"]);
 const BUCKETED = new Set(["rate", "median", "p90", "sum", "share", "last"]);
 const windowed = (c: MemberConfig) => c.window === "1h" || c.window === "1h+6h";
@@ -445,6 +460,30 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
 }
 
 /**
+ * What is known about a member now, under its definition: the pull requests behind a PR count, and how many
+ * chronically failing jobs have no open issue (that, not the count, turns the row red).
+ * @param reads
+ * @param s
+ */
+async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> {
+    if (s.id === "ci.chronic_jobs") {
+        const n = s.facts?.["ci.chronic_no_issue"];
+        return n ? f("note.chronic_no_issue", { n }) : undefined;
+    }
+    if (!s.value || !["pr.oldest_open", "pr.automerge_green_stuck", "pr.automerge_armed_long"].includes(s.id)) {
+        return undefined;
+    }
+    const prs = await reads.prStocks();
+    if (s.id === "pr.oldest_open") {
+        return prs?.oldest === undefined
+            ? undefined
+            : f("note.oldest_pr", { pr: prs.oldest, h: round(s.value / HOUR) });
+    }
+    const list = (s.id === "pr.automerge_green_stuck" ? prs?.greenStuck : prs?.armedLong) ?? [];
+    return list.length ? f("note.prs", { prs: list }) : undefined;
+}
+
+/**
  * One engine member as the page's row at a range: the state is the engine's; at 6 h and 24 h a windowed member's
  * value, n and coverage cover the range (section 8), and the 1 h value stays the judged one.
  * @param reads
@@ -469,8 +508,17 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
         ...(reason ? { reason } : {}),
         ...(s.clearedAt === undefined ? {} : { cleared: iso(s.clearedAt) }),
     };
+    // A 7-day member past its line: out of the rollup, but the page shows the breach it is.
+    const breach = state === "slow" ? BREACH[s.state] : undefined;
+    if (breach) {
+        out.breach = breach;
+    }
     if (GRAY.has(state) && state !== "info") {
         return out;
+    }
+    const note = await noteOf(reads, s);
+    if (note) {
+        out.note = note;
     }
     const hs = reads.historyStart(c);
     const bucketed = BUCKETED.has(m.type) && "metric" in m;

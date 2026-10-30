@@ -11,7 +11,7 @@ import type {
     StatusResponse,
 } from "../../web/src/contract.js";
 import { DAY, type RawItem, type ShardRunItem, type TestItem } from "../../src/model/items.js";
-import { oldestAt, putRaw, recordSource } from "../../src/model/raw.js";
+import { oldestAt, putRaw, recordSource, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
 import { evaluate } from "../../src/sla/engine.js";
@@ -294,6 +294,56 @@ describe("views", () => {
         // One point per hour with a run: the backlog's hours (20 h and 10 h ago) are history, not "no history".
         const points = (m?.spark?.trend ?? []).flatMap((v, i) => (v === null ? [] : [i]));
         expect(points).toEqual([3, 13, 22]);
+    });
+
+    it("a 7-day member past its red line is a breach on its row and its block, never the page's state", async () => {
+        const store = new MemoryStore();
+        const ev = await evaluate(store, T0);
+        const gc = ev.members.find((m) => m.id === "release.green_clean")!;
+        Object.assign(gc, { state: "FAILING", value: 0.17, judged: false });
+        const vs = await buildViews(store, T0, ev);
+        const status = vs[0].body as StatusResponse;
+        const releases = status.categories.find((c) => c.id === "releases")!;
+        expect(releases.slowPastRed).toEqual([
+            { member: "releases.green_clean", state: "slow", value: { n: 17, unit: "pct" } },
+        ]);
+        expect(releases.setBy?.member).not.toBe("releases.green_clean");
+        const page = pages(vs).find((p) => p.page === "releases" && p.range === "1h")!;
+        expect(page.members.find((m) => m.id === "releases.green_clean")).toMatchObject({
+            state: "slow",
+            breach: "bad",
+        });
+        expect(status.categories.find((c) => c.id === "master")!.slowPastRed).toEqual([]);
+    });
+
+    it("names the pull requests behind a PR count, and the chronic jobs with no issue that turn CI red", async () => {
+        const store = new MemoryStore();
+        await setCursor(store, "pr-stocks", JSON.stringify({ oldest: 1234, greenStuck: [], armedLong: [7, 8] }), T0);
+        const ev = await evaluate(store, T0);
+        const set = (id: string, v: Partial<(typeof ev.members)[number]>) =>
+            Object.assign(
+                ev.members.find((m) => m.id === id)!,
+                { state: "WARNING", judged: true, ...v },
+            );
+        set("pr.oldest_open", { value: 60 * HOUR });
+        set("pr.automerge_armed_long", { value: 2 });
+        set("pr.automerge_green_stuck", { value: 0, state: "OK" });
+        set("ci.chronic_jobs", { value: 3, state: "FAILING", facts: { "ci.chronic_no_issue": 1 } });
+        const vs = await buildViews(store, T0, ev);
+        const row = (page: string, id: string) =>
+            pages(vs)
+                .find((p) => p.page === page && p.range === "1h")!
+                .members.find((m) => m.id === id)!;
+        expect(row("pull-requests", "pull-requests.oldest_open").note).toEqual({
+            code: "note.oldest_pr",
+            params: { pr: 1234, h: 60 },
+        });
+        expect(row("pull-requests", "pull-requests.automerge_armed_long").note).toEqual({
+            code: "note.prs",
+            params: { prs: [7, 8] },
+        });
+        expect(row("pull-requests", "pull-requests.automerge_green_stuck").note).toBeUndefined();
+        expect(row("ci", "ci.chronic_jobs").note).toEqual({ code: "note.chronic_no_issue", params: { n: 1 } });
     });
 
     it("a page's state names only members the page shows", async () => {

@@ -172,12 +172,18 @@ class Builder {
         const id = CATEGORY[c.id];
         const head = c.headline ?? membersOf(this.reads.ev, id)[0]?.id;
         const ref = async (mid: string) => refOf(await this.member(mid, "1h"));
+        // Its 7- and 28-day members past their red line: they never set the state, so the block names them.
+        const slowBad = this.reads.ev.members.filter(
+            (m) =>
+                m.category === c.id && SPEC[m.id] && this.reads.config(m.id).window === "slow" && m.state === "FAILING",
+        );
         return {
             id,
             state: CATEGORY_STATE[c.state],
             ...(c.setBy ? { setBy: await ref(c.setBy) } : {}),
             others: await Promise.all(c.others.map(ref)),
             headline: await this.member(head, range, HEADLINE_ID[head]),
+            slowPastRed: await Promise.all(slowBad.map((m) => ref(m.id))),
         };
     }
 
@@ -202,6 +208,7 @@ class Builder {
                     worst: e.worst === "FAILING" ? "bad" : "warn",
                     start: iso(e.start),
                     end: e.endedAt === undefined ? null : iso(e.endedAt),
+                    ...(e.startUnknown ? { startUnknown: true } : {}),
                     fact: f("ep.past_threshold", {
                         member: spec.id,
                         ...(peak === undefined ? {} : { peak, ...(spec.unit ? { unit: spec.unit } : {}) }),

@@ -148,9 +148,10 @@ export async function lanesTable(reads: Reads): Promise<Section> {
         const j = a.jobs?.[lane];
         return {
             cells: {
-                lane: { t: "name", v: lane },
+                lane: { t: "label", code: `lane.${lane}` },
                 result: r === "failed" ? { t: "mark", state: "bad", cell: fact("lane.failed") } : fact(`lane.${r}`),
-                since: j?.redAt ? { t: "time", at: iso(j.redAt) } : none,
+                // Red since: only while the lane is red; a lane that passed has no red span.
+                since: r === "failed" && j?.redAt ? { t: "time", at: iso(j.redAt) } : none,
                 job: laneJobCell(j),
             },
         };
@@ -158,7 +159,12 @@ export async function lanesTable(reads: Reads): Promise<Section> {
     if (skipped.length) {
         rows.push({
             past: true,
-            cells: { lane: { t: "name", v: skipped.join(", ") }, result: fact("lane.skipped"), since: none, job: none },
+            cells: {
+                lane: { t: "list", sep: "comma", items: skipped.map((l) => ({ t: "label", code: `lane.${l}` })) },
+                result: fact("lane.skipped"),
+                since: none,
+                job: none,
+            },
         });
     }
     return {

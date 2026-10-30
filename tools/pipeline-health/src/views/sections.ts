@@ -138,10 +138,15 @@ export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> 
             return b?.n ? (v(b) ?? null) : null;
         });
     let peak = { n: -1, at: iso(shown[0]) };
+    let peakQueued = { n: -1, at: iso(shown[0]) };
     for (const s of shown) {
         const n = run.get(s)?.max ?? -1;
         if (n > peak.n) {
             peak = { n, at: iso(s) };
+        }
+        const nq = q.get(s)?.max ?? -1;
+        if (nq > peakQueued.n) {
+            peakQueued = { n: nq, at: iso(s) };
         }
     }
     const out: JobsSection = {
@@ -157,6 +162,7 @@ export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> 
         saturatedMs: per(sat, (b) => b.sum),
         limit: reads.cfg.runnerLimits.linux_windows ?? 60,
         peak: { n: Math.max(0, peak.n), at: peak.at },
+        peakQueued: { n: Math.max(0, peakQueued.n), at: peakQueued.at },
     };
     return out;
 }
@@ -869,7 +875,12 @@ export async function stressTable(reads: Reads): Promise<Section> {
                     ],
                 },
                 result,
-                filed: r.state === 0 && !r.foundFailures ? { t: "num", n: 0 } : none,
+                filed:
+                    r.state === 2
+                        ? { t: "fact", fact: f("stress.not_reached") }
+                        : r.state === 0 && !r.foundFailures
+                          ? { t: "num", n: 0 }
+                          : none,
             },
         };
     });

@@ -45,7 +45,7 @@ describe("parsers", () => {
         const pats = codeownerPatterns("# x\n/.github/ @o\n/visual-review/ @o\n*.lock @o\n");
         expect(ownedPaths([".github/workflows/ci.yml", "a/b.lock", "src/x.ts"], pats)).toEqual([".github/", "*.lock"]);
     });
-    it("workflowState counts the last hour and the failing streak", () => {
+    it("workflowState counts the last 24 hours and the failing streak", () => {
         const run = (min: number, conclusion: string) =>
             ({
                 event: "workflow_dispatch",
@@ -53,8 +53,12 @@ describe("parsers", () => {
                 conclusion,
                 created_at: new Date(NOW - min * MIN).toISOString(),
             }) as GhRun;
-        const w = workflowState("promote.yml", [run(5, "failure"), run(20, "failure"), run(90, "success")], NOW);
-        expect(w).toMatchObject({ workflow: "promote.yml", runs: 2, failed: 2, inRow: 2, since: NOW - 20 * MIN });
+        const w = workflowState(
+            "promote.yml",
+            [run(5, "failure"), run(20, "failure"), run(90, "success"), run(25 * 60, "failure")],
+            NOW,
+        );
+        expect(w).toMatchObject({ workflow: "promote.yml", runs: 3, failed: 2, inRow: 2, since: NOW - 20 * MIN });
     });
 });
 
@@ -167,10 +171,19 @@ describe("snapshot sections", () => {
         });
         const lanes = await lanesTable(r);
         expect(lanes.kind === "table" && lanes.rows.map((x) => x.cells.lane)).toEqual([
-            { t: "name", v: "t4" },
-            { t: "name", v: "ci" },
-            { t: "name", v: "land, publish" },
+            { t: "label", code: "lane.t4" },
+            { t: "label", code: "lane.ci" },
+            {
+                t: "list",
+                sep: "comma",
+                items: [
+                    { t: "label", code: "lane.land" },
+                    { t: "label", code: "lane.publish" },
+                ],
+            },
         ]);
+        // A red lane says since when; a lane that passed has no red span.
+        expect(lanes.kind === "table" && lanes.rows.map((x) => x.cells.since.t)).toEqual(["time", "none", "none"]);
         expect(lanes.sub).toMatchObject({ code: "releases.lanes.sub", params: { sha: "a870943ef", run: 1 } });
         const trains = await trainsTable(r);
         expect(

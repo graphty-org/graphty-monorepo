@@ -150,7 +150,7 @@ export const FieldEntries: Story = {
         await addField(canvasElement, "edge", "Weight", "bytes");
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
         await userEvent.click(
-            await place.findByRole("combobox", { name: "Higher weight means" }, storyWaitOptions(1000)),
+            await place.findByRole("combobox", { name: "Higher means, edge weight" }, storyWaitOptions(1000)),
         );
         await userEvent.click(
             await within(document.body).findByRole("option", { name: "farther" }, storyWaitOptions(1000)),

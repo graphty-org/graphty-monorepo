@@ -1,7 +1,7 @@
 import { ControlSection, EntityChip, FieldRow, focusWithRing, ListboxCheck } from "@graphty/compact-mantine";
 import type { GraphSession, LoadedSource, ValueType } from "@graphty/graphty-element/session";
 import { ActionIcon, Select, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import { MEANING_WORDS } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
@@ -185,12 +185,15 @@ function PickRow({
     onPick: (value: string | null) => void;
 }>): React.JSX.Element {
     const none = withNone ? [{ value: NONE, label: "None" }] : [];
+    const id = useId();
     return (
         <FieldRow>
-            <Text size="xs" truncate className={sub ? "dp-sub-label" : undefined}>
+            {/* The row's words are the box's label: a click on them opens it. */}
+            <Text component="label" htmlFor={id} size="xs" truncate className={sub ? "dp-sub-label" : undefined}>
                 {label}
             </Text>
             <Select
+                id={id}
                 size="xs"
                 aria-label={name}
                 allowDeselect={false}
@@ -557,7 +560,8 @@ function SideGroup({
                     <PickRow
                         sub
                         label="Higher means"
-                        name="Higher weight means"
+                        // Starts with the words on screen, so a reader who says them reaches it.
+                        name="Higher means, edge weight"
                         value={meaning}
                         choices={Object.entries(MEANING_WORDS).map(([value, label]) => ({ value, label }))}
                         onPick={(picked) => {

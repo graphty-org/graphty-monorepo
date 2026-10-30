@@ -259,7 +259,10 @@ describe("the Data place's sidebar on the real element", () => {
             assert.equal(shown("Edge weight"), "bytes");
         });
 
-        await pick("Higher weight means", "farther");
+        // The words on screen are the box's label: a click on them opens it, and its name holds them.
+        within(fieldsGroup()).getByRole("combobox", { name: "Higher means, edge weight" });
+        await userEvent.click(within(fieldsGroup()).getByText("Higher means"));
+        await userEvent.click(await screen.findByRole("option", { name: "farther" }));
         await waitFor(() => {
             assert.equal(steps(), before + 2);
             assert.equal(session.config.data.knownFields.edgeWeightMeaning, "distance");

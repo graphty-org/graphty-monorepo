@@ -103,3 +103,23 @@ Smaller, seen on this pass:
    undoing pantries.csv's replacement (d1-main-menu/14.png).
 7. The deliveries.csv row's file name is cut to "d..", two letters; only its tooltip names it
    (w1-success/12.png, 13.png).
+
+## Re-walk after the latest fix pass (same build ff17391bb1)
+
+None of the routes the latest fixes touched belongs to T61 (they are routes of T64, T65 and T68),
+so this pass replayed T61's own routes again, from the empty start, into
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T61A/r3/.
+
+- Success path by pointer (r3/w1-success): all 18 steps matched. After Join the
+  screen reads Overview Nodes 13, Edges 18, "From 2 files"; Sources lists pantries.csv (12) and
+  deliveries.csv (13, 18, issue chip 1); the Nodes table holds the task's own pantries data
+  (P01-P10 visible, "With issues 2") (r3/w1-success/11.png). Reached, as the answer key says.
+- Detour d1-main-menu (Cancel, Undo, Replace, separate graph): all 15 steps matched; the earlier
+  findings above stand (r3/d1-main-menu/16.png).
+- Detour d2-start-screen (second file from the start screen): all 8 steps matched
+  (r3/d2-start-screen/09.png).
+- Detour d7-row-menus (the Sources row menus): all 9 steps matched.
+- The keyboard walk k3-keyboard was still replaying when this pass closed; its result is not
+  recorded here.
+
+No new crash, block or grading-spoiling result. The defects listed above are unchanged.

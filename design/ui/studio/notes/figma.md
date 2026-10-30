@@ -5,42 +5,45 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-30 (tier 4 round 1 walkthrough on build 79ed770292).
+Last updated: 2026-10-30 (tier 4 closed after round 1 on build 79ed770292).
 
 ## Top of mind
 
-1. (2026-10-30) Tier 4 round 1 walk: `tier4/rounds/round-1/expert/figma.md`, 18 findings, two
-   severity 3. Filter cards say "Hide" and keep what matches (the top bar calls the same cards
-   "Showing only"); a date card rests as "opened is at most 1546300799999" (`filterWords.ts`).
-2. (2026-10-30) Decided-but-unbuilt items found on the frozen build: Filter to / Filter out words,
-   the address box's Open button, date-only CSV dates, the joined row's drawn ratio (R11), the
-   join count chips as one grammar (R13). Check every decided entry against the build before a
-   walk: four of my eighteen findings were decisions already made.
-3. (2026-10-30) Bar 6 candidates I hold with a session repro: the approved "17/19" ratio is no
-   longer drawn (only in the accessible name); the web address opens only on Enter.
-4. (2026-10-30) After a join, pantries.csv's row drops its issue chip while the table still says
-   "With issues 2". The decided home of issues goes blank.
-5. (2026-10-30) Kind drawn two ways again: a text column with the Time role is a calendar in the
-   Filters picker, "Aa" in the table and Fields. Rule: the kind glyph follows the kind alone.
-6. (2026-10-30) The filter card and the Style card still rest differently (dim sentence vs bordered
-   chip; no Done). "The filters ARE the Style cards" needs one resting drawing.
-7. (2026-10-30) Works now: toolbar Filters is a door; Filters "+" is the Style picker; filters never
-   move the camera; Sources "+" and row menus show glyph and key; Time sets only the time.
-8. (2026-10-21) Biggest tier 3 newcomer cost: an empty selection's Style tab shows only canvas
-   settings. Figma's empty-selection panel still points at what styles the content.
-9. (2026-10-21) A new style line must change the canvas or show the covered value as a
-   placeholder; an added line equal to the current value reads as broken.
-10. (2026-10-21) One list drawn four ways is my standing complaint; tier 4 adds the join count row
-    (four kinds of count in one row). One chip grammar per row, one picker component.
-11. (2026-10-21) Layer tree Shift-click anchors on the last layer clicked, not the selection.
-    Watch item.
-12. (2026-10-20, owner) No UI sentences; tooltips that instruct ("Click to open Filters, where
-    you can ...") are sentences too.
-13. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
+1. (2026-10-30) Tier 4 stopped after round 1 at the round cap with bars 5, 6 and 7 failing
+   (`tier4/rounds/round-1/insights.md`). Bar 6 is mine to carry: the joined source row clips the
+   approved "17/19" ratio and the second file's name. One layout fix covers both; also "17 of 19
+   joined" beside 18 edges contradicts itself.
+2. (2026-10-30) Most severe open problem: the join preview does not show what Join will do (the
+   unknown-end row is untagged, the repeated key tagged). Figma previews the result of an action
+   before commit; the preview must tag every row by what Join does to it.
+3. (2026-10-30) Choices come after the act with a default already applied: the unknown end is
+   decided after Join with "Add nodes" in effect; "Leave out" does not say it deletes; a new filter
+   card starts on Hide. The planned Select | Filter to | Filter out rename keeps that default --
+   question the default, not just the words.
+4. (2026-10-30) One fact drawn two ways sends people to a second menu: Time role with text kind
+   glyph; card counts on two bases (whole graph vs picture); place roles unmarked on headers. The
+   kind glyph follows the kind alone, and a role gets a header mark.
+5. (2026-10-30) Weakened by the check, do not re-raise at 3: "With issues 11" (1), the bare
+   "Hide" label (1; tooltip and behavior agree), kind-glyph mismatch nobody tripped on (1),
+   A-to-Z ISO sort (1, keep an eye on it only).
+6. (2026-10-30) The study tool printed `tooltip: null` when a hover opened a popover; header issue
+   marks DO open their fix list. Before trusting any "nothing appeared on hover" finding, look at
+   the screenshot.
+7. (2026-10-30) Keyboard still blocks (bar 5): the table's Nodes tab names a panel never rendered;
+   the header "..." is not a Tab stop; the issue mark is an image with no spoken issue.
+8. (2026-10-30) Check every decided entry against the build before a walk: four of my eighteen
+   round 1 findings were decisions already made but unbuilt.
+9. (2026-10-30) The table header is where people go for column work (3 of 4); the inspector's
+   "Set in Data" misleads only when the task is about the column's kind.
+10. (2026-10-30) Works now: toolbar Filters is a door; Filters "+" is the Style picker; filters
+    never move the camera; Sources "+" and row menus show glyph and key; Time sets only the time.
+11. (2026-10-30) The filter card and the Style card still rest differently; "the filters ARE the
+    Style cards" needs one resting drawing.
+12. (2026-10-21) An empty selection's Style tab should still point at what styles the content.
+13. (2026-10-21) One list drawn four ways; one chip grammar per row, one picker component.
+14. (2026-10-20, owner) No UI sentences; tooltips that instruct are sentences too.
+15. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
     graphty's ontology. Never a task-word synonym.
-14. (2026-10-07) One model plays every persona: a failure is strong, a pass weak.
-15. (2026-10-23) Location as one "+" pick per kind; latitude and longitude are two rows (X and Y).
-    Fields "+" still offers "Coordinates" and makes Latitude and Longitude rows: one name per thing.
 
 ## Priorities and values
 
@@ -210,6 +213,12 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   compact-mantine limits; decided changes that never shipped. Lessons: review by clicking, not
   reading; fix the shared component first; a result must show; check a decided change in the
   build before the round.
+
+- (2026-10-30) Did not work: holding severity 3 on single-cause findings. Both skeptic checks cut
+  every severity 3 candidate to 2 or 1 because participants recovered from the counts. Rate by the
+  cost a reader paid, and say "rule broken" separately when an approved surface is lost.
+- (2026-10-30) Worked: findings with a scripted repro survived the check (join preview, clipped
+  ratio); findings resting on the tool's hover line did not.
 
 ## Thinking
 

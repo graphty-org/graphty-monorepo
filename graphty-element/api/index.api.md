@@ -4632,6 +4632,8 @@ class Node_2 implements ModelUser {
     isSelected(): boolean;
     // (undocumented)
     label?: RichTextLabel;
+    // @internal
+    get layoutRadius(): number;
     // (undocumented)
     mesh: AbstractMesh;
     // @internal
@@ -4656,7 +4658,7 @@ class Node_2 implements ModelUser {
     // (undocumented)
     pinOnDrag: boolean;
     // @internal
-    refreshScreenBorder(): void;
+    refreshScreenBorder(): boolean;
     refreshSelectionOverlay(): void;
     // @internal
     refreshShaderPaint(): void;

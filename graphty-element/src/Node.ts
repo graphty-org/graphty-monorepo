@@ -754,9 +754,16 @@ export class Node implements ModelUser {
         // rebuilt for the new zoom, and whether a second framing came along to measure that one
         // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
         // few pixels.
-        const reach = typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
+        return (extent + this.sceneBorderReach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+    }
 
-        return (extent + reach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+    /**
+     * {@link Node.borderReach} without a border drawn in screen pixels (`border.screenWidth`),
+     * whose reach in the scene changes with every zoom: what framing and layout count.
+     * @returns The reach.
+     */
+    private get sceneBorderReach(): number {
+        return typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
     }
 
     /**
@@ -915,20 +922,27 @@ export class Node implements ModelUser {
      * Rebuild a border drawn in screen pixels when the camera now draws it at another width on
      * screen. Called by the update loop on a frame the camera moved; does nothing for a node
      * whose border is in scene units.
+     *
+     * The ring's reach is where this node's edges end, so the caller re-trims them when this
+     * answers true (#3532). A layout is not woken: it spaces nodes by {@link Node.layoutRadius},
+     * which leaves this border out.
+     * @returns Whether the border's reach changed.
      * @internal
      */
-    refreshScreenBorder(): void {
+    refreshScreenBorder(): boolean {
         const built = this.borderBuilt;
         if (typeof built?.scale !== "number" || this.mesh.isDisposed()) {
-            return;
+            return false;
         }
 
         if (this.screenScale(built.style) === built.scale) {
-            return;
+            return false;
         }
 
+        const before = this.borderReach;
         this.border?.dispose();
         this.syncBorder(built.meshKey, built.style);
+        return this.borderReach !== before;
     }
 
     /**
@@ -2286,12 +2300,33 @@ export class Node implements ModelUser {
      * `graph-root`, and an XR gesture scales that root -- so measuring in world space would
      * count the gesture in a value that is compared with layout coordinates and local scalings.
      *
-     * Read by a layout that keeps nodes apart by their drawn size
-     * (`ngraph`'s `nodeGap`). Measured once per mesh and scaling: a bounding-box read per node per
-     * layout step is the cost {@link Node.roundRadius} documents.
+     * Counts the border as drawn now, so a border in screen pixels makes it change with the zoom;
+     * a layout reads {@link Node.layoutRadius} instead.
      * @returns The radius; the style's own size when the mesh has no bounds yet.
      */
     get drawnRadius(): number {
+        return this.surfaceRadius + this.borderReach;
+    }
+
+    /**
+     * {@link Node.drawnRadius} without a border drawn in screen pixels (`border.screenWidth`):
+     * the radius a layout spaces this node by (`nodeGap`). That border's reach in the scene
+     * changes with every zoom, so counting it made the spacing depend on the camera the layout
+     * ran under; the few pixels it adds are left to the gap (#3532).
+     * @returns The radius.
+     * @internal
+     */
+    get layoutRadius(): number {
+        return this.surfaceRadius + this.sceneBorderReach;
+    }
+
+    /**
+     * How far the node's drawn surface reaches from its centre at most, without its border.
+     * Measured once per mesh and scaling: a bounding-box read per node per layout step is the cost
+     * {@link Node.roundRadius} documents.
+     * @returns The radius; the style's own size when the mesh has no bounds yet.
+     */
+    private get surfaceRadius(): number {
         const own = this.mesh.scaling;
         const scale = Math.max(Math.abs(own.x), Math.abs(own.y), Math.abs(own.z));
         if (this.drawnRadiusMesh !== this.mesh || this.drawnRadiusScale !== scale || this.drawnRadiusValue <= 0) {
@@ -2304,9 +2339,7 @@ export class Node implements ModelUser {
 
         // A mesh whose bounds have not been computed yet answers zero. Falling back to the
         // style's own size keeps the answer roughly right until the mesh is measured.
-        const radius = this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
-
-        return radius + this.borderReach;
+        return this.drawnRadiusValue > 0 ? this.drawnRadiusValue : Math.max(this.size, MIN_OVERLAY_SIZE) / 2;
     }
 
     /**

@@ -16,6 +16,7 @@ import type { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { NODE_EXTENT_PER_SIZE } from "../../src/meshes/NodeMesh";
 import { flatShapeOutline, type Point2 } from "../../src/meshes/shapeOutlines";
+import { wheel } from "../helpers/real-input";
 
 const WIDTH = 480;
 const HEIGHT = 360;
@@ -430,6 +431,39 @@ describe("a border in screen pixels", () => {
             assert.isBelow(reach, before * 0.8, "the ring was rebuilt for the new zoom");
         });
         assert.approximately(half(element), unbordered, 1e-9, "the framed extent did not move with the zoom");
+    });
+
+    it("re-trims its edges when a wheel zoom rebuilds the ring, and keeps the layout's radius (#3532)", async () => {
+        const element = await mounted(
+            "2d",
+            [
+                { id: "a", position: { x: -20, y: 0, z: 0 } },
+                { id: "b", position: { x: 20, y: 0, z: 0 } },
+            ],
+            [{ src: "a", dst: "b" }],
+            [layerFor(["a", "b"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
+        );
+        const { nodes } = element.graph.getDataManager();
+        const a = nodes.get("a");
+        assert.isDefined(a);
+        const line = (): number => edgeOf(element, "a", "b").drawnLine?.length ?? NaN;
+        const reach0 = a.borderReach;
+        const length0 = line();
+        const layout0 = a.layoutRadius;
+        assert.isAbove(reach0, 0, "the border is drawn");
+
+        // A reader's wheel zoom, through the browser's own input pipeline.
+        await wheel(element, { x: WIDTH / 2, y: HEIGHT / 2 }, -400);
+
+        // The ring is rebuilt thinner in the scene, so each end of the line moves out by as much.
+        await vi.waitFor(() => {
+            assert.isBelow(a.borderReach, reach0, "the ring was rebuilt for the new zoom");
+        });
+        await element.waitForStableFrame();
+        const reach = a.borderReach;
+        assert.approximately(line(), length0 + 2 * (reach0 - reach), 1e-3, "the edge ends at the new border");
+        // A nodeGap layout keeps the spacing it was laid out with: its radius is not the zoom's.
+        assert.approximately(a.layoutRadius, layout0, 1e-9);
     });
 });
 

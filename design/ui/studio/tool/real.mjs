@@ -2050,6 +2050,23 @@ async function plantDom(s, kind) {
                 addEventListener(t, (e) => e.stopImmediatePropagation(), { capture: true });
             return;
         }
+        if (kind === "hover-card") {
+            // a mark that opens a card, not a tooltip, on hover (as a column's issue mark does)
+            const b = document.createElement("button");
+            b.textContent = "Planted card mark";
+            Object.assign(b.style, { position: "fixed", left: "600px", top: "40px", zIndex: 99999 });
+            b.onmouseenter = () => {
+                const c = document.createElement("div");
+                c.dataset.realHoverCard = "";
+                c.setAttribute("aria-label", "Planted issues");
+                c.textContent = "2 values with padded spaces";
+                Object.assign(c.style, { position: "fixed", left: "600px", top: "70px", zIndex: 99999 });
+                document.body.append(c);
+                b.onmouseleave = () => c.remove();
+            };
+            document.body.append(b);
+            return;
+        }
         if (kind === "slow") {
             const b = document.createElement("button");
             b.textContent = "Planted slow";
@@ -2429,6 +2446,29 @@ async function tooltip(page) {
     }
     return tipNow(page, true);
 }
+// A hover can open a hover card or a popover instead of a tooltip (a column's issue mark opens its
+// fix list). Round 1 printed "tooltip: null" for those and four participants believed it over their
+// screenshot, so a hover reports what it opened: the tooltip, else the card, else null.
+const POP = ".mantine-HoverCard-dropdown, .mantine-Popover-dropdown, [data-real-hover-card]";
+const forgetPops = (page) =>
+    page.evaluate((pop) => document.querySelectorAll(pop).forEach((e) => (e.dataset.realStale = "")), POP);
+const popNow = (page) =>
+    page.evaluate((pop) => {
+        const t = [...document.querySelectorAll(pop)].find(
+            (e) =>
+                !("realStale" in e.dataset) && e.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+        );
+        if (!t) return null;
+        const name = t.getAttribute("aria-label") || t.querySelector("[aria-label]")?.getAttribute("aria-label");
+        const text = t.innerText.replace(/\s+/g, " ").trim().slice(0, 160);
+        return name ? `${name}: ${text}` : text;
+    }, POP);
+async function hoverLines(page) {
+    const tip = await tooltip(page);
+    if (tip) return [`tooltip: ${JSON.stringify(tip)}`];
+    const card = await popNow(page);
+    return card === null ? ["tooltip: null"] : [`opened a hover card: ${JSON.stringify(card)}`];
+}
 
 // Runs the steps; pushes what a participant would notice onto out; returns { code, missed }
 async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
@@ -2524,7 +2564,7 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
                 missed++;
             } else {
                 if (f.at) out.push(`${verb === "hover" ? "hovered" : "clicked"} ${f.desc}`);
-                if (verb === "hover") await forgetTips(page);
+                if (verb === "hover") await Promise.all([forgetTips(page), forgetPops(page)]);
                 await act(page, f, verb, CLICKS[a], clickMs).catch((e) => {
                     // Playwright counts its wait after the click (for navigations it may have started)
                     // inside the limit: a click its call log says was done landed, and was only slow
@@ -2540,15 +2580,15 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
                 });
             }
             if (verb !== "hover") await appIdle(page);
-            if (verb === "hover" && !f.miss) out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+            if (verb === "hover" && !f.miss) out.push(...(await hoverLines(page)));
         } else if (a in AT) {
             const [x, y] = v.split(",").map(Number);
             out.push(`at ${x},${y}: ${await whatIsAt(page, x, y)}`);
             if (a === "--hover-at") {
-                await forgetTips(page);
+                await Promise.all([forgetTips(page), forgetPops(page)]);
                 await page.mouse.move(x, y);
                 out.push(`cursor: ${await cursorAt(page, x, y)}`);
-                out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+                out.push(...(await hoverLines(page)));
             } else {
                 await page.mouse.click(x, y, { button: AT[a].button || "left", clickCount: AT[a].clickCount || 1 });
                 await appIdle(page);
@@ -2577,9 +2617,9 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             }
             const [x, y] = icons[+v - 1];
             out.push(`icon ${v} of ${icons.length}, at ${x},${y}`);
-            await forgetTips(page);
+            await Promise.all([forgetTips(page), forgetPops(page)]);
             await page.mouse.move(x, y);
-            out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
+            out.push(...(await hoverLines(page)));
         } else if (a === "--drag") {
             const [[x1, y1], [x2, y2]] = [v, v2].map((p) => p.split(",").map(Number));
             out.push(`drag from ${x1},${y1} (${await whatIsAt(page, x1, y1)}) to ${x2},${y2}`);
@@ -3293,6 +3333,16 @@ async function prove() {
         await ask(A, { op: "plant-dom", kind: "hidden-tip" });
         x = step(A, "--hover", "Everything");
         check("a hover over a dismissed, hidden tooltip reports tooltip: null", /^tooltip: null$/m.test(x.out), x.out);
+        // a hover that opens a card and no tooltip reports the card, never "tooltip: null" (round 1:
+        // four participants believed the null over their screenshot of the issue mark's fix list)
+        await ask(A, { op: "plant-dom", kind: "hover-card" });
+        x = step(A, "--hover", "Planted card mark");
+        check(
+            "a hover that opens a hover card reports the card, not tooltip: null",
+            /^opened a hover card: "Planted issues: 2 values with padded spaces"$/m.test(x.out) &&
+                !/^tooltip: null$/m.test(x.out),
+            x.out,
+        );
         // a client stopped mid-step (its agent was stopped): the session answers the next step
         // (the request is written, then the client is gone before its answer; the next step queues
         // behind it, so it is answered only after the session tried to answer the gone one)

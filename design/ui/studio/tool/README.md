@@ -166,7 +166,9 @@ node $T/real.mjs --step $S --click "<project name>"       # reopens the saved fi
   and nothing else happened: look at the screenshot.
 - `tooltip: "..."` after every hover, or `tooltip: null`. A tooltip still fading out from the last
   hover is not this hover's and is never printed; one dismissed and hidden by CSS (opacity 0,
-  `visibility: hidden`) or one with no text is no tooltip, so it reads `null`, never `""`.
+  `visibility: hidden`) or one with no text is no tooltip, so it reads `null`, never `""`. A hover
+  that opens a hover card or a popover and no tooltip (a column's issue mark opens its fix list)
+  prints `opened a hover card: "<its name>: <its text>"` instead of `tooltip: null`.
 - Misses: `nothing on screen is called "..."`, `only 2 controls are called ...`.
 - `could not click "...": ... Timeout 3000ms exceeded.` when a control is there but cannot take the
   click, followed by the browser's own reason, indented (`element is not enabled`, `element is not
@@ -612,7 +614,8 @@ Runs real sessions against the build: a start, clicks by control name and by a n
 label, a click at a point, a hover tooltip (and one right after another, while the first fades
 out), a click on a disabled control that must print its reason, a planted click that lands but whose wait
 after it runs past the limit (reported landed, not missed), a hover over a planted dismissed,
-hidden tooltip (reported `null`), a client killed mid-step that must
+hidden tooltip (reported `null`), a hover over a planted mark that opens a card (reported as the
+card, not `null`), a client killed mid-step that must
 leave the session running, typing, an upload, a download, a name inside an open
 dialog and one behind it, a save, a reopened tab that reopens the save from Recent projects, a
 planted spin (a camera key held on the canvas) that must be reported, typing into an open popover

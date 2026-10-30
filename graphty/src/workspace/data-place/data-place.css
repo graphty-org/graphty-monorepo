@@ -48,13 +48,15 @@
     background: var(--mantine-color-default-hover);
 }
 
-/* The button never shrinks below its icon and count chips (its label counts as no width there), so
-   the issue chip after it never covers them: the name is what gives way. */
+/* The name and a joined file's ratio keep a readable width (tier 4 bar 6: "d.." beside its chips);
+   when the count chips do not fit beside them they move to a second line, right aligned. Nothing
+   covers the chips, and the issue chip after the button never covers them either. */
 .dp-source-main {
     display: flex;
     flex: 1;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 2px 6px;
     /* Room inside the button, so its inset focus ring clears the text. */
     padding: 2px 4px;
     border: 0;
@@ -79,7 +81,7 @@
     align-items: center;
     gap: 6px;
     width: 0;
-    min-width: 0;
+    min-width: min(100%, 11em);
 }
 
 .dp-source-name {
@@ -90,19 +92,16 @@
     white-space: nowrap;
 }
 
-/* The join ratio gives way well before the name does (its words stay in its tooltip and name); the
-   chips keep their size. */
+/* The approved join ratio ("17/19") is drawn whole; the name gives way first. */
 .dp-source-label .dp-quiet {
-    flex: 0 1000 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: none;
 }
 
 .dp-source-chips {
     display: inline-flex;
     flex: none;
     gap: 4px;
+    margin-inline-start: auto;
 }
 
 /*

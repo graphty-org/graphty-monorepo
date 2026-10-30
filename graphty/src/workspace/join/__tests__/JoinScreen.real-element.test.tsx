@@ -428,4 +428,26 @@ describe("the join screen on the real element", () => {
         );
         assert.strictEqual(session.data.nodes().length, 11, "G12 was left out, not added");
     });
+
+    it("keeps a joined source row's ratio whole and its name readable", async () => {
+        await projectWith(new File([GAUGES], "gauges.csv"), 11);
+        drop(new File([FLOWS], "deliveries.csv"));
+        const join = await screen.findByRole("region", { name: "Join deliveries.csv" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        const row = await screen.findByRole("listitem", { name: "deliveries.csv" }, { timeout: TIMEOUT_MS });
+        await waitFor(() => {
+            const ratio = row.querySelector<HTMLElement>(".dp-source-label .dp-quiet");
+            const name = row.querySelector<HTMLElement>(".dp-source-name");
+            assert.isNotNull(ratio, "the ratio is drawn");
+            assert.isNotNull(name);
+            if (ratio === null || name === null) {
+                return;
+            }
+            assert.match(ratio.textContent, /^\d+\/15$/);
+            assert.isAtMost(ratio.scrollWidth, ratio.clientWidth, "the ratio is whole");
+            assert.isAbove(ratio.getBoundingClientRect().width, 0);
+            // At least "deliver" of the name shows (about seven characters at 12 px).
+            assert.isAtLeast(name.clientWidth, 45, "the name is readable");
+        });
+    });
 });

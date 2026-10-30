@@ -102,7 +102,7 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         }
         return `gh workflow run base-check.yml --ref master -f base=${base} -f file='${f.file}' -f variant='${variant}' -f repeat=${repeat}`;
     };
-    return (d, { firstOutcome }) => {
+    return (d, { firstOutcome, unretried }) => {
         if (firstOutcome !== "failed" || d.flaky.length + d.excused.length + d.failing.length === 0) return d;
         const lines = [];
         const failing = [];
@@ -127,14 +127,16 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
                     `[FLAKY-UNRELATED] ${shard}: ${idOf(f)} failed and passed; this pull request did not touch it. Base check: ${check(f, 5)}`,
                 );
         }
+        // "every time" only when a retry ran: a failure that was not retried failed once (#5128)
+        const how = unretried ? `failed (${unretried})` : "failed every time";
         for (const f of d.failing) {
             const k = !touched(f) && known(f);
             if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
-            else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} failed every time`);
+            else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} ${how}`);
             else {
                 // #3925: a failure this pull request did not cause must not block it; the base check (dispatched
                 // in the background) files `Failing on master`, and the full run with bisect and revert is the net
-                const text = `[UNRELATED] ${shard}: ${idOf(f)} failed every time; this pull request did not touch it. Base check: ${check(f, 1)}`;
+                const text = `[UNRELATED] ${shard}: ${idOf(f)} ${how}; this pull request did not touch it. Base check: ${check(f, 1)}`;
                 warn(text);
                 summary(`- ${text}`);
             }

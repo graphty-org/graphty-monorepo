@@ -2860,6 +2860,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
     let timeline: TimeInternals | null = null;
+    /** Told when the reader changes the selection by hand: the select conditions switch off. */
+    let onHandSelection: (() => void) | null = null;
     const visibility = createVisibilityApi({
         snapshot,
         instants: (path: Path) => timeline?.instants(path) ?? null,
@@ -2904,6 +2906,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     "replace",
                     cause,
                 );
+            },
+            onHandChange: (listener) => {
+                onHandSelection = listener;
             },
         },
     });
@@ -3271,6 +3276,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, "selection:changed", delta);
             // A hover layer that falls back to the selection follows it too.
             repaintHover();
+            if (delta.cause === "user") {
+                onHandSelection?.();
+            }
         },
         onHover: (before, after) => {
             const nodes = [before, after].flatMap((id) => {

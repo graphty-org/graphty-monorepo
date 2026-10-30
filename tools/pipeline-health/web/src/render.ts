@@ -228,17 +228,31 @@ const WINDOW_PHRASE: Partial<Record<MemberWindow, string>> = {
     "1h6h": " over the last hour",
 };
 
+function numCell(c: Extract<Cell, { t: "num" }>): string {
+    const s = c.unit === "usd" || c.unit === "count" || !c.unit ? fmtN(c.n) : fmtUnit(c.n, c.unit);
+    const of = c.of === undefined ? "" : ` of ${fmtN(c.of)}`;
+    const v = esc(s + of);
+    return c.bold ? `<b>${v}</b>` : v;
+}
+
+/** Each item once, and three at most: the rest is a count. */
+function listCell(c: Extract<Cell, { t: "list" }>): string {
+    const seen = new Set<string>();
+    const items = c.items.filter((i) => !seen.has(JSON.stringify(i)) && seen.add(JSON.stringify(i)));
+    const sep = LIST_SEP[c.sep ?? ""] ?? " ";
+    const more =
+        items.length > LIST_SHOWN ? `${sep}<span class="muted">+${fmtN(items.length - LIST_SHOWN)} more</span>` : "";
+    return items.slice(0, LIST_SHOWN).map(cellHtml).join(sep) + more;
+}
+
 export function cellHtml(c: Cell): string {
     switch (c.t) {
         case "name":
             return c.bold ? `<b>${esc(c.v)}</b>` : esc(c.v);
         case "label":
             return labelText(c.code);
-        case "num": {
-            const s = c.unit === "usd" || c.unit === "count" || !c.unit ? fmtN(c.n) : fmtUnit(c.n, c.unit);
-            const v = esc(s + (c.of !== undefined ? ` of ${fmtN(c.of)}` : ""));
-            return c.bold ? `<b>${v}</b>` : v;
-        }
+        case "num":
+            return numCell(c);
         case "budget":
             return c.budget === null
                 ? `${fmtN(c.so)}<small>no budget set</small>`
@@ -269,17 +283,8 @@ export function cellHtml(c: Cell): string {
         }
         case "spark":
             return sparkline(c.spark, clock.generated, "projection by day");
-        case "list": {
-            // Each item once, and three at most: the rest is a count.
-            const seen = new Set<string>();
-            const items = c.items.filter((i) => !seen.has(JSON.stringify(i)) && seen.add(JSON.stringify(i)));
-            const sep = LIST_SEP[c.sep ?? ""] ?? " ";
-            const more =
-                items.length > LIST_SHOWN
-                    ? `${sep}<span class="muted">+${fmtN(items.length - LIST_SHOWN)} more</span>`
-                    : "";
-            return items.slice(0, LIST_SHOWN).map(cellHtml).join(sep) + more;
-        }
+        case "list":
+            return listCell(c);
         case "sub":
             return `${cellHtml(c.main)}<small>${cellHtml(c.sub)}</small>`;
         case "none":
@@ -297,25 +302,28 @@ function linksHere(link: string): boolean {
 
 const breached = (m: Member) => m.state === "warn" || m.state === "bad";
 
-function memberRow(m: Member): string {
+const STEP_WORD: Record<string, string> = { "15m": "15 minutes", "1h": "hour" };
+
+/** What red means, under a row's name; "Red:" when the row is past its red line, and yellow's own meaning first. */
+function redNote(m: Member): string {
     const t = MEMBER[m.id];
-    const dim = isMuted(m.state) && !(m.state === "few" && showsRangeValue(m, here.range)) ? " dim" : "";
-    const sp = m.spark
-        ? sparkline(
-              m.spark,
-              clock.generated,
-              `${MEMBER[m.id].name} by ${m.spark.step === "15m" ? "15 minutes" : m.spark.step === "1h" ? "hour" : "day"}`,
-          )
-        : "";
-    const val = m.state === "nodata" ? "--" : bigValue(m.value);
-    // What red means is on every row ("If red:"), and reads "Red:" in ink when the row is past its red line; a
-    // yellow row says what yellow means when that differs, then what red would mean.
+    if (!t.red) return "";
     let lead = m.sla?.red ? "If red: " : "";
     if (m.state === "bad") lead = "Red: ";
     const yellow = m.state === "warn" && t.yellow ? `Yellow now: ${esc(t.yellow)} ` : "";
     const redCls = breached(m) ? "redm on" : "redm";
-    const red = t.red ? `<small class="${redCls}">${yellow}${lead}${esc(t.red)}</small>` : "";
-    const title = t.red ? ` title="${esc(`Red: ${t.red}`)}"` : "";
+    return `<small class="${redCls}">${yellow}${lead}${esc(t.red)}</small>`;
+}
+
+function memberRow(m: Member): string {
+    const t = MEMBER[m.id];
+    const dim = isMuted(m.state) && !(m.state === "few" && showsRangeValue(m, here.range)) ? " dim" : "";
+    const sp = m.spark ? sparkline(m.spark, clock.generated, `${t.name} by ${STEP_WORD[m.spark.step] ?? "day"}`) : "";
+    const val = m.state === "nodata" ? "--" : bigValue(m.value);
+    // What red means is on every row ("If red:"), and reads "Red:" in ink when the row is past its red line; a
+    // yellow row says what yellow means when that differs, then what red would mean.
+    const red = redNote(m);
+    const title = t.red ? ` title="${esc("Red: " + t.red)}"` : "";
     // A row whose link is the page it is on goes nowhere, so it is no link and has no chevron; its own links work.
     const still = linksHere(m.link);
     const text = (html: string) => (still ? html : unlinked(html));
@@ -638,6 +646,27 @@ const filled = (c: Cell | undefined): boolean => c !== undefined && c.t !== "non
  * A table: a column no row fills is left out; an empty cell reads "--"; ended or idle rows, and rows past the
  * table's cap, fold into "N more" (a total row always shows).
  */
+type TableRow = TableSection["rows"][number];
+
+/** One table row; each cell carries its column's name, which a phone shows beside it when the row stacks (style.css). */
+function tableRow(cols: [string, string][], r: TableRow): string {
+    const cls = `tr${r.past ? " past" : ""}${r.total ? " tot" : ""}`;
+    const cells = cols
+        .map(([k, h]) => cellSpan(h, filled(r.cells[k]) ? cellHtml(r.cells[k]) : '<span class="muted">--</span>'))
+        .join("");
+    return r.link ? `<a class="${cls}" href="${href(r.link)}">${cells}</a>` : `<div class="${cls}">${cells}</div>`;
+}
+
+/**
+ * A table's folded rows behind a summary; a fold that would open onto nothing (benchmarks with too few runs are
+ * only counted) is a plain sentence, and no folded row is nothing.
+ */
+function tableFold(id: string, folded: number, [what, endedNote]: [string, string], inner: string): string {
+    if (!folded) return "";
+    if (!inner) return `<p class="more">${capital(what)}.</p>`;
+    return `<details class="epm tfold" data-key="t-${esc(id)}"><summary>${what}${endedNote}${chev()}</summary>${inner}</details>`;
+}
+
 function table(s: TableSection): string {
     const def = TABLES[s.id] ?? {
         cls: "t-sup",
@@ -649,15 +678,8 @@ function table(s: TableSection): string {
     const weight = (k: string, i: number) => def.weights?.[k] ?? (i === 0 ? 1.6 : 1);
     const tracks = cols.map(([k], i) => `minmax(0, ${weight(k, i)}fr)`).join(" ");
     const style = dropped ? ` style="--cols: ${tracks}"` : "";
-    const head = `<div class="thead">${cols.map(([, h]) => `<span>${esc(h)}</span>`).join("")}</div>`;
-    // Each cell carries its column's name, which a phone shows beside it when the row stacks (style.css).
-    const row = (r: TableSection["rows"][number]) => {
-        const cls = `tr${r.past ? " past" : ""}${r.total ? " tot" : ""}`;
-        const cells = cols
-            .map(([k, h]) => cellSpan(h, filled(r.cells[k]) ? cellHtml(r.cells[k]) : `<span class="muted">--</span>`))
-            .join("");
-        return r.link ? `<a class="${cls}" href="${href(r.link)}">${cells}</a>` : `<div class="${cls}">${cells}</div>`;
-    };
+    const head = `<div class="thead">${cols.map(([, h]) => "<span>" + esc(h) + "</span>").join("")}</div>`;
+    const row = (r: TableRow) => tableRow(cols, r);
     const cap = def.cap ?? TABLE_CAP;
     const live = s.rows.filter((r) => !r.past && !r.total);
     const keep = def.open ? live.filter(def.open) : live;
@@ -676,12 +698,8 @@ function table(s: TableSection): string {
     // With no row open, the header goes inside the fold, over the rows it names.
     const headOpen = shown.length > 0 || totals.length > 0;
     const listed = def.listFolded ? folded.filter(def.listFolded) : folded;
-    // A fold that would open onto nothing (benchmarks with too few runs are only counted) is a plain sentence.
-    let fold = "";
-    if (listed.length) {
-        const inner = (headOpen ? "" : head) + listed.map(row).join("");
-        fold = `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${endedNote}${chev()}</summary>${inner}</details>`;
-    } else if (folded.length) fold = `<p class="more">${capital(what)}.</p>`;
+    const inner = listed.length ? (headOpen ? "" : head) + listed.map(row).join("") : "";
+    const fold = tableFold(s.id, folded.length, [what, endedNote], inner);
     // Nothing live: say so in words above the fold, so a table never reads as a header with no rows.
     const noneText = def.noneNow ?? (def.open ? "None past its line." : "None ongoing now.");
     const none = s.rows.length && !shown.length && !totals.length ? `<p class="empty">${esc(noneText)}</p>` : "";
@@ -1022,6 +1040,19 @@ export function headline(m: Member, setBy?: MemberRef, driver?: Member): string 
     return measure(m, false);
 }
 
+/** The first note under a measure: why it has no data, its 6 h value, or why its line is flat. */
+function measureNote(m: Member): string {
+    if (m.state === "nodata" && m.reason) return sentence(m.reason);
+    if (m.value6h && here.range === "1h") {
+        const cov = m.covered6h ? `, ${fmtN(m.covered6h.h)} h of ${fmtN(m.covered6h.of)}` : "";
+        return `6 h ${fmtValue(m.value6h)}${cov}`;
+    }
+    if (m.window !== "now" || !m.spark || !m.value || "word" in m.value) return "";
+    const v = m.value.n;
+    if (m.spark.trend.every((x) => x === v)) return "unchanged for the last 6 h";
+    return m.id.startsWith("costs.") ? "billing is daily" : "";
+}
+
 /** One measure under a block, with its window, value, target and sparkline; `set` labels it as the color's reason. */
 function measure(m: Member, set: boolean): string {
     const t = MEMBER[m.id];
@@ -1030,16 +1061,8 @@ function measure(m: Member, set: boolean): string {
     else if (m.window === "7d" || m.window === "28d") win = `last ${rangeLabel(m.window)}`;
     const kv = headlineValue(m);
     const kt: string[] = [];
-    if (m.state === "nodata" && m.reason) kt.push(sentence(m.reason));
-    else if (m.value6h && here.range === "1h")
-        kt.push(
-            `6 h ${fmtValue(m.value6h)}${m.covered6h ? `, ${fmtN(m.covered6h.h)} h of ${fmtN(m.covered6h.of)}` : ""}`,
-        );
-    else if (m.window === "now" && m.spark && m.value && !("word" in m.value)) {
-        const v = m.value.n;
-        if (m.spark.trend.every((x) => x === v)) kt.push(`unchanged for the last 6 h`);
-        else if (m.id.startsWith("costs.")) kt.push("billing is daily");
-    }
+    const first = measureNote(m);
+    if (first) kt.push(first);
     kt.push(slaText(m.sla));
     // The block above is judged on the last hour whatever the picker shows, so a 24 h value past red under a
     // green block says why it is not red.
@@ -1119,16 +1142,14 @@ export function urgent(categories: CategoryStatus[]): string {
     const also = top.others
         .filter((r) => r.state === "bad" || r.state === "warn")
         .map((r) => unlinked(refText(r, true)));
-    const what = by
-        ? `${unlinked(refText(by))}${also.length ? `; also ${and(also)}` : ""}. ${esc(MEMBER[by.member].red)}`
-        : "";
-    const others = rest.length
-        ? ` Also not OK: ${rest.map((c) => `${esc(CATEGORY_NAME[c.id])} (${STATE_WORD[c.state]})`).join(", ")}.`
-        : "";
+    const alsoText = also.length ? "; also " + and(also) : "";
+    const what = by ? `: ${unlinked(refText(by))}${alsoText}. ${esc(MEMBER[by.member].red)}` : ".";
+    const notOk = rest.map((c) => esc(CATEGORY_NAME[c.id]) + " (" + STATE_WORD[c.state] + ")").join(", ");
+    const others = rest.length ? ` Also not OK: ${notOk}.` : "";
     return (
         `<p class="urgent ${stateClass(top.state)}"><b>Most urgent:</b> ` +
         `<a class="ln" href="${href(PAGE_PATH[top.id])}">${esc(CATEGORY_NAME[top.id])}</a> ${STATE_WORD[top.state]}` +
-        `${what ? `: ${what}` : "."}${others}</p>`
+        `${what}${others}</p>`
     );
 }
 
@@ -1138,7 +1159,8 @@ export function overviewView(o: OverviewResponse): string {
             ? "Small chart: the last 24 hours."
             : "Small chart: the last 6 hours, the last hour shaded.";
     const long =
-        `Each block is its category's state: rates judged on the last 1 h, states now. Under it: the headline measure, ${here.range === "1h" ? "its 6 h value, and " : ""}` +
+        "Each block is its category's state: rates judged on the last 1 h, states now. Under it: the headline measure, " +
+        (here.range === "1h" ? "its 6 h value, and " : "") +
         (here.range === "24h"
             ? "the last 24 h by hour, the last hour shaded."
             : "the last 6 h by 15 min with the last hour shaded; the faint line at the left is the rest of the last 24 h, hourly.");
@@ -1194,11 +1216,13 @@ function issueSearch(h: TestHistoryResponse): string {
 function draftIssue(h: TestHistoryResponse): string {
     const name = h.test ?? h.file;
     const newest = h.events[0];
+    const testPart = h.test ? " > " + h.test : "";
+    const historyQuery = new URLSearchParams({ file: h.file, ...(h.test ? { test: h.test } : {}) }).toString();
     const body = [
-        `Flaky test: \`${h.file}\`${h.test ? ` > ${h.test}` : ""}`,
+        `Flaky test: \`${h.file}\`${testPart}`,
         `${h.events.length} flaky or failed results in the last ${h.range.replace("d", " days")}.`,
         newest?.signature ? `Newest failure (${newest.at}): ${newest.signature}` : "",
-        `History: https://health.graphty.app/#/flaky/test?${new URLSearchParams({ file: h.file, ...(h.test ? { test: h.test } : {}) }).toString()}`,
+        `History: https://health.graphty.app/#/flaky/test?${historyQuery}`,
     ]
         .filter(Boolean)
         .join("\n\n");
@@ -1210,19 +1234,32 @@ function draftIssue(h: TestHistoryResponse): string {
     return `${REPO}/issues/new?${q.toString()}`;
 }
 
+const WHERE_WORD: Record<string, string> = { full: "full run", pr: "pull request" };
+
+/** The test's issue, or how to find or draft one. */
+function issueNote(h: TestHistoryResponse): string {
+    if (h.issue) return `Tracked by ${issueLink(h.issue)}.`;
+    const search = `<a class="ln" href="${esc(issueSearch(h))}" target="_blank" rel="noopener">Search GitHub for issues naming this file</a>`;
+    const draft = `<a class="ln" href="${esc(draftIssue(h))}" target="_blank" rel="noopener">draft the issue</a>`;
+    return (
+        `This page does not look up issues. ${search}; if none tracks it, ${draft}. Flaky tests with no issue on the ` +
+        "Flaky tests page counts a test as tracked while an issue naming it is open or was closed after its last flaky result."
+    );
+}
+
 export function testView(h: TestHistoryResponse): string {
     const title = h.test ?? h.file;
-    const outcome = (o: TestHistoryResponse["events"][number]["outcome"]) =>
-        o === "passed"
-            ? "passed"
-            : `<span class="mk ${o === "flaky" ? "warn" : "bad"}">${o === "failed-rerun" ? "failed rerun" : o}</span>`;
-    const where = (e: TestHistoryResponse["events"][number]) =>
-        e.pr ? prLink(e.pr) : e.kind === "full" ? "full run" : e.kind === "pr" ? "pull request" : "local";
+    const outcome = (o: TestHistoryResponse["events"][number]["outcome"]) => {
+        if (o === "passed") return "passed";
+        const word = o === "failed-rerun" ? "failed rerun" : o;
+        return `<span class="mk ${o === "flaky" ? "warn" : "bad"}">${word}</span>`;
+    };
+    const where = (e: TestHistoryResponse["events"][number]) => (e.pr ? prLink(e.pr) : (WHERE_WORD[e.kind] ?? "local"));
     const rows = h.events
         .map(
             (e) =>
                 `<div class="tr${e.outcome === "passed" ? " past" : ""}">${cellSpan("when", fmtTime(e.at))}${cellSpan("where", where(e))}` +
-                `${cellSpan("commit", `${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small>`)}${cellSpan("result", outcome(e.outcome))}${cellSpan("message", esc(e.signature ?? ""))}${cellSpan("run", runLink(e.run))}</div>`,
+                `${cellSpan("commit", shaLink(e.sha) + "<small>attempt " + fmtN(e.attempt) + "</small>")}${cellSpan("result", outcome(e.outcome))}${cellSpan("message", esc(e.signature ?? ""))}${cellSpan("run", runLink(e.run))}</div>`,
         )
         .join("");
     return (
@@ -1236,7 +1273,7 @@ export function testView(h: TestHistoryResponse): string {
             true,
         ) +
         `<p class="pstate"><span>${esc(h.file)}, in the ${esc(h.family.split("|")[0])} test group. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a pull request, a full run or locally.</span></p>` +
-        `<p class="note">${h.issue ? `Tracked by ${issueLink(h.issue)}.` : `This page does not look up issues. <a class="ln" href="${esc(issueSearch(h))}" target="_blank" rel="noopener">Search GitHub for issues naming this file</a>; if none tracks it, <a class="ln" href="${esc(draftIssue(h))}" target="_blank" rel="noopener">draft the issue</a>. Flaky tests with no issue on the Flaky tests page counts a test as tracked while an issue naming it is open or was closed after its last flaky result.`}</p>` +
+        `<p class="note">${issueNote(h)}</p>` +
         `<div class="tbl t-hist" role="table"><div class="thead"><span>when</span><span>where</span><span>commit</span><span>result</span><span>message</span><span>run</span></div>${rows}</div>`
     );
 }

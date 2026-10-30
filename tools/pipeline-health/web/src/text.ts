@@ -99,16 +99,25 @@ export function fmtValue(v: Value): string {
 /** A value as a big number with its unit small after it (the mockup's `40<small> %</small>`). */
 export function bigValue(v: Value): string {
     if (v === null) return "--";
-    if ("word" in v) {
-        const count = v.n === undefined ? "" : ` ${fmtN(v.n)}`;
-        return `<span class="vw">${esc(WORD[v.word]) + count}</span>`;
-    }
+    if ("word" in v) return wordValue(v);
     if (isSeconds(v)) return `${Math.round(v.n * 60)}<small> s ago</small>`;
     const sign = v.signed && v.n > 0 ? "+" : "";
     const n = v.unit === "x" ? v.n.toFixed(1) : fmtN(v.n);
-    const unit = v.unit === "x" ? " x" : v.unit === "pct" ? " %" : v.unit && v.unit !== "count" ? UNIT[v.unit] : "";
-    const rest = (unit ? unit : "") + (v.of !== undefined ? ` of ${fmtN(v.of)}` : "") + (v.ago ? " ago" : "");
-    return `${sign}${n}${rest ? `<small>${esc(rest)}</small>` : ""}`;
+    const of = v.of === undefined ? "" : " of " + fmtN(v.of);
+    const rest = bigUnit(v.unit) + of + (v.ago ? " ago" : "");
+    return `${sign}${n}${rest ? "<small>" + esc(rest) + "</small>" : ""}`;
+}
+
+function wordValue(v: Extract<Value, { word: unknown }>): string {
+    const count = v.n === undefined ? "" : " " + fmtN(v.n);
+    return `<span class="vw">${esc(WORD[v.word]) + count}</span>`;
+}
+
+/** The unit after a big number: " x", " %", or the unit's word; nothing for a plain count. */
+function bigUnit(unit: NumberValue["unit"]): string {
+    if (unit === "x") return " x";
+    if (unit === "pct") return " %";
+    return unit && unit !== "count" ? UNIT[unit] : "";
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

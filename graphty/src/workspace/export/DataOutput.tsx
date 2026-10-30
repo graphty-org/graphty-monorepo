@@ -366,7 +366,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
 
     /**
      * Writes the file and hands it over; first, unless the reader already said to save anyway,
-     * stops at a warning when the format loses part of the styles.
+     * stops at a warning when a format that keeps styles loses part of them.
      * @param anyway - the reader saw the warning and chose to save.
      */
     const save = async (anyway = false): Promise<void> => {
@@ -384,7 +384,9 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 setFailure(failureOf(undefined, losses));
                 return;
             }
-            const lost = result.losses.filter(isStyleLoss);
+            // A format that writes no styles at all says so under Format ("No styles"), so its
+            // export saves at once; only a format that keeps some styles and loses others stops.
+            const lost = noStyles ? [] : result.losses.filter(isStyleLoss);
             if (!anyway && lost.length > 0) {
                 setStyleLosses(lost);
                 return;

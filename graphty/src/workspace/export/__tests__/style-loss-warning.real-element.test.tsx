@@ -1,7 +1,7 @@
 /**
- * Exporting a styled graph on the REAL graphty-element: a format that cannot hold the styles
- * stops at a warning before any file is written and saves only after "Save anyway"; a format
- * that keeps them saves at once, and its file opens again with the same layers. Every file is
+ * Exporting a styled graph on the REAL graphty-element: a format that keeps some styles and loses
+ * others stops at a warning before any file is written and saves only after "Save anyway"; a
+ * format that holds no styles (Format says so) and a format that keeps them save at once, and its file opens again with the same layers. Every file is
  * caught where the page hands it to the browser (the object URL and the anchor's click).
  */
 
@@ -124,7 +124,7 @@ afterEach(() => {
 });
 
 describe("Export warns before the graph's styles are lost", () => {
-    it("stops a CSV export at the warning, and saves GraphML with its layers at once", async () => {
+    it("saves a CSV export at once, as Format says it holds no styles, and GraphML with its layers", async () => {
         const saved = catchDownloads();
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
@@ -146,18 +146,14 @@ describe("Export warns before the graph's styles are lost", () => {
         }
         const exports = vi.spyOn(element, "exportGraph");
 
-        // CSV cannot hold the colors: Export stops at the warning and nothing is written.
+        // CSV holds no styles, as Format says under its box ("No styles"): Export saves at once,
+        // with no warning to answer first (tier 4 round 1: every CSV export stopped on one).
         const dialog = await openData();
         await chooseCsvNodes(dialog);
+        within(dialog).getByText("No styles");
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        const warning = await within(dialog).findByRole("alertdialog", {}, { timeout: TIMEOUT_MS });
-        // CSV holds no styles, so its export leaves the layers out and says so in one line.
-        assert.match(warning.textContent, /Style layers not written/);
-        assert.match(warning.textContent, /Reopened: no styles/);
-        assert.lengthOf(saved, 0, "no file before the reader chooses");
-
-        await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
         await screen.findByText("Exported untitled_nodes.csv", TOAST, { timeout: TIMEOUT_MS });
+        assert.isNull(within(dialog).queryByRole("alertdialog"));
         assert.deepEqual(
             saved.map(({ name }) => name),
             ["untitled_nodes.csv"],

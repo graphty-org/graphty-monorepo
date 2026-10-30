@@ -51,6 +51,8 @@ concurrency:
     group: story-slices
 
 env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
 

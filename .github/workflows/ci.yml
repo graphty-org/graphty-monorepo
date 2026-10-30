@@ -103,6 +103,11 @@ permissions:
     checks: write
 
 env:
+    # A cache restore whose download fails (GitHub answering "Egress is over the account limit") leaves
+    # @actions/cache's segment timer, 10 minutes by default, running: actions/setup-node and actions/cache then
+    # hold the step for 10 minutes after "Failed to restore", and Lint, Docs and Stories ran into their job
+    # timeouts (run 41095808301, #5098). One minute bounds that wait; a cold pnpm install takes about 15 s.
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
     # A cache a job saves is restored by every later run in the same ref's scope, master's included. The release
     # train's call checks out inputs.ref, which can be an older or held commit, not the commit the run belongs to:
     # a job saves its caches only when it checked out the run's own commit, and otherwise only restores them

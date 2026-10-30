@@ -34,6 +34,7 @@ tools/features-on.test.mjs
 tools/dependency-refresh.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
+tools/health-owner-sweep.test.mjs
 tools/land.test.mjs
 tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs

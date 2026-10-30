@@ -198,7 +198,8 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   owner-wait recorded as its own key.
 - **Nightly fixes the run it has.** Master moves every 6 hours with new fixes and new problems, so
   waiting for a clean newest full run may never publish. A full run that is not green-clean is
-  checked once more on its own commit, then held and fixed in place, never replaced by newer master.
+  checked once more on its own commit, then held and fixed in place. Newer master replaces it only
+  through a green run while it is red (below, #5052), never while it waits for the owner's review.
 - **Same-commit re-run, once.** A release.yml `recapture` job (needs ci; ci.yml's visual job and
   gate step are untouched) re-shoots on a fresh runner only the stories attempt 1 found changed or
   new (`capture --stories`). A story is changed only when both shots differ from its baseline and
@@ -228,7 +229,13 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   `channel/nightly`), writes the store's one-row `candidate` table (`base` C, `head`), and opens
   "Nightly held on <sha12>" (priority:high) listing the red lanes, changed images and owner items,
   announced on the Release status issue and Pushover. Master keeps merging; master slots still run
-  and file red issues, but never promote or replace C. Catch-up order: a due promotion, an untested
+  and file red issues, but never promote past C, with one exception (#5052; owner, 2026-10-30: a red
+  hold must never outlive a green run behind it): a newer master commit (C in its history) whose
+  verdict is `green-clean` or `green-images` replaces a held head judged `red`, `owner-item` or
+  `rejected` (`hold=replace`, `tools/channel/hold.mjs replace`): the hold ends (its issue closed,
+  `channel/candidate` deleted by lease at that head), then a green-clean commit promotes in the same
+  run and a green-images one is held in its place. A head judged `green-images` (the owner's pending
+  review), `approved` or not judged yet is never replaced. Catch-up order: a due promotion, an untested
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
   closes the issue) or it is abandoned; newer master supersedes it only through an abandon, which
   records `rejected` on the held head, so an approval of it that merges later promotes nothing.
@@ -508,11 +515,19 @@ Detail: [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md) section 1
   60 s slower, per key and within run kind (pull request kinds included). The Worker computes it; the
   `timings` job that sees it files or updates one issue per key naming the merge range. The Sentry
   regression would have alarmed in about 5 hours.
-- **Stall alarm:** every release.yml run's `timings` job checks `age:nightly`, the time since
-  `channel/nightly` last moved while canary holds an unpromoted commit. Over 24 hours it files or
-  updates one `priority:critical` issue "Nightly stalled since <date>" naming the blocking state (red
-  with or without a culprit, waiting for screenshots, an owner item, a hold); the pipeline round owns
-  a red with no culprit and fixes forward. Over 48 hours, the issue gets an `ACTION NEEDED` line.
+- **Missed-slot alarm (#5052):** the goal is a nightly promotion every 6-hour slot, and a slot that
+  does not promote is an incident with a named cause. release.yml's `slot` job, at the end of every
+  full, restart and candidate run that ends without moving nightly (not one that handed off to
+  channel/full-run, nor an attempt 1 waiting for its re-run), files or updates one
+  `priority:critical` issue "Nightly missed slot <date hh:mm> UTC: <cause>": a red lane and its red
+  issue, the owner's screenshot review with the review page, a hold nobody can review, a green-clean
+  commit that did not promote and why, or no new candidate. It closes when nightly moves
+  (`tools/channel/nightly.mjs slot`).
+- **Stall alarm (fallback):** every release.yml run's `timings` job checks `age:nightly`, the time
+  since `channel/nightly` last moved while canary holds an unpromoted commit. Over 8 hours (a slot
+  and a run) with no missed-slot issue open, so a slot produced no run at all, it files or updates one
+  `priority:critical` issue "Nightly stalled since <date>" naming the blocking state. Over 48 hours,
+  the issue gets an `ACTION NEEDED` line.
 
 ### 7.1 Load and runner capacity (owner, 2026-10-26)
 

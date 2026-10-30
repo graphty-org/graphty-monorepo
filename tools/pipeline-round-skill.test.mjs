@@ -32,6 +32,17 @@ describe("pipeline-round skill", () => {
         assert.match(prompt, /tools\/pr-open\.sh --proof <file>/);
     });
 
+    it("checks nightly every slot and every dashboard member's owner in every round, before step 1 (#5052)", () => {
+        const nightly = flat.indexOf("### Nightly every slot");
+        const owned = flat.indexOf("### Every dashboard member owned");
+        const first = step("Red master");
+        assert.ok(nightly >= 0 && owned >= 0 && nightly < first && owned < first);
+        assert.match(flat, /node tools\/health-owner-sweep\.mjs/);
+        assert.match(flat, /"The rows should age out" is not an owner/);
+        assert.match(flat, /nightly-abandon\.yml/);
+        assert.match(flat, /the round's last line leads with nightly's age/);
+    });
+
     it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
         const red = step("Red master");
         const prs = step("Red or conflicted agent pull requests");

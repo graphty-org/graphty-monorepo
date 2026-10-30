@@ -583,6 +583,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.targetNodeGap": "Target node gap",
     "edge.supportModel": "Support model",
     "edge.supportUnit": "Support unit",
+    "edge.supportScale": "Support scale",
     "edge.supportSpringLength": "Support spring length",
     "edge.supportSpringConstant": "Support spring constant",
     "edge.supportRepulsion": "Support repulsion",

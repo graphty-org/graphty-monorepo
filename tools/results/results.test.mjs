@@ -8,7 +8,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it, mock } from "node:test";
 
@@ -638,9 +638,10 @@ describe("planRead", () => {
         // layout's stories run in ci.yml's story-tests job, so its `-shots` family is asked too (STORY_SHARDS)
         assert.equal(
             q.get("variants"),
-            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots",
+            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots," +
+                "layout-storybook|flags=off|whole,layout-storybook|flags=off|selected",
         );
-        assert.equal(q.get("inputs"), "-,-,-");
+        assert.equal(q.get("inputs"), "-,-,-,-,-");
         assert.equal(q.get("files"), "layout/src/x.ts");
     });
 });
@@ -1380,6 +1381,7 @@ describe("health API fan-out", () => {
             source: "algorithms",
             unit: "ms",
             sha: "abc",
+            machine: cpus()[0].model.trim(),
             rows: [{ name: "PageRank n=1000", value: 4.5 }],
         });
     });

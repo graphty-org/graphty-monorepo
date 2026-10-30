@@ -294,6 +294,22 @@ describe("Data > Fields as a + list on the real element", () => {
         second.unmount();
     });
 
+    it("makes a text column of dates a date column when it is set as the time", async () => {
+        const session = await dropCsv("id,opened\nA,2015-03-02\nB,2017-06-14\nC,2016-09-01\n");
+        const typeOf = (): string | undefined =>
+            session.data.attributes().find((each) => each.kind === "node" && each.name === "opened")?.type;
+        assert.equal(typeOf(), "string", "the days load as text");
+        const section = await fields();
+        await userEvent.click(section.getByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^opened/ }));
+        await waitFor(() => {
+            assert.equal(session.time.field?.nodes?.start, "opened");
+            // The column's kind and the timeline say the same thing: dates.
+            assert.equal(typeOf(), "time");
+        });
+    });
+
     it("lists a detected city and the country narrowing it as two entries, and their minuses stop the search", async () => {
         const session = await dropCsv("id,city,country\na,Paris,France\nb,Lyon,France\nc,Berlin,Germany\n");
         const section = await fields();

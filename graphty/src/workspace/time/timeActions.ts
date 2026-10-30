@@ -113,8 +113,37 @@ export function showNotices(
 }
 
 /**
+ * Makes a text column about to become the time a date column, when every one of its values reads
+ * as a date (the element's preview says so): the column's kind and the timeline then say the same
+ * thing (tier 4 round 1: a time drawn as dates over a column still marked text was a false done).
+ * @param session - the element's session.
+ * @param field - the field about to be designated.
+ * @returns settles once any conversion is recorded.
+ */
+async function asDates(session: GraphSession, field: TimeField | null): Promise<void> {
+    const sides = [
+        ["node", field?.nodes],
+        ["edge", field?.edges],
+    ] as const;
+    for (const [kind, source] of sides) {
+        if (source === undefined || source.unit !== undefined) {
+            continue;
+        }
+        const name = source.start.replace(/^data\./, "");
+        const column = session.data.attributes().find((each) => each.kind === kind && each.name === name);
+        if (column?.type !== "string") {
+            continue;
+        }
+        const preview = session.data.previewType({ kind, name }, "date");
+        if (preview.fails === 0) {
+            await session.data.setType({ kind, name }, "date");
+        }
+    }
+}
+
+/**
  * Designates a column as the time field (or none), and says what the element found in it or why
- * it refused.
+ * it refused. A text column whose values all read as dates becomes a date column first.
  * @param session - the element's session.
  * @param store - the chrome store.
  * @param field - the field, or null.
@@ -123,17 +152,19 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
     session.time.pause();
     // A Time window card added for the last field does not come back on its own for this one.
     store.set({ timeWindowCard: false });
-    session.time.setField(field).then(
-        (result) => {
-            // Setting the field sets only the field: the dock opens from the toolbar's clock button.
-            showNotices(session, store, result.notices);
-        },
-        (error: unknown) => {
-            const column = field?.edges?.start ?? field?.nodes?.start ?? "";
-            const reason = (error as { details?: { reason?: unknown } }).details?.reason;
-            store.set({ notice: { message: refusalWords(column, reason) } });
-        },
-    );
+    asDates(session, field)
+        .then(async () => session.time.setField(field))
+        .then(
+            (result) => {
+                // Setting the field sets only the field: the dock opens from the toolbar's clock button.
+                showNotices(session, store, result.notices);
+            },
+            (error: unknown) => {
+                const column = field?.edges?.start ?? field?.nodes?.start ?? "";
+                const reason = (error as { details?: { reason?: unknown } }).details?.reason;
+                store.set({ notice: { message: refusalWords(column, reason) } });
+            },
+        );
 }
 
 /**

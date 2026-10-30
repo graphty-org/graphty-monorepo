@@ -3,6 +3,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
+import { designate } from "../time/timeActions";
 import { openFilterDraft } from "./filterCards";
 import { labelRefusalWords } from "./words";
 
@@ -88,14 +89,8 @@ function attributeActions(
             disabledReason: isTime ? "Already the time field" : null,
             run: () => {
                 const side = column.kind === "edge" ? "edges" : "nodes";
-                session.time
-                    .setField({ [side]: source })
-                    .then(() => {
-                        store.set({ page: "panels", place: "data", fieldsEntry: `${side}:time` });
-                    })
-                    .catch(() => {
-                        store.set({ notice: { message: `"${column.name}" cannot be the time field.` } });
-                    });
+                designate(session, store, { [side]: source });
+                store.set({ page: "panels", place: "data", fieldsEntry: `${side}:time` });
             },
         });
     }

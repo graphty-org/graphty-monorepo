@@ -25,6 +25,11 @@ const LEASE_MS = 5 * MIN;
 const TTL_S = (8 * DAY) / 1000;
 /** A claim field holding this was sent; later than any claim time, so the claim condition fails on it. */
 const SENT = 8.64e15;
+/**
+ * The marks' version. A mark of an older version (written before the words and policy changed) counts as no live
+ * episode and has its floor cleared, so a member still bad pages once in the current words.
+ */
+const MARK_V = 2;
 
 export interface AlertsInput {
     evaluation: Evaluation;
@@ -82,7 +87,7 @@ export async function sendAlerts(input: AlertsInput): Promise<AlertsResult> {
         const due: Due[] = [];
         for (const m of input.evaluation.members) {
             const c = paging.get(m.id);
-            const d = c && (await member(ctx, m, c));
+            const d = c && (await member(ctx, m, forCause(c, m)));
             if (d) {
                 due.push(d);
             }
@@ -109,10 +114,19 @@ const factsHold = (m: MemberStatus, a: AlertConfig) =>
 /** Judged OK, or bad but no longer meeting the facts its page needs: the episode ends. */
 const settled = (m: MemberStatus, a: AlertConfig) => m.state === "OK" || (BAD(m) && !!a.facts && !factsHold(m, a));
 
+/** The member's alert as its cause adjusts it (a GitHub outage blinding the collector pages later and quietly). */
+function forCause(c: Paging, m: MemberStatus): Paging {
+    const adjust = c.alert.action === "{fix}" ? causeWords(m).alert : undefined;
+    return adjust ? { ...c, alert: { ...c.alert, ...adjust } } : c;
+}
+
 /** The page's condition: FAILING (or the value past alert.value), the facts, the day of the month, no other cause. */
 function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
     if (!BAD(m) || !factsHold(m, a)) {
         return false;
+    }
+    if (a.action === "{fix}" && !causeWords(m).fix) {
+        return false; // a cause with no step only the owner can take is agent work: it never pages
     }
     if (a.value ? m.value === undefined || !hit(m.value, a.value) : m.state !== "FAILING") {
         return false;
@@ -136,7 +150,7 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
     }
     const key = { pk: `ALERT#${m.id}`, sk: "episode" };
     let mark = await ctx.store.get(key);
-    const live = mark !== undefined && !mark.endedAt;
+    const live = mark !== undefined && !mark.endedAt && mark.v === MARK_V;
     if (settled(m, c.alert)) {
         if (live) {
             await end(ctx, key, mark as Item, m, c);
@@ -158,10 +172,19 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
             okSince: 0,
             peak: 0,
             cause: null,
+            v: MARK_V,
             ttl: ttl(ctx),
         };
+        const old = mark !== undefined && mark.v !== MARK_V;
         mark =
             (await ctx.store.update(key, { set: fresh }, { field: "endedAt", op: ">", value: 0, orNotExists: true })) ??
+            (old
+                ? await ctx.store.update(
+                      key,
+                      { set: { ...fresh, lastOpenAt: 0 } },
+                      { field: "v", op: "<", value: MARK_V, orNotExists: true },
+                  )
+                : undefined) ??
             (await ctx.store.get(key));
     } else if (mark?.okSince) {
         await ctx.store.update(key, { set: { okSince: 0, ttl: ttl(ctx) } }); // a relapse before "resolved" was due
@@ -356,28 +379,26 @@ export function human(id: string, v: number | undefined): string {
     }
 }
 
-/** What a cause means and the one step that fixes it: {feed}, {problem}, {fix} and {off}. */
+/**
+ * What a cause means and the one step that fixes it: {feed}, {problem}, {fix} and {off}. An empty fix is a cause
+ * only agents can fix, which never pages; `alert` adjusts the member's alert for this cause.
+ */
 interface CauseWords {
     feed: string;
     problem: string;
     fix: string;
     off: string;
+    alert?: Partial<AlertConfig>;
 }
 
-const SSM = (name: string) => `SSM parameter ${name} (an agent can store it for you)`;
-/** A source's credential: what refused, and how to make a new one. */
+const SSM = (name: string) => `SSM parameter ${name} (any Claude session can store it for you)`;
+/**
+ * The sources whose credential only the owner can make: what refused, and where to make a new one. Every other
+ * source's credential error is agent work and never pages: the billing feed reads Cost Explorer through the
+ * collector's own AWS role (and the $10 Budget's deny-all stops the collector itself, which release.yml's dead-man
+ * check reports), and the screenshot captures feed's results store token is one an agent can make and store.
+ */
 const CREDENTIALS: Record<string, Omit<CauseWords, "off"> & { off?: string }> = {
-    billing: {
-        feed: "Billing feed",
-        problem: "AWS refused the cost read",
-        fix: "Ask an agent to check the collector role's Cost Explorer permission (tools/pipeline-health/infra/health-stack.ts). If the dashboard's AWS spend reached $10, the graphty-health Budget has locked it instead: decide whether to raise that budget (https://console.aws.amazon.com/billing/home#/budgets).",
-        off: "Cost alerts are off too.",
-    },
-    "story-slices": {
-        feed: "Screenshot captures feed",
-        problem: "results store token rejected",
-        fix: `Make a new local token for the results store and put it in ${SSM("/graphty-health/results/token")}.`,
-    },
     "cloudflare-token": {
         feed: "Cloudflare feed",
         problem: "Cloudflare token rejected",
@@ -398,19 +419,22 @@ export function causeWords(m: MemberStatus): CauseWords {
     const p = m.cause?.params ?? {};
     const error = String(p.error ?? "");
     if (m.id === "data.collector") {
+        // First: "installation token: HTTP 502" is GitHub failing, not the key.
+        if (/\bHTTP (?:5\d\d|429)\b|rate limit|timed? ?out|TimeoutError|ECONN|fetch failed|socket/i.test(error)) {
+            return {
+                feed: "Collector",
+                problem: "GitHub API down",
+                fix: "Nothing: GitHub's API is failing (https://www.githubstatus.com/), so CI is likely stalled too. The dashboard catches up by itself when GitHub recovers.",
+                off: "",
+                // An outage nobody can act on: one quiet page once it has lasted 2 h, never a loud one.
+                alert: { afterMs: 2 * HOUR, priority: 0 },
+            };
+        }
         if (/\b401\b|bad credentials|private key|installation|jwt/i.test(error)) {
             return {
                 feed: "Collector",
                 problem: "GitHub App key refused",
                 fix: `Make a new private key for the graphty-pipeline-health App at https://github.com/organizations/graphty-org/settings/apps/graphty-pipeline-health and put it in ${SSM("/graphty-health/github-app/private-key")}. If the App was uninstalled, reinstall it there.`,
-                off: "",
-            };
-        }
-        if (/\b5\d\d\b|rate limit|timed? ?out|ECONN|fetch failed|socket/i.test(error)) {
-            return {
-                feed: "Collector",
-                problem: "GitHub API failing",
-                fix: "Nothing, unless it lasts: check https://www.githubstatus.com/. It recovers by itself when GitHub does.",
                 off: "",
             };
         }
@@ -426,9 +450,15 @@ export function causeWords(m: MemberStatus): CauseWords {
     return {
         feed: known?.feed ?? `${label} feed`,
         problem: known?.problem ?? "its credential was refused",
-        fix: known?.fix ?? `Renew the credential the ${label} feed uses; the error above names it.`,
+        fix: known?.fix ?? "",
         off: known?.off ?? "",
     };
+}
+
+/** A cause's words as placeholders. */
+function words(m: MemberStatus): Record<string, string> {
+    const w = causeWords(m);
+    return { feed: w.feed, problem: w.problem, fix: w.fix, off: w.off };
 }
 
 function fill(template: string, d: Due, now: number): string {
@@ -439,12 +469,15 @@ function fill(template: string, d: Due, now: number): string {
         limit: human(m.id, m.fail?.[1]),
         target: human(m.id, m.ok?.[1]),
         over: human(m.id, m.value === undefined || m.ok === undefined ? undefined : m.value - m.ok[1]),
-        suggest: human(m.id, m.value === undefined ? undefined : Math.ceil(m.value / 10) * 10),
+        // The next multiple of 10 above the value, so the suggestion always leaves headroom.
+        suggest: human(m.id, m.value === undefined ? undefined : Math.floor(m.value / 10) * 10 + 10),
+        mtd: human(m.id, m.facts?.month_to_date),
+        month: new Date(now).toLocaleString("en-US", { month: "long", timeZone: "UTC" }),
         peak: human(m.id, e.peak ?? m.value),
         for: duration(now - start),
         error: String(p.error ?? "none recorded"),
         since: duration(m.facts?.credential_error_ms ?? now - start),
-        ...(template.match(/\{(feed|problem|fix|off)\}/) ? causeWords(m) : {}),
+        ...(template.match(/\{(feed|problem|fix|off)\}/) ? words(m) : {}),
     };
     return template
         .replace(/\{ms:([\w.]+)\}/g, (_, k: string) => duration(m.facts?.[k] ?? 0))
@@ -457,10 +490,16 @@ function fill(template: string, d: Due, now: number): string {
         .replace(/ +$/gm, "");
 }
 
-function link(ctx: Pick<Ctx, "evaluation">, category: string) {
+function link(ctx: Pick<Ctx, "evaluation" | "now">, category: string, d?: Due) {
+    const own = d?.c.alert.link;
+    if (own) {
+        return { url: fill(own.url, d, ctx.now), url_title: own.title };
+    }
     const label = ctx.evaluation.categories.find((c) => c.id === category)?.label ?? category;
     return { url: `${PAGE_URL}${category.replaceAll("_", "-")}`, url_title: `Open the ${label} page` };
 }
+
+const projected = (d: Due) => d.c.measure.type === "month" && d.c.measure.projected === true;
 
 /**
  * The page for one member, or one for a group due together (the costs).
@@ -474,11 +513,13 @@ export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Me
     return {
         title: one
             ? fill(ds[0].c.alert.title, ds[0], ctx.now)
-            : `Over budget: ${ds.map((d) => `${d.c.label} ${human(d.m.id, d.m.value)}`).join(", ")}`,
+            : `Over budget: ${ds
+                  .map((d) => `${d.c.label} ${human(d.m.id, d.m.value)}${projected(d) ? " projected" : ""}`)
+                  .join(", ")}`,
         message: one
             ? `${text(ds[0])}\nWhat to do: ${action(ds[0])}`
             : `${ds.map(text).join("\n")}\nWhat to do:\n${ds.map((d) => `- ${d.c.label}: ${action(d)}`).join("\n")}`,
-        ...link(ctx, ds[0].m.category),
+        ...link(ctx, ds[0].m.category, one ? ds[0] : undefined),
         priority: String(Math.max(...ds.map((d) => d.c.alert.priority))),
     };
 }

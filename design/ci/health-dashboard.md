@@ -222,7 +222,8 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   waits on the owner", so a red member is not read as unattended.
 - **Clearing.** A 1 h member ("hangs in the last 1 h") stays past its threshold until its events
   leave the hour, but its row and its episode say "cleared 12 min ago" once the newest 5-minute
-  bucket has recovered, and the alert's clear message fires then.
+  bucket has recovered, and, for a member that pages, a quiet "resolved" follows after 15 minutes
+  OK (section 13).
 - Thresholds live in `tools/pipeline-health/config/slas.json`.
 
 ### 3.2 Colors
@@ -768,7 +769,8 @@ twenty-four hourly ones (24 h). A slow section reads its own item, built from da
    creation" on, "pause top cost drivers" off. Reaching it pauses the whole project.
 
 The last two can silence the collector, and with it the dashboard and its alerts, so section 13
-adds an alarm outside the collector.
+adds a CloudWatch alarm for a dead collector and a check outside AWS (release.yml's
+`tools/health-dead-man.sh`) for a paused project.
 
 ### 10.6 Code and deploy
 
@@ -845,16 +847,16 @@ Pushover priority (1 for an outage, 0 for an owner action, -1 silent), whether i
 daytime (9:00 to 21:00 Pacific), the floor between two pages (6 h by default), any extra
 condition, and the words.
 
-| Member                     | Pages when                                                                                                                                                                                                   | Priority |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| Master red now             | FAILING for 3 h (agents normally fix it within the hour), not while runners are not assigned                                                                                                                 | 1        |
-| Untested master age        | FAILING for 12 h (release scheduler or agent loop dead)                                                                                                                                                      | 0        |
-| Runners not assigned       | FAILING for 1 h (GitHub outage or account block); counts Linux and Windows jobs in status `queued`, and runs queued with no jobs yet, against the real 60-job limit                                          | 1        |
-| Lanes red on the candidate | the open "Nightly held on" issue's newest verdict is green-images (all tests passed, changed screenshots) and it has waited 24 h for the owner's review; at most once a day                                  | 0        |
-| Spend, T4, LLM             | FAILING for 6 h, not before day 7 of the month unless month-to-date spend is already past red; daytime only; at most once a week                                                                             | -1       |
-| AWS                        | past its $8 yellow line for 1 h, since at $10 the Budget's deny-all silences the collector; daytime only                                                                                                     | 0        |
-| Sources past their age     | a credential error (401, 403, expired or missing token) on a source with a credential of its own (not the collector's GitHub App, not public Coveralls), lasting an hour; not while the collector is FAILING | 0        |
-| Collector                  | FAILING for 10 min (no good GitHub read for 30 min)                                                                                                                                                          | 1        |
+| Member                     | Pages when                                                                                                                                                                                                                                                                                                                     | Priority |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| Master red now             | FAILING for 3 h (agents normally fix it within the hour), not while runners are not assigned                                                                                                                                                                                                                                   | 1        |
+| Untested master age        | FAILING for 1 h while no scheduled full run has started for 7 h (the release scheduler is dead: a new key for its GitHub App); daytime only. Full runs that start but fail are agent work and never page                                                                                                                       | 0        |
+| Runners not assigned       | FAILING for 1 h (GitHub outage or account block); counts Linux and Windows jobs in status `queued`, and runs queued with no jobs yet, against the real 60-job limit                                                                                                                                                            | 1        |
+| Lanes red on the candidate | the open "Nightly held on" issue's newest verdict is green-images (all tests passed, changed screenshots) and it has waited 24 h for the owner's review; daytime only; at most once a day; links the hold issue                                                                                                                | 0        |
+| Spend, T4, LLM             | FAILING for 6 h, not before day 7 of the month unless month-to-date spend is already past red; daytime only; at most once a week                                                                                                                                                                                               | 0        |
+| AWS                        | past its $8 yellow line for 1 h, since at $10 the Budget's deny-all silences the collector; daytime only                                                                                                                                                                                                                       | 0        |
+| Sources past their age     | a credential error (401, 403, expired or missing token), lasting an hour, on a source whose credential only the owner can make (the Cloudflare and Sentry tokens); daytime only; not while the collector is FAILING. The billing feed (the collector's own AWS role) and the results store token are agent work and never page | 0        |
+| Collector                  | FAILING for 10 min (no good GitHub read for 30 min); when GitHub's API itself is failing (HTTP 5xx or 429, a timeout), only after 2 h and at priority 0, since nobody can act on it                                                                                                                                            | 1        |
 
 Cloudflare usage has no alert until something measures it: no collector part writes its metric,
 so a page could never say which usage or when it resets.
@@ -862,10 +864,12 @@ so a page could never say which usage or when it resets.
 Cost members due together go out as one message. Every message says what is wrong in words, the
 value and its limit in the dashboard's units (`3 h 20 min`, `$232`), and one line "What to
 do": a single step the owner can take from a phone (a link, a decision to tell any Claude session),
-or "nothing" for an outage that recovers by itself. A cost page is one decision with a suggested
-number ("raise the T4 budget to $240, or run fewer full runs a day"). A credential page names the
+or "nothing" for an outage that recovers by itself. A cost page says what is spent so far and the
+projection, and asks one decision for next month with a suggested number above the projection
+("accept it and raise the T4 budget to $240, or tell the agents what else to cut"); it never offers
+running the T4 lane less, which runs in every full run by the owner's rule. A credential page names the
 credential and where its new value goes, from the source and its error (`causeWords` in
-`src/alerts/index.ts`). A quiet (priority -1) "resolved" follows only for the outage members and
+`src/alerts/index.ts`); a cause with no step only the owner can take never pages. A quiet (priority -1) "resolved" follows only for the outage members and
 the credential case, and only after the member has been OK for 15 minutes, so a flapping recovery
 sends neither "resolved" nor a new page. The alert's mark keeps the episode's peak and cause, so a
 "resolved" for a member measured without history (the collector, the sources) still says how long
@@ -877,7 +881,9 @@ source in between neither ends it nor starts another. The `afterMs` wait counts 
 collector run that sees the condition, not from the episode's start, so right after a deploy a
 member already red waits its full `afterMs` again. A page inside a member's floor waits until the
 floor has passed and is sent then if the condition still holds; an episode that ends before its
-page was sent sends no "resolved".
+page was sent sends no "resolved". Each mark carries a version: a mark written before the words or
+the policy last changed counts as no live episode and has its floor cleared, so a member still bad
+pages once in the current words.
 
 **Dead-man switches.** The collector both computes the status and sends the alerts, so each way
 the alert path can fail has its own check:
@@ -889,9 +895,11 @@ the alert path can fail has its own check:
   alarm emails through SNS after three runs in a row.
 - **The whole AWS project stops** (a paused project at the spend limit, or the Budget's deny-all):
   that silences the collector, Pushover and the SNS email together, since SNS lives in the same
-  project. So `release.yml`, on GitHub, runs `tools/health-dead-man.sh` on every attempt (four
-  times a day): when the health API does not answer or its views are over 30 minutes old, it
-  pages through Pushover with the release train's own keys.
+  project. So `release.yml`, on GitHub, runs `tools/health-dead-man.sh` on every attempt: when the
+  health API does not answer or its views are over 30 minutes old, it pages through Pushover with
+  the release train's own keys. Only the first attempt of a scheduled run (mode full) pages, so a
+  long outage pages at most four times a day, at priority 1 between 9:00 and 21:00 Pacific and at
+  priority 0 (held by the owner's quiet hours) at night.
 
 ## 14. Rollout
 

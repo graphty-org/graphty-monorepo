@@ -2,8 +2,11 @@
 # The pipeline health dashboard's dead-man switch from outside AWS (design/ci/health-dashboard.md section 13).
 # A paused AWS project or the graphty-health Budget's deny-all stops the collector, its Pushover alerts and the SNS
 # alarm email together, so release.yml runs this on every attempt: when the dashboard's API does not answer, or its
-# views are over 30 minutes old, it pushes one priority-1 Pushover page. It never fails.
-# Usage: tools/health-dead-man.sh [status URL]   (PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY from the environment)
+# views are over 30 minutes old, it pushes one Pushover page. It never fails. Only the first attempt of a scheduled
+# run (mode full) pages, so a long outage pages at most four times a day, and only loudly (priority 1) between 9:00
+# and 21:00 Pacific; at night it pages at priority 0, which the owner's quiet hours hold.
+# Usage: tools/health-dead-man.sh [status URL]   (PUSHOVER_APP_TOKEN and PUSHOVER_USER_KEY from the environment;
+# RELEASE_MODE and GITHUB_RUN_ATTEMPT from release.yml)
 set -uo pipefail
 
 api=${1:-https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com/v1/status}
@@ -21,6 +24,13 @@ else
     what="The pipeline health dashboard's API does not answer"
 fi
 echo "::warning::${what}"
+if [ "${GITHUB_RUN_ATTEMPT:-1}" != 1 ] || [ "${RELEASE_MODE:-full}" != full ]; then
+    echo "only the first attempt of a scheduled run pages the owner"
+    exit 0
+fi
+hour=$(TZ=America/Los_Angeles date +%-H)
+priority=0
+[ "$hour" -ge 9 ] && [ "$hour" -lt 21 ] && priority=1
 if [ -z "${PUSHOVER_APP_TOKEN:-}" ] || [ -z "${PUSHOVER_USER_KEY:-}" ]; then
     echo "::warning::no Pushover keys: the owner was not paged"
     exit 0
@@ -28,7 +38,7 @@ fi
 curl -fsS --max-time 20 https://api.pushover.net/1/messages.json \
     --form-string "token=${PUSHOVER_APP_TOKEN}" \
     --form-string "user=${PUSHOVER_USER_KEY}" \
-    --form-string "priority=1" \
+    --form-string "priority=${priority}" \
     --form-string "title=Health dashboard down: nothing is being watched" \
     --form-string "message=${what}, so none of its alerts can reach you. Usual cause: AWS paused the project (spend limit) or the graphty-health Budget locked it at \$10. Check AWS Settings > Billing (https://settings.aws.com/), then ask a Claude session to look." \
     --form-string "url=https://health.graphty.app" >/dev/null ||

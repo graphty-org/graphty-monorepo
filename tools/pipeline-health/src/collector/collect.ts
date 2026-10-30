@@ -828,6 +828,10 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     c.o("release.hold_open_ms", Number.isFinite(holdSince) ? c.now - holdSince : 0);
     c.o("release.train_skipped", trainSkipped(attempts, runs) ? 1 : 0);
     c.o("master.full_run_failed", candidate?.ciFailed ? 1 : 0);
+    // Since the newest scheduled slot started (the release scheduler dispatches mode full every 6 h); with none in
+    // the page of runs, at least since its oldest. Section 13 pages on it: a dead scheduler is the owner's to fix.
+    const slot = runs.find((r) => releaseMode(r.display_title) === "full") ?? runs.at(-1);
+    if (slot) c.o("release.since_slot_ms", c.now - Date.parse(slot.created_at));
 
     let failing = 0;
     let maxInRow = 0;

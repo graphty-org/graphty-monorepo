@@ -77,6 +77,8 @@ export interface AlertConfig {
     text: string;
     /** The owner's action, sent as "What to do: ...". */
     action: string;
+    /** The page's link, when the place to act is not the member's dashboard page (placeholders allowed). */
+    link?: { url: string; title: string };
     /** Sends a quiet "resolved" once the member has been OK for clearAfterMs; absent, nothing is sent. */
     resolved?: { title: string; text: string; clearAfterMs: number };
 }

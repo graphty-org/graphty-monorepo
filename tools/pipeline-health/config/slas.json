@@ -142,7 +142,7 @@
                 "notWhileFailing": ["ci.runners_not_assigned"],
                 "title": "Master broken for {value}, no agent has fixed it",
                 "text": "Master's build has been failing for {value}. Agents normally fix or revert it within an hour, so no agent loop seems to be running. Canary deploys and the full test runs are blocked.",
-                "action": "Start a Claude session in graphty-monorepo and run /loop 30m /pipeline-round there; it fixes or reverts master. Do not merge master-guard's revert pull request by hand: it has no CI until an agent closes and reopens it. Failing builds: https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml?query=branch%3Amaster",
+                "action": "Start a Claude session in graphty-monorepo and run /loop 30m /pipeline-round there; it fixes or reverts master. Do not merge the automatic revert pull request by hand. Failing builds: https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml?query=branch%3Amaster",
                 "resolved": {
                     "title": "Master is green again",
                     "text": "Master was broken for about {peak}.",
@@ -202,16 +202,25 @@
             },
             "ok": ["<=", 28800000],
             "fail": [">", 46800000],
+            "also": [
+                {
+                    "metric": "release.since_slot_ms"
+                }
+            ],
             "sources": ["collector"],
             "alert": {
-                "afterMs": 43200000,
+                "afterMs": 3600000,
                 "priority": 0,
-                "title": "Full test runs stopped: master untested for {value}",
-                "text": "No full test run has tested master's newest commits for {value} (normally under {target}). Nothing reaches nightly or npm next until one does.",
-                "action": "Check whether release.yml started in the last 6 hours: https://github.com/graphty-org/graphty-monorepo/actions/workflows/release.yml. If it did not, the release scheduler (a Cloudflare Worker) has stopped: its GitHub App key is the Worker secret PRIVATE_KEY (tools/release-scheduler/README.md); make a new key, or ask an agent to set it. If it did start, ask a Claude session to run /pipeline-round.",
+                "daytime": true,
+                "facts": {
+                    "release.since_slot_ms": [">", 25200000]
+                },
+                "title": "Full test runs stopped: none started for {ms:release.since_slot_ms}",
+                "text": "No scheduled full test run has started for {ms:release.since_slot_ms} (one starts every 6 h), so master's newest commits have gone untested for {value}. Nothing reaches nightly or npm next until one runs. The release scheduler, which starts them, has stopped.",
+                "action": "Make a new private key for the graphty-release-scheduler GitHub App at https://github.com/organizations/graphty-org/settings/apps/graphty-release-scheduler and give the .pem file to any Claude session; it installs the key in the scheduler.",
                 "resolved": {
-                    "title": "Master is being tested again",
-                    "text": "A full test run covers master again (it went untested for up to {peak}).",
+                    "title": "Full test runs are starting again",
+                    "text": "A scheduled full test run has started again.",
                     "clearAfterMs": 900000
                 }
             }
@@ -396,7 +405,7 @@
                 "afterMs": 3600000,
                 "priority": 1,
                 "title": "GitHub not starting CI jobs for {value}",
-                "text": "CI jobs have waited {value} for a runner while most of the account's runners sit free. All CI and merging is stalled.",
+                "text": "CI jobs have waited {value} to start although we are under GitHub's job limit. All CI and merging is stalled.",
                 "action": "Check https://www.githubstatus.com/ for an Actions outage. If GitHub reports none, check graphty-org's billing and Actions settings (spending limit, payment method, Actions disabled): https://github.com/organizations/graphty-org/settings/billing",
                 "resolved": {
                     "title": "GitHub is starting CI jobs again",
@@ -737,12 +746,17 @@
                 "afterMs": 0,
                 "priority": 0,
                 "floorMs": 86400000,
+                "daytime": true,
                 "facts": {
                     "release.review_wait_ms": [">=", 86400000]
                 },
                 "title": "Nightly waiting on your screenshot review",
                 "text": "The held nightly candidate passed all its tests but has changed screenshots, and has waited {ms:release.review_wait_ms} for your review. Nightly and npm next stay frozen until you approve or reject them.",
-                "action": "Ask a Claude session to start the screenshot review page for the held nightly candidate and send you its link, then approve or reject the pictures there. Hold issue: {issue:release.review_issue}"
+                "action": "Ask any Claude session for the screenshot review link (the page runs on your dev machine), then approve or reject the changed pictures there.",
+                "link": {
+                    "url": "{issue:release.review_issue}",
+                    "title": "Open the hold issue"
+                }
             }
         },
         {
@@ -950,13 +964,13 @@
             "headline": true,
             "alert": {
                 "afterMs": 21600000,
-                "priority": -1,
+                "priority": 0,
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
                 "title": "Total spend projected at {value} this month",
-                "text": "All paid services: {value} projected this month vs {target} budget (+{over}).",
-                "action": "Decide: raise the total budget to {suggest}, or cut the line driving it (the Costs page shows which). Tell any Claude session your choice; it applies it.",
+                "text": "All paid services: {mtd} spent so far in {month}, {value} projected vs the {target} budget (+{over}).",
+                "action": "Decide for next month: raise the total budget to {suggest}, or tell the agents which line to cut (the Costs page shows them). Tell any Claude session your choice; it applies it.",
                 "daytime": true
             }
         },
@@ -976,13 +990,13 @@
             "sources": ["collector"],
             "alert": {
                 "afterMs": 21600000,
-                "priority": -1,
+                "priority": 0,
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
                 "title": "T4 GPU lane projected at {value} this month",
-                "text": "T4 GPU test lane: {value} projected this month vs {target} budget (+{over}).",
-                "action": "Decide: raise the T4 budget to {suggest}, or run fewer full runs a day (the T4 lane runs in every one). Tell any Claude session your choice; it applies it.",
+                "text": "T4 GPU test lane: {mtd} spent so far in {month}, {value} projected vs the {target} budget (+{over}).",
+                "action": "Decide for next month: accept it and raise the T4 budget to {suggest}, or tell the agents what else to cut (the Costs page shows the other lines). Tell any Claude session your choice.",
                 "daytime": true
             }
         },
@@ -1002,13 +1016,13 @@
             "sources": ["collector"],
             "alert": {
                 "afterMs": 21600000,
-                "priority": -1,
+                "priority": 0,
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
                 "title": "LLM test spend projected at {value} this month",
-                "text": "LLM regression tests (Gemini): {value} projected this month vs your {target} ceiling (+{over}).",
-                "action": "Decide: raise the ceiling to {suggest}, or run the LLM regression tests less often. Tell any Claude session your choice; it applies it.",
+                "text": "LLM regression tests (Gemini): {mtd} spent so far in {month}, {value} projected vs your {target} ceiling (+{over}).",
+                "action": "Decide for next month: raise the ceiling to {suggest}, or run the LLM regression tests less often. Tell any Claude session your choice; it applies it.",
                 "daytime": true
             }
         },
@@ -1092,6 +1106,7 @@
             "alert": {
                 "afterMs": 0,
                 "priority": 0,
+                "daytime": true,
                 "notWhileFailing": ["data.collector"],
                 "facts": {
                     "credential_error_ms": [">=", 3600000]

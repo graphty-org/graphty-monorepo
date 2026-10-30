@@ -391,6 +391,7 @@ jobs:
               env:
                   PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
                   PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+                  RELEASE_MODE: ${{ inputs.mode || 'full' }}
               run: tools/health-dead-man.sh
 
             - name: Skip while the previous release is pending

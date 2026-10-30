@@ -390,8 +390,8 @@ describe("the location map layout", () => {
         while (!tiles().some((m) => m.name.includes("green"))) {
             await drawnFrames(graph.getScene(), 1);
         }
-        const radius = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } }).geoFrame
-            .radius;
+        const { radius } = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
+            .geoFrame;
         const camera = graph.getScene().activeCamera;
         assert.isNotNull(camera);
         const pushes = tiles().map((m) => m.material?.zOffsetUnits ?? 0);

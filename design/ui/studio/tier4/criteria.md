@@ -1,4 +1,4 @@
-The study runs on build 037e96e9bb served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d1-037e96e9bb
+The study runs on build ff17391bb1 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d2-ff17391bb1
 
 Frozen on 2026-10-29 for the tier 4 rounds.
 
@@ -279,3 +279,8 @@ first two by itself; the dry run owns the rest.
       as not success.
     - T68: a Shown export now writes 17 edges and the screen says "Shown 17 of 18", so it can be
       the equally-right case; the source row and table options export doors are noted.
+- 2026-10-29: round 1 dry run 2 build moved from 037e96e9bb (served from
+  .study-builds/tier4-r1d1-037e96e9bb) to ff17391bb1 (served from .study-builds/tier4-r1d2-ff17391bb1),
+  which holds the second fix pass's committed changes (a select condition limited to what is in the
+  picture, a run asked again after the default weight changed computes again, every inspector node
+  row called by its name) with the current master merged in. No criteria changed.

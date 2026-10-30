@@ -400,6 +400,20 @@ function thinRatios(ctx: Ctx, metric: string, p: Point) {
 }
 
 /**
+ * A month member's value. A projection also gives what is spent so far (the alerts page early in a month only on
+ * real spend), and spend so far its projection (the AWS page's forecast is the one the Costs page shows).
+ * @param ctx
+ * @param m
+ * @param p
+ */
+function monthComputed(ctx: Ctx, m: Extract<Measure, { type: "month" }>, p: Point): Computed {
+    const value = monthValue(ctx, m, p.end);
+    const other = p.end === ctx.now ? monthValue(ctx, { ...m, projected: !m.projected }, p.end) : undefined;
+    const fact = m.projected ? "month_to_date" : "projected";
+    return { value, ...(other === undefined ? {} : { facts: { [fact]: other } }) };
+}
+
+/**
  * The member's values at a point: 1 h and 6 h for windowed members, the newest value for states.
  * @param ctx
  * @param c
@@ -414,12 +428,7 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
         return p.end === ctx.now ? engineValue(ctx, m.name) : null;
     }
     if (m.type === "month") {
-        const value = monthValue(ctx, m, p.end);
-        // A projection also gives what is spent so far (the alerts page early in a month only on real spend), and
-        // spend so far its projection (the AWS page's forecast is the one the Costs page shows).
-        const other = p.end === ctx.now ? monthValue(ctx, { ...m, projected: !m.projected }, p.end) : undefined;
-        const fact = m.projected ? "month_to_date" : "projected";
-        return { value, ...(other === undefined ? {} : { facts: { [fact]: other } }) };
+        return monthComputed(ctx, m, p);
     }
     if (m.type === "dims_median_over") {
         return null;

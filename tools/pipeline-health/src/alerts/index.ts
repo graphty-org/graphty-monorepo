@@ -181,90 +181,31 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
         return undefined;
     }
     const key = { pk: `ALERT#${m.id}`, sk: "episode" };
-    let mark = await ctx.store.get(key);
-    const live = mark !== undefined && !mark.endedAt && mark.v === MARK_V;
+    const found = await ctx.store.get(key);
+    const live = found !== undefined && !found.endedAt && found.v === MARK_V;
     if (settled(m, c.alert)) {
         if (live) {
-            await end(ctx, key, mark as Item, m, c);
+            await end(ctx, key, found, m, c);
         }
         return undefined;
     }
     const e = ctx.evaluation.episodes.find((x) => x.member === m.id && x.endedAt === undefined);
-    if (!e) {
+    const mark = e && (await openMark(ctx, key, found, live, e));
+    if (!e || !mark) {
         return undefined;
     }
-    if (!live) {
-        // A new episode; of two overlapping runs only one resets the mark. lastOpenAt is kept for the floor.
-        const fresh = {
-            start: e.start,
-            endedAt: 0,
-            open: 0,
-            clear: 0,
-            redSince: 0,
-            okSince: 0,
-            peak: 0,
-            cause: null,
-            v: MARK_V,
-            ttl: ttl(ctx),
-        };
-        const old = mark !== undefined && mark.v !== MARK_V;
-        const set = old ? { ...fresh, lastOpenAt: 0 } : fresh; // an older version's floor is cleared, live or ended
-        mark =
-            (await ctx.store.update(key, { set }, { field: "endedAt", op: ">", value: 0, orNotExists: true })) ??
-            (old
-                ? await ctx.store.update(key, { set }, { field: "v", op: "<", value: MARK_V, orNotExists: true })
-                : undefined) ??
-            (await ctx.store.get(key));
-    } else if (mark?.okSince) {
-        await ctx.store.update(key, { set: { okSince: 0, ttl: ttl(ctx) } }); // a relapse before "resolved" was due
-    }
-    if (!mark) {
+    await remember(ctx, key, mark, m);
+    const sent = await reopen(ctx, key, mark, m, c);
+    if (!sent.go) {
         return undefined;
-    }
-    // The mark keeps the episode's peak and cause: a member the engine measures without history (the collector, the
-    // sources) has neither left once it is OK, and the "resolved" must still say how long and which feed.
-    const peak = Math.max(Number(mark.peak ?? 0), m.value ?? 0);
-    const cause = m.cause && JSON.stringify(m.cause) !== JSON.stringify(mark.cause) ? { cause: m.cause } : {};
-    // When the credential error began (data.sources_age): its "resolved" counts from there, not from the episode's
-    // start, which is the oldest bad source of any kind.
-    const credMs = m.facts?.credential_error_ms;
-    const cred = credMs && ctx.now - credMs !== mark.credSince ? { credSince: ctx.now - credMs } : {};
-    if (peak > Number(mark.peak ?? 0) || cause.cause || cred.credSince) {
-        await ctx.store.update(key, { set: { peak, ...cause, ...cred, ttl: ttl(ctx) } });
-    }
-    let rearm = false;
-    if (mark.open === SENT) {
-        // A reminder (alert.repeatMs) re-arms once that span has passed since it was sent; the condition on
-        // lastOpenAt lets only one of two overlapping runs re-arm it.
-        const r = c.alert.repeatMs;
-        const again =
-            !!r &&
-            (await ctx.store.update(
-                key,
-                { set: { open: 0, ttl: ttl(ctx) } },
-                { field: "lastOpenAt", op: "<=", value: ctx.now - r },
-            ));
-        rearm = !again && newCause(mark, m, c);
-        if (!again && !rearm) {
-            return undefined;
-        }
     }
     const { red, ready } = await due(ctx, key, m, c.alert, mark.redSince as number | undefined);
-    if (!red || (!ready && (!c.alert.group || rearm))) {
-        return undefined;
-    }
-    if (c.alert.daytime && !daytime(ctx.now)) {
-        return undefined; // a cost page waits for the morning; the next daytime run sends it
-    }
-    // Inside the floor (the group's, for a group) the page waits; a later run sends it once the floor has passed.
-    const group = c.alert.group ? await ctx.store.get(groupKey(c.alert.group)) : undefined;
-    const last = Math.max(Number(mark.lastOpenAt ?? 0), Number(group?.lastOpenAt ?? 0));
-    if (ctx.now - last < (c.alert.floorMs ?? REALERT_MS)) {
+    if (!red || (!ready && (!c.alert.group || sent.rearm)) || (await waits(ctx, mark, c))) {
         return undefined;
     }
     // A new cause re-arms the page only now that it will be sent, so the sent page's "resolved" is kept until then;
     // the condition lets only one of two overlapping runs re-arm it.
-    if (rearm && !(await ctx.store.update(key, { set: { open: 0 } }, { field: "open", op: "=", value: SENT }))) {
+    if (sent.rearm && !(await ctx.store.update(key, { set: { open: 0 } }, { field: "open", op: "=", value: SENT }))) {
         return undefined;
     }
     return {
@@ -275,6 +216,85 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
         start: Math.min(e.start, (mark.start as number | undefined) ?? e.start),
         ...(ready ? {} : { early: true }),
     };
+}
+
+/** The live episode's mark: a new one when there is none; of two overlapping runs only one resets it. */
+async function openMark(ctx: Ctx, key: Key, mark: Item | undefined, live: boolean, e: Episode) {
+    if (live) {
+        if (mark?.okSince) {
+            await ctx.store.update(key, { set: { okSince: 0, ttl: ttl(ctx) } }); // a relapse before "resolved" was due
+        }
+        return mark;
+    }
+    // lastOpenAt is kept for the floor.
+    const fresh = {
+        start: e.start,
+        endedAt: 0,
+        open: 0,
+        clear: 0,
+        redSince: 0,
+        okSince: 0,
+        peak: 0,
+        cause: null,
+        v: MARK_V,
+        ttl: ttl(ctx),
+    };
+    const old = mark !== undefined && mark.v !== MARK_V;
+    const set = old ? { ...fresh, lastOpenAt: 0 } : fresh; // an older version's floor is cleared, live or ended
+    return (
+        (await ctx.store.update(key, { set }, { field: "endedAt", op: ">", value: 0, orNotExists: true })) ??
+        (old
+            ? await ctx.store.update(key, { set }, { field: "v", op: "<", value: MARK_V, orNotExists: true })
+            : undefined) ??
+        (await ctx.store.get(key))
+    );
+}
+
+/**
+ * The mark keeps the episode's peak and cause: a member the engine measures without history (the collector, the
+ * sources) has neither left once it is OK, and the "resolved" must still say how long and which feed. It also keeps
+ * when the credential error began (data.sources_age): its "resolved" counts from there, not from the episode's
+ * start, which is the oldest bad source of any kind.
+ */
+async function remember(ctx: Ctx, key: Key, mark: Item, m: MemberStatus): Promise<void> {
+    const peak = Math.max(Number(mark.peak ?? 0), m.value ?? 0);
+    const cause = m.cause && JSON.stringify(m.cause) !== JSON.stringify(mark.cause) ? { cause: m.cause } : {};
+    const credMs = m.facts?.credential_error_ms;
+    const cred = credMs && ctx.now - credMs !== mark.credSince ? { credSince: ctx.now - credMs } : {};
+    if (peak > Number(mark.peak ?? 0) || cause.cause || cred.credSince) {
+        await ctx.store.update(key, { set: { peak, ...cause, ...cred, ttl: ttl(ctx) } });
+    }
+}
+
+/**
+ * Whether a page already sent may go again: a reminder (alert.repeatMs) re-arms once that span has passed since it
+ * was sent, the condition on lastOpenAt letting only one of two overlapping runs re-arm it; a new cause re-arms it
+ * once it is sent (rearm).
+ */
+async function reopen(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging) {
+    if (mark.open !== SENT) {
+        return { go: true, rearm: false };
+    }
+    const r = c.alert.repeatMs;
+    const again =
+        !!r &&
+        !!(await ctx.store.update(
+            key,
+            { set: { open: 0, ttl: ttl(ctx) } },
+            { field: "lastOpenAt", op: "<=", value: ctx.now - r },
+        ));
+    const rearm = !again && newCause(mark, m, c);
+    return { go: again || rearm, rearm };
+}
+
+/** A cost page waits for the morning, and any page for its floor (the group's, for a group) to pass. */
+async function waits(ctx: Ctx, mark: Item, c: Paging): Promise<boolean> {
+    if (c.alert.daytime && !daytime(ctx.now)) {
+        return true;
+    }
+    const group = c.alert.group ? await ctx.store.get(groupKey(c.alert.group)) : undefined;
+    const last = Math.max(Number(mark.lastOpenAt ?? 0), Number(group?.lastOpenAt ?? 0));
+    return ctx.now - last < (c.alert.floorMs ?? REALERT_MS);
 }
 
 const groupKey = (group: string): Key => ({ pk: `ALERT#${group}`, sk: "group" });

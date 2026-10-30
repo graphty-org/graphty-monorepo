@@ -25,6 +25,7 @@
             "algorithms-browser",
             "layout",
             "layout-storybook",
+            "cytoscape-extensions-storybook",
             "graphty-storybook",
             "graphty-element-storybook-1",
             "graphty-element-storybook-2",

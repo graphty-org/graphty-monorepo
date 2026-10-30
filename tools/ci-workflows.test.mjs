@@ -3672,12 +3672,22 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
     });
 
     // #3952: the first nightly run's candidate predated tools/channel/recapture.mjs, so every re-capture failed
-    it("runs master's nightly and capture code, never the picked commit's, in every job that checks the pick out", () => {
-        const nightlyCode = /tools\/channel\/|visual-review (capture|gate)|visual-review\/(trusted|capture)/;
-        // the one overlay step (tools/own-tools-overlay.test.mjs), with the capture code beside tools/
+    it("runs master's nightly code, never the picked commit's, in every job that checks the pick out", () => {
+        const nightlyCode = /tools\/channel\//;
+        // the one overlay step (tools/own-tools-overlay.test.mjs)
         const overlay = /git archive "\$GITHUB_SHA" \$OVERLAY \| tar -x/;
         const own = parseYaml(workflow("release.yml")).jobs.recapture.steps.find((st) => overlay.test(st.run ?? ""));
-        assert.equal(own.env.OVERLAY, "tools .github/actions visual-review/capture visual-review/trusted");
+        // #4940: the re-capture shoots with the candidate's capture code, the code the CI lane's story tests shot
+        // the first picture with (ci.yml takes master's capture code only for a pull request); master's would draw
+        // a different picture whenever the two differ, and every re-shot story would read as flaky
+        assert.equal(own.env.OVERLAY, "tools .github/actions");
+        const ci = parseYaml(workflow("ci.yml")).jobs["story-tests"].steps;
+        assert.ok(
+            ci.some(
+                (st) => /git archive HEAD\^1 \$CAPTURE_CODE/.test(st.run ?? "") && /pull_request/.test(st.if ?? ""),
+            ),
+            "ci.yml's story tests take other capture code only for a pull request; re-check the re-capture if not",
+        );
         let checked = 0;
         for (const [id, j] of Object.entries(parseYaml(workflow("release.yml")).jobs)) {
             const steps = j.steps ?? [];

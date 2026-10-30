@@ -5,7 +5,6 @@
 // this refuses `fetch` to any host but loopback and any write under TOOL_TEST_GUARD_PROTECT. Every refusal throws
 // and is appended to TOOL_TEST_GUARD_LOG, which fails the test file even when the tool under test swallows the error.
 // A test that needs one of these stubs it (a fake gh first on its PATH, a local server on port 0, its own temp dir).
-import { appendFileSync } from "node:fs";
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { resolve, sep } from "node:path";
@@ -15,7 +14,7 @@ const protect = process.env.TOOL_TEST_GUARD_PROTECT;
 
 function refuse(what) {
     const line = `tool-test-guard: refused ${what} (pid ${process.pid}); stub it in the test`;
-    if (log) appendFileSync(log, line + "\n");
+    if (log) fs.appendFileSync(log, line + "\n");
     throw new Error(line);
 }
 

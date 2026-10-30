@@ -34,7 +34,9 @@
 //
 // Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
 // held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
-// any other commit's verdict leaves the hold alone and never promotes (tools/channel/nightly.mjs). The verdict reads
+// a newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected
+// (hold=replace, #5052: a red hold never outlives a green run behind it); any other commit's verdict leaves the hold
+// alone and never promotes (tools/channel/nightly.mjs). The verdict reads
 // the hold from the store when it decides (output held), never from the pick: a re-run attempt keeps attempt 1's pick
 // outputs, and another run may have held its commit since. An attempt-1 red that waits for its re-run is recorded as
 // `deferred`, which the pick does not count as judged, so a re-run that never runs leaves the commit to be tested.
@@ -349,17 +351,28 @@ export function deferred({ attempt, mode, state, red, lanes, actor }) {
 export const flakyLanes = (before, red) => before.filter((l) => l !== "pick" && !red.includes(l));
 
 /**
+ * The held head's verdicts a newer green run replaces (#5052): nothing waits on the owner's review of them. Never
+ * green-images (his pending review), approved (its promotion is due) or a head no run judged yet (being tested).
+ */
+export const REPLACEABLE = new Set(["red", "owner-item", "rejected"]);
+
+/**
  * What the deciding verdict does to the held candidate (channels-pipeline.md section 3).
  * @param o the facts
  * @param o.held the held head ("" none, "unknown" when the store did not answer)
  * @param o.sha the judged commit
  * @param o.state the verdict
- * @returns "start" (hold this commit), "update" (a verdict on the held head) or "none"
+ * @param [o.heldState] the held head's own latest verdict ("" when no run judged it)
+ * @param [o.newer] whether the judged commit is newer on master than the held one (its history holds it)
+ * @returns "start" (hold this commit), "update" (a verdict on the held head), "replace" (end a red hold: a newer
+ *   green-clean commit then promotes, a green-images one is held in its place) or "none"
  */
-export function holdAction({ held, sha, state }) {
+export function holdAction({ held, sha, state, heldState = "", newer = false }) {
     if (held === "unknown") return "none";
     if (!held) return state === "green-clean" ? "none" : "start";
-    return held === sha ? "update" : "none";
+    if (held === sha) return "update";
+    const green = state === "green-clean" || state === "green-images";
+    return green && newer && REPLACEABLE.has(heldState) ? "replace" : "none";
 }
 
 /**
@@ -536,15 +549,20 @@ const read = async (cfg, path) => {
     return r.ok ? r.data : null;
 };
 /**
- * The held candidate's head as the store has it now: "" none, "unknown" when the store does not answer.
+ * The held candidate as the store has it now.
  * @param cfg the store's config, or null
- * @param fallback what to use with no store configured (the pick's output)
- * @returns the head
+ * @param fallback the head to use with no store configured (the pick's output)
+ * @returns `{ head, base, state }`: head "" none, "unknown" when the store does not answer; state the held head's
+ *   latest verdict that is not deferred ("" when none)
  */
 export async function heldNow(cfg, fallback) {
-    if (!cfg) return fallback ?? "unknown";
+    if (!cfg) return { head: fallback ?? "unknown", base: "", state: "" };
     const store = await read(cfg, "/v1/candidate");
-    return store ? (store.hold?.head ?? "") : "unknown";
+    if (!store) return { head: "unknown", base: "", state: "" };
+    const hold = store.hold;
+    if (!hold?.head) return { head: "", base: "", state: "" };
+    const v = (store.recent ?? []).find((r) => r.sha === hold.head && r.state !== DEFERRED);
+    return { head: hold.head, base: hold.base ?? hold.head, state: v?.state ?? "" };
 }
 const record = async (cfg, verdict) => {
     const r = await call(cfg, "POST", "/v1/verdicts", verdict);
@@ -1091,10 +1109,24 @@ async function verdictMain(env) {
     if (env.RECORD) writeFileSync(env.RECORD, `${JSON.stringify({ ...facts, state, deferred: wait, attempt })}\n`);
     // the hold as the store has it now, not as the pick saw it: a re-run attempt keeps attempt 1's pick outputs, and
     // another run may have held its commit since
-    const held = await heldNow(cfg, env.HELD);
-    const hold = wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state });
+    const now = await heldNow(cfg, env.HELD);
+    const held = now.head;
+    // newer: the held commit is in the judged one's history, so an older commit's late verdict never replaces it
+    const newer = !!now.base && now.base !== env.SHA && ancestor(now.base, env.SHA);
+    const hold =
+        wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state, heldState: now.state, newer });
     const owner = heldLine(env.VERSION_HELD);
-    output({ state, issue: issue ? String(issue) : "", what, bisect, deferred: String(wait), hold, owner, held });
+    output({
+        state,
+        issue: issue ? String(issue) : "",
+        what,
+        bisect,
+        deferred: String(wait),
+        hold,
+        owner,
+        held,
+        held_state: now.state,
+    });
 }
 
 /**

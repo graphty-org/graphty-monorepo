@@ -587,7 +587,7 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     };
     if (c.d.slices) {
         // What slices cost other work (early-capture.md, plan step 6): 0 whenever no slice job holds a runner.
-        const cost = contention(open, c.d.slices.cfg.workflow, saturated, elapsed / MIN);
+        const cost = contention(open, c.d.slices.cfg.workflow, saturated, elapsed / MIN, c.now);
         c.o("slices.contended_min", cost.contendedMin);
         c.o("slices.queue_wait_min", cost.queueWaitMin);
     }

@@ -865,6 +865,9 @@ export async function stressTable(reads: Reads): Promise<Section> {
         } else if (r.foundFailures) {
             result = { t: "fact", fact: f("stress.found_filed") };
         }
+        let filed: Cell = none;
+        if (r.state === 2) filed = { t: "fact", fact: f("stress.not_reached") };
+        else if (r.state === 0 && !r.foundFailures) filed = { t: "num", n: 0 };
         return {
             ...(i > 0 ? { past: true } : {}),
             cells: {
@@ -877,12 +880,7 @@ export async function stressTable(reads: Reads): Promise<Section> {
                     ],
                 },
                 result,
-                filed:
-                    r.state === 2
-                        ? { t: "fact", fact: f("stress.not_reached") }
-                        : r.state === 0 && !r.foundFailures
-                          ? { t: "num", n: 0 }
-                          : none,
+                filed,
             },
         };
     });

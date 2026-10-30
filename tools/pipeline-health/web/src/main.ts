@@ -223,13 +223,17 @@ interface Failure {
     status: string;
 }
 
+function errorWhy(e: Error): string {
+    return e instanceof ApiError ? e.why : e.message;
+}
+
 function failureBanner(f: Failure): string {
     const e = f.error;
     const req = e instanceof ApiError ? `GET ${esc(API_URL)}${esc(e.path)}` : "loading the view";
     const why =
         e instanceof ApiError && e.network
             ? ` failed with no answer (${esc(e.why)}). A browser reports a request blocked by CORS (this page's origin, ${esc(location.origin)}, is not one the API allows) the same way as a network failure or an API that is down.`
-            : ` failed: ${esc(e instanceof ApiError ? e.why : e.message)}.`;
+            : ` failed: ${esc(errorWhy(e))}.`;
     const shown = last
         ? ` Below is the data from ${fmtTime(last.generated)} UTC (${fmtDur((clock.now() - Date.parse(last.generated)) / 1000)} old) that this browser loaded last; every state in it may be out of date.`
         : "";

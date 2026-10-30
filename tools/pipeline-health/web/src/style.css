@@ -597,21 +597,19 @@ h3 {
     color: var(--muted);
     font-size: 12px;
 }
+/* The sentence wraps under the chips on a narrow screen rather than push the page sideways. */
 .pstate {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     gap: 12px;
+    row-gap: 6px;
     margin: -6px 0 22px;
     max-width: 900px;
 }
 .pstate .sw {
     font-size: 14px;
     padding: 2px 9px;
-}
-/* The sentence wraps under the chips on a narrow screen rather than push the page sideways. */
-.pstate {
-    flex-wrap: wrap;
-    row-gap: 6px;
 }
 .pstate > span:last-child {
     flex: 1 1 260px;
@@ -823,6 +821,7 @@ h3 {
 .chart {
     position: relative;
     height: 130px;
+    margin-right: 96px;
 }
 .chart svg {
     width: 100%;
@@ -1496,9 +1495,6 @@ h2.hit {
 .lk.lim {
     border-top: 2px dashed var(--line);
     height: 0;
-}
-.chart {
-    margin-right: 96px;
 }
 .cl.end {
     left: 100%;

@@ -4,7 +4,7 @@
  * table, so a screen reader gets the numbers the picture shows.
  */
 import type { BarsSection, Cell, Iso, JobsSection, ShardRow, Spark, StripSection, TreeNode } from "./contract";
-import { esc, fmtN, fmtTime, fmtUnit, sentence } from "./text";
+import { esc, fmtN, fmtTime, fmtUnit, sentence, stripTags } from "./text";
 
 const CHEV = `<svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true"><path d="M2 2l6 6-6 6" /></svg>`;
 export const chev = () => CHEV;
@@ -144,7 +144,7 @@ export function sortedBars(
             const val = i.unit === "usd" || i.unit === "count" ? fmtN(i.n) : fmtUnit(i.n, i.unit);
             const detail = i.detail ? `<small> ${cellHtml(i.detail)}</small>` : "";
             // cellHtml escapes its text, so the HTML without its tags is safe in an attribute.
-            const title = `${cellHtml(i.label)}${i.detail ? ` ${cellHtml(i.detail)}` : ""}`.replace(/<[^>]+>/g, "");
+            const title = stripTags(i.detail ? `${cellHtml(i.label)} ${cellHtml(i.detail)}` : cellHtml(i.label));
             return `<div class="br"><span class="bl" title="${title}">${cellHtml(i.label)}${detail}</span><span class="bv" aria-hidden="true"><span class="hb${cls}" style="width: ${w}%"></span><span class="bn2">${esc(val)}</span></span></div>`;
         })
         .join("");
@@ -215,7 +215,9 @@ export function minuteStrip(s: StripSection): string {
 export function jobsChart(s: JobsSection): string {
     const n = s.running.length;
     const top = Math.max(1, ...s.running, ...s.queued) * 1.2;
-    const step = top > 200 ? 100 : top > 40 ? 20 : 5;
+    let step = 5;
+    if (top > 200) step = 100;
+    else if (top > 40) step = 20;
     const max = Math.ceil(top / step) * step;
     const y = (v: number) => r1(118 - (Math.min(v, max) / max) * 116);
     const x = (i: number) => r1((i * 960) / Math.max(1, n - 1));
@@ -235,8 +237,9 @@ export function jobsChart(s: JobsSection): string {
         runTop = mid + 7;
     }
     const limit = s.limit <= max ? `<line class="plat" x1="0" y1="${y(s.limit)}" x2="960" y2="${y(s.limit)}" />` : "";
+    const limitKey = s.limit <= max ? '<span class="lk lim"></span>limit' : "";
     return (
-        `<p class="legend"><span class="lk run"></span>running<span class="lk q"></span>queued${s.limit <= max ? `<span class="lk lim"></span>limit` : ""}</p>` +
+        `<p class="legend"><span class="lk run"></span>running<span class="lk q"></span>queued${limitKey}</p>` +
         `<div class="chart"><svg viewBox="0 0 960 120" preserveAspectRatio="none" aria-hidden="true">${limit}` +
         `<polyline class="run" points="${line(s.running)}" /><polyline class="q" points="${line(s.queued)}" /></svg>` +
         `<span class="cl" style="top: -4px; left: 4px">${fmtN(max)} jobs</span>` +
@@ -258,10 +261,13 @@ export function treeRows(nodes: TreeNode[], href: (route: string) => string, dep
         .map((nd, i) => {
             const key = `${path}/${i}`;
             const tags = nd.tags?.length ? ` <small>${nd.tags.map(sentence).join("; ")}</small>` : "";
+            let rate = "--";
+            if (nd.per1000 !== null)
+                rate = nd.per1000 > 10 ? `<span class="mk bad">${fmtN(nd.per1000)}</span>` : fmtN(nd.per1000);
             const cols =
-                `<span class="nm d${Math.min(depth, 2)}">${esc(nd.name.replace(/__tests__\//g, "")).replaceAll("/", "/<wbr>")}${tags}</span>` +
+                `<span class="nm d${Math.min(depth, 2)}">${esc(nd.name.replaceAll("__tests__/", "")).replaceAll("/", "/<wbr>")}${tags}</span>` +
                 `<span class="dbar"><span style="width: ${Math.round((Math.min(nd.distinct, maxDistinct * 2) / maxDistinct) * 36)}px"></span>${fmtN(nd.distinct)}</span>` +
-                `<span class="num">${fmtN(nd.events)}</span><span class="num">${nd.per1000 === null ? "--" : nd.per1000 > 10 ? `<span class="mk bad">${fmtN(nd.per1000)}</span>` : fmtN(nd.per1000)}</span>` +
+                `<span class="num">${fmtN(nd.events)}</span><span class="num">${rate}</span>` +
                 `<span class="num">${nd.quarantined === null ? "--" : fmtN(nd.quarantined)}</span><span class="num">${nd.prsHeld === null ? "--" : fmtN(nd.prsHeld)}</span>${CHEV}`;
             if (nd.children?.length)
                 return `<details data-key="tree${key}"><summary class="hrow">${cols}</summary>${treeRows(nd.children, href, depth + 1, key)}</details>`;

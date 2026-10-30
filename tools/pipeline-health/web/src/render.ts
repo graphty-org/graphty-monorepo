@@ -12,6 +12,7 @@ import type {
     Episode,
     Member,
     MemberRef,
+    MemberWindow,
     OverviewResponse,
     PageId,
     PageResponse,
@@ -65,6 +66,7 @@ import {
     slaText,
     stateChip,
     stateClass,
+    stripTags,
     unlinked,
     windowLabel,
 } from "./text";
@@ -188,7 +190,8 @@ function rangePicker(slow: boolean): string {
                 `<a href="${hereWith({ range: r })}"${r === here.range ? ' class="on" aria-current="true"' : ""}>${rangeLabel(r)}</a>`,
         )
         .join("");
-    return `<div class="range" role="group" aria-label="${slow ? "History" : "Range"}">${slow ? `<span class="rlab">${label}</span>` : ""}${links}</div>`;
+    const lab = slow ? `<span class="rlab">${label}</span>` : "";
+    return `<div class="range" role="group" aria-label="${slow ? "History" : "Range"}">${lab}${links}</div>`;
 }
 
 function updated(generated: string): string {
@@ -206,8 +209,9 @@ function header(
     // Opened at a section (a sub-item of the navigation): the page is a link and the section ends the trail.
     const path = here.page === "test" ? "/flaky" : PAGE_PATH[here.page];
     const trail: [string, string][] = section ? [...crumbs, [path, title]] : crumbs;
+    const steps = trail.map(([r, n]) => `<a href="${href(r)}">${esc(n)}</a><span class="sep">&gt;</span>`).join("");
     const c = trail.length
-        ? `<div class="crumbs">${trail.map(([r, n]) => `<a href="${href(r)}">${esc(n)}</a><span class="sep">&gt;</span>`).join("")}<span aria-current="page">${esc(section || title)}</span></div>`
+        ? `<div class="crumbs">${steps}<span aria-current="page">${esc(section || title)}</span></div>`
         : "";
     return `<header class="ph">${c}<div class="phrow"><h1 tabindex="-1">${esc(title)}</h1>${picker ? rangePicker(slow) : ""}${updated(generated)}</div></header>`;
 }
@@ -216,6 +220,13 @@ function header(
 
 /** Items a list cell shows before the rest becomes "+N more". */
 const LIST_SHOWN = 3;
+const LIST_SEP: Record<string, string> = { comma: ", ", line: "<br />" };
+/** How a row's own window reads after its value, when its member names none. */
+const WINDOW_PHRASE: Partial<Record<MemberWindow, string>> = {
+    now: " now",
+    "1h": " over the last hour",
+    "1h6h": " over the last hour",
+};
 
 export function cellHtml(c: Cell): string {
     switch (c.t) {
@@ -262,7 +273,7 @@ export function cellHtml(c: Cell): string {
             // Each item once, and three at most: the rest is a count.
             const seen = new Set<string>();
             const items = c.items.filter((i) => !seen.has(JSON.stringify(i)) && seen.add(JSON.stringify(i)));
-            const sep = c.sep === "comma" ? ", " : c.sep === "line" ? "<br />" : " ";
+            const sep = LIST_SEP[c.sep ?? ""] ?? " ";
             const more =
                 items.length > LIST_SHOWN
                     ? `${sep}<span class="muted">+${fmtN(items.length - LIST_SHOWN)} more</span>`
@@ -299,9 +310,11 @@ function memberRow(m: Member): string {
     const val = m.state === "nodata" ? "--" : bigValue(m.value);
     // What red means is on every row ("If red:"), and reads "Red:" in ink when the row is past its red line; a
     // yellow row says what yellow means when that differs, then what red would mean.
-    const lead = m.state === "bad" ? "Red: " : m.sla?.red ? "If red: " : "";
+    let lead = m.sla?.red ? "If red: " : "";
+    if (m.state === "bad") lead = "Red: ";
     const yellow = m.state === "warn" && t.yellow ? `Yellow now: ${esc(t.yellow)} ` : "";
-    const red = t.red ? `<small class="redm${breached(m) ? " on" : ""}">${yellow}${lead}${esc(t.red)}</small>` : "";
+    const redCls = breached(m) ? "redm on" : "redm";
+    const red = t.red ? `<small class="${redCls}">${yellow}${lead}${esc(t.red)}</small>` : "";
     const title = t.red ? ` title="${esc(`Red: ${t.red}`)}"` : "";
     // A row whose link is the page it is on goes nowhere, so it is no link and has no chevron; its own links work.
     const still = linksHere(m.link);
@@ -359,11 +372,10 @@ function pageState(p: PageResponse): string {
     if (p.setBy) {
         const m = find(p.setBy);
         if (p.setBy.fact && p.setBy.state !== "nodata") parts.push(`${capital(sentence(p.setBy.fact))}.`);
-        else if (m && p.setBy.state === "nodata")
-            parts.push(
-                `${capital(MEMBER[m.id].short)} has NO DATA${m.reason ? `: ${sentence(m.reason)}` : ""}. ${SOURCES_LINK}.`,
-            );
-        else if (
+        else if (m && p.setBy.state === "nodata") {
+            const why = m.reason ? `: ${sentence(m.reason)}` : "";
+            parts.push(`${capital(MEMBER[m.id].short)} has NO DATA${why}. ${SOURCES_LINK}.`);
+        } else if (
             m &&
             p.setBy.member === "ci.chronic_jobs" &&
             p.setBy.state === "bad" &&
@@ -371,9 +383,7 @@ function pageState(p: PageResponse): string {
         )
             parts.push(`Because ${sentence({ code: "chronic.no_issue_jobs", params: m.note.params })}.`);
         else if (m) {
-            const win =
-                MEMBER[m.id].when ??
-                (m.window === "now" ? " now" : m.window === "1h" || m.window === "1h6h" ? " over the last hour" : "");
+            const win = MEMBER[m.id].when ?? WINDOW_PHRASE[m.window] ?? "";
             const v6 = m.value6h ? ` (6 h: ${fmtValue(m.value6h)})` : "";
             // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing", and
             // is followed by what that state means rather than a target phrase.
@@ -636,9 +646,9 @@ function table(s: TableSection): string {
     const cols = s.rows.length ? def.cols.filter(([k]) => s.rows.some((r) => filled(r.cells[k]))) : def.cols;
     // Dropped columns: the rest share the width, the first a little more (style.css, .tbl.dropped).
     const dropped = cols.length < def.cols.length;
-    const style = dropped
-        ? ` style="--cols: ${cols.map(([k], i) => `minmax(0, ${def.weights?.[k] ?? (i === 0 ? 1.6 : 1)}fr)`).join(" ")}"`
-        : "";
+    const weight = (k: string, i: number) => def.weights?.[k] ?? (i === 0 ? 1.6 : 1);
+    const tracks = cols.map(([k], i) => `minmax(0, ${weight(k, i)}fr)`).join(" ");
+    const style = dropped ? ` style="--cols: ${tracks}"` : "";
     const head = `<div class="thead">${cols.map(([, h]) => `<span>${esc(h)}</span>`).join("")}</div>`;
     // Each cell carries its column's name, which a phone shows beside it when the row stacks (style.css).
     const row = (r: TableSection["rows"][number]) => {
@@ -659,26 +669,22 @@ function table(s: TableSection): string {
     ];
     const totals = s.rows.filter((r) => r.total);
     const ended = folded.filter((r) => r.past).length;
-    const what = def.foldText
-        ? def.foldText(folded)
-        : shown.length
-          ? `${fmtN(folded.length)} more`
-          : `${fmtN(folded.length)} ended or idle ${folded.length === 1 ? "row" : "rows"}`;
+    const rowWord = folded.length === 1 ? "row" : "rows";
+    let what = shown.length ? `${fmtN(folded.length)} more` : `${fmtN(folded.length)} ended or idle ${rowWord}`;
+    if (def.foldText) what = def.foldText(folded);
     const endedNote = def.foldText || !shown.length || !ended ? "" : ` (${fmtN(ended)} ended or idle)`;
     // With no row open, the header goes inside the fold, over the rows it names.
     const headOpen = shown.length > 0 || totals.length > 0;
     const listed = def.listFolded ? folded.filter(def.listFolded) : folded;
     // A fold that would open onto nothing (benchmarks with too few runs are only counted) is a plain sentence.
-    const fold = !folded.length
-        ? ""
-        : listed.length
-          ? `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${endedNote}${chev()}</summary>${headOpen ? "" : head}${listed.map(row).join("")}</details>`
-          : `<p class="more">${capital(what)}.</p>`;
+    let fold = "";
+    if (listed.length) {
+        const inner = (headOpen ? "" : head) + listed.map(row).join("");
+        fold = `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${endedNote}${chev()}</summary>${inner}</details>`;
+    } else if (folded.length) fold = `<p class="more">${capital(what)}.</p>`;
     // Nothing live: say so in words above the fold, so a table never reads as a header with no rows.
-    const none =
-        s.rows.length && !shown.length && !totals.length
-            ? `<p class="empty">${esc(def.noneNow ?? (def.open ? "None past its line." : "None ongoing now."))}</p>`
-            : "";
+    const noneText = def.noneNow ?? (def.open ? "None past its line." : "None ongoing now.");
+    const none = s.rows.length && !shown.length && !totals.length ? `<p class="empty">${esc(noneText)}</p>` : "";
     const empty = s.rows.length ? "" : `<p class="empty">none in this range</p>`;
     // No row to draw, open or folded: no header over nothing, only the sentences.
     if (!headOpen && !listed.length) return `${none}${fold}${empty}`;
@@ -976,8 +982,7 @@ function block(c: CategoryStatus): string {
             : c.others.length > 1
               ? `+ ${c.others.length} more`
               : "";
-    const strip = (h: string) => h.replace(/<[^>]+>/g, "");
-    const aria = `${name}: ${word}${by ? `, ${strip(by)}` : ""}${more ? `, ${strip(more)}` : ""}`;
+    const aria = [`${name}: ${word}`, ...[by, more].filter(Boolean).map(stripTags)].join(", ");
     const cls = c.state === "idle" ? "idle" : stateClass(c.state);
     return (
         `<a class="blk ${cls}" href="${href(PAGE_PATH[c.id])}" aria-label="${esc(aria)}" title="${esc(aria)}"><span class="bn">${lab(esc(name))}</span><span class="bw">${lab(word)}</span>` +
@@ -1011,7 +1016,8 @@ export function headline(m: Member, setBy?: MemberRef, driver?: Member): string 
         const t = MEMBER[setBy.member];
         const kv = setBy.value === null ? "--" : bigValue(setBy.value);
         const page = CATEGORY_NAME[setBy.member.split(".")[0] as CategoryStatus["id"]] ?? "its";
-        return `<a class="kpi set" href="${href(m.link)}"><span class="kn"><b class="knot">Set the color:</b> ${esc(t.name)}</span><span class="kv">${kv}</span><span class="kt">${setBy.state === "bad" || setBy.state === "warn" ? `${STATE_WORD[setBy.state]}; ` : ""}target and red line on the ${esc(page)} page</span></a>`;
+        const off = setBy.state === "bad" || setBy.state === "warn" ? `${STATE_WORD[setBy.state]}; ` : "";
+        return `<a class="kpi set" href="${href(m.link)}"><span class="kn"><b class="knot">Set the color:</b> ${esc(t.name)}</span><span class="kv">${kv}</span><span class="kt">${off}target and red line on the ${esc(page)} page</span></a>`;
     }
     return measure(m, false);
 }
@@ -1019,14 +1025,9 @@ export function headline(m: Member, setBy?: MemberRef, driver?: Member): string 
 /** One measure under a block, with its window, value, target and sparkline; `set` labels it as the color's reason. */
 function measure(m: Member, set: boolean): string {
     const t = MEMBER[m.id];
-    const win =
-        m.window === "now"
-            ? "now"
-            : m.window === "7d" || m.window === "28d"
-              ? `last ${rangeLabel(m.window)}`
-              : here.range === "1h"
-                ? "last 1 h"
-                : `last ${rangeLabel(here.range)}`;
+    let win = `last ${rangeLabel(here.range)}`;
+    if (m.window === "now") win = "now";
+    else if (m.window === "7d" || m.window === "28d") win = `last ${rangeLabel(m.window)}`;
     const kv = headlineValue(m);
     const kt: string[] = [];
     if (m.state === "nodata" && m.reason) kt.push(sentence(m.reason));
@@ -1053,7 +1054,8 @@ function measure(m: Member, set: boolean): string {
 function episode(e: Episode): string {
     const past = e.end !== null;
     const span = fmtSpan(e.start, e.end, { edge: true, startUnknown: e.startUnknown });
-    const status = past ? `cleared ${fmtAgo(e.end as string)}` : e.notJudgedNow ? "not judged now" : "ongoing";
+    let status = e.notJudgedNow ? "not judged now" : "ongoing";
+    if (past) status = `cleared ${fmtAgo(e.end as string)}`;
     return (
         `<a class="ep${past || e.notJudgedNow ? " past" : ""}" href="${href(e.link)}"><span class="eb ${e.worst}"></span><span class="et">${span}</span>` +
         `<span class="ec">${esc(CATEGORY_NAME[e.category])}</span><span class="ex">${unlinked(sentence(e.fact))}</span>` +

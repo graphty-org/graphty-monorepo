@@ -12,7 +12,7 @@ import type {
     StepItem,
     TestItem,
 } from "../model/items.js";
-import { DAY, HOUR, MIN } from "../model/items.js";
+import { DAY, MIN } from "../model/items.js";
 import {
     type ChannelAttempt,
     type LaneJob,

@@ -71,7 +71,9 @@ export async function nonGatingTable(reads: Reads): Promise<Section> {
         rows: rows.map(({ pattern, n, failed }) => {
             const rate: Cell = n ? { t: "num", n: pct((n - failed) / n), unit: "pct" } : none;
             // Red when it fails half its runs, yellow from a quarter: a job allowed to fail still says how often.
-            const mark = !n ? undefined : failed * 2 >= n ? "bad" : failed * 4 >= n ? "warn" : undefined;
+            let mark: "bad" | "warn" | undefined;
+            if (n && failed * 2 >= n) mark = "bad";
+            else if (n && failed * 4 >= n) mark = "warn";
             return {
                 cells: {
                     job: name(pattern),

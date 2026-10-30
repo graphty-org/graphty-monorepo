@@ -179,6 +179,11 @@ export async function lanesTable(reads: Reads): Promise<Section> {
  * Whether an attempt moved nightly: promoted (its nightly site job passed), held (it passed every lane but did not
  * promote: changed screenshots wait for review, or a hold is open), or not promoted (it failed or tested nothing).
  */
+function laneMark(failed: boolean, untested: boolean, lanes: Cell): Cell {
+    if (failed) return { t: "mark", state: "bad", cell: lanes };
+    return untested ? { t: "mark", state: "warn", cell: lanes } : lanes;
+}
+
 function nightlyCell(a: ReleaseSeen): Cell {
     if (a.nightly === undefined) return none;
     if (a.nightly === "passed") return fact("train.promoted");
@@ -227,11 +232,7 @@ export async function trainsTable(reads: Reads): Promise<Section> {
             cells: {
                 attempt: { t: "list", items: [time], sep: "comma" },
                 candidate: { t: "list", items: [sha], sep: "comma" },
-                lanes: failed
-                    ? { t: "mark", state: "bad", cell: lanes }
-                    : o.code === "train.untested"
-                      ? { t: "mark", state: "warn", cell: lanes }
-                      : lanes,
+                lanes: laneMark(failed, o.code === "train.untested", lanes),
                 nightly: o.code === "train.nothing_new" ? none : nightlyCell(a),
             },
         });

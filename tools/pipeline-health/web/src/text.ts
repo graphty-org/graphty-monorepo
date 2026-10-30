@@ -28,6 +28,11 @@ export function esc(s: unknown): string {
     return String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
+/** HTML from esc-escaped text without its tags, for an attribute or a label read aloud. */
+export function stripTags(h: string): string {
+    return h.replaceAll(/<[^<>]*>/g, "");
+}
+
 // ---------------------------------------------------------------- clock
 
 /** The page's notion of now: the real clock, or the fixture's clock in fixture mode. */
@@ -94,7 +99,10 @@ export function fmtValue(v: Value): string {
 /** A value as a big number with its unit small after it (the mockup's `40<small> %</small>`). */
 export function bigValue(v: Value): string {
     if (v === null) return "--";
-    if ("word" in v) return `<span class="vw">${esc(WORD[v.word]) + (v.n === undefined ? "" : ` ${fmtN(v.n)}`)}</span>`;
+    if ("word" in v) {
+        const count = v.n === undefined ? "" : ` ${fmtN(v.n)}`;
+        return `<span class="vw">${esc(WORD[v.word]) + count}</span>`;
+    }
     if (isSeconds(v)) return `${Math.round(v.n * 60)}<small> s ago</small>`;
     const sign = v.signed && v.n > 0 ? "+" : "";
     const n = v.unit === "x" ? v.n.toFixed(1) : fmtN(v.n);
@@ -130,10 +138,11 @@ export function fmtSpan(start: Iso, end: Iso | null, o: { edge?: boolean; startU
     const day = (at: Iso | number) => new Date(at).toISOString().slice(0, 10);
     const dated = day(start) !== day(gen) || (end !== null && day(end) !== day(gen));
     const t = (at: Iso) => (dated ? fmtDated(at) : fmtTime(at));
-    const clipped = o.startUnknown || (o.edge && Math.abs(Date.parse(start) - (gen - 24 * 3600_000)) <= 5 * 60_000);
+    const clipped = o.startUnknown || (o.edge && Math.abs(Date.parse(start) - (gen - 24 * 3_600_000)) <= 5 * 60_000);
     // Each end stays on one line (style.css .nw), so a narrow column breaks only between the two.
     const nw = (x: string) => `<span class="nw">${x}</span>`;
-    return `${nw(clipped ? `before ${fmtDated(start)}` : t(start))} - ${nw(end ? t(end) : "now")}`;
+    const from = clipped ? `before ${fmtDated(start)}` : t(start);
+    return `${nw(from)} - ${nw(end ? t(end) : "now")}`;
 }
 
 /** "20 s", "44 min", "1.9 h", "8 d". */
@@ -209,12 +218,11 @@ export function fewText(
     const nOf = m.id ? MEMBER[m.id].nOf : undefined;
     // A 7- or 28-day measure counts its own days, whatever the picker shows.
     const days = m.window === "7d" || m.window === "28d" ? m.window : undefined;
-    const when = days
-        ? `in the last ${rangeLabel(days)}`
-        : range === undefined || range === "1h"
-          ? "this hour"
-          : `in the last ${rangeLabel(range)}`;
-    return `not judged: ${fmtN(m.n ?? 0)}${nOf ? ` ${esc(nOf)}` : ""} ${when}, needs ${fmtN(m.minN ?? 0)}`;
+    let when = "this hour";
+    if (days) when = `in the last ${rangeLabel(days)}`;
+    else if (range !== undefined && range !== "1h") when = `in the last ${rangeLabel(range)}`;
+    const what = nOf ? ` ${esc(nOf)}` : "";
+    return `not judged: ${fmtN(m.n ?? 0)}${what} ${when}, needs ${fmtN(m.minN ?? 0)}`;
 }
 
 /** "only 3 h of 6 h recorded": a source that covers less than the window. */
@@ -925,7 +933,7 @@ const S: Record<string, (p: P) => string> = {
         arr(p, "prs")
             .map((n) => prLink(Number(n)))
             .join(" "),
-    "note.queued_run": (p) => `run ${runLink(num(p, "run"))}${p.workflow ? `, ${str(p, "workflow")}` : ""}`,
+    "note.queued_run": (p) => [`run ${runLink(num(p, "run"))}`, ...(p.workflow ? [str(p, "workflow")] : [])].join(", "),
     "note.hung_jobs": (p) => and(arr(p, "jobs").map(esc)),
     "ci.longest_queued.note": () => "a master build run, no job yet",
     "flaky.flake_rate.note": (p) => `results since ${at(p, "since")}`,
@@ -951,8 +959,13 @@ const S: Record<string, (p: P) => string> = {
     "reason.idle": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} is idle by design`,
     "reason.stale": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} stopped writing`,
     "reason.error": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} is failing`,
-    "reason.thin": (p) =>
-        `${esc(SOURCE[String(p.source)] ?? p.source)} is sending ${p.ratio === undefined ? "less data than usual" : `${fmtN(Math.round(num(p, "ratio") * 100))}% of its usual data`} for the work CI did`,
+    "reason.thin": (p) => {
+        const share =
+            p.ratio === undefined
+                ? "less data than usual"
+                : fmtN(Math.round(num(p, "ratio") * 100)) + "% of its usual data";
+        return `${esc(SOURCE[String(p.source)] ?? p.source)} is sending ${share} for the work CI did`;
+    },
     "reason.no_value": () => "no value in the window",
     "section.no_detail": () => "Not collected yet: no writer records this detail.",
     "section.no_events": () => "Nothing recorded in this range.",
@@ -1151,8 +1164,10 @@ export function memberLine(m: Member): string {
 }
 
 /** "7-day measure" or "28-day measure": a member judged on days rather than the last hour. */
-export const dayMeasure = (w: Member["window"]): string =>
-    w === "now" ? "measure shown for information" : `${w === "28d" ? "28-day" : "7-day"} measure`;
+export function dayMeasure(w: Member["window"]): string {
+    if (w === "now") return "measure shown for information";
+    return w === "28d" ? "28-day measure" : "7-day measure";
+}
 
 /** HTML without its links, for text inside a row that is itself a link (anchors cannot nest). */
 export const unlinked = (html: string): string => html.replace(/<a\b[^>]*>|<\/a>/g, "");

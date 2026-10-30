@@ -5,35 +5,42 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-30 (tier 4 round 1 visual walkthrough). Summarized on 2026-10-21: the tier 2
+Last updated: 2026-10-30 (tier 4 closed after round 1). Summarized on 2026-10-21: the tier 2
 rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-1. (2026-10-30) Tier 4 round 1 walk done on 79ed770292: 0 sev 3/4, 14 sev 2, 15 sev 1
-   (`tier4/rounds/round-1/expert/visual.md`). Two themes: one mark with two meanings, and the
-   deciding text drawn smallest.
-2. The link glyph means "web address" and "joined": `SourceRow.tsx` maps `join` to
-   `GLYPHS.webAddress` though `GLYPHS.join` exists. Cheapest fix on the list.
-3. A column's kind has three glyph maps (table `typeIcons`, picker `VALUE_GLYPHS`, Fields
-   `TypeGlyph`); `opened` shows a calendar in the Filters picker while the table says text. Watch T62
-   sessions for a reader who takes it as already a date -- that would lift it to sev 3.
-4. Watch T65: Select and Hide cards look alike at rest (only an 8 px segmented control differs).
-5. Filter card titles and resting summaries are about 8 px; the deciding words are the smallest.
-6. Source row names cut to one letter ("d..") are decided (R11: counts win); do not re-propose.
-7. Lesson kept: a visual finding needs a reader who paid for it, or a scripted repro, to hold sev 3.
-   I rated none 3 this round for that reason.
-8. Focus visibility, `colorWord` hue names, and the purple "Layer" token are still open from tier 3.
-9. "A change a reader makes must be visible": empty selects with no placeholder (yes/no card,
-   Weight "Higher means") break it from the other side -- an unfinished field looks finished.
-10. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
+1. (2026-10-30) Tier 4 closed after one round without meeting its bars; the studio is stopped.
+   Settled result: `tier4/rounds/round-1/insights.md`. Next tier starts from it.
+2. The most severe open problem is visual: the join preview tags the wrong rows and leaves the
+   unknown-end row untagged beside "1 not in graph", which 3 of 4 read as "left out". A preview
+   must draw exactly what the act will do, mark by mark.
+3. Bar 6 fails on layout, not removal: the joined source row's "17/19 rows joined" ratio and second
+   name are clipped out of sight while the text still holds them. Clipped equals removed for a
+   reader. One layout fix (counts win, R11) covers both; "17 of 19 joined" next to 18 edges also
+   needs to agree.
+4. One fact drawn two ways costs a second menu: setting the time leaves the header's text glyph
+   while the timeline draws dates (four sessions named it). The header glyph must follow the
+   column's designated role/kind.
+5. The header is where readers do column work (3 of 4 on T62); put the state there (role chips for
+   place roles are missing).
+6. A new filter card starts on Hide and the deciding words are about 8 px; the default bit 5 of 5
+   who meant to mark. Give the effect control enough weight to be seen before it acts.
+7. Issue mark still has a default cursor and image role; fix with a pointer cursor and a name.
+8. Downgraded this round, do not re-raise without new evidence: "With issues 11" (sev 1), the Hide
+   label (sev 1), differing kind glyphs (sev 1, no reader tripped), the name cut alone.
+9. A study-tool defect (hover popovers reported as `tooltip: null`) made false findings. Before
+   trusting any "nothing appeared on hover", look at the screenshot.
+10. Lesson held: a visual finding needs a reader who paid for it or a scripted repro to hold sev 3;
+    none held at 3 this round, and two skeptics cut most candidates by one level.
+11. The link glyph doubles as "web address" and "joined" (`SourceRow.tsx`); cheapest fix still open.
+12. Focus visibility, `colorWord` hue names and the purple "Layer" token are still open from tier 3.
+13. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
     the owner, never into code.
-11. Tool habits: `REAL_SLOT_WAIT_SECONDS=600` on `--start`; crop with
-    `.worktrees/design-studio-tier4/tmp/visual-t4/crop.py in x y w h scale out`; `--hover-at` on the
-    name text itself (a point on the row's glyph gives no tooltip).
-12. Read `decided.md` (R1-R15) before rating a tier 4 screen: several of my candidates were decisions
-    the build did not finish (R8 Open button, R13 chips), which is a different finding from a new one.
+14. Read `decided.md` (R1-R15) before rating: unfinished decisions are not new findings.
+15. Tool habits: `REAL_SLOT_WAIT_SECONDS=600` on `--start`; crop with `tmp/visual-t4/crop.py`;
+    `--hover-at` on the name text itself.
 
 ## Priorities and values
 
@@ -163,7 +170,18 @@ in git history of this file.
   read as broken in 9 sessions. Proposal (app choice, not element): start the line empty or show
   the inherited value as a placeholder, so accepting a real value is the visible change.
 
+- 2026-10-30: Tier 4 closed after round 1. Decided: treat a clipped approved fact as removed
+  (bar 6 failed on the joined source row though its text held the ratio); a preview must draw
+  exactly the outcome (the join preview was the most severe problem); a header glyph must follow
+  the designated kind. Reason: the settled insights, after two skeptic checks.
+
 ## Tried: worked / did not work
+
+- 2026-10-30: Worked: rating no visual finding at sev 3 without a paying reader -- the skeptics cut
+  every other team's sev 3 candidates to 2 or 1. Did not work: my "kind glyphs differ" finding (36)
+  had no reader trip on it; ended at 1. Missed: the join preview's wrong tags and the clipped ratio
+  were bigger than anything on my walk; check previews and approved surfaces against the outcome
+  first next time.
 
 - 2026-10-30 worked: four sessions (light 1440 two files joined, dark 1440 one file with fixes and
   two cards, light 900 x 700 T68 state, dark 900 x 700 join) covered every tier 4 screen in about 45

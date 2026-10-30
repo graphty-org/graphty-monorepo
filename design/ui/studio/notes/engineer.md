@@ -17,6 +17,24 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-10-29) A Select card's count counts what it marks (355022569a, graphty-element only).
+  `countsNow` (VisibilityApi.ts) counts a select condition among the LIVE masks
+  (`nodeMaskValue` / `edgeMaskValue`, synced by `upToDate()`), unless `selectsOverGraph` says the
+  selection reaches past the picture (an off card judged as if switched on); its cache key adds
+  the masks' version, so toggling, editing, undo and redo recount it. Why live masks and not a
+  fresh `combinedRule(null, ...)` pass as the reverted 42ce7201c7 did: the selection itself reads
+  the live masks, so counting there is the only way matched always equals selected (same filter,
+  same window, same sync after undo). Why the predicate and not `within === "picture"`: since the
+  merge of master a select condition with no `within` stays in the picture too. Keep and exclude
+  counts and the value list's per-value counts unchanged. Tests: `conditions.test.ts` (both orders
+  with and without `within`, keep off/on, rule edit + undo/redo, the 8-combination test now checks
+  count = selection; fails without: 3 of 5 for 2 of 3), `Filters.real-element.test.tsx` chip
+  "4 of 5" / "7 of 8". Re-walk `design/ui/studio/tmp/r1-dry3-U1/` on stamp 355022569a3b: 14 + 2
+  routes of the fix walk matched; 13 pilot routes matched or diverged only on the read of the
+  card (B "Node 3 of 5"). Screens: A 4 of 14 / 4, keep off 5 of 24 / 5; B 3 of 5 / 3, Undo of the
+  depth edit 3 of 6 / 3. The replay tolerance does NOT flag a chip's text change (b01 matched
+  with 4 of 14 where the route had 5 of 24): look at the screenshots.
+
 - (2026-10-29) Re-walk of "an unknown end's warning marks the end that is unknown" (67de06e337) on
   `graphty/dist` stamp ac8586556932: nine pilot routes replayed with every check point matching
   (`design/ui/studio/tmp/r1-dry2-recheck-U2/`: T61A success, deliveries-first detour, keyboard;
@@ -63,35 +81,21 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   Marsh, Lake Inlet (the only divergence, the fix); T64A-label-path 09.png Central Warehouse,
   Harbor Market; T64A success, table-role-rerun and T64B success match every check point.
 
-- (2026-10-29) Re-walk of the Select-in-picture and default-weight re-run fixes on dist stamp
-  9f9f23b3981e (`REAL_WARM_POOL=0`): all 11 routes replayed with every check point matching
-  (`design/ui/studio/tmp/r1-dry2-recheck-U1/`); nothing worse, both acceptances hold (T65A path
-  17.png 4 selected and 4 rings; T65B path 09.png 3 selected; T64B table-role-rerun 09.png new run,
-  km (farther), Total km 5.3; T64A 11.png new run, "trips means closer"). Keys on the Select / Hide
-  radio (`T65B-keys-toggle/`): Arrow keys switch and move the selection, Enter does nothing, Escape
-  puts focus on the on box (by design), Tab / Shift+Tab move in order, undo and redo restore
-  "3 nodes selected". Seen, not caused by these fixes: (a) a Select card's own chip still counts its
-  matches over the whole graph ("5 of 12", "5 of 24") while the selection under a Hide card is 3 or
-  4 -- a participant reading the chip may answer 5; (b) the date card's condition name reads in ms
-  to the reader: "Apply installed is at most 1104537599999" (on box name, remove button) and the
-  redo toast "Redid editing the filter "installed is at most 1104537599999"" (also in the r1d1
-  pilot); (c) the live region says "1 edges".
+- (2026-10-29) Re-walk of the Select-in-picture and default-weight re-run fixes on stamp
+  9f9f23b3981e: all 11 routes matched (`design/ui/studio/tmp/r1-dry2-recheck-U1/`). Keys on the
+  Select / Hide radio: Arrow keys switch, Enter does nothing, Escape puts focus on the on box (by
+  design). Still open from it: the date card's condition name reads in ms ("Apply installed is at
+  most 1104537599999", also the redo toast); the live region says "1 edges". (Its item "the
+  Select chip counts over the whole graph" is fixed, see the top entry.)
 
-- (2026-10-29) A run asked again after the default weight changed computes again. A run's
-  identity (`RunsApi.resolve`) is explicit params + scope + seed + sample; the weight the Data role
-  supplies is not in it, so the same From/To handed back the stored unweighted run after the
-  previous weight-role fix. Fix: `RunsApiOptions.defaultWeight` (internal, GraphSession passes
-  `JSON.stringify(data.loadedWeight())`), recorded per run id in `startRun`; `shouldReexecute`
-  adds `weightMoved` -- only for an algorithm whose descriptor has a `weightMeaning` and a run with
-  no `weight` param, so degree is not redone. `answered()` follows. Not in the identity: that
-  would change derived run ids, which saved projects reference. Test:
-  `test/browser/runs-loaded-weight.test.ts` "the same run asked again after the weight role or its
-  meaning changed computes again" (fails without: answered() still returns the old run). Re-walk
-  `design/ui/studio/tmp/r1-dry2-U2/`: T64B 09.png new Ran 5:54:40, Total km 5.3, Weight km
-  (farther); T64A 11.png new Ran, "trips means closer" reason; success and Analyze routes match.
+- (2026-10-29) A run asked again after the default weight changed computes again
+  (`RunsApiOptions.defaultWeight`, `shouldReexecute` adds `weightMoved` for weighted algorithms
+  only; not in the run identity, which saved projects reference). Full entry: `git show
+a2544e0dde:design/ui/studio/notes/engineer.md`.
 
 - (2026-10-29) A Select card selects only what is in the picture. graphty-element: optional
-  `FilterCondition.within` (`FilterSelectWithin`, "graph" | "picture"; absent = graph, as before).
+  `FilterCondition.within` (`FilterSelectWithin`, "graph" | "picture"; since the merge of master an
+  absent `within` stays in the picture too, and only all-"graph" reaches past it: `selectsOverGraph`).
   With "picture", `selectedBy` (VisibilityApi.ts) intersects the select rule with a fresh pass of
   `combinedRule(null, conditions)` (keep and exclude only, NOT the single filter or the time
   window), and `selectKey` adds that rule, so a keep/exclude edit, its on box, undo and redo all
@@ -173,6 +177,11 @@ audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engi
 
 ## Decisions and reasons
 
+- 2026-10-29: A count that must equal what an operation produced reads the same state the
+  operation reads (here the live masks), never a recomputation of it. A second derivation of the
+  "same" set drifts as soon as one side gains an input (the single filter, the time window, the
+  undo sync); the reverted count drifted on the `within` default the same way.
+
 - 2026-10-29: The Time role no longer changes how a column is drawn. `timeValue(session, value,
 date)` lost its kind and column arguments: a text or number time field shows its raw values, and a
   date column is written to the day whatever the timeline's unit (a date column's unit is ms anyway).
@@ -228,6 +237,13 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-29 worked: re-walking a reverted fix by replaying the fix author's own walk folder
+  (`--rewalk r1-dry2-U1`, `REAL_REWALK_PARALLEL=1`), then the pilot routes one `--replay
+--end-on-diverge` each, then the author's `-diverged` hand routes one by one (`--rewalk` skips
+  folders named `-diverged`). Verdicts for every route in about 25 minutes on one browser.
+- 2026-10-29 did not work: reading a Select card's spoken count from a keyboard route's focus
+  lines -- the chip is not a tab stop; only `--read` says it ("Node 3 of 5").
 
 - 2026-10-29 worked: `--replay <route> <folder> --keep` on a route that ends just short of the
   changed screen, then hand `--step`s (With issues, Tab, ArrowRight, `--read`) to reach it; the

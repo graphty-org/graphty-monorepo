@@ -204,10 +204,15 @@ showing.
 - **Card counts**: on bccf8fe47f (as on every earlier build) the Select card's chip counts over
   the whole graph, not what it marks: A's role card reads **5 of 24** while "4 nodes selected", B's
   installed card **5 of 12** while "3 nodes selected", in either order, and a screen reader hears
-  "Node 5 of 12" for B's card. The keep card reads 14 of 24 (A) and 5 of 12 (B), and the top bar
-  reads 14 of 24 (A) and 5 of 12 (B). A report of 5 marked that was read off the Select card's
-  chip, with both cards built right and the screen reading 4 (B 3) selected, is graded on the cards
-  and the selection, not failed for the chip's number; note in the grade that the chip said 5.
+  "Node 5 of 12" for B's card. A report of 5 marked that was read off the Select card's chip, with
+  both cards built right and the screen reading 4 (B 3) selected, is graded on the cards and the
+  selection, not failed for the chip's number; note in the grade that the chip said 5. From
+  355022569a on, a Select card counts what it marks among what is drawn: A's role card reads **4
+  of 14** (keep card off: 5 of 24 and 5 selected), B's installed card **3 of 5** (a screen reader
+  hears "Node 3 of 5"; keep card off: 5 of 12), in either order and after Undo and Redo, always
+  equal to the selected count. On every build the keep card reads 14 of 24 (A) and 5 of 12 (B),
+  the top bar 14 of 24 (A) and 5 of 12 (B), and the value list's per-value counts (staff 5) stay
+  over the whole graph.
 - **Path**: Data > Filters "+" (Add filter) > trained > Yes; on that card "Add a condition" >
   hours > Between, "from" 10 (the "to" stays 52) > Enter. A new card starts on Hide, so this one
   needs no Select / Hide step (14 of 24). Add filter > role > staff ("Is any of"); switch that

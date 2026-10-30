@@ -807,6 +807,7 @@ export type Channel =
     | "edge.supportRepulsion"
     | "edge.supportCentralGravity"
     | "edge.supportUnit"
+    | "edge.supportScale"
     | "edge.route"
     | "edge.arcHeight"
     | "edge.nodeGap"

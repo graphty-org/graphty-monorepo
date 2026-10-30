@@ -333,6 +333,7 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.targetNodeGap": NOT_PLACED,
     "edge.supportModel": NOT_PLACED,
     "edge.supportUnit": NOT_PLACED,
+    "edge.supportScale": NOT_PLACED,
     "edge.supportSpringLength": NOT_PLACED,
     "edge.supportSpringConstant": NOT_PLACED,
     "edge.supportRepulsion": NOT_PLACED,

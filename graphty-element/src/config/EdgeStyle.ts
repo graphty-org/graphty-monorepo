@@ -322,6 +322,13 @@ const LineStyle = z.strictObject({
      */
     supportUnit: z.number().nonnegative().optional(),
     /**
+     * What unit the support's lengths and forces are in: `"unit"` (when unset), `supportUnit`'s;
+     * `"drawing"`, the drawing's own, the size at which the forces hold the drawn nodes in balance,
+     * so a curve bows among nodes any layout placed as among nodes those forces placed themselves
+     * (a file whose program lays its nodes out under the same forces, drawn by another layout).
+     */
+    supportScale: z.enum(["unit", "drawing"]).optional(),
+    /**
      * The path the line takes between its nodes, whether or not it is curved: unset, the active
      * layout's choice (the `location-map` layout raises arcs over a flat map in 3D and draws
      * great-circle arcs on its globe; every other layout, and the 2D view, a straight line);

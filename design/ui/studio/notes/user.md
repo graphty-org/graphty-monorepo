@@ -12,32 +12,36 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-29) Tier 4 (data management, one round): grading from the last screenshot cannot see
-  roles, kinds or filter effects. Ask for an end-of-session data-state capture (like the style
-  tree) as a refusal in `real.mjs --end`, owned by the design engineer, before any session.
-- (2026-10-29) Tier 4 has no scripted walk of its data screens (bars.mjs stops at WALKS3), so the
-  wording check is blind. Two prompts already echo their control: T60 "web address" (the box reads
-  "Web address of a graph file"), T64 "stronger" / "farther" (the "Higher weight means" options).
-- (2026-10-29) "Returning" in tier 4 means "knows the shell"; every history makes the data features
-  new. Nothing measures second-time cost. Say so in the report rather than claim a repeat result.
-- (2026-10-29) A number column with one bad value ("n/a", "-") is offered only text operators on a
-  filter card. Real files look like that; check whether it blocks T65 once a half uses gauges.
-- (2026-10-21) At the ceiling (tier 3: 55 of 56) success says little; score cost (steps over the
-  key) and first door, and read tasks for leading.
-- (2026-10-21) Avoiding a token or control counted as understanding it. A bar must separate them.
-- (2026-10-21) Same-model participants cap what a round can find and the answer key may lead
-  graders: blind graders to the key's problem list.
-- (2026-10-21) Spoken color names must follow hue first; graders never grade with the app's own
-  naming table.
+- (2026-10-30) Tier 4 closed after one round without meeting its bars. Carry forward: keyboard
+  (axe critical on 14 of 16 screens), the owner's data rule (joined source row clips "17/19" and
+  the second file's name), and cost on T61 (about 12 inputs against a key of 7).
+- (2026-10-30) Most severe open problem: the join preview does not show what Join will do (the
+  unknown-end row untagged, the repeat tagged as added). People learned the outcome from counts
+  after the act. Show the result before the act, in counts the reader already trusts.
+- (2026-10-30) Choices after the act with a default already applied ("Add nodes" after Join, a new
+  filter card on Hide) cost steps every time a task disagrees with the default. Prefer asking at
+  the act, or a default that removes nothing. Renaming the effect does not fix the default.
+- (2026-10-30) One fact drawn two ways (time set but column glyph says text; chip counts on two
+  bases) makes people open a second menu to check. One fact, one drawing.
+- (2026-10-30) The study tool lied: a hover that opens a popover printed "tooltip: null", and four
+  participants trusted the line over the screenshot. A tool output that can contradict the screen
+  must be fixed before any round; until then graders read the screenshot, not the line.
+- (2026-10-30) Skeptic checks moved every severity 3 candidate to 2 or lower. Score severity from
+  a repro and the end state, not from what participants said; my sev 3 calls need a repro first.
+- (2026-10-30) A false done judged only against the answer key's definition (column kind) while the
+  user's answer was right is a key problem, not a user failure. Grade the user's goal.
+- (2026-10-30) Wrong-turn counts mixed checks after success with real detours. Count only moves
+  before success, and define a hover once for every grader.
+- (2026-10-29) Grading needs an end-of-session data-state capture (roles, kinds, filter effects);
+  the last screenshot cannot show them. Still a refusal to ask for in `real.mjs --end`.
+- (2026-10-29) "Returning" means "knows the shell"; nothing measured second-time cost. Say so.
 - Top risk, every tier: a picture (or a count) that looks right and answers wrong. Severity 3+.
-- Grade the user's goal from what ended on screen and in saved state, not the key's route or a
-  participant's rating. Simulated passes are weak; failures and scripted repros count.
-- A new task brings its route's screens into the scripted walk in the same change; task wording
-  never reuses the target's screen words.
-- Criteria prose asking for tool changes does not get built; ask for a gate refusal with an owner.
+- Same-model participants: a failure is strong evidence, a pass is weak; blind graders to the key.
+- A new task brings its route's screens into the scripted walk; task wording never reuses the
+  target's screen words.
 - No tours, hint panels or first-run aids; the same screens for everyone.
-- No product concept built around one task's wording or one domain; every wording on two domains,
-  and "two domains" means two kinds of data, not two people-networks.
+- No product concept built around one task's wording or one domain; two kinds of data, not two
+  people-networks.
 
 ## Priorities and values
 
@@ -96,6 +100,14 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- **2026-10-30 (me, tier 4 round 1 closed at the one-round cap):** Lessons taken: (1) a study
+  tool line that can contradict the screenshot is a severity-raising defect in the study, so it
+  is fixed before any round; (2) severity 3 only with a scripted repro and an end-state check,
+  since skeptics weakened all four candidates; (3) the answer key must define success as the
+  user's goal, not a route property (r1-s08 answered right, counted false done); (4) wrong turns
+  count only before success. Design positions: show Join's result before Join; decide at the
+  act, not after with a default applied; one fact drawn once. Evidence: `tier4/rounds/round-1/
+insights.md`, `repro/r1-s03/02.png`, `sessions/r1-s08/05.png`, `sessions/r1-s13/03.png`.
 - **2026-10-29 (me, review of tier 4 criteria and tasks; build not yet named, no session run):**
   Eight changes: grade from a saved data state (sources, roles, kinds, filter cards with effect,
   order and counts, visible and selected counts) with `real.mjs --end` refusing without it; a tier
@@ -163,67 +175,23 @@ something, or change my mind. Summarize when it passes about 25 KB.
   a round can credit each change; trust words never cut to pass a word count. Kept: Shift-click,
   Filters icon, Analyze name ranking, Replace page. Rule language is copied, never discovered (0
   of 16 typed "=").
-- 2026-10-09 (me) -- A dry run must walk the commonest detours, not only the answer key. Reason:
-  round 1's dry run cleared every walked route (0 broken controls met there), and every build
-  fault participants did meet was on a detour (styling Edges while a run layer was open, the
-  selection tint over a new fill).
-- 2026-10-08 (me, tier 2 criteria review; summarized 2026-10-12) -- Asked: a bar for expert and
-  screenshot findings (0 open sev 3+, scripted clipped-text and raw-string checks); no round cap,
-  stop on no gain; "not scored" is not met; a repeat-cost measure; a dead-end first move is a
-  finding; no door removed on fewer than 8 sessions. Reason: repeat cost and kept habits judge a
-  returning user.
-
-- 2026-10-06 to 2026-10-07 (tier 1 critiques, summarized 2026-10-18) -- The route people take
-  must arrive before patching the route they skip; smallest reproduced fixes on the first-time
-  path; every bar scorable from the last screenshot and transcript with no judgment call; a
-  size or color step passes only if the legend's meaning is read.
-- 2026-10-06 (me) -- My scope widens from the weekly analyst alone to the first-time user plus the
-  weekly analyst. Reason: the owner's tier 1 priority (2026-10-02). Elena and Alex fail in the same
-  places on the same tasks (round 8), so one design serves both.
-- 2026-10-06 (me) -- Test the real app before proposing any redesign. The first things tested are
-  the three tier 1 failures (whole session, names from a field, find a node and its neighbors).
-  Reason: the round 8 fixes are untested on working wiring; redesigning untested fixes repeats the
-  round 5 mistake of measuring decisions that were never really on screen.
-- 2026-10-03 (owner) -- Stop mocking; build tier 1 as the real app and study that. Reason: "our
-  user studies keep breaking on the fact that it's not a real app". Round 7 had 18 of 61 tasks
-  unreachable on the skeleton; round 8 had four tasks decided by skeleton defects.
-- 2026-10-03 (owner) -- graphty-element is neutral about presentation: it returns facts and codes;
-  the app writes every word, heading and grouping. Consequence for me: wording fixes (legend
-  sentence, Analyze headings, notices) are app work; missing facts behind them are element work.
-- 2026-10-02 (owner) -- First-time users first: load data (perhaps a sample), run algorithms,
-  create styles, add labels. Tiered tasks adopted in round 8.
-- 2026-10-02 (studio, round 8) -- Label "+" with no label anywhere adds an empty label line and
-  opens its picker; "Show labels" only when a lower row sets a label. Reason: severity 4 trap.
-  Not deleted because it is a real element setting.
-- 2026-10-02 (studio, round 8) -- One find box, live as you type, over rows, elements (label, id,
-  value) and notes; a value hit offers "Select where <attribute> is <value> (n)". Reason: 0 of 12
-  on find-a-node; 5 of 6 typed a value and got "No match".
-- 2026-10-02 (studio, round 8) -- A node opens on its data tab; its degree selects its neighbors;
-  the neighborhood is listed by name and tie value. Reason: 12 of 12 wanted his data first; no
-  screen named neighbors. Rejected: a Connections list on the data tab (a second home).
-- 2026-10-02 (studio, round 8) -- Sample opens with nothing run. Reason: pre-run PageRank covered
-  newcomers' own results and gave them a legend they could not read.
-- 2026-10-02 (studio, round 8) -- Export > Data opens on the showing table, Nodes by default; the
-  table's export goes through the one Export dialog. Reason: "export the data" first click 10%.
-- 2026-09-30 (owner) -- A run paints as soon as it finishes; runs may fight over color; the eye
-  hides. "Measures don't paint on their own" was called a fatal flaw.
-- 2026-09-30 (owner) -- A label is an attribute picked in styling; the "+" starts empty; several
-  labels per node allowed (tier 1 ships one label line).
-- 2026-09-30 (owner) -- Toolbar icons only, tooltips after a hover delay. My open condition: if
-  fewer than about half of first clicks find Layout or View, a label experiment goes back to the
-  owner.
-- 2026-09-29 (owner) -- No one-domain special cases (currency detection dropped); every wording fix
-  tested on two domains. I accept this fully: it was a persona-grown feature my own rules forbade.
-- 2026-09-29 (owner) -- Usage data off until the user opts in, in the owner's words. My concern
-  stands: 6 of 6 read "the author ... and his Claude Code sessions" as a second recipient and 4 said
-  it drove their No; a tightened draft keeping every commitment goes to the owner.
-- 2026-09-26 (owner) -- Design for the intermediate user; personas validate, never generate;
-  "enable all users without adding specific features for specific personas".
-- 2026-09-26 (studio, my proposal) -- Whole-graph overview is a top task, recurring, with the
-  degree histogram by default. Notes are core for the weekly analyst. Export is one task with
-  several outputs. Standard graph terms, explained by (i).
+- **2026-09-26 to 2026-10-09 (tiers 1 and 2, summarized 2026-10-30):** Owner rules I work under:
+  stop mocking and study the real app; element returns facts, app writes words; first-time users
+  first; design for the intermediate user, personas validate and never generate; no one-domain
+  special cases; toolbar icons with delayed tooltips; a run paints as soon as it finishes; usage
+  data opt-in. Studio decisions that held: one live find box with "Select where" value hits; a
+  node opens on its data; sample opens with nothing run; Export is one dialog; label "+" starts
+  empty. My rules from then: a dry run walks the commonest detours, not only the key; test the
+  real app before redesigning; every bar scorable without judgment; no door removed on fewer
+  than 8 sessions.
 
 ## Tried: worked / did not work
+
+- 2026-10-30 -- Tier 4 with one round and a safety cap: did not reach the bars; three of seven
+  failed on real defects (keyboard, clipped source row, join cost), two only as frozen. A single
+  round finds problems but cannot credit fixes.
+- 2026-10-30 -- Two independent skeptic checks on scores: worked; they caught a tool defect, a
+  key-definition false done and inflated severities.
 
 - 2026-10-29 -- WORKED: searching the app's source for each prompt's key words before any
   session; it found two echoes (T60, T64) in a minute with no wording tool for tier 4. DID NOT (in

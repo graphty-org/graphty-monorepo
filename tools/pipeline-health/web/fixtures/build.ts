@@ -582,16 +582,18 @@ const releaseMembers: Member[] = [
         n: 4,
         minN: 3,
         sla: { target: cmp("<=", 25, "pct"), red: cmp(">", 75, "pct") },
+        breach: "warn",
         link: "/releases/trains",
     }),
     member({
         id: "releases.green_clean",
         window: "7d",
         state: "slow",
-        value: num(33, "pct"),
+        value: num(17, "pct"),
         n: 6,
         minN: 3,
         sla: { target: cmp(">=", 50, "pct"), red: cmp("<", 25, "pct") },
+        breach: "bad",
         link: "/releases/trains",
     }),
     member({
@@ -600,6 +602,7 @@ const releaseMembers: Member[] = [
         state: "slow",
         value: num(1.3),
         sla: { target: cmp(">=", 2), red: cmp("<", 1) },
+        breach: "warn",
         link: "/releases",
     }),
 ];
@@ -773,6 +776,7 @@ const categories: CategoryStatus[] = [
             ref(byId(releaseMembers, "releases.train_skipped")),
         ],
         headline: lanesRed,
+        slowPastRed: [ref(byId(releaseMembers, "releases.green_clean"))],
     },
     { id: "costs", state: "ok", others: [], headline: spend },
     {

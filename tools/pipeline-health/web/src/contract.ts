@@ -100,7 +100,8 @@ export interface NumberValue {
 }
 
 export interface WordValue {
-    word: "passed" | "failed" | "yes" | "no" | "filed" | "skipped";
+    /** `quiet`: the weekly stress run found nothing three weeks running. */
+    word: "passed" | "failed" | "yes" | "no" | "filed" | "skipped" | "quiet";
     /** "filed 0": a count after the word. */
     n?: number;
 }
@@ -247,6 +248,11 @@ export interface Member {
     cleared?: Iso;
     /** The pull request that fixes this red member waits on the owner (3.1). */
     fixWaitsOwner?: number;
+    /**
+     * A 7- or 28-day member (`slow`) past its target (`warn`) or its red line (`bad`). It never sets the page's
+     * state, but the page shows it as the breach it is; absent from payloads built before it was.
+     */
+    breach?: "warn" | "bad";
     /** Where the member is acted on. */
     link: Route;
 }
@@ -270,6 +276,8 @@ export interface CategoryStatus {
     others: MemberRef[];
     /** The headline measure under the block (section 2.3). */
     headline: Member;
+    /** Its 7- and 28-day members past their red line: out of the state, shown under it. */
+    slowPastRed?: MemberRef[];
 }
 
 /** One episode of the last 24 h: a member that went past its target (section 2.4). */
@@ -282,6 +290,8 @@ export interface Episode {
     start: Iso;
     /** `null` while ongoing. */
     end: Iso | null;
+    /** The episode began before the history the engine keeps, or at a time it cannot tell: `start` is a bound. */
+    startUnknown?: boolean;
     /** What happened: the member, its value and the cause when the collector knows it. */
     fact: Fact;
     link: Route;
@@ -478,8 +488,10 @@ export interface JobsSection extends SectionBase {
     saturatedMs?: (number | null)[];
     /** The plan's limit, from config (`slas.json`). */
     limit: number;
-    /** The observed peak: a label beside the limit, never a threshold. */
+    /** The observed peak of running jobs: a label beside the limit, never a threshold. */
     peak: { n: number; at: Iso };
+    /** The observed peak of queued jobs; absent from payloads built before it was. */
+    peakQueued?: { n: number; at: Iso };
 }
 
 /** Shard and test-file times (section 6), a slow section. */

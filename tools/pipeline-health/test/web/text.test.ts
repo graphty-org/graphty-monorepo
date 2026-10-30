@@ -4,7 +4,7 @@ import { refText, sentence, stateChip } from "../../web/src/text.js";
 
 describe("refText", () => {
     it("names a member with no value without a placeholder", () => {
-        expect(refText({ member: "ci.bins_over", value: null })).toBe("bins over 8 min");
+        expect(refText({ member: "ci.bins_over", value: null })).toBe("PR test groups over 8 min");
     });
 
     it("names a member with its value", () => {
@@ -15,7 +15,7 @@ describe("refText", () => {
 describe("labelText", () => {
     it("names members, pages and sources the catalog sends as labels", async () => {
         const { labelText } = await import("../../web/src/render.js");
-        expect(labelText("member.master.red_now")).toBe("Red now");
+        expect(labelText("member.master.red_now")).toBe("Master red now");
         expect(labelText("page.pull-requests")).toBe("Pull requests");
         expect(labelText("source.coverage")).toBe("Coverage (Coveralls)");
         expect(labelText("cost.total")).toBe("<b>Total</b>");
@@ -36,16 +36,16 @@ describe("headline", () => {
             link: "/ci",
         } as unknown as Parameters<typeof headline>[0];
         setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
-        expect(headline(m)).toContain("too few, n=71 of 5");
+        expect(headline(m)).toContain("not judged: 71 test-file runs this hour, needs 5");
         setHere({ page: "overview", range: "24h", q: new URLSearchParams() });
-        expect(headline(m)).not.toContain("too few");
-        expect(headline({ ...m, value: null })).toContain("too few");
-        expect(headline({ ...m, n: 2 })).toContain("too few, n=2 of 5");
-        expect(headline({ ...m, window: "7d" })).toContain("too few");
+        expect(headline(m)).not.toContain("not judged");
+        expect(headline({ ...m, value: null })).toContain("not judged");
+        expect(headline({ ...m, n: 2 })).toContain("not judged: 2 test-file runs in the last 24 h, needs 5");
+        expect(headline({ ...m, window: "7d" })).toContain("not judged");
         // The row chip follows the same rule as the headline, so the two never disagree.
         expect(stateChip(m, "24h")).toBe("");
-        expect(stateChip(m, "1h")).toContain("too few, n=71 of 5");
-        expect(stateChip({ ...m, n: 2 }, "24h")).toContain("too few, n=2 of 5");
+        expect(stateChip(m, "1h")).toContain("not judged: 71 test-file runs this hour, needs 5");
+        expect(stateChip({ ...m, n: 2 }, "24h")).toContain("not judged: 2 test-file runs in the last 24 h, needs 5");
     });
 });
 
@@ -118,8 +118,18 @@ describe("release channel tiles", () => {
 describe("stateChip", () => {
     it("labels a slow measure with the days of history it covers, and not when the history covers it", () => {
         const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 } };
-        expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain("covers 2 of 7 days");
-        expect(stateChip(slow)).not.toContain("covers");
+        expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain("data for 2 of 7 days");
+        expect(stateChip(slow)).not.toContain("data for");
+        // The coverage is a line of its own: it never replaces the state.
+        expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain(">7-day measure<");
+    });
+
+    it("shows a 7-day measure past its red line as FAILING, out of the page state", () => {
+        const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 }, breach: "bad" as const };
+        const chip = stateChip(slow);
+        expect(chip).toContain('class="sw bad">FAILING<');
+        expect(chip).toContain("7-day measure, not in the page state");
+        expect(stateChip({ ...slow, window: "28d", breach: "warn" })).toContain("28-day measure");
     });
 });
 
@@ -131,5 +141,101 @@ describe("episode facts", () => {
         });
         expect(text).toContain("out of target");
         expect(text).not.toContain("cleared");
+    });
+});
+
+describe("member text", () => {
+    /** Members with no red line: informational, money lines judged by their budget, or not judged at all. */
+    const NO_RED = new Set([
+        "pull-requests.caused_failures",
+        "ci.superseded",
+        "releases.channels",
+        "local-runs.local_vs_ci",
+        "local-runs.shard_time",
+        "local-runs.slot_waits",
+    ]);
+
+    it("says for every member what is measured and, unless it has no red line, what red means", async () => {
+        const { MEMBER } = await import("../../web/src/text.js");
+        for (const [id, t] of Object.entries(MEMBER)) {
+            expect(t.def, id).not.toBe("");
+            if (!NO_RED.has(id)) expect(t.red, id).not.toBe("");
+        }
+    });
+
+    it("gives the red threshold its unit, and says what the 6 h condition means", async () => {
+        const { slaText } = await import("../../web/src/text.js");
+        const sla = {
+            target: { op: "<=" as const, n: 5, unit: "min" as const },
+            red: { op: ">" as const, n: 15, unit: "min" as const },
+            needs6h: true,
+        };
+        const text = slaText(sla);
+        expect(text).toContain("good &lt;= 5 min");
+        expect(text).toContain("red &gt; 15 min");
+        expect(text).toContain("in the last hour and the last 6 h");
+        for (const unit of ["min", "h", "pct", "d"] as const)
+            expect(slaText({ ...sla, red: { op: ">", n: 3, unit } })).not.toMatch(/red &gt; 3($|[^ %])/);
+        expect(slaText(null)).toBe("no target (shown for information)");
+    });
+});
+
+describe("page state", () => {
+    const member = (over: Record<string, unknown>) =>
+        ({
+            id: "releases.green_clean",
+            window: "7d",
+            state: "slow",
+            value: { n: 0, unit: "pct" },
+            sla: null,
+            link: "/releases/trains",
+            ...over,
+        }) as never;
+    const page = (members: unknown[]) =>
+        ({
+            page: "releases",
+            range: "1h",
+            generated: "2026-10-25T23:30:00Z",
+            state: "ok",
+            others: [],
+            notes: [],
+            members,
+            sections: [],
+        }) as never;
+
+    it("never says every member is within target while a 7-day measure is past its red line", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "releases", range: "1h", q: new URLSearchParams() });
+        expect(pageView(page([member({ state: "slow" })]))).toContain("within its target");
+        const html = pageView(page([member({ breach: "bad" })]));
+        expect(html).not.toContain("within its target");
+        expect(html).toContain("1 7-day measure is past its red line: full runs able to promote 0%.");
+        expect(html).toContain("Red: Below 25%");
+    });
+
+    it("lists failing rows first and drops the chevron of a row that links to its own page", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "releases", range: "1h", q: new URLSearchParams() });
+        const html = pageView(
+            page([
+                member({ id: "releases.review_lag", state: "ok", link: "/releases" }),
+                member({ id: "releases.lanes_red", window: "now", state: "bad", link: "/releases/lanes" }),
+            ]),
+        );
+        expect(html.indexOf("Red lanes on the candidate")).toBeLessThan(html.indexOf("Screenshot review time"));
+        expect(html).toContain('<div class="row"');
+        expect(html).toContain('href="#/releases/lanes?range=1h"');
+    });
+});
+
+describe("fmtSpan", () => {
+    it("dates both ends when either is not today, and marks a start cut by the 24 h window", async () => {
+        const { clock, fmtSpan } = await import("../../web/src/text.js");
+        clock.generated = "2026-10-30T10:00:00Z";
+        expect(fmtSpan("2026-10-30T08:00:00Z", null)).toBe("08:00 - now");
+        expect(fmtSpan("2026-10-29T22:10:00Z", "2026-10-30T01:05:00Z")).toBe("10-29 22:10 - 10-30 01:05");
+        expect(fmtSpan("2026-10-29T10:02:00Z", null, { edge: true })).toBe("before 10-29 10:02 - now");
+        expect(fmtSpan("2026-10-30T08:00:00Z", null, { startUnknown: true })).toBe("before 10-30 08:00 - now");
+        clock.generated = "";
     });
 });

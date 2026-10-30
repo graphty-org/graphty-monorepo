@@ -18,6 +18,7 @@ import type {
     Sla,
     SlowRange,
     Unit,
+    NumberValue,
     Value,
 } from "./contract";
 
@@ -54,21 +55,35 @@ const UNIT: Record<Unit, string> = {
     usd: " USD",
     count: "",
     jobs: " jobs",
-    per1000: "",
+    per1000: " per 1,000 runs",
 };
 
 export function fmtUnit(n: number, unit?: Unit): string {
     if (unit === "jobs") return `${fmtN(n)} ${n === 1 ? "job" : "jobs"}`;
+    // Under a millisecond reads in microseconds, never "0 ms".
+    if (unit === "ms" && n > 0 && n < 1) return `${fmtN(Math.round(n * 1000))} us`;
     if (unit === "x") return `${n.toFixed(1)}x`;
     return fmtN(n) + (unit ? UNIT[unit] : "");
 }
 
-const WORD = { passed: "passed", failed: "failed", yes: "yes", no: "no", filed: "filed", skipped: "skipped" } as const;
+const WORD = {
+    passed: "passed",
+    failed: "failed",
+    yes: "yes",
+    no: "no",
+    filed: "filed",
+    skipped: "skipped",
+    quiet: "found nothing 3 weeks running",
+} as const;
+
+/** An age in minutes under 90 s, which reads in seconds ("29 s ago", never "0.49 min ago"). */
+const isSeconds = (v: NumberValue): boolean => v.ago === true && v.unit === "min" && v.n < 1.5;
 
 /** A value inline ("40%", "filed 0", "1 of 8", "--"). */
 export function fmtValue(v: Value): string {
     if (v === null) return "--";
     if ("word" in v) return WORD[v.word] + (v.n === undefined ? "" : ` ${fmtN(v.n)}`);
+    if (isSeconds(v)) return esc(`${fmtDur(v.n * 60)} ago`);
     const sign = v.signed && v.n > 0 ? "+" : "";
     let s = sign + fmtUnit(v.n, v.unit);
     if (v.of !== undefined) s += ` of ${fmtN(v.of)}`;
@@ -80,6 +95,7 @@ export function fmtValue(v: Value): string {
 export function bigValue(v: Value): string {
     if (v === null) return "--";
     if ("word" in v) return esc(WORD[v.word]) + (v.n === undefined ? "" : ` ${fmtN(v.n)}`);
+    if (isSeconds(v)) return `${Math.round(v.n * 60)}<small> s ago</small>`;
     const sign = v.signed && v.n > 0 ? "+" : "";
     const n = v.unit === "x" ? v.n.toFixed(1) : fmtN(v.n);
     const unit = v.unit === "x" ? " x" : v.unit === "pct" ? " %" : v.unit && v.unit !== "count" ? UNIT[v.unit] : "";
@@ -99,8 +115,23 @@ export function fmtTime(at: Iso): string {
         : `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${hm}`;
 }
 
-export function fmtSpan(start: Iso, end: Iso | null): string {
-    return `${fmtTime(start)} - ${end ? fmtTime(end) : "now"}`;
+/** "10-29 14:40": a time with its date, always. */
+function fmtDated(at: Iso): string {
+    const d = new Date(at);
+    return `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+/**
+ * "14:30 - now", or both ends dated when either is not today ("10-29 22:10 - 10-30 01:05"). With `edge`, a start the
+ * 24 h window cut (within 5 min of its edge) or one the engine could not tell reads "before 10-29 14:40 - now".
+ */
+export function fmtSpan(start: Iso, end: Iso | null, o: { edge?: boolean; startUnknown?: boolean } = {}): string {
+    const gen = Date.parse(clock.generated || new Date(clock.now()).toISOString());
+    const day = (at: Iso | number) => new Date(at).toISOString().slice(0, 10);
+    const dated = day(start) !== day(gen) || (end !== null && day(end) !== day(gen));
+    const t = (at: Iso) => (dated ? fmtDated(at) : fmtTime(at));
+    const clipped = o.startUnknown || (o.edge && Math.abs(Date.parse(start) - (gen - 24 * 3600_000)) <= 5 * 60_000);
+    return `${clipped ? `before ${fmtDated(start)}` : t(start)} - ${end ? t(end) : "now"}`;
 }
 
 /** "20 s", "44 min", "1.9 h", "8 d". */
@@ -168,9 +199,24 @@ export function showsRangeValue(
     );
 }
 
+/** "not judged: 4 merged this hour, needs 5": a rate with too few events to judge. */
+export function fewText(
+    m: Pick<Member, "n" | "minN"> & Partial<Pick<Member, "id">>,
+    range?: Range | SlowRange,
+): string {
+    const nOf = m.id ? MEMBER[m.id].nOf : undefined;
+    const when = range === undefined || range === "1h" ? "this hour" : `in the last ${rangeLabel(range)}`;
+    return `not judged: ${fmtN(m.n ?? 0)}${nOf ? ` ${esc(nOf)}` : ""} ${when}, needs ${fmtN(m.minN ?? 0)}`;
+}
+
+/** "only 3 h of 6 h recorded": a source that covers less than the window. */
+export const partialText = (c: Member["covered"]): string =>
+    `only ${fmtN(c?.h ?? 0)} h of ${fmtN(c?.of ?? 1)} h recorded`;
+
 /** The state cell of a member row: a chip for a judged state not OK, muted words for the gray ones. */
 export function stateChip(
-    m: Pick<Member, "state" | "n" | "minN" | "covered"> & Partial<Pick<Member, "window" | "value" | "coveredDays">>,
+    m: Pick<Member, "state" | "n" | "minN" | "covered"> &
+        Partial<Pick<Member, "id" | "window" | "value" | "coveredDays" | "breach">>,
     range?: Range | SlowRange,
 ): string {
     switch (m.state) {
@@ -183,15 +229,21 @@ export function stateChip(
             return `<span class="sw ${stateClass(m.state)}">${STATE_WORD[m.state]}</span>`;
         case "few":
             if (showsRangeValue(m, range)) return "";
-            return `<span class="sw low">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
+            return `<span class="sw low">${fewText(m, range)}</span>`;
         case "partial":
-            return `<span class="sw low">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;
+            return `<span class="sw low">${partialText(m.covered)}</span>`;
         case "idle":
-            return `<span class="sw low">n=0</span>`;
-        case "slow":
-            return m.coveredDays
-                ? `<span class="sw low">slow measure, covers ${fmtN(m.coveredDays.d)} of ${fmtN(m.coveredDays.of)} days</span>`
-                : `<span class="sw low">slow measure</span>`;
+            return `<span class="sw low">nothing ran</span>`;
+        case "slow": {
+            // A 7-day measure past its line is shown as the breach it is, though it never sets the page's state.
+            const days = m.coveredDays
+                ? `<small class="cov">data for ${fmtN(m.coveredDays.d)} of ${fmtN(m.coveredDays.of)} days</small>`
+                : "";
+            const what = dayMeasure(m.window ?? "7d");
+            if (m.breach)
+                return `<span class="sw ${stateClass(m.breach)}">${STATE_WORD[m.breach]}</span><small class="cov">${what}, not in the page state</small>${days}`;
+            return `<span class="sw low">${what}</span>${days}`;
+        }
         case "notsetup":
             return `<span class="sw low">not set up</span>`;
     }
@@ -249,8 +301,10 @@ interface MemberText {
     name: string;
     /** In a status block or a page sentence ("runner wait p90"). */
     short: string;
-    /** The one-line definition under the name. */
+    /** The definition under the name: what is measured, over what window, in what unit. */
     def: string;
+    /** What a red row means and where to look; empty for a member with no red line. */
+    red: string;
     /** What n counts ("jobs"). */
     nOf?: string;
     /** The headline's name under a status block, when it differs. */
@@ -258,294 +312,413 @@ interface MemberText {
 }
 
 export const MEMBER: Record<MemberId, MemberText> = {
-    "master.red_now": { name: "Red now", short: "red now", def: "length of the current red span" },
+    "master.red_now": {
+        name: "Master red now",
+        short: "master red now",
+        def: "Minutes master's build has been red; 0 when green.",
+        red: "Master has been red 15 min or 2 builds in a row, so every new PR inherits the failure. See Red spans below and the master-guard revert PR.",
+    },
     "master.green_time": {
         name: "Green time",
         short: "green time",
-        def: "share of the last hour green; cancels are red unless superseded or by hand",
+        def: "Share of the last hour master's build was green, in %. A cancelled build counts as red unless a newer push or a person cancelled it.",
+        red: "Master was red for more than a quarter of the last hour. See Red spans below.",
     },
     "master.same_check": {
-        name: "Red on the same check",
-        short: "red on the same check",
-        def: "most open pull requests failing one check or family",
+        name: "Checks failing in several PRs",
+        short: "checks failing in several PRs",
+        def: "The most open PRs failing one check (or one test group) right now. Several PRs failing one check usually means master broke it, not the PRs.",
+        red: "3 or more PRs fail the same check: fix it on master first. See the ongoing rows of Shared failures below.",
     },
     "master.full_run_verdict": {
-        name: "Last full-run verdict",
-        short: "last full-run verdict",
-        def: "ci lane of the newest judged candidate",
+        name: "Latest full test run",
+        short: "latest full test run",
+        def: "Result of the CI lane in the newest 6-hourly full run.",
+        red: "The newest full run failed, so nothing promotes to nightly until it is fixed or reverted. See Releases > Lanes on the candidate.",
     },
     "master.untested_age": {
-        name: "Untested master age",
-        short: "untested master age",
-        def: "age of the oldest master commit no full run has judged",
+        name: "Hours since master was fully tested",
+        short: "hours since master was fully tested",
+        def: "Age of the oldest master commit no 6-hourly full run has judged yet, in hours.",
+        red: "Over 13 h: full runs are falling behind or not starting. See Releases > Train attempts.",
     },
-    "master.reverts": { name: "Reverts", short: "reverts", def: "reverted merges / merges" },
+    "master.reverts": {
+        name: "Reverted merges",
+        short: "reverted merges",
+        def: "Share of merges in the last 7 days that were reverted, in %.",
+        red: "Over 10%: changes land broken. See Master builds.",
+    },
     "pull-requests.time_to_merge": {
         name: "Time to merge",
         short: "time to merge",
-        def: "median, ready to merged, owner waits left out",
+        def: "Median time from ready-for-review to merged, in minutes; time waiting on the owner is left out.",
+        red: "Over 3 h in both the last hour and the last 6 h: PRs are stuck. See Where the time goes.",
         nOf: "merged",
     },
     "pull-requests.open": {
         name: "Open pull requests",
         short: "open pull requests",
-        def: "not draft, not waiting on the owner",
+        def: "Open PRs that are not drafts and not waiting on the owner.",
+        red: "Over 30: work piles up faster than it merges.",
     },
-    "pull-requests.oldest_open": { name: "Oldest open", short: "oldest open", def: "not waiting on the owner" },
-    "pull-requests.merge_ratio": { name: "Merge ratio", short: "merge ratio", def: "merged / created", nOf: "created" },
+    "pull-requests.oldest_open": {
+        name: "Oldest open PR",
+        short: "oldest open PR",
+        def: "Age in hours of the oldest open PR not waiting on the owner.",
+        red: "Over 72 h: that PR is stuck. Open it from this row.",
+    },
+    "pull-requests.merge_ratio": {
+        name: "Merged per opened",
+        short: "merged per opened",
+        def: "PRs merged divided by PRs opened (1.0 = backlog steady; below 1 = backlog growing).",
+        red: "Below 0.7 in the last hour and the last 6 h: the backlog grows.",
+        nOf: "opened",
+    },
     "pull-requests.caused_failures": {
-        name: "Runs failed by their change",
-        short: "runs failed by their change",
-        def: "first runs red on a test the change touched, 7 d",
+        name: "Runs failed by their own change",
+        short: "runs failed by their own change",
+        def: "Share of PR first runs in the last 7 days that failed on a test the PR itself changed, in %.",
+        red: "",
         nOf: "runs",
     },
     "pull-requests.automerge_green_stuck": {
         name: "Green but not merging",
         short: "green but not merging",
-        def: "auto-merge armed, green, unmerged 2 h",
+        def: "PRs that are green with auto-merge on and still unmerged 2 h later.",
+        red: "2 or more: merging itself is broken (branch rules or GitHub).",
     },
     "pull-requests.automerge_armed_long": {
-        name: "Armed too long",
-        short: "armed too long",
-        def: "auto-merge armed 24 h",
+        name: "Auto-merge on over 24 h",
+        short: "auto-merge on over 24 h",
+        def: "PRs with auto-merge on for over 24 h, green or red. Green but not merging counts only green ones.",
+        red: "4 or more: PRs sit red with auto-merge on. Fix or close them.",
     },
     "pull-requests.screenshot_backlog": {
-        name: "Screenshot backlog",
-        short: "screenshot backlog",
-        def: "oldest pictures waiting for the owner",
+        name: "Screenshots waiting for review",
+        short: "screenshots waiting for review",
+        def: "Age in hours of the oldest changed screenshot waiting for the owner's approval.",
+        red: "Over 72 h: nightly cannot promote. The owner reviews the held candidate.",
     },
     "ci.runner_wait": {
-        name: "Runner wait",
+        name: "Runner wait (p90)",
         short: "runner wait p90",
-        def: "p90, organization",
+        def: "90th-percentile wait for a runner over the last hour, in minutes, organization-wide. Only the last hour is judged; the 6 h value is the trend.",
+        red: "Over 15 min: CI is short of runners. See CI > Runners.",
         nOf: "jobs",
         headline: "Runner wait p90",
     },
     "ci.longest_queued": {
         name: "Longest queued now",
         short: "longest queued now",
-        def: "oldest queued job, or queued run with no job yet",
+        def: "Minutes the oldest job still waiting for a runner has waited.",
+        red: "Over 15 min: a job is stuck in the queue. See CI > Runners.",
     },
     "ci.saturated": {
-        name: "Saturated time",
-        short: "saturated",
-        def: "minutes running within 3 of the limit, jobs queued",
+        name: "Minutes at capacity",
+        short: "minutes at capacity",
+        def: "Minutes in the last hour the organization ran within 3 jobs of its concurrent-job limit (see Runners) while other jobs queued.",
+        red: "15 min or more: CI is full. See CI > Runners.",
     },
     "ci.not_assigned": {
         name: "Runners not being assigned",
         short: "runners not being assigned",
-        def: "jobs wait with room to run; githubstatus.com",
+        def: "Minutes jobs waited although free runner slots existed. This is usually a GitHub Actions outage; githubstatus.com is GitHub's own status page.",
+        red: "15 min or more: GitHub is not handing out runners. Check githubstatus.com.",
     },
     "ci.first_attempt": {
         name: "First-attempt pass rate",
         short: "first-attempt pass rate",
-        def: "pull request check suites",
+        def: "Share of PR check suites that passed on their first attempt, in %.",
+        red: "Below 70% in the last hour and the last 6 h: flaky tests or a broken master. See Flaky tests and Master.",
         nOf: "suites",
     },
-    "ci.hangs": { name: "Hangs", short: "hangs", def: "jobs ended at their own timeout" },
+    "ci.hangs": {
+        name: "Hung jobs",
+        short: "hung jobs",
+        def: "Jobs in the last hour that ran until their own timeout killed them.",
+        red: "2 or more: something hangs. See CI > Runners.",
+    },
     "ci.pr_duration": {
-        name: "PR check duration",
-        short: "PR check duration",
-        def: "median run / its kind's budget",
+        name: "PR check time vs budget",
+        short: "PR check time vs budget",
+        def: "Median PR check run time divided by its budget (1.0 = on budget; each kind of run has its own budget in tools/ci-budgets.json).",
+        red: "Over 2x: PR checks take twice their budget. See Shard times.",
         nOf: "runs",
     },
     "ci.bins_over": {
-        name: "Pull request bins over 8 min",
-        short: "bins over 8 min",
-        def: "packing target",
+        name: "PR test groups over 8 min",
+        short: "PR test groups over 8 min",
+        def: "Share of PR test groups (the test selector's bins) that ran longer than 8 min, in %. The selector aims to keep each under 8 min.",
+        red: "Over 25%: the PR test split needs rebalancing. See Shard times, pull request bins.",
         nOf: "bins",
     },
-    "ci.reruns": { name: "Reruns", short: "reruns", def: "attempts above 1 / runs", nOf: "runs" },
+    "ci.reruns": {
+        name: "Reruns",
+        short: "reruns",
+        def: "Share of runs that needed more than one attempt, in %.",
+        red: "Over 15%: flaky tests or failing infrastructure. See Flaky tests.",
+        nOf: "runs",
+    },
     "ci.shards_over": {
         name: "Full-run shards over budget",
-        short: "shards over budget",
-        def: "medians past their budget",
+        short: "full-run shards over budget",
+        def: "Full-run test shards whose 7-day median time is over their budget.",
+        red: "3 or more: full runs are slowing down. See Shard times.",
     },
     "ci.runner_minutes": {
         name: "Runner-minutes per merge",
         short: "runner-minutes per merge",
-        def: "job minutes, every run kind, / pull requests merged into master",
+        def: "Runner-minutes CI used, across every kind of run, per PR merged into master, over 7 days.",
+        red: "Over 600: CI load per change is growing, so everyone queues longer. Minutes cost no money; the queue costs time.",
         nOf: "merged",
     },
     "ci.screenshot_set_age": {
-        name: "Screenshot set age",
-        short: "screenshot set age",
-        def: "oldest of every story group's newest rolling capture, newest value",
+        name: "Oldest screenshot set",
+        short: "oldest screenshot set",
+        def: "Age in hours of the stalest story group's newest rolling screenshot.",
+        red: "Over 12 h: rolling screenshot captures are not running, so candidates get stale pictures.",
     },
     "ci.slice_base_budget": {
-        name: "Base slices, share of their daily cap",
-        short: "base slice budget used",
-        def: "runner-minutes of base slices today (UTC) / their daily cap",
+        name: "Scheduled screenshot captures, daily cap",
+        short: "scheduled screenshot captures, share of daily cap",
+        def: 'Runner-minutes used today (UTC) by the scheduled background screenshot captures ("slices"), as a share of their daily cap, in %.',
+        red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
     },
     "ci.slice_idle_budget": {
-        name: "Idle slices, share of their daily cap",
-        short: "idle slice budget used",
-        def: "runner-minutes of idle slices today (UTC) / their daily cap",
+        name: "Spare-time screenshot captures, daily cap",
+        short: "spare-time screenshot captures, share of daily cap",
+        def: "The same for the extra captures that run only when runners are free.",
+        red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
     },
     "ci.slice_idle_hour_budget": {
-        name: "Idle slices, share of their hourly cap",
-        short: "idle slice hourly budget used",
-        def: "runner-minutes of idle slices in the last hour / their hourly cap",
+        name: "Spare-time screenshot captures, hourly cap",
+        short: "spare-time screenshot captures, share of hourly cap",
+        def: "The same over the last hour.",
+        red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
     },
     "ci.slice_contended": {
-        name: "Slice minutes held while contended",
-        short: "slice minutes held while contended",
-        def: "slice runner-minutes while the pool was saturated or other jobs queued",
+        name: "Capture minutes while CI was busy",
+        short: "capture minutes while CI was busy",
+        def: "Runner-minutes screenshot captures held while other jobs were queued or the pool was full.",
+        red: "Over 105 min: captures slow real work.",
     },
     "ci.slice_queue_wait": {
-        name: "Queue wait during slices",
-        short: "queue wait during slices",
-        def: "minutes other jobs queued while a slice job held a runner",
+        name: "Queue wait caused by captures",
+        short: "queue wait caused by captures",
+        def: "Minutes other jobs waited while a screenshot capture held a runner.",
+        red: "Over 105 min: captures slow real work.",
     },
     "ci.superseded": {
-        name: "Superseded runs running",
-        short: "superseded runs running",
-        def: "no cancel-in-progress; not judged yet",
+        name: "Superseded runs still running",
+        short: "superseded runs still running",
+        def: "Runs still running after a newer push to the same PR made them pointless.",
+        red: "",
     },
     "ci.chronic_jobs": {
         name: "Chronically failing jobs",
         short: "chronically failing jobs",
-        def: "failed in half of their last 10 runs, or not passed in 3 days; gating or not; red with no open issue",
+        def: "Jobs that failed in at least half of their last 10 runs, or have not passed in 3 days.",
+        red: "A job keeps failing and nobody tracks it. File the issue from the table below.",
     },
     "ci.bench_regressions": {
         name: "Benchmark regressions",
         short: "benchmark regressions",
-        def: "median of the last 3 results over 1.2x the median of the 10 before",
+        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before (needs 13 runs).",
+        red: "3 or more: performance regressed. See Benchmarks below.",
     },
     "flaky.blocked": {
-        name: "Blocked by a flake",
-        short: "blocked by a flake",
-        def: "newest failure flaky, or an unstable story",
+        name: "PRs blocked by a flake",
+        short: "PRs blocked by a flake",
+        def: "Open PRs whose newest failure was a flaky test or an unstable story.",
+        red: "3 or more PRs, or one blocked 24 h: flakes are stopping merges.",
     },
     "flaky.no_issue": {
-        name: "Flaky in CI with no open issue",
-        short: "flaky with no issue",
-        def: "seen flaky in CI in 7 d; the drill-down drafts the issue",
+        name: "Flaky tests with no issue",
+        short: "flaky tests with no issue",
+        def: "Tests seen flaky in CI in the last 7 days that have no open issue.",
+        red: "3 or more: flakes go untracked. Open the test from Hotspots to draft the issue.",
     },
     "flaky.flake_rate": {
         name: "Flake rate",
         short: "flake rate",
-        def: "per 1,000 test-file runs, CI",
+        def: "Flaky test results per 1,000 CI test-file runs.",
+        red: "Over 10 per 1,000 in the last hour and the last 6 h. See Hotspots.",
         nOf: "test-file runs",
     },
-    "flaky.net_new": { name: "Net new flaky", short: "net new flaky", def: "newly flaky minus resolved" },
-    "flaky.detected_to_fixed": { name: "Detected to fixed", short: "detected to fixed", def: "median" },
+    "flaky.net_new": {
+        name: "Net new flaky tests",
+        short: "net new flaky tests",
+        def: "Tests that became flaky minus tests fixed, over 7 days.",
+        red: "More than 3: flakiness grows faster than it is fixed.",
+    },
+    "flaky.detected_to_fixed": {
+        name: "Days to fix a flaky test",
+        short: "days to fix a flaky test",
+        def: "Median days from a test first flaking to its fix merging, over 28 days.",
+        red: "Over 7 d.",
+    },
     "releases.lanes_red": {
-        name: "Lanes red on the candidate",
-        short: "lanes red",
-        def: "newest candidate a full train tested",
+        name: "Red lanes on the candidate",
+        short: "red lanes on the candidate",
+        def: "Lanes of the full run (CI, T4 GPU, host matrix, macOS autosave, audit, LLM tests) that are red on the held nightly candidate.",
+        red: "A lane has been red 6 h or more, so nightly is held. Fix forward from the candidate.",
         headline: "Release lanes red",
     },
     "releases.workflows_failing": {
         name: "Release workflows failing",
         short: "release workflows failing",
-        def: "newest run failed",
+        def: "release.yml, promote.yml and release-watch.yml whose newest run failed.",
+        red: "One failed 3 times in a row: releases are broken.",
     },
     "releases.train_skipped": {
-        name: "Train skipped a new commit",
-        short: "train skipped a new commit",
-        def: "the newest attempt skipped every lane",
+        name: "Newest commit skipped",
+        short: "newest commit skipped",
+        def: "Whether the newest full-run attempt skipped testing a new master commit.",
+        red: "Full runs are not testing new work.",
     },
     "releases.tagged_not_npm": {
         name: "Tagged, not on npm",
         short: "tagged, not on npm",
-        def: "tag time vs npm's time",
+        def: "Versions tagged in git that npm does not list yet.",
+        red: 'Missing over 30 min: a publish failed. See the "Release held: publish failed" issue.',
     },
     "releases.train_first_pass": {
-        name: "Train first-attempt pass",
-        short: "train first-attempt pass",
-        def: "attempts that tested",
+        name: "Full runs passing first try",
+        short: "full runs passing first try",
+        def: "Share of full-run attempts in the last 7 days that passed on their first attempt, in %.",
+        red: "Below 75%: master is often broken when tested. See Train attempts.",
     },
-    "releases.channels": { name: "Channel members", short: "channel members", def: "canary, nightly, production" },
+    "releases.channels": {
+        name: "Channel members",
+        short: "channel members",
+        def: "Canary, nightly and production age.",
+        red: "",
+    },
     "releases.review_lag": {
-        name: "Screenshot review lag",
-        short: "screenshot review lag",
-        def: "median, a changed picture's first rolling capture to its approval merging",
+        name: "Screenshot review time",
+        short: "screenshot review time",
+        def: "Median hours from a changed picture's first capture to its approval merging, over 7 days.",
+        red: "Over 24 h.",
         nOf: "pictures",
     },
     "releases.slots_unreviewed": {
-        name: "Slots meeting an unapproved picture",
-        short: "slots meeting an unapproved picture",
-        def: "green full runs held for changed pictures (green-images)",
+        name: "Full runs held for screenshot review",
+        short: "full runs held for screenshot review",
+        def: "Share of green full runs in 7 days held because a picture changed and waits for the owner, in %.",
+        red: "Over 75%: nightly waits on review almost every time.",
         nOf: "green runs",
     },
     "releases.green_clean": {
-        name: "Green-clean full runs",
-        short: "green-clean full runs",
-        def: "full runs that could promote to nightly with no wait for the owner",
+        name: "Full runs able to promote",
+        short: "full runs able to promote",
+        def: "Share of full runs in 7 days that passed with no changed pictures, so they could promote to nightly at once, in %.",
+        red: "Below 25%: nightly rarely moves.",
         nOf: "full runs",
     },
     "releases.nightly_promotions": {
         name: "Nightly promotions per day",
         short: "nightly promotions per day",
-        def: "channel/nightly moving to a new commit",
+        def: "Times nightly moved to a new commit, per day, 7-day average.",
+        red: "Below 1 a day: nightly and npm next fall behind master.",
     },
     "costs.spend": {
         name: "Spend this month",
         short: "spend",
-        def: "projected sum of every money line",
+        def: "Every paid service, projected to month-end, in USD.",
+        red: "Spent past the monthly budget. Yellow when only the month-end forecast is over it.",
         headline: "Spend projected",
     },
-    "costs.t4": { name: "T4 GPU", short: "T4 GPU", def: "projected, machine.dev" },
-    "costs.llm": {
-        name: "LLM regression (CI, estimated)",
-        short: "LLM regression, CI estimate projected to month-end,",
-        def: "projected to month-end; estimated from CI's paid runs at a flat rate, Gemini",
+    "costs.t4": {
+        name: "T4 GPU",
+        short: "T4 GPU",
+        def: 'The machine.dev bill for the paid T4 GPU runner, projected to month-end, in USD. "Money by workflow" below is GitHub\'s list-price value, not this bill.',
+        red: "Spent past its budget. Yellow when only the month-end forecast is over it.",
     },
-    "costs.aws": { name: "AWS", short: "AWS", def: "month to date, Cost Explorer" },
+    "costs.llm": {
+        name: "LLM tests (estimated)",
+        short: "LLM tests spend",
+        def: "Gemini calls made by the CI LLM regression tests, at a flat estimated rate, projected to month-end, in USD.",
+        red: "Over budget: see Money this month.",
+    },
+    "costs.aws": {
+        name: "AWS",
+        short: "AWS",
+        def: "AWS spend this month so far (Cost Explorer), in USD.",
+        red: "Over 10 USD: the dashboard's own AWS budget locks it at that point.",
+    },
     "costs.cloudflare_usage": {
         name: "Cloudflare usage",
         short: "Cloudflare usage",
-        def: "usage / the plan's allowance",
+        def: "Usage as a share of the plan's allowance, in %.",
+        red: "Over 90%: the plan's allowance is nearly used.",
     },
-    "costs.sentry_usage": { name: "Sentry usage", short: "Sentry usage", def: "events / the plan's quota" },
+    "costs.sentry_usage": {
+        name: "Sentry usage",
+        short: "Sentry usage",
+        def: "Events as a share of the plan's quota, in %.",
+        red: "Over 100%: Sentry drops events.",
+    },
     "data-sources.stress_run": {
-        name: "Stress run",
-        short: "stress run",
-        def: "read from GitHub's job and step results",
+        name: "Weekly stress run",
+        short: "weekly stress run",
+        def: "The newest weekly run of every test shard under half the runner's CPU, which files an issue per load-sensitive test.",
+        red: "Load-sensitive tests may have no issues. Yellow (found nothing 3 weeks running): check that the weekly run still restricts the CPU.",
     },
     "data-sources.past_age": {
         name: "Sources past their age limit",
         short: "sources past their age limit",
-        def: "sources past their limit",
+        def: "Data sources that have not written within their age limit.",
+        red: "A source is past twice its limit: the pages it feeds are stale. See Sources below.",
     },
     "data-sources.thin": {
-        name: "Sources thin for their activity",
-        short: "sources thin",
-        def: "rows per run, last 1 h, against the 7 d median",
+        name: "Data volume vs normal",
+        short: "data volume vs normal",
+        def: "Rows written per collector run in the last hour divided by the 7-day median (1.0 = normal).",
+        red: "Below 0.2: a writer is dropping rows.",
         nOf: "runs",
     },
     "data-sources.collector": {
-        name: "Collector",
-        short: "collector",
-        def: "last run; a CloudWatch alarm watches it too",
+        name: "Collector last ran",
+        short: "collector last ran",
+        def: "Time since the dashboard's own data collector last ran.",
+        red: "Over 20 min: every page is stale.",
     },
     "data-sources.app_rate": {
-        name: "GitHub App rate limit",
-        short: "GitHub App rate limit",
-        def: "requests left this hour",
+        name: "GitHub API quota left",
+        short: "GitHub API quota left",
+        def: "Share of the GitHub App's hourly API requests still unused, in %.",
+        red: "Below 20%: the collector will soon be rate-limited.",
     },
     "data-sources.write_budget": {
-        name: "Daily write budget",
-        short: "daily write budget",
-        def: "rows today / the daily limit",
+        name: "Database writes today",
+        short: "database writes today",
+        def: "Rows written today as a share of the daily limit, in %.",
+        red: "Over 90%: writes stop.",
     },
     "data-sources.sources_not_ok": {
         name: "Sources not OK",
         short: "sources not OK",
-        def: "sources past their age limit, thin or failing",
+        def: "Data sources past their age limit, sending too little, or failing.",
+        red: "A source is failing or past twice its limit: the pages it feeds are stale. See Sources below.",
     },
     "local-runs.local_vs_ci": {
         name: "Local vs CI disagreement",
         short: "local vs CI disagreement",
-        def: "same shard and inputs, different outcome",
+        def: "Share of local shard runs whose outcome differs from CI's on the same shard and inputs, in %.",
+        red: "",
     },
     "local-runs.shard_time": {
         name: "Local shard time",
         short: "local shard time",
-        def: "median of local shard runs, minutes",
+        def: "Median time of a local shard run, in minutes.",
+        red: "",
     },
-    "local-runs.slot_waits": { name: "Slot waits", short: "slot waits", def: "p90 wait for a test slot" },
+    "local-runs.slot_waits": {
+        name: "Slot waits",
+        short: "slot waits",
+        def: "90th-percentile wait for a test slot on the development machine, in minutes.",
+        red: "",
+    },
 };
 
 /** Catalog labels the API sends as `{ t: "label" }` cells. */
@@ -588,6 +761,8 @@ export const LABEL: Record<string, string> = {
     "source.local": "Local writer",
     "source.release": "Release records",
     "source.coverage": "Coverage (Coveralls)",
+    "source.deploy": "Site deploys",
+    "source.story-slices": "Rolling screenshot captures",
     "member.releases.channels": "Channel members",
     "page.costs": "Costs",
     "page.flaky": "Flaky tests",
@@ -603,6 +778,18 @@ const LANE: Record<string, [string, string]> = {
     llm: ["LLM", "LLM regression"],
 };
 const lane = (id: string, long = false) => esc(LANE[id]?.[long ? 1 : 0] ?? id);
+for (const [id, [, long]] of Object.entries(LANE)) LABEL[`lane.${id}`] = esc(long);
+
+/** A GitHub event as a reader says it. */
+export const EVENT: Record<string, string> = {
+    pull_request: "pull request",
+    push: "master push",
+    workflow_dispatch: "manual run",
+    schedule: "scheduled",
+    workflow_run: "after another workflow",
+    merge_group: "merge queue",
+};
+const event = (e: string) => esc(EVENT[e] ?? e);
 const SOURCE: Record<string, string> = {
     billing: "billing",
     collector: "the collector",
@@ -632,13 +819,13 @@ function cmpText(c: Cmp, withUnit: boolean): string {
 
 const isCmp = (x: Cmp | Fact): x is Cmp => "op" in x;
 
-/** "target <= 5 min, red > 15", or the target alone (the front page). */
+/** "good <= 5 min; red > 15 min", or what is good alone. */
 export function slaText(sla: Sla | null, targetOnly = false): string {
-    if (!sla) return "informational until it fires";
+    if (!sla) return "no target (shown for information)";
     const target = isCmp(sla.target) ? cmpText(sla.target, true) : sentence(sla.target);
-    if (targetOnly || !sla.red) return `target ${target}`;
-    const red = isCmp(sla.red) ? cmpText(sla.red, false) : sentence(sla.red);
-    return `target ${target}, red ${red}${sla.needs6h ? ", 6 h too" : ""}`;
+    if (targetOnly || !sla.red) return `good ${target}`;
+    const red = isCmp(sla.red) ? cmpText(sla.red, true) : sentence(sla.red);
+    return `good ${target}; red ${red}${sla.needs6h ? " (in the last hour and the last 6 h)" : ""}`;
 }
 
 // ---------------------------------------------------------------- sentences
@@ -662,13 +849,14 @@ const S: Record<string, (p: P) => string> = {
     // SLA thresholds that are not plain comparisons
     "sla.red_now": () => "&gt;= 15 min or 2 builds",
     "sla.blocked": () => "&gt;= 3 or any &gt;= 24 h",
-    "sla.any_no_issue": () => "any with no open issue",
+    "sla.any_no_issue": () => "any with no open issue (yellow: any, each with an open issue)",
+    "sla.none": () => "none",
     "sla.lanes_open": (p) => `open &gt;= ${fmtN(num(p, "h"))} h`,
     "sla.failed_in_a_row": (p) => `${fmtN(num(p, "runs"))} failed in a row`,
     "sla.word": (p) => str(p, "word"),
     "sla.after": (p) => `after ${fmtN(num(p, "min"))} min`,
-    "sla.passed_and_filed": () => "passed and filed",
-    "sla.filing_failed": () => "filing failed",
+    "sla.passed_and_filed": () => "passed and filed what it found",
+    "sla.filing_failed": () => "the run or its issue filing failed",
     "sla.past_2x": () => "any past 2x",
     "sla.under_pct": (p) => `under ${fmtN(num(p, "pct"))}%`,
     "sla.canary_age": (p) => `canary age &lt; ${fmtN(num(p, "h"))} h`,
@@ -705,6 +893,16 @@ const S: Record<string, (p: P) => string> = {
     "master.verdict.note": (p) => `${str(p, "lane")} lane, candidate ${str(p, "sha")}, ${at(p, "at")}`,
     "master.untested.note": (p) => `the ${at(p, "attempt")} train skipped new commit ${str(p, "sha")}`,
     "ci.runner_wait.def": () => "p90, job start minus created",
+    "note.chronic_no_issue": (p) => `${fmtN(num(p, "n"))} of them ${num(p, "n") === 1 ? "has" : "have"} no open issue`,
+    "chronic.no_issue_jobs": (p) =>
+        `${plural(num(p, "n"), "chronically failing job")} ${num(p, "n") === 1 ? "has" : "have"} no open issue`,
+    "note.oldest_pr": (p) => `#${num(p, "pr")}, opened ${fmtN(num(p, "h"))} h ago`,
+    "note.prs": (p) =>
+        arr(p, "prs")
+            .map((n) => prLink(Number(n)))
+            .join(" "),
+    "note.queued_run": (p) => `run ${runLink(num(p, "run"))}${p.workflow ? `, ${str(p, "workflow")}` : ""}`,
+    "note.hung_jobs": (p) => and(arr(p, "jobs").map(esc)),
     "ci.longest_queued.note": () => "a master build run, no job yet",
     "flaky.flake_rate.note": (p) => `results since ${at(p, "since")}`,
     "flaky.net_new.note": (p) => `${fmtN(num(p, "added"))} new, ${fmtN(num(p, "resolved"))} resolved`,
@@ -803,13 +1001,13 @@ const S: Record<string, (p: P) => string> = {
 
     // CI and runners
     "runner_minutes.sub": (p) =>
-        `slow measure; ${plural(num(p, "day"), "merge")} in 24 h, ${plural(num(p, "week"), "merge")} in 7 d`,
+        `7-day measure; ${plural(num(p, "day"), "merge")} in 24 h, ${plural(num(p, "week"), "merge")} in 7 d`,
     "ci.causes.sub": (p) => `${plural(num(p, "suites"), "failed pull request suite")}`,
     "runners.running_now": (p) => `Running now, ${plural(num(p, "jobs"), "job")}`,
     "runners.queued_now": (p) => `Queued now, ${plural(num(p, "jobs"), "job")}`,
-    "runners.macos": (p) => `${fmtN(num(p, "jobs"))} macOS`,
+    "runners.macos": (p) => `(${fmtN(num(p, "jobs"))} on macOS)`,
     "runners.queued_runs": (p) =>
-        `Also queued: ${fmtN(num(p, "runs"))} ${str(p, "workflow")} ${str(p, "event")}-to-master runs with no job created yet, the oldest since ${at(p, "since")}.`,
+        `Also queued: ${fmtN(num(p, "runs"))} ${str(p, "workflow")} runs (${event(String(p.event ?? ""))}) with no job created yet, the oldest since ${at(p, "since")}.`,
     "runners.one_repo": (p) =>
         `All in ${str(p, "repo")}; no other graphty-org repository ran a job in ${fmtN(num(p, "h"))} h.`,
 
@@ -866,7 +1064,8 @@ const S: Record<string, (p: P) => string> = {
         `failed in ${str(p, "step")}: ${fmtN(num(p, "failures"))} failures over the cap of ${fmtN(num(p, "cap"))} (all in ${str(p, "file")}, ${str(p, "cause")})`,
     "stress.found_nothing": () => "passed, found nothing",
     "stress.found_filed": () => "passed, found failures and filed them",
-    "stress.failed_in": (p) => `failed in ${str(p, "job")}`,
+    "stress.failed_in": (p) => `failed at step "${str(p, "job")}"`,
+    "stress.not_reached": () => "not reached",
     "stress.no_runs": () => "No completed stress run recorded yet.",
     "stress.filed_tracked": (p) => `${fmtN(num(p, "filed"))}; ${issueLink(num(p, "issue"))} tracks it`,
     "source.collector.what": () => "GitHub runs, jobs, pull requests, issues",
@@ -906,19 +1105,21 @@ export function windowLabel(m: Member, range: Range | SlowRange): string {
     return `1 h${v6}${cov}`;
 }
 
-/** The definition line under a member's name. */
+/** The definition under a member's name, then what is known about it now ("#1234, opened 60 h ago"). */
 export function memberLine(m: Member): string {
     const t = MEMBER[m.id];
-    const parts: string[] = [m.note ? sentence(m.note) : esc(t.def)];
-    if (m.n !== undefined && (m.window === "1h" || m.window === "1h6h") && t.nOf)
-        parts.push(`n=${fmtN(m.n)} ${esc(t.nOf)}`);
+    const parts: string[] = [];
+    if (m.note && !m.note.code.endsWith(".def")) parts.push(sentence(m.note));
+    if (m.n !== undefined && (m.window === "1h" || m.window === "1h6h") && t.nOf && m.state !== "few")
+        parts.push(`from ${fmtN(m.n)} ${esc(t.nOf)}`);
     if (m.reason) parts.push(sentence(m.reason));
     if (m.cleared) parts.push(`cleared ${fmtAgo(m.cleared)}`);
     if (m.fixWaitsOwner) parts.push(`fix ${prLink(m.fixWaitsOwner)} waits on the owner`);
-    const line = parts.join("; ");
-    if (m.state === "slow") return `slow measure: ${line}, ${rangeLabel(m.window as SlowRange)}`;
-    return line;
+    return esc(t.def) + (parts.length ? ` ${capital(parts.join("; "))}.` : "");
 }
+
+/** "7-day measure" or "28-day measure": a member judged on days, which never sets its page's state. */
+export const dayMeasure = (w: Member["window"]): string => `${w === "28d" ? "28-day" : "7-day"} measure`;
 
 /** HTML without its links, for text inside a row that is itself a link (anchors cannot nest). */
 export const unlinked = (html: string): string => html.replace(/<a\b[^>]*>|<\/a>/g, "");

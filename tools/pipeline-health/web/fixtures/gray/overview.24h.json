@@ -505,7 +505,17 @@
                     ],
                     "target": 0
                 }
-            }
+            },
+            "slowPastRed": [
+                {
+                    "member": "releases.green_clean",
+                    "state": "slow",
+                    "value": {
+                        "n": 17,
+                        "unit": "pct"
+                    }
+                }
+            ]
         },
         {
             "id": "costs",

@@ -137,7 +137,7 @@ a {
 }
 main {
     padding: 28px 40px 48px;
-    max-width: 1280px;
+    max-width: 1400px;
     min-width: 0;
 }
 .side {
@@ -217,7 +217,8 @@ h1 {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    height: 150px;
+    min-height: 150px;
+    height: auto;
     padding: 12px 14px 12px;
     border-radius: 6px;
     color: #000;
@@ -262,6 +263,16 @@ h1 {
 .by {
     line-height: 1.3;
     padding-right: 10px;
+    /* Two lines at most; the block's title and label hold the whole text. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.blk .slowbad {
+    margin-top: 4px;
+    padding-left: 8px;
+    box-shadow: inset 4px 0 var(--bad);
 }
 .by.bym {
     margin-top: auto;
@@ -374,9 +385,15 @@ summary:hover {
     line-height: 1.3;
 }
 .kvl {
-    font-size: 14px;
+    font-size: 13px;
+    line-height: 1.3;
     font-weight: 600;
     color: var(--muted);
+}
+.kv .kvl,
+.kv .kvm {
+    display: block;
+    line-height: 1.3;
 }
 .kvm {
     font-size: 12px;
@@ -470,7 +487,7 @@ h3 {
 .row,
 .rowh {
     display: grid;
-    grid-template-columns: minmax(170px, 1.5fr) 104px minmax(130px, 1fr) 124px 84px 10px;
+    grid-template-columns: minmax(170px, 1.5fr) 104px minmax(130px, 1fr) 124px 120px 10px;
     gap: 14px;
     align-items: center;
     padding: 7px 10px;
@@ -934,7 +951,7 @@ a.more:hover {
     }
     .row,
     .rowh {
-        grid-template-columns: minmax(150px, 1.4fr) 92px minmax(110px, 1fr) 124px 78px 10px;
+        grid-template-columns: minmax(0, 1.4fr) 84px minmax(0, 1fr) 124px 104px 10px;
         gap: 12px;
     }
     .shards .srow {
@@ -1276,4 +1293,74 @@ h2.top {
     .ticks span:nth-child(even):not(:last-child) {
         display: none;
     }
+}
+
+/* ---- reading aids: what red means, muted fillers, folded rows, the runners chart's legend ---- */
+.muted {
+    color: var(--muted);
+}
+.nm .redm {
+    display: block;
+    margin-top: 2px;
+    color: var(--ink2);
+}
+.st .cov {
+    display: block;
+    color: var(--muted);
+    font-weight: 400;
+}
+.nm small.tag {
+    display: inline;
+    margin-left: 6px;
+}
+.tag {
+    padding: 0 4px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--muted);
+}
+.tbl.dropped .thead,
+.tbl.dropped .tr {
+    grid-template-columns: var(--cols);
+}
+.tfold > summary {
+    padding-left: 0;
+}
+.legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.legend .lk {
+    display: inline-block;
+    width: 14px;
+    height: 3px;
+    margin-left: 8px;
+}
+.legend .lk:first-child {
+    margin-left: 0;
+}
+.lk.run {
+    background: var(--ink2);
+}
+.lk.q {
+    background: var(--bad);
+}
+.lk.lim {
+    border-top: 2px dashed var(--line);
+    height: 0;
+}
+.chart {
+    margin-right: 96px;
+}
+.cl.end {
+    left: 100%;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+.chart + .ticks {
+    margin-right: 96px;
 }

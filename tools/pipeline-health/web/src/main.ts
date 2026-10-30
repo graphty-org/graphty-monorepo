@@ -146,9 +146,12 @@ async function load(h: Here): Promise<Loaded> {
         if (range) swap("hotspots", "hotspots", range);
     }
     await Promise.all(swaps);
-    const cat = status.categories.find((c) => c.id === page);
+    // The status and the page are two cached responses that can be a cycle apart: the current page's nav bar
+    // and the title take the page's own state, so they never disagree with the body under them.
+    const own = { ...status, categories: status.categories.map((c) => (c.id === page ? { ...c, state: p.state } : c)) };
+    const cat = own.categories.find((c) => c.id === page);
     return {
-        status,
+        status: own,
         html: pageView(p),
         generated: p.generated,
         title: `${cat ? `${stateWord(cat.state)} ` : ""}${PAGE_TITLE[page]}`,

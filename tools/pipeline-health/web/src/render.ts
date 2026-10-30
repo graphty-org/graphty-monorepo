@@ -17,6 +17,7 @@ import type {
     PageResponse,
     Range,
     Section,
+    JobsSection,
     ShardsSection,
     SlowRange,
     StatusResponse,
@@ -29,6 +30,7 @@ import {
     CHANNEL,
     CHANNELS_HEAD,
     CHANNELS_SUB,
+    EVENT,
     attemptText,
     attemptsLabel,
     channelSince,
@@ -37,6 +39,9 @@ import {
     STATE_WORD,
     bigValue,
     capital,
+    dayMeasure,
+    fewText,
+    partialText,
     showsRangeValue,
     clock,
     esc,
@@ -101,8 +106,11 @@ export function labelText(code: string): string {
 }
 
 let here: Here = { page: "overview", range: "1h", q: new URLSearchParams() };
+/** The Costs history the reader picked last, kept in every link to Costs. */
+let costsRange: SlowRange | undefined;
 export function setHere(h: Here): void {
     here = h;
+    if (h.page === "costs" && h.q.has("range")) costsRange = h.range as SlowRange;
 }
 
 const isPickerRange = (r: string): r is Range => r === "1h" || r === "6h" || r === "24h";
@@ -112,6 +120,7 @@ export function href(route: string, extra?: Record<string, string>): string {
     if (/^https?:/.test(route)) return esc(route);
     const [path, qs] = route.split("?");
     const q = new URLSearchParams(qs ?? "");
+    if (!q.has("range") && path === "/costs" && costsRange) q.set("range", costsRange);
     if (!q.has("range") && isPickerRange(here.range) && path !== "/costs") q.set("range", here.range);
     for (const [k, v] of Object.entries(extra ?? {})) q.set(k, v);
     const s = q.toString();
@@ -176,7 +185,7 @@ function rangePicker(slow: boolean): string {
                 `<a href="${hereWith({ range: r })}"${r === here.range ? ' class="on" aria-current="true"' : ""}>${rangeLabel(r)}</a>`,
         )
         .join("");
-    return `<div class="range" role="group" aria-label="${slow ? "Range, slow measure" : "Range"}">${slow ? `<span class="rlab">slow measure</span>` : ""}${links}</div>`;
+    return `<div class="range" role="group" aria-label="${slow ? "History" : "Range"}">${slow ? `<span class="rlab">7-day / 28-day history</span>` : ""}${links}</div>`;
 }
 
 function updated(generated: string): string {
@@ -192,6 +201,9 @@ function header(title: string, crumbs: [string, string][], generated: string, sl
 
 // ---------------------------------------------------------------- cells
 
+/** Items a list cell shows before the rest becomes "+N more". */
+const LIST_SHOWN = 3;
+
 export function cellHtml(c: Cell): string {
     switch (c.t) {
         case "name":
@@ -204,7 +216,9 @@ export function cellHtml(c: Cell): string {
             return c.bold ? `<b>${v}</b>` : v;
         }
         case "budget":
-            return `${fmtN(c.so)} / ${c.budget === null ? "--" : fmtN(c.budget)}`;
+            return c.budget === null
+                ? `${fmtN(c.so)}<small>no budget set</small>`
+                : `${fmtN(c.so)} / ${fmtN(c.budget)}`;
         case "time":
             return fmtTime(c.at);
         case "span":
@@ -226,13 +240,27 @@ export function cellHtml(c: Cell): string {
         case "mark":
             return `<span class="mk ${c.state}">${cellHtml(c.cell)}</span>`;
         case "state": {
-            const chip = c.state === "idle" ? `<span class="sw low">idle</span>` : stateChip({ state: c.state });
+            const chip =
+                c.state === "idle"
+                    ? `<span class="sw low">idle</span>`
+                    : c.state === "ok"
+                      ? `<span class="sw ok">OK</span>`
+                      : stateChip({ state: c.state });
             return c.link ? `<a class="sw low ln" href="${href(c.link)}">${chip.replace(/<[^>]+>/g, "")}</a>` : chip;
         }
         case "spark":
             return sparkline(c.spark, clock.generated, "projection by day");
-        case "list":
-            return c.items.map(cellHtml).join(c.sep === "comma" ? ", " : c.sep === "line" ? "<br />" : " ");
+        case "list": {
+            // Each item once, and three at most: the rest is a count.
+            const seen = new Set<string>();
+            const items = c.items.filter((i) => !seen.has(JSON.stringify(i)) && seen.add(JSON.stringify(i)));
+            const sep = c.sep === "comma" ? ", " : c.sep === "line" ? "<br />" : " ";
+            const more =
+                items.length > LIST_SHOWN
+                    ? `${sep}<span class="muted">+${fmtN(items.length - LIST_SHOWN)} more</span>`
+                    : "";
+            return items.slice(0, LIST_SHOWN).map(cellHtml).join(sep) + more;
+        }
         case "sub":
             return `${cellHtml(c.main)}<small>${cellHtml(c.sub)}</small>`;
         case "none":
@@ -242,8 +270,17 @@ export function cellHtml(c: Cell): string {
 
 // ---------------------------------------------------------------- members
 
+/** True when a member's link leads to the page the reader is on, with no section to scroll to. */
+function linksHere(link: string): boolean {
+    if (/^https?:/.test(link) || here.page === "test") return false;
+    return link.split("?")[0] === PAGE_PATH[here.page];
+}
+
+const breached = (m: Member) => m.state === "warn" || m.state === "bad" || m.breach !== undefined;
+
 function memberRow(m: Member): string {
-    const dim = isMuted(m.state) && !(m.state === "few" && showsRangeValue(m, here.range)) ? " dim" : "";
+    const t = MEMBER[m.id];
+    const dim = isMuted(m.state) && !m.breach && !(m.state === "few" && showsRangeValue(m, here.range)) ? " dim" : "";
     const sp = m.spark
         ? sparkline(
               m.spark,
@@ -252,19 +289,40 @@ function memberRow(m: Member): string {
           )
         : "";
     const val = m.state === "nodata" ? "--" : bigValue(m.value);
-    return (
-        `<a class="row${dim}" href="${href(m.link)}"><span class="nm">${esc(MEMBER[m.id].name)}<small>${unlinked(memberLine(m))}</small></span>` +
+    // What red means is shown when the row is past a line, and is always the row's tooltip.
+    const red = breached(m) && t.red ? `<small class="redm">Red: ${esc(t.red)}</small>` : "";
+    const title = t.red ? ` title="${esc(`Red: ${t.red}`)}"` : "";
+    // A row whose link is the page it is on goes nowhere, so it is no link and has no chevron; its own links work.
+    const still = linksHere(m.link);
+    const text = (html: string) => (still ? html : unlinked(html));
+    const cells =
+        `<span class="nm">${esc(t.name)}<small>${text(memberLine(m))}</small>${red}</span>` +
         `<span class="val">${val}<small class="v6">${windowLabel(m, here.range)}</small></span>` +
-        `<span class="tg">${unlinked(slaText(m.sla))}</span><span class="sp">${sp}</span><span class="st">${stateChip(m, here.range)}</span>${chev()}</a>`
-    );
+        `<span class="tg">${text(slaText(m.sla))}</span><span class="sp">${sp}</span><span class="st">${stateChip(m, here.range)}</span>`;
+    if (still) return `<div class="row${dim}"${title}>${cells}<span class="chev"></span></div>`;
+    return `<a class="row${dim}" href="${href(m.link)}"${title}>${cells}${chev()}</a>`;
+}
+
+/** Row order: FAILING, WARNING, a 7-day measure past its line, NO DATA, OK, then the gray ones; config order within. */
+function rank(m: Member): number {
+    if (m.state === "bad") return 0;
+    if (m.state === "warn") return 1;
+    if (m.breach === "bad") return 2;
+    if (m.breach === "warn") return 3;
+    if (m.state === "nodata") return 4;
+    if (m.state === "ok") return 5;
+    return 6;
 }
 
 function memberRows(members: Member[]): string {
     if (!members.length) return "";
     const by = here.range === "24h" ? "24 h by hour" : "6 h by 15 min";
     return (
-        `<div class="rows"><div class="thead rowh"><span>member</span><span>value</span><span>SLA</span><span>${by}</span><span>state</span><span></span></div>` +
-        members.map(memberRow).join("") +
+        `<div class="rows"><div class="thead rowh"><span>measure</span><span>value</span><span>target</span><span>${by}</span><span>state</span><span></span></div>` +
+        [...members]
+            .sort((a, b) => rank(a) - rank(b))
+            .map(memberRow)
+            .join("") +
         `</div>`
     );
 }
@@ -280,13 +338,20 @@ function pageState(p: PageResponse): string {
         if (p.setBy.fact && p.setBy.state !== "nodata") parts.push(`${capital(sentence(p.setBy.fact))}.`);
         else if (m && p.setBy.state === "nodata")
             parts.push(`${capital(MEMBER[m.id].short)} has NO DATA${m.reason ? `: ${sentence(m.reason)}` : ""}.`);
+        else if (
+            m &&
+            p.setBy.member === "ci.chronic_jobs" &&
+            p.setBy.state === "bad" &&
+            m.note?.code === "note.chronic_no_issue"
+        )
+            parts.push(`Because ${sentence({ code: "chronic.no_issue_jobs", params: m.note.params })}.`);
         else if (m) {
             const win =
                 m.window === "now" ? " now" : m.window === "1h" || m.window === "1h6h" ? " over the last hour" : "";
             const v6 = m.value6h ? ` (6 h: ${fmtValue(m.value6h)})` : "";
             parts.push(`${capital(MEMBER[m.id].short)} is ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`);
         } else parts.push(`${capital(refText(p.setBy))}.`);
-    } else if (p.state === "ok") parts.push("Every judged member is within its target.");
+    } else if (p.state === "ok" && !p.members.some(breached)) parts.push("Every judged member is within its target.");
     const others = p.others.filter((r) => r.state === "bad" || r.state === "warn" || r.state === "nodata");
     if (others.length) {
         const txt = others.map((r) => {
@@ -296,8 +361,38 @@ function pageState(p: PageResponse): string {
         });
         parts.push(`Also ${others.some((r) => r.state === "bad") ? "failing" : "past target"}: ${txt.join(", ")}.`);
     }
+    parts.push(...slowBreaches(p.members));
     parts.push(...p.notes.map(sentence));
+    if (p.page === "costs") parts.push(...budgetLine(p.sections));
     return `<p class="pstate">${chip}<span>${parts.join(" ")}</span></p>`;
+}
+
+/** "2 7-day measures are past their red line: ...": they never set the state, so the sentence names them. */
+function slowBreaches(members: Member[]): string[] {
+    const out: string[] = [];
+    for (const [state, line] of [
+        ["bad", "red line"],
+        ["warn", "target"],
+    ] as const) {
+        const ms = members.filter((m) => m.breach === state);
+        if (!ms.length) continue;
+        const what = ms.every((m) => m.window === ms[0].window) ? dayMeasure(ms[0].window) : "7- or 28-day measure";
+        const one = ms.length === 1;
+        const names = ms.map((m) => `${esc(MEMBER[m.id].short)} ${fmtValue(m.value)}`).join(", ");
+        out.push(`${fmtN(ms.length)} ${what}${one ? " is" : "s are"} past ${one ? "its" : "their"} ${line}: ${names}.`);
+    }
+    return out;
+}
+
+/** Costs: "331 USD of the 415 USD monthly budget spent; month-end forecast 340 USD.", from the money table's total. */
+function budgetLine(sections: Section[]): string[] {
+    const money = sections.find((x): x is TableSection => x.id === "money" && x.kind === "table");
+    const total = money?.rows.find((r) => r.total)?.cells;
+    const sofar = total?.sofar;
+    const projected = total?.projected;
+    if (sofar?.t !== "budget" || sofar.budget === null) return [];
+    const forecast = projected?.t === "num" ? `; month-end forecast ${fmtN(projected.n)} USD` : "";
+    return [`${fmtN(sofar.so)} USD of the ${fmtN(sofar.budget)} USD monthly budget spent${forecast}.`];
 }
 
 // ---------------------------------------------------------------- sections
@@ -317,7 +412,7 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
         cols: [
             ["check", "check"],
             ["prs", "open pull requests failing"],
-            ["since", "since"],
+            ["since", "failing from - to"],
             ["suspects", "suspects: master merges since its last pass"],
             ["issue", "issue and fix"],
         ],
@@ -398,17 +493,18 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
         cls: "t-wf",
         cols: [
             ["workflow", "workflow"],
-            ["runs", "runs, last 1 h"],
+            ["runs", "runs, last 24 h"],
             ["since", "failing since"],
             ["cause", "cause"],
         ],
     },
     money: {
         cls: "t-cost",
+        cap: 20,
         cols: [
             ["line", "line"],
             ["projected", "projected month-end, USD"],
-            ["sofar", "spent so far / limit"],
+            ["sofar", "spent so far / budget"],
             ["spark", "projection by day"],
             ["state", "state"],
         ],
@@ -460,31 +556,76 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
     },
 };
 
+/** Rows a table shows before the rest folds away, unless its entry in TABLES says otherwise. */
+const TABLE_CAP = 10;
+
+const filled = (c: Cell | undefined): boolean => c !== undefined && c.t !== "none";
+
+/**
+ * A table: a column no row fills is left out; an empty cell reads "--"; ended or idle rows, and rows past the
+ * table's cap, fold into "N more" (a total row always shows).
+ */
 function table(s: TableSection): string {
     const def = TABLES[s.id] ?? {
         cls: "t-sup",
         cols: Object.keys(s.rows[0]?.cells ?? {}).map((k) => [k, k] as [string, string]),
     };
-    const head = `<div class="thead">${def.cols.map(([, h]) => `<span>${esc(h)}</span>`).join("")}</div>`;
-    const rows = s.rows
-        .map((r) => {
-            const cls = `tr${r.past ? " past" : ""}${r.total ? " tot" : ""}`;
-            const cells = def.cols.map(([k]) => `<span>${r.cells[k] ? cellHtml(r.cells[k]) : ""}</span>`).join("");
-            return r.link
-                ? `<a class="${cls}" href="${href(r.link)}">${cells}</a>`
-                : `<div class="${cls}">${cells}</div>`;
-        })
-        .join("");
+    const cols = s.rows.length ? def.cols.filter(([k]) => s.rows.some((r) => filled(r.cells[k]))) : def.cols;
+    // Dropped columns: the rest share the width, the first a little more (style.css, .tbl.dropped).
+    const dropped = cols.length < def.cols.length;
+    const style = dropped
+        ? ` style="--cols: minmax(0, 1.6fr)${cols.length > 1 ? ` repeat(${cols.length - 1}, minmax(0, 1fr))` : ""}"`
+        : "";
+    const head = `<div class="thead">${cols.map(([, h]) => `<span>${esc(h)}</span>`).join("")}</div>`;
+    const row = (r: TableSection["rows"][number]) => {
+        const cls = `tr${r.past ? " past" : ""}${r.total ? " tot" : ""}`;
+        const cells = cols
+            .map(([k]) => `<span>${filled(r.cells[k]) ? cellHtml(r.cells[k]) : `<span class="muted">--</span>`}</span>`)
+            .join("");
+        return r.link ? `<a class="${cls}" href="${href(r.link)}">${cells}</a>` : `<div class="${cls}">${cells}</div>`;
+    };
+    const cap = def.cap ?? TABLE_CAP;
+    const live = s.rows.filter((r) => !r.past && !r.total);
+    const shown = live.slice(0, cap);
+    const folded = [...live.slice(cap), ...s.rows.filter((r) => r.past && !r.total)];
+    const totals = s.rows.filter((r) => r.total);
+    const ended = folded.filter((r) => r.past).length;
+    const what = shown.length
+        ? `${fmtN(folded.length)} more`
+        : `${fmtN(folded.length)} ${folded.length === 1 ? "row" : "rows"}`;
+    const fold = folded.length
+        ? `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${ended ? ` (${fmtN(ended)} ended or idle)` : ""}${chev()}</summary>${folded.map(row).join("")}</details>`
+        : "";
     const empty = s.rows.length ? "" : `<p class="empty">none in this range</p>`;
-    return `<div class="tbl ${def.cls}" role="table">${head}${rows}</div>${empty}`;
+    return `<div class="tbl ${def.cls}${dropped ? " dropped" : ""}" role="table"${style}>${head}${shown.map(row).join("")}${totals.map(row).join("")}${fold}</div>${empty}`;
 }
 
-function bars(s: BarsSection): string {
+/** Bars a list shows before the rest folds into "N more". */
+const BARS_SHOWN = 8;
+
+/** Sorted bars, the longest first, past BARS_SHOWN folded. */
+function barList(items: BarsSection["groups"][number]["items"], caption: string): string {
+    const rest = items.slice(BARS_SHOWN);
+    const more = rest.length
+        ? `<details class="epm tfold"><summary>${fmtN(rest.length)} more${chev()}</summary>${sortedBars(rest, cellHtml, caption)}</details>`
+        : "";
+    return sortedBars(items.slice(0, BARS_SHOWN), cellHtml, caption) + more;
+}
+
+/** "CI, pull_request" as "CI, pull request": the event of a runner holder's name in words. */
+function holderName(i: BarsSection["groups"][number]["items"][number]): BarsSection["groups"][number]["items"][number] {
+    const m = i.label.t === "name" ? /^(.*), (\w+)$/.exec(i.label.v) : null;
+    return m && EVENT[m[2]] ? { ...i, label: { t: "name", v: `${m[1]}, ${EVENT[m[2]]}` } } : i;
+}
+
+function bars(s0: BarsSection): string {
+    const s =
+        s0.id === "holders" ? { ...s0, groups: s0.groups.map((g) => ({ ...g, items: g.items.map(holderName) })) } : s0;
     const caption = s.id;
-    if (s.groups.length === 1) return sortedBars(s.groups[0].items, cellHtml, caption);
+    if (s.groups.length === 1) return barList(s.groups[0].items, caption);
     const list = (g: BarsSection["groups"][number]): string =>
         g.items.length
-            ? sortedBars(g.items, cellHtml, g.head ? sentence(g.head) : caption)
+            ? barList(g.items, g.head ? sentence(g.head) : caption)
             : `<p class="empty">none in this range</p>`;
     return `<div class="two">${s.groups
         .map((g) => `<div>${g.head ? `<h3>${sentence(g.head)}</h3>` : ""}${list(g)}</div>`)
@@ -500,6 +641,13 @@ function seg(key: string, on: string, options: [string, string][]): string {
         .join("")}</span>`;
 }
 
+/** A shard's name without the selector's flags; a screenshot shard gets a small tag ("graphty|shots"). */
+function shardName(shard: string): string {
+    const [base, ...flags] = shard.split("|");
+    const shots = flags.includes("shots") ? ` <small class="tag">screenshots</small>` : "";
+    return esc(base) + shots;
+}
+
 function shards(s: ShardsSection): string {
     const maxS = Math.max(1200, ...s.rows.map((r) => r.p90S));
     const mins = (x: number) => fmtN(Math.round((x / 60) * 10) / 10);
@@ -509,7 +657,7 @@ function shards(s: ShardsSection): string {
     const rows = s.rows
         .map((r) => {
             const { svg, note } = budgetBar(r, maxS);
-            const name = r.group ? `${esc(r.shard)} (in ${esc(r.group)})` : esc(r.shard);
+            const name = shardName(r.shard) + (r.group ? ` (in ${esc(r.group)})` : "");
             const judged = r.runs >= r.minRuns;
             const cols = (tail: string) =>
                 `<span class="nm">${name}</span><span class="num">${fmtN(r.runs)}</span><span class="num">${mins(r.medianS)}</span><span class="num">${mins(r.p90S)}</span>` +
@@ -540,7 +688,7 @@ function shards(s: ShardsSection): string {
 function tree(s: TreeSection): string {
     const head =
         `<div class="hrow thead"><span>group or family &gt; file &gt; test</span><span>distinct flaky tests</span><span class="num">events</span>` +
-        `<span class="num">per 1,000</span><span class="num">quarantined</span><span class="num">PRs held</span><span></span></div>`;
+        `<span class="num">flaky per 1,000 runs of this file</span><span class="num">quarantined</span><span class="num">PRs held</span><span></span></div>`;
     const note =
         `<p class="note">Pull request runs pack test files into bins per pull request, so the tree is family &gt; file &gt; test; full runs add the shard level. ` +
         `${fmtN(s.quiet)} groups and families had no flaky test in ${rangeLabel(s.range)}.</p>`;
@@ -572,7 +720,7 @@ function sectionHead(s: Section): string {
         case "shared":
             return h(
                 "Shared failures",
-                "a check failing in 3 or more pull requests, or failing alone where every check it summarizes passed",
+                "a check failing in 3 or more pull requests, or failing alone where every check it summarizes passed; ongoing first",
             );
         case "time":
             return h(
@@ -591,7 +739,7 @@ function sectionHead(s: Section): string {
             const sh = s as ShardsSection;
             return h(
                 "Shard times",
-                "slow measure; test step, attempt 1, successful runs",
+                "7- or 28-day measure; test step, attempt 1, successful runs",
                 seg("shards", sh.range, [
                     ["7d", "7 d"],
                     ["28d", "28 d"],
@@ -604,11 +752,14 @@ function sectionHead(s: Section): string {
         }
         case "runner-minutes":
             return h("Runner-minutes per merge", `${subText}; pull request runs include those that never merged`);
-        case "jobs":
+        case "jobs": {
+            const j = s as JobsSection;
+            const q = j.peakQueued ? `; peak queued ${fmtN(j.peakQueued.n)} at ${fmtTime(j.peakQueued.at)}` : "";
             return h(
                 "Running and queued jobs",
-                "organization, GitHub-hosted, one count axis; machine.dev T4 jobs are not counted",
+                `organization, GitHub-hosted; machine.dev T4 jobs are not counted; limit ${fmtN(j.limit)} jobs (set in config); peak running ${fmtN(j.peak.n)} at ${fmtTime(j.peak.at)}${q}`,
             );
+        }
         case "holders":
             return h("Who holds the runners", "by workflow and event, now");
         case "superseded":
@@ -619,7 +770,7 @@ function sectionHead(s: Section): string {
         case "hotspots":
             return h(
                 "Hotspots",
-                "slow measure; ranked by distinct flaky tests; open a row for its files and tests",
+                "7- or 28-day measure; ranked by distinct flaky tests; open a row for its files and tests",
                 seg("hot", (s as TreeSection).range, [
                     ["7d", "7 d"],
                     ["28d", "28 d"],
@@ -633,9 +784,15 @@ function sectionHead(s: Section): string {
                 "failed in half of the last 10 runs, or not passed in 3 days; master, full and other runs, gating or not",
             );
         case "non-gating":
-            return h("Allowed to fail, and failing", "ci.yml jobs with continue-on-error, every run kind, last 7 d");
+            return h(
+                "Allowed to fail",
+                "ci.yml jobs with continue-on-error, every run kind, last 7 d; most failures first",
+            );
         case "benchmarks":
-            return h("Benchmarks", "red: median of the last 3 results over 1.2x the median of the 10 before");
+            return h(
+                "Benchmarks",
+                "red: median of the last 3 results over 1.2x the median of the 10 before; regressed first, under 13 runs last",
+            );
         case "lanes":
             return h("Lanes on the candidate", subText);
         case "trains":
@@ -689,6 +846,13 @@ export function pageView(p: PageResponse): string {
     const title = PAGE_TITLE[p.page];
     const crumbs: [string, string][] = [["/", "Overview"]];
     if (p.page === "runners" || p.page === "local-runs") crumbs.push(["/ci", "CI"]);
+    // Local runs with nothing recorded: one line says why, not a page of empty rows.
+    const idle = p.page === "local-runs" && p.state === "idle" && p.members.every((m) => m.value === null);
+    if (idle)
+        return (
+            header(title, crumbs, p.generated) +
+            `<p class="pstate"><span>No local test runs recorded. This page fills when agents run tests on the development machine with tools/run-tests.sh.</span></p>`
+        );
     return (
         header(title, crumbs, p.generated, p.page === "costs") +
         pageState(p) +
@@ -708,11 +872,15 @@ function block(c: CategoryStatus): string {
             : c.others.length > 1
               ? `+ ${c.others.length} more`
               : "";
-    const aria = `${name}: ${word}${by ? `, ${by.replace(/<[^>]+>/g, "")}` : ""}`;
+    const slow = c.slowPastRed?.length ?? 0;
+    const slowText = slow ? `${fmtN(slow)} 7-day ${slow === 1 ? "measure" : "measures"} past red` : "";
+    const strip = (h: string) => h.replace(/<[^>]+>/g, "");
+    const aria = `${name}: ${word}${by ? `, ${strip(by)}` : ""}${more ? `, ${strip(more)}` : ""}${slowText ? `; ${slowText}` : ""}`;
     const cls = c.state === "idle" ? "idle" : stateClass(c.state);
     return (
-        `<a class="blk ${cls}" href="${href(PAGE_PATH[c.id])}" aria-label="${esc(aria)}"><span class="bn">${lab(esc(name))}</span><span class="bw">${lab(word)}</span>` +
+        `<a class="blk ${cls}" href="${href(PAGE_PATH[c.id])}" aria-label="${esc(aria)}" title="${esc(aria)}"><span class="bn">${lab(esc(name))}</span><span class="bw">${lab(word)}</span>` +
         (by ? `<span class="by">${lab(by)}</span>` : "") +
+        (slowText ? `<span class="by slowbad">${lab(slowText)}</span>` : "") +
         (more ? `<span class="by bym">${lab(more)}</span>` : "") +
         `${chev()}</a>`
     );
@@ -721,15 +889,20 @@ function block(c: CategoryStatus): string {
 /** The headline's big value, or the gray word that stands in for it. */
 function headlineValue(m: Member): string {
     if (m.state === "few" && !showsRangeValue(m, here.range))
-        return `<span class="kvl">too few, n=${fmtN(m.n ?? 0)} of ${fmtN(m.minN ?? 0)}</span>`;
-    if (m.state === "partial")
-        return `<span class="kvm">partial window, ${fmtN(m.covered?.h ?? 0)} h of ${fmtN(m.covered?.of ?? 1)}</span>`;
+        return `<span class="kvl">${fewText(m, here.range)}</span>`;
+    if (m.state === "partial") return `<span class="kvm">${partialText(m.covered)}</span>`;
     if (m.state === "nodata") return `<span class="kvl">NO DATA</span>`;
     if (m.state === "notsetup") return `<span class="kvl">not set up</span>`;
     return bigValue(m.value);
 }
 
-export function headline(m: Member): string {
+/**
+ * The measure under a status block. When another member set the block's state, it is labelled the headline
+ * measure, so its calm value never reads as the reason for the color above it.
+ * @param m the category's headline member
+ * @param setBy the member that set the category's state, when there is one
+ */
+export function headline(m: Member, setBy?: MemberRef): string {
     const t = MEMBER[m.id];
     const win = m.window === "now" ? "now" : here.range === "1h" ? "last 1 h" : `last ${rangeLabel(here.range)}`;
     const kv = headlineValue(m);
@@ -744,15 +917,16 @@ export function headline(m: Member): string {
         if (m.spark.trend.every((x) => x === v)) kt.push(`${fmtN(v)} all of the last 6 h`);
         else if (m.id.startsWith("costs.")) kt.push("billing is daily");
     }
-    kt.push(slaText(m.sla, true));
+    kt.push(slaText(m.sla));
     const sp = m.spark ? sparkline(m.spark, clock.generated, `${t.name} trend`) : "";
-    return `<a class="kpi" href="${href(m.link)}"><span class="kn">${esc(t.headline ?? t.name)}, ${win}</span><span class="kv">${kv}</span><span class="kt">${unlinked(kt.join("; "))}</span>${sp}</a>`;
+    const lead = setBy && setBy.member !== m.id ? "Headline measure: " : "";
+    return `<a class="kpi" href="${href(m.link)}"><span class="kn">${lead}${esc(t.headline ?? t.name)}, ${win}</span><span class="kv">${kv}</span><span class="kt">${unlinked(kt.join("; "))}</span>${sp}</a>`;
 }
 
 function episode(e: Episode): string {
     const past = e.end !== null;
     return (
-        `<a class="ep${past ? " past" : ""}" href="${href(e.link)}"><span class="eb ${e.worst}"></span><span class="et">${fmtSpan(e.start, e.end)}</span>` +
+        `<a class="ep${past ? " past" : ""}" href="${href(e.link)}"><span class="eb ${e.worst}"></span><span class="et">${fmtSpan(e.start, e.end, { edge: true, startUnknown: e.startUnknown })}</span>` +
         `<span class="ec">${esc(CATEGORY_NAME[e.category])}</span><span class="ex">${unlinked(sentence(e.fact))}</span>` +
         `<span class="en">${past ? `cleared ${fmtAgo(e.end as string)}` : "ongoing"}</span>${chev()}</a>`
     );
@@ -774,25 +948,56 @@ export function channelTile(c: ChannelTile): string {
     );
 }
 
-/** Episodes listed open on the overview before the cleared rest fold away. */
+/** Episodes listed open on the overview before the rest fold away, and the ongoing ones among them at most. */
 const EPISODES_SHOWN = 6;
+const ONGOING_SHOWN = 5;
+
+/** The order of what matters to the pipeline: the overview's blocks and its episodes. */
+const PRIORITY: CategoryStatus["id"][] = [
+    "master",
+    "releases",
+    "pull-requests",
+    "flaky",
+    "ci",
+    "costs",
+    "data-sources",
+];
+const prio = (id: CategoryStatus["id"]) => PRIORITY.indexOf(id);
+
+/** The legend of the status blocks; the long form is its tooltip. */
+const LEGEND =
+    "OK: within target; WARNING (yellow): past target, look soon; FAILING (red): past the red line, act now; " +
+    "NO DATA (hatched): the source is not reporting.";
 
 export function overviewView(o: OverviewResponse): string {
     const trend =
         here.range === "24h"
-            ? "the last 24 h by hour, the last hour shaded"
-            : "the last 6 h by 15 min with the last hour shaded; the faint line at the left is the rest of the last 24 h, hourly";
-    const cols = o.categories.map((c) => `<li class="col">${block(c)}${headline(c.headline)}</li>`).join("");
-    const ongoing = o.episodes.filter((e) => e.end === null);
+            ? "Small chart: the last 24 hours."
+            : "Small chart: the last 6 hours, the last hour shaded.";
+    const long =
+        `Each block is its category's state: rates judged on the last 1 h, states now. Under it: the headline measure, ${here.range === "1h" ? "its 6 h value, and " : ""}` +
+        (here.range === "24h"
+            ? "the last 24 h by hour, the last hour shaded."
+            : "the last 6 h by 15 min with the last hour shaded; the faint line at the left is the rest of the last 24 h, hourly.");
+    const cols = [...o.categories]
+        .sort((a, b) => prio(a.id) - prio(b.id))
+        .map((c) => `<li class="col">${block(c)}${headline(c.headline, c.setBy)}</li>`)
+        .join("");
+    const ongoing = o.episodes
+        .filter((e) => e.end === null)
+        .sort((a, b) => Number(a.worst !== "bad") - Number(b.worst !== "bad") || prio(a.category) - prio(b.category));
     const cleared = o.episodes.filter((e) => e.end !== null);
-    // The overview fits 1440 x 900 (2.1): every ongoing episode shows, cleared ones up to the cap, the rest folded.
-    const shown = Math.max(0, EPISODES_SHOWN - ongoing.length);
-    const folded = cleared.slice(shown);
-    const more = folded.length
-        ? `<details class="epm"><summary>${fmtN(folded.length)} more cleared${chev()}</summary>${folded.map(episode).join("")}</details>`
-        : "";
+    // The overview fits 1440 x 900 (2.1): the worst ongoing episodes, cleared ones up to the cap, the rest folded.
+    const open = ongoing.slice(0, ONGOING_SHOWN);
+    const shown = Math.max(0, EPISODES_SHOWN - open.length);
+    const fold = (list: Episode[], what: string) =>
+        list.length
+            ? `<details class="epm"><summary>${fmtN(list.length)} more ${what}${chev()}</summary>${list.map(episode).join("")}</details>`
+            : "";
     const eps = o.episodes.length
-        ? [...ongoing, ...cleared.slice(0, shown)].map(episode).join("") + more
+        ? [...open, ...cleared.slice(0, shown)].map(episode).join("") +
+          fold(ongoing.slice(ONGOING_SHOWN), "ongoing") +
+          fold(cleared.slice(shown), "cleared")
         : `<p class="empty">No member went past its target in the last 24 h.</p>`;
     const channels = o.channels?.length
         ? `<h2 class="top">${CHANNELS_HEAD}<span class="h2sub">${CHANNELS_SUB}</span></h2><div class="tiles">${o.channels.map(channelTile).join("")}</div>`
@@ -800,9 +1005,9 @@ export function overviewView(o: OverviewResponse): string {
     return (
         header("Pipeline health", [], o.generated) +
         channels +
-        `<p class="kcap">Each block is its category's state: rates judged on the last 1 h, states now. Under it: the headline measure, ${here.range === "1h" ? "its 6 h value, and " : ""}${trend}.</p>` +
+        `<p class="kcap" title="${esc(long)}">${LEGEND} ${trend}</p>` +
         `<ol class="status" aria-label="Category status">${cols}</ol>` +
-        `<h2>Last 24 hours<span class="h2sub">each time a member went past its target; ongoing first</span></h2><div class="eps">${eps}</div>`
+        `<h2>Last 24 hours<span class="h2sub">every time a measure went past its target; red first</span></h2><div class="eps">${eps}</div>`
     );
 }
 
@@ -829,7 +1034,7 @@ export function testView(h: TestHistoryResponse): string {
             h.generated,
             true,
         ) +
-        `<p class="pstate"><span>${esc(h.file)}, ${esc(h.family)}${h.issue ? `; ${issueLink(h.issue)}` : ""}. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; CI and local results are never mixed.</span></p>` +
+        `<p class="pstate"><span>${esc(h.file)}, ${esc(h.family)}${h.issue ? `; ${issueLink(h.issue)}` : ""}. Flaky and failed results in the last ${rangeLabel(h.range)}, newest first; 'where' says whether it ran in a PR, a full run or locally.</span></p>` +
         `<div class="tbl t-hist" role="table"><div class="thead"><span>when</span><span>where</span><span>commit</span><span>result</span><span>signature</span><span>run</span></div>${rows}</div>`
     );
 }

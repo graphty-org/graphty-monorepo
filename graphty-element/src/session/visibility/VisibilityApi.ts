@@ -1329,8 +1329,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             was.showContext === now.showContext &&
             JSON.stringify(combinedRule(was.filter, was.conditions)) ===
                 JSON.stringify(combinedRule(now.filter, now.conditions));
-        followSelectHistory(was.conditions, now.conditions);
+        // The masks first: a redo's selection is what the select conditions match among what the
+        // conditions it reached leave visible.
         sync();
+        followSelectHistory(was.conditions, now.conditions);
     });
 
     // The filter follows the sets it names: when one moves -- a set edit, its undo or redo, or an

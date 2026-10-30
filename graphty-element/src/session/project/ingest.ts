@@ -109,6 +109,7 @@ function leftOutEdge(
     });
 }
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
+import type { GraphRecord } from "./state";
 
 /**
  * The kinds a draft gave the rows it hands over, by those rows: the report's `kinds`. Kept beside
@@ -1052,8 +1053,9 @@ export class Ingest<K extends KnownEdge> {
 
         if (this.loadTally === null) {
             // A push of records has no enclosing load to draw the endpoints its edges made at
-            // its end (#3192): draw them now, or the store holds them and nothing draws them.
-            this.drawMadeEndpoints(writer);
+            // its end (#3192): give them their records now, and the pass that draws the graph
+            // slice builds them, or the store holds them and nothing draws them.
+            this.recordMadeEndpoints(writer);
             this.loadMadeEndpoints.clear();
             // A push of records rather than a file, so there is no enclosing load to seal the
             // report. Seal one here, or `session.data.lastImport()` would answer about the last
@@ -1875,20 +1877,33 @@ export class Ingest<K extends KnownEdge> {
      * @param writer - the graph primitives to write through
      */
     private drawMadeEndpoints(writer: GraphWriter): void {
-        let drawn = 0;
+        const made = this.recordMadeEndpoints(writer);
+        for (const { id, record, index } of made) {
+            this.host.nodeStored(id, record, index);
+        }
+
+        if (made.length > 0) {
+            this.host.nodesArrived(made.length);
+        }
+    }
+
+    /**
+     * Give each node the edges created and no node record named a record holding only its id,
+     * leaving the drawing to the caller or to the pass that draws the graph slice.
+     * @param writer - the graph primitives to write through
+     * @returns The nodes given a record, with their rows.
+     */
+    private recordMadeEndpoints(writer: GraphWriter): { id: NodeIdType; record: GraphRecord; index: number }[] {
+        const made: { id: NodeIdType; record: GraphRecord; index: number }[] = [];
         for (const id of this.loadMadeEndpoints) {
             if (!this.host.hasNode(id)) {
                 const record = frozenRecord({ id });
                 MADE_RECORDS.add(record);
-                const { index } = writer.addNode(id, record, null);
-                this.host.nodeStored(id, record, index);
-                drawn++;
+                made.push({ id, record, index: writer.addNode(id, record, null).index });
             }
         }
 
-        if (drawn > 0) {
-            this.host.nodesArrived(drawn);
-        }
+        return made;
     }
 
     /**

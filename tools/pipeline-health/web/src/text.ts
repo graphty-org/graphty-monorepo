@@ -218,11 +218,10 @@ export const OK_CHIP = `<span class="sw okl">OK</span>`;
 
 /**
  * The state cell of a member row: a filled chip for a judged state not OK, an outlined OK, muted words for the gray
- * ones. A 7- or 28-day measure says on a second line that it does not set the page's color.
+ * ones.
  */
 export function stateChip(
-    m: Pick<Member, "state" | "n" | "minN" | "covered"> &
-        Partial<Pick<Member, "id" | "window" | "value" | "coveredDays" | "breach" | "inTarget">>,
+    m: Pick<Member, "state" | "n" | "minN" | "covered"> & Partial<Pick<Member, "id" | "window" | "value">>,
     range?: Range | SlowRange,
 ): string {
     switch (m.state) {
@@ -241,18 +240,9 @@ export function stateChip(
             return `<span class="sw low">${partialText(m.covered)}</span>`;
         case "idle":
             return `<span class="sw low">nothing ran</span>`;
-        case "slow": {
-            // A 7-day measure past its line is shown as the breach it is, though it never sets the page's state.
-            const days = m.coveredDays
-                ? `<small class="cov">data for ${fmtN(m.coveredDays.d)} of ${fmtN(m.coveredDays.of)} days</small>`
-                : "";
-            const what = `<small class="cov">${m.window === "now" ? "shown for information" : dayMeasure(m.window ?? "7d")}; does not set the page's color</small>`;
-            if (m.breach)
-                return `<span class="sw ${stateClass(m.breach)}">${STATE_WORD[m.breach]}</span>${what}${days}`;
-            if (m.inTarget) return OK_CHIP + what + days;
-            // A payload built before `inTarget` was: whether it is within target is not known here.
-            return what + days;
-        }
+        case "slow":
+            // Sent only by an API built before 7- and 28-day members were judged.
+            return `<span class="sw low">${dayMeasure(m.window ?? "7d")}</span>`;
         case "notsetup":
             return `<span class="sw low">not set up</span>`;
     }
@@ -1119,7 +1109,11 @@ export const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** The window label under a value ("1 h; 6 h 24 min", "now", "7 d"). */
 export function windowLabel(m: Member, range: Range | SlowRange): string {
     if (m.window === "now") return "now";
-    if (m.window === "7d" || m.window === "28d") return rangeLabel(m.window);
+    if (m.window === "7d" || m.window === "28d")
+        return (
+            rangeLabel(m.window) +
+            (m.coveredDays ? `; data for ${fmtN(m.coveredDays.d)} of ${fmtN(m.coveredDays.of)} days` : "")
+        );
     if (range !== "1h") return rangeLabel(range);
     const v6 = m.value6h === undefined ? "" : `; 6 h ${fmtValue(m.value6h)}`;
     const cov = m.covered6h ? `, ${fmtN(m.covered6h.h)} h of ${fmtN(m.covered6h.of)}` : "";
@@ -1139,7 +1133,7 @@ export function memberLine(m: Member): string {
     return esc(t.def) + (parts.length ? ` ${capital(parts.join("; "))}.` : "");
 }
 
-/** "7-day measure" or "28-day measure": a member judged on days, which never sets its page's state. */
+/** "7-day measure" or "28-day measure": a member judged on days rather than the last hour. */
 export const dayMeasure = (w: Member["window"]): string =>
     w === "now" ? "measure shown for information" : `${w === "28d" ? "28-day" : "7-day"} measure`;
 

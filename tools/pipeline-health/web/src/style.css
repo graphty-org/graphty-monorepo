@@ -269,13 +269,6 @@ h1 {
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
-.blk .slowbad {
-    /* Never clamped: it says what the color leaves out. */
-    display: block;
-    margin-top: 4px;
-    padding-left: 8px;
-    box-shadow: inset 4px 0 var(--bad);
-}
 .by.bym {
     margin-top: auto;
     padding-top: 4px;
@@ -1373,15 +1366,6 @@ h2.top {
     flex-wrap: wrap;
     gap: 6px;
     flex: none;
-}
-.pstate .sw.slowmark,
-.sw.slowmark {
-    padding: 1px 8px 1px 10px;
-    background: transparent;
-    color: var(--ink);
-    box-shadow:
-        inset 4px 0 var(--bad),
-        inset 0 0 0 1px var(--line);
 }
 /* The section a link or a sub-item of the navigation scrolled to. */
 h2.hit {

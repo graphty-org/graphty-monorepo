@@ -28,7 +28,7 @@ export interface MemberStatus {
     label: string;
     window: MemberConfig["window"];
     state: MemberState;
-    /** In its category's rollup: OK, WARNING, FAILING or NO DATA, and not a slow member. */
+    /** In its category's rollup: OK, WARNING, FAILING or NO DATA (a 7- or 28-day member too). */
     judged: boolean;
     value?: number;
     value6h?: number;
@@ -639,7 +639,7 @@ function sourceGray(
     }
     const broken = first("stale", "error", "thin");
     if (broken) {
-        return { state: "NO DATA", reason: broken, judged: c.window !== "slow" };
+        return { state: "NO DATA", reason: broken, judged: true };
     }
     return undefined;
 }
@@ -709,7 +709,8 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
               reason: { code: "partial" as const, params: { days: v.covered ?? 0, of: slowDays(c) } },
           }
         : verdict(c, v);
-    const judged = c.window !== "slow" && ["OK", "WARNING", "FAILING", "NO DATA"].includes(out.state);
+    // A 7- or 28-day member sets its category's color like any other, so a block is never OK above a red row.
+    const judged = ["OK", "WARNING", "FAILING", "NO DATA"].includes(out.state);
     return {
         ...status,
         ...out,

@@ -97,8 +97,10 @@ function spark(ctx: (number | null)[], trend: (number | null)[], sla: Sla | null
 type M = Omit<Member, "state" | "window" | "sla" | "link"> & Partial<Pick<Member, "state" | "window" | "sla" | "link">>;
 function member(m: M): Member {
     const out: Member = { state: "ok", window: "now", sla: null, link: "/", ...m };
-    // A 7-day member the API judged within its target says so (contract.ts, inTarget).
-    return out.state === "slow" && !out.breach && out.value !== null ? { ...out, inTarget: true } : out;
+    // A 7- or 28-day member is judged like any other: its state is its value against its SLA.
+    if (out.state !== "slow") return out;
+    const v = out.value && "n" in out.value ? (out.value.n ?? null) : null;
+    return { ...out, state: (out.sla && judge(v, out.sla)) || "ok" };
 }
 
 const SLA = {
@@ -584,7 +586,6 @@ const releaseMembers: Member[] = [
         n: 4,
         minN: 3,
         sla: { target: cmp("<=", 25, "pct"), red: cmp(">", 75, "pct") },
-        breach: "warn",
         link: "/releases/trains",
     }),
     member({
@@ -595,7 +596,6 @@ const releaseMembers: Member[] = [
         n: 6,
         minN: 3,
         sla: { target: cmp(">=", 50, "pct"), red: cmp("<", 25, "pct") },
-        breach: "bad",
         link: "/releases/trains",
     }),
     member({
@@ -604,7 +604,6 @@ const releaseMembers: Member[] = [
         state: "slow",
         value: num(1.3),
         sla: { target: cmp(">=", 2), red: cmp("<", 1) },
-        breach: "warn",
         link: "/releases",
     }),
 ];
@@ -777,10 +776,12 @@ const categories: CategoryStatus[] = [
         setBy: ref(lanesRed, f("short.lanes_red", { lanes: ["audit", "t4"] })),
         others: [
             ref(byId(releaseMembers, "releases.workflows_failing")),
+            ref(byId(releaseMembers, "releases.green_clean")),
             ref(byId(releaseMembers, "releases.train_skipped")),
+            ref(byId(releaseMembers, "releases.slots_unreviewed")),
+            ref(byId(releaseMembers, "releases.nightly_promotions")),
         ],
         headline: lanesRed,
-        slowPastRed: [ref(byId(releaseMembers, "releases.green_clean"))],
     },
     { id: "costs", state: "ok", others: [], headline: spend },
     {

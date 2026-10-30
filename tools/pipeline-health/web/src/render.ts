@@ -39,7 +39,6 @@ import {
     STATE_WORD,
     bigValue,
     capital,
-    dayMeasure,
     fewText,
     partialText,
     showsRangeValue,
@@ -281,11 +280,11 @@ function linksHere(link: string): boolean {
     return link.split("?")[0] === PAGE_PATH[here.page];
 }
 
-const breached = (m: Member) => m.state === "warn" || m.state === "bad" || m.breach !== undefined;
+const breached = (m: Member) => m.state === "warn" || m.state === "bad";
 
 function memberRow(m: Member): string {
     const t = MEMBER[m.id];
-    const dim = isMuted(m.state) && !m.breach && !(m.state === "few" && showsRangeValue(m, here.range)) ? " dim" : "";
+    const dim = isMuted(m.state) && !(m.state === "few" && showsRangeValue(m, here.range)) ? " dim" : "";
     const sp = m.spark
         ? sparkline(
               m.spark,
@@ -309,15 +308,13 @@ function memberRow(m: Member): string {
     return `<a class="row${dim}" href="${href(m.link)}"${title}>${cells}${chev()}</a>`;
 }
 
-/** Row order: FAILING, WARNING, a 7-day measure past its line, NO DATA, OK, then the gray ones; config order within. */
+/** Row order: FAILING, WARNING, NO DATA, OK, then the gray ones; config order within. */
 function rank(m: Member): number {
     if (m.state === "bad") return 0;
     if (m.state === "warn") return 1;
-    if (m.breach === "bad") return 2;
-    if (m.breach === "warn") return 3;
-    if (m.state === "nodata") return 4;
-    if (m.state === "ok") return 5;
-    return 6;
+    if (m.state === "nodata") return 2;
+    if (m.state === "ok") return 3;
+    return 4;
 }
 
 function memberRows(members: Member[]): string {
@@ -339,10 +336,7 @@ const SOURCES_LINK = `<a class="ln" href="#/data-sources/sources">See Data sourc
 /** The page's state sentence: the member that set it, the others not OK, and the page's notes. */
 function pageState(p: PageResponse): string {
     const word = p.state === "idle" ? "IDLE" : STATE_WORD[p.state];
-    const slowRed = p.members.filter((m) => m.breach === "bad").length;
-    // A 7-day measure past red never sets the color, so the chip says so beside it rather than read as all clear.
-    const slowChip = slowRed ? `<span class="sw slowmark">${fmtN(slowRed)} past red, not in the color</span>` : "";
-    const chip = `<span class="chips"><span class="sw ${p.state === "idle" ? "idle" : stateClass(p.state)}">${word}</span>${slowChip}</span>`;
+    const chip = `<span class="chips"><span class="sw ${p.state === "idle" ? "idle" : stateClass(p.state)}">${word}</span></span>`;
     const find = (r: MemberRef) => p.members.find((m) => m.id === r.member);
     const parts: string[] = [];
     if (p.setBy) {
@@ -368,15 +362,7 @@ function pageState(p: PageResponse): string {
             const is = m.value && "word" in m.value ? ":" : " is";
             parts.push(`${capital(MEMBER[m.id].short)}${is} ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`);
         } else parts.push(`${capital(refText(p.setBy))}.`);
-    } else if (p.state === "ok")
-        // A member past a line on an OK page is a 7- or 28-day measure, which never sets the state: say so.
-        parts.push(
-            p.members.some(breached)
-                ? "Every hourly and current measure meets its target, so the color is OK."
-                : "Every judged member is within its target.",
-        );
-    // On an OK or NO DATA page, a 7-day measure past its line is the news: it comes before the notes.
-    parts.push(...slowBreaches(p.members));
+    } else if (p.state === "ok") parts.push("Every judged member is within its target.");
     const named = (state: MemberRef["state"]) =>
         p.others
             .filter((r) => r.state === state)
@@ -394,25 +380,6 @@ function pageState(p: PageResponse): string {
     parts.push(...p.notes.map(sentence));
     if (p.page === "costs") parts.push(...budgetLine(p.sections));
     return `<p class="pstate">${chip}<span>${parts.join(" ")}</span></p>`;
-}
-
-/** "2 7-day measures are past their red line: ...": they never set the state, so the sentence names them. */
-function slowBreaches(members: Member[]): string[] {
-    const out: string[] = [];
-    for (const [state, line] of [
-        ["bad", "red line"],
-        ["warn", "target"],
-    ] as const) {
-        const ms = members.filter((m) => m.breach === state);
-        if (!ms.length) continue;
-        const what = ms.every((m) => m.window === ms[0].window) ? dayMeasure(ms[0].window) : "7- or 28-day measure";
-        const one = ms.length === 1;
-        const names = ms.map((m) => refText({ member: m.id, value: m.value })).join(", ");
-        out.push(
-            `${fmtN(ms.length)} ${what}${one ? " is" : "s are"} past ${one ? "its" : "their"} ${line}: ${names}. ${one ? "It does" : "They do"} not set this page's state; see ${one ? "its row" : "their rows"} below.`,
-        );
-    }
-    return out;
 }
 
 /** Costs: "331 USD of the 415 USD monthly budget spent; month-end forecast 340 USD.", from the money table's total. */
@@ -963,17 +930,12 @@ function block(c: CategoryStatus): string {
             : c.others.length > 1
               ? `+ ${c.others.length} more`
               : "";
-    const slow = c.slowPastRed?.length ?? 0;
-    const slowText = slow
-        ? `${fmtN(slow)} 7-day ${slow === 1 ? "measure" : "measures"} past red; not part of this color`
-        : "";
     const strip = (h: string) => h.replace(/<[^>]+>/g, "");
-    const aria = `${name}: ${word}${by ? `, ${strip(by)}` : ""}${more ? `, ${strip(more)}` : ""}${slowText ? `; ${slowText}` : ""}`;
+    const aria = `${name}: ${word}${by ? `, ${strip(by)}` : ""}${more ? `, ${strip(more)}` : ""}`;
     const cls = c.state === "idle" ? "idle" : stateClass(c.state);
     return (
         `<a class="blk ${cls}" href="${href(PAGE_PATH[c.id])}" aria-label="${esc(aria)}" title="${esc(aria)}"><span class="bn">${lab(esc(name))}</span><span class="bw">${lab(word)}</span>` +
         (by ? `<span class="by">${lab(by)}</span>` : "") +
-        (slowText ? `<span class="by slowbad">${lab(slowText)}</span>` : "") +
         (more ? `<span class="by bym">${lab(more)}</span>` : "") +
         `${chev()}</a>`
     );

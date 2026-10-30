@@ -210,7 +210,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "warn",
             "window": "7d",
             "sla": {
                 "target": {
@@ -234,11 +234,10 @@
                     "added": 4,
                     "resolved": 2
                 }
-            },
-            "inTarget": true
+            }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "28d",
             "sla": {
                 "target": {
@@ -258,8 +257,7 @@
                 "n": 1.5,
                 "unit": "d"
             },
-            "n": 2,
-            "inTarget": true
+            "n": 2
         },
         {
             "state": "ok",

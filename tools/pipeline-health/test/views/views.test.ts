@@ -14,7 +14,8 @@ import { DAY, type RawItem, type ShardRunItem, type TestItem } from "../../src/m
 import { oldestAt, putRaw, recordSource, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
-import { evaluate } from "../../src/sla/engine.js";
+import { SLAS } from "../../src/sla/config.js";
+import { categoryOf, evaluate } from "../../src/sla/engine.js";
 import { buildViews, MAX_VIEW_BYTES, readViewJson, type View, viewKey, writeViews } from "../../src/views/index.js";
 import { HOUR, job, MIN, obs, T0 } from "../model/helpers.js";
 
@@ -247,8 +248,9 @@ describe("views", () => {
         };
         const live = [...LIVE, "story-slices"];
         expect(await member(LIVE, "ci", "ci.screenshot_set_age")).toMatchObject({ state: "notsetup", value: null });
+        // 8 h is past its 6 h target: judged like any other member, so it reads WARNING.
         expect(await member(live, "ci", "ci.screenshot_set_age")).toMatchObject({
-            state: "slow",
+            state: "warn",
             value: { n: 8, unit: "h" },
             sla: { target: { op: "<=", n: 6, unit: "h" }, red: { op: ">", n: 12, unit: "h" } },
         });
@@ -300,39 +302,30 @@ describe("views", () => {
         expect(points).toEqual([3, 13, 22]);
     });
 
-    it("a 7-day member past its red line is a breach on its row and its block, never the page's state", async () => {
+    it("a 7-day member past its red line sets its category's color and reads FAILING on its row", async () => {
         const store = new MemoryStore();
         const ev = await evaluate(store, T0);
         const gc = ev.members.find((m) => m.id === "release.green_clean")!;
-        Object.assign(gc, { state: "FAILING", value: 0.17, judged: false });
+        Object.assign(gc, { state: "FAILING", value: 0.17, judged: true, excess: 0.3 });
+        ev.categories = SLAS.categories.map((c) => categoryOf(c, ev.members));
         const vs = await buildViews(store, T0, ev);
         const status = vs[0].body as StatusResponse;
         const releases = status.categories.find((c) => c.id === "releases")!;
-        expect(releases.slowPastRed).toEqual([
-            { member: "releases.green_clean", state: "slow", value: { n: 17, unit: "pct" } },
-        ]);
-        expect(releases.setBy?.member).not.toBe("releases.green_clean");
+        // A block is never OK while a row under it is past its red line.
+        expect(releases.state).toBe("bad");
+        expect(releases.setBy).toMatchObject({ member: "releases.green_clean", state: "bad" });
         const page = pages(vs).find((p) => p.page === "releases" && p.range === "1h")!;
-        expect(page.members.find((m) => m.id === "releases.green_clean")).toMatchObject({
-            state: "slow",
-            breach: "bad",
-        });
-        expect(status.categories.find((c) => c.id === "master")!.slowPastRed).toEqual([]);
+        expect(page.state).toBe("bad");
+        expect(page.members.find((m) => m.id === "releases.green_clean")).toMatchObject({ state: "bad", window: "7d" });
     });
 
     it("says a 7-day member within its target is, so its row reads OK rather than blank", async () => {
         const store = new MemoryStore();
         const ev = await evaluate(store, T0);
         const su = ev.members.find((m) => m.id === "release.slots_unreviewed")!;
-        Object.assign(su, { state: "OK", value: 0.1, judged: false });
-        const gc = ev.members.find((m) => m.id === "release.green_clean")!;
-        Object.assign(gc, { state: "FAILING", value: 0.17, judged: false });
+        Object.assign(su, { state: "OK", value: 0.1, judged: true });
         const page = pages(await buildViews(store, T0, ev)).find((p) => p.page === "releases" && p.range === "1h")!;
-        expect(page.members.find((m) => m.id === "releases.slots_unreviewed")).toMatchObject({
-            state: "slow",
-            inTarget: true,
-        });
-        expect(page.members.find((m) => m.id === "releases.green_clean")?.inTarget).toBeUndefined();
+        expect(page.members.find((m) => m.id === "releases.slots_unreviewed")).toMatchObject({ state: "ok" });
     });
 
     it("a money line's target is its projection and its red line what is spent, never one comparison", async () => {

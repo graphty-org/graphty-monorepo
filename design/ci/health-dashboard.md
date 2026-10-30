@@ -97,15 +97,14 @@ Seven blocks, in the order of what matters most to the pipeline: **Master, Relea
 Flaky tests, CI, Costs, Data sources** (the page sorts them; the API keeps pipeline order). Each block is filled with its state's color and holds the category name; the state word
 (OK, WARNING, FAILING, NO DATA); when not OK, the member that set it in a few words ("runner wait
 p90 31 min"; the threshold is on the detail page); the others not OK, named when there is one
-("+ promote.yml failing") and counted when there are more ("+ 3 more"); its 7-day measures past their
-red line, counted and said to be outside the color ("1 7-day measure past red; not part of this
-color", with a red edge, never shortened); and a chevron. The other lines hold at most three lines of
+("+ promote.yml failing") and counted when there are more ("+ 3 more"); and a chevron. The other lines hold at most three lines of
 text each; the block's tooltip and accessible name hold all of it. The whole block links to the category's page. Below 1280 px the blocks wrap into rows of four, and
 on a phone into two columns.
 
-The blocks always show the status: each member is judged on the last 1 h or, for a state, now
-(section 4), whatever range the picker shows, so a problem reaches its block within one collector
-cycle (5 minutes) of crossing its threshold. This is the one place where healthy has a color, because the owner asked for
+The blocks always show the status: each member is judged on the last 1 h, now for a state, or its 7 or
+28 days for a slow measure (section 4), whatever range the picker shows, so a problem reaches its block
+within one collector cycle (5 minutes) of crossing its threshold, and a block is never OK while a row
+under it is past a line. This is the one place where healthy has a color, because the owner asked for
 green, yellow and red per category and a row of green is itself the answer.
 
 ### 2.3 Headline measures
@@ -335,19 +334,13 @@ Pass` belonged to the retired Mergify queue and never counts.
   cycle. It has no window and no n. Untested master age, the release lanes, the costs and the
   budgets are states: a 24 h target for them does not become a 1 h target, it is simply read now.
 - **slow**: a measure over weeks (reverts, net new flaky, detected to fixed, train first-attempt
-  pass, full-run shard medians). It is drawn on its detail section with its own 7 d / 28 d choice,
-  labeled "7-day measure" or "28-day measure", and never sets a state: at hour scale it would either
-  never move or move on one event. Past its target or red line it is still shown as the breach it is:
-  its row carries the WARNING or FAILING chip with "7-day measure; does not set the page's color", its
-  block counts it ("1 7-day measure past red; not part of this color"), the page's state chip has a
-  red-edged mark beside it ("4 past red, not in the color"), and the page's sentence names them right
-  after the state ("Every hourly and current measure meets its target, so the color is OK. 4 7-day
-  measures are past their red line: ... They do not set this page's state; see their rows below.").
-  Within target, its row shows the outlined OK (the API says `inTarget`). No text may say every member
-  is within target while one is breached. Whether a breached 7-day measure should color its category
-  is the owner's call; today it does not (`categoryOf`). A few slow members are read now rather than
-  over 7 days (the rolling screenshot captures' age and cap shares): their window reads "now" and
-  their state "shown for information".
+  pass, full-run shard medians), judged on its own 7 or 28 days rather than the hour, where it would
+  either never move or move on one event. It sets its category's state like any other member
+  (decided 2026-10-30: a block that read OK above four rows past their red line hid the pipeline's real
+  problem, nightly not promoting), so its row reads FAILING, WARNING or the outlined OK and its value's
+  window "7 d". It has no 5-minute history, so no sparkline and no episodes (2.4). A few slow members
+  are read now rather than over 7 days (the rolling screenshot captures' age and cap shares): their
+  window reads "now".
 
 The 6 h value is the trend: shown beside every 1 h value and as the sparkline. 24 h never decides a
 color.
@@ -364,8 +357,8 @@ every row, what red means, what is wrong and who acts, led by "If red:" in gray,
 the row is past a line (the same text is the row's tooltip). A threshold that is not a comparison is a
 plain phrase ("a lane red 6 h or more", "any source past twice its age limit"); a money line reads
 "good projected <= 240 USD; red spent > 240 USD (yellow: projected over it)". A member with no SLA
-reads "no target (shown for information)". Rows are listed FAILING, WARNING, 7-day measures past a
-line, NO DATA, OK, then the gray ones, in config order within each. A row whose link is the page it is
+reads "no target (shown for information)". Rows are listed FAILING, WARNING, NO DATA, OK, then the
+gray ones, in config order within each. A row whose link is the page it is
 on has no chevron and is not a link. The words live in `web/src/text.ts` (`MEMBER`: name, definition
 and red line per member).
 
@@ -379,7 +372,7 @@ more: M within 1.2x, K with fewer than 13 runs, not judged yet", and the heading
 fold the rest.
 
 **How a page's state reads.** After the chip, the sentence names the member that set the state, then
-the 7-day measures past a line, then the other members by state, each group under its own words: "Also
+the other members by state, each group under its own words: "Also
 failing (past the red line)", "Also past target", "Also NO DATA" (with a link to Data sources, where
 the source that stopped is listed). A member that is NO DATA is never called past target or failing.
 
@@ -388,14 +381,14 @@ and were re-derived for one hour, not copied from the 24 h version. (H) marks a 
 
 ### 4.1 Master
 
-| Member                | Measure                                                    | Window | Min n | Target                | Red                      |
-| --------------------- | ---------------------------------------------------------- | ------ | ----- | --------------------- | ------------------------ |
-| Red now               | length of the current red span; newest build queued, age   | now    | --    | 0                     | >= 15 min or 2 builds    |
-| Green time (H)        | share of the hour master's newest commit was green         | 1 h    | --    | >= 92% (<= 5 min red) | < 75% (> 15 min red)     |
-| Red on the same check | most open pull requests failing one check or family        | now    | --    | <= 1                  | >= 3                     |
-| Last full-run verdict | ci lane of the newest judged candidate; names failing jobs | now    | --    | passed                | failed                   |
-| Untested master age   | age of the oldest master commit no full run has judged     | now    | --    | <= 8 h                | > 13 h                   |
-| Reverts               | reverted merges / merges                                   | slow   | 10    | < 5%                  | > 10% (never sets state) |
+| Member                | Measure                                                    | Window | Min n | Target                | Red                   |
+| --------------------- | ---------------------------------------------------------- | ------ | ----- | --------------------- | --------------------- |
+| Red now               | length of the current red span; newest build queued, age   | now    | --    | 0                     | >= 15 min or 2 builds |
+| Green time (H)        | share of the hour master's newest commit was green         | 1 h    | --    | >= 92% (<= 5 min red) | < 75% (> 15 min red)  |
+| Red on the same check | most open pull requests failing one check or family        | now    | --    | <= 1                  | >= 3                  |
+| Last full-run verdict | ci lane of the newest judged candidate; names failing jobs | now    | --    | passed                | failed                |
+| Untested master age   | age of the oldest master commit no full run has judged     | now    | --    | <= 8 h                | > 13 h                |
+| Reverts               | reverted merges / merges                                   | slow   | 10    | < 5%                  | > 10%                 |
 
 Green time's 24 h target of 95% allowed 72 minutes of red a day; over one hour the same 95% would be
 yellow after 3 minutes, so the hour allows 5 minutes (one slow build) and is red past 15, the same
@@ -431,22 +424,22 @@ with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, 
 
 ### 4.3 CI
 
-| Member                       | Measure                                                           | Window          | Min n    | Target   | Red                      |
-| ---------------------------- | ----------------------------------------------------------------- | --------------- | -------- | -------- | ------------------------ |
-| Runner wait (H)              | p90 of job start minus created, organization, jobs started        | 1 h             | 20 jobs  | <= 5 min | > 15                     |
-| Longest queued now           | oldest queued job, or queued run with no job yet                  | now             | --       | <= 5 min | > 15                     |
-| Saturated time               | minutes with jobs queued > 2 min while running >= limit - 3       | 1 h             | --       | 0        | >= 15 min                |
-| Runners not being assigned   | jobs queued > 2 min while running < 75% of the limit              | now             | --       | 0 min    | >= 15 min                |
-| First-attempt pass rate      | pull request check suites passing attempt 1, suites finished      | 1 h, 6 h agrees | 8 suites | >= 85%   | < 70%                    |
-| Hangs                        | jobs ended at their own timeout, or past 2x budget                | 1 h             | --       | 0        | >= 2 (1 is yellow)       |
-| PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                     |
-| Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                    |
-| Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                    |
-| Full-run shards over budget  | shards whose median passes their own budget (section 6)           | slow, 7 d       | 5 runs   | 0        | >= 3 (never sets state)  |
-| Runner-minutes per merge     | job minutes of every run kind / pull requests merged into master  | slow, 7 d       | 10       | <= 400   | > 600 (never sets state) |
-| Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                       |
-| Chronically failing jobs     | jobs, gating or not, failing in their own record (below)          | now             | --       | 0        | any with no open issue   |
-| Benchmark regressions        | benchmarks whose last 3 results regressed (below)                 | now             | --       | 0        | >= 3                     |
+| Member                       | Measure                                                           | Window          | Min n    | Target   | Red                    |
+| ---------------------------- | ----------------------------------------------------------------- | --------------- | -------- | -------- | ---------------------- |
+| Runner wait (H)              | p90 of job start minus created, organization, jobs started        | 1 h             | 20 jobs  | <= 5 min | > 15                   |
+| Longest queued now           | oldest queued job, or queued run with no job yet                  | now             | --       | <= 5 min | > 15                   |
+| Saturated time               | minutes with jobs queued > 2 min while running >= limit - 3       | 1 h             | --       | 0        | >= 15 min              |
+| Runners not being assigned   | jobs queued > 2 min while running < 75% of the limit              | now             | --       | 0 min    | >= 15 min              |
+| First-attempt pass rate      | pull request check suites passing attempt 1, suites finished      | 1 h, 6 h agrees | 8 suites | >= 85%   | < 70%                  |
+| Hangs                        | jobs ended at their own timeout, or past 2x budget                | 1 h             | --       | 0        | >= 2 (1 is yellow)     |
+| PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                   |
+| Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                  |
+| Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                  |
+| Full-run shards over budget  | shards whose median passes their own budget (section 6)           | slow, 7 d       | 5 runs   | 0        | >= 3                   |
+| Runner-minutes per merge     | job minutes of every run kind / pull requests merged into master  | slow, 7 d       | 10       | <= 400   | > 600                  |
+| Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                     |
+| Chronically failing jobs     | jobs, gating or not, failing in their own record (below)          | now             | --       | 0        | any with no open issue |
+| Benchmark regressions        | benchmarks whose last 3 results regressed (below)                 | now             | --       | 0        | >= 3                   |
 
 Saturated time was "1 h in 24 h"; over one hour a quarter of it saturated is red. Hangs were "any in
 24 h"; over one hour one hang is yellow and two are red, and an earlier hang stays in the episode
@@ -475,7 +468,7 @@ push builds (cancelled ones too), full runs (`release.yml` and the workflows it 
 stress, hosts, dependabot, dispatches) -- and divides by the pull requests merged into master in the same
 window. The CI page shows each kind over 24 h and 7 d, so every change to the CI load shows its saving. The
 thresholds come from 2026-10-26: 387 over 7 d (511 in the Pacific day so far), so today's value is the edge of
-the target and 1.5 times it is red; as a slow measure it never sets CI's state.
+the target and 1.5 times it is red; as a slow measure it is judged on its 7 days.
 
 "Superseded runs running" counts only what nothing else cancels: runs of workflows without
 `cancel-in-progress` on `pull_request` (PR Integrity, CodeQL) whose pull request has a newer
@@ -531,13 +524,13 @@ logic is unchanged, so a non-gating job still never fails a lane.
 
 ### 4.4 Flaky tests
 
-| Member                         | Measure                                                                | Window          | Min n              | Target | Red                      |
-| ------------------------------ | ---------------------------------------------------------------------- | --------------- | ------------------ | ------ | ------------------------ |
-| Flake rate (H)                 | flaky test-file runs per 1,000 test-file runs, CI                      | 1 h, 6 h agrees | 125 test-file runs | < 2    | > 10                     |
-| Blocked by a flake             | open pull requests whose newest failure is flaky, or an unstable story | now             | --                 | 0      | >= 3, or any >= 24 h     |
-| Flaky in CI with no open issue | distinct tests seen flaky in CI in 7 d that have no open issue         | now             | --                 | 0      | >= 3                     |
-| Net new flaky                  | newly flaky minus resolved (10 clean runs or issue fixed)              | slow, 7 d       | --                 | <= 0   | > 3 (never sets state)   |
-| Detected to fixed              | median days from flaky issue opened to fixed                           | slow, 28 d      | 5                  | <= 3 d | > 7 d (never sets state) |
+| Member                         | Measure                                                                | Window          | Min n              | Target | Red                  |
+| ------------------------------ | ---------------------------------------------------------------------- | --------------- | ------------------ | ------ | -------------------- |
+| Flake rate (H)                 | flaky test-file runs per 1,000 test-file runs, CI                      | 1 h, 6 h agrees | 125 test-file runs | < 2    | > 10                 |
+| Blocked by a flake             | open pull requests whose newest failure is flaky, or an unstable story | now             | --                 | 0      | >= 3, or any >= 24 h |
+| Flaky in CI with no open issue | distinct tests seen flaky in CI in 7 d that have no open issue         | now             | --                 | 0      | >= 3                 |
+| Net new flaky                  | newly flaky minus resolved (10 clean runs or issue fixed)              | slow, 7 d       | --                 | <= 0   | > 3                  |
+| Detected to fixed              | median days from flaky issue opened to fixed                           | slow, 28 d      | 5                  | <= 3 d | > 7 d                |
 
 "Flaky in CI with no open issue" is a backlog read now: the 7 d says how long a test stays on it
 without an issue, not a window it is judged over. The flake rate is judged as soon as per-test
@@ -561,7 +554,7 @@ judged like a legacy one; hold issues are read too. Lanes: `ci`, `t4`, `hosts`, 
 | Release workflows failing      | `release.yml`, `promote.yml`, `release-watch.yml` whose newest run failed | now       | --    | 0      | one failed 3 runs in a row |
 | Train skipped a new commit     | the newest attempt skipped every lane on an untested master commit        | now       | --    | no     | --                         |
 | Tagged, not on npm             | versions tagged but not listed by `npm view <pkg> time`                   | now       | --    | 0      | after 30 min               |
-| Train first-attempt pass       | attempts that tested and passed first time                                | slow, 7 d | 5     | >= 90% | < 75% (never sets state)   |
+| Train first-attempt pass       | attempts that tested and passed first time                                | slow, 7 d | 5     | >= 90% | < 75%                      |
 
 "Release workflows failing" was a count of failed runs in 24 h. `release.yml` runs four times a day,
 so a 1 h count would drop a failure an hour after it; a workflow whose newest run failed is a state

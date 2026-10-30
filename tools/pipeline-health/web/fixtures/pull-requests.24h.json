@@ -231,7 +231,7 @@
             "minN": 5
         },
         {
-            "state": "slow",
+            "state": "warn",
             "window": "7d",
             "sla": {
                 "target": {
@@ -245,8 +245,7 @@
             "value": {
                 "n": 9,
                 "of": 112
-            },
-            "inTarget": true
+            }
         },
         {
             "state": "ok",

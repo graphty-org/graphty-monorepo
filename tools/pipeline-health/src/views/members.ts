@@ -396,14 +396,12 @@ const MEMBER_WINDOW: Record<MemberConfig["window"], MemberWindow> = {
 
 /**
  * @param s
- * @param c
  */
-export function stateOf(s: MemberStatus, c: MemberConfig): MemberState {
+export function stateOf(s: MemberStatus): MemberState {
     if (s.reason?.code === "informational") {
         return "info";
     }
-    const st = STATE[s.state];
-    return c.window === "slow" && (st === "ok" || st === "warn" || st === "bad") ? "slow" : st;
+    return STATE[s.state];
 }
 
 const GRAY = new Set<MemberState>(["nodata", "notsetup", "idle", "info"]);
@@ -501,7 +499,7 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
 export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?: MemberId): Promise<Member> {
     const c = reads.config(s.id);
     const spec = SPEC[s.id];
-    const state = stateOf(s, c);
+    const state = stateOf(s);
     const m = c.measure;
     const reason = reasonFact(s.reason, reads);
     const slowWindow = spec.now ? "now" : (c.slowWindow ?? "7d");
@@ -516,13 +514,6 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
         ...(reason ? { reason } : {}),
         ...(s.clearedAt === undefined ? {} : { cleared: iso(s.clearedAt) }),
     };
-    // A 7-day member past its line: out of the rollup, but the page shows the breach it is.
-    const breach = state === "slow" ? BREACH[s.state] : undefined;
-    if (breach) {
-        out.breach = breach;
-    } else if (state === "slow") {
-        out.inTarget = true;
-    }
     if (GRAY.has(state) && state !== "info") {
         return out;
     }

@@ -297,7 +297,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -316,8 +316,7 @@
             "value": {
                 "n": 0,
                 "of": 41
-            },
-            "inTarget": true
+            }
         }
     ],
     "sections": [

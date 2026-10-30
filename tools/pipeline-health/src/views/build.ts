@@ -172,18 +172,12 @@ class Builder {
         const id = CATEGORY[c.id];
         const head = c.headline ?? membersOf(this.reads.ev, id)[0]?.id;
         const ref = async (mid: string) => refOf(await this.member(mid, "1h"));
-        // Its 7- and 28-day members past their red line: they never set the state, so the block names them.
-        const slowBad = this.reads.ev.members.filter(
-            (m) =>
-                m.category === c.id && SPEC[m.id] && this.reads.config(m.id).window === "slow" && m.state === "FAILING",
-        );
         return {
             id,
             state: CATEGORY_STATE[c.state],
             ...(c.setBy ? { setBy: await ref(c.setBy) } : {}),
             others: await Promise.all(c.others.map(ref)),
             headline: await this.member(head, range, HEADLINE_ID[head]),
-            slowPastRed: await Promise.all(slowBad.map((m) => ref(m.id))),
             // The member that set the color, as a full row, when it is not the headline: shown in its place.
             ...(c.setBy && c.setBy !== head ? { driver: await this.member(c.setBy, range) } : {}),
         };

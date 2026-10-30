@@ -552,10 +552,33 @@
                     }
                 },
                 {
+                    "member": "releases.green_clean",
+                    "state": "bad",
+                    "value": {
+                        "n": 17,
+                        "unit": "pct"
+                    }
+                },
+                {
                     "member": "releases.train_skipped",
                     "state": "warn",
                     "value": {
                         "word": "yes"
+                    }
+                },
+                {
+                    "member": "releases.slots_unreviewed",
+                    "state": "warn",
+                    "value": {
+                        "n": 50,
+                        "unit": "pct"
+                    }
+                },
+                {
+                    "member": "releases.nightly_promotions",
+                    "state": "warn",
+                    "value": {
+                        "n": 1.3
                     }
                 }
             ],
@@ -611,17 +634,7 @@
                     ],
                     "target": 0
                 }
-            },
-            "slowPastRed": [
-                {
-                    "member": "releases.green_clean",
-                    "state": "slow",
-                    "value": {
-                        "n": 17,
-                        "unit": "pct"
-                    }
-                }
-            ]
+            }
         },
         {
             "id": "costs",

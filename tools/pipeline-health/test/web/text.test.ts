@@ -116,30 +116,25 @@ describe("release channel tiles", () => {
 });
 
 describe("stateChip", () => {
-    it("labels a slow measure with the days of history it covers, and not when the history covers it", () => {
-        const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 } };
-        expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain("data for 2 of 7 days");
-        expect(stateChip(slow)).not.toContain("data for");
-        // The coverage is a line of its own: it never replaces the state.
-        expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain(
-            ">7-day measure; does not set the page's color<",
-        );
-    });
-
     it("shows OK as an outlined chip, so within target reads apart from not judged", () => {
         expect(stateChip({ state: "ok" })).toContain('class="sw okl">OK<');
-        const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 } };
-        expect(stateChip({ ...slow, inTarget: true })).toContain('class="sw okl">OK<');
-        // A payload that does not say whether it is within target never shows OK.
-        expect(stateChip(slow)).not.toContain(">OK<");
     });
 
-    it("shows a 7-day measure past its red line as FAILING, out of the page state", () => {
-        const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 }, breach: "bad" as const };
-        const chip = stateChip(slow);
+    it("shows a 7-day measure past its red line as FAILING, like any other row", () => {
+        const chip = stateChip({ state: "bad", window: "7d", value: { n: 0 } } as never);
         expect(chip).toContain('class="sw bad">FAILING<');
-        expect(chip).toContain("7-day measure; does not set the page's color");
-        expect(stateChip({ ...slow, window: "28d", breach: "warn" })).toContain("28-day measure");
+        expect(chip).not.toContain("does not set");
+    });
+});
+
+describe("windowLabel", () => {
+    it("labels a 7-day measure with the days of history it covers, and not when the history covers it", async () => {
+        const { windowLabel } = await import("../../web/src/text.js");
+        const m = { id: "releases.green_clean", state: "bad", window: "7d", value: { n: 0 } } as never as Parameters<
+            typeof windowLabel
+        >[0];
+        expect(windowLabel({ ...m, coveredDays: { d: 2, of: 7 } }, "1h")).toBe("7 d; data for 2 of 7 days");
+        expect(windowLabel(m, "1h")).toBe("7 d");
     });
 });
 
@@ -213,19 +208,18 @@ describe("page state", () => {
             sections: [],
         }) as never;
 
-    it("never says every member is within target while a 7-day measure is past its red line", async () => {
+    it("never says every member is within target while a row is past its red line", async () => {
         const { pageView, setHere } = await import("../../web/src/render.js");
         setHere({ page: "releases", range: "1h", q: new URLSearchParams() });
-        expect(pageView(page([member({ state: "slow" })]))).toContain("within its target");
-        const html = pageView(page([member({ breach: "bad" })]));
+        expect(pageView(page([member({ state: "ok" })]))).toContain("within its target");
+        const bad = member({ state: "bad" });
+        const html = pageView({
+            ...(page([bad]) as object),
+            state: "bad",
+            setBy: { member: "releases.green_clean", state: "bad", value: { n: 0, unit: "pct" } },
+        } as never);
         expect(html).not.toContain("within its target");
-        expect(html).toContain(
-            "1 7-day measure is past its red line: full runs able to promote 0%. It does not set this page's state; see its row below.",
-        );
-        // The OK chip says what it covers, so it never reads as "everything is fine", and a mark beside it counts the
-        // 7-day measures past red.
-        expect(html).toContain("Every hourly and current measure meets its target, so the color is OK.");
-        expect(html).toContain('class="sw slowmark">1 past red, not in the color<');
+        expect(html).toContain('class="sw bad">FAILING<');
         expect(html).toContain("Red: Below 25%");
     });
 
@@ -257,32 +251,17 @@ describe("fmtSpan", () => {
 });
 
 describe("status blocks", () => {
-    it("say a 7-day measure past red is not part of the block's color, and show the measure that set the color under it", async () => {
-        const { overviewView, headline, setHere } = await import("../../web/src/render.js");
+    it("show the measure that set the color under the block", async () => {
+        const { headline, setHere } = await import("../../web/src/render.js");
         setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
         const m = {
             id: "releases.green_clean",
             window: "7d",
-            state: "slow",
+            state: "ok",
             value: { n: 40, unit: "pct" },
             sla: null,
             link: "/releases",
         } as unknown as Parameters<typeof headline>[0];
-        const html = overviewView({
-            generated: "2026-10-25T23:30:00Z",
-            range: "1h",
-            categories: [
-                {
-                    id: "releases",
-                    state: "ok",
-                    others: [],
-                    headline: m,
-                    slowPastRed: [{ member: "releases.green_clean", value: null }],
-                },
-            ],
-            episodes: [],
-        } as never);
-        expect(html).toContain("1 7-day measure past red; not part of this color");
         // Under a block colored by another member, the number shown is that member's, never the calm headline's.
         const setBy = { member: "releases.lanes_red", state: "bad", value: { n: 2 } } as never;
         expect(headline(m, setBy)).toContain("Set the color:</b> Red lanes on the candidate");

@@ -473,7 +473,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "warn",
             "window": "7d",
             "sla": {
                 "target": {
@@ -489,11 +489,10 @@
             "id": "ci.shards_over",
             "value": {
                 "n": 1
-            },
-            "inTarget": true
+            }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -514,8 +513,7 @@
                 "unit": "min"
             },
             "n": 146,
-            "minN": 10,
-            "inTarget": true
+            "minN": 10
         },
         {
             "state": "ok",
@@ -623,7 +621,7 @@
             }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -642,11 +640,10 @@
             "value": {
                 "n": 2.4,
                 "unit": "h"
-            },
-            "inTarget": true
+            }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -665,11 +662,10 @@
             "value": {
                 "n": 41,
                 "unit": "pct"
-            },
-            "inTarget": true
+            }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -688,11 +684,10 @@
             "value": {
                 "n": 63,
                 "unit": "pct"
-            },
-            "inTarget": true
+            }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -711,11 +706,10 @@
             "value": {
                 "n": 24,
                 "unit": "pct"
-            },
-            "inTarget": true
+            }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -734,11 +728,10 @@
             "value": {
                 "n": 5,
                 "unit": "min"
-            },
-            "inTarget": true
+            }
         },
         {
-            "state": "slow",
+            "state": "ok",
             "window": "7d",
             "sla": {
                 "target": {
@@ -757,8 +750,7 @@
             "value": {
                 "n": 0,
                 "unit": "min"
-            },
-            "inTarget": true
+            }
         }
     ],
     "sections": [

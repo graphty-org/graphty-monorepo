@@ -53,7 +53,7 @@ export type SlaState = "ok" | "warn" | "bad" | "nodata";
  * - `few`: a rate whose last hour holds fewer than its minimum n; out of the rollup.
  * - `partial`: its source covers less than its window; out of the rollup.
  * - `idle`: its activity stopped by design (n=0); out of the rollup.
- * - `slow`: a slow measure, drawn with its own window, never sets a state.
+ * - `slow`: sent by APIs built before 7- and 28-day members were judged; read as out of the rollup.
  * - `info`: informational until it has fired on real data.
  */
 export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "slow" | "info";
@@ -248,13 +248,6 @@ export interface Member {
     cleared?: Iso;
     /** The pull request that fixes this red member waits on the owner (3.1). */
     fixWaitsOwner?: number;
-    /**
-     * A 7- or 28-day member (`slow`) past its target (`warn`) or its red line (`bad`). It never sets the page's
-     * state, but the page shows it as the breach it is; absent from payloads built before it was.
-     */
-    breach?: "warn" | "bad";
-    /** A 7- or 28-day member within its target (no `breach`); absent from payloads built before it was. */
-    inTarget?: boolean;
     /** Where the member is acted on. */
     link: Route;
 }
@@ -278,8 +271,6 @@ export interface CategoryStatus {
     others: MemberRef[];
     /** The headline measure under the block (section 2.3). */
     headline: Member;
-    /** Its 7- and 28-day members past their red line: out of the state, shown under it. */
-    slowPastRed?: MemberRef[];
     /**
      * The member that set the state, as a full row, when it is not the headline: the overview shows it under the
      * block in the headline's place, so the number under a colored block is the one that colored it.

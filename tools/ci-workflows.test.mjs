@@ -5552,9 +5552,12 @@ describe("release.yml", () => {
     it("hands the Pushover secrets only to the steps that announce (tools/release-status.mjs, publish-hold.mjs settle)", () => {
         for (const name of ["release.yml", "release-watch.yml", "release-rerun.yml", "nightly-site.yml"]) {
             const steps = workflow(name).split(/\n(?=\s+- (?:name|uses): )/);
-            // tools/release-rerun.mjs announces a re-run, or the red verdict it files, through release-status.mjs
+            // tools/release-rerun.mjs announces a re-run, or the red verdict it files, through release-status.mjs;
+            // tools/health-dead-man.sh pages when the health dashboard itself has stopped
             const announcing = steps.filter((st) =>
-                /node tools\/(?:release-status\.mjs |publish-hold\.mjs settle |release-rerun\.mjs\n)/.test(st),
+                /node tools\/(?:release-status\.mjs |publish-hold\.mjs settle |release-rerun\.mjs\n)|run: tools\/health-dead-man\.sh\s*$/.test(
+                    st,
+                ),
             );
             assert.ok(announcing.length > 0, name);
             for (const st of steps) {

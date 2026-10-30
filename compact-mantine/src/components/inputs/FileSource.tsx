@@ -43,6 +43,11 @@ export interface FileSourceProps {
     disabled?: boolean;
     /** The address the URL field shows at first, and again whenever this value changes (the address in effect). */
     defaultValue?: string;
+    /**
+     * The text of a button beside the URL field that opens the address typed, as Enter does
+     * (`row` and `drop`). No button when absent.
+     */
+    openLabel?: string;
 }
 
 /**
@@ -95,6 +100,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         placeholder,
         disabled = false,
         defaultValue = "",
+        openLabel,
     } = props;
     const labels = useLabels();
     const root = useRef<HTMLDivElement>(null);
@@ -126,35 +132,59 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
 
     const uploadGlyph = <UiGlyph name="upload" size={16} />;
 
-    const urlField = (rightSection?: React.ReactNode): React.JSX.Element => (
-        <TextInput
-            type="url"
-            value={address}
-            disabled={disabled}
-            placeholder={urlName}
-            aria-label={urlName}
-            error={invalid}
-            className="cm-file-url"
-            rightSection={rightSection}
-            onChange={(event) => {
-                setAddress(event.currentTarget.value);
-                setInvalid(false);
-            }}
-            onKeyDown={(event) => {
-                if (event.key !== "Enter") {
-                    return;
-                }
-                event.preventDefault();
-                const field = event.currentTarget;
-                const value = field.value.trim();
-                if (value === "" || !field.validity.valid) {
-                    setInvalid(value !== "");
-                    return;
-                }
-                onUrl?.(value);
-            }}
-        />
-    );
+    // The typed address goes to onUrl when it is one; anything else marks the field invalid.
+    const submit = (field: HTMLInputElement | null): void => {
+        const value = (field?.value ?? address).trim();
+        if (value === "" || field?.validity.valid === false) {
+            setInvalid(value !== "");
+            return;
+        }
+        onUrl?.(value);
+    };
+    const urlInput = useRef<HTMLInputElement>(null);
+
+    const urlField = (rightSection?: React.ReactNode): React.JSX.Element => {
+        const field = (
+            <TextInput
+                ref={urlInput}
+                type="url"
+                value={address}
+                disabled={disabled}
+                placeholder={urlName}
+                aria-label={urlName}
+                error={invalid}
+                className="cm-file-url"
+                rightSection={rightSection}
+                onChange={(event) => {
+                    setAddress(event.currentTarget.value);
+                    setInvalid(false);
+                }}
+                onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                        return;
+                    }
+                    event.preventDefault();
+                    submit(event.currentTarget);
+                }}
+            />
+        );
+        return openLabel === undefined ? (
+            field
+        ) : (
+            <div className="cm-file-url-row">
+                {field}
+                <Button
+                    variant="default"
+                    disabled={disabled}
+                    onClick={() => {
+                        submit(urlInput.current);
+                    }}
+                >
+                    {openLabel}
+                </Button>
+            </div>
+        );
+    };
 
     // The drop target draws its own large glyph above the button, so the button there has none.
     const chooseButton = (withGlyph: boolean): React.JSX.Element => (

@@ -36,12 +36,18 @@ import { parseArgs } from "node:util";
 
 export const LABEL = "release-status";
 export const TITLE = "Release status";
-/** Where the owner reviews a held candidate's changed screenshots (CLAUDE.md, "Visual review"). Here, not in
- * channel/nightly.mjs: release.yml's held job checks out this file alone. */
+/**
+ * Where the owner reviews a held candidate's changed screenshots (CLAUDE.md, "Visual review"). Here, not in
+ * channel/nightly.mjs: release.yml's held job checks out this file alone.
+ */
 export const REVIEW_PAGE =
     "the review page (servherd `visual-review-v3`, `node visual-review/trusted/cli.mjs serve --candidate next`): the tokenized URL its log prints, plus `&target=master`";
 
-/** Whether a green-images run held its commit for the owner's review (the hold step's action, #5052). */
+/**
+ * Whether a green-images run held its commit for the owner's review (the hold step's action, #5052).
+ * @param f the outcome's fields; hold is the hold step's action
+ * @returns true when it holds a candidate he can review now
+ */
 const heldForReview = (f) => f.hold === "start" || f.hold === "update";
 
 const ref = (issue) => (/^\d+$/.test(issue ?? "") ? `#${issue}` : issue || 'the "Release held" issue');

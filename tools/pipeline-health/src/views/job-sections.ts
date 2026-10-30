@@ -3,7 +3,7 @@
 
 import type { Cell, Fact, Section, TableRow } from "../../web/src/contract.js";
 import { isJob } from "../collector/jobs.js";
-import { readBenches, trend } from "../model/benchmarks.js";
+import { readBenches, sameMachine, trend } from "../model/benchmarks.js";
 import { readSnapshot } from "../model/snapshots.js";
 import { iso, type Reads } from "./members.js";
 import { notCollected } from "./sections.js";
@@ -84,7 +84,7 @@ export async function nonGatingTable(reads: Reads): Promise<Section> {
 
 /**
  * Benchmark trends: each benchmark's newest results, the median of the last 3 against the 10 before them, and its
- * results as a line (one point per run); a sustained regression is marked red, and listed first.
+ * results as a line (one point per run), all from the newest result's machine; a sustained regression is marked red, and listed first.
  * @param reads
  */
 export async function benchmarksTable(reads: Reads): Promise<Section> {
@@ -96,7 +96,8 @@ export async function benchmarksTable(reads: Reads): Promise<Section> {
         kind: "table",
         id: "benchmarks",
         rows: rows.map(({ b, t }) => {
-            const v = b.points.map((p) => p.v);
+            const same = sameMachine(b.points);
+            const v = same.map((p) => p.v);
             const ratio: Cell =
                 t.ratio === undefined ? none : { t: "num", n: Math.round(t.ratio * 100) / 100, unit: "x" };
             return {
@@ -113,7 +114,7 @@ export async function benchmarksTable(reads: Reads): Promise<Section> {
                             breach: v.map(() => null),
                         },
                     },
-                    runs: { t: "num", n: b.points.length },
+                    runs: { t: "num", n: same.length },
                 },
             };
         }),

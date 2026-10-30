@@ -275,6 +275,7 @@ export interface GraphtyElementJSXProps {
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
     features?: Graphty["features"];
     fitInsets?: Graphty["fitInsets"];
+    globeLook?: Graphty["globeLook"];
     historyKeys?: Graphty["historyKeys"];
     labelDeclutter?: Graphty["labelDeclutter"];
     layout?: Graphty["layout"];

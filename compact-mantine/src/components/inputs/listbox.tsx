@@ -10,6 +10,7 @@ import React from "react";
 import { FLOATING_UI_Z_INDEX } from "../../constants/popout";
 import { defaultLabels } from "../../i18n/labels";
 import { UiGlyph } from "../../icons";
+import { TypeAheadRun } from "../../utils/type-ahead-run";
 import { capped, VIEWPORT_CAP_MARGIN, visualBand } from "../overlays/viewportCap";
 
 /** The list's inset: its top padding, and how far it starts before the trigger. */
@@ -479,7 +480,7 @@ export function ensureListboxKeyboard(): void {
     }
     keyboardTracked = true;
     let typed = "";
-    let lastAt = 0;
+    const run = new TypeAheadRun(TYPEAHEAD_RESET_MS);
     let closedTrigger: EventTarget | null = null;
     // The trigger whose last run matched no option: its Enter is used up, writing nothing.
     let missOn: EventTarget | null = null;
@@ -567,19 +568,14 @@ export function ensureListboxKeyboard(): void {
     document.addEventListener("keydown", announceOpened);
     document.addEventListener("click", announceOpened);
 
-    let runOn: EventTarget | null = null;
     /**
-     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field. The
-     * pause runs from when the page took the last letter, not from when it was typed: letters
-     * typed while the page was busy (opening the list, redrawing the panel around it) are one run
-     * however late each is handled.
+     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field
+     * (`TypeAheadRun`: letters typed while the page was busy are one run however late each is
+     * handled).
      * @param event - the key
      */
     const extendRun = (event: KeyboardEvent): void => {
-        const now = event.timeStamp;
-        typed = now - lastAt > TYPEAHEAD_RESET_MS || event.target !== runOn ? event.key : typed + event.key;
-        lastAt = Math.max(now, performance.now());
-        runOn = event.target;
+        typed = run.add(event, event.target);
     };
     /**
      * Highlights the next enabled option whose label starts with the run typed so far.
@@ -600,7 +596,7 @@ export function ensureListboxKeyboard(): void {
                 missOn = null;
                 speak(list, "");
                 walkHighlight(input, list, option);
-                lastAt = performance.now();
+                run.taken();
                 return;
             }
         }
@@ -611,7 +607,7 @@ export function ensureListboxKeyboard(): void {
         speak(list, listNoMatch(typed));
         list.querySelector("[data-combobox-selected]")?.removeAttribute("data-combobox-selected");
         input.removeAttribute("aria-activedescendant");
-        lastAt = performance.now();
+        run.taken();
     };
     const enabledOptions = (list: HTMLElement): HTMLElement[] =>
         [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(

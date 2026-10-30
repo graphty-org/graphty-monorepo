@@ -16,6 +16,7 @@ import { type GraphSession, listAutosaves } from "@graphty/graphty-element/sessi
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
@@ -99,48 +100,15 @@ function mountWorkspace(): { readonly store: WorkspaceStore; readonly view: Retu
 }
 
 /**
- * Waits for the open project's element and its session.
+ * The opened project's element and its session, not the start page's own graph.
  * @returns the element and its session.
  */
-async function openElement(): Promise<{ element: ElementUnderTest; session: GraphSession }> {
-    let found: { element: ElementUnderTest; session: GraphSession } | undefined;
-    await waitFor(
-        () => {
-            const element = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
-            const session: GraphSession | undefined = element?.session;
-            assert.isDefined(session);
-            if (element !== null && session !== undefined) {
-                found = { element, session };
-            }
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    if (found === undefined) {
-        throw new Error("the element never came up");
+function openedElement(): { element: ElementUnderTest; session: GraphSession } {
+    const element = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
+    if (element === null) {
+        throw new Error("no opened element");
     }
-    return found;
-}
-
-/**
- * Opens a sample from the start screen and waits until it is read.
- * @param sample - the sample.
- * @param sample.name - its name.
- * @param sample.nodes - its node count.
- * @returns the element and its session.
- */
-async function openSample(sample: {
-    name: string;
-    nodes: number;
-}): Promise<{ element: ElementUnderTest; session: GraphSession }> {
-    await pickSample(sample.name);
-    const opened = await openElement();
-    await waitFor(
-        () => {
-            assert.equal(opened.session.data.statistics().nodeCount, sample.nodes);
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    return opened;
+    return { element, session: element.session };
 }
 
 /**
@@ -151,15 +119,18 @@ async function openSample(sample: {
  * @returns the entry id autosave wrote.
  */
 async function leave(element: ElementUnderTest, view: ReturnType<typeof render>): Promise<string> {
-    await waitFor(
+    // The chip is drawn on React's next render after the element's status event, so the element's
+    // own status reads "saved" a moment before the chip exists or says so: wait for both.
+    const chip = await waitFor(
         () => {
             assert.strictEqual(element.autosaver.status.state, "saved");
             assert.isNotNull(element.autosaver.status.savedAt);
+            const shown = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
+            assert.strictEqual(shown.textContent, "Autosave: saved");
+            return shown;
         },
         { timeout: TIMEOUT_MS },
     );
-    const chip = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
-    assert.strictEqual(chip.textContent, "Autosave: saved");
     // The chip's words are readable: 4.5:1 or more against what is behind them.
     assert.isAtLeast(textContrast(chip), 4.5);
     const { entry } = element.autosaver.status;
@@ -184,7 +155,8 @@ async function leave(element: ElementUnderTest, view: ReturnType<typeof render>)
  */
 async function renameThenLeave(): Promise<string> {
     const first = mountWorkspace();
-    const { element, session } = await openSample(FLORENTINE);
+    await openBy(first.store, () => pickSample(FLORENTINE.name));
+    const { element, session } = openedElement();
     await userEvent.keyboard("{F2}");
     const field = await screen.findByRole("textbox", { name: "Project name" });
     await userEvent.clear(field);
@@ -262,7 +234,8 @@ describe("Workspace autosave with the real graphty-element", () => {
     // First in the file: the element reports the at-risk fact once per page load.
     it("says nothing about a private window when a fresh session opens the start screen and a sample", async () => {
         const { store, view } = mountWorkspace();
-        const { element } = await openSample(FLORENTINE);
+        await openBy(store, () => pickSample(FLORENTINE.name));
+        const { element } = openedElement();
         await waitFor(
             () => {
                 assert.strictEqual(element.autosaver.status.state, "saved");
@@ -276,7 +249,8 @@ describe("Workspace autosave with the real graphty-element", () => {
 
     it("reopens this tab's work after a reload, at the place and layer the reader left", async () => {
         const first = mountWorkspace();
-        const { element, session } = await openSample(LES_MIS);
+        await openBy(first.store, () => pickSample(LES_MIS.name));
+        const { element, session } = openedElement();
         // The project's name is the element's.
         assert.equal(session.project.name, LES_MIS.name);
 
@@ -300,10 +274,12 @@ describe("Workspace autosave with the real graphty-element", () => {
         });
         watch.observe(document.body, { childList: true, subtree: true });
         const second = mountWorkspace();
-        const reopened = await openElement();
+        // This tab's own work reopens by itself, with no click.
+        await openBy(second.store, () => Promise.resolve());
+        const reopened = openedElement();
+        assert.equal(reopened.session.data.statistics().nodeCount, LES_MIS.nodes);
         await waitFor(
             () => {
-                assert.equal(reopened.session.data.statistics().nodeCount, LES_MIS.nodes);
                 assert.strictEqual(reopened.element.autosaver.status.entry, entry, "this tab writes its own entry");
             },
             { timeout: TIMEOUT_MS },
@@ -336,7 +312,8 @@ describe("Workspace autosave with the real graphty-element", () => {
 
     it("never reopens the work another tab is writing: a duplicated tab starts on the start screen", async () => {
         const first = mountWorkspace();
-        const { element } = await openSample(LES_MIS);
+        await openBy(first.store, () => pickSample(LES_MIS.name));
+        const { element } = openedElement();
         await waitFor(
             () => {
                 assert.isNotNull(element.autosaver.status.savedAt);
@@ -379,7 +356,8 @@ describe("Workspace autosave with the real graphty-element", () => {
 
     it("offers another tab's work with the project's name, and Restore opens it again", async () => {
         const first = mountWorkspace();
-        const { element, session } = await openSample(FLORENTINE);
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        const { element, session } = openedElement();
         // A change never saved to a file, made without renaming: the name is the sample's.
         await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
         const entry = await fromAnotherTab(await leave(element, first.view));
@@ -389,15 +367,10 @@ describe("Workspace autosave with the real graphty-element", () => {
         assert.include(region.textContent, FLORENTINE.name);
         assert.include(region.textContent, `${String(FLORENTINE.nodes)} nodes`);
 
-        await userEvent.click(screen.getByRole("button", { name: "Restore" }));
-        const reopened = await openElement();
-        await waitFor(
-            () => {
-                assert.equal(reopened.session.data.statistics().nodeCount, FLORENTINE.nodes);
-                assert.equal(reopened.session.project.name, FLORENTINE.name);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        const reopened = openedElement();
+        assert.equal(reopened.session.data.statistics().nodeCount, FLORENTINE.nodes);
+        assert.equal(reopened.session.project.name, FLORENTINE.name);
         assert.equal(second.store.get().project?.name, FLORENTINE.name);
         // The toast; the status line speaks the same words (state/store.ts).
         await screen.findByText(/^Restored: /, { selector: ".cm-toast-message" });

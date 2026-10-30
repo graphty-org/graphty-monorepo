@@ -11,12 +11,24 @@ on:
             - "tools/pipeline-health/**"
             - ".github/workflows/pipeline-health.yml"
             - "ci-budgets.json"
+            # files the tests read from the repository (ci.yml's gating jobs, release workflows, the workspace list)
+            - ".github/workflows/ci.yml"
+            - ".github/workflows/release.yml"
+            - ".github/workflows/promote.yml"
+            - ".github/workflows/release-watch.yml"
+            - "pnpm-workspace.yaml"
     push:
         branches: [master]
         paths:
             - "tools/pipeline-health/**"
             - ".github/workflows/pipeline-health.yml"
             - "ci-budgets.json"
+            # files the tests read from the repository (ci.yml's gating jobs, release workflows, the workspace list)
+            - ".github/workflows/ci.yml"
+            - ".github/workflows/release.yml"
+            - ".github/workflows/promote.yml"
+            - ".github/workflows/release-watch.yml"
+            - "pnpm-workspace.yaml"
 
 permissions:
     contents: read

@@ -1,4 +1,11 @@
-export type { BasemapConfig, BasemapSourceId, BasemapStatus, LocationSourceFact, MapFrameFact } from "./Basemap";
+export type {
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
+    GlobeLook,
+    LocationSourceFact,
+    MapFrameFact,
+} from "./Basemap";
 export { Basemap } from "./Basemap";
 export type { AdHocData, ImageData } from "./common";
 export { colorToHex } from "./common";

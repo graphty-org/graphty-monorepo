@@ -120,15 +120,20 @@ true` rather than resuming the old one (see the lessons below).
    anything costly if one fails.
 2. **Prepare** -- waits for a clean branch; the researcher, user advocate and red team review the
    criteria once; the director applies the reviews and **freezes** them; origin/master is merged
-   into the studio branch and a build is frozen and served; every task is piloted three ways (the
-   success path, its commonest detours, and by keyboard), and a pilot that skipped a route is run
-   again; the **dry run** triages what the pilots found against `decided.md` and the
+   into the studio branch and a build is frozen and served; the **scripted dry run** walks every
+   task's success path with no model (`tool/dry-run-pass.mjs`: the app's routes in `graphty/acceptance/`,
+   their outcome checks, and each route's end screen compared with the earlier pass's), one reviewer
+   looks only at the end screens that changed, and a pilot agent walks only what no script covered:
+   a task whose scripted route failed or has none (all three ways), and the detours and keyboard walk
+   of the rest -- first replayed from the earlier pass with no model (`real.mjs --rewalk`), by hand only
+   where they diverged or were never walked; a pilot that skipped a route is run again; the **dry run** triages what the pilots found against `decided.md` and the
    session-ready bar (see the lessons), fixes only crashes, blocked tasks and grading-spoiling
    results, sends everything else to `backlog.md`, re-walks the routes each fix group touched and
-   reverts a group that regresses, lands the pass, freezes a new build, and re-pilots only the
-   success paths and the touched routes -- by replaying the earlier pass's routes with no model
-   (`real.mjs --rewalk`): a task whose every route still matches keeps its earlier result, and a
-   pilot agent walks only the routes that diverged, from where they diverged. It exits as soon as the bar holds, and after
+   reverts a group that regresses, lands the pass, freezes a new build, and re-pilots the same way
+   with only the touched routes beside the scripted success paths: a task whose script passed,
+   whose earlier keyboard walk and detours still match, and that no touched route may belong to keeps
+   that earlier pass's result (with its defects); otherwise a pilot agent walks the routes that
+   diverged or were never walked and carries over the earlier report's findings for the rest. It exits as soon as the bar holds, and after
    `dryRunPasses` (2) fix passes that still leave blockers it stops for the owner with the list.
 3. **Rounds** -- the researcher plans sessions (`real.mjs --brief` writes each participant's
    briefing in a folder outside the studio's files, and a session that read anything else is
@@ -254,6 +259,17 @@ Each rule below exists because breaking it cost a run.
   carries on by hand only from there. Warm browsers make a start about 2 s instead of 7 to 11, and a
   stretch a walker is sure of goes in one `--step` with one screenshot. Participants are never
   replayed: they drive every step.
+- **Script the success paths; agents only look at what changed.** Dry runs and studies took days
+  because agents navigated page by page. Every task's success path is a route in `graphty/acceptance/`
+  (Playwright code driving real clicks and keys on the GPU, checked through graphty-element's API),
+  and the dry run starts with it: all 30 tier 3 task halves run in about a minute with no model. A
+  route that fails, or a task with no route, gets a pilot; a route that passes gets none. Its end
+  screen is compared with the earlier pass's with the drawing and the status bar covered (both
+  change from run to run on one build; the outcome checks read what the drawing shows), and only changed screens go to one reviewer
+  agent. A defect a pilot finds on a success path becomes a route (`graphty/acceptance/README.md`,
+  "Adding a route"). Nothing runs it automatically on a branch: an agent with a long-running
+  branch that touches the app runs `node tools/acceptance.mjs run` itself before landing (only the
+  routes its change can affect; `--all` for every route).
 - **Always `--end` a session, including after a failed attempt.** A stopped agent that never ended
   its session kept its browser slot until the idle timeout.
 - **Step notes are one or two sentences, in character.** Full think-aloud in long, screenshot-heavy
@@ -349,3 +365,18 @@ Each rule below exists because breaking it cost a run.
   a studio agent deleted a pre-push gate's shard log that way and failed a passing gate (#2197). Husky's `.husky/_/h` runs the hook script one folder above itself,
   so the older recipe (copy only `.husky/_`) skipped the secret scan, formatting and commit-message
   checks without a word on every studio commit until 2026-10-08.
+- **Check the framework before escalating to the owner.** Before raising any item "for the owner",
+  check `design/ui/framework` (`glossary.md`, `interaction-patterns.md`, `decided-doors.md`), the
+  approved specs, the tier's `decided.md`, and the owner's own statements in `.claudehistory`. An
+  item those settle is decided by the team, recorded with its citation in `owner-decisions.md`
+  under "decided by the team", and built. Only a true one-way door -- a breaking change to a
+  published API, a departure from compact-mantine's Figma lock -- goes to the owner. On 2026-10-29
+  all nine tier 4 data management questions raised for the owner turned out to be settled by those
+  sources (the glossary already named the filter effects, the owner had already said where a
+  column's type is set), and the study waited on questions that had answers.
+- **A fix is taken back only for a regression its re-walk shows, never for a re-walk that did not
+  finish.** On 2026-10-29 and 30 the tier 4 dry run reverted a correct, decided fix (a Select
+  card's count counting what it marks) twice, only because its targeted re-walk ran out of time or
+  found no free browser slot; no walk showed a regression. The re-walk now lists a route it could
+  not finish as `unwalked: <route>` and still returns ok, and the workflow reverts a fix group only
+  when a finished walk showed a regression or a failed acceptance.

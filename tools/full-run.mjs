@@ -4,7 +4,8 @@
 //
 //   node tools/full-run.mjs pick      which commit to test, or why the slot does nothing
 //       env MODE (full | restart | candidate), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's
-//       OIDC token; writes run, sha, why, good, held and forward to GITHUB_OUTPUT
+//       OIDC token; PICK_RULE "rolling" lets the ordering-only rule choose (early-capture.md 4e; otherwise it is only
+//       logged); writes run, sha, why, good, held, forward, today, rolling_sha and rolling_why to GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
@@ -28,7 +29,8 @@
 // workflow's GITHUB_TOKEN (GITHUB_ACTOR github-actions[bot]: release-due's restart and candidate runs) is never seen by
 // release-rerun.yml, so its attempt 1 decides at once like any later attempt. A lane red on attempt 1 and
 // green on attempt 2, and a story the re-capture found flaky (flaky.json in the final captures), each get one
-// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing.
+// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing; more than FLAKY_GROUP
+// stories of one project at once get one issue for the project (flakyFilings).
 //
 // Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
 // held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
@@ -43,7 +45,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { PUBLISH_HOLD } from "./channel/nightly.mjs";
@@ -63,6 +65,13 @@ export const DEFERRED = "deferred";
  * attempt 1 must decide at once, or a red one files nothing (#4359).
  */
 export const WORKFLOW_TOKEN_ACTOR = "github-actions[bot]";
+/**
+ * The actor that decides whether a run is re-run: a run on channel/full-run (env WATCHED true) is dispatched with
+ * a workflow's GITHUB_TOKEN too, but its last job asks release-rerun.yml itself, so it is re-run like any other.
+ * @param env the environment
+ * @returns GITHUB_ACTOR, or empty for a watched run
+ */
+export const actorOf = (env) => (env.WATCHED === "true" ? "" : env.GITHUB_ACTOR);
 const PASSING_IMAGES = new Set(["unchanged", "excluded"]);
 
 /** The lanes in the order a red names them, each with its reader-facing name and its bisect.yml lane. */
@@ -102,9 +111,12 @@ export const LANES = {
  *     which gives a new candidate; re-testing while the blocker stands pays for the paid lanes for nothing
  * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly (true before it exists); a
  *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
- * @returns `{ run, sha, why, good, inherit, held, forward }`; inherit is the verdict the commit takes over, when it
- *   does; held is the held candidate's head ("" when nothing is held, "unknown" when the store did not answer);
- *   forward is the held commit when the tested head is past it
+ * @param o.rolling the ordering-only rule's inputs for a full slot (`{ on, tree, captures }`, see rollingPick), or
+ *     null; with `on` false the rule's choice is only returned, never tested
+ * @returns `{ run, sha, why, good, inherit, held, forward, today, rolling }`; inherit is the verdict the commit takes
+ *   over, when it does; held is the held candidate's head ("" when nothing is held, "unknown" when the store did not
+ *   answer); forward is the held commit when the tested head is past it; today is what today's rule chose and
+ *   rolling the ordering rule's `{ sha, why }`
  */
 export function pick({
     mode,
@@ -116,6 +128,7 @@ export function pick({
     onNightly = () => true,
     hasNightly = () => true,
     hold = { open: "", closedAt: 0 },
+    rolling = null,
 }) {
     if (!store) {
         return {
@@ -153,18 +166,73 @@ export function pick({
             why: held ? "the held head is judged already" : "nothing is held",
         };
     }
-    const p = pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold });
+    const p = pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold, rolling });
     return { ...p, held };
 }
 
-function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold }) {
+/** The rolling captures' statuses that are a picture nobody approved yet (results-service QUEUE_STATUSES). */
+const UNAPPROVED = new Set(["changed", "new", "unseeded"]);
+
+/**
+ * The ordering-only pick rule (design/visual-testing/early-capture.md 4e): the newest kept-site commit that holds the
+ * newest approval merge (head's visual-baselines tree) and is older than the first commit whose rolling capture shows
+ * a picture not yet approved. It only chooses which commit the slot renders: the full run still renders that commit
+ * whole and its own captures decide the verdict. A rolling capture rendered under another baselines tree is left out,
+ * since an approval merged after it may cover it.
+ * @param o the inputs
+ * @param o.head the commit the run started on
+ * @param o.sites the commits with a kept site
+ * @param o.judged the store's recent verdicts by commit
+ * @param o.firstParents (sha) => that commit and its first parents, newest first
+ * @param o.sameBaselines (from, to) => whether two commits have the same visual-baselines/ tree
+ * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly
+ * @param o.tree head's visual-baselines tree
+ * @param o.captures GET /v1/story-captures' captures (each story's newest), or null when the store did not answer
+ * @returns `{ sha, why }`; sha is "" when the rule has no preference and the slot keeps today's rule
+ */
+export function rollingPick({ head, sites, judged, firstParents, sameBaselines, hasNightly, tree, captures }) {
+    if (!captures) return { sha: "", why: "the store did not answer for the rolling captures" };
+    // a story re-rendered since it changed counts from its first unapproved render (firstUnapprovedSha), not its newest
+    const unapproved = new Set(
+        captures
+            .filter((c) => UNAPPROVED.has(c.status) && c.baselinesTree === tree)
+            .flatMap((c) => [c.sha, c.firstUnapprovedSha ?? c.sha]),
+    );
+    const chain = firstParents(head);
+    // ponytail: the first unapproved commit is the oldest render showing one, not the merge that changed the picture;
+    // a picture changed between a story's last unchanged render and that one is held by the full run, as today
+    const first = chain.findLastIndex((s) => unapproved.has(s));
+    if (first < 0) return { sha: "", why: "no rolling capture shows an unapproved picture" };
+    const x = short(chain[first]);
+    const sha = chain.slice(first + 1).find((s) => sites.has(s) && sameBaselines(s, head)) ?? "";
+    if (!sha) return { sha, why: `no kept-site commit older than ${x} holds the newest approval` };
+    if (judged.has(sha)) return { sha: "", why: `${short(sha)}, older than ${x}, is judged already` };
+    if (!hasNightly(sha)) return { sha: "", why: `${short(sha)}, older than ${x}, is older than nightly` };
+    return { sha, why: `${x} has an unapproved rolling picture, so the newest commit before it` };
+}
+
+function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold, rolling }) {
     // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
     // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
     // older commit's build records its site late)
     const sites = new Set(store.sites ?? []);
     const byOrder = sites.size ? firstParents(head).find((s) => sites.has(s)) : undefined;
-    const sha = mode === "restart" ? head : (byOrder ?? store.candidate?.sha);
-    if (!sha) return { run: true, sha: head, why: "the store records no site yet: testing master's head" };
+    const today = mode === "restart" ? head : (byOrder ?? store.candidate?.sha);
+    if (!today) return { run: true, sha: head, why: "the store records no site yet: testing master's head" };
+    const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
+    const rule =
+        mode === "full" && rolling
+            ? rollingPick({ head, sites, judged, firstParents, sameBaselines, hasNightly, ...rolling })
+            : undefined;
+    const on = { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold };
+    const preferred = rule?.sha && rolling.on ? slotOn(rule.sha, on) : undefined;
+    // a preferred commit that would only inherit a verdict tests nothing: the slot keeps today's rule
+    const p = preferred?.run ? preferred : slotOn(today, on);
+    const why = p.sha === today ? p.why : `ordering: ${rule.why}: ${p.why}`;
+    return { ...p, why, today, rolling: rule };
+}
+
+function slotOn(sha, { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold }) {
     // a promotion's version merge onto a newer master leaves that master's site the newest until the merge's own
     // is recorded: testing it would spend a whole run on a commit nightly cannot move to
     if (!hasNightly(sha)) {
@@ -174,7 +242,6 @@ function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNig
             why: `${short(sha)} lacks channel/nightly: it is older than nightly, nothing to promote`,
         };
     }
-    const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
     const chain = firstParents(sha);
     const good = chain.slice(1).find((s) => GREEN.has(judged.get(s)?.state)) ?? "";
     // ponytail: a cleared hold re-runs the whole suite; a promote-only run from the stored verdict if slots get scarce
@@ -360,13 +427,23 @@ export function changedSummary(changed) {
  */
 export function redIssue({ sha, red, lanes, run, bisect }) {
     const names = red.map((l) => LANES[l].name).join(", ");
+    // the verdict and the early red jobs run only when nobody cancelled the run (!cancelled()), so a lane GitHub
+    // reports as cancelled hit its job time limit (timeout-minutes): a real red, not a cancelled run (#4556)
+    const said = (r) => (r === "cancelled" ? "timed out (cancelled)" : (r ?? "skipped"));
     const results = Object.keys(LANES)
-        .map((l) => `${LANES[l].name} ${lanes[l] ?? "skipped"}`)
+        .map((l) => `${LANES[l].name} ${said(lanes[l])}`)
         .join(", ");
+    const timedOut = red.some((l) => lanes[l] === "cancelled")
+        ? [
+              "",
+              "The run itself was not cancelled (a cancelled run is judged by nobody): a lane GitHub reports as cancelled hit its job time limit, so its tests never finished. Find what made it slow in the job's log.",
+          ]
+        : [];
     const body = [
         `The full run failed on ${sha} (${names}): ${run}`,
         "",
         `Results: ${results}`,
+        ...timedOut,
         "",
         bisect,
         "",
@@ -558,8 +635,16 @@ async function pickMain(env) {
         onNightly,
         hasNightly,
         hold: publishHold(),
+        rolling: env.MODE === "full" && store ? await rollingInputs(cfg, env) : null,
     });
     console.log(`::notice::${p.why}`);
+    if (p.rolling) {
+        const on = env.PICK_RULE === "rolling" ? "on" : "off (shadow)";
+        const chose = p.rolling.sha ? short(p.rolling.sha) : "no preference";
+        const line = `ordering pick rule ${on}: ${chose} (${p.rolling.why}); today's rule: ${short(p.today)}`;
+        console.log(`::notice::${line}`);
+        if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
+    }
     if (p.inherit) {
         await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });
     }
@@ -570,7 +655,19 @@ async function pickMain(env) {
         why: p.why,
         held: p.held ?? "",
         forward: p.forward ?? "",
+        // the trial's comparison (early-capture.md 4e): what today's rule and the ordering rule chose
+        today: p.today ?? "",
+        rolling_sha: p.rolling?.sha ?? "",
+        rolling_why: p.rolling?.why ?? "",
     });
+}
+
+// The ordering rule's inputs: each story's newest rolling capture and head's visual-baselines tree; env PICK_RULE
+// "rolling" (the repository variable FULL_RUN_PICK_RULE) lets the rule choose, anything else only logs its choice
+async function rollingInputs(cfg, env) {
+    const answer = await read(cfg, "/v1/story-captures");
+    const tree = sh("git", ["rev-parse", `${env.HEAD_SHA}:visual-baselines`]);
+    return { on: env.PICK_RULE === "rolling", tree, captures: answer?.captures ?? null };
 }
 
 /**
@@ -711,19 +808,69 @@ function closeRedOnGreen(state, env) {
 }
 
 /**
- * The flaky stories the re-capture listed (flaky.json in each final capture).
+ * The flaky stories the re-capture listed (flaky.json in each final capture), each with the story test its
+ * results.json item names (`test: { file, name }`), when it has one.
  * @param dir the downloaded captures
- * @returns `<project>/<file>: <why>` lines
+ * @returns `{ name: <project>/<file>, why, test }` per story
  */
 export function flakyStories(dir) {
     const out = [];
     for (const f of dir && existsSync(dir) ? readdirSync(dir, { recursive: true }).map(String) : []) {
         const m = /^visual-(.+)-\d+[/\\]flaky\.json$/.exec(f);
         if (!m) continue;
-        for (const s of JSON.parse(readFileSync(join(dir, f), "utf8")))
-            out.push({ name: `${m[1]}/${s.file}`, why: s.why });
+        const results = join(dir, dirname(f), "results.json");
+        const items = existsSync(results) ? (JSON.parse(readFileSync(results, "utf8")).items ?? []) : [];
+        for (const s of JSON.parse(readFileSync(join(dir, f), "utf8"))) {
+            const test = items.find((i) => i.file === s.file)?.test;
+            out.push({ name: `${m[1]}/${s.file}`, why: s.why, test });
+        }
     }
     return out;
+}
+
+/**
+ * A flaky story issue's body. Its "Flaky test: <file> > <story>" line is how the health dashboard's flaky page
+ * (tools/pipeline-health/src/collector/flaky.ts, namesTest) matches the issue to the story test it saw fail.
+ * @param s a flaky story, as flakyStories returns it
+ * @param at where and when it was found
+ * @param tail the closing paragraph
+ * @returns the body
+ */
+export function flakyStoryBody(s, at, tail) {
+    const named = s.test ? `Flaky test: ${s.test.file} > ${s.test.name}\n\n` : "";
+    return `${named}The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
+}
+
+/** More flaky stories than this in one project at once is one cause (#4940), filed as one issue. */
+export const FLAKY_GROUP = 5;
+// GitHub refuses an issue body over 65,536 characters
+const MAX_BODY = 60_000;
+
+/**
+ * What to file for the flaky stories: one issue per story, or one per project when more than FLAKY_GROUP of its
+ * stories flipped at once. A grouped body still names each story test, so the dashboard matches it to them.
+ * @param stories the flaky stories, as flakyStories returns them
+ * @param at where and when they were found
+ * @param tail the closing paragraph
+ * @returns `{ name, body }` per issue
+ */
+export function flakyFilings(stories, at, tail) {
+    const byProject = Map.groupBy(stories, (s) => s.name.split("/")[0]);
+    return [...byProject].flatMap(([project, all]) => {
+        if (all.length <= FLAKY_GROUP) return all.map((s) => ({ name: s.name, body: flakyStoryBody(s, at, tail) }));
+        let list = "";
+        for (const s of all) {
+            const story = s.test ? "Flaky test: " + s.test.file + " > " + s.test.name + " (" + s.name + ")" : s.name;
+            const line = `- ${story}: ${s.why}\n`;
+            if (list.length + line.length > MAX_BODY) {
+                list += "- ... and more (the run's visual-final captures list them all)\n";
+                break;
+            }
+            list += line;
+        }
+        const head = `${all.length} stories of ${project} were found flaky at once ${at}. So many at once is one cause (the renderer, the capture code, the runner), not ${all.length} unstable stories.`;
+        return [{ name: `${project} (${FLAKY_GROUP}+ stories at once)`, body: `${head}\n\n${list}\n${tail}` }];
+    });
 }
 
 // One open "Flaky in full run: <name>" issue per name: a comment when it recurs
@@ -754,11 +901,10 @@ function fileFlakies(env, lanes, stories) {
             () => null,
         );
     }
-    for (const s of stories) {
-        const body = `The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
+    for (const { name, body } of flakyFilings(stories, at, tail)) {
         bestEffort(
-            () => fileFlaky(s.name, body),
-            `filing the flaky story ${s.name}`,
+            () => fileFlaky(name, body),
+            `filing the flaky story ${name}`,
             () => null,
         );
     }
@@ -824,7 +970,7 @@ async function verdictMain(env) {
     const { state, red } = verdictOf(lanes, changed.length, env.LLM_OWNER_ITEM, env.VERSION_HELD);
     // unset (a run by hand): no attempt to wait for, so it decides at once
     const attempt = Number(env.RUN_ATTEMPT || 0);
-    const wait = deferred({ attempt, mode: env.MODE, state, red, lanes, actor: env.GITHUB_ACTOR });
+    const wait = deferred({ attempt, mode: env.MODE, state, red, lanes, actor: actorOf(env) });
     let issue = null;
     let bisect = "";
     const what = whatOf({ state, red, lanes, changed, env });
@@ -910,7 +1056,7 @@ export function fixedRecently(closed, sha, now = Date.now()) {
 }
 
 function laneRedMain(env) {
-    const rerun = RERUN_MODES.has(env.MODE) && env.GITHUB_ACTOR !== WORKFLOW_TOKEN_ACTOR;
+    const rerun = RERUN_MODES.has(env.MODE) && actorOf(env) !== WORKFLOW_TOKEN_ACTOR;
     if ((env.RUN_ATTEMPT || env.GITHUB_RUN_ATTEMPT) === "1" && rerun) {
         console.log(`::notice::attempt 1: the verdict decides after the one same-commit re-run`);
         return;

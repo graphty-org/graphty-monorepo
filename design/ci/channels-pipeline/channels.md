@@ -150,15 +150,15 @@ a T4 hour.
 
 **What it runs, in parallel, on that commit:**
 
-| Lane                                                                | Workflow                                            | Measured                                         |
-| ------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------ |
-| Every test shard and the full screenshot capture                    | `ci.yml` (called, reusing the master build)         | 38 to 48 min today with a 21 to 24 min Build     |
-| NVIDIA T4 GPU tests and benchmarks                                  | `gpu.yml`                                           | 38.8 to 50.7 min, the longest                    |
-| Hosts: Dawn on Metal and WebKit, D3D12 WARP and Chromium            | `hosts.yml` (full scope)                            | 42.4 to 42.6 min on Windows                      |
-| macOS work protection: WebKit, Safari, Safari on iOS                | `work-protection-macos.yml`                         | under 40 min                                     |
-| Production dependency audit                                         | `audit` job, `pnpm audit --prod --audit-level=high` | 1 min                                            |
-| LLM regression (about 190 paid Gemini calls, about $0.94), when due | `llm` job                                           | about 10 min                                     |
-| Version and major-bump dry run                                      | `version-dry-run` job                               | 29 s to 29 min today; budget 5 min after the fix |
+| Lane                                                      | Workflow                                            | Measured                                         |
+| --------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------ |
+| Every test shard and the full screenshot capture          | `ci.yml` (called, reusing the master build)         | 38 to 48 min today with a 21 to 24 min Build     |
+| NVIDIA T4 GPU tests and benchmarks                        | `gpu.yml`                                           | 38.8 to 50.7 min, the longest                    |
+| Hosts: Dawn on Metal and WebKit, D3D12 WARP and Chromium  | `hosts.yml` (full scope)                            | 42.4 to 42.6 min on Windows                      |
+| macOS work protection: WebKit, Safari, Safari on iOS      | `work-protection-macos.yml`                         | under 40 min                                     |
+| Production dependency audit                               | `audit` job, `pnpm audit --prod --audit-level=high` | 1 min                                            |
+| LLM regression (about 190 paid Gemini calls, about $0.94) | `llm` job                                           | about 10 min                                     |
+| Version and major-bump dry run                            | `version-dry-run` job                               | 29 s to 29 min today; budget 5 min after the fix |
 
 **Measured time.** The two real train runs took 64.7 min (39540908824) and 92.8 min (40119894804).
 In the second, `pick`'s "Skip when nothing releasable changed" step (`tools/release-version.sh`, nx
@@ -196,14 +196,14 @@ Every job's queue time is recorded and pull-request queue time in a full-run win
 trend key (`queue:pr:full-window`), so queueing shows as queueing. A restart is a full run too: with
 8 of 17 recent verifications red, plan for about 6 full runs a day.
 
-**LLM regression** runs once per UTC day (implementation plan, item `llm-once-a-day`): the `llm` job
-`needs` the ci.yml lane and runs when it is green (off the critical path, since the T4 lane is
-longer), in the Off configuration only, and its paid step runs only when no run passed it yet that
-UTC day, or on an owner `mode=full` run (`tools/llm-due.mjs`; otherwise the job passes with the step
-skipped). A restart's failing-tests phase and a slot skipped as judged run none. A hosted model can
-change behind the same name with no change here, so the day's later candidates are judged on the
-day's pass; a model change shows up the next day at most. About $29 a month against the owner's
-standing ceiling of about $60; the store keeps a monthly spend counter, and `spend:llm` warns at $60
+**LLM regression** runs in every release test of a candidate (owner, 2026-10-29, #4469): modes
+full (each of the four slots), restart and candidate, and the owner's shadow and legacy runs; never
+promote-nightly, which tests nothing, a pull request or a master push. The `llm` job `needs` the
+ci.yml lane and runs when it is green (off the critical path, since the T4 lane is longer), in the
+Off configuration only. A restart's failing-tests phase and a slot skipped as judged run none. At
+about $0.94 a run and 4 to 6 full runs a day, about $113 to $170 a month, over the owner's
+standing ceiling of about $60 until he sets a new one; `tools/llm-spend.mjs` counts the month's paid
+runs before each one, and `spend:llm` warns at $60
 (main section 9). A red LLM lane: at most 2 confirm runs; a model answer that differs between them is an
 `owner-item` (or flaky, by the usual rule), never bisected blind; a consistent failure bisects only
 over merges that touched graphty-element's AI code, prompts, schemas or the lockfile, with one paid
@@ -430,12 +430,15 @@ promotion moves nothing new.
    `green-images` with an approval, no publish hold is open, and every listed version is on npm.
    Refuse a rollback (a nightly older than production's) whose `autosaveFormat` differs from
    production's (section 10).
-2. Before moving anything: `npm whoami` and the token's package access with `NPM_DIST_TAG_TOKEN`,
-   and `npm dist-tag ls` for every package, so an expired or under-scoped token fails before the first
-   tag moves. The round reminds the owner 14 days before `NPM_DIST_TAG_TOKEN_EXPIRES`.
+2. Before moving anything (a dry run too): for every package the plan moves, exchange the job's OIDC
+   token with npm and re-set the tag to the version it already has (`promote.mjs trust`), a write that
+   moves nothing, so a missing `promote.yml` trusted publisher or an unticked "Allow npm dist-tag" fails
+   before the first tag moves.
 3. For each package whose `latest` differs from `channel.json`, `npm dist-tag add <name>@<version>
-latest`. Trusted publishing covers `npm publish` only, so this needs the granular token, a secret
-   of `production` alone. A failure part way leaves some moved; the re-run moves the rest.
+latest` with npm trusted publishing (OIDC, npm 11.21.0 or later): no stored npm token. Each package has a
+   second trusted publisher, workflow `promote.yml`, environment `production`, "Allow npm dist-tag" on and
+   direct `npm publish` off (npm matches the workflow that starts the run, so release.yml's publisher
+   cannot serve it). A failure part way leaves some moved; the re-run moves the rest.
 4. Overlay production's datasets (section 2), push `deployed.json` to graphty-site with
    `graphty/sites/production.json` read from master's tip (its blob id into `channel.json`), and wait
    for its deploy report (section 3). npm moves first, so the docs describe a version `latest` does not install for at
@@ -463,13 +466,14 @@ reachable from master. End to end about 2 hours: light check 10 to 20 minutes, t
 
 **Rollback of production**: dispatch `promote.yml` with the previous nightly. It moves `latest` back
 and redeploys that tarball; the dataset overlay keeps every dataset. The bad versions are also
-deprecated (`npm deprecate <name>@<version> "<reason>"`, same token), because npm skips a deprecated
+deprecated (`npm deprecate <name>@<version> "<reason>"`, by the owner from his own npm login: trusted
+publishing does not cover deprecate), because npm skips a deprecated
 version when it picks a range's best match, so a consumer resolving past `latest` (another client, an
 explicit range) does not land on it. The real fix ships as the next patch through the hotfix path.
 
 **Rollback of nightly**: usually unnecessary, because the revert and the next green run supersede
-it. Otherwise `promote.yml` with `channel: nightly` moves `next` back behind the same approval (the
-`production` environment holds `NPM_DIST_TAG_TOKEN`), and a following job in environment `nightly`
+it. Otherwise `promote.yml` with `channel: nightly` moves `next` back behind the same approval (only a job in
+environment `production` matches the packages' `promote.yml` trusted publishers), and a following job in environment `nightly`
 redeploys the earlier nightly tarball; `channel-ref` moves `channel/nightly`.
 
 **Rollback of canary**: revert on master.

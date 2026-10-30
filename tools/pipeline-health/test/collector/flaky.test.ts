@@ -96,15 +96,22 @@ const filed = (file: string, name: string, closedAt?: string): IssueText => ({
     ...(closedAt ? { closedAt } : {}),
 });
 
-/** A GitHub whose flaky issue search answers `open` and `closed`, and keeps the queries it was asked. */
+/**
+ * A GitHub whose flaky issue search answers `open` and `closed` in pages of 100, as GitHub does, and keeps each
+ * search it was asked (once, however many pages it read).
+ */
 function searchGitHub(open: IssueText[], closed: IssueText[] = []) {
     const asked: string[] = [];
     const fetch = async (_url: string, init?: RequestInit) => {
-        const { variables } = JSON.parse(String(init?.body)) as { variables: Record<string, string> };
-        asked.push(...Object.values(variables));
-        return new Response(JSON.stringify({ data: { open: { nodes: open }, closed: { nodes: closed } } }), {
-            status: 200,
-        });
+        const { variables } = JSON.parse(String(init?.body)) as { variables: { q: string; after: string | null } };
+        const from = Number(variables.after ?? 0);
+        if (!from) asked.push(variables.q);
+        const all = variables.q.includes("is:open") ? open : closed;
+        const s = {
+            nodes: all.slice(from, from + 100),
+            pageInfo: { hasNextPage: from + 100 < all.length, endCursor: String(from + 100) },
+        };
+        return new Response(JSON.stringify({ data: { s } }), { status: 200 });
     };
     return { gh: new GitHub(async () => "ghs_test", fetch), asked };
 }
@@ -122,11 +129,26 @@ describe("flaky in CI with no open issue", () => {
         const { gh, asked } = searchGitHub([filed("a.test.ts", "named in an issue")]);
         const m = await flakyMembers(store, gh, REPO, [], NOW);
         expect(m["flaky.no_issue"]).toBe(2);
-        // One query: the open flaky issues, and those closed as fixed since the week began.
+        // Two searches: the open flaky issues, and those closed as fixed since the week began.
         expect(asked).toEqual([
             `repo:${REPO} is:issue flaky is:open`,
             `repo:${REPO} is:issue flaky is:closed reason:completed closed:>=${new Date(TODAY - 6 * DAY).toISOString().slice(0, 10)}`,
         ]);
+    });
+
+    it("reads every page of open flaky issues, so an issue past the first 100 still counts", async () => {
+        // 2026-10-30: about 147 "Flaky in full run" issues filed at once pushed #4414 and #4547 off the first page.
+        const store = new MemoryStore();
+        await day(store, TODAY, [["graphty", "LocationMap.real-element.test.tsx", "chooses the map in the Map form"]]);
+        const storm = Array.from({ length: 150 }, (_, i) =>
+            filed(`fidelity-${i}.stories.ts`, "drew a different picture"),
+        );
+        const { gh } = searchGitHub([
+            ...storm,
+            filed("LocationMap.real-element.test.tsx", "chooses the map in the Map form"),
+        ]);
+        const m = await flakyMembers(store, gh, REPO, [], NOW);
+        expect(m["flaky.no_issue"]).toBe(0);
     });
 
     it("is 0 when nothing was flaky, without asking GitHub", async () => {

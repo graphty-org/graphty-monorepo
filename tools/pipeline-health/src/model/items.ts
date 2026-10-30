@@ -97,6 +97,11 @@ export interface JobItem extends RawBase {
     os?: "linux" | "windows" | "macos";
     /** Its run's kind; absent on jobs stored before it was recorded (a backfill adds it). */
     load?: LoadKind;
+    /**
+     * Its run is on a branch other than master (a dispatch on a work branch, a probe, a bisect point): its failures
+     * may be the branch's own, as a pull request's are.
+     */
+    offMaster?: true;
     status: string;
     conclusion?: string;
     /** Ended at its own timeout-minutes, or ran past twice its budget. */
@@ -213,7 +218,7 @@ export interface CostItem extends RawBase {
 
 export interface LocalRunItem extends RawBase {
     kind: "local_run";
-    what: string; // gate | ledger | ...
+    what: string; // gate (a push log line), or a package or shard family (a test slot's hold)
     outcome: string;
     startedAt: number;
     endedAt: number;

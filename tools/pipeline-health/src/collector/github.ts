@@ -3,6 +3,8 @@
 
 import { createSign } from "node:crypto";
 
+import type { GhJob } from "./parse.js";
+
 export interface AppConfig {
     appId: string;
     installationId: string;
@@ -16,14 +18,25 @@ export const APP_PARAMS = {
     privateKey: "/graphty-health/github-app/private-key",
 } as const;
 
-/** Reads the App's three parameters; undefined when any is missing (the App is not set up yet). */
+/**
+ * The release-scheduler App (Actions write), which the slice dispatcher starts story-slices.yml as; the same
+ * parameters the release scheduler's move to AWS (#3608) uses.
+ */
+export const DISPATCH_APP_PARAMS = {
+    appId: "/graphty-health/release-scheduler/app-id",
+    installationId: "/graphty-health/release-scheduler/installation-id",
+    privateKey: "/graphty-health/release-scheduler/private-key",
+} as const;
+
+/** Reads an App's three parameters; undefined when any is missing (the App is not set up yet). */
 export async function readAppConfig(
     getParams: (names: string[]) => Promise<Record<string, string>>,
+    names: { appId: string; installationId: string; privateKey: string } = APP_PARAMS,
 ): Promise<AppConfig | undefined> {
-    const got = await getParams(Object.values(APP_PARAMS));
-    const appId = got[APP_PARAMS.appId];
-    const installationId = got[APP_PARAMS.installationId];
-    const privateKey = got[APP_PARAMS.privateKey];
+    const got = await getParams(Object.values(names));
+    const appId = got[names.appId];
+    const installationId = got[names.installationId];
+    const privateKey = got[names.privateKey];
     return appId && installationId && privateKey ? { appId, installationId, privateKey } : undefined;
 }
 
@@ -46,19 +59,20 @@ const HEADERS = {
     "user-agent": "graphty-health",
 };
 
-let cached: { key: string; token: string; expiresMs: number } | undefined;
+const cached = new Map<string, { token: string; expiresMs: number }>();
 
 /** An installation token, cached in memory until 5 minutes before it expires. */
 export async function installationToken(cfg: AppConfig, f: Fetch, nowMs: number): Promise<string> {
     const key = `${cfg.appId}/${cfg.installationId}`;
-    if (cached && cached.key === key && cached.expiresMs - 5 * 60_000 > nowMs) return cached.token;
+    const hit = cached.get(key);
+    if (hit && hit.expiresMs - 5 * 60_000 > nowMs) return hit.token;
     const res = await f(`${API}/app/installations/${cfg.installationId}/access_tokens`, {
         method: "POST",
         headers: { ...HEADERS, authorization: `Bearer ${appJwt(cfg.appId, cfg.privateKey, nowMs)}` },
     });
     if (!res.ok) throw new Error(`installation token: HTTP ${res.status}`);
     const body = (await res.json()) as { token: string; expires_at: string };
-    cached = { key, token: body.token, expiresMs: Date.parse(body.expires_at) };
+    cached.set(key, { token: body.token, expiresMs: Date.parse(body.expires_at) });
     return body.token;
 }
 
@@ -151,6 +165,12 @@ export class GitHub {
         return (await res.json()) as T;
     }
 
+    /** POST a REST path with a JSON body; throws unless GitHub answers 2xx. */
+    async post(path: string, body: unknown): Promise<void> {
+        const res = await this.send(`${API}/${path}`, { method: "POST", body: JSON.stringify(body) });
+        if (!res.ok) throw new HttpError(res.status, path.split("?")[0]);
+    }
+
     async graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
         const res = await this.send(`${API}/graphql`, { method: "POST", body: JSON.stringify({ query, variables }) });
         if (!res.ok) throw new HttpError(res.status, "graphql");
@@ -159,4 +179,52 @@ export class GitHub {
             throw new Error(`GitHub graphql: ${body.errors?.[0]?.message ?? "no data"}`);
         return body.data;
     }
+}
+
+/**
+ * Job page sizes. GitHub answers 502 every time to a page that holds certain jobs of a large run (run 40476709992,
+ * attempt 2: pages of 100, 50 and 25 fail and pages of 10 pass, 2026-10-29), so such a page is read again as smaller
+ * pages over the same jobs. Each size divides the one before it.
+ */
+const JOB_PAGE_SIZES = [100, 50, 10, 1];
+
+type Rest = <T>(path: string) => Promise<T | undefined>;
+interface JobsPage {
+    total_count: number;
+    jobs: GhJob[];
+}
+
+/** One page of `size` jobs, read as smaller pages when GitHub keeps answering it with a server error. */
+async function jobsPage(rest: Rest, path: string, size: number, page: number): Promise<JobsPage | undefined> {
+    try {
+        return await rest<JobsPage>(`${path}&per_page=${size}&page=${page}`);
+    } catch (e) {
+        const smaller = JOB_PAGE_SIZES[JOB_PAGE_SIZES.indexOf(size) + 1];
+        if (!(e instanceof HttpError) || e.status < 500 || smaller === undefined) throw e;
+        const n = size / smaller;
+        const out: JobsPage = { total_count: 0, jobs: [] };
+        for (let p = (page - 1) * n + 1; p <= page * n; p++) {
+            const r = await jobsPage(rest, path, smaller, p);
+            out.total_count = r?.total_count ?? out.total_count;
+            out.jobs.push(...(r?.jobs ?? []));
+            if (!r || r.jobs.length < smaller) break;
+        }
+        return out;
+    }
+}
+
+/**
+ * Every job of a run or an attempt: `path` is the jobs path with its filter
+ * (`repos/<r>/actions/runs/<id>[/attempts/<n>]/jobs?filter=latest|all`). Throws when a page cannot be read at any size.
+ * @param rest GET of a REST path (GitHub.rest, or the backfill's throttled one)
+ * @param path the jobs path
+ */
+export async function runJobs(rest: Rest, path: string): Promise<GhJob[]> {
+    const jobs: GhJob[] = [];
+    for (let page = 1; page <= 10; page++) {
+        const r = await jobsPage(rest, path, JOB_PAGE_SIZES[0], page);
+        jobs.push(...(r?.jobs ?? []));
+        if (!r || jobs.length >= r.total_count || r.jobs.length < JOB_PAGE_SIZES[0]) break;
+    }
+    return jobs;
 }

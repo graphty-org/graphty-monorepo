@@ -337,7 +337,7 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 | `ci-test-matrix.mjs` | The CI test shards, their commands, groups and measured durations; ci.yml and `run-tests.sh` both read it |
 | `test-select.mjs` | The file-level test selector (design/ci/minimal-tests.md): for a change, per shard all, none or which test files and why, from nx's graph, Vite's import graph and `test-select-rules.json`. A pull request's CI runs by it |
 | `test-changed.mjs` | `pnpm run test:changed [--dry-run] [--base <ref>]`: runs only the tests this worktree's change can affect, as `test-select.mjs` decides, building what they need first |
-| `check-quick.sh` | `pnpm run check:quick [--base <ref>]`: prettier on the changed files, `nx affected -t build lint typecheck`, the selected tests, SonarQube on the changed lines and, when webgpu-graph-algorithms is affected, its tests on the local NVIDIA card. Run it in the background before opening a pull request |
+| `check-quick.sh` | `pnpm run check:quick [--base <ref>] [--with-dry-run]`: prettier on the changed files, `nx affected -t build lint typecheck`, the selected tests, SonarQube on the changed lines and, when webgpu-graph-algorithms is affected, its tests on the local NVIDIA card; `--with-dry-run` also builds the graphty app and runs its dry run (`graphty/acceptance/run.mjs`), for a long-lived branch (see "Shipping a change", step 2). Run it in the background before opening a pull request |
 | `test-quarantine.mjs` | Runs every CI shard: retries failed test files once and quarantines a test that failed and then passed. See "Quarantined tests" |
 | `test-quarantine.json` | The committed quarantine list. Entries come only from the tooling, never by hand |
 | `results/` | The results store's clients: `run-group.mjs` runs one test group and posts its record and each failure to the store (`RESULTS_URL`); `cli.mjs` queries and imports. The store itself is `results-service/` (a Cloudflare Worker with D1) |
@@ -487,7 +487,7 @@ detection reads: a test that failed and then passed on the same inputs is quaran
 
 **Every pull request description names its issue** (`Fixes #N`, `Closes #N`, `Resolves #N`, `Refs #N` or
 `Part of #N`) **or has a line `No issue`.** The `Link PR Issue` check fails it otherwise. `PR Integrity`
-(`pr-integrity.yml`, `.github/CODEOWNERS`) enforces what agents cannot be trusted to keep by themselves: no test
+(`pr-integrity.yml`) enforces what agents cannot be trusted to keep by themselves: no test
 weakened, no unapproved breaking change, no baselines changed without the owner.
 
 **Dependabot opens security updates only** (owner, 2026-10-27): routine version updates are off
@@ -543,7 +543,7 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
   merges since a judged one change only versions or screenshot approvals inherits that verdict
   (`tools/release-diff.mjs`). A store that does not answer makes the slot test master's head.
 - **Lanes**: the full CI suite (every shard and the whole screenshot capture), the T4 GPU lane, Hosts, macOS
-  autosave, the production security audit, the LLM regression tests once a UTC day, and a `Version dry run`
+  autosave, the production security audit, the LLM regression tests (in every full, restart and candidate run), and a `Version dry run`
   that fails when a project would publish a major (below 1.0.0, a minor) or its first version without an entry
   in `release-approvals.json`.
 - **Verdict**, written to the store: `green-clean`, `green-images`, `red` or `owner-item`. A red attempt 1 is
@@ -601,6 +601,10 @@ expires after 2 days (https://docs.npmjs.com/trusted-publishers/):
 2. Then, and not before, create the trusted publisher on `https://www.npmjs.com/package/<name>/access`: GitHub
    Actions, organization `graphty-org`, repository `graphty-monorepo`, workflow `release.yml`, no environment.
 3. Re-run the failed publish job at once: `gh run rerun <run id> --failed`.
+4. Add the package's second trusted publisher, which `promote.yml` uses to move `latest` and `next` with OIDC
+   (no npm token is stored anywhere): Add trusted publisher, GitHub Actions, organization `graphty-org`,
+   repository `graphty-monorepo`, workflow `promote.yml`, environment `production`, "Allow npm dist-tag" ticked,
+   direct `npm publish` not allowed. It never expires unused for long: the next promotion uses it.
 
 ### CI Test Shards
 
@@ -943,7 +947,15 @@ Design: `design/ci/channels-pipeline.md`.
    `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
 2. Before opening it, run what CI would: the affected packages' lint, build and tests
    (`pnpm run check:quick`, or `pnpm run test:changed --base origin/master`, through `tools/low-priority.sh`),
-   and `node tools/sonar-gate.mjs`. Long runs go in the background.
+   and `node tools/sonar-gate.mjs`. Long runs go in the background. A long-lived branch -- open more than about
+   two days, holding more than a day of work, or after a merge of master that brought app or graphty-element
+   changes or needed conflicts resolved, or after a large change on any branch (a refactor of a shared component,
+   a dependency or lockfile upgrade, a change to graphty-element's styling, layout or rendering) -- whose change
+   reaches the graphty app also runs the app's dry run
+   (`graphty/acceptance/`: every route walked in a real browser on this machine's NVIDIA card, about a minute after
+   the build): `pnpm run check:quick --with-dry-run`, or `node graphty/acceptance/run.mjs` after
+   `pnpm exec nx run graphty:build` (faster when the quick check would run whole test shards). Fix every failed route before opening the pull request. Nothing runs it
+   automatically, in CI or in a hook: the branch's owner decides (design/ci/ai-checked-acceptance-tests.md, 10.4).
 3. When the work is finished -- never earlier, because auto-merge merges the first green commit -- write
    a Proof file (the commands you ran and what they showed) under `tmp/<task>/` and run
    `tools/pr-open.sh --proof tmp/<task>/proof.md` (`--refs` for `Refs #N` instead of `Fixes #N`; `--title`

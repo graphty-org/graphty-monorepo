@@ -36,6 +36,12 @@ const SOURCES: Readonly<Record<MapSourceId, Omit<BasemapSourceDescriptor, "id">>
     openstreetmap: { plainName: "OpenStreetMap", kind: "streets", coverage: "world", network: true },
     opentopomap: { plainName: "OpenTopoMap", kind: "terrain", coverage: "world", network: true },
     "nasa-gibs-blue-marble": { plainName: "NASA Blue Marble", kind: "satellite", coverage: "world", network: true },
+    "nasa-gibs-blue-marble-bathymetry": {
+        plainName: "NASA Blue Marble with sea floor",
+        kind: "satellite",
+        coverage: "world",
+        network: true,
+    },
     "eox-s2cloudless-2016": {
         plainName: "Sentinel-2 cloudless 2016",
         kind: "satellite",

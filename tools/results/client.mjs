@@ -18,6 +18,7 @@
 // event is `{ invocation, file, name, status, message }`.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpus } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -165,7 +166,8 @@ export function postFlaky(env, shard, family, flaky) {
 /**
  * Sends one benchmark job's results to the health API (`POST /v1/benchmarks`), through sendHealth(), so the dashboard
  * keeps each benchmark's trend. Like postFlaky(): only HEALTH_API_URL and an OIDC token in GitHub Actions; anything
- * else sends nothing. Never throws.
+ * else sends nothing. Never throws. Names the machine that measured them (this runner's CPU model): hosted runners
+ * land on CPUs about 2x apart, and the dashboard compares a result only with results of the same machine.
  * @param env the environment
  * @param source what measured them ("algorithms", "webgpu-graph-algorithms")
  * @param rows the results `{ name, value }`, milliseconds
@@ -184,6 +186,7 @@ export function postBenchmarks(env, source, rows) {
         source,
         unit: "ms",
         ...(env.GITHUB_SHA ? { sha: env.GITHUB_SHA } : {}),
+        ...(cpus()[0]?.model ? { machine: cpus()[0].model.trim() } : {}),
         rows,
     });
     return true;
@@ -197,14 +200,14 @@ export function flushHealth() {
     return Promise.allSettled([...healthPending]);
 }
 
-// A request that got no HTTP response at all (no answer in time, a network error) is sent again after these
-// waits: a Worker cold start or a network blip must not fail a release job. One that got any response is never
-// sent again. Every write route of the store is idempotent (INSERT OR IGNORE / OR REPLACE on its key, or deduped
+// A request that got no HTTP response at all (no answer in time, a network error) or a 5xx is sent again after
+// these waits: a Worker cold start, a network blip or one failed store answer must not fail a release job (#4183).
+// One that got any other response (2xx, 4xx) is never sent again. Every write route of the store is idempotent (INSERT OR IGNORE / OR REPLACE on its key, or deduped
 // on it), so a write that arrived but whose answer was lost is safe to send again.
 export const RETRY_MS = [1000, 3000];
 
 /**
- * One request to the store, sent again when no answer came (RETRY_MS). Never throws.
+ * One request to the store, sent again when no answer or a 5xx came (RETRY_MS). Never throws.
  * @param cfg config()
  * @param method GET, POST or PUT
  * @param path e.g. `/v1/invocations`
@@ -238,7 +241,7 @@ async function attempt(cfg, method, path, body, ms) {
             body: body === undefined ? undefined : JSON.stringify(body),
             signal: deadline,
         });
-        if (!res.ok) return { answered: true, result: { ok: false, why: `HTTP ${res.status}` } };
+        if (!res.ok) return { answered: res.status < 500, result: { ok: false, why: `HTTP ${res.status}` } };
         const text = await res.text();
         return { answered: true, result: { ok: true, data: text ? JSON.parse(text) : null } };
     } catch (e) {

@@ -56,12 +56,12 @@ import type {
 import type { LossNote } from "../../types.js";
 import { GRAPHVIZ_GLYPH_SHAPES } from "../dot/drawing.js";
 import {
-    graphvizArrowValue,
     graphvizHasNoOutline,
     graphvizOutline,
     graphvizRouteBends,
     PERIPHERY_GAP,
     putGlyph,
+    readEdgeArrow,
     SHAPE_PERIPHERIES,
 } from "../dot/styles.js";
 import { gephiRules } from "../gexf/styles.js";
@@ -816,12 +816,7 @@ function readGv2gmlEdge(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         ["target", g.targetArrow, ends[1]],
         ["source", g.sourceArrow, ends[0]],
     ] as const) {
-        const name = typeof raw === "string" ? raw : "normal";
-        const arrow = on ? graphvizArrowValue(name, at(`${end}Arrow`)) : null;
-        put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
-        if (arrow?.side !== null && arrow?.side !== undefined) {
-            put(`${end}ArrowSide`, arrow.side);
-        }
+        readEdgeArrow(end, typeof raw === "string" ? raw : null, on, put, at);
     }
 }
 

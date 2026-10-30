@@ -178,6 +178,12 @@ export const MEMBER_IDS = [
     "ci.superseded",
     "ci.chronic_jobs",
     "ci.bench_regressions",
+    "ci.screenshot_set_age",
+    "ci.slice_base_budget",
+    "ci.slice_idle_budget",
+    "ci.slice_idle_hour_budget",
+    "ci.slice_contended",
+    "ci.slice_queue_wait",
     "flaky.blocked",
     "flaky.no_issue",
     "flaky.flake_rate",
@@ -189,6 +195,10 @@ export const MEMBER_IDS = [
     "releases.tagged_not_npm",
     "releases.train_first_pass",
     "releases.channels",
+    "releases.review_lag",
+    "releases.slots_unreviewed",
+    "releases.green_clean",
+    "releases.nightly_promotions",
     "costs.spend",
     "costs.t4",
     "costs.llm",
@@ -316,6 +326,31 @@ export interface StatusResponse {
 export interface OverviewResponse extends StatusResponse {
     page: "overview";
     range: Range;
+    /** Canary, Nightly and Production, in that order; absent from payloads built before the channels were. */
+    channels?: ChannelTile[];
+}
+
+/** A release channel: canary.graphty.app, nightly.graphty.app, graphty.app. */
+export type ChannelId = "canary" | "nightly" | "production";
+
+/**
+ * How one release attempt ended: deployed or promoted (`ok`), failed (`bad`), passed but not promoted (`held`, a
+ * nightly candidate waiting for screenshot approval), or cancelled.
+ */
+export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
+
+/** One channel's tile on the overview (#4460): its state, what it serves, and its recent release attempts. */
+export interface ChannelTile {
+    id: ChannelId;
+    /** The newest attempt's outcome (held is `warn`); `nodata` when no attempt is recorded. */
+    state: "ok" | "warn" | "bad" | "nodata";
+    /** The commit the channel serves now; `null` when it is not known. */
+    sha: string | null;
+    /** When the newest successful attempt deployed or promoted; `null` when none is recorded. */
+    at: Iso | null;
+    /** Its recent release attempts, oldest first (at most 14). */
+    attempts: { at: Iso; outcome: ChannelOutcome; run: number; sha?: string }[];
+    link: Route;
 }
 
 /** `GET /v1/page/<page>?range=`: one category page, or Runners or Local runs (section 2.6). */
@@ -433,6 +468,14 @@ export interface JobsSection extends SectionBase {
     start: Iso;
     running: number[];
     queued: number[];
+    /**
+     * Per bucket: the peak running and queued counts, the longest queued job (ms) and the saturated time (ms);
+     * null where the collector wrote nothing. The 7 d runner history (`runners/jobs`) is tuned from these.
+     */
+    runningMax?: (number | null)[];
+    queuedMax?: (number | null)[];
+    longestQueuedMs?: (number | null)[];
+    saturatedMs?: (number | null)[];
     /** The plan's limit, from config (`slas.json`). */
     limit: number;
     /** The observed peak: a label beside the limit, never a threshold. */

@@ -45,7 +45,7 @@ const text = (s) => `Scratch ruleset trial file (#3435), ${s}. Deleted with its 
 export const CASES = [
     {
         id: "owned-waits",
-        what: "an owned path (tools/results/, in .github/CODEOWNERS) with auto-merge on waits for code-owner review",
+        what: "an owned path (tools/results/) with auto-merge on waits for code-owner review (the scratch ruleset only: master has no CODEOWNERS since #4599)",
         title: "test(tools): scratch ruleset trial, owned path",
         files: (s) => ({ [`tools/results/scratch-ruleset-trial-${s}.txt`]: text("owned path") }),
         reviewed: true,

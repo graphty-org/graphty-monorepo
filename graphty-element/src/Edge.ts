@@ -22,6 +22,7 @@ import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
 import type { ArrowCap } from "./meshes/ArrowCapBatch";
+import { type ArrowStackPart, parseArrowStack } from "./meshes/arrowStack";
 import type { EdgeEffectBatch, ShadedEdgeBatch } from "./meshes/EdgeEffectBatch";
 import { gradientPieceColors } from "./meshes/edgeGradient";
 import { EDGE_STATE_BITS } from "./meshes/edgeJoinShader";
@@ -100,9 +101,10 @@ const ARROW_CAPTION_LOCATION: AttachPosition = "top";
 const ARROW_CAPTION_OFFSET = 0.3;
 
 /**
- * How high a raised route rises at its middle when `line.arcHeight` is unset, as a share of its
- * length: a quarter over a flat map, a tenth over a globe, where a long route's quarter would rise
- * higher than the globe is wide.
+ * How high a raised route rises at its middle when `line.arcHeight` is unset, as a share of the
+ * straight distance between its ends: a quarter over a flat map, a tenth over a globe, so a route
+ * to the far side of the world rises a fifth of the radius and thousands of routes do not wrap
+ * the globe in a thick halo.
  */
 const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 
@@ -436,6 +438,12 @@ export class Edge {
 
     /** The cap part-way along this edge's line pointing toward its target (`arrowMiddleHead`), the same way. */
     arrowMiddleHeadCap: ArrowCap | null = null;
+
+    /** The caps drawn in a row behind the head (`arrowHead.stack`), each with the part it draws, nearest first. */
+    private headStack: { cap: ArrowCap; part: ArrowStackPart }[] = [];
+
+    /** The caps drawn in a row behind the tail (`arrowTail.stack`), the same way. */
+    private tailStack: { cap: ArrowCap; part: ArrowStackPart }[] = [];
 
     /** The cap part-way along this edge's line pointing toward its source (`arrowMiddleTail`), the same way. */
     arrowMiddleTailCap: ArrowCap | null = null;
@@ -820,7 +828,9 @@ export class Edge {
     get drawnCaps(): { end: EdgeCapEnd; name: string; span: number; visibility: number }[] {
         const caps: { end: EdgeCapEnd; cap: ArrowCap | null }[] = [
             { end: "arrowHead", cap: this.arrowCap },
+            ...this.headStack.map(({ cap }) => ({ end: "arrowHead" as const, cap })),
             { end: "arrowTail", cap: this.arrowTailCap },
+            ...this.tailStack.map(({ cap }) => ({ end: "arrowTail" as const, cap })),
             { end: "arrowMiddleHead", cap: this.arrowMiddleHeadCap },
             { end: "arrowMiddleTail", cap: this.arrowMiddleTailCap },
         ];
@@ -830,6 +840,22 @@ export class Edge {
                 ? []
                 : [{ end, name: cap.name, span: cap.span, visibility: cap.visibility }],
         );
+    }
+
+    /**
+     * The caps drawn in a row behind this edge's head (`arrowHead.stack`), nearest the head first.
+     * @returns The caps, each a slot in its appearance's batch as the head is.
+     */
+    get arrowHeadStackCaps(): readonly ArrowCap[] {
+        return this.headStack.map(({ cap }) => cap);
+    }
+
+    /**
+     * The caps drawn in a row behind this edge's tail (`arrowTail.stack`), nearest the tail first.
+     * @returns The caps.
+     */
+    get arrowTailStackCaps(): readonly ArrowCap[] {
+        return this.tailStack.map(({ cap }) => cap);
     }
 
     /**
@@ -2020,76 +2046,95 @@ export class Edge {
      *     replaced, so text asking for what was drawn a moment ago must still be built again.
      */
     private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
-        let rebuilt = false;
+        // Every one runs: each brings its own part into line, whatever the others found.
+        const label = this.syncLabel(style, rebuild);
+        const captions = this.syncArrowCaptions(style, rebuild);
+        const bends = this.syncBends(style);
+        const placement = this.syncPlacement(style);
 
-        const wantedLabel = drawnText(style.label);
-        const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
-
-        if (rebuild || labelText !== this.drawnLabelText || !isEqual(wantedLabel, this.drawnLabelStyle)) {
-            this.label?.dispose();
-            this.label = null;
-
-            if (wantedLabel !== undefined) {
-                const { label, offset, attachPosition } = this.createLabel(style);
-                this.label = label;
-                this._labelOffset = offset;
-                this._labelAttachPosition = attachPosition;
-            }
-
-            this.drawnLabelText = labelText;
-            // CLONED rather than held: the block belongs to an `EdgePaint` that
-            // `StylePainter.edgePaint` builds fresh on every call, and a comparison against a
-            // reference somebody else can still write to silently starts passing.
-            this.drawnLabelStyle = wantedLabel === undefined ? undefined : cloneDeep(wantedLabel);
-            rebuilt = true;
-        }
-
-        if (this.syncArrowCaptions(style, rebuild)) {
-            rebuilt = true;
-        }
-
-        if (this.syncBends(style)) {
-            rebuilt = true;
-        }
-
-        // Where a caption sits along the line keys nothing either: a new distance only moves it.
-        const distances = `${String(style.arrowHead?.textDistance)} ${String(style.arrowTail?.textDistance)}`;
-        if (distances !== this.drawnCaptionDistances) {
-            this.drawnCaptionDistances = distances;
-            rebuilt = true;
-        }
-
-        // The fan spacing keys no mesh either: a new one only moves the arc.
-        if (style.line?.fanSpacing !== this.drawnFanSpacing) {
-            this.drawnFanSpacing = style.line?.fanSpacing;
-            rebuilt = true;
-        }
-
-        if (style.line?.fanned !== this.drawnFanned || style.line?.arcRadius !== this.drawnArcRadius) {
-            this.drawnFanned = style.line?.fanned;
-            this.drawnArcRadius = style.line?.arcRadius;
-            rebuilt = true;
-        }
-
-        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)}`;
-        if (route !== this.drawnRoute) {
-            this.drawnRoute = route;
-            rebuilt = true;
-        }
-
-        const gaps = `${String(style.line?.nodeGap)} ${String(style.line?.sourceNodeGap)} ${String(style.line?.targetNodeGap)}`;
-        if (gaps !== this.drawnNodeGap) {
-            this.drawnNodeGap = gaps;
-            rebuilt = true;
-        }
-
-        if (rebuilt) {
+        if (label || captions || bends || placement) {
             this.invalidatePositionCache();
             // Overlapping texts are thinned out with node labels when `labels.declutter` is on.
             if (this.label ?? this.arrowHeadText ?? this.arrowTailText) {
                 LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
             }
         }
+    }
+
+    /**
+     * Bring the edge's label into line with what one resolved style asks for. See
+     * {@link syncContent}.
+     * @param style - The resolved style.
+     * @param rebuild - True when the meshes the label is positioned against have just been replaced.
+     * @returns True when the label was rebuilt.
+     */
+    private syncLabel(style: EdgeStyleConfig, rebuild: boolean): boolean {
+        const wantedLabel = drawnText(style.label);
+        const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
+
+        if (!rebuild && labelText === this.drawnLabelText && isEqual(wantedLabel, this.drawnLabelStyle)) {
+            return false;
+        }
+
+        this.label?.dispose();
+        this.label = null;
+
+        if (wantedLabel !== undefined) {
+            const { label, offset, attachPosition } = this.createLabel(style);
+            this.label = label;
+            this._labelOffset = offset;
+            this._labelAttachPosition = attachPosition;
+        }
+
+        this.drawnLabelText = labelText;
+        // CLONED rather than held: the block belongs to an `EdgePaint` that
+        // `StylePainter.edgePaint` builds fresh on every call, and a comparison against a
+        // reference somebody else can still write to silently starts passing.
+        this.drawnLabelStyle = wantedLabel === undefined ? undefined : cloneDeep(wantedLabel);
+        return true;
+    }
+
+    /**
+     * Record the style values that key no mesh but move what is drawn: the captions' distances
+     * along the line, the fan, the route and the gap at the nodes. See {@link syncContent}.
+     * @param style - The resolved style.
+     * @returns True when any of them changed, so the edge must be placed again.
+     */
+    private syncPlacement(style: EdgeStyleConfig): boolean {
+        let changed = false;
+
+        // Where a caption sits along the line keys nothing either: a new distance only moves it.
+        const distances = `${String(style.arrowHead?.textDistance)} ${String(style.arrowTail?.textDistance)}`;
+        if (distances !== this.drawnCaptionDistances) {
+            this.drawnCaptionDistances = distances;
+            changed = true;
+        }
+
+        // The fan spacing keys no mesh either: a new one only moves the arc.
+        if (style.line?.fanSpacing !== this.drawnFanSpacing) {
+            this.drawnFanSpacing = style.line?.fanSpacing;
+            changed = true;
+        }
+
+        if (style.line?.fanned !== this.drawnFanned || style.line?.arcRadius !== this.drawnArcRadius) {
+            this.drawnFanned = style.line?.fanned;
+            this.drawnArcRadius = style.line?.arcRadius;
+            changed = true;
+        }
+
+        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)}`;
+        if (route !== this.drawnRoute) {
+            this.drawnRoute = route;
+            changed = true;
+        }
+
+        const gaps = `${String(style.line?.nodeGap)} ${String(style.line?.sourceNodeGap)} ${String(style.line?.targetNodeGap)}`;
+        if (gaps !== this.drawnNodeGap) {
+            this.drawnNodeGap = gaps;
+            changed = true;
+        }
+
+        return changed;
     }
 
     /**
@@ -2248,7 +2293,7 @@ export class Edge {
 
         this.arrowTailCap = null;
 
-        for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap]) {
+        for (const cap of [this.arrowMiddleHeadCap, this.arrowMiddleTailCap, ...this.stackCaps()]) {
             if (cap && !cap.isDisposed()) {
                 cap.dispose();
             }
@@ -2256,6 +2301,8 @@ export class Edge {
 
         this.arrowMiddleHeadCap = null;
         this.arrowMiddleTailCap = null;
+        this.headStack = [];
+        this.tailStack = [];
 
         this.label?.dispose();
         this.label = null;
@@ -2379,6 +2426,9 @@ export class Edge {
             this.arrowTailCap?.setDrawn(false);
             this.arrowMiddleHeadCap?.setDrawn(false);
             this.arrowMiddleTailCap?.setDrawn(false);
+            for (const cap of this.stackCaps()) {
+                cap.setDrawn(false);
+            }
         }
 
         for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
@@ -2483,14 +2533,22 @@ export class Edge {
             ]);
         } else if (this.haloBatch) {
             // A band that followed a run (a route, bends) holds a run too: hand back all but its first slot.
-            while (this.haloSlots.length > 1) {
-                const slot = this.haloSlots.pop();
-                if (slot !== undefined) {
-                    this.haloBatch.release(slot);
-                }
-            }
-
+            Edge.releaseRun(this.haloBatch, this.haloSlots);
             this.haloBatch.place(this.haloSlots[0], srcPoint, dstPoint);
+        }
+    }
+
+    /**
+     * Hand back every slot of a run but its first, for a run drawn as one straight segment again.
+     * @param batch - The batch the slots belong to.
+     * @param slots - The run's slots; left holding only the first.
+     */
+    private static releaseRun(batch: EdgeLineBatch, slots: number[]): void {
+        while (slots.length > 1) {
+            const slot = slots.pop();
+            if (slot !== undefined) {
+                batch.release(slot);
+            }
         }
     }
 
@@ -2599,8 +2657,9 @@ export class Edge {
 
     /**
      * The path the edge takes (`line.route`): what its style asks for, else what the active layout's
-     * map draws -- a raised arc over a flat map in 3D, a great circle on a globe, straight to a node
-     * the map could not place -- else straight.
+     * map draws -- a raised arc over a flat map in the 3D view (laid out in 2D or 3D), a great
+     * circle on a globe, straight in the 2D view or to a node the map could not place -- else
+     * straight.
      * @returns The route.
      */
     private get route(): "straight" | "arc" | "great-circle" {
@@ -2613,7 +2672,9 @@ export class Edge {
         const engine = this.context.getLayoutManager().layoutEngine as
             { geoFrame?: LocationMapFrame | null } | undefined;
         const frame = engine?.geoFrame;
-        if (frame === undefined || frame === null || frame.dimensions === 2) {
+        // The view decides, not the layout's shape: a flat map laid out in 2D (Shape 2D) and drawn in
+        // the 3D view still raises its edges in arcs above it.
+        if (frame === undefined || frame === null || this.context.is2D()) {
             return "straight";
         }
 
@@ -2753,7 +2814,8 @@ export class Edge {
     }
 
     /**
-     * What decides how far a line runs on under an end cap: the line's width and the cap's size and breadth.
+     * What decides how far a line runs on under an end cap: the line's width, the cap's size and breadth, and the
+     * caps drawn in a row behind it.
      * @param style - The edge's style
      * @param arrow - The end cap's style
      * @returns The values
@@ -2761,8 +2823,8 @@ export class Edge {
     private static capOf(
         style: EdgeStyleConfig,
         arrow: EdgeStyleConfig["arrowHead"],
-    ): { lineWidth?: number; size?: number; breadth?: number } {
-        return { lineWidth: style.line?.width, size: arrow?.size, breadth: arrow?.width };
+    ): { lineWidth?: number; size?: number; breadth?: number; stack?: string } {
+        return { lineWidth: style.line?.width, size: arrow?.size, breadth: arrow?.width, stack: arrow?.stack };
     }
 
     /**
@@ -2780,7 +2842,12 @@ export class Edge {
         // a 2D cap is drawn at full size (see placeArrowHead)
         const scale = this.arrowCap?.is2D === true ? 1 : (geometry.scaleFactor ?? 1);
         return (
-            Edge.capGap(head) + EdgeMesh.calculateArrowLength() * (head.size ?? 1) * scale * (geometry.lineStop ?? 1)
+            Edge.capGap(head) +
+            EdgeMesh.calculateArrowLength() *
+                (head.size ?? 1) *
+                scale *
+                Edge.capScale(this.dstNode) *
+                (geometry.lineStop ?? 1)
         );
     }
 
@@ -3355,7 +3422,9 @@ export class Edge {
 
         const arrowType = arrowStyle.arrowHead?.type;
         const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const scale = Edge.capScale(this.dstNode);
+        arrowCap.setScale(scale);
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
         const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(arrowStyle, arrowStyle.arrowHead));
 
         // PHASE 4: Override scaleFactor for 2D arrows
@@ -3370,6 +3439,7 @@ export class Edge {
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
 
         arrowCap.place(arrowPosition, direction);
+        Edge.placeStack(this.headStack, arrowStyle.arrowHead, dstPoint, direction);
     }
 
     /**
@@ -3398,7 +3468,9 @@ export class Edge {
         this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
         const style = this.currentStyle;
         const arrowSize = style.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const scale = Edge.capScale(this.dstNode);
+        arrowCap.setScale(scale);
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
 
         // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
         // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
@@ -3432,6 +3504,7 @@ export class Edge {
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
 
         arrowCap.place(arrowPosition, direction);
+        Edge.placeStack(this.headStack, style.arrowHead, dstSurfacePoint, direction);
 
         return {
             srcPoint: srcSurfacePoint,
@@ -3472,7 +3545,9 @@ export class Edge {
 
         // Get tail arrow dimensions and geometry
         const tailSize = tailStyle.arrowTail?.size ?? 1;
-        const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
+        const tailScale = Edge.capScale(this.srcNode);
+        arrowTailCap.setScale(tailScale);
+        const tailLength = EdgeMesh.calculateArrowLength() * tailSize * tailScale;
         const tailGeometry = EdgeMesh.getArrowGeometry(tailType, Edge.capOf(tailStyle, tailStyle.arrowTail));
 
         // PHASE 4: Override scaleFactor for 2D tail arrows
@@ -3486,6 +3561,7 @@ export class Edge {
             const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
             const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
             arrowTailCap.place(EdgeMesh.calculateArrowPosition(tip, toward, tailLength, tailGeometry), toward);
+            Edge.placeStack(this.tailStack, tailStyle.arrowTail, tip, toward);
             return srcPoint;
         }
 
@@ -3505,6 +3581,7 @@ export class Edge {
         const reversedDirection = direction.scale(-1);
 
         arrowTailCap.place(tailPosition, reversedDirection);
+        Edge.placeStack(this.tailStack, tailStyle.arrowTail, srcPoint, tailDirection.scale(-1));
 
         // Adjust line start point to create gap for tail arrow
         return EdgeMesh.calculateLineEndpoint(
@@ -3545,6 +3622,73 @@ export class Edge {
             );
         this.arrowMiddleHeadCap = make(style.arrowMiddleHead, "mid-head");
         this.arrowMiddleTailCap = make(style.arrowMiddleTail, "mid-tail");
+
+        for (const cap of this.stackCaps()) {
+            if (!cap.isDisposed()) {
+                cap.dispose();
+            }
+        }
+        // a row of caps behind an end cap, each part in the end cap's colour and opacity
+        const stack = (
+            arrow: EdgeStyleConfig["arrowHead"],
+            suffix: string,
+        ): { cap: ArrowCap; part: ArrowStackPart }[] =>
+            !arrow?.type || arrow.type === "none" || (arrow.size ?? 1) <= 0
+                ? []
+                : parseArrowStack(arrow.stack).flatMap((part, i) => {
+                      const cap = make(
+                          {
+                              ...arrow,
+                              type: part.type as NonNullable<typeof arrow.type>,
+                              size: part.size ?? arrow.size,
+                              width: part.width,
+                              side: part.side,
+                          },
+                          `${suffix}-${String(i)}`,
+                      );
+                      return cap === null ? [] : [{ cap, part }];
+                  });
+        this.headStack = stack(style.arrowHead, "head-stack");
+        this.tailStack = stack(style.arrowTail, "tail-stack");
+    }
+
+    /**
+     * Every cap drawn in a row behind an end cap, head's then tail's.
+     * @returns The caps.
+     */
+    private stackCaps(): ArrowCap[] {
+        return [...this.headStack, ...this.tailStack].map(({ cap }) => cap);
+    }
+
+    /**
+     * Place the caps drawn in a row behind an end cap: each with its tip where the one before it ends, pointing the
+     * way the end cap points, the first behind the end cap itself.
+     * @param stack - The caps and the parts they draw.
+     * @param arrow - The end cap's style.
+     * @param tip - Where the end cap's tip is.
+     * @param toward - The way the end cap points, a unit vector.
+     */
+    private static placeStack(
+        stack: readonly { cap: ArrowCap; part: ArrowStackPart }[],
+        arrow: EdgeStyleConfig["arrowHead"],
+        tip: Vector3,
+        toward: Vector3,
+    ): void {
+        const size = arrow?.size ?? 1;
+        let back = EdgeMesh.capExtent(arrow?.type ?? "normal", size);
+        for (const { cap, part } of stack) {
+            const partSize = part.size ?? size;
+            const geometry = EdgeMesh.getArrowGeometry(part.type);
+            if (cap.is2D && geometry.scaleFactor !== undefined) {
+                geometry.scaleFactor = 1;
+            }
+            const at = tip.subtract(toward.scale(back));
+            cap.place(
+                EdgeMesh.calculateArrowPosition(at, toward, EdgeMesh.calculateArrowLength() * partSize, geometry),
+                toward,
+            );
+            back += EdgeMesh.capExtent(part.type, partSize);
+        }
     }
 
     /**
@@ -3572,7 +3716,9 @@ export class Edge {
 
             const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
             const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
-            const length = EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1);
+            const scale = Edge.capScale(this.dstNode);
+            cap.setScale(scale);
+            const length = EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1) * scale;
             cap.place(EdgeMesh.calculateArrowPosition(tip, toward, length, geometry), toward);
         }
     }
@@ -3741,7 +3887,7 @@ export class Edge {
         }
 
         const arrowSize = style.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * Edge.capScale(this.dstNode);
         const arrowType = style.arrowHead?.type ?? "normal";
         const geometry = EdgeMesh.getArrowGeometry(arrowType, Edge.capOf(style, style.arrowHead));
 
@@ -3755,6 +3901,18 @@ export class Edge {
         const direction = dstPoint.subtract(srcPoint).normalize();
         const capEnd = dstPoint.subtract(direction.scale(Edge.capGap(style.arrowHead)));
         return EdgeMesh.calculateLineEndpoint(capEnd, direction, arrowLength, geometry);
+    }
+
+    /**
+     * How much larger or smaller than its style's size a cap at a node is drawn: as the node is,
+     * so a node kept one size on screen (a map's `nodeScale: "screen"`) or drawn at one depth's
+     * size keeps its arrowheads in proportion rather than buried under them.
+     * @param node - The node the cap stands on.
+     * @returns The node mesh's scale; 1 when it has none.
+     */
+    private static capScale(node: Node): number {
+        const scale = node.mesh.scaling.x;
+        return Number.isFinite(scale) && scale > 0 ? scale : 1;
     }
 
     /**

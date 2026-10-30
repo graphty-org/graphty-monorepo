@@ -1698,6 +1698,12 @@ export class Node implements ModelUser {
                 edge.invalidatePositionCache();
             }
         }
+
+        // Outside a style pass (a model or picture landing on a frame of its own) nothing else
+        // makes the frame loop visit the edges: it walks them only when a node moved, and this
+        // node did not. Without it the edges kept the ends measured against the placeholder shape
+        // whenever the model landed after the last walk, so one story drew two pictures (#4392).
+        this.context.getUpdateManager?.().forceEdgeWalk();
     }
 
     /**

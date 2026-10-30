@@ -184,6 +184,17 @@ describe("the test matrix", () => {
         assert.equal(own["webgpu-graph-algorithms-node"], undefined);
     });
 
+    // graph-io-storybook's fidelity stories decode the oracles' PNGs, Git LFS objects; a pointer file fails to
+    // decode and every story errors (#4989). The test job pulls a matrix entry's "lfs" (see ci.yml below).
+    it("names the Git LFS files a shard reads, alone, in its group and in a light-check bin", () => {
+        const oracles = "graph-io/test/fidelity/oracles/*.png";
+        assert.equal(SHARDS.find((s) => s.shard === "graph-io-storybook").lfs, oracles);
+        assert.equal(plan(PACKAGES).find((e) => e.shard === "small-browser").lfs, oracles);
+        assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
+        const bin = { name: "graph-io-storybook-1", shard: "graph-io-storybook", command: "true", files: [] };
+        assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
+    });
+
     it("runs every member of a group even after one fails, then fails naming it", () => {
         const fake = (shard, cmd) => ({ shard, package: shard, "test-command": cmd, "needs-browser": false });
         const entry = groupEntry("g", [fake("a", "echo ran-a"), fake("b", "cd / && false"), fake("c", "echo ran-c")]);
@@ -1238,6 +1249,15 @@ describe("every workflow", () => {
 
 describe("ci.yml", () => {
     const ci = workflow("ci.yml");
+
+    it("pulls the Git LFS files a test shard reads before it runs (#4989)", () => {
+        const test = job(ci, "test");
+        assert.match(
+            test,
+            /- name: Fetch the Git LFS files the shard reads\n\s+if: matrix\.lfs\n\s+run: git lfs pull --include "\$\{\{ matrix\.lfs \}\}"\n/,
+        );
+        assert.ok(test.indexOf("Fetch the Git LFS files the shard reads") < test.indexOf("- name: Run tests"));
+    });
 
     it("runs every pull request, a draft too, and still names the merge queue once (#3418)", () => {
         // Pull requests are opened ready (tools/pr-open.sh); there is no draft probe and no draft skip.

@@ -1547,6 +1547,21 @@ jobs:
               if: startsWith(matrix.shard, 'graphty-element-browser')
               run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
+            # The Git LFS files a shard reads (its "lfs" in tools/ci-test-matrix.mjs, a group's members' joined):
+            # graph-io-storybook's fidelity stories draw the oracles' rasterized PNGs, and without this pull the
+            # checkout holds pointer text that fails to decode (#4989). Cached like the story tests' baselines.
+            - name: Restore the Git LFS files the shard reads
+              if: matrix.lfs
+              uses: actions/cache@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-shard-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-shard-
+
+            - name: Fetch the Git LFS files the shard reads
+              if: matrix.lfs
+              run: git lfs pull --include "${{ matrix.lfs }}"
+
             - name: Cache Playwright browsers
               if: matrix.needs-browser
               uses: actions/cache@v6

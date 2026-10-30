@@ -1,7 +1,10 @@
 # Early screenshot capture: rolling slices and idle-time capture
 
-Date: 2026-10-29. Issue #4540. Status: design and plan, revised after three reviews (CI cost, owner rules,
-owner flow); nothing built yet.
+Date: 2026-10-29. Issue #4540. Status (2026-10-29 evening): plan steps 1, 2, 3, 5, 6 and 7 are on master
+(the pick rule switched off); step 4, the review page's rolling target, is in review (#4559) and already
+runs in the owner's review server. The dispatcher runs as a dry run until the owner's AWS parameters exist
+(section 7), so the only slice so far was dispatched by hand. Trial results so far: "Trial status" at the
+end of section 5.
 
 Every story's picture is rendered fresh from master many times a day, in small slices: a fixed small
 slice after green master builds while runners are free, and more slices while GitHub's runners are
@@ -173,7 +176,10 @@ takes `sha` (a master commit whose build is green), `mode` (`base` or `idle`), `
 it.
 
 **The rotation unit** is what `storyBins()` packs: one story file of one project, or one `#k/n` split of a
-heavy file. Its age is the oldest newest-capture of any story in it (never captured counts as oldest).
+heavy file. Its age is when a slice last rendered it whole (never rendered counts as oldest): each bin posts the
+units it rendered, only when its capture finished, so a bin that broke part way leaves its units oldest. A
+story's own newest capture is not used for this, because a story that was deleted keeps its last row and would
+hold its unit's age down for ever.
 
 **What a slice holds** (`tools/channel/story-slices.mjs plan`, run in the slice's first job):
 
@@ -187,8 +193,9 @@ heavy file. Its age is the oldest newest-capture of any story in it (never captu
    whatever changed.
 3. **Packed at a fixed 3-minute limit, never stretched.** `storyBins()` gains an optional
    `{ jobBudget }` (default today's 9; the planner passes `Infinity`), so the limit stays at 3 minutes.
-   The planner takes units in order until their planned time fills `bins` x 3 minutes, groups them by
-   project, and packs each group. A `base` slice is 2 bins, an `idle` slice 6.
+   The planner takes units in order while every project's chosen units still pack into `bins` bins in all
+   (a bin never mixes projects), passing over a unit that would need one more bin and trying the next. A
+   `base` slice is 2 bins, an `idle` slice 6.
 
 Because the order comes from the store's record of what was captured (section 4c), a slice that was
 cancelled, skipped or failed leaves its units oldest, so the next one takes them. Nothing depends on every
@@ -233,14 +240,16 @@ key move as its first part.
 - **Quiet** means: no job queued and `ci.saturated_ms` 0 in each of the last 6 cycles (30 minutes), and
   runner wait over the last hour 5 minutes or less.
 - **Idle slice** when quiet, 10 or fewer jobs running now, and the freshness target is not met: some
-  story's newest capture is older than `SLICE_FRESH_HOURS` (3).
+  unit's newest capture is older than `freshHours` (3).
 - **Base slice** when quiet, 30 or fewer running, and master's newest green build is newer than the last
   sliced commit. With 30 running, a base slice's 3 jobs still leave 27 free.
 - Otherwise nothing. A skipped base slice is not lost: the next quiet cycle slices master's newest green
   commit, and its reach rows cover every merge since the last sliced commit.
 
-**Budgets, each its own share, all repository-tunable** (`SLICE_BASE_DAILY_MIN`, `SLICE_IDLE_DAILY_MIN`,
-`SLICE_IDLE_HOURLY_MIN`, `SLICE_FRESH_HOURS`, `SLICE_IDLE_RUNNING`, `SLICE_BASE_RUNNING`):
+**Budgets, each its own share, all repository-tunable** in `tools/pipeline-health/config/slices.json`
+(`baseDailyMin`, `idleDailyMin`, `idleHourlyMin`, `freshHours`, `idleRunning`, `baseRunning`, `quietMinutes`,
+`maxWaitMinutes`, the per-slice estimates, and `dispatch`, the kill switch; a pull request to that file
+changes them, and the stack redeploys itself from master):
 
 | Share                   | Cap per UTC day | Other limit      | What it buys                                           |
 | ----------------------- | --------------- | ---------------- | ------------------------------------------------------ |
@@ -254,6 +263,42 @@ slices after a busy idle night. The hourly idle limit spreads idle capture. With
 stopped by the freshness target and the caps, not by catching up. Used minutes are summed from GitHub's
 job durations of every `story-slices.yml` run (plan, bins, failed and cancelled ones), which the collector
 reads once per finished slice run (1 to 3 job-list calls).
+
+**As built (plan step 5).** `tools/pipeline-health/src/collector/slices.ts` holds `decideSlice()` and its unit-tested
+table (`test/collector/slices.test.ts`); collect.ts's `slices` part runs it after the runners part every cycle.
+Details the section above leaves open:
+
+- **State.** One cursor, `slices`, keeps the last hour of runner samples (running, queued, saturated, longest
+  wait, one per cycle), two days of finished slice runs with their runner-minutes, and the last dispatch.
+  "Quiet" needs samples covering the whole 30 minutes with no missed cycle (a gap over 7.5 minutes), so a
+  collector that failed a cycle, or just started, is never quiet.
+- **Which share a run is charged to.** `story-slices.yml` names its runs `Story slices: <mode> <sha>`; the
+  collector reads the mode from the run name. A hand dispatch is charged too.
+- **In flight.** A queued or running `story-slices.yml` run, or a dispatch whose run has not shown up yet
+  (for at most 15 minutes).
+- **Base after a failed slice.** A base slice is not dispatched twice for the same commit: a slice that
+  failed posts no rows, so "newer than the last sliced commit" alone would retry the same commit every cycle.
+- **The store is read last**, only when nothing else stops a slice (one `GET /v1/story-captures` per such
+  cycle), with a local token. Freshness is the oldest unit's newest whole capture (`units`), falling back to
+  the oldest story capture. A unit never captured is not in the store, so until the first full rotation the
+  freshness is that of the units captured so far; base slices take never-captured units first anyway.
+- **Credentials, all in SSM (SecureString), all owner items:** the store's URL and token
+  (`/graphty-health/results/url`, `/graphty-health/results/token`), and the release-scheduler App
+  (`/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key`, the names #3608 uses too).
+  Without the store parameters it never dispatches; without the App, or with `dispatch` false, it decides and
+  logs (a dry run: the cycle's log line carries `slice: { action, reason | mode, sha, dispatched }`).
+
+**Replay of real runner data (2026-10-26 to 10-29, before dispatching anything).** The health API's runner
+series (15-minute buckets, each taken as three 5-minute samples at the bucket's maxima) through `decideSlice`,
+with a model store (33 bins, base renders the 2 oldest, idle the 6 oldest, a slice takes 10 minutes, a new
+green build every 19 minutes): 53 slices in 3.9 days, 0 on 10-27 (no quiet half hour all day), at most 614
+runner-minutes on a day (10-29), well under the caps; the oldest capture reached 25 to 46 hours, far from the
+6-hour target. 9 of the 53 started in a bucket followed by queued jobs (the yield cost the trial measures).
+The main reason for so few quiet windows: in 66 of 375 buckets 1 or 2 jobs sat queued while the pool was not
+saturated, 53 of them for over 20 minutes -- jobs that are not waiting for a runner (an environment approval,
+a macOS queue, a ghost the collector does not yet recognise). Both "no job queued" and "wait 5 minutes or
+less" count them. Not changed here: the 7-day series of plan step 1 decides whether "queued" should leave out
+jobs queued while the pool has free runners (recorded as an open question in section 7).
 
 **Yield.** A running job cannot be paused, so the unit of yielding is one slice run: at most 7 jobs of
 about 5 minutes. A pull request push can fan out 71 jobs, more than the whole pool, so a burst can arrive
@@ -287,16 +332,21 @@ None of this touches graphty-agent's 5,000 an hour.
 - **Index.** The results store (`tools/results-service`) gets tables `story_capture` (project, story id
   and mode, commit, the commit's `visual-baselines` tree, run id, attempt, artifact name, status:
   unchanged, changed, new, unseeded, unstable, failed; the hash of the picture and of the baseline it was
-  compared with; the time) and `story_reach` (commit, story unit). Index on (project, story, mode, time).
+  compared with; the time), `story_unit` (project, unit, commit, run id, attempt, time: when a bin rendered a
+  rotation unit whole, migration 0008) and `story_reach` (commit, story unit). Index on (project, story, mode,
+  run id, attempt).
   Pruning keeps the newest row per story plus 7 days, matching the artifact retention (about 25,000 rows a
   day at the cap, about 5 MB, within Workers Paid D1 limits). `POST /v1/story-captures` is written only by
   `story-slices.yml` on master and `POST /v1/story-reach` only by ci.yml on master (OIDC
-  `job_workflow_ref`). `GET /v1/story-captures` answers the newest capture of each story and a summary:
-  the last sliced commit, the oldest newest-capture, and the rolling queue size.
+  `job_workflow_ref`). `GET /v1/story-captures` answers the newest capture of each story, each unit's newest
+  whole render, and a summary: the last sliced commit, the oldest newest-capture, and the rolling queue size.
+  `GET /v1/story-reach?shas=` answers the units the listed commits (at most 100, D1's bound-parameter limit)
+  reach.
 - **Freshness rules.** A picture is always shown with the commit and run it was rendered from. For a
-  story, only its newest capture counts; an older one is never shown once a newer one exists. A rolling
+  story, only its newest capture counts (highest run id, then attempt; never the time it was written, so a late
+  re-run of an older slice cannot hide a newer render); an older one is never shown once a newer one exists. A rolling
   capture is never used to gate, approve or promote anything. The only consumers of these rows are the
-  review page's rolling target, the notifications (4d), the dashboard and the full run's commit ordering
+  review page's rolling target, the notifications (4d), the dispatcher's freshness check (4b), the dashboard and the full run's commit ordering
   (step 7, ordering only, never a verdict). A test fails if any other file under `tools/` reads
   `/v1/story-captures`.
 - **Pull request Story references** (ci.yml's Story references job, #4318, which shows master's newest
@@ -418,6 +468,32 @@ as today. This uses rolling captures only to choose which commit to render, neve
 full run still renders that commit completely and its verdict comes from its own captures. The cost is a
 nightly a few hours older. It is flagged as ordering-only and measured in the trial against today's rule.
 
+How it is built (`rollingPick` in `tools/full-run.mjs`):
+
+- **Switch.** The repository variable `FULL_RUN_PICK_RULE` set to `rolling` lets the rule choose. Unset, the
+  pick still works out the rule's choice and only logs it, so every slot records both choices: a notice line
+  and a step summary line "ordering pick rule on|off (shadow): <sha> (<why>); today's rule: <sha>", and the
+  outputs `today`, `rolling_sha` and `rolling_why`. The trial compares the two from these lines.
+- **Only a full slot.** A restart, a candidate run, a held head and a pick without the store are unchanged.
+- **"Holds the newest approval merge"** is "has head's `visual-baselines` tree".
+- **"Unapproved"** is a story's newest rolling capture with status changed, new or unseeded, rendered under
+  head's baselines tree. A capture rendered under an older tree is left out (an approval merged since may
+  cover it; the next slice renders it again). The "first commit" is the oldest render on master's first
+  parents of such a story since it last rendered unchanged under that tree (the store answers it as
+  `firstUnapprovedSha`), so a story re-rendered since it changed still bounds the rule at its first changed
+  render. That render is not the merge that changed the picture: a picture changed between the story's last
+  unchanged render and its first changed one is held by the full run, as today.
+- **Never idles a slot.** A preferred commit that would only inherit an older verdict (nothing but versions
+  or approval records since a judged commit) would test nothing, so the slot keeps today's rule.
+- **No preference** (today's rule chooses) when no capture is unapproved, when no kept-site commit older than
+  the first one holds head's tree, or when that commit is already judged or older than nightly. So the rule
+  never makes a slot idle: a commit the rule would pick a second time is judged, and the slot tests master's
+  newest instead.
+- **Known limit.** A candidate older than the dispatch commit runs on channel/full-run with its own workflow
+  files (release.yml's hand-off); when those differ from the dispatch commit's, the hand-off tests the
+  dispatch commit instead, as it does today for any older candidate. The rule's choice is then not tested in
+  that slot; the summary line still shows it.
+
 ### 4f. What stays the gate
 
 Unchanged: the full run's complete capture (ci.yml's story tests and release.yml's re-capture) of the exact
@@ -466,6 +542,20 @@ gate step and story-test jobs.
    with a test in `tools/tool-tests.txt` that checks its triggers, permissions, concurrency, the restore-only
    cache, the exact-commit artifact download, and that it never touches `visual-baselines/`. Merges
    dormant: nothing dispatches it yet.
+
+    **As built** (`tools/channel/story-slices.mjs`, its test, and `.github/workflows/story-slices.yml`):
+    `storyBins()` was split into `storyUnitPlans()` (the units and their planned time) and `packStoryBins()`,
+    which the planner reuses. The store gained `story_unit` (migration 0008), `units` on a slice's post and
+    answer, and `GET /v1/story-reach`, because the planner needs a unit's age and a merge's reach and the step 2
+    endpoints answered neither. The replay test runs the rotation over master's 280 recorded units (about 98
+    capture-minutes): at 6 bins a slice the whole set is rendered in 7 slices, and again in the next 7. When the
+    oldest units cannot fit, the planner fills a slice's remaining room with the next-oldest units, so a unit can
+    be rendered twice before a big one is rendered once; the full set still completes each pass. **Reach is
+    all-or-nothing today:** the story selector selects no project by file yet (`selectProjects` in
+    `test-select-rules.json` is empty until `test-select-mutate.mjs --stories` proves one), so every merge's
+    reach row is `<project>:*` for all seven projects and the order is by age alone. Reach starts to order work
+    as projects join `selectProjects`; nothing in the slices has to change for that.
+
 4. **Review page: the rolling target, and the rule change.** `tools/channel/rolling.mjs` (the `rolling`
    command, reading the store); in visual-review: `serve.mjs`'s "master rolling" target with
    render-bound decisions and no hash carry, `accept.mjs`'s rolling branch rule (accept parented on the
@@ -482,14 +572,55 @@ gate step and story-test jobs.
    rule, the separate base and idle budgets, the in-flight check, the slice runner-minutes from GitHub's
    job durations; unit tests for the decision table. Needs the release-scheduler App key in AWS (#3608,
    owner item).
-6. **Dashboard metrics** (the CI page) with SLA targets: freshness of the full set (oldest
-   newest-capture, target under 6 hours); slice runner-minutes a day by share against the caps; slice
-   runner-minutes held while the pool was saturated or any job queued (from the collector's `nextHolders`
-   tracking); queue wait of non-slice jobs that queued while a slice job held a runner; review lag (first
-   rolling capture of a changed picture to its approval merging); share of slots that met an unreviewed
-   change; green-clean rate and nightly promotions per day.
+6. **Dashboard metrics** with SLA targets, built as ten members of the health dashboard
+   (`tools/pipeline-health`, `src/collector/slice-metrics.ts`, `config/slas.json`). Every one is a slow
+   measure: shown with its target and color, never judged into a category's state and never a Pushover
+   alert, so a trial week of busy runners does not page the owner. After the 7-day trial, the set's age
+   may become a judged state.
+
+    | Page     | Member                                 | Value                                                                                                    | Target, red      | Source       |
+    | -------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------- | ------------ |
+    | CI       | Screenshot set age                     | newest value: the oldest of every rotation unit's newest capture                                         | <= 6 h, > 12 h   | story-slices |
+    | CI       | Base / idle slices, share of daily cap | today's (UTC) runner-minutes of the share / its cap in `config/slices.json`                              | <= 100%, > 125%  | collector    |
+    | CI       | Idle slices, share of hourly cap       | idle runner-minutes in the last hour / the hourly cap                                                    | <= 100%, > 125%  | collector    |
+    | CI       | Slice minutes held while contended     | 7-day sum of slice jobs running x cycle minutes, in cycles that were saturated or had another job queued | <= 35 min, > 105 | collector    |
+    | CI       | Queue wait during slices               | 7-day sum of other jobs queued x cycle minutes, in cycles where a slice job ran                          | <= 35 min, > 105 | collector    |
+    | Releases | Screenshot review lag                  | 7-day median, first rolling capture of a changed or new picture to the approval merge that took it in    | <= 6 h, > 24 h   | story-slices |
+    | Releases | Slots meeting an unapproved picture    | green-images / (green-clean + green-images) full-run verdicts, 7 days                                    | <= 25%, > 75%    | release      |
+    | Releases | Green-clean full runs                  | green-clean / every full-run verdict, 7 days (a same-commit re-run replaces)                             | >= 50%, < 25%    | release      |
+    | Releases | Nightly promotions per day             | channel/nightly moving to a new commit, 7-day count / 7                                                  | >= 2, < 1        | collector    |
+
+    How each is measured, and why:
+
+    - **Contention from the collector's own 5-minute cycle**, not from `nextHolders`: each cycle already has
+      every unfinished run's jobs, so it counts slice jobs `in_progress` and other jobs queued in the pool
+      GitHub limits (machine.dev and self-hosted left out). 35 minutes a week is one burst meeting one full
+      slice (7 jobs, 5 minutes), the bound section 4b accepts.
+    - **The store is read every 15 minutes** for the dashboard (and whenever the dispatcher needs it), one
+      `GET /v1/story-captures` (D1 rows on Workers Paid, no GitHub call). A read that succeeds marks the
+      `story-slices` source, so its members stay "not set up" until the owner puts the store's token in SSM.
+    - **Orphan units.** A unit not rendered for 7 days (the store's retention) is treated as gone, which fixes
+      the step 5 review's finding that a renamed story file held the set's age, and so idle slices, forever.
+      The count is written as the observation `slices.units_dropped` (not yet a dashboard row), so a unit that really stopped rendering can be found. The
+      dispatcher's `storeSummary` uses the same rule.
+    - **Review lag** follows each changed picture by its newest capture: it starts at the first newest
+      capture seen as changed or new, and ends when the newest capture is unchanged against another
+      baselines tree, at the newest `visual/approve-*` merge between the two (from the pull requests the
+      collector already reads), or at the capture when none was seen. A picture whose change was reverted
+      (unchanged under the same tree) counts nothing. It measures candidate approvals too, so it compares
+      the two routes.
+    - **Verdicts** come from the health API's `POST /v1/verdicts`, which release.yml's verdict step already
+      sends: each now writes `release.green_clean` and, for a green run, `release.slot_unreviewed`, keyed by
+      commit. A red run says nothing about pictures, so it is left out of the unreviewed share.
+
+    Baseline for the trial comparison (the week before rolling capture, from the 2026-10-29 review in
+    section 1): green-clean 0%, every green run green-images (100%), about 0.4 nightly promotions a day,
+    and about 19 hours of owner review per promotion. Tried on fixtures in the dashboard's dev server (CI
+    and Releases pages draw all ten rows with targets) and on a seeded store (`test/views/views.test.ts`).
+
 7. **Pick rule** (section 4e) in `tools/full-run.mjs pick`, ordering-only, behind a repository variable so
-   the trial can compare it with today's rule.
+   the trial can compare it with today's rule. Built as `FULL_RUN_PICK_RULE=rolling`; unset, it logs its
+   choice beside today's on every slot (section 4e).
 
 **Trial on real CI** (in step order, each recorded in `tmp/early-screenshots/journal.md`):
 
@@ -506,6 +637,21 @@ bins=2 post=false`, then `post=true`. Check: 3 jobs, about 10 runner-minutes fro
    0; slice runner-minutes stay under each cap every day; freshness stays under 6 hours; and against the
    7 days before, review lag, the share of slots meeting an unreviewed change, green-clean rate and
    promotions per day all improve. Then turn on the pick rule (step 7) for 7 more days and compare.
+
+**Trial status (2026-10-29 evening).** Trial 1 passed by hand: run 40982899865, `mode=base bins=2
+post=true` on master 907fab6ed4, 3 jobs and 7.5 runner-minutes (the estimate was 10), 54 of the 280
+rotation units, 387 renders posted to the store (385 unchanged, 2 changed). The slice waited 23 to 30
+minutes in the queue behind pull request work, as a dispatched workflow does; it took nothing ahead of
+it. The `post=false` dry run was skipped. Trial 3, its listing half: the owner's review server lists
+"master rolling: rendered from 907fab6ed4, 2 images" first under "Ready for you", and opens it as its own
+target with baseline and new side by side; the Finish half waits for the owner. Trial 2 and the automatic
+half of trial 1 wait for the owner's two AWS parameters, and the pool was never quiet in the trial window.
+A replay of the quiet rule over the health API's 15-minute runner series (2026-10-26 to 2026-10-30)
+allows an idle slice in 13.3% of buckets, about 3.2 hours a day, and a base slice in 16.7%. Found: since
+the move to the Enterprise plan the health stack's runner limit is 500, and on the evening of 2026-10-29
+only 15 to 30 jobs ran while 150 to 700 waited, so `ci.saturated` read 0 throughout. The quiet rule still
+yields, because it also needs nothing queued, but "slice minutes held while contended" must be read from
+its queued half while jobs wait without the pool being full.
 
 ## 6. Review answers
 
@@ -553,11 +699,19 @@ answered above:
    render, but they are close to option (b). Switch them off for candidates too?
 2. **Freshness target.** 3 hours for idle capture, 6 hours as the dashboard SLA: tighter means more idle
    minutes within the same caps.
+3. **Stuck queued jobs and "quiet".** The replay in 4b found 1 or 2 jobs queued for over 20 minutes while
+   the pool had free runners in 14% of all 15-minute buckets, and each blocks every slice. Leaving out of
+   "queued" a job that waits while fewer than the limit run would roughly double the quiet time; it is a
+   change to what "quiet" means, decided on step 1's 7-day series.
 
 **Owner items (actions only the owner can take, none of them a file agents may not edit):**
 
 - Put the release-scheduler App's private key into AWS for the collector's dispatch (the same move #3608
-  needs). Step 5 cannot dispatch without it.
+  needs), as `/graphty-health/release-scheduler/app-id`, `installation-id` and `private-key`. Step 5 cannot
+  dispatch without it (it runs as a dry run until then).
+- Put the results store's URL and a local token into AWS as `/graphty-health/results/url` and
+  `/graphty-health/results/token` (the token's SHA-256 in the Worker's `LOCAL_TOKEN_HASHES`, beside the
+  existing one). Step 5 decides nothing past "store-unavailable" without them.
 - Step 4 changes files under `visual-review/` and `visual-review.config.json`, which `pr-open.sh` holds
   from auto-merge; by standing practice a session merges it once green. It does not touch `gate.mjs`,
   `approval.mjs` or `passkeys.json`.

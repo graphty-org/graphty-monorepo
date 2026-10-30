@@ -643,6 +643,46 @@ wait`,
         );
     });
 
+    it("serves low-lane waiters in the order they began to wait, however often each one looks", () => {
+        const dir = join(TMP, "low-lane-fifo");
+        mkdirSync(dir, { recursive: true });
+        // A holder keeps slot 4. A and B wait, looking every second; C waits last, looking every 0.02 s. When
+        // the slot frees, A takes it first, then B, then C.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+export BROWSER_SLOT_PRIORITY=low
+"$GATE" sh -c "touch held; while [ ! -e go ]; do sleep 0.05; done" &
+until [ -e held ]; do sleep 0.05; done
+for w in A B; do
+    "$GATE" sh -c "echo $w >> order" 2> $w.err &
+    until grep -q "waiting for one of 4" $w.err 2>/dev/null; do sleep 0.05; done
+done
+BROWSER_SLOT_POLL=0.02 "$GATE" sh -c "echo C >> order" 2> C.err &
+until grep -q "waiting for one of 4" C.err 2>/dev/null; do sleep 0.05; done
+touch go
+wait
+[ "$(tr -d '\\n' < order)" = ABC ] || { echo "order: $(tr '\\n' ' ' < order)"; exit 9; }
+ls -a browser-slots | grep -q '^\\.low-' && { echo "a low ticket was left"; exit 8; }
+exit 0`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    BROWSER_SLOT_POLL: "1",
+                    PIPELINE_WAIT_LOG: "off",
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+    });
+
     it("gives the next free slot to the high lane (BROWSER_SLOT_PRIORITY=high), ahead of a command that waited first", () => {
         const dir = join(TMP, "high-lane");
         mkdirSync(dir, { recursive: true });

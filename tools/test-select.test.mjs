@@ -37,6 +37,7 @@ import {
     selectPackages,
     selectShards,
     selectStories,
+    storiesReaching,
     storyBins,
     STORY_BIN_LIMIT_MS,
     STORY_BIN_MAX_MS,
@@ -528,6 +529,113 @@ describe("the advisory record", () => {
             assert.fail(`report threw: ${e.message}`);
         } finally {
             rmSync(main, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("building a package's import graph through its own build", () => {
+    it("follows a file that imports the package's own build into the source it was built from", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pl/package.json", JSON.stringify({ name: "pl", type: "module", exports: { ".": "./dist/pl.js" } }));
+            put("pl/scripts/build-bundle.js", 'export default { entry: "src/index.ts" };\n');
+            put("pl/src/index.ts", 'export { shell } from "./shell";\n');
+            put("pl/src/shell.ts", "export const shell = 1;\n");
+            put("pl/dist/pl.js", "export const shell = 1;\n");
+            put(
+                "pl/test/a.test.ts",
+                'import { it } from "vitest";\nimport { shell } from "../dist/pl.js";\nit("a", () => shell);\n',
+            );
+            put("pl/vitest.config.mjs", "export default { test: { include: ['test/**/*.test.ts'] } };\n");
+            const out = execFileSync(
+                process.execPath,
+                [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pl"],
+                { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const g = JSON.parse(out.trim().split("\n").at(-1));
+            assert.deepEqual(g.imports["pl/test/a.test.ts"], ["pl/src/index.ts"]);
+            assert.ok(selectInGraph(g, ["pl/src/shell.ts"]).specs.has("pl/test/a.test.ts"));
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("building a package's import graph when its projects transform a file differently", () => {
+    it("keeps each project's edges: a stand-in one project loads does not hide what another imports", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pc/package.json", JSON.stringify({ name: "pc", type: "module" }));
+            put("pc/src/dep.ts", "export const dep = 1;\n");
+            put("pc/src/loader.ts", 'export const load = () => import("./dep");\n');
+            put(
+                "pc/test/a.test.ts",
+                'import { it } from "vitest";\nimport { load } from "../src/loader";\nit("a", () => load());\n',
+            );
+            put(
+                "pc/test/b.spec.ts",
+                'import { it } from "vitest";\nimport { load } from "../src/loader";\nit("b", () => load());\n',
+            );
+            put(
+                "pc/vitest.config.mjs",
+                "const standIn = { name: 'stand-in', enforce: 'pre', transform: (code, id) =>\n" +
+                    "    id.endsWith('/src/loader.ts') ? 'export const load = () => 0;' : undefined };\n" +
+                    "export default { test: { projects: [\n" +
+                    "    { extends: true, plugins: [standIn], test: { name: 'stub', include: ['test/**/*.test.ts'] } },\n" +
+                    "    { extends: true, test: { name: 'real', include: ['test/**/*.spec.ts'] } },\n" +
+                    "] } };\n",
+            );
+            const out = execFileSync(
+                process.execPath,
+                [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pc"],
+                { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const g = JSON.parse(out.trim().split("\n").at(-1));
+            assert.deepEqual(g.imports["pc/src/loader.ts"], ["pc/src/dep.ts"]);
+            assert.ok(selectInGraph(g, ["pc/src/dep.ts"]).specs.has("pc/test/b.spec.ts"));
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("building a package's import graph when its tests load its own build", () => {
+    it("walks the package's own dist/ as the source it was built from", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pd/package.json", JSON.stringify({ name: "pd", type: "module" }));
+            put("pd/src/inner.ts", "export const inner = 1;\n");
+            put("pd/src/index.ts", 'export { inner } from "./inner";\n');
+            put("pd/dist/inner.js", "export const inner = 1;\n");
+            put("pd/dist/inner.js.map", JSON.stringify({ version: 3, sources: ["../src/inner.ts"], mappings: "" }));
+            put("pd/dist/pd.js", 'export { inner } from "./inner.js";\n');
+            put("pd/dist/pd.js.map", JSON.stringify({ version: 3, sources: ["../src/index.ts"], mappings: "" }));
+            put(
+                "pd/test/a.test.ts",
+                'import { it } from "vitest";\nimport { inner } from "../dist/pd.js";\nit("a", () => inner);\n',
+            );
+            put("pd/vitest.config.mjs", "export default { test: { include: ['test/**/*.test.ts'] } };\n");
+            const out = execFileSync(
+                process.execPath,
+                [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pd"],
+                { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const g = JSON.parse(out.trim().split("\n").at(-1));
+            assert.ok(selectInGraph(g, ["pd/src/inner.ts"]).specs.has("pd/test/a.test.ts"));
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
         }
     });
 });
@@ -1349,11 +1457,11 @@ describe("visual-review files only the story setups load", () => {
 
     it("a story-test-setup.mjs change runs only visual-review and the shards that run the story setup", () => {
         const picked = run(["visual-review/capture/story-test-setup.mjs"]);
-        const story = SHARDS.filter((s) => /^graphty(-element)?-storybook/u.test(s.shard)).map((s) => s.shard);
+        const story = SHARDS.filter((s) => /^(graphty(-element)?|layout)-storybook/u.test(s.shard)).map((s) => s.shard);
         const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
         // algorithms-browser and layout gate ci.yml's story-tests job for those two projects
         assert.deepEqual([...picked].sort(), [...own, ...story, "algorithms-browser", "layout"].sort());
-        assert.ok(story.length === 6, story.join(", "));
+        assert.ok(story.length === 7, story.join(", "));
     });
 
     it("a dependent without an import graph still runs whole on a change to visual-review's other code", () => {
@@ -1550,7 +1658,10 @@ describe("workflow and lockfile changes (design/ci/channels-pipeline/merging.md 
     });
 
     it("a lockfile change runs the packages whose importers changed and their dependents", () => {
-        assert.deepEqual(run(["pnpm-lock.yaml"], ["layout"]), { everything: null, shards: ["layout"] });
+        assert.deepEqual(run(["pnpm-lock.yaml"], ["layout"]), {
+            everything: null,
+            shards: ["layout", "layout-storybook"],
+        });
         const fmt = run(["pnpm-lock.yaml"], ["graph-format"]).shards;
         for (const sh of ["graph-format", "graph-io", "algorithms-default", "layout"]) {
             assert.ok(fmt.includes(sh), `${sh} in ${fmt.join(", ")}`);
@@ -2007,6 +2118,26 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         );
     });
 
+    it("selects a proven project's stories through its package graph when no shard runs its stories as tests", () => {
+        const play = "compact-mantine/tests/stories/play.storybook.test.tsx";
+        const [a, b] = ["compact-mantine/stories/A.stories.tsx", "compact-mantine/stories/B.stories.tsx"];
+        const graph = {
+            imports: { [play]: [a, b], [a]: ["compact-mantine/src/X.tsx"], [b]: [], "compact-mantine/src/X.tsx": [] },
+            projects: { storybook: { specs: [play], setup: [] } },
+        };
+        const graphs = new Map([["compact-mantine", [graph]]]);
+        const rules = { ...stories, selectProjects: ["compact-mantine"] };
+        const withCm = [...shards, byName("compact-mantine")];
+        const cm = [...none, sel("compact-mantine", "files", [play])];
+        const run = (changed, selection = cm) =>
+            pick(selection, changed, { rules, graphs, shards: withCm })["compact-mantine"];
+        assert.deepEqual(run(["compact-mantine/src/X.tsx"]).files, [a]);
+        assert.deepEqual(run([b]).files, [b]);
+        assert.equal(run(["compact-mantine/src/unknown.css"]).mode, "all", "a file no graph knows");
+        assert.equal(run(["compact-mantine/src/X.tsx"], [...none, sel("compact-mantine", "all")]).mode, "all");
+        assert.equal(storiesReaching("compact-mantine", ["graphty/src/X.tsx"], [graph]), null, "outside the package");
+    });
+
     it("runs no story for a change only to CI and tool files no story reads, proven project or not", () => {
         const unproven = { ...stories, selectProjects: [] };
         const ciOnly = [".github/workflows/release.yml", "tools/ci-workflows.test.mjs"];
@@ -2301,15 +2432,15 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
 
     it("counts a file with no longer recorded time at its stories times its project's capture rate", () => {
         const files = Array.from({ length: 5 }, (_, i) => `graph-io/fidelity-stories/F${i}.stories.ts`);
-        const perFile = 30 * STORY_MS["graph-io-fidelity"];
+        const perFile = 13 * STORY_MS["graph-io-fidelity"];
         const bins = storyBins(
             [entry("graph-io-fidelity", "files", files)],
             projects,
             list,
             { "graph-io-storybook": { [files[0]]: 1_000 } },
-            () => 30,
+            () => 13,
         );
-        // 30 stories a file: two files fit in a bin, a third starts the next one
+        // 13 stories a file: two files fit in a bin, a third starts the next one
         assert.ok(2 * perFile <= STORY_BIN_LIMIT_MS && 3 * perFile > STORY_BIN_LIMIT_MS);
         assert.deepEqual(
             bins.map((b) => [b.name, b.files.length, b.ms]),
@@ -2358,7 +2489,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("packs a change's stories into at most the job budget, growing every bin's limit only as needed (#3448)", () => {
-        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 700 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins(
             [
                 entry("graph-io-fidelity", "all", [], ids),
@@ -2368,7 +2499,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             projects,
             list,
         );
-        assert.ok(1200 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
+        assert.ok(700 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
         assert.ok(bins.length <= STORY_JOB_BUDGET, `${bins.length} bins`);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_MAX_MS, `${b.name} planned at ${b.ms} ms`);
         assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids, "a--one"].sort());
@@ -2378,8 +2509,19 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
         ]);
     });
 
+    it("never stretches a bin past 3 minutes with jobBudget Infinity (the rolling slices, early-capture.md 4a)", () => {
+        const ids = Array.from({ length: 700 }, (_, i) => `gexf-specimens--s${i}`);
+        const stories = [entry("graph-io-fidelity", "all", [], ids), entry("layout", "all")];
+        const bins = storyBins(stories, projects, list, {}, () => 1, { jobBudget: Infinity });
+        assert.ok(bins.length > STORY_JOB_BUDGET, `${bins.length} bins`);
+        for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
+        assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids].sort());
+        // the default budget still stretches the same stories into 9 jobs
+        assert.ok(storyBins(stories, projects, list).length <= STORY_JOB_BUDGET);
+    });
+
     it("spreads many changed baselines over bins within the limit, each id once (#4401)", () => {
-        const ids = Array.from({ length: 300 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 200 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins([entry("graph-io-fidelity", "all", [], ids)], projects, list);
         assert.ok(bins.length > 1);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);

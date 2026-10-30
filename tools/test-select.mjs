@@ -1582,9 +1582,11 @@ function storiesGlobal(project, dir, changed, rules, lockMoved) {
  * @param pkg the package that holds its stories
  * @param shards `[{ shard: SHARDS entry, sel: selectShards() entry }]`
  * @param drawnBy packages whose selection runs the project whole when it has no story graph
+ * @param reach storiesReaching() for the project's package: its stories when its shard runs no storybook project
+ *   (compact-mantine's play test imports every story file), or null
  * @returns `{ mode, files, reasons }`
  */
-function storiesFromTests(project, pkg, shards, drawnBy) {
+function storiesFromTests(project, pkg, shards, drawnBy, reach = null) {
     const own = shards.filter((s) => s.shard.package === pkg && storyShard(s.shard));
     if (own.length > 0) {
         const all = own.find((s) => s.sel.mode === "all");
@@ -1596,6 +1598,9 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
     }
     // ponytail: no story graph for these projects yet, so any selected package that draws them runs all of them
     const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
+    if (reach && hit && shards.every((s) => !drawnBy.includes(s.shard.package) || s.sel.mode !== "all")) {
+        return { mode: reach.length > 0 ? "files" : "none", files: reach, reasons: [] };
+    }
     return hit
         ? { mode: "all", files: [], reasons: [`${hit.shard.package} is selected and ${project} has no story graph`] }
         : { mode: "none", files: [], reasons: [] };
@@ -1659,12 +1664,13 @@ function unprovenStories(project, shards, drawnBy, deps, drawable, packages) {
  * @param input.selection selectShards() for them
  * @param input.rules loadRules(root).stories
  * @param input.lockMoved lockMoves() for the change (false when the lockfile did not change)
+ * @param input.graphs import graphs by package directory (selectChange().graphs), optional: storiesReaching()
  * @param input.deps nx's dependencies by package directory (selectChange().deps), which an unproven project's drawnBy
  *   packages bring in
  * @returns `[{ project, mode: "all"|"files"|"none", files, baselines, reasons }]`; baselines are the story ids
  *   whose baseline image changed, which run whatever the mode
  */
-export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved, deps }) {
+export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved, deps, graphs }) {
     const paired = shards.map((shard) => ({ shard, sel: selection.find((s) => s.shard === shard.shard) }));
     const known = paired.filter((p) => p.sel);
     // CI, tool, design and docs files no story reads (test-select-rules stories.storyless); a test that names one selects its
@@ -1690,7 +1696,7 @@ export function selectStories({ projects, changed, everything, shards, selection
         } else if (!global) {
             const drawnBy = rules.drawnBy[project] ?? [pkg];
             sel = rules.selectProjects.includes(project)
-                ? storiesFromTests(project, pkg, known, drawnBy)
+                ? storiesFromTests(project, pkg, known, drawnBy, storiesReaching(dir, drawable, graphs?.get(pkg)))
                 : unprovenStories(project, known, drawnBy, withDeps(drawnBy, deps), drawable, packages);
         }
         return { project, ...sel, baselines };
@@ -1698,6 +1704,26 @@ export function selectStories({ projects, changed, everything, shards, selection
 }
 
 const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
+
+/**
+ * The story files of a package that import a changed file, through its tests' import graphs (a test that globs
+ * the story files makes them graph nodes), or null when that cannot be told: no usable graph, or a changed file
+ * outside the package or unknown to every graph (a file read at run time, an asset).
+ * @param dir the package directory
+ * @param changed the changed paths that a story may read
+ * @param gs the package's graphs (buildGraphs()), optional
+ * @returns sorted story files, or null
+ */
+export function storiesReaching(dir, changed, gs) {
+    const g = usable(gs);
+    if (!g || changed.length === 0 || changed.some((f) => !f.startsWith(`${dir}/`) || !g.some((x) => knows(x, f)))) {
+        return null;
+    }
+    const files = new Set(
+        g.flatMap((x) => [...reaching(changed, reverse(x.imports))]).filter((f) => STORY_FILE.test(f)),
+    );
+    return [...files].sort();
+}
 
 /**
  * The longest a light-check Stories bin's capture is planned to take: the job's setup (about 1.5 min) comes on
@@ -1725,9 +1751,13 @@ export const STORY_BIN_MAX_MS = 12 * 60_000;
  */
 // ponytail: one rate per project; graphty's workspace stories take about twice its average, so record capture time per story in the results store if bins drift from 4 min
 export const STORY_MS = {
-    // its Specimens files; its Samples files are in STORY_FILE_MS (11 PR runs of 2026-10-27, 40573748841 to
-    // 40602189710: 132 bins fitted at 2.75 s a Specimens story, 6.2 s a Samples story)
-    "graph-io-fidelity": 2_800,
+    // its Specimens files; its Samples files are in STORY_FILE_MS. Fitted at 2.75 s a Specimens story and 6.2 s a
+    // Samples story (11 PR runs of 2026-10-27) while its pictures matched their baselines; now that they differ,
+    // each changed picture is shot twice (capture.mjs needsSecondShot: the reference, master's story-test capture,
+    // never matches the built-Storybook capture byte for byte), and PR run 41005977433 (#4559, Stories
+    // (graph-io-fidelity-1), both attempts) captured cx2 and cys Specimens at 6.1 to 6.5 s a story, graphology
+    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639)
+    "graph-io-fidelity": 6_500,
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
@@ -1754,18 +1784,19 @@ export const STORY_FILE_MS = {
     "graphty/src/workspace/frame/Frame.stories.tsx": 11_500,
     "graphty/src/workspace/style/StylePanel.stories.tsx": 11_500,
     // graph-io-fidelity's Samples files draw real datasets, about twice its Specimens stories (fit above, at
-    // STORY_MS); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
-    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 6_200,
+    // STORY_MS), and are shot twice while they differ from their baselines: 12.4 s, gexf's measured rate in PR run
+    // 41005977433 (#4639); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
+    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 12_400,
     "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
     // PR run 40891650568 (2026-10-29): Stories (graph-io-fidelity-4) captured 46 dot Specimens stories and 8 gexf
     // Samples ones in 361 s and Stories (graph-io-fidelity-9) 41 xgmml Specimens and 9 cytoscapejs Samples in 370 s,
@@ -1774,8 +1805,8 @@ export const STORY_FILE_MS = {
     // gexf's Specimens, measured in the same runs at 4.1 s a story
     "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 4_100,
     "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 7_700,
-    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 12_400,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;
@@ -1808,19 +1839,17 @@ function storyUnits(file, count, recordedMs, rate) {
 }
 
 /**
- * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
- * files packed into bins of at most STORY_BIN_LIMIT_MS (more when that makes over STORY_JOB_BUDGET bins), a file counted at the longer of its recorded time and its
- * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
- * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
- * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
+ * Each project's story binning units and their planned ms, before packing: every story file of a project selected
+ * whole, else its selected files, a file longer than a bin split into `<file>#<k>/<n>` parts, and a changed
+ * baseline's story id as `id:<id>`. The rolling slices (tools/channel/story-slices.mjs) order these units.
  * @param stories selectStories()
  * @param projects visual-review.config.json `projects`
  * @param listFiles (dir) => the repository paths under dir
  * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
  * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
- * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
+ * @returns `[{ project, storybook, unitMs }]`, unitMs a Map(unit -> ms)
  */
-export function storyBins(stories, projects, listFiles, durations = {}, storiesIn = () => 1) {
+export function storyUnitPlans(stories, projects, listFiles, durations = {}, storiesIn = () => 1) {
     const plans = [];
     for (const s of stories) {
         const { storybook } = projects[s.project];
@@ -1838,16 +1867,18 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
         for (const id of s.baselines) unitMs.set(`id:${id}`, rate);
         plans.push({ project: s.project, storybook, unitMs });
     }
-    const pack = (limit) => plans.map((p) => packBins([...p.unitMs.keys()], p.unitMs, limit, 0));
-    // one limit for every project, the smallest that fits the job budget, so no job is longer than it must be
-    let limit = STORY_BIN_LIMIT_MS;
-    let packed = pack(limit);
-    while (packed.flat().length > STORY_JOB_BUDGET && limit < STORY_BIN_MAX_MS) {
-        limit += 30_000;
-        packed = pack(limit);
-    }
-    return plans.flatMap((p, k) =>
-        packed[k].map((bin, i) => ({
+    return plans;
+}
+
+/**
+ * Story binning units packed into bins of at most `limitMs`, named `<project>-<n>`.
+ * @param plans storyUnitPlans() (or a subset of their units)
+ * @param [limitMs] the most one bin may hold
+ * @returns `[{ name, project, storybook, files, ids, ms }]`
+ */
+export function packStoryBins(plans, limitMs = STORY_BIN_LIMIT_MS) {
+    return plans.flatMap((p) =>
+        packBins([...p.unitMs.keys()], p.unitMs, limitMs, 0).map((bin, i) => ({
             name: `${p.project}-${i + 1}`,
             project: p.project,
             storybook: p.storybook,
@@ -1856,6 +1887,41 @@ export function storyBins(stories, projects, listFiles, durations = {}, storiesI
             ms: bin.ms,
         })),
     );
+}
+
+/**
+ * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
+ * files packed into bins of at most STORY_BIN_LIMIT_MS (more when that makes over `jobBudget` bins), a file counted at the longer of its recorded time and its
+ * stories at its project's STORY_MS. A project selected whole bins every story file under its Storybook directory; a
+ * changed baseline's story id is packed with them as one story at that rate. A file longer than a bin is split by story into
+ * `<file>#<k>/<n>` parts: the k-th of every n of its stories in the Storybook index's order.
+ * @param stories selectStories()
+ * @param projects visual-review.config.json `projects`
+ * @param listFiles (dir) => the repository paths under dir
+ * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
+ * @param [storiesIn] (file) => the stories the file declares (storyCount() of its text)
+ * @param [options] binning options
+ * @param [options.jobBudget] the most bins before every bin's limit grows (STORY_JOB_BUDGET); Infinity keeps every
+ *   bin at STORY_BIN_LIMIT_MS (the rolling slices, design/visual-testing/early-capture.md 4a)
+ * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
+ */
+export function storyBins(
+    stories,
+    projects,
+    listFiles,
+    durations = {},
+    storiesIn = () => 1,
+    { jobBudget = STORY_JOB_BUDGET } = {},
+) {
+    const plans = storyUnitPlans(stories, projects, listFiles, durations, storiesIn);
+    // one limit for every project, the smallest that fits the job budget, so no job is longer than it must be
+    let limit = STORY_BIN_LIMIT_MS;
+    let packed = packStoryBins(plans, limit);
+    while (packed.length > jobBudget && limit < STORY_BIN_MAX_MS) {
+        limit += 30_000;
+        packed = packStoryBins(plans, limit);
+    }
+    return packed;
 }
 
 // --- building the import graph of one package, in a child process ------------------------------------
@@ -1932,10 +1998,13 @@ async function buildGraph(root, pkg, config) {
  * @param ctx shared state of the run
  */
 async function walkFile(project, file, ctx) {
-    if (ctx.walked.has(file)) {
+    // per project: a project's plugins can transform a file differently (graphty's test stand-ins empty
+    // src/elementLoader.ts for its unit projects but not for its storybook project), so each project's edges count
+    const key = `${project.name}\0${file}`;
+    if (ctx.walked.has(key)) {
         return;
     }
-    ctx.walked.add(file);
+    ctx.walked.add(key);
     let deps = new Set();
     if (CODE.test(file)) {
         deps = await edgesOf(project, file, ctx);
@@ -1943,14 +2012,15 @@ async function walkFile(project, file, ctx) {
         deps = styleEdges(file);
     }
     deps = new Set([...deps].map((d) => throughSource(d, file, ctx)));
-    ctx.imports[ctx.rel(file)] = [...deps].map(ctx.rel);
+    ctx.imports[ctx.rel(file)] = [...new Set([...(ctx.imports[ctx.rel(file)] ?? []), ...[...deps].map(ctx.rel)])];
     for (const d of deps) {
         await walkFile(project, d, ctx);
     }
 }
 
 /**
- * Another package's build output, as the source file it was built from, when that is known: the selection
+ * A package's build output (another package's, or its own), as the source file it was built from, when that is
+ * known: the selection
  * graph then follows a change to that package's source to exactly the tests that load it (design/ci/
  * minimal-tests.md section 2.2). Only the graph is changed; the tests themselves still run the build. A file
  * reached this way, and what it reaches outside the package under test, is kept in `viaAlias`: it is the
@@ -1962,10 +2032,14 @@ async function walkFile(project, file, ctx) {
  */
 function throughSource(dep, from, ctx) {
     const own = (f) => f.startsWith(join(ctx.root, ctx.pkg) + "/");
-    const src = own(dep) ? null : sourceOf(ctx.root, dep);
+    // the package's own build too: algorithms' stories import @graphty/algorithms, its own dist/, and a walk
+    // of dist/ would never match a changed source file
+    const src = sourceOf(ctx.root, dep);
     if (src) {
         ctx.aliases[ctx.rel(dep)] = ctx.rel(src);
-        ctx.viaAlias.add(src);
+        if (!own(dep)) {
+            ctx.viaAlias.add(src);
+        }
         return src;
     }
     if (ctx.viaAlias.has(from) && !own(dep)) {
@@ -2497,7 +2571,7 @@ export function graphCacheKey(root, dirs) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 6;
+const GRAPH_VERSION = 8;
 
 const fileHash = (root, f) => {
     try {
@@ -2841,7 +2915,7 @@ function graphChild(root, dir, config, on = false) {
  * @param deferDownstream selectPackages' option of that name
  * @param lockRefs `{ base, head }` (head null for the working tree) to read a changed lockfile between; without
  *   it a changed lockfile runs everything
- * @returns `{ everything, packages, shards, deps }` (deps: nx's dependencies by package directory)
+ * @returns `{ everything, packages, shards, deps, graphs }` (deps: nx's dependencies by package directory; graphs: the import graphs used)
  */
 export async function selectChange(root, changed, shards, graphs, deferDownstream = false, lockRefs = null) {
     const graph = projectGraph(root);
@@ -2868,6 +2942,7 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     return {
         ...sel,
         shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+        graphs: all,
         // by directory: nx names remote-logger, which has no project.json, @graphty/remote-logger
         deps: new Map(
             [...graph.deps].map(([name, ds]) => [
@@ -2969,6 +3044,7 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
         rules,
         lockMoved,
         deps: selection.deps,
+        graphs: selection.graphs,
     });
     const listFiles = (dir) =>
         execFileSync("git", ["ls-files", "--", dir], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);

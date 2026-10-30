@@ -140,6 +140,33 @@ describe("ingest: who may write", () => {
         expect(res.statusCode).toBe(200);
     });
 
+    it("records each verdict as red, green-clean and, for a green run, whether it met an unapproved picture", async () => {
+        const h = await ingest();
+        const release = {
+            ...CI_CLAIMS,
+            event_name: "workflow_dispatch",
+            ref: "refs/heads/master",
+            job_workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/release.yml@refs/heads/master",
+        };
+        const values = () =>
+            Object.fromEntries(
+                [...mem.items.values()].filter((i) => i.kind === "obs").map((i) => [String(i.id), i.value]),
+            );
+        await h(event("/v1/verdicts", { sha: "a1", state: "green-images" }, { claims: release }));
+        await h(event("/v1/verdicts", { sha: "b2", state: "red" }, { claims: release }));
+        await h(event("/v1/verdicts", { sha: "c3", state: "green-clean" }, { claims: release }));
+        expect(values()).toEqual({
+            "master.full_run_failed#a1": 0,
+            "release.green_clean#a1": 0,
+            "release.slot_unreviewed#a1": 1,
+            "master.full_run_failed#b2": 1,
+            "release.green_clean#b2": 0,
+            "master.full_run_failed#c3": 0,
+            "release.green_clean#c3": 1,
+            "release.slot_unreviewed#c3": 0,
+        });
+    });
+
     it("checks the local token against its SHA-256 in SSM", async () => {
         const h = await ingest();
         const body = { rows: [{ id: "local.push.abc.1", at: NOW, exit: 0 }] };
@@ -180,6 +207,7 @@ describe("ingest: benchmarks", () => {
         source: "algorithms",
         unit: "ms",
         sha: "abc",
+        machine: "AMD EPYC 7763 64-Core Processor",
         rows: [{ name: "PageRank n=1000", value: ms }],
     });
 
@@ -192,8 +220,8 @@ describe("ingest: benchmarks", () => {
         expect((await h(event("/v1/benchmarks", body(6), { claims: full("601") }))).statusCode).toBe(200);
         const item = await mem.get({ pk: "BENCH", sk: "algorithms: PageRank n=1000" });
         expect(item?.points).toEqual([
-            { at: NOW, v: 4, run: 600, sha: "abc" },
-            { at: NOW, v: 6, run: 601, sha: "abc" },
+            { at: NOW, v: 4, run: 600, sha: "abc", machine: "AMD EPYC 7763 64-Core Processor" },
+            { at: NOW, v: 6, run: 601, sha: "abc", machine: "AMD EPYC 7763 64-Core Processor" },
         ]);
         expect(
             (

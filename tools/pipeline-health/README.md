@@ -148,6 +148,16 @@ daily rollups and the page items the API serves, and sends the Pushover alerts.
 
 Until the App's parameters are in SSM (below), the GitHub sources show "not set up" on Data sources.
 
+At the end of each cycle it also decides whether to start one rolling screenshot slice
+(`story-slices.yml`, design `design/visual-testing/early-capture.md` section 4b): only after a quiet half hour
+on the runners, within the daily runner-minute caps in [`config/slices.json`](config/slices.json), and never
+while a slice is in flight. Without the dispatch App's parameters, or with `dispatch` false there, it only logs
+its decision (`slice` in the cycle's log line). Every 15 minutes it also reads the store's story captures for the CI and Releases
+pages' rolling screenshot measures (the set's age, slice minutes against each cap, what slices cost other jobs,
+the screenshot review lag, green-clean full runs, slots meeting an unapproved picture and nightly promotions
+per day; design `design/visual-testing/early-capture.md`, plan step 6). They are slow measures: shown with their
+targets, never judged into a page's state or alerted.
+
 ### CI
 
 CI posts test results through [`tools/results/client.mjs`](../results/client.mjs): when the repository
@@ -220,18 +230,22 @@ and keeps the cursor, so the next pass sends the same rows; delete the cursor to
 - [`config/slas.json`](config/slas.json): every member's target (`ok`) and red threshold (`fail`), its
   window, its minimum samples (`minN`), each data source's age limit, the runner limits, the pull
   request budgets and the daily write budget. Change a threshold here, not in code.
+- [`config/slices.json`](config/slices.json): the screenshot slice dispatcher's caps, thresholds and
+  kill switch (`dispatch`).
 - [`config/rates.json`](config/rates.json): the money rates for Costs (T4 minutes, paid LLM runs, fixed
   monthly plans, Actions list prices), each with the date it was checked. A `null` rate shows NO DATA.
 - SSM SecureStrings under `/graphty-health/`, read by the Lambdas. A member whose parameter is missing
   shows "not set up":
 
-| Parameter                                                             | Used for                                       |
-| --------------------------------------------------------------------- | ---------------------------------------------- |
-| `/graphty-health/github-app/app-id`, `installation-id`, `private-key` | The collector's GitHub App                     |
-| `/graphty-health/local-token-sha256`                                  | The local collector's token (its SHA-256, hex) |
-| `/graphty-health/pushover/app-token`, `user-key`                      | Alerts                                         |
-| `/graphty-health/cloudflare/token`, `account-id`                      | The Cloudflare line on Costs (optional)        |
-| `/graphty-health/sentry/token`                                        | The Sentry line on Costs (optional)            |
+| Parameter                                                                    | Used for                                       |
+| ---------------------------------------------------------------------------- | ---------------------------------------------- |
+| `/graphty-health/github-app/app-id`, `installation-id`, `private-key`        | The collector's GitHub App                     |
+| `/graphty-health/local-token-sha256`                                         | The local collector's token (its SHA-256, hex) |
+| `/graphty-health/pushover/app-token`, `user-key`                             | Alerts                                         |
+| `/graphty-health/cloudflare/token`, `account-id`                             | The Cloudflare line on Costs (optional)        |
+| `/graphty-health/sentry/token`                                               | The Sentry line on Costs (optional)            |
+| `/graphty-health/results/url`, `token`                                       | The results store the slice dispatcher reads   |
+| `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher dispatches as     |
 
 **When everything goes dark.** The backend stops itself before it costs money: a daily write budget
 (past it, writes get 429 and Data sources turns red), a 10 USD monthly AWS Budget whose action denies

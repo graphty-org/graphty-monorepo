@@ -487,7 +487,7 @@ detection reads: a test that failed and then passed on the same inputs is quaran
 
 **Every pull request description names its issue** (`Fixes #N`, `Closes #N`, `Resolves #N`, `Refs #N` or
 `Part of #N`) **or has a line `No issue`.** The `Link PR Issue` check fails it otherwise. `PR Integrity`
-(`pr-integrity.yml`, `.github/CODEOWNERS`) enforces what agents cannot be trusted to keep by themselves: no test
+(`pr-integrity.yml`) enforces what agents cannot be trusted to keep by themselves: no test
 weakened, no unapproved breaking change, no baselines changed without the owner.
 
 **Dependabot opens security updates only** (owner, 2026-10-27): routine version updates are off

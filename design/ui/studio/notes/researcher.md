@@ -10,6 +10,9 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-10-30) Round 1 plan rechecked after the prompt rewording: roster unchanged, T65's
+  follow-up now "done those the other way round"; plan table unchanged, all 28 rows brief on
+  79ed770292. The plan script now keeps plan.md's "Gate evidence" section on a rerun.
 - (2026-10-30) Brief every row before a round: tier 4's answer key listed T65 B's counts as bare
   `5` and `3`, which match every briefing's own text, so `--brief` refused all 28 sessions. A fact
   in "Facts no briefing may hold" must be a phrase no persona or README holds (now `5 gauges`,
@@ -89,6 +92,13 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-30 (round 1 plan recheck):** Kept plan.md as committed and regenerated only the
+  session list the workflow reads, so T65's follow-up is the reworded tasks.md text. Reason:
+  roster.md did not change since the plan, so a rewrite would only risk the gate evidence that
+  `--gate` appended; the follow-up is read from tasks.md, which did change. Evidence: all 28
+  `--brief` runs printed a briefing.md path, 28 of 28 name the frozen build, setup tally matches
+  the table, no follow-up words in any briefing.
+
 - **2026-10-30 (tier 4 round 1 plan):** 28 sessions, exactly roster.md's "Who takes which task"
   (under the cap of 30; adding two would change the bar arithmetic the criteria froze). Order:
   core tasks first (T61, T62, T65, T67), A and B alternating, then the other five, then Sam's two
@@ -157,24 +167,12 @@ logged). Their reasons, in short:
   notch that small may still be a defect. Viewed every screenshot cited to the owner. Reported
   bar 1's F as rule-caused, not reader failure, and left the frozen rule alone.
 
-- **2026-10-21 (round 1 scoring):** Scored bars 1 to 4 by hand where `score.mjs` was wrong and
-  said so in `scores.md` rather than editing the tool or a grader's file mid-scoring: the tool and
-  the grades are other roles' files, and a silent fix would hide the defects from them. Kept T49
-  B's F under the frozen asked-color rule (criteria change only between rounds) and gave the count
-  without it beside. Counted bar 5 as failing on the two backlog items rated 3 before the round,
-  and listed ten new severity 3 candidates for the skeptics instead of counting them, because the
-  graders and the experts rated several of them differently (2 vs 3) and an expert-only finding
-  needs a repro. Confirmed design problems only on two task halves, per the criteria, so the T47
-  B-only key scroll stays "seen on one half". Ran the key-and-drawing check myself as a script
-  (0 disagreements) because no one had and it feeds bar 5. Kept score.json (the tool's record)
-  and explained its two wrong numbers in scores.md.
+- **2026-10-21 (tier 3 round 1 scoring, folded):** Scored by hand where `score.mjs` was wrong
+  and said so in scores.md instead of editing other roles' files mid-scoring; kept frozen rules;
+  counted expert-only severity 3s as candidates until repro'd; ran the key-and-drawing check myself.
 
-- **2026-10-21 (round 1 plan, recheck):** Kept the committed plan; re-checked the allocation and
-  T49's follow-up against tasks.md and roster.md after the prompts were reworded. Rewriting would
-  drop the gate evidence.
-- **2026-10-21 (round 1 plan):** Generated from roster.md's table with an asserting script (56
-  rows, halves equal names, no persona on both halves); core tasks first, A/B alternating; fixed
-  `real.mjs --brief`'s build regex rather than criteria's first line.
+- **2026-10-21 (tier 3 round 1 plan, folded):** Generated from roster.md with an asserting
+  script (56 rows); rechecked after rewording rather than rewritten (gate evidence).
 - **2026-10-20 to 10-21 (pilots into the key, folded):** Kept every step count and bar where the
   walked path matched; wrote older-build facts as "(on <build> ...)" instead of deleting; a grading
   rule for a build defect leaves with the defect; the key counts the screen where decided.md
@@ -194,6 +192,10 @@ logged). Their reasons, in short:
   reaches; more sessions cannot move either.
 
 ## Tried: worked / did not work
+
+- 2026-10-30 (plan recheck) -- Worked: diffing roster.md and tasks.md since the plan commit before
+  regenerating. Did not work at first: the plan script rewrote plan.md whole and would have dropped
+  the gate evidence; it now keeps everything from "## Gate evidence" on.
 
 - 2026-10-30 (tier 4 round 1 plan) -- Worked: generating the plan from roster.md's table with
   asserts (28 rows, n per half, no persona on both halves of a task), then briefing all 28 and

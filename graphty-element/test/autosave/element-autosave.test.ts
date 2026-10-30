@@ -283,3 +283,60 @@ describe("while the page is hidden", () => {
         autosave.depart();
     });
 });
+
+describe("a remount", () => {
+    it("finds an edit made while the page's own load was still running (issues #5038, #5039)", async () => {
+        const { env } = page();
+        const inner = memoryAutosaveStore();
+        // Commits wait until the test opens them, as an IndexedDB commit is still running when an
+        // element added again in the same task lists the key's entries.
+        let open = (): void => undefined;
+        const opened = new Promise<void>((resolve) => {
+            open = resolve;
+        });
+        const store: AutosaveStore = {
+            ...inner,
+            commit: async (writes, options) => {
+                await opened;
+                return inner.commit(writes, options);
+            },
+        };
+        const key = "test.remount-during-load";
+        const startOn = async (session: Awaited<ReturnType<typeof baseSession>>): Promise<ElementAutosave> => {
+            const autosave = new ElementAutosave(() => undefined, env);
+            await autosave.start({
+                session,
+                key,
+                options: { store },
+                restore: "auto",
+                pageConfig: {},
+                reloadPage: () => Promise.resolve(),
+            });
+            return autosave;
+        };
+
+        const firstSession = await baseSession();
+        const first = await startOn(firstSession);
+        // The page's rows arrive as a load that has not settled when the reader edits: a large or a
+        // busy page settles its load long after its rows are in, so the edit is held until then.
+        let settle = (): void => undefined;
+        void first.admit(
+            { kind: "rows", nodes: [{ id: "a" }] },
+            () =>
+                new Promise<void>((resolve) => {
+                    settle = resolve;
+                }),
+        );
+        await firstSession.config.set({ name: "Edited while the load ran" });
+        first.depart();
+        settle();
+
+        const secondSession = await baseSession();
+        const second = startOn(secondSession);
+        open();
+        const restored = await (await second).api.ready;
+        assert.isNotNull(restored, "the remount waited for the departed element's final write");
+        assert.strictEqual(secondSession.project.name, "Edited while the load ran");
+        (await second).depart();
+    });
+});

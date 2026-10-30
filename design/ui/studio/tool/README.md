@@ -176,7 +176,9 @@ stable`, `<div ...> intercepts pointer events` when something covers it).
   as it does on a loaded machine. The click worked: it is not a miss, and it never fails a setup.
 - `ambiguous: "Enjolras" matches 5 controls, so the step did nothing; name one: "Enjolras#1" row ..., ...` when a name
   is shared. Pick one with `#n` or `role=<role>:<name>`. A candidate in an open list or menu says
-  `in the open list`.
+  `in the open list`. When the controls are of different kinds, each is offered by kind, the form
+  the next step takes: `name one: "role=button:Samples" button "Samples", "role=link:Samples" link
+"Samples"` (with `#n` counted among one kind when two of a kind share it, `"role=row:Enjolras#2"`).
 - `ambiguous: "weight#1" picks by position among different kinds of control, ...; name it by kind:
 "role=option:weight", "role=treeitem:weight"` when `#n` would choose between controls of
   different kinds. In round 2 `weight#2` took the Data panel's row instead of the open list's
@@ -304,6 +306,14 @@ What the tool keeps in every session folder for the graders (the participant nev
   screenshot: whether a graph was open, a hash of what its layers look like (ids and counts
   left out) and `colors`, the distinct node colors drawn, from which `score.mjs` reads the time to
   the first styled graph (every node in one new color).
+- For the data, `--end` writes `data.json`: the node, edge, visible and selected counts; each source
+  with graphty-element's counts, a recount of the nodes and edges that name it, the numbers its row
+  chips read when the Data place shows it, its join (rows matched of rows) and the roles its load
+  read each table with; each column's kind, type and roles, and the project's known fields (time,
+  weight and its meaning); each filter card with Select or Hide, on or off, its rule, the element's
+  count and the chips the card shows. Every file the app downloads also gets a line in
+  `downloads.jsonl` with the network as it was when it was written (totals, what was drawn, each
+  source's counts). `endstate.mjs` reads both (see "Measuring the scripted bars").
 
 `--end` on a participant's folder (one under `tmp/studio-sessions/`) copies the whole folder,
 screenshots, `transcript.md`, `saved/` and `downloads/` included, to the round's session folder it
@@ -362,18 +372,24 @@ tier's `criteria.md`:
   `tmp/design-studio/<tier>/<round>/pilot/<half>/<walk>/` of the main checkout
   (`tier3/round-2/pilot/T40B/s3-pointer/`; a round walked before 2026-10-21 keeps them in
   `<round folder>/pilot/`), with its screenshots and its
-  `session.json`. A half needs a success walk and a detours walk, and a keyboard walk when the plan
-  gives the half a keyboard-only session (a start with `--keys`). The walk's folder name says which
-  it is: one holding `keys` or `keyboard` is the keyboard walk, and counts only when its
-  `session.json` records `keyboardOnlyMode: true` (started `--keys`); one holding `detour` is the
-  detours walk; any other is the success walk. A walk counts when its commit is the frozen build or
+  `session.json`. For `round-N` the walks of its dry run's passes count too, each in the same
+  shape under `tmp/design-studio/<tier>/rN/pilot/` and `rNd1/`, `rNd2/` ... (tier 4's round 1 was
+  piloted in `r1d1` to `r1d3`). A half needs a success walk and a detours walk, and a keyboard walk
+  when the plan gives the half a keyboard-only session (a start with `--keys`). The walk's folder
+  name says which it is: one holding `keys` or `keyboard` is the keyboard walk, and counts only when
+  its `session.json` records `keyboardOnlyMode: true` (started `--keys`); one holding `success`,
+  `path` or `pointer` is the success walk; any other is a detours walk (`x2a-table`,
+  `n4-quick-actions`: a walk named for where it goes is never taken for the success walk). A walk counts when its commit is the frozen build or
   holds the same app code (no difference in `graphty`, `graphty-element`, `compact-mantine` or
   `pnpm-lock.yaml`, by `git diff`); a walk on other app code is named and does not count;
 - the bars run on that build: `<round folder>/bars/bars.json` from `bars.mjs <round folder>/bars
 --dist <frozen build>`, with every planted case caught and no `MISS` line (a failing bar does not
   stop the gate). For tier 3 also the light run, `<round folder>/bars-light/`, each a `--tier 3`
   run that reached every screen, focus action and typing check bar 6 lists (`BAR6` in
-  `measure.mjs`) and wrote a `spoken.json` that is not empty.
+  `measure.mjs`) and wrote a `spoken.json` that is not empty. For tier 4 the same two folders, each
+  a `--tier 4` run (`bars` with `--scheme dark`, `bars-light` with `--scheme light`) that reached
+  every data screen of bar 5 at both sizes (`BAR5_TIER4` in `measure.mjs`), caught its planted
+  cases there, and wrote a `spoken.json` and a `vocabulary.json` that are not empty.
 
 It prints a `FAIL:` line per missing piece and exits 1. When all are there it writes a "Gate
 evidence" section at the end of `plan.md` listing each file, and exits 0.
@@ -628,6 +644,39 @@ with", adding a Color line and a Shape line), bar 9 (words at rest against the `
 control names) and `spoken.json` (what each screen says out loud: its controls' accessible names,
 what has focus, the live regions' text and the notices shown during the move), both for the
 wording check. `--only <walk>[,<walk>]` and `--size <WxH>` run part of it, for writing a walk.
+
+For tier 4, `bars.mjs <round folder>/bars --tier 4 --scheme dark --dist <frozen build>` (and
+`<round folder>/bars-light --tier 4 --scheme light`) walks bar 5's data screens of
+`../tier4/criteria.md` from the empty start page: the web address box (from the start screen and
+from Sources "+"), Sources "+", the join screen (deliveries.csv added to pantries.csv), the issue
+list, Fields "+", the Filters picker and Export on Data, at 1440 x 900 and 900 x 700, with axe on
+each; the axe, shared-name and focus checks each catch a planted failure at both sizes first. A
+serious or critical axe finding fails the run (shared names and focus are reported only), as does a
+screen not reached (a `MISS` line). It writes `vocabulary.json` and `spoken.json` for the wording
+check, as tier 3's does.
+
+```bash
+node design/ui/studio/tool/endstate.mjs <round folder | session folder> ...   # bar 4's end-state check
+node design/ui/studio/tool/endstate.mjs --self-test                            # planted mismatches caught
+node design/ui/studio/tool/steps.mjs <round folder> [--answers <answers.md>]   # bar 7, steps per core task
+node design/ui/studio/tool/steps.mjs --self-test                               # planted cases caught
+node --test design/ui/studio/tool/tier4.test.mjs                               # tier 4 gate, bar 5 list
+```
+
+`endstate.mjs` reads each session's `data.json` and exported files and writes `endstate.json`
+beside them. It reports a filter card whose chips differ from graphty-element's count; a Hide card
+on alone whose count is not what is drawn (one that hides more than it says), or, with several,
+what is drawn outside the cards' bounds (with a time window on, only the upper bound); a Select
+card on alone whose count is not what is selected (with several, outside the largest and their
+sum); a source whose counts differ from its recount or its row chips; and an exported file (CSV,
+GraphML, GEXF, JSON) whose node or edge rows match neither the whole network, what was drawn nor
+one source when it was written (`downloads.jsonl`). An image or a project file is listed, not
+counted. Exit 1 on any mismatch, on a session with no `data.json`, and on a run that read no item.
+`steps.mjs` counts each core task session's inputs in its `route.jsonl` (clicks, keys, typed text,
+files chosen or dropped, drags; hovering, reading and `--expect` are not steps) against the answer
+key's "Path steps" for its half, and fails a core task whose median is more than 3 over its path,
+that has no path count, or that has no graded session to count; a VOID session gives way to its
+re-run and a keyboard-only session is reported apart. It writes `steps.json`.
 
 ```bash
 node design/ui/studio/tool/wording.mjs <tasks.md> <out dir>/vocabulary.json   # prompt words on screen

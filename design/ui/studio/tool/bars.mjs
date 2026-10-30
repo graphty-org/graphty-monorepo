@@ -24,6 +24,7 @@
 //
 //   node bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
 //   node bars.mjs <out dir> --tier 3 [--dist <build dir>] [--record-limits]
+//   node bars.mjs <out dir> --tier 4 [--dist <build dir>] [--scheme dark|light]
 //
 // --tier 3 measures only tier 3's screens (../tier3/criteria.md): the Style panel reached from an
 // empty app by clicking, as a first-time user reaches it -- a sample opened, Everything's Node and
@@ -35,6 +36,15 @@
 // wording.mjs. After adding a text card, a color and a shape it types a value with no click first
 // (bar 8, "typed"): the value must be written, so focus landed where the next input goes; a planted
 // case types on the start screen, where nothing takes text, and must fail.
+//
+// --tier 4 measures only tier 4's data screens for bar 5 of ../tier4/criteria.md (BAR5_TIER4 in
+// measure.mjs): from an empty app, the web address box (from the start screen and from Sources "+"),
+// Sources "+", the join screen (a second file added to the first), the issue list, Fields "+", the
+// Filters picker and Export on Data, each with axe (a serious or critical violation fails), at 1440 x
+// 900 and 900 x 700, in the scheme --scheme names (run it once per theme); the axe, shared-name and
+// focus checks are each proven on a planted failure at every size. It writes vocabulary.json and
+// spoken.json for wording.mjs, as --tier 3 does. Shared names and focus are reported, not failed:
+// bar 5 is axe.
 //
 // --scheme picks the app's color scheme for tier 1's screens (dark, the app's default, when left
 // out); with --tier 3, given explicitly, it opens every tier 3 walk in that scheme (REAL_SCHEME), so
@@ -56,7 +66,7 @@ import { connect } from "node:net";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { AXE_TAGS, axeViolations, bar6Gaps, LAUNCH, serious, wordsOnScreen } from "./measure.mjs";
+import { AXE_TAGS, axeViolations, bar6Gaps, LAUNCH, serious, tier4Gaps, wordsOnScreen } from "./measure.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const self = fileURLToPath(import.meta.url);
@@ -80,6 +90,8 @@ if (scheme !== "dark" && scheme !== "light") {
 const FILES = join(here, "files");
 const TIER = args.includes("--tier") ? args[args.indexOf("--tier") + 1] : "2";
 const RECORD = args.includes("--record-limits");
+// tier 3 and later measure only their own screens, at their two sizes, in the scheme given
+const OWN = TIER === "3" || TIER === "4";
 
 // ---------- bar 7 (a): how every run reads the loaded weight ----------
 // A loaded meaning and what a run says it read: "closer" is strength, "farther" distance
@@ -360,7 +372,7 @@ function ask(dir, req) {
 // each proven at every size by its planted failure; bar 9's words are counted at the first only
 const SIZES = args.includes("--size")
     ? [args[args.indexOf("--size") + 1]]
-    : TIER === "3"
+    : OWN
       ? ["1440x900", "900x700"]
       : ["1440x900", "1280x800"];
 // --only <walk>[,<walk>] walks only those, --size <WxH> at one size only (a partial run, for writing
@@ -373,7 +385,7 @@ const real = (size, ...a) => {
             ...process.env,
             REAL_DIST: dist,
             REAL_VIEWPORT: size,
-            ...(TIER === "3" && si > 0 ? { REAL_SCHEME: scheme } : {}),
+            ...(TIER === "4" || (OWN && si > 0) ? { REAL_SCHEME: scheme } : {}),
         },
     });
     return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}`.trim() };
@@ -959,6 +971,58 @@ const WALKS3 = [
     },
 ];
 
+// Tier 4: the data screens of bar 5, from an empty app, every step a click or a key; BAR5_TIER4 in
+// measure.mjs is what the walk must cover, and every screen or planted check it did not reach is a
+// MISS line
+const WALKS4 = [
+    {
+        name: "data-screens",
+        moves: [
+            {
+                do: steps("--key Tab", "--expect Open a file"),
+                screen: "the start screen",
+                plant: true,
+                dataText: true,
+            },
+            {
+                do: steps("--click Open network data", "--expect Web address"),
+                screen: "the web address box, from the start screen",
+            },
+            {
+                do: steps(
+                    "--key Escape",
+                    ...OPEN_FILE("pantries.csv"),
+                    "--click Data",
+                    "--expect role=button:Add source",
+                ),
+            },
+            { do: steps("--click Add source", "--expect File..."), screen: "Sources +" },
+            {
+                do: steps("--click Network data...", "--expect Web address"),
+                screen: "the web address box, from Sources +",
+            },
+            {
+                do: steps(
+                    "--key Escape",
+                    "--click Add source",
+                    "--click File...",
+                    "--upload deliveries.csv",
+                    "--expect role=button:Join",
+                ),
+                screen: "the join screen",
+            },
+            { do: steps("--click role=button:Join", "--expect role=button:1 issue in deliveries.csv") },
+            { do: steps("--click 1 issue in deliveries.csv", "--expect Leave out"), screen: "the issue list" },
+            { do: steps("--key Escape", "--click Add to edge fields", "--expect Weight"), screen: "Fields +" },
+            { do: steps("--key Escape", "--click Add filter", "--expect Node id"), screen: "the Filters picker" },
+            {
+                do: steps("--key Escape", "--click deliveries.csv menu", "--click Export...", "--expect Scope"),
+                screen: "Export on Data",
+            },
+        ],
+    },
+];
+
 async function walkTier2(base) {
     const screens = {};
     const names = {};
@@ -979,7 +1043,7 @@ async function walkTier2(base) {
     const per = () => Object.fromEntries(SIZES.map((z) => [z, []]));
     const seen = { screens: per(), focus: per(), typed: per(), planted: per() };
     for (const size of SIZES)
-        for (const w of TIER === "3" ? WALKS3 : WALKS) {
+        for (const w of TIER === "4" ? WALKS4 : TIER === "3" ? WALKS3 : WALKS) {
             const first = size === SIZES[0];
             // bar 6's readings at a later size are kept under "<name> at <size>", so a failure there
             // fails the run beside the first size's (bar 8's word counts and the wording check's
@@ -1009,7 +1073,7 @@ async function walkTier2(base) {
                         .split("\n")
                         .filter((l) => l.startsWith("a notice showed"))
                         .map((l) => l.replace(/^a notice showed and went before this screenshot: /, "notice: "));
-                    if (TIER === "3" && first && said.length) spoken[label.replace(/ at \S+$/, "")] = { said };
+                    if (OWN && first && said.length) spoken[label.replace(/ at \S+$/, "")] = { said };
                     // exit 2: a step refused before anything ran (a pointer step in keyboard-only mode)
                     if (r.code === 2 || MISSED.test(r.out)) {
                         lost = true;
@@ -1143,6 +1207,7 @@ async function walkTier2(base) {
     // the walks never reached
     const walked = seen;
     if (TIER === "3") log.push(...bar6Gaps(walked, SIZES));
+    if (TIER === "4") log.push(...tier4Gaps(walked, SIZES));
     return { screens, names, focus, scroll, words, cut, raw, log, planted, caught, vocab, typed, spoken, walked };
 }
 
@@ -1150,17 +1215,16 @@ async function outer() {
     await mkdir(out, { recursive: true });
     // tier 1's screens and bar 7 hold a browser slot of their own; tier 2's sessions take theirs
     // tier 3 measures its own screens only: tier 1's and bar 7 belong to the earlier tiers' bars
-    const t1 =
-        TIER === "3"
-            ? null
-            : spawnSync(join(here, "with-browser.sh"), [process.execPath, self, ...args, "--inner"], {
-                  stdio: "inherit",
-                  env: { ...process.env, BROWSER_SLOT: "" },
-              });
+    const t1 = OWN
+        ? null
+        : spawnSync(join(here, "with-browser.sh"), [process.execPath, self, ...args, "--inner"], {
+              stdio: "inherit",
+              env: { ...process.env, BROWSER_SLOT: "" },
+          });
     const inn = (t1 && JSON.parse(await readFile(join(out, "inner.json"), "utf8").catch(() => "null"))) ?? {
         screens: {},
         log: t1 ? [`MISS tier 1 and bar 7: the inner run stopped (exit ${t1.status})`] : [],
-        rest: { words: TIER === "3" ? ["(tier 1 not measured)"] : [], left: [] },
+        rest: { words: OWN ? ["(tier 1 not measured)"] : [], left: [] },
         weights: [],
     };
     const t2 = await walkTier2(join(out, "sessions"));
@@ -1184,13 +1248,13 @@ async function outer() {
         await writeFile(join(here, "bars-limits.json"), JSON.stringify(allLimits, null, 4) + "\n");
     }
     const limits = TIER === "3" ? (allLimits.tier3 ?? {}) : allLimits;
-    if (TIER === "3") {
+    if (OWN) {
         await writeFile(join(out, "vocabulary.json"), JSON.stringify(t2.vocab, null, 1) + "\n");
         await writeFile(join(out, "spoken.json"), JSON.stringify(t2.spoken, null, 1) + "\n");
     }
 
-    const weightProblems = TIER === "3" ? [] : judgeWeights(inn.weights);
-    const weightPlantsMissed = TIER === "3" ? [] : plantedWeights();
+    const weightProblems = OWN ? [] : judgeWeights(inn.weights);
+    const weightPlantsMissed = OWN ? [] : plantedWeights();
     const notFinished = inn.weights.filter((r) => r.status !== "succeeded");
     const scrolled = Object.entries(t2.scroll).filter(([, a]) => !a?.inView);
     // axe's scrollable-region-focusable on the find list's viewport, excused only while the scroll
@@ -1313,19 +1377,23 @@ async function outer() {
         for (const r of rs) console.log(`  ${name}: ${r.element} ${r.kind} ${r.text}`);
     if (!Object.values(t2.raw).flat().length) console.log("  none");
     console.log(`\n${join(out, "bars.json")}`);
+    // bar 5 of tier 4 is axe on its screens: a screen not reached or a planted case not caught also fails
+    const fail4 = untrusted.length || missed.length || t2Failing.length || !Object.keys(t2.screens).length;
     const fail =
-        untrusted.length ||
-        missed.length ||
-        weightProblems.length ||
-        t1Failing.length ||
-        t2Failing.length ||
-        shared.length ||
-        fell.length ||
-        unwritten.length ||
-        scrolled.length ||
-        (TIER !== "3" && (inn.rest.words.length === 0 || inn.rest.words.length > 50)) ||
-        over.length ||
-        unlimited.length;
+        TIER === "4"
+            ? fail4
+            : untrusted.length ||
+              missed.length ||
+              weightProblems.length ||
+              t1Failing.length ||
+              t2Failing.length ||
+              shared.length ||
+              fell.length ||
+              unwritten.length ||
+              scrolled.length ||
+              (!OWN && (inn.rest.words.length === 0 || inn.rest.words.length > 50)) ||
+              over.length ||
+              unlimited.length;
     process.exit(fail ? 1 : 0);
 }
 

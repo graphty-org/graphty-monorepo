@@ -5,8 +5,8 @@ graphty-element, small and in the right package, and say what the element's API 
 read this file first every session and update it as I decide and learn.
 
 Words: "the app" is the graphty app; "the element" is graphty-element; "the studio worktree" is
-`.worktrees/design-studio-tier3` (branch `design/studio-tier3`). "Frozen build" is a copy of
-`graphty/dist` under `.study-builds/`, named on the first line of `tier3/criteria.md`.
+`.worktrees/design-studio-tier4` (branch `design/studio-tier4`). "Frozen build" is a copy of
+`graphty/dist` under `.study-builds/`, named on the first line of `tier4/criteria.md`.
 
 Top of mind trimmed 2026-10-19 (30 KB); full prior copy: `git show 393580a87:design/ui/studio/notes/engineer.md`.
 Summarized 2026-10-17 from 44 KB. Every dated entry of today's dry-run fixes (table, Analyze run,
@@ -17,101 +17,51 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-- (2026-10-30) A Select card's count counts what it marks, built as 71230abff1 (`git revert
-0b1175dabc`, restoring 355022569a: `conditionCounts` counts a select condition by
-  `selectsOverGraph`, among the synced keep and exclude masks, cache keyed on their version). The
-  re-walk finished one browser at a time (`design/ui/studio/tmp/r1-dry3-U1/r/`, `results.txt`),
-  every chip screenshot looked at: A 4 of 14 with 4 selected, keep off 5 of 24 and 5, either order,
-  undo and redo equal each time; B 3 of 5 with 3, 3 of 6 after Undo of the depth edit; browse mode
-  "Node 3 of 5". Unchanged: keep cards, Which nodes 5 of 12, Data source cards, T68 starts, T64
-  weight routes. Frozen as `tmp/design-studio/tier4/builds/tier4-r1d4-71230abff1` (main checkout).
+Trimmed 2026-10-30 (the file passed 25 KB); the full earlier Top of mind (the Select-card count
+fix 71230abff1, the unknown-end mark, inspector node names, the weight re-run, Select within the
+picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360dd57f:design/ui/studio/notes/engineer.md`.
 
-- (2026-10-30) Lesson: two attempts at this fix were reverted only because their re-walks were cut
-  off; queue every route in one background script (one browser, `REAL_WARM_POOL=0`) and judge each
-  as it lands, rather than starting replays by hand that a session end strands.
-
-- (2026-10-30) A replay of a pilot route recorded before a count fix diverges exactly on the spoken
-  count (`--read` lines are compared, chip text on screen is not). Check the divergence is only
-  that line, then replay a copy of the route with the fixed line expected
-  (`tmp/u1-select-count/expect-fixed.py` in the worktree) to reach the route's end.
-
-- (2026-10-29) Re-walks of the unknown-end mark (67de06e337), inspector node names (d612c60665) and
-  Select-in-picture / default-weight re-run fixes all matched every check point
-  (`design/ui/studio/tmp/r1-dry2-recheck-U1..U3/`). Seen then, not caused: the date card's name reads
-  in ms ("installed is at most 1104537599999"), the live region says "1 edges". Full entries:
-  `git show 71230abff1:design/ui/studio/notes/engineer.md`.
-
-- (2026-10-29) An unknown end's warning marks the end that is unknown. graphty-element: the
-  `unknown-end` issue's params gain `ends` ("source", "target", "both"), from the touching edges
-  (issues.ts loadIssues; additive, recorded in owner-decisions.md). The app's `issuePlace` now
-  returns `columns` (plural): Target for "target", both end columns for "both", Source when absent
-  (a project saved before `ends`). `issuesByColumn` (TableDock.tsx) puts the issue on each. Tests:
-  element `data-issues.test.ts` "says which end...", app `columns.test.ts`, and
-  `IssueRows.real-element.test.tsx` "marks the target column, and only the target cell" (fails
-  without: the source cell tinted). The fraud fixture's 18 unknown ends are targets too, so
-  `TableDockConfig.real-element.test.tsx` now expects the warning on "to". Known limit: "both" tints
-  a row's source cell even when only its target is unknown (the tint is per row). Re-walk on
-  `graphty/dist` (`design/ui/studio/tmp/r1-dry2-U2/`): T61A x1-success, T61B z1-success,
-  z2-detours and T61A q3-keyboard replayed with every check point matching; T61A 20.png and
-  T61B-z1-with-issues 20.png show the glyph on Target, P13 / G12 tinted, P05 / G09 plain; the
-  Issues list still reads "1 unknown end" with Add nodes, Leave out; 13 / 18 (B 12 / 14). The
-  replay tolerance did not flag the moved glyph: look at the screenshot, not only "matches". No
-  keyboard route reaches the Edges header's spoken issue; the real-element test covers its name.
-
-- (2026-10-29) Every inspector node row is called by its name: path "Nodes in order", a set or
-  group run's Members, a layer's Top list, Members and Selected (RunValues.tsx, LayerValues.tsx)
-  now go through `nodeName` (inspector/words.ts, the element's `session.data.name`), as From/To
-  and the run's Top list already did. Tests: `PathRun.real-element.test.tsx` "calls each node in
-  order by its label" (station labels; fails without: b, c, d) and `tasks.real-element.test.tsx`
-  group Members read "Node N" (fails without: n0...). Les Miserables cannot test this: its ids are
-  the names. Re-walk `design/ui/studio/tmp/r1-dry2-U3/`: T64B detour 09.png Old Bridge, Heron
-  Marsh, Lake Inlet (the only divergence, the fix); T64A-label-path 09.png Central Warehouse,
-  Harbor Market; T64A success, table-role-rerun and T64B success match every check point.
-
-- (2026-10-29) A run asked again after the default weight changed computes again. A run's
-  identity (`RunsApi.resolve`) is explicit params + scope + seed + sample; the weight the Data role
-  supplies is not in it, so the same From/To handed back the stored unweighted run after the
-  previous weight-role fix. Fix: `RunsApiOptions.defaultWeight` (internal, GraphSession passes
-  `JSON.stringify(data.loadedWeight())`), recorded per run id in `startRun`; `shouldReexecute`
-  adds `weightMoved` -- only for an algorithm whose descriptor has a `weightMeaning` and a run with
-  no `weight` param, so degree is not redone. `answered()` follows. Not in the identity: that
-  would change derived run ids, which saved projects reference. Test:
-  `test/browser/runs-loaded-weight.test.ts` "the same run asked again after the weight role or its
-  meaning changed computes again" (fails without: answered() still returns the old run). Re-walk
-  `design/ui/studio/tmp/r1-dry2-U2/`: T64B 09.png new Ran 5:54:40, Total km 5.3, Weight km
-  (farther); T64A 11.png new Ran, "trips means closer" reason; success and Analyze routes match.
-
-- (2026-10-29) A Select card selects only what is in the picture. graphty-element: optional
-  `FilterCondition.within` (`FilterSelectWithin`, "graph" | "picture"; absent = graph, as before).
-  With "picture", `selectedBy` (VisibilityApi.ts) intersects the select rule with a fresh pass of
-  `combinedRule(null, conditions)` (keep and exclude only, NOT the single filter or the time
-  window), and `selectKey` adds that rule, so a keep/exclude edit, its on box, undo and redo all
-  move the selection through the existing select-history code. `conditionOf` (conditions.ts) is
-  the one place a condition is rebuilt, so `within` survives admit, `updateCondition` and a saved
-  project. App: the Select / Hide toggle writes `{ effect: "select", within: "picture" }`.
-  Tests: element `conditions.test.ts` "a select condition within the picture..." (both orders,
-  keep off/on, undo/redo, exclude, no within = whole graph, bad value refused); app
-  `Filters.real-element.test.tsx` "a Select card selects only what the Hide cards leave..." (fails
-  without the app change: 7 instead of 4). Re-walk `design/ui/studio/tmp/r1-dry2-U1/`: T65A path
-  17.png and cards 19.png "4 nodes selected", 4 rings, 14 of 24; T65B path 09.png "3 nodes
-  selected" (G01, G02, G09), screen reader "5 of 5 rows, 3 selected"; T65B style detour and T68A/B
-  unchanged. The old routes now diverge where they narrowed hours to 40: the selection follows
-  (one staff member left), which is the fix, not a regression.
-
-- (2026-10-29) The five r1 dry-run-1 fixes (source row chips, Add data doors, column kind, Data
-  source filter card, export scope) and their re-walk, in full: `git show 2b3b98a613:design/ui/studio/notes/engineer.md`.
-  Still open from them: a mixed column draws the mixed glyph in the table but Aa in Fields
+- (2026-10-30) The study tool now checks tier 4's scripted bars itself. `real.mjs --end` writes
+  `data.json` (`dataState` in `measure.mjs`: counts, sources with element counts, a `sourcesOf`
+  recount and the row chips, load mappings, known fields, columns, filter cards with their chips),
+  and every download adds a `downloads.jsonl` line with the network at that moment
+  (`networkCounts`). `endstate.mjs` is bar 4's end-state check over them; `steps.mjs` is bar 7;
+  `bars.mjs --tier 4 --scheme dark|light` is bar 5's axe walk of the nine data screens (BAR5_TIER4)
+  and writes `vocabulary.json` / `spoken.json` for `wording.mjs`. Each has a `--self-test` or test
+  (`tier4.test.mjs`) that fails on a planted case and fails on zero items.
+- (2026-10-30) The gate (`--gate rounds/round-N`) now reads pilot walks from the dry run's passes
+  `rN`, `rNd1`, ... as well as the round's own folder, and a walk is the success walk only when
+  named success / path / pointer (anything else not keys/keyboard is a detour). Tier 4 needs
+  `bars` (dark) and `bars-light` (light), each `--tier 4` with every bar 5 screen at both sizes and
+  a non-empty `vocabulary.json`. On 2026-10-30 the gate on round 1 still refuses T66A (no success
+  walk on 79ed770292); the bars runs exist and fail only on the axe finding below.
+- (2026-10-30) OPEN DEFECT, bar 5 (app; severity is the accessibility specialist's): the table
+  dock's Nodes tab (`#mantine-...-tab-nodes`) has `aria-controls` naming a panel that is not in the
+  page; axe `aria-valid-attr-value` critical on every Data screen with the table open, both sizes
+  and themes (`tier4/rounds/round-1/bars*/bars.json`). The fix belongs where the table's Tabs are
+  built (a panel per tab, or no aria-controls while the panel is not rendered).
+- (2026-10-30) The wording check on 79ed770292 lists 65 shared words and 1 phrase across 22
+  prompts (most from the start screen's marketing text and its links); that is the researcher's
+  "Kept on purpose" work, not a tool fault.
+- (2026-10-30) The matcher's refusal of a name shared by different kinds now offers
+  `"role=<kind>:<name>"` (with `#n` only within one kind): it used to offer "Samples#1", which it
+  then refused. `--prove` checks both, and a planted page that blocks drag events proves "the
+  drop was not delivered" is printed.
+- (2026-10-30) Data panel facts the tool relies on: source rows are `.dp-source[data-source=key]`
+  with chips in `.dp-source-chips`; filter cards are `.dp-filters > *` in condition order; both
+  draw compact-mantine's `EntityChip` (`.cm-entity-chip[data-kind] .cm-entity-text`). Filter
+  steps (`visibility.steps`) are the conditions seen another way, not another filter.
+- (2026-10-30) A re-walk after a rebuild runs with `REAL_WARM_POOL=0`: a warm browser of the same
+  build stamp keeps the app it loaded before the rebuild.
+- (2026-10-30) Queue every route of a re-walk in one background script (one browser) and judge each
+  as it lands; replays started by hand get stranded by a session end.
+- (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
+  match (Before -> After) clears the box but the filter keeps the old bounds. Fix: a date card with
+  no bound writes no condition; test by real input switching the match.
+- (2026-10-29) Still open: a mixed column draws the mixed glyph in the table but Aa in Fields
   (`TypeGlyph` has no "mixed"); unticking every load in a Data source card leaves the last rule.
-
-4.  (2026-10-29) A re-walk after a rebuild must run with `REAL_WARM_POOL=0`: a warm browser of the
-    same build stamp (the stamp is HEAD, not the dist's content) keeps the app it loaded BEFORE the
-    rebuild, so the replay shows the old code pixel for pixel. `session.log` says "took over warm
-    browser"; pixel-diff an old and new screenshot to catch it.
-5.  (2026-10-29) OPEN DEFECT in the date card (`DateCard` in `style/WhichPicker.tsx`): changing its
-    match (Before -> After, Between -> Before) clears the box but the filter keeps the old bounds,
-    so the card reads "After [empty]" while its count and the marks still show Before 2005
-    (re-walk T65B-path/17.png, 24.png). Fix: a date card with no bound must write no condition (or
-    keep the bound it can carry over); test by real input switching the match.
+  Seen 2026-10-30: after a join the first file's row loses its issue chip while the table still
+  says "With issues 2".
 
 ## Working facts and open defects
 
@@ -219,6 +169,15 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-30 worked: verifying the browser gate with ten `--start`s in one background script, each
+  holding its browser for two `--wait` steps, counting `node ... real.mjs --serve|--warm`
+  processes once a second (count the node processes only; the gate's bash wrapper repeats the
+  command line): at most 8, every session ended, `BROWSER_SLOTS=17` refused (exit 2).
+- 2026-10-30 did not work: `--expect "Add source"` and `--expect "1 issue in ..."`: `--expect`
+  text does not read accessible names; an icon button needs `--expect role=button:<name>`.
+- 2026-10-30 did not work: a shell heredoc whose text holds a timed polling loop is refused by the
+  foreground-wait hook even when it only writes a file; write the script with the Write tool.
 
 - 2026-10-30 worked: one background script replaying every route in turn, plus a Monitor on its
   results file; a foreground wait loop is refused by the hook, so check the file between other work.

@@ -48,15 +48,15 @@ screen or the end-state records show otherwise.
 
 ## Bars that decide "done" (all must hold in the round)
 
-| #   | Bar                    | Target                                                                                                                                                                                                                                                    | Counted from                                                                                                  |
-| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 1   | Task success           | At least 75% S or SD of each task's valid pointer sessions, and no dataset half with 0 successes. On a 2-session task that means 2 of 2; on a 4-session task, 3 of 4. Sam's sessions are not counted here                                                 | The grades' first lines (`Grade:`), counted by the researcher                                                 |
-| 2   | False "done"           | 0 in the round                                                                                                                                                                                                                                            | The grades (`False done:`)                                                                                    |
-| 3   | Wrong turns            | Median at most 2 per task                                                                                                                                                                                                                                 | The grades (`Wrong turns:`)                                                                                   |
-| 4   | Severity 3 and 4 open  | 0 confirmed severity 3 or 4 problems                                                                                                                                                                                                                      | Grades, the end-state check, expert walkthroughs and the screenshot audit, after both skeptics                |
-| 5   | Keyboard               | Sam's sessions S or SD, with no confirmed keyboard block; and 0 serious or critical axe findings on every tier 4 data screen, at 1440 x 900 and 900 x 700, in both themes                                                                                 | Sam's grades; the scripted walk of the tier 4 screens                                                         |
-| 6   | The owner's data rules | 0 confirmed violations: configuration reachable only from the table; a hotkey with no visible button showing its key; "links" or "ties" on screen for edges; a sentence on screen where a control would do; an owner-approved surface removed or restyled | The Figma product designer's and the interaction designer's walkthroughs, confirmed as set out below          |
-| 7   | Cost on core tasks     | Median steps per core task (T61, T62, T65, T67) at most the answer key's path plus 3                                                                                                                                                                      | The step logs, against each path's step count, which the dry run writes into `answers.md` on the frozen build |
+| #   | Bar                    | Target                                                                                                                                                                                                                                                    | Counted from                                                                                                                     |
+| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Task success           | At least 75% S or SD of each task's valid pointer sessions, and no dataset half with 0 successes. On a 2-session task that means 2 of 2; on a 4-session task, 3 of 4. Sam's sessions are not counted here                                                 | The grades' first lines (`Grade:`), counted by the researcher                                                                    |
+| 2   | False "done"           | 0 in the round                                                                                                                                                                                                                                            | The grades (`False done:`)                                                                                                       |
+| 3   | Wrong turns            | Median at most 2 per task                                                                                                                                                                                                                                 | The grades (`Wrong turns:`)                                                                                                      |
+| 4   | Severity 3 and 4 open  | 0 confirmed severity 3 or 4 problems                                                                                                                                                                                                                      | Grades, the end-state check, expert walkthroughs and the screenshot audit, after both skeptics                                   |
+| 5   | Keyboard               | Sam's sessions S or SD, with no confirmed keyboard block; and 0 serious or critical axe findings on every tier 4 data screen, at 1440 x 900 and 900 x 700, in both themes                                                                                 | Sam's grades; the scripted walk of the tier 4 screens (`tool/bars.mjs --tier 4`, once per theme)                                 |
+| 6   | The owner's data rules | 0 confirmed violations: configuration reachable only from the table; a hotkey with no visible button showing its key; "links" or "ties" on screen for edges; a sentence on screen where a control would do; an owner-approved surface removed or restyled | The Figma product designer's and the interaction designer's walkthroughs, confirmed as set out below                             |
+| 7   | Cost on core tasks     | Median steps per core task (T61, T62, T65, T67) at most the answer key's path plus 3                                                                                                                                                                      | The step logs, against each path's step count, which the dry run writes into `answers.md` on the frozen build (`tool/steps.mjs`) |
 
 **Severity** (bar 4): 4 -- data lost or wrong with no sign (a file read wrong and shown as right, a
 filter that hides more than it says, an export that drops rows); 3 -- a task blocked for most
@@ -84,7 +84,7 @@ Each confirmed finding survives two skeptics before it counts.
 - A sentence where a control would do: the content designer's words-at-rest count per data screen,
   against principle 5's budget, fixed in the dry run before any session.
 
-**The end-state check** (bar 4) is a script run over every session's `data.json`:
+**The end-state check** (bar 4) is a script, `tool/endstate.mjs`, run over every session's `data.json`:
 
 - each filter card's count chip against what the element shows and selects;
 - each join chip against the node and edge counts;
@@ -122,11 +122,13 @@ first two by itself; the dry run owns the rest.
 2. `answers.md` holds no "pilot to confirm": every value and path is read off the frozen build.
 3. Every setup in `roster.md` starts on the frozen build without `SETUP FAILED`, including the
    three the dry run writes (`gauges-tidy.txt`, `pantries-narrowed.txt`, `gauges-narrowed.txt`).
-4. `real.mjs --end` writes `data.json` (see "Grades"), and the end-state check runs on a pilot's
+4. `real.mjs --end` writes `data.json` (see "Grades"), and the end-state check (`tool/endstate.mjs`) runs on a pilot's
    folder. Owner: the design engineer.
 5. A scripted walk of the tier 4 screens (the web address box, Sources "+", the join screen, Fields
    "+", the Filters picker, the issue list, Export on Data) passes `wording.mjs` against
-   `tasks.md` using the frozen build's own strings, and runs axe for bar 5. Owner: the design
+   `tasks.md` using the frozen build's own strings, and runs axe for bar 5. The walk is
+   `tool/bars.mjs <round>/bars --tier 4 --scheme dark` and `<round>/bars-light --tier 4 --scheme light`;
+   `real.mjs --gate` refuses the round without both. Owner: the design
    engineer.
 6. Each core task's path step count is written in `answers.md` (bar 7).
 7. The words-at-rest budget per data screen is written in this file's change log (bar 6).
@@ -375,3 +377,11 @@ first two by itself; the dry run owns the rest.
       in it; the key's in-project route is Network data..., and it already names Server... a dead
       end. T66 B walked no route on 79ed770292. The T67 A walk was on 0ffeae2ef5 against an older
       key, and its points are already settled there.
+- 2026-10-30: the scripted checks are named (no bar, target or task changed): the end-state check is
+  `tool/endstate.mjs` over each session's `data.json`, which `real.mjs --end` now writes; bar 5's
+  walk of the tier 4 screens is `tool/bars.mjs --tier 4`, run once per theme into the round's `bars`
+  and `bars-light`, and writes the `vocabulary.json` that `wording.mjs` reads; bar 7 is counted by
+  `tool/steps.mjs`, which counts a session's inputs (clicks, keys, typed text, files chosen, never
+  hovering or reading) in its `route.jsonl` against the answer key's "Path steps". The gate reads
+  the dry run's pilot walks from its passes (`r1`, `r1d1`, ...), and counts as the success walk only
+  a walk named success, path or pointer.

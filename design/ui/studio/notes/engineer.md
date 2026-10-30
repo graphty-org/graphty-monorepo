@@ -17,6 +17,16 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-10-29) Every inspector node row is called by its name: path "Nodes in order", a set or
+  group run's Members, a layer's Top list, Members and Selected (RunValues.tsx, LayerValues.tsx)
+  now go through `nodeName` (inspector/words.ts, the element's `session.data.name`), as From/To
+  and the run's Top list already did. Tests: `PathRun.real-element.test.tsx` "calls each node in
+  order by its label" (station labels; fails without: b, c, d) and `tasks.real-element.test.tsx`
+  group Members read "Node N" (fails without: n0...). Les Miserables cannot test this: its ids are
+  the names. Re-walk `design/ui/studio/tmp/r1-dry2-U3/`: T64B detour 09.png Old Bridge, Heron
+  Marsh, Lake Inlet (the only divergence, the fix); T64A-label-path 09.png Central Warehouse,
+  Harbor Market; T64A success, table-role-rerun and T64B success match every check point.
+
 - (2026-10-29) Re-walk of the Select-in-picture and default-weight re-run fixes on dist stamp
   9f9f23b3981e (`REAL_WARM_POOL=0`): all 11 routes replayed with every check point matching
   (`design/ui/studio/tmp/r1-dry2-recheck-U1/`); nothing worse, both acceptances hold (T65A path

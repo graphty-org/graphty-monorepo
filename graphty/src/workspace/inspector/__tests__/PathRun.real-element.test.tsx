@@ -74,6 +74,42 @@ describe("a path run's Values", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "calls each node in order by its label, not its id",
+        async () => {
+            const store = createWorkspaceStore({ project: { name: "Line", id: 1 } });
+            const view = render(<Workspace store={store} />);
+            const session = await waitFor(
+                () => {
+                    const found = document.querySelector("graphty-element")?.session;
+                    assert.isDefined(found);
+                    return found;
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            await session.config.set({ data: { knownFields: { nodeLabelPath: "station" } } });
+            await session.data.addNodes(NODES.map(({ id }) => ({ id, station: `Station ${id.toUpperCase()}` })));
+            await session.data.addEdges(EDGES);
+            const run = session.runs.start("shortest-path", { source: "b", target: "d" });
+            await act(async () => {
+                await run;
+                await session.styles.settled();
+            });
+
+            act(() => {
+                store.set({ inspected: { kind: "measure-row", id: run.id }, tabs: { "measure-row": "values" } });
+            });
+            const inspector = within(view.getByRole("complementary", { name: "Inspector" }));
+            const nodes = await inspector.findByRole("group", { name: "Nodes in order" });
+            const names = [...nodes.querySelectorAll("[data-testid=data-row-button] .cm-data-row-name")].map(
+                (name) => name.textContent,
+            );
+            assert.deepEqual(names, ["Station B", "Station C", "Station D"]);
+        },
+        TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "names the total by the weight column it read, in the Values",
         async () => {
             const store = createWorkspaceStore({ project: { name: "Trail", id: 1 } });

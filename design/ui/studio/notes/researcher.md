@@ -14,7 +14,12 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   B 3: the old "5 not 4" grading line is gone); T64 Shortest path reads only "farther" weights, so
   A opens on None with "not read" (right for A; grade on Fields); re-runs recompute and paths list
   names. T68 B's gauges.csv row export (11 nodes, 0 edges) is F, the flows.csv row's is success.
-  Still open: no `data.json` from `--end`; T67 and T60 not re-walked since 0ffeae2ef5.
+  Still open: no `data.json` from `--end`; T67 not re-walked since 0ffeae2ef5 (its latest pilot
+  still names that build: treat its mismatches as stale). T60 re-walked on ff: matches the key.
+- (2026-10-29) Pilot subagents cannot write report.md files (the harness refuses); their returned
+  findings are the record. A finding's names can steer a report the wrong way even with right
+  counts: T61's Edges table marks P05 (Source) for P13's unknown end, so the key tells graders to
+  note the steer rather than credit or excuse it silently.
 - (2026-10-29) Pilot "mismatches" that are stale (T67A on 0ffeae2ef5, T64A on 037) or name
   decided.md wording ("Select | Hide" vs "Filter to | Filter out") are not key changes: the key
   writes the screen. Check the build each finding names before editing.
@@ -83,6 +88,12 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-29 (second ff re-pilot, T60/T61/T63/T66/T67):** Extended build lists ("037e96e9bb and
+  ff17391bb1") only where the walk confirmed the note on ff. Did not add a T60 step count: T60 is
+  not a bar-7 core task, and a new count would change a bar. T67A's "mismatches" came from a walk on
+  0ffeae2ef5 against an older key; all were already settled in the key, so no change. Mismatches
+  that cite decided.md (T60 Open button, T63 R10 Set in Data, T66 "Filter to | Filter out") stay
+  out of the key: the key writes the screen.
 - **2026-10-29 (key matched to ff17391bb1):** Changed only notes the r1d2 re-pilots contradicted
   or extended; earlier-build notes stay as history. T68 B's source-row export of 11 nodes / 0 edges
   graded F by the existing definition (neither the network nor the picture's 13 edges), not a bar
@@ -162,6 +173,8 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-29 (second ff re-pilot) -- Worked: one script of exact-match replacements with asserts;
+  did not work at first: I appended "Path steps: 4" to T60 and took it out (not a core task).
 - 2026-10-29 (key to ff) -- Worked again: the exact-match edit script; one assert caught a header
   phrase ("On 0ffeae2ef5 and 037e96e9bb") already reworded, so no unverified build claim was added.
 

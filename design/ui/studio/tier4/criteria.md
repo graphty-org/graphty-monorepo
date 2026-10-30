@@ -303,3 +303,17 @@ first two by itself; the dry run owns the rest.
     - T68: B's default scope reads "All 12 nodes, 14 edges"; B's gauges.csv row export (11 nodes,
       0 edges) is written as not success and the flows.csv row and table options exports as
       success.
+- 2026-10-29: answer key matched to build ff17391bb1 from the second targeted re-pilot of T60, T61,
+  T63, T66 and T67 (no bar, success definition or step count changed; tasks.md needed no change):
+    - T60: the source's inspector still shows a file glyph and "Source" on ff17391bb1; the empty
+      project's canvas card offers only File... and Samples..., with no door to an address.
+    - T61: Quick actions > Add data... opens the join screen on ff17391bb1 too; the Edges table
+      marks the Source column and draws P05 in the warning color though P13 is the unknown end, and
+      the grade notes that steer when a report names P05.
+    - T63: "Set in Data" still sets the time in place and Role > Time still undoes with its notice;
+      Escape from the Map options leaves Map unapplied; Fields "+" > Time adds an empty line that
+      Escape takes back without a notice.
+    - T66: an id card for one node leaves only that node on ff17391bb1 too (B 1 of 12, 0 of 14).
+    - T67: the pilot named the earlier key and build 0ffeae2ef5; every point it raised (no Data
+      step, no yes/no offer for A's volunteer_run, the header list's "Ignore all") is already in
+      the key, so nothing changed.

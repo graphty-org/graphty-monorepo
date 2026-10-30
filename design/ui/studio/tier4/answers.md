@@ -55,11 +55,13 @@ showing.
 - **Path**: start screen > Open network data > the box "Web address of a graph file" > paste the
   address > Enter. The box has no Open button; Enter is the only way to open the address (the icon
   button after the box, "Choose file", opens the file chooser). The graph opens; the inspector's
-  Overview shows Nodes and Edges. On 0ffeae2ef5 the source's inspector shows a file glyph and
-  "Source", not the address; the Sources row has the link glyph.
+  Overview shows Nodes and Edges. On 0ffeae2ef5 and ff17391bb1 the source's inspector shows a
+  file glyph and "Source", not the address; the Sources row has the link glyph.
 - **Also success**: from inside a project, Data > Sources "+" (Add source) > Network data... > the
   same box > Enter, if the counts reported are the loaded network's (that route leaves the project
-  named "Untitled").
+  named "Untitled"). The empty project's canvas card ("No nodes to draw") offers only File... and
+  Samples...; neither reaches an address, so a session that starts there must find Data > Sources
+  "+" > Network data....
 - **Not success**: a downloaded copy opened with "Open a file" (the prompt forbids it); counts that
   do not match.
 - **Dead ends on 0ffeae2ef5** (a session that stops there is F, not P): Sources "+" > Server... and
@@ -106,13 +108,17 @@ showing.
 - **A second door**: on 0ffeae2ef5, Quick actions (Control+K) > Add data... opened an older "Add
   to" page whose default left G12 and its stretch out (B: 11 nodes, 14 edges) and showed no unknown
   gauge afterwards; a report of 11 and 14 that names nothing that did not fit was P. On 037e96e9bb
-  it opens the same join screen as the path, and Join gives the path's result (A 13 nodes, 18 edges,
+  and ff17391bb1 it opens the same join screen as the path, and Join gives the path's result (A 13 nodes, 18 edges,
   both sources): graded as the path.
 - **Separate graph on 037e96e9bb**: the join screen's "Open as a separate graph" (or Control+O with
   a network open) makes a second project from deliveries.csv alone (13 nodes, 19 edges, "1 repeated
   edge"): two separate projects, not success. On ff17391bb1 that new project still shows the old
   project's last notice (for example "Undid replacing deliveries.csv."). Replace leaves the issue
   chip at 2, attributed to the second file.
+- **The Edges table on ff17391bb1**: "With issues 1" marks the Source column's header and draws
+  P05 in the warning color, though the end not on the site list is the target, P13. A report that
+  names P05 as the site that did not fit misses "P13 is not on the site list"; note in the grade
+  that the table drew it that way.
 
 ## T62. Read the wrong way
 
@@ -148,12 +154,15 @@ showing.
   designated by the program at load (Latitude `lat`, Longitude `lon`), so leaving it is right; only
   the report shows whether the participant knows it. The time set but the place not named is P.
 - **Also reported** (not graded): whether the participant opened Fields to check the place.
-- **Path**: the inspector's Overview "Set in Data" (on 0ffeae2ef5 it sets Time = `opened` in place:
+- **Path**: the inspector's Overview "Set in Data" (on 0ffeae2ef5 and ff17391bb1 it sets Time = `opened` in place:
   Fields does not open, nothing is announced, and the "Time: opened" row leaves the Overview); or
   Data > Fields "+" > Time > opened (B: expand gauges.csv first); or the table's `opened` header
-  menu > Role > Time (on 037e96e9bb, Control+Z undoes it with "Undid changing a column's role.").
-  On 037e96e9bb the table marks neither `lat` nor `lon` (only `opened` gets a "Time" chip), and the
-  Map layout's options show "Location lat, lon" on a button that does nothing.
+  menu > Role > Time (on 037e96e9bb and ff17391bb1, Control+Z undoes it with "Undid changing a
+  column's role."). On 037e96e9bb the table marks neither `lat` nor `lon` (only `opened` gets a
+  "Time" chip), and the Map layout's options show "Location lat, lon" on a button that does
+  nothing; on ff17391bb1 Escape then closes the options with Map not applied. On ff17391bb1 Fields
+  "+" > Time adds an empty Time line with its list open; Escape takes the empty line back without
+  a notice, and choosing opened sets the time.
 - **Not success**: the time left undesignated; a column changed to the wrong kind.
 
 ## T64. Its name, and what makes a tie strong
@@ -235,10 +244,10 @@ showing.
   the top bar reads "13 of 13 nodes" (B "12 of 12 nodes") with no edge count, and only the
   inspector shows 18 of 18 (B 14 of 14). The card's effect control reads "Select | Hide", with Hide
   on.
-- **A card on the id cannot leave one node out on 0ffeae2ef5 or 037e96e9bb**: the id card offers
+- **A card on the id cannot leave one node out on 0ffeae2ef5, 037e96e9bb or ff17391bb1**: the id card offers
   only Contains, Starts with, Ends with and Is exactly (the `site` / `station` card adds Has a value
   and Has no value), and Hide hides what does not match, so an id card for P13 with Hide leaves P13
-  alone in the picture (1 of 13, 0 of 18 edges). That is not success. On 037e96e9bb the table's id
+  alone in the picture (1 of 13, 0 of 18 edges; B 1 of 12, 0 of 14). That is not success. On 037e96e9bb the table's id
   column menu "Filter to..." does nothing; on `site` it adds a card.
 - **A style layer that hides the node** (Which nodes: Node id contains P13, Visibility Hidden) is
   not a filter card: not success. On 037e96e9bb B's G09 -> G12 stretch stays drawn, and the canvas

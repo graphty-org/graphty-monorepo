@@ -860,7 +860,8 @@ export function flakyFilings(stories, at, tail) {
         if (all.length <= FLAKY_GROUP) return all.map((s) => ({ name: s.name, body: flakyStoryBody(s, at, tail) }));
         let list = "";
         for (const s of all) {
-            const line = `- ${s.test ? `Flaky test: ${s.test.file} > ${s.test.name} (` : ""}${s.name}${s.test ? ")" : ""}: ${s.why}\n`;
+            const story = s.test ? "Flaky test: " + s.test.file + " > " + s.test.name + " (" + s.name + ")" : s.name;
+            const line = `- ${story}: ${s.why}\n`;
             if (list.length + line.length > MAX_BODY) {
                 list += "- ... and more (the run's visual-final captures list them all)\n";
                 break;

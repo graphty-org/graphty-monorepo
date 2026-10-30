@@ -193,7 +193,7 @@ describe("the collector cycle's dashboard observations", () => {
         expect(JSON.parse((await getCursor(store, "review-lag")) ?? "{}").approvals).toEqual([NOW - 2 * HOUR]);
     });
 
-    it("writes the set's age, cap shares, slice costs, review lags and a nightly promotion, and marks story-slices", async () => {
+    it("writes the set's age, cap shares, slice costs and review lags, and marks story-slices", async () => {
         const store = new MemoryStore();
         const tree = "b".repeat(40);
         await setCursor(
@@ -221,7 +221,8 @@ describe("the collector cycle's dashboard observations", () => {
         expect(obs.get("slices.set_age_ms")).toEqual([4 * HOUR]);
         expect(obs.get("slices.units_dropped")).toEqual([0]);
         expect(obs.get("release.review_lag_ms")).toEqual([3 * HOUR]);
-        expect(obs.get("release.nightly_promotions")).toEqual([1]);
+        // a channel/nightly move is no observation: promotions are counted from the stored release.yml jobs (#5125)
+        expect(obs.get("release.nightly_promotions")).toBeUndefined();
         expect(obs.get("slices.base_cap_share")).toEqual([0]);
         expect(obs.get("slices.idle_cap_share")).toEqual([0]);
         expect(obs.get("slices.idle_hour_cap_share")).toEqual([0]);

@@ -218,7 +218,9 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
     const done = (async (): Promise<void> => {
         try {
             const meta = oracleMeta(sample.id);
-            const decoded: Promise<void>[] = [];
+            // Decoded together at the end, never started early: a decode that fails while the sample is still
+            // importing would reject with nothing awaiting it yet, an unhandled rejection (#4512).
+            const shown: HTMLImageElement[] = [];
             if (hasOracle) {
                 const url = await oraclePngUrl(sample.id);
                 if (url === undefined) {
@@ -226,10 +228,10 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                 }
                 const { href } = new URL(url, document.baseURI);
                 oracleImg.src = href;
-                decoded.push(oracleImg.decode());
+                shown.push(oracleImg);
                 if (overOracle) {
                     overOracle.src = href;
-                    decoded.push(overOracle.decode());
+                    shown.push(overOracle);
                 }
                 left.caption.textContent = provenance(meta);
             }
@@ -273,7 +275,7 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
             for (const img of [graphtyImg, overGraphty]) {
                 if (img) {
                     img.src = shotUrl;
-                    decoded.push(img.decode());
+                    shown.push(img);
                 }
             }
             if (live) {
@@ -285,7 +287,7 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
                 // screenshot waited for those frames: 10 s of hsk-chars' 27 s shoot hook, against 1.7 s without (#4314).
                 host.remove();
             }
-            await Promise.all(decoded);
+            await Promise.all(shown.map((img) => img.decode()));
         } catch (e) {
             const reason = e instanceof Error ? e.message : String(e);
             right.insertAdjacentHTML("beforeend", `<p style="color:#b00">Failed: ${esc(reason)}</p>`);

@@ -9,10 +9,15 @@
  *   sends later requests with that prefix as `cachedContent` with the prefix's fields left out, as the API
  *   requires. A prefix the API refuses to cache (too small: 3.8 Flash caches 4,096 tokens or more) is sent whole.
  *   `close()` deletes the caches; each lives at most `ttlSeconds` and is replaced before it expires;
- * - asks for the Flex tier (`serviceTier: "flex"`, half the Standard price, best effort). Flex answers a
- *   request it has no capacity for with 429 or 503; the transport retries it as Google documents (3 attempts,
- *   5 s doubling), then throws {@link FLEX_CAPACITY_CODE}. A 429 that refuses the account (quota, billing) is
- *   never retried: it goes back to the SDK, and the harness reports it as the owner's;
+ * - asks for the Flex tier when told to (`serviceTier: "flex"`, half the Standard price, best effort). Flex
+ *   answers a request it has no capacity for with 429 or 503; the transport retries it as Google documents (3
+ *   attempts, 5 s doubling), then throws {@link FLEX_CAPACITY_CODE}. A 429 that refuses the account (quota,
+ *   billing) is never retried: it goes back to the SDK, and the harness reports it as the owner's. Flex queues
+ *   a request before it serves it: on 2026-10-29 its calls took 20 to over 120 s each (Standard: 2-3 s at the
+ *   median), so a suite on Flex outlasts the release job and Standard is the default;
+ * - gives every request a deadline, {@link REQUEST_DEADLINE_MS}: a request with no answer by then is aborted
+ *   and sent once more, and a second one with no answer fails with {@link REQUEST_TIMEOUT_CODE}, so a stalled
+ *   call fails its own case with a reason instead of hanging until the case's or the job's time limit;
  * - records each answer's `usageMetadata` and prices it at the tier that served it.
  *
  * Prices: https://ai.google.dev/gemini-api/docs/pricing, read 2026-10-29 (Gemini 3.8 Flash, per 1M tokens).
@@ -30,6 +35,21 @@ export const ACCOUNT_REFUSAL_TEXT =
 
 /** The code a request fails with when Flex had no capacity for it on every attempt. */
 export const FLEX_CAPACITY_CODE = "E_LLM_FLEX_CAPACITY";
+
+/**
+ * The code a request fails with when Gemini answered neither it nor its resend within {@link REQUEST_DEADLINE_MS}.
+ */
+export const REQUEST_TIMEOUT_CODE = "E_LLM_REQUEST_TIMEOUT";
+
+/**
+ * How long one request may wait for its answer. Standard answered in 2-3 s at the median and 40.5 s at the
+ * slowest over 19 runs (test/helpers/llm-regression-env.ts); one call there had not answered after 57 s. Two
+ * sends of a request fit the 120 s case limit with the case's other calls.
+ */
+export const REQUEST_DEADLINE_MS = 45_000;
+
+/** Sends of one request: the first, and one more after a missed deadline. */
+const DEADLINE_SENDS = 2;
 
 /** Google's documented Flex retry: 3 attempts, the first wait 5 s, doubling. */
 const FLEX_ATTEMPTS = 3;
@@ -92,6 +112,8 @@ export interface GeminiTransportOptions {
     sleep?: (ms: number, signal?: AbortSignal | null) => Promise<void>;
     /** The clock (default Date.now). */
     now?: () => number;
+    /** The signal that aborts a send at its deadline (default `AbortSignal.timeout(REQUEST_DEADLINE_MS)`). */
+    deadline?: () => AbortSignal;
 }
 
 const defaultSleep = async (ms: number, signal?: AbortSignal | null): Promise<void> => {
@@ -105,6 +127,7 @@ export class GeminiTransport {
     private readonly base: typeof globalThis.fetch;
     private readonly sleep: NonNullable<GeminiTransportOptions["sleep"]>;
     private readonly now: () => number;
+    private readonly deadline: () => AbortSignal;
     private readonly ttlSeconds: number;
     private apiBase?: string;
     private model?: string;
@@ -127,6 +150,7 @@ export class GeminiTransport {
         this.base = options.fetch ?? globalThis.fetch.bind(globalThis);
         this.sleep = options.sleep ?? defaultSleep;
         this.now = options.now ?? Date.now;
+        this.deadline = options.deadline ?? (() => AbortSignal.timeout(REQUEST_DEADLINE_MS));
         this.ttlSeconds = options.ttlSeconds ?? 1200;
     }
 
@@ -139,7 +163,36 @@ export class GeminiTransport {
         }
 
         [, this.apiBase, this.model] = match;
-        const body = JSON.parse(init.body) as Record<string, unknown>;
+        for (let sent = 1; ; sent++) {
+            const deadline = this.deadline();
+            const signal = init.signal ? AbortSignal.any([init.signal, deadline]) : deadline;
+            try {
+                return await this.answer(url, init.body, { ...init, signal });
+            } catch (error) {
+                // Only the deadline is the transport's to handle: the caller's own abort and every other failure go back.
+                if (!deadline.aborted || init.signal?.aborted) {
+                    throw error;
+                }
+
+                const seconds = REQUEST_DEADLINE_MS / 1000;
+                if (sent >= DEADLINE_SENDS) {
+                    throw new Error(
+                        `${REQUEST_TIMEOUT_CODE}: Gemini answered neither this request nor its resend within ${seconds} s ` +
+                            `each (tier ${this.options.tier})`,
+                        { cause: error },
+                    );
+                }
+
+                console.warn(
+                    `[llm-regression] Gemini did not answer within ${seconds} s, sending the request once more`,
+                );
+            }
+        }
+    };
+
+    /** One send of a generateContent request, from its body as the SDK wrote it to the recorded answer. */
+    private async answer(url: string, sdkBody: string, init: RequestInit): Promise<Response> {
+        const body = JSON.parse(sdkBody) as Record<string, unknown>;
         if (this.options.tier === "flex") {
             body.serviceTier = "flex";
         }
@@ -154,7 +207,7 @@ export class GeminiTransport {
         }
 
         return response;
-    };
+    }
 
     /**
      * Delete every cache this transport made.

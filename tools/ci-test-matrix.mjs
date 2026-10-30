@@ -82,12 +82,14 @@ const OFF_SHARDS = [
     },
     // graph-io-fidelity's stories (graph-io/fidelity-stories): every play function run as a test, so the
     // selector has an import graph that picks the stories a change reaches. No coverage: the graph-io shard
-    // measures graph-io.
+    // measures graph-io. The stories draw the oracles' rasterized PNGs, Git LFS objects: "lfs" names the paths
+    // ci.yml's test job pulls (a pointer file fails to decode, #4989).
     {
         shard: "graph-io-storybook",
         package: "graph-io",
         "test-command": "cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
         "needs-browser": true,
+        lfs: "graph-io/test/fidelity/oracles/*.png",
     },
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
@@ -494,7 +496,7 @@ const coverageFile = (shard) => shard["coverage-file"] ?? shard.package + "/cove
  * The matrix entry of one group, holding only the members a run must test.
  * @param name the group's name
  * @param members the SHARDS entries to run, in order
- * @returns a matrix entry; "members" names its shards; "coverage" lists "<shard>=<lcov path>" pairs, space separated
+ * @returns a matrix entry; "members" names its shards; "lfs" the Git LFS paths they read; "coverage" lists "<shard>=<lcov path>" pairs, space separated
  */
 export function groupEntry(name, members) {
     const steps = members.map((m) => `echo "==> ${m.shard}"; (${ciCommand(m)}) || failed="$failed ${m.shard}"`);
@@ -506,6 +508,11 @@ export function groupEntry(name, members) {
         members: members.map((m) => m.shard),
         "test-command": `failed=""; ${steps.join("; ")}; if [ -n "$failed" ]; then echo "::error::failed:$failed"; exit 1; fi`,
         "needs-browser": members.some((m) => m["needs-browser"]),
+        // the Git LFS paths its members read, comma separated as `git lfs pull --include` takes them
+        lfs: members
+            .map((m) => m.lfs)
+            .filter(Boolean)
+            .join(","),
         coverage: members
             .filter((m) => !NO_COVERAGE.has(m.shard))
             .map((m) => `${m.shard}=${coverageFile(m)}`)

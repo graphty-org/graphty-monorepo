@@ -343,3 +343,19 @@ first two by itself; the dry run owns the rest.
       13 of 14). The pilots' points that the address box has no Open button, that Server... loads
       no address, and that the card reads "Select | Hide" are the screen's words the key already
       holds.
+- 2026-10-30: answer key and T66's prompts matched to build a53beb7179 from the pilots of T60 A, T65
+  A (every fix-list route), T66 A and B, and T67 A (no bar, success definition or step count
+  changed):
+    - T60: the Server form and Web API card dead ends are confirmed on a53beb7179 (Enter in the
+      form does nothing, Load and Test dimmed with no tooltip); the key says plainly that Sources
+      "+" > Server... is not the in-project route; the main menu's find box shows the browser's
+      raw "Paste failed" error where clipboard reading is denied.
+    - T61 and T65: the deliveries-first order still keeps the repeat (13 nodes, 19 edges) and the
+      collapsed date card still reads a raw number on a53beb7179; the key's build ranges now say so.
+    - T66: the second file's issue list offers "Leave out" for the unknown end, and on a53beb7179
+      it deletes the node and its edge, leaving the success number (B 11) with no "of" count. The
+      key names that route under Not success and grades on the top bar and inspector. The prompts
+      said "Leave it out of the picture", the button's own words; they now say "Take it out of the
+      picture", and "leave out" joins the avoided words.
+    - T65 A, T66 A and T67 A: the other points were already in the key ("Select | Hide", the
+      Select card chip's whole-graph count, the T67 points from a walk on 0ffeae2ef5).

@@ -10,6 +10,11 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
+- (2026-10-30) A prompt word that is a detour control's label steers into that control: T66's
+  "Leave it out" echoed the issue list's "Leave out", which deletes G12 and leaves the success
+  number (11). Prompt now "Take it out"; key grades on "11 of 12", not the number. Grep prompts
+  against detour controls too, not only the success path; any route whose deletion yields the
+  success count needs a Not-success line.
 - (2026-10-30) Key now names a53beb7179; its re-pilot of T60, T65 A and T66 matched the key's
   counts. Pilot "mismatches" there were decided.md wording, the key's existing dead ends or another
   task's routes ("PASS INCOMPLETE" for other tasks' routes is not a gap in this task).
@@ -17,9 +22,6 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   (A 5 of 24, B 5 of 12) while 4 / 3 are selected: a key line written ahead of a fix (42ce7201c7)
   outlived its revert (5b25463780). Before trusting a key line, check that the commit behind it is
   in the frozen build (`git merge-base --is-ancestor`). A 5 read off that chip is graded on the act.
-- (2026-10-29) On ff17391bb1 and later: T65 Select selects only what is in the picture (A 4, B 3);
-  T64 Shortest path reads only "farther" weights; T68 B's gauges.csv row export is F. Still open:
-  no `data.json` from `--end`.
 - (2026-10-29) Pilot subagents cannot write report.md files (the harness refuses); their returned
   findings are the record. A finding's names can steer a report the wrong way even with right
   counts: T61's Edges table marks P05 (Source) for P13's unknown end, so the key tells graders to
@@ -85,6 +87,15 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-10-30 (T66 prompt and Leave out route):** Changed T66's prompts from "Leave it out of the
+  picture" to "Take it out of the picture" and added "leave out" to the avoided words; named the
+  issue list's Leave out under T66 Not success. Reason: the button deletes G12 and its stretch and
+  leaves 11, the success count, so the prompt's echo steered to a false pass a number-only grader
+  would miss. Evidence: r1d2 pilot T66B w2-chip-leave/03-05.png. Also widened the key's build
+  ranges (T61 deliveries-first 19 edges, T65 raw date number) and confirmed T60's Server dead end on
+  a53beb7179. No bar or step count changed. T67A's points came from 0ffeae2ef5 and were already in
+  the key.
 
 - **2026-10-30 (key matched to a53beb7179):** Changed only the header and T65's card-count line
   (A's chip has no accessible name, so a screen-reader participant hears 4 only from the live
@@ -184,6 +195,10 @@ logged). Their reasons, in short:
   reaches; more sessions cannot move either.
 
 ## Tried: worked / did not work
+
+- 2026-10-30 (T66 Leave out) -- Worked: grepping graphty/src for the prompt's verb found it is a
+  control label ("leave-out": "Leave out" in table/columns.ts and DataPage.tsx). The avoided-word
+  search had covered only success-path controls; detour controls echo too.
 
 - 2026-10-30 (key to a53b) -- Worked: reading each mismatch against the key text before editing;
   three of four "mismatches" needed no change.

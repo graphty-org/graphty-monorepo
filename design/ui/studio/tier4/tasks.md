@@ -34,7 +34,8 @@ id, key, node, edge, attribute, Sources, Fields, Filters, panel, menu, button, t
 open (except "open" for a file in Excel), import, merge, match, blank, trim.
 
 **Also avoided** (words the success path's controls show, found by searching the app's own text):
-web address, picked, stronger, farther, apart, at least.
+web address, picked, stronger, farther, apart, at least, leave out (the issue list's button that
+deletes an unknown end's node).
 
 **Kept on purpose:** `file`, `spreadsheet`, `list` -- the everyday words for what the person has; the
 start screen and the file chooser use them too, and no everyday word replaces them. The address
@@ -57,7 +58,7 @@ program reads (T68 B); the person would name it, as Maren and Dana would.
 | T63  | Where and when: ready for a map and a year-by-year view | pantries + deliveries                | gauges + flows                 |
 | T64  | What each thing is called, and what makes a tie strong  | pantries + deliveries                | gauges + flows                 |
 | T65  | Only some of them in the picture, and some marked       | volunteers.graphml                   | gauges + flows (tidied)        |
-| T66  | Leave out what came only from the second list           | pantries + deliveries                | gauges + flows                 |
+| T66  | Take out what came only from the second list            | pantries + deliveries                | gauges + flows                 |
 | T67  | What looks wrong in a file, put right                   | pantries.csv                         | gauges.csv                     |
 | T68  | Sending the data to someone else                        | pantries + deliveries (spreadsheets) | gauges + flows (GraphML)       |
 
@@ -149,10 +150,10 @@ their fixes (T67); export of tables and of a network file (T68).
 ### T66. Only what is on your own list (two datasets)
 
 - **Prompt A (pantries + deliveries):** "One site in this network turned up only in the delivery
-  log; it is not one of the food bank's own sites. Leave it out of the picture without deleting it
+  log; it is not one of the food bank's own sites. Take it out of the picture without deleting it
   from the network, and tell us how many sites are still in the picture."
 - **Prompt B (gauges + flows):** "One gauge in this network turned up only in the stretch list; it
-  is not one of the project's own gauges. Leave it out of the picture without deleting it from the
+  is not one of the project's own gauges. Take it out of the picture without deleting it from the
   network, and tell us how many gauges are still in the picture."
 
 ### T67. What looks wrong, put right (two datasets)

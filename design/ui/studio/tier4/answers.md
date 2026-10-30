@@ -59,15 +59,18 @@ showing.
   file glyph and "Source", not the address; the Sources row has the link glyph.
 - **Also success**: from inside a project, Data > Sources "+" (Add source) > Network data... > the
   same box > Enter, if the counts reported are the loaded network's (that route leaves the project
-  named "Untitled"). The empty project's canvas card ("No nodes to draw") offers only File... and
+  named "Untitled"). Sources "+" > Server... is not this route: it is a dead end (below). The empty project's canvas card ("No nodes to draw") offers only File... and
   Samples...; neither reaches an address, so a session that starts there must find Data > Sources
   "+" > Network data....
 - **Not success**: a downloaded copy opened with "Open a file" (the prompt forbids it); counts that
   do not match.
-- **Dead ends on 0ffeae2ef5** (a session that stops there is F, not P): Sources "+" > Server... and
-  the start screen's Web API card open a Server form on which no Kind loads a file address (Test
-  and Load stay dimmed); an address typed without `https://` does nothing; the main menu has no
-  door to an address.
+- **Dead ends on 0ffeae2ef5 and a53beb7179** (a session that stops there is F, not P): Sources "+" >
+  Server... and the start screen's Web API card open a Server form on which no Kind loads a file
+  address (Test and Load stay dimmed, with no tooltip saying why; on a53beb7179, Kind Web API with
+  the address in Endpoint, Enter does nothing); an address typed without `https://` does nothing;
+  the main menu has no door to an address. On a53beb7179, Control+V in the main menu's find box,
+  in a browser that denies clipboard reading, shows the browser's own error ("Paste failed: ...
+  Read permission denied.").
 
 ## T61. Two spreadsheets as one network
 
@@ -94,7 +97,7 @@ showing.
   edges added", "1 new node", "1 not in graph", "1 repeated key"; Overview Nodes 12, Edges 14.
   Path steps: 6.
 - **Detour that still succeeds**: opening deliveries.csv first and pantries.csv second (Data >
-  "+" > File...), if the end network has both. On 0ffeae2ef5 through ff17391bb1 that order gives A 13 nodes and **19**
+  "+" > File...), if the end network has both. On 0ffeae2ef5 through a53beb7179 that order gives A 13 nodes and **19**
   edges with "1 repeated edge" listed (the repeat is kept); those counts are that network's own and
   count as right. Main menu > Open project or file... and dropping the file on the open network
   open the same join screen.
@@ -225,7 +228,7 @@ showing.
   reads **5 of 12** nodes and **"3 nodes selected"**: G01, G02 and G09, the gauges in the picture put
   in before 2005; a screen reader hears 3. Path steps: 12 (B). The same Before 2005 in a
   style layer's Which nodes keeps 5 of 12 nodes ("installed before 2005, 5 nodes"). On 037e96e9bb
-  and bccf8fe47f the collapsed date card reads "installed is at most 1104537599999" (a raw number for the end of
+  through a53beb7179 the collapsed date card reads "installed is at most 1104537599999" (a raw number for the end of
   2004), not "before 2005"; that wording is the build's, and the card is right.
 - **Also success**: two separate keep cards (trained; hours) instead of one card with two fields.
 - **Not success**: a style layer that colors them while everyone stays; a selection made by
@@ -258,6 +261,13 @@ showing.
   not a filter card: not success. On 037e96e9bb B's G09 -> G12 stretch stays drawn, and the canvas
   key reads "Show: Layer 1, 1 of 12 nodes".
 - **Not success**: removing deliveries.csv from Sources (it deletes the routes); deleting the node.
+  One deletion looks like success by its number: the second file's Sources row issue chip opens
+  its issue list ("Issues in flows.csv": 1 unknown end, with Add nodes, Leave out and Ignore), and
+  on a53beb7179 Leave out (no tooltip) deletes G12 and its G09 -> G12 stretch: the inspector's Full
+  graph reads Nodes 11 and Edges 13, the flows.csv row reads 11 and 13 with 0 issues, and the top
+  bar has no "of" count. A report of 11 from that route is not success; grade on the top bar
+  ("11 of 12") and the inspector, not the number. Undo restores both. Walked on B; A's
+  deliveries.csv chip lists the same unknown end.
 
 ## T67. What looks wrong, put right
 

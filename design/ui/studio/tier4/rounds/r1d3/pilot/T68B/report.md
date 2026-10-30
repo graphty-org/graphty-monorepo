@@ -76,35 +76,61 @@ already a backlog row):
 
 - success-2, success-3, keyboard-2 and keyboard-3: repeat walks of the same routes as success and
   keyboard, which matched in full.
-- T65A, T65B, T66A/T66B, T64A/T64B and T68A routes in the touched list: they belong to other tasks.
+- T65A, T65B, T66A/T66B, T64A/T64B and T68A routes in the touched list: walked in the full re-walk below.
 
-## Second targeted re-walk (same build a53beb7179)
+## Full targeted re-walk (same build a53beb7179)
 
-Each route replayed from the newest walk of it on this build, one browser at a time.
+Every route of this task and every route the fix pass touched was replayed from its newest walk on
+this build, each in its own session, under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x01 to x21. The earlier passes above left the touched
+routes unwalked; all are walked here.
 
 | Route | Session | Result |
 | --- | --- | --- |
-| Success path by pointer | v01-success | 16 of 16 steps matched; ended |
-| Detours: Control+S, Save local copy, Image and Project tabs, turning flows.csv back on, the gauges.csv row's Export..., the Graph panel's menu | v02-detours | 15 of 15 matched; ended |
-| Detours, second set | v03-detours-2 | 18 of 24 matched, no divergence; the run was stopped before its end and the session ended by hand |
+| Success path by pointer | x01-success | 16 of 16 matched; ended |
+| Detours: Control+S, Save local copy, Image and Project tabs, flows.csv back on, the gauges.csv row's Export..., the Graph panel's menu | x02-detours | 15 of 15 matched; ended |
+| Detours, second set (adds Control+S then Tab and Escape, the Quick actions search for "graphml" and "export") | x03-detours-2 | 24 of 24 matched; ended |
+| Detours, third set (adds the table options' Export... and the flows.csv row's Export...) | x04-detours-3 | 48 of 48 matched; ended |
+| Keyboard and screen reader, success path | x05-keyboard | 94 of 94 matched; ended |
+| T65A success path | x06-T65A-path | 24 of 24 matched; ended |
+| T65A success path, the other card order | x07-T65A-order | 11 of 11 matched; ended |
+| T65A keyboard walk (the chip's spoken count) | x08-T65A-keys | 127 of 127 matched; ended |
+| T65A redo route (undo and redo of the keep card's edit) | x09-T65A-redo | 28 of 28 matched; ended |
+| T65B success path | x10-T65B-path | 15 of 15 matched; ended |
+| T65B success path, the other card order | x11-T65B-order | 7 of 7 matched; ended |
+| T65B keyboard and screen-reader walk | x12-T65B-keys-sr | 12 of 12 matched; ended |
+| T65B detour: a style layer's Which nodes | x13-T65B-which-nodes | 7 of 7 matched; ended |
+| T66A success path: the Data source card's count | x14-T66A-sourcecard | 15 of 15 matched; ended |
+| T66B success path: the Data source card's count | x15-T66B-sourcecard | 17 of 17 matched; ended |
+| T68A start: the narrowed Hide card's count | x16-T68A-start | 4 of 4 matched; ended |
+| T68B start: the narrowed Hide card's count | x17-T68B-start | 1 of 3 matched, then finished by hand; ended |
+| T64A success path | x18-T64A-path | 21 of 21 matched; ended |
+| T64A table role re-run | x19-T64A-table-role | 31 of 31 matched; ended |
+| T64B table role re-run | x20-T64B-table-role | 14 of 14 matched; ended |
+| T64B Analyze's weight | x21-T64B-analyze-weight | 7 of 7 matched; ended |
 
-Success path: the start reads "11 of 12 nodes, 13 of 14 edges" with the Data source card on Hide
-(gauges.csv ticked, chip "11 of 12") (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/01.png). Export opens on Data; Format GraphML;
-Scope "All 12 nodes, 14 edges" (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/06.png); Export shows "Styles lost in GraphML" with
-Save anyway (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/09.png); Save anyway shows "Exported gauges_graph.graphml"
-(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/10.png). The file holds 12 nodes and 14 edges
-(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v01-success/downloads/gauges_graph.graphml). Matches the answer key; the data stayed the task's own.
+Success path: the start reads "11 of 12 nodes, 13 of 14 edges", Data source card on Hide with
+gauges.csv ticked and chip "11 of 12" (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x01-success/01.png). Export opens on Data; Format GraphML;
+Scope lists "All 12 nodes, 14 edges" (chosen), "Shown 11 of 12 nodes, 13 of 14 edges", "gauges.csv 11
+of 12 nodes, 0 of 14 edges", "flows.csv 12 nodes, 14 edges" (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x01-success/06.png). Save anyway
+shows "Exported gauges_graph.graphml" (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x01-success/10.png); the file holds 12 nodes and 14 edges
+(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x01-success/downloads/gauges_graph.graphml). The keyboard walk writes the same 12-node, 14-edge
+file (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x05-keyboard/downloads/gauges_graph.graphml). The data stayed the task's own throughout.
 
-Detours: Control+S with "gauges.graphml" saves the project in the browser only
-(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v02-detours/03.png). Turning flows.csv back on, then GraphML, writes 12 nodes and 14 edges at once.
-The gauges.csv row's Export... opens on "gauges.csv 11 of 12 nodes, 0 of 14 edg..." with chips "11 of 12"
-and "0 of 14" (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/v02-detours/13.png) and writes 11 nodes, 0 edges with no Save anyway step, as the answer
-key records.
+Detours: the gauges.csv row's Export... again writes 11 nodes and 0 edges with no Save anyway step
+(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x02-detours/13.png); every other door writes 12 nodes and 14 edges
+(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x04-detours-3/downloads/). Quick actions finds Export... (Ctrl+E) and Save local copy... for
+"export" (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x03-detours-2/24.png).
 
-No new mismatch or defect. The carried defects listed above are unchanged.
+T68B start divergence: the click at 697,274 that took node G03 in the earlier walk landed on empty
+canvas, because the drawing lay about 35 pixels further left this time (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x17-T68B-start/03.png).
+The force layout is unseeded by design, so a node's place differs between loads; the counts, the card
+and the Edges table ("13 of 14 edges") matched. Clicking G03 where it now is (662,274) selected it and
+Escape cleared the selection (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x17-T68B-start/04.png, 05.png). Not a defect.
 
-Not walked in this pass: detours-3 and the keyboard route (both matched in full earlier on this build,
-above), and the touched routes of other tasks (T65A path, order, keys, redo; T65B path, order, keys,
-Which nodes; T66A/T66B Data source card; T68A and T68B starts; T64A path and table role, T64B table role
-and Analyze weight). The run had to stop before reaching them. Another task's pilot replayed all of them
-on this build with every route matching to the end (tmp/design-studio/tier4/r1d3/pilot/T62A/r-routes.status).
+No new mismatch or defect on any route. The carried defects listed above are unchanged (the keyboard
+walk matched the earlier one step for step, including focus dropping to the page body after Export,
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x05-keyboard/53.png, and Shift+Tab leaving the open Scope list open, /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x05-keyboard/44.png).
+On the touched T65B route, the before-a-date card still reads "installed is at most 1104537599999"
+(/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T68B/x10-T65B-path/14.png); that belongs to T65B and is already in its reports.
+
+Nothing was skipped in this pass.

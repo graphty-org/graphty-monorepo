@@ -201,6 +201,8 @@ env:
     # The package builds ci.yml uploads (its build-<package> artifacts), as one download-artifact pattern for every
     # job that keeps or publishes them: a package missing here is published with no dist
     PACKAGE_BUILDS: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
 
 jobs:
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).

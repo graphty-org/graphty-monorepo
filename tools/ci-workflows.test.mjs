@@ -3374,6 +3374,27 @@ describe("actions/cache in the workflows", () => {
         }
         assert.ok(checked >= 4, `found the cache steps (${checked})`);
     });
+
+    it("bounds a failed restore's wait in every workflow that restores a cache (#5098)", () => {
+        // @actions/cache races each segment download against a timer (SEGMENT_DOWNLOAD_TIMEOUT_MINS, 10 minutes
+        // by default) and clears it only when the download settles successfully. A rejected download ("Egress is
+        // over the account limit", run 41095808301) leaves the timer armed, so the step sits idle for the rest of
+        // the 10 minutes after "Failed to restore" and the job runs into its timeout.
+        const files = readdirSync(new URL("../.github/workflows/", import.meta.url))
+            .filter((f) => f.endsWith(".yml"))
+            .map((f) => `../.github/workflows/${f}`)
+            .concat(["../visual-review/templates/visual-review.yml", "../visual-review/templates/visual-seed.yml"]);
+        let checked = 0;
+        for (const file of files) {
+            const text = readFileSync(new URL(file, import.meta.url), "utf8");
+            const code = text.replace(/^\s*#.*$/gm, "");
+            if (!/actions\/cache(\/\w+)?@|cache: "?(pnpm|npm|yarn)|playwright-system-deps/.test(code)) continue;
+            const mins = Number(parseYaml(text)?.env?.SEGMENT_DOWNLOAD_TIMEOUT_MINS);
+            assert.ok(mins > 0 && mins <= 2, `${file}: env SEGMENT_DOWNLOAD_TIMEOUT_MINS is 1 or 2 (got ${mins})`);
+            checked++;
+        }
+        assert.ok(checked >= 10, `found the workflows that restore caches (${checked})`);
+    });
 });
 
 describe("Playwright's system packages", () => {

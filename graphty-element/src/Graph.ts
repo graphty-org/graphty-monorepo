@@ -7742,7 +7742,9 @@ export class Graph implements GraphContext {
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager } = await import("./ai/AiManager");
+        const { AiManager, loadEncryptStorage } = await import("./ai/AiManager");
+        // Its key manager restores persisted keys as it is built, so the store's package loads first.
+        await loadEncryptStorage();
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -7953,7 +7955,8 @@ export class Graph implements GraphContext {
      * ```
      */
     static async createApiKeyManager(): Promise<ApiKeyManager> {
-        const { ApiKeyManager: KeyManager } = await import("./ai/keys");
+        const { ApiKeyManager: KeyManager, loadEncryptStorage } = await import("./ai/keys");
+        await loadEncryptStorage();
 
         return new KeyManager();
     }

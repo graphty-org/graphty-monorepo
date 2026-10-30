@@ -157,7 +157,7 @@ const INVENTORY: Record<string, Covered> = {
         count: 4,
         reason: "the AI SDK and its three provider packages, optional peers; they draw nothing",
     },
-    "src/ai/keys/ApiKeyManager.ts": {
+    "src/ai/keys/encryptStorage.ts": {
         count: 1,
         reason: "encrypt-storage, the optional peer that persists API keys; it draws nothing",
     },

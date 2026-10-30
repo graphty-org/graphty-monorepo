@@ -96,15 +96,19 @@ function makeConsumerApp(): string {
  */
 async function buildWithWebpack(): Promise<string[]> {
     const compiler = webpack({
-        mode: "production",
+        // What is under test is resolution, which every mode does alike; development mode skips the
+        // production optimizations that were most of the build's time.
+        mode: "development",
+        devtool: false,
         context: app,
         entry,
         output: { path: join(app, "out-webpack") },
         // Webpack reads a tsconfig.json beside a linked workspace package and follows its `paths`
         // to the package's TypeScript source. A published package ships no tsconfig.json.
         resolve: { tsconfig: false },
-        // Minifying Babylon.js is most of the time a build takes, and has nothing to do with resolving.
-        optimization: { minimize: false },
+        // Resolving graphty-element's imports of Babylon.js is what is under test, not Babylon.js's
+        // own thousands of modules: left unparsed, they are most of the time a build takes.
+        module: { noParse: /[\\/]@babylonjs[\\/]/ },
         performance: { hints: false },
         infrastructureLogging: { level: "none" },
     });
@@ -140,7 +144,7 @@ async function buildWithVite(): Promise<string[]> {
 }
 
 /**
- * Build with esbuild, splitting as an app does.
+ * Build with esbuild, splitting as an app does, for an es2020 browser.
  * @returns the build's error messages
  */
 async function buildWithEsbuild(): Promise<string[]> {
@@ -152,6 +156,9 @@ async function buildWithEsbuild(): Promise<string[]> {
             splitting: true,
             format: "esm",
             platform: "browser",
+            // The oldest target a consumer reasonably builds for (Vite 5 and 6 default to it). It
+            // refuses a top-level await, which an optional peer must therefore not be loaded with.
+            target: "es2020",
             outdir: join(app, "out-esbuild"),
             logLevel: "silent",
         });

@@ -71,6 +71,7 @@
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
         "./src/layout/index.ts",
+        "./src/ai/keys/withEncryptStorage.ts",
         "./index.ts",
         "./src/graphty-element.ts"
     ],

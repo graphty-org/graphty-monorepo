@@ -28,6 +28,7 @@ import {
     type MemberStatus,
     type Reason,
     type SourceStatus,
+    hit,
     thresholds,
 } from "../sla/engine.js";
 
@@ -44,6 +45,8 @@ interface Spec {
     /** A target or red threshold that is not a plain comparison (catalog codes in web/src/text.ts). */
     target?: Fact;
     red?: Fact;
+    /** The note for a member its own value passes but an `also` metric fails: that metric's value as a fact. */
+    also?: Record<string, (v: number, facts: Record<string, number>) => Fact>;
 }
 
 const PCT = 100;
@@ -110,7 +113,16 @@ export const SPEC: Record<string, Spec> = {
     "flaky.no_issue": { id: "flaky.no_issue", link: "/flaky/hotspots" },
     "flaky.net_new": { id: "flaky.net_new", link: "/flaky", signed: true },
     "flaky.detected_to_fixed": { id: "flaky.detected_to_fixed", unit: "d", k: 1 / DAY, link: "/flaky" },
-    "release.lanes_red": { id: "releases.lanes_red", link: "/releases/lanes", red: f("sla.lanes_open", { h: 6 }) },
+    "release.lanes_red": {
+        id: "releases.lanes_red",
+        link: "/releases/lanes",
+        red: f("sla.lanes_open", { h: 6 }),
+        also: {
+            "release.hold_open_ms": (v) => f("releases.held.note", { h: round(v * toH) }),
+            "release.review_wait_ms": (v, facts) =>
+                f("releases.review_wait.note", { h: round(v * toH), issue: facts["release.review_issue"] ?? 0 }),
+        },
+    },
     "release.workflows_failing": {
         id: "releases.workflows_failing",
         link: "/releases/workflows",
@@ -445,6 +457,27 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
 }
 
 /**
+ * Why a red or yellow member is so when an `also` metric set it (lanes red at 0 while the candidate is held, #5125).
+ * @param c the member's configuration
+ * @param spec how it is shown
+ * @param s its status
+ * @returns `{ note }`, or nothing when its own value set the state
+ */
+function alsoNote(c: MemberConfig, spec: Spec, s: MemberStatus): { note?: Fact } {
+    if (!spec.also || (s.state !== "FAILING" && s.state !== "WARNING")) {
+        return {};
+    }
+    for (const a of c.also ?? []) {
+        const v = s.facts?.[a.metric];
+        const note = spec.also[a.metric];
+        if (note && v !== undefined && a.fail && hit(v, a.fail)) {
+            return { note: note(v, s.facts ?? {}) };
+        }
+    }
+    return {};
+}
+
+/**
  * One engine member as the page's row at a range: the state is the engine's; at 6 h and 24 h a windowed member's
  * value, n and coverage cover the range (section 8), and the 1 h value stays the judged one.
  * @param reads
@@ -468,6 +501,7 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
         ...(s.minN === undefined ? {} : { minN: s.minN }),
         ...(reason ? { reason } : {}),
         ...(s.clearedAt === undefined ? {} : { cleared: iso(s.clearedAt) }),
+        ...alsoNote(c, spec, s),
     };
     if (GRAY.has(state) && state !== "info") {
         return out;

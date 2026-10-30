@@ -933,9 +933,6 @@ async function channels(c: Cycle, gh: GitHub) {
             ...(refs.production ? { production: refs.production.target.oid } : {}),
         },
     };
-    // A nightly promotion is channel/nightly moving to another commit.
-    if (prev?.refs.nightly && snap.refs.nightly && prev.refs.nightly !== snap.refs.nightly)
-        c.o("release.nightly_promotions", 1);
     await c.setJson("channels", snap);
 }
 

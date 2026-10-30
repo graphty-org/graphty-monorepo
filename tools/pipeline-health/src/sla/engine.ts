@@ -628,6 +628,18 @@ function partialWindow(ctx: Ctx, c: MemberConfig, srcs: SourceStatus[]): Reason 
     return covered < 1 ? { code: "partial", params: { hours: Math.round(covered * 10) / 10, of: 1 } } : undefined;
 }
 
+/** The computed fields a status carries, leaving out the ones not computed. */
+function computedFields(v: Computed): Partial<MemberStatus> {
+    return {
+        ...(v.value === undefined ? {} : { value: v.value }),
+        ...(v.value6h === undefined ? {} : { value6h: v.value6h }),
+        ...(v.n === undefined ? {} : { n: v.n }),
+        ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
+        ...(v.facts ? { facts: v.facts } : {}),
+        ...(v.cause ? { cause: v.cause } : {}),
+    };
+}
+
 function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     const status: MemberStatus = {
         id: c.id,
@@ -648,14 +660,7 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
         return { ...status, ...gray };
     }
     const v = compute(ctx, c, { t: floorTo(ctx.now, "5m"), end: ctx.now }) ?? {};
-    Object.assign(status, {
-        ...(v.value === undefined ? {} : { value: v.value }),
-        ...(v.value6h === undefined ? {} : { value6h: v.value6h }),
-        ...(v.n === undefined ? {} : { n: v.n }),
-        ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
-        ...(v.facts ? { facts: v.facts } : {}),
-        ...(v.cause ? { cause: v.cause } : {}),
-    });
+    Object.assign(status, computedFields(v));
     // A source failing within its age limit: the value its last good writes give, marked stale with its age.
     const held = srcs.find((s) => s.holding);
     if (held) {

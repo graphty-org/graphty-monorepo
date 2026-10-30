@@ -298,6 +298,18 @@ export interface RunnerUse {
     longestQueuedMs: number;
 }
 
+/** Counts one job that has not started (queued, waiting or pending) into `use`. */
+function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number) {
+    if (p === "other") return; // machine.dev and self-hosted pools are outside GitHub's limit
+    const age = nowMs - Date.parse(j.created_at);
+    use.queued++;
+    // Only "queued" waits for a runner: "waiting" is an environment approval and "pending" a concurrency
+    // group, so neither says GitHub is short of runners (the owner's own Promote run read as an outage).
+    // macOS jobs queue behind their own 5-job limit while Linux runners sit free: that is no outage.
+    if (age > 2 * MIN && j.status === "queued" && p === "linux_windows") use.queuedOver2++;
+    use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+}
+
 export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number): RunnerUse {
     const use: RunnerUse = {
         running: { linux_windows: 0, macos: 0, other: 0 },
@@ -311,14 +323,7 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
             use.running[p]++;
             if (p === "macos") use.running.linux_windows++; // a macOS job counts against the 60 too
         } else if (j.status === "queued" || j.status === "waiting" || j.status === "pending") {
-            if (p === "other") continue; // machine.dev and self-hosted pools are outside GitHub's limit
-            const age = nowMs - Date.parse(j.created_at);
-            use.queued++;
-            // Only "queued" waits for a runner: "waiting" is an environment approval and "pending" a concurrency
-            // group, so neither says GitHub is short of runners (the owner's own Promote run read as an outage).
-            // macOS jobs queue behind their own 5-job limit while Linux runners sit free: that is no outage.
-            if (age > 2 * MIN && j.status === "queued" && p === "linux_windows") use.queuedOver2++;
-            use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+            countWaiting(use, j, p, nowMs);
         }
     }
     for (const r of runsWithoutJobs) {

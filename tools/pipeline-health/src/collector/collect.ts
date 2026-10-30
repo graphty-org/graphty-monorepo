@@ -713,6 +713,19 @@ async function repoFiles(c: Cycle, gh: GitHub) {
     await c.setJson("codeowners", codeownerPatterns(data.repository.codeowners?.text ?? ""));
 }
 
+/** The oldest open "Release held" issue's creation time (0 for none); records the nightly screenshot-review wait. */
+function readHolds(c: Cycle, held: (GqlIssue | null)[], nightly: (GqlHoldIssue | null)[]): number {
+    let heldSince = 0;
+    for (const i of held)
+        if (i?.title.startsWith("Release held") && i.state === "OPEN")
+            heldSince = Math.min(heldSince || Infinity, Date.parse(i.createdAt));
+    // The held nightly waiting only on the owner's screenshot review (section 13's reminder).
+    const review = screenshotReview(nightly);
+    c.o("release.review_wait_ms", review ? c.now - review.since : 0);
+    c.o("release.review_issue", review?.issue ?? 0);
+    return heldSince;
+}
+
 /** Issues updated since the cursor, the open "Release held" issues (their age is a hold's age), the nightly hold. */
 async function issues(c: Cycle, gh: GitHub): Promise<number> {
     const [owner, name] = c.d.repo.split("/");
@@ -732,15 +745,7 @@ async function issues(c: Cycle, gh: GitHub): Promise<number> {
             held: `repo:${c.d.repo} is:issue is:open in:title "Release held"`,
             nightly: `repo:${c.d.repo} is:issue is:open in:title "Nightly held on"`,
         });
-        if (page === 0) {
-            for (const i of data.held.nodes)
-                if (i?.title.startsWith("Release held") && i.state === "OPEN")
-                    heldSince = Math.min(heldSince || Infinity, Date.parse(i.createdAt));
-            // The held nightly waiting only on the owner's screenshot review (section 13's reminder).
-            const review = screenshotReview(data.nightly?.nodes ?? []);
-            c.o("release.review_wait_ms", review ? c.now - review.since : 0);
-            c.o("release.review_issue", review?.issue ?? 0);
-        }
+        if (page === 0) heldSince = readHolds(c, data.held.nodes, data.nightly?.nodes ?? []);
         const recent = data.repository.recent;
         const newer = recent.nodes.filter((i) => Date.parse(i.updatedAt) >= since - 5 * MIN);
         for (const i of newer) c.items.push(toIssueItem(i, c.d.repo));
@@ -833,16 +838,33 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     // Since the newest scheduled slot started (the release scheduler dispatches mode full every 6 h). With none in
     // the 12 runs (a dead scheduler while agents dispatch restarts), look back 100 runs, so the age is not that of
     // the oldest restart. Section 13 pages on it.
-    const full = (rs: GhRun[]) => rs.find((r) => releaseMode(r.display_title) === "full");
-    let slot = full(runs);
-    if (!slot && runs.length) {
-        const more =
-            (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/release.yml/runs?per_page=100`))?.workflow_runs ??
-            runs;
-        slot = full(more) ?? more.at(-1);
-    }
+    const slot = await newestSlot(gh, repo, runs);
     if (slot) c.o("release.since_slot_ms", c.now - Date.parse(slot.created_at));
+    await releaseWorkflows(c, gh, runs);
 
+    // Untested master age: the oldest master commit after the newest tested candidate.
+    if (candidate) {
+        const cmp = await gh.rest<{ commits: CompareCommit[] }>(`repos/${repo}/compare/${candidate.sha}...master`);
+        const oldest = oldestUntested(cmp?.commits ?? []);
+        c.o("master.untested_age_ms", oldest === undefined ? 0 : c.now - oldest);
+    }
+    if (newest) await recordSource(c.d.store, "release", newest.at, { ok: true });
+}
+
+/** The newest scheduled (mode full) release run, looking back 100 runs when the newest 12 hold none. */
+async function newestSlot(gh: GitHub, repo: string, runs: GhRun[]): Promise<GhRun | undefined> {
+    const full = (rs: GhRun[]) => rs.find((r) => releaseMode(r.display_title) === "full");
+    const slot = full(runs);
+    if (slot || !runs.length) return slot;
+    const more =
+        (await gh.rest<RunsPage>(`repos/${repo}/actions/workflows/release.yml/runs?per_page=100`))?.workflow_runs ??
+        runs;
+    return full(more) ?? more.at(-1);
+}
+
+/** Each release workflow's failure streak, and how many are failing. */
+async function releaseWorkflows(c: Cycle, gh: GitHub, runs: GhRun[]) {
+    const repo = c.d.repo;
     let failing = 0;
     let maxInRow = 0;
     const wfs: WorkflowState[] = [];
@@ -863,14 +885,6 @@ async function releases(c: Cycle, gh: GitHub, heldSince: number) {
     await c.setJson("release-workflows", wfs);
     c.o("release.workflows_failing", failing);
     c.o("release.max_failed_in_row", maxInRow);
-
-    // Untested master age: the oldest master commit after the newest tested candidate.
-    if (candidate) {
-        const cmp = await gh.rest<{ commits: CompareCommit[] }>(`repos/${repo}/compare/${candidate.sha}...master`);
-        const oldest = oldestUntested(cmp?.commits ?? []);
-        c.o("master.untested_age_ms", oldest === undefined ? 0 : c.now - oldest);
-    }
-    if (newest) await recordSource(c.d.store, "release", newest.at, { ok: true });
 }
 
 /**

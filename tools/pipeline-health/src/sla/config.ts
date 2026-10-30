@@ -49,9 +49,9 @@ export interface MemberConfig {
 
 /**
  * When and how a member pages. Only critical outages and what only the owner can do page; agents handle the rest.
- * Texts take {value}, {limit} (red threshold), {target} (the budget or normal value), {over} (value minus target),
- * {suggest} (the value rounded up to the next $10), {pace} (the value at month end at this month's pace), {for} (how
- * long), {peak}, {lasted} (how long an age-like member was bad, for a "resolved"), {error}, {since} (how long the
+ * Texts take {value}, {limit} (red threshold), {target} (the budget or normal value), {over} (value minus the red
+ * line, or the target without one), {pick} (the month a cost limit is chosen for), {suggest} (the value rounded up to
+ * the next $10), {pace} (the value at month end at this month's pace), {for} (how long), {peak}, {lasted} (how long an age-like member was bad, for a "resolved"), {error}, {since} (how long the
  * cause has lasted), {feed}, {frozen}, {problem}, {fix} and {off} (what the cause means, alerts/index.ts
  * causeWords), {ms:<fact>} (a fact as a duration) and {issue:<fact>} (a fact as an issue URL), all in human units.
  */
@@ -68,8 +68,6 @@ export interface AlertConfig {
     repeatMs?: number;
     /** The condition is the value past this, instead of the member being FAILING (the member must still be bad). */
     value?: Threshold;
-    /** Or its month-end projection at this month's pace past this (with value; a monthly bill nearing a cap). */
-    pace?: Threshold;
     /** And each of these facts (MemberStatus.facts) past its threshold; the episode ends once one is not. */
     facts?: Record<string, Threshold>;
     /** A month-end projection: not before this day of the month unless month-to-date spend is already past red. */

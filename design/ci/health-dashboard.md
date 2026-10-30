@@ -841,8 +841,9 @@ request status broker before reverting, rerunning or closing anything.
 A dashboard nobody has open is a blind spot of its own. The collector sends Pushover notifications
 (the application the release train uses, its keys in SSM) to the owner's phone, but **only for a
 critical outage or something only the owner can do**. Agent sessions handle everything else (red
-master, full runs that have stopped starting, flaky tests, red pull requests, CI budgets), so those members
-show on the dashboard and never page. A member pages only when its entry in `config/slas.json` has an `alert`; a member
+master, flaky tests, red pull requests, CI budgets), so those members show on the dashboard and never page;
+master red pages only once no agent has fixed it in 3 h, and untested master only when the release scheduler
+has stopped starting full runs, whose credentials only the owner can renew. A member pages only when its entry in `config/slas.json` has an `alert`; a member
 without one never pages. The `alert` says how long its condition must hold (`afterMs`), the
 Pushover priority (1 for an outage, 0 for an owner action, -1 silent; a priority-1 page sent between 21:00 and 9:00
 Pacific goes at 0, so the owner's quiet hours hold it, as the dead-man check does, because he cannot act at night
@@ -852,42 +853,43 @@ condition, and the words.
 
 | Member                     | Pages when                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Priority       |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| Master red now             | FAILING for 3 h (agents normally fix it within the hour), not while the runners page's own condition holds or its page is still open (a slowdown does not hold it back); says how long, not that no agent is on it, and asks the owner to start a pipeline-round loop only if none is running, or to restart a running one; links master's failing builds                                                                                                                                                                                                                                                                                               | 1 (0 at night) |
+| Master red now             | FAILING for 3 h (agents normally fix it within the hour), not while the runners page's own condition holds or its page is still open (a slowdown does not hold it back; a GitHub API outage leaves master NO DATA, so it cannot page either); says how long and that no agent has fixed it, and asks the owner to restart the pipeline-round loop (or start one if none runs); links master's failing builds                                                                                                                                                                                                                                            | 1 (0 at night) |
+| Untested master age        | FAILING (no full run has tested master's oldest untested commit for 13 h) while no scheduled full run (mode full) has started for 13 h (`release.since_slot_ms`): the release scheduler Worker has stopped, and its Cloudflare account or GitHub App credential only the owner can renew; daytime only; a 24 h floor; asks the owner to have any Claude session find the cause and to make the credential it names                                                                                                                                                                                                                                      | 0              |
 | Runners not assigned       | FAILING for 1 h while GitHub runs at most 5 jobs and at least 5 wait (an outage or account block, not a slowdown); counts Linux and Windows jobs in status `queued` over 2 min, and runs queued with no jobs yet (`ci.jobs_waiting_runner`); the page gives both counts and links GitHub's status page. The outage gate does not depend on the plan's 500-job limit                                                                                                                                                                                                                                                                                     | 1 (0 at night) |
 | Lanes red on the candidate | the open "Nightly held on" issue's newest verdict is green-images (all tests passed, changed screenshots) and it has waited 24 h for the owner's review; daytime only; again every 24 h while the hold waits (`repeatMs`); links the hold issue                                                                                                                                                                                                                                                                                                                                                                                                         | 0              |
 | Spend, T4, LLM             | FAILING for 6 h, not before day 7 of the month unless month-to-date spend is already past red; daytime only; due together, one message; again every week while the forecast stays over (`repeatMs`, and a 7-day floor), so an overrun that lasts into the next month pages again from its day 7                                                                                                                                                                                                                                                                                                                                                         | 0              |
-| AWS                        | for 1 h, spend of $9 or more, or past its $8 yellow line and heading for $10 by month end (the Budget's deny-all silences the collector at $10); its own page; daytime only                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 0              |
+| AWS                        | for 1 h, spend past its $8 yellow line (billing data lags about a day, so this leaves room before the Budget's deny-all silences the collector at $10); its own page; daytime only; the title names the risk, losing these alerts, and asks to raise the limit                                                                                                                                                                                                                                                                                                                                                                                          |
 | Sources past their age     | a credential error (401, 403, expired or missing token), lasting an hour, on a source whose credential only the owner can make (the Cloudflare and Sentry tokens); daytime only; not while the collector is FAILING. The billing feed (the collector's own AWS role, whose credentials renew themselves) and the results store token are agent work and never page. No collector part writes the two token sources yet, so this page stays dormant until their writers exist; and while the billing feed fails, the cost members are NO DATA, so the cost pages, the AWS lockout warning included, are off (the dead-man check still reports a lockout) | 0              |
-| Collector                  | FAILING for 10 min (no good GitHub read for 30 min); when GitHub's API itself is failing (HTTP 5xx or a network error), only after 2 h, at priority 0, and not while the runners page's own condition holds or its page is still open (one outage, one page); the key is blamed only for a 401, or a 404 from the token endpoint                                                                                                                                                                                                                                                                                                                        | 1 (0 at night) |
+| Collector                  | FAILING for 10 min (no good GitHub read for 30 min); when GitHub's API itself is failing (HTTP 5xx or a network error), only after 2 h, at priority 0, and not while the runners page's own condition holds or its page is still open (one outage, one page); the key is blamed only for a 401, or a 404 from the token endpoint; anything else (a bug, a rate limit, a timeout) is "bug in its code" and asks the owner to have any Claude session fix it, since nothing is watched until then                                                                                                                                                         |
 
 Cloudflare usage has no alert until something measures it: no collector part writes its metric,
 so a page could never say which usage or when it resets.
 
-Cost members due together go out as one message. Every message says what is wrong in words, the
-value and its limit in the dashboard's units (`3 h 20 min`, `$232`), and one line "What to
-do": a single step the owner can take from a phone (a link, a decision to tell any Claude session),
-or "nothing" for an outage that recovers by itself. A cost page's title gives the month's forecast, the budget and the overrun ("T4 GPU: $232 forecast for
-Oct, budget $180 ($52 over)"); its text what is spent so far and the projection with its date; and it says
-that nothing is cut unless the owner says so, and asks one decision whose every option closes the gap it
-names: a monthly budget above the projection, or keeping the budget and accepting the overrun; for the LLM
-tests (the one paid service the agents can cut at once) cutting their runs back to their budget instead.
-Cutting LLM tests never fixes the T4 or the total overrun, so those pages never offer it as their fix. A text
-gives the budget and the line the Costs page draws red at ("against its $180 budget (the Costs page shows red
-above $200)"). In the month's last week the decision is next month's ("October is nearly spent. Choose
-November's budget: ..."); earlier it holds from now on. It never offers running the T4 lane less,
-which runs in every full run by the owner's rule, and says so. Cost members due together go out as one
-message whose title names every overrun ("2 budgets over for Oct: T4 GPU +$52, LLM tests +$28"), the total's
-line saying it already includes T4 and the LLM tests, and one decision that names every suggested budget
-("raise the budgets to Total $420, T4 GPU $240, LLM tests $90 a month, or keep them and accept the overruns"),
-then, when the LLM tests are among them, what cutting them would save and what it would leave over ("saves
-about $28, but T4 GPU stays over and the total stays about $84 over"). The AWS page offers raising the
-dashboard's own $10 Budget (in the stack's code, which an agent deploys) to $15, under the owner's $20
-project spend limit. A credential page names the
+Cost members due together go out as one message. Every message's title says what is wrong, and its first
+line is "What to do": a single step the owner can take from a phone (a link, a decision to tell any Claude
+session), or "nothing to do but wait" for an outage that recovers by itself, so the lock screen shows the
+request; the details follow, with the value and its limit in the dashboard's units (`3 h 20 min`, `$232`). A
+cost page names one limit per service, the red line that triggered it and that the Costs page draws red at,
+and its title asks for the decision ("T4 GPU $32 over Oct limit: pick Nov limit"). Its first line is the
+decision, whose every option closes the gap it names: a monthly limit above the projection, or keeping the
+limit and accepting the overrun; for the LLM tests (the one paid service the agents can cut at once) cutting
+their runs back to their limit instead; then that nothing is cut unless the owner says so. Cutting LLM tests
+never fixes the T4 or the total overrun, so those pages never offer it as their fix. One short line per
+service follows ("T4 GPU test lane: $232 forecast by Oct 31, limit $200, $221 spent so far"). In the month's
+last week the decision is next month's ("Choose November's limit"); earlier it holds from now on. It never
+offers running the T4 lane less, which runs in every full run by the owner's rule, and says so. A group's
+title leads with the total when it is among them and names the others it already includes rather than adding
+them ("Over budget for Oct: $412 of $360 (T4 GPU and LLM tests). Pick Nov limits"), else names what is over;
+its one decision names every suggested limit ("raise Total to $420, T4 GPU to $240, LLM tests to $90 a month,
+or keep them and accept the overruns"), then, when the LLM tests are among them, what cutting them would save
+and what it would leave over ("saves about $13, but T4 GPU stays over and the total stays about $39 over").
+The AWS page offers raising the dashboard's own $10 Budget (in the stack's code, which an agent deploys) to
+$15, under the owner's $20 project spend limit. A credential page names the
 credential and where to make a new one, asks the owner to hand it to any Claude session to store (the
 agent knows where; no parameter paths or regions on the phone), and
 puts the quoted error last, from the source and its error (`causeWords` in
-`src/alerts/index.ts`); a cause with no step only the owner can take never pages. A quiet (priority -1) "resolved" follows only for the outage members and
-the credential case, and only after the member has been OK for 15 minutes, so a flapping recovery
+`src/alerts/index.ts`); a cause with no step only the owner can take never pages. A quiet (priority -1) "resolved", saying how long the problem lasted, follows only for the outage
+members and the credential case, and only after the member has been OK for 15 minutes, so a flapping recovery
 sends neither "resolved" nor a new page. The alert's mark keeps the episode's start, peak and cause, so a
 "resolved" for a member measured without history (the collector, the sources) still says which feed, and
 says how long it lasted from the episode's start to the first run that saw it fixed, not the value when it
@@ -918,7 +920,9 @@ the alert path can fail has its own check:
   health API does not answer (after three retries) or its views are over 30 minutes old, it pages through Pushover with
   the release train's own keys. Only the first attempt of a scheduled run (mode full) on master pages,
   not that slot's hand-off run on channel/full-run, so a long outage pages at most four times a day, at priority 1 between 9:00 and 21:00 Pacific and at
-  priority 0 (held by the owner's quiet hours) at night.
+  priority 0 (held by the owner's quiet hours) at night. Only the release scheduler starts scheduled runs,
+  so this check stops with it; a stopped scheduler is reported by the untested master page instead, while
+  the collector still runs.
 
 ## 14. Rollout
 

@@ -140,9 +140,9 @@
                 "afterMs": 10800000,
                 "priority": 1,
                 "notWhileFailing": ["ci.runners_not_assigned"],
-                "title": "Master broken for {value}, longer than agents usually take",
-                "text": "Master's build has been failing for {value}; agents normally fix or revert it within an hour. Until it is fixed, canary deploys and full test runs are blocked.",
-                "action": "If no Claude session is running /pipeline-round in graphty-monorepo, start /loop 30m /pipeline-round there. If one is running but master stays broken, restart that loop instead of starting a second one.",
+                "title": "Master broken for {value} and no agent has fixed it",
+                "text": "Agents normally fix or revert a red master within an hour; this one has been red for {value}. Until it is fixed, canary deploys and full test runs are blocked.",
+                "action": "Restart /loop 30m /pipeline-round in a Claude session in graphty-monorepo (start one if none is running).",
                 "resolved": {
                     "title": "Master is green again",
                     "text": "Master was broken for about {lasted}.",
@@ -211,7 +211,19 @@
                     "metric": "release.since_slot_ms"
                 }
             ],
-            "sources": ["collector"]
+            "sources": ["collector"],
+            "alert": {
+                "afterMs": 0,
+                "priority": 0,
+                "daytime": true,
+                "floorMs": 86400000,
+                "facts": {
+                    "release.since_slot_ms": [">=", 46800000]
+                },
+                "title": "No full test run in {ms:release.since_slot_ms}: release scheduler may be down",
+                "text": "The release scheduler starts a full test run every 6 h; none has started in {ms:release.since_slot_ms}, so nightly and npm next are frozen and master has gone untested for {value}.",
+                "action": "Ask any Claude session to find out why the release scheduler stopped. If its Cloudflare Worker or GitHub App credential has lapsed, make the new one the session names and give it to the session to store."
+            }
         },
         {
             "id": "master.reverts",
@@ -393,11 +405,11 @@
                 "afterMs": 3600000,
                 "priority": 1,
                 "title": "GitHub not starting CI jobs: {n:ci.jobs_running} running, {n:ci.jobs_waiting_runner} waiting",
-                "text": "{n:ci.jobs_running} CI jobs running and {n:ci.jobs_waiting_runner} waiting for a runner, some for {value}. All CI and merging is stalled.",
-                "action": "Check https://www.githubstatus.com/ for an Actions outage. If GitHub reports none, check graphty-org's billing and Actions settings (spending limit, payment method, Actions disabled): https://github.com/organizations/graphty-org/settings/billing",
+                "text": "{n:ci.jobs_running} CI jobs running and {n:ci.jobs_waiting_runner} waiting for a runner, some for {value}. All CI and merging are stalled.",
+                "action": "Likely a GitHub Actions outage; nothing to do but wait. If GitHub's status page (the link) shows no outage, check graphty-org's billing and Actions settings: https://github.com/organizations/graphty-org/settings/billing",
                 "resolved": {
                     "title": "GitHub is starting CI jobs again",
-                    "text": "CI jobs are running again.",
+                    "text": "CI jobs are running again after about {lasted}.",
                     "clearAfterMs": 900000
                 },
                 "facts": {
@@ -757,7 +769,7 @@
                 },
                 "title": "Nightly waiting on your screenshot review",
                 "text": "The held nightly candidate passed all its tests but has changed screenshots, and has waited {ms:release.review_wait_ms} for your review. Nightly releases stay frozen until you approve or reject the changed screenshots.",
-                "action": "The review page is not started yet: at a computer, ask any Claude session to \"start the screenshot review for the held nightly\"; it replies with the page's link. Approve or reject each changed screenshot there.",
+                "action": "At a computer, ask any Claude session to start the nightly screenshot review, then approve or reject each changed screenshot there.",
                 "link": {
                     "url": "{issue:release.review_issue}",
                     "title": "Open the hold issue"
@@ -973,11 +985,10 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "All paid services: {value} forecast for {mon}, budget {target} ({over} over)",
-                "text": "All paid services together, T4 GPU and LLM tests included: {mtd} spent so far, {value} by {end} at this pace, against the {target} monthly budget (the Costs page shows red above {limit}).",
-                "action": "{choose}: raise the total budget to {suggest} a month, or keep {target} and accept the overrun.",
+                "title": "All costs {over} over {mon} limit: pick {pick} limit",
+                "text": "All paid services (T4 GPU and LLM tests included): {value} forecast by {end}, limit {limit}, {mtd} spent so far.",
+                "action": "{choose}: raise the total limit to {suggest} a month, or keep {limit} and accept the overrun. Nothing is cut unless you say so; tell any Claude session your choice.",
                 "daytime": true,
-                "then": "Nothing is cut unless you say so. Tell any Claude session your choice; it applies it.",
                 "short": "Total",
                 "repeatMs": 604800000
             }
@@ -1002,11 +1013,10 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "T4 GPU: {value} forecast for {mon}, budget {target} ({over} over)",
-                "text": "T4 GPU test lane: {mtd} spent so far, {value} by {end} at this pace, against its {target} budget (the Costs page shows red above {limit}). It runs on every release, so it cannot be cut.",
-                "action": "{choose}: raise the T4 GPU budget to {suggest} a month, or keep {target} and accept the overrun.",
+                "title": "T4 GPU {over} over {mon} limit: pick {pick} limit",
+                "text": "T4 GPU test lane: {value} forecast by {end}, limit {limit}, {mtd} spent so far. It runs on every release, so it cannot be cut.",
+                "action": "{choose}: raise the T4 GPU limit to {suggest} a month, or keep {limit} and accept the overrun. Nothing is cut unless you say so; tell any Claude session your choice.",
                 "daytime": true,
-                "then": "Nothing is cut unless you say so. Tell any Claude session your choice; it applies it.",
                 "short": "T4 GPU",
                 "repeatMs": 604800000
             }
@@ -1031,11 +1041,10 @@
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
-                "title": "LLM tests: {value} forecast for {mon}, budget {target} ({over} over)",
-                "text": "LLM regression tests (Gemini): {mtd} spent so far, {value} by {end} at this pace, against its {target} budget (the Costs page shows red above {limit}).",
-                "action": "{choose}: raise the LLM test budget to {suggest} a month, or have the agents cut LLM test runs from {cutFrom} to fit {target}.",
+                "title": "LLM tests {over} over {mon} limit: pick {pick} limit",
+                "text": "LLM regression tests (Gemini): {value} forecast by {end}, limit {limit}, {mtd} spent so far.",
+                "action": "{choose}: raise the LLM test limit to {suggest} a month, or have the agents cut LLM test runs from {cutFrom} to fit {limit}. Nothing is cut unless you say so; tell any Claude session your choice.",
                 "daytime": true,
-                "then": "Nothing is cut unless you say so. Tell any Claude session your choice; it applies it.",
                 "short": "LLM tests",
                 "repeatMs": 604800000
             }
@@ -1058,13 +1067,12 @@
                 "afterMs": 3600000,
                 "priority": 0,
                 "floorMs": 604800000,
-                "value": [">=", 9],
-                "title": "Dashboard shuts off at $10 AWS spend: {pace} forecast",
+                "value": [">", 8],
+                "title": "Health alerts stop at $10 AWS spend (forecast {pace}): raise the limit?",
                 "text": "AWS hosting for the dashboard: {value} spent so far, about {pace} by {end} at this pace. At $10 the dashboard's AWS Budget locks it, which stops the dashboard and these alerts.",
                 "action": "Pick one: raise the dashboard's own AWS Budget from $10 to $15 (still under the $20 project spend limit), or have the agents find and cut what grew.",
                 "daytime": true,
-                "then": "Tell any Claude session your choice; it applies it.",
-                "pace": [">=", 10]
+                "then": "Tell any Claude session your choice; it applies it."
             }
         },
         {
@@ -1090,7 +1098,7 @@
                 "metric": "cost.sentry_usage_share"
             },
             "ok": ["<", 0.8],
-            "fail": [">", 1.0],
+            "fail": [">", 1],
             "sources": ["sentry-token", "billing"]
         },
         {
@@ -1131,7 +1139,7 @@
                 "action": "{fix}",
                 "resolved": {
                     "title": "{feed} works again",
-                    "text": "The dashboard reads {frozen} again.",
+                    "text": "The dashboard reads {frozen} again, after about {lasted}.",
                     "clearAfterMs": 900000
                 },
                 "then": "Error: '{error}'."
@@ -1166,12 +1174,12 @@
             "alert": {
                 "afterMs": 600000,
                 "priority": 1,
-                "title": "Health dashboard blind for {value}: {problem}",
+                "title": "Health dashboard down ({problem}) for {value}",
                 "text": "The health dashboard has not read GitHub for {value}, so nothing is being watched.",
                 "action": "{fix}",
                 "resolved": {
-                    "title": "Health dashboard is reading GitHub again",
-                    "text": "The health dashboard was blind for about {lasted}.",
+                    "title": "Health dashboard is working again",
+                    "text": "The health dashboard was down for about {lasted}.",
                     "clearAfterMs": 900000
                 },
                 "then": "Last error: '{error}'."

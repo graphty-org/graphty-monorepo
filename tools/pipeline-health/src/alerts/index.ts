@@ -132,7 +132,7 @@ async function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): Promise<boo
     if (a.action === "{fix}" && !causeWords(m).fix) {
         return false; // a cause with no step only the owner can take is agent work: it never pages
     }
-    if (a.value ? !past(ctx, m.value, a) : m.state !== "FAILING") {
+    if (a.value ? !past(m.value, a) : m.state !== "FAILING") {
         return false;
     }
     for (const id of a.notWhileFailing ?? []) {
@@ -164,10 +164,8 @@ async function paging(ctx: Ctx, id: string): Promise<boolean> {
     return mark?.open === SENT && !mark.endedAt && mark.v === MARK_V;
 }
 
-/** The value past alert.value, or its month-end pace past alert.pace (an AWS bill nearing its cap). */
-function past(ctx: Ctx, v: number | undefined, a: AlertConfig): boolean {
-    return v !== undefined && (hit(v, a.value!) || (!!a.pace && hit(pace(v, ctx.now), a.pace)));
-}
+/** The value past alert.value. */
+const past = (v: number | undefined, a: AlertConfig) => v !== undefined && hit(v, a.value!);
 
 async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undefined> {
     // Any other state (NO DATA, a stale source past its limit, partial, not set up) is a gap: it neither opens nor
@@ -460,14 +458,14 @@ export function causeWords(m: MemberStatus): CauseWords {
     const p = m.cause?.params ?? {};
     const error = String(p.error ?? "");
     if (m.id === "data.collector") {
-        // First: "installation token: HTTP 502" is GitHub failing, not the key. A rate limit or a timeout is the
-        // collector's own load (agent work), so it falls through to "code error".
+        // First: "installation token: HTTP 502" is GitHub failing, not the key. A rate limit or a timeout falls
+        // through to "bug in its code": the collector is blind either way, so it pages, and an agent fixes it.
         if (/\bHTTP 5\d\d\b|ECONN|fetch failed|socket/i.test(error)) {
             return {
                 feed: "Collector",
                 frozen: "GitHub",
                 problem: "GitHub API down",
-                fix: "Nothing: GitHub's API is failing (https://www.githubstatus.com/), so CI is likely stalled too. The dashboard catches up by itself when GitHub recovers.",
+                fix: "Nothing to do but wait: GitHub's API is failing (https://www.githubstatus.com/), so CI is likely stalled too. The dashboard catches up by itself when GitHub recovers.",
                 off: "",
                 // An outage nobody can act on: one quiet page once it has lasted 2 h, never a loud one, and none
                 // while the CI page already reports the same GitHub outage.
@@ -488,8 +486,8 @@ export function causeWords(m: MemberStatus): CauseWords {
         return {
             feed: "Collector",
             frozen: "GitHub",
-            problem: "code error",
-            fix: "Have a Claude session read the collector's CloudWatch logs and fix it.",
+            problem: "bug in its code",
+            fix: "Ask any Claude session to fix the health dashboard; it is not watching anything until then.",
             off: "",
         };
     }
@@ -526,17 +524,21 @@ const monthName = (t: number, month: "long" | "short") =>
  * Which month a budget decision is about: in the month's last week this month is spent, so the choice is next
  * month's budget and a cut starts on its first day; earlier it holds from now on.
  */
-function budgetMonth(now: number): { choose: string; cutFrom: string } {
+function budgetMonth(now: number): { choose: string; pick: string; cutFrom: string } {
     const d = new Date(now);
     const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
     if ((next - now) / DAY > 7) {
-        return { choose: "Choose the budget from now on", cutFrom: "today" };
+        return { choose: "Choose the limit from now on", pick: "new", cutFrom: "today" };
     }
     return {
-        choose: `${monthName(now, "long")} is nearly spent. Choose ${monthName(next, "long")}'s budget`,
+        choose: `Choose ${monthName(next, "long")}'s limit`,
+        pick: monthName(next, "short"),
         cutFrom: `${monthName(next, "short")} 1`,
     };
 }
+
+/** The line a member's page is judged against: red, or the OK line when it has no red. */
+const line = (m: MemberStatus) => m.fail?.[1] ?? m.ok?.[1];
 
 /** The value at month end at this month's pace so far (UTC days, as the engine's months are). */
 function pace(v: number, now: number): number {
@@ -554,7 +556,8 @@ function fill(template: string, d: Due, now: number): string {
         value: human(m.id, m.value),
         limit: human(m.id, m.fail?.[1]),
         target: human(m.id, m.ok?.[1]),
-        over: human(m.id, m.value === undefined || m.ok === undefined ? undefined : m.value - m.ok[1]),
+        // A page names one limit: the red line that triggered it (the budget's line when there is none).
+        over: human(m.id, m.value === undefined || !line(m) ? undefined : m.value - line(m)!),
         // The next multiple of 10 above the value, so the suggestion always leaves headroom.
         suggest: human(m.id, m.value === undefined ? undefined : Math.floor(m.value / 10) * 10 + 10),
         mtd: human(m.id, m.facts?.month_to_date),
@@ -610,14 +613,13 @@ export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Me
     const tail = then.length ? `\n${then.join(" ")}` : "";
     const top = Math.max(...ds.map((d) => d.c.alert.priority));
     const short = (d: Due) => d.c.alert.short ?? d.c.label;
-    const accept = ds.map((d) => `${short(d)} ${f("{suggest}", d)}`).join(", ");
-    // A group's title names every item, so the lock screen shows each overrun, not only the first.
-    const over = ds.map((d) => `${short(d)} +${f("{over}", d)}`).join(", ");
+    const accept = ds.map((d) => `${short(d)} to ${f("{suggest}", d)}`).join(", ");
+    // The lock screen shows the title and the first lines: the title asks for the decision, the body leads with it.
     return {
-        title: one ? f(ds[0].c.alert.title, ds[0]) : f(`${ds.length} budgets over for {mon}: ${over}`, ds[0]),
+        title: one ? f(ds[0].c.alert.title, ds[0]) : groupTitle(ds, f),
         message: one
-            ? `${f(ds[0].c.alert.text, ds[0])}\nWhat to do: ${f(ds[0].c.alert.action, ds[0])}${tail}`
-            : `${ds.map((d) => f(d.c.alert.text, d)).join("\n")}\nWhat to do: ${f("{choose}", ds[0])}: raise the budgets to ${accept} a month, or keep them and accept the overruns.${cut(ds, f)}${tail}`,
+            ? `What to do: ${f(ds[0].c.alert.action, ds[0])}\n${f(ds[0].c.alert.text, ds[0])}${tail}`
+            : `What to do: ${f("{choose}", ds[0]).replace("limit", "limits")}: raise ${accept} a month, or keep them and accept the overruns.${cut(ds, f)} Nothing is cut unless you say so; tell any Claude session your choice.\n${ds.map((d) => f(d.c.alert.text, d)).join("\n")}${tail}`,
         ...link(ctx, ds[0].m.category, one ? ds[0] : undefined),
         // Loud only in the day: at night an outage page is held by the owner's quiet hours (as health-dead-man.sh).
         priority: String(top === 1 && !daytime(ctx.now) ? 0 : top),
@@ -625,12 +627,25 @@ export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Me
 }
 
 /**
+ * A group's title: the total against its limit when it is among them (it already holds the others, so they are named,
+ * not added), else every item over; then the decision asked.
+ */
+function groupTitle(ds: Due[], f: (t: string, d: Due) => string): string {
+    const total = ds.find((d) => d.c.id === "cost.spend");
+    const rest = ds.filter((d) => d !== total).map((d) => d.c.alert.short ?? d.c.label);
+    const names = rest.join(" and ");
+    return total
+        ? f(`Over budget for {mon}: {value} of {limit}${rest.length ? ` (${names})` : ""}. Pick {pick} limits`, total)
+        : f(`${names} over {mon} limits: pick {pick} limits`, ds[0]);
+}
+
+/**
  * What cutting LLM test runs (the one paid service the agents can cut at once; the T4 lane runs on every release)
  * back to their budget would and would not fix, for a group the LLM tests are in.
  */
 function cut(ds: Due[], f: (t: string, d: Due) => string): string {
-    // Whole dollars, as the title shows each overrun, so the sum the page states is one the reader can check.
-    const over = (d?: Due) => Math.round((d?.m.value ?? 0) - (d?.m.ok?.[1] ?? 0));
+    // Whole dollars against each red line, so the sum the page states is one the reader can check.
+    const over = (d?: Due) => Math.round((d?.m.value ?? 0) - (d ? (line(d.m) ?? 0) : 0));
     const llm = ds.find((d) => d.c.id === "cost.llm");
     if (!llm) {
         return "";
@@ -643,7 +658,7 @@ function cut(ds: Due[], f: (t: string, d: Due) => string): string {
         ...(total && left > 0 ? [`the total stays about ${human(total.m.id, left)} over`] : []),
     ];
     const but = still.length ? `, but ${still.join(" and ")}` : "";
-    return ` Cutting LLM test runs from ${f("{cutFrom}", llm)} to fit their ${f("{target}", llm)} budget saves about ${f("{over}", llm)}${fits}${but}.`;
+    return ` Cutting LLM test runs from ${f("{cutFrom}", llm)} to fit their ${f("{limit}", llm)} limit saves about ${f("{over}", llm)}${fits}${but}.`;
 }
 
 /**

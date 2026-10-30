@@ -13,6 +13,9 @@ component looks or behaves, so neither is built without the owner's `Figma-Appro
   accessibility walk). It appears only on hover or focus, so readers looking for a column's menu found
   nothing to click. Drawing it at rest changes DataTable's look. Its tooltip now names its key
   (Alt+Down), which needed no look change.
+  **Owner, 2026-10-30: draw it at rest,** "maintain consistency with figma for now, we might come back to this
+  later": Figma's Export row keeps its "..." settings button always visible; hover-reveal is Figma's layer tree only.
+  Built in #5055 with the owner's Figma-Approved trailer.
 - **A Popout closes when the reader drags the table's scrollbar** (problem 25, repro `r1-s16-script`).
   The source row's issue list is a compact-mantine Popout, which closes on any pointer press outside it.
   Keeping it open while a scrollbar is dragged changes Popout's dismiss behavior.

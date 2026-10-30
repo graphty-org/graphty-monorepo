@@ -80,7 +80,9 @@ design is "not set up", gray and out of the status, so a category can be green o
 ### 2.1 Front page
 
 It fits 1440 x 900 without scrolling, and every page works from 1920 wide down to a 390 px phone
-with no sideways scroll of the page (a wide table scrolls inside itself). From the top: the title,
+with no sideways scroll of the page or of any table: below 700 px a table's rows stack as cards, the
+first cell as the card's title and every other cell as a "column: value" line, and shard and hotspot rows
+put the name on its own line over the numbers. From the top: the title,
 the range picker (1 h, 6 h, 24 h; 1 h by default) and "updated 2 min ago, 23:30 UTC"; a muted legend
 of the state words ("OK: within target; WARNING (yellow): past target, look soon; FAILING (red):
 past the red line, act now; NO DATA (hatched): the source is not reporting") and what the small
@@ -116,8 +118,11 @@ the release candidate (a hold from any lane), spend this month projected (the on
 be rerun), and sources not OK. A headline with too few samples in the last hour says "not judged: 2
 merged this hour, needs 5" in gray in place of its value, with its 6 h value beside it. Its line
 gives the 6 h value with its unit and the whole target ("good <= 5 min; red > 15 min"). When another
-member set the block's color, the headline starts "Not what set the color above. Headline measure:"
-and its value is drawn in the muted weight, so a calm headline never reads as the reason for a red block.
+member set the block's color, that member takes the headline's place, labeled "Set the color:", with its
+own value, target and sparkline (the API sends it as `driver`), so the big number under a colored block is
+always the reason for its color; the headline measure stays a row of the category page. In a block, a
+member's value stands alone; the sentences on the pages say what it is ("95.2 USD projected for
+month-end").
 
 A sparkline is the last 6 h in 15-minute buckets, with the last hour (the window that sets the
 state) shaded and the target as a thin gray band. To its left, in a faint line, the rest of the last
@@ -129,7 +134,9 @@ history" area. There are no end labels: the value is beside it.
 ### 2.4 Last 24 hours
 
 A list of episodes: each time a member went past its target. Ongoing episodes first, red before
-yellow, then by the blocks' order; at most five ongoing and six rows in all show, and the rest fold
+yellow, then by the blocks' order. Every ongoing red episode shows, however many there are; ongoing
+yellow ones show up to five rows of ongoing in all; cleared ones fill the list up to six rows only when
+no ongoing episode is folded, so a cleared row never sits above a hidden ongoing one. The rest fold
 into "N more ongoing" and "N more cleared". Each row: a 4 px bar in the worst state the episode
 reached, its span ("20:01 - now", "19:48 - 20:20"; both ends dated when either is not today, and
 "before 10-29 14:40 - now" when the 24 h window cut its start or the engine cannot tell when it
@@ -153,7 +160,9 @@ there, so a stale incident does not stay ongoing.
   linked row has a chevron, a pointer cursor and a hover background, and the whole row is the
   target. Tree rows turn their chevron down when open.
 - **Breadcrumbs** on every page below the front ("Overview > CI > Runners"), ending at the page,
-  unlinked. A section reached from the navigation scrolls into view on its page.
+  unlinked. A section reached from the navigation or a row's link ("Overview > CI > Shard times")
+  ends the trail instead, with its page linked, and scrolls into view with its heading flashed
+  yellow, so a section near the bottom of a short page, which cannot reach the top, is still found.
 - Page, section and range live in the URL (`#/ci/runners?range=6h`), so a link reproduces the view.
 
 ### 2.6 Views
@@ -165,7 +174,7 @@ right above its evidence.
 Every category page has a breadcrumb, its title and range picker, its state word with one sentence
 naming the member that set it and the others not OK, one row per member (name and one-line
 definition with n for a rate; value with its window under it, "1 h; 6 h 24 min", "now" or "7 d";
-SLA; sparkline; state; chevron; OK members carry no word), then its sections. Sections follow the
+SLA; sparkline; state; chevron; an OK member carries an outlined, unfilled "OK"), then its sections. Sections follow the
 picker: a table or count covers the picked window, a chart covers 6 h at 1 h and 6 h and 24 h at
 24 h. A section whose window holds too few events to say anything widens to 6 h and says so ("only
 2 merged in the last 1 h, so the last 6 h").
@@ -250,7 +259,9 @@ fills are the same in dark mode. A small yellow mark gets a dark edge (yellow al
 white), and on a hatched fill every label sits on a solid gray panel. Check the real screenshots in
 a deuteranopia simulation before release, not only the swatches.
 
-The words OK, WARNING, FAILING and NO DATA mean only an SLA state, and only they are filled chips;
+The words OK, WARNING, FAILING and NO DATA mean only an SLA state, and only they are filled chips
+(an OK on a member row or in a table's state column is outlined, not filled: it tells within target apart from not judged without
+adding color);
 a page whose members are all out of the rollup says IDLE, in gray. A shard over budget, a failed
 lane or an untested candidate is plain words with a 4 px mark in its color before them, as in the
 episode list ("failed", "untested"). "n=3", "idle", "partial window" and "not set up" are muted
@@ -327,13 +338,16 @@ Pass` belonged to the retired Mergify queue and never counts.
   pass, full-run shard medians). It is drawn on its detail section with its own 7 d / 28 d choice,
   labeled "7-day measure" or "28-day measure", and never sets a state: at hour scale it would either
   never move or move on one event. Past its target or red line it is still shown as the breach it is:
-  its row carries the WARNING or FAILING chip with "7-day measure, not in the page state", its block
-  counts it ("1 7-day measure past red; not part of this color"), and the page's sentence names it
-  and says it is outside the state ("1 7-day measure is past its red line: full runs able to promote
-  17%. It does not set this page's state."). No text may say every member is within target while
-  one is breached: an OK page with one says "No measure that sets this page's state is past its
-  target." Whether a breached 7-day measure should color its category is the owner's call;
-  today it does not (`categoryOf`).
+  its row carries the WARNING or FAILING chip with "7-day measure; does not set the page's color", its
+  block counts it ("1 7-day measure past red; not part of this color"), the page's state chip has a
+  red-edged mark beside it ("4 past red, not in the color"), and the page's sentence names them right
+  after the state ("Every hourly and current measure meets its target, so the color is OK. 4 7-day
+  measures are past their red line: ... They do not set this page's state; see their rows below.").
+  Within target, its row shows the outlined OK (the API says `inTarget`). No text may say every member
+  is within target while one is breached. Whether a breached 7-day measure should color its category
+  is the owner's call; today it does not (`categoryOf`). A few slow members are read now rather than
+  over 7 days (the rolling screenshot captures' age and cap shares): their window reads "now" and
+  their state "shown for information".
 
 The 6 h value is the trend: shown beside every 1 h value and as the sparkline. 24 h never decides a
 color.
@@ -345,8 +359,11 @@ median. Every row states its n.
 
 **How a row reads.** Every member row says what is measured, over what window and in what unit (its
 definition); its target as "good <= 5 min; red > 15 min", the red threshold with its unit, and "(in the
-last hour and the last 6 h)" for a 1 h, 6 h agrees member; and, when it is past a line, a "Red:" line
-saying what red means and where to look (the same text is the row's tooltip). A member with no SLA
+last hour and the last 6 h)" for a 1 h, 6 h agrees member, and "no red line" when it has none; and, on
+every row, what red means, what is wrong and who acts, led by "If red:" in gray, or by "Red:" in ink when
+the row is past a line (the same text is the row's tooltip). A threshold that is not a comparison is a
+plain phrase ("a lane red 6 h or more", "any source past twice its age limit"); a money line reads
+"good projected <= 240 USD; red spent > 240 USD (yellow: projected over it)". A member with no SLA
 reads "no target (shown for information)". Rows are listed FAILING, WARNING, 7-day measures past a
 line, NO DATA, OK, then the gray ones, in config order within each. A row whose link is the page it is
 on has no chevron and is not a link. The words live in `web/src/text.ts` (`MEMBER`: name, definition
@@ -354,8 +371,17 @@ and red line per member).
 
 **How a table reads.** A column no row fills is left out; an empty cell reads "--". Ended or idle rows,
 and rows past a table's cap (10 unless the table sets its own), fold into "N more (M ended or idle)";
-a total row always shows. A list in a cell shows three items and "+N more". Sorted bars show eight and
+a total row always shows. A table with no ongoing row says so in words above its fold ("No shared
+failure now.", "None ongoing now.") and keeps its header inside the fold, over the rows it names, so it
+never reads as a header with no rows. Benchmarks show only the regressed ones; the rest fold into "N
+more: M within 1.2x, K with fewer than 13 runs, not judged yet", and the heading says how many have the
+13 runs detection needs. A list in a cell shows three items and "+N more". Sorted bars show eight and
 fold the rest.
+
+**How a page's state reads.** After the chip, the sentence names the member that set the state, then
+the 7-day measures past a line, then the other members by state, each group under its own words: "Also
+failing (past the red line)", "Also past target", "Also NO DATA" (with a link to Data sources, where
+the source that stopped is listed). A member that is NO DATA is never called past target or failing.
 
 Thresholds below give the target (green) and red; yellow lies between. All are for the window named
 and were re-derived for one hour, not copied from the 24 h version. (H) marks a category's headline.
@@ -531,7 +557,7 @@ judged like a legacy one; hold issues are read too. Lanes: `ci`, `t4`, `hosts`, 
 
 | Member                         | Measure                                                                   | Window    | Min n | Target | Red                        |
 | ------------------------------ | ------------------------------------------------------------------------- | --------- | ----- | ------ | -------------------------- |
-| Lanes red on the candidate (H) | lanes red on the newest candidate a train tested (a hold)                 | now       | --    | 0      | open >= 6 h                |
+| Lanes red on the candidate (H) | lanes red on the newest candidate a train tested (a hold)                 | now       | --    | 0      | a lane red 6 h or more     |
 | Release workflows failing      | `release.yml`, `promote.yml`, `release-watch.yml` whose newest run failed | now       | --    | 0      | one failed 3 runs in a row |
 | Train skipped a new commit     | the newest attempt skipped every lane on an untested master commit        | now       | --    | no     | --                         |
 | Tagged, not on npm             | versions tagged but not listed by `npm view <pkg> time`                   | now       | --    | 0      | after 30 min               |
@@ -542,6 +568,10 @@ so a 1 h count would drop a failure an hour after it; a workflow whose newest ru
 that lasts until a run passes. Only runs of the events a workflow declares in its `on:` count: GitHub
 also records a failed run for a push to any branch whose copy of the file it cannot use, which is how
 `promote.yml` (dispatch only) showed "10 failures in a row" on 2026-10-25.
+
+Train attempts mark a failed attempt red and an untested new commit yellow, and say for each tested
+attempt whether it moved nightly: "promoted", "held: screenshots to review, or a hold is open" (yellow)
+or "not promoted".
 
 "Train skipped a new commit" is yellow at once, so a skipped candidate is seen hours before
 untested master age passes its target. The channel members (canary, nightly and production age,
@@ -643,9 +673,12 @@ The Costs page answers what running the pipeline costs and which process costs i
 
 The page shows the money lines (projected, so far against the limit the cost pages name (the red line), 28 d projection, state) and their
 total, which equals the headline; the usage members; "unit costs" for comparison only (money per
-release train, list-price value per merged pull request); money and list-price value by workflow as
-two sorted-bar lists, never summed. Every Costs value is month to date, so this page alone has no
-1 h / 6 h / 24 h picker: its header offers 7 d and 28 d (default), labeled "7-day / 28-day history", for the
+release train, list-price value per merged pull request, in USD); money and list-price value by workflow as
+two sorted-bar lists, never summed; the money list holds only what a workflow spends (T4, LLM tests), so
+it sums to less than the total, and says so. A plan's price and its usage are named apart ("Cloudflare
+(plan price)", "Cloudflare usage (share of the plan's allowance)"). Every Costs value is month to date, so this page alone has no
+1 h / 6 h / 24 h picker: its header offers 7 d and 28 d (default), labeled "days in the charts (the money is
+always this month)", for the
 projection-by-day lines and the unit costs. Rates live in
 `tools/pipeline-health/config/rates.json` with the date each was checked; a missing rate or a
 rejected token shows NO DATA, never zero, and a token not yet created is not set up.

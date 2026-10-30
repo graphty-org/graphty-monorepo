@@ -16,53 +16,41 @@ served at `/?next`.
 
 ## Top of mind
 
-- (2026-10-29) Tier 4 (data management, one round, returning users) criteria review: nothing is
-  frozen yet (criteria.md's first line is the `<sha>` placeholder) and answers.md paths name
-  e52d7c4f57, before R1-R15. Task prompts echo success-path words: "stronger"/"farther" (the
-  "Higher weight means" options), "at least" (the filter card's own summary words), "web address"
-  (the box's label). T62 passes on the time role alone, so column kinds may go untested.
-- (2026-10-29) Watch in tier 4: success-by-default. T63's place is designated by the program at
-  load; T66/T61 prompts hand over the fact the task should find. A bar that passes when the
-  participant did nothing is not measuring. Each decided fix (R2-R15) names a re-test; most have
-  no task that runs it -- report those "not re-tested", never "passed".
-- (2026-10-23, issue #3315) Attacked the one-per-kind ruling: six location items make the
-  nodes' "+" menu ten long, and a reader can list Latitude, Coordinates and City at once. Answers
-  adopted: the menu is still one flat list of short nouns with type-ahead; a listed kind the
-  element is not reading is marked unused by the element's code, so the screen never claims a
-  column is placing nodes when it is not. Still open, watch in a study: does a reader with one
-  "location" column of "48.85, 2.35" find "Coordinates" (detection lists it with no action, so
-  only a mis-detected file tests it).
-- (2026-10-21) Round 1 closed at its 1-round cap, bars unmet. 55 of 56 sessions succeeded,
-  median wrong turns <= 1: success is saturated. Next round must score cost (steps over the key),
-  routes and problems, and must screen tasks for leading before spending sessions -- the answer
-  key names most problems the graders cite.
-- (2026-10-21) The round's only F came from the grading rule, not the reader: `colorWord` returns
-  a CSS keyword before hue, so FFD700 is "gold", not "yellow". Fix the rule (hue band set before
-  the round) and the shared table in compact-mantine, which also speaks those names aloud; never
-  add a per-task synonym.
-- (2026-10-21) Bar 5 fails only on two backlog severity 3 items (node Fill "+" one-node layer;
-  folder chain icon) that no or few sessions reached. A frozen rule counted them on 1 rating; ask
-  for a repro or a reach before a backlog row gates a round.
-- (2026-10-21) Best real findings, all severity 2: newcomers look for node color in the Graph
-  inspector first (9 sessions); a new style line starts at the current value so it looks broken;
-  layer membership is checked by eye (ids, no row marking). Fix by moving or defaulting, not by
-  hints: a new line should start at a visibly different value.
-- (2026-10-21) Avoiding the `<<Layer>>` token was counted as understanding it. A bar that cannot
-  tell avoidance from comprehension is not measuring; demand a separating measure.
-- (2026-10-21) Tool artifacts caught by skeptics: one synthetic wheel event read as "barely
-  zooms"; storage notice caused by the automation's quota. Every build defect needs a repro made
-  the way a person would make it before it is counted.
-- (2026-10-21) Rejected generality traps: a "cube" shape synonym, a "cluster" ranking tweak,
-  currency or task wording in the product. Task words are not product requirements.
-- (2026-10-20) Owed and still unverified: build-equivalence and half-folder gate checks,
-  bars.mjs spoken/typing checks, wording.mjs stem; score.mjs bar 4 start point is now owed too.
-- (2026-10-17) Accepted by the Director, not re-raised without new evidence: T50 A guessable from
-  "Mlle"; bar 8 screens over budget as severity 2; T47's "around" route counts against bulk.
-- Standing: rounds are one model playing everyone -- a failure is strong, a pass weak; discount
-  every "unprompted" count. A process rule without a refusing gate is a wish.
-- Standing: after a rule is adopted, read the gate code and the tool, not the rule.
-- Standing: fix by removing, not adding; one change per problem; words at rest never rise;
-  rejected stays rejected without new evidence; never re-set a limit from data.
+- (2026-10-30) Tier 4 round 1 closed at its 1-round cap, bars 2, 3, 5, 6, 7 unmet. Before any
+  round 2: the study tool printed `tooltip: null` on hovers that open a popover, and four
+  participants trusted that line over the screenshot. A tool line that contradicts the picture
+  produced false findings and wrong turns. Fix the tool to report open popovers first.
+- (2026-10-30) Most severe open problem (sev 2): the join preview tags the wrong rows and marks
+  the unknown-end row "not in graph" though Join adds it. Fix the preview to show what Join will
+  do; no hint text.
+- (2026-10-30) Pattern to attack in every design: choices that arrive after the act with a
+  default already applied (unknown end decided after Join; a new filter card starting on Hide).
+  The planned "Select | Filter to | Filter out" rename keeps the subtractive default -- challenge
+  it, but note the default helped T66, so the evidence is order-dependent.
+- (2026-10-30) One fact drawn two ways (time set but column glyph says text; chip counts on
+  different bases under Hide and Select; place roles unmarked on headers) costs checks, not
+  wrong answers. One source of truth per fact.
+- (2026-10-30) Bar 6 fails on a layout clip, not a removal: the joined source row's ratio and
+  second file name are clipped. One layout fix covers both; "17 of 19 joined" beside 18 edges
+  also contradicts itself.
+- (2026-10-30) Bar 2's only false done rests on the answer key's definition, not the reader.
+  Second round in a row a bar failure came from the grading rule (tier 1: colorWord). Audit keys
+  and rules before counting.
+- (2026-10-30) Bar 3 is inflated by post-success checks and tool-caused hovers; graders counted
+  hovers inconsistently. Wrong turns must be counted before success only, with a written rule.
+- (2026-10-30) Bar 5 (axe critical: table's Nodes tab names a panel never rendered) is a real,
+  cheap, mechanical fix -- no study needed to confirm it.
+- (2026-10-29) Success-by-default and leading prompts carried over: still watch them. Fixes with
+  no task that re-runs them report "not re-tested", never "passed".
+- (2026-10-23) "+" menu one-per-kind: open watch item -- does a "48.85, 2.35" column find
+  "Coordinates"?
+- (2026-10-21) Avoidance is not comprehension; success saturates fast -- score cost and routes.
+- (2026-10-21) Every build defect needs a repro made the way a person would; tool artifacts
+  (synthetic wheel, storage quota, now tooltip:null) recur every round.
+- (2026-10-21) Rejected generality traps stay rejected: no synonyms, task words or domain cases
+  in the product.
+- (2026-10-20) Still owed: build-equivalence, half-folder gate, bars.mjs spoken/typing checks,
+  wording.mjs stem, score.mjs bar 4 start point.
 
 ## Priorities and values
 
@@ -184,6 +172,8 @@ served at `/?next`.
   or width before the units test, opt-in bareNumbers flag, Hops grouping.
 
 ## Tried: worked / did not work
+
+- (2026-10-30) Tier 4 round 1: the two-skeptic settle worked again -- it caught a study-tool defect (tooltip:null on popovers), a grading-key false done and inflated wrong turns. Did not work: screening tasks for leading before the round (prompts still echoed success words) and a frozen build that had not built the decided source-row fix.
 
 - 2026-10-29 -- Grepping the app source for each prompt's key words (Fields.tsx "Higher weight
   means" with "farther"; filterWords.ts "is at least") found echoes the task file's own word list

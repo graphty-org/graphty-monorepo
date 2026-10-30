@@ -7,41 +7,36 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- (2026-10-21) Tier 3 round 1 closed; studio stopped at the 1-round cap. 55 of 56 sessions
-  succeeded; signal is in cost and routes, not success. No new severity 3. Words were not the
-  bottleneck on any surviving insight -- behavior and defaults were.
-- (2026-10-21) Biggest word gap: with nothing picked, the Graph inspector's Style tab says nothing
-  about node color or size; 9 sessions looked there first and found the layer list only by matching
-  the count beside "Everything". Fix by pointing (a link row naming the layer list), not prose.
-- (2026-10-21) A new style line starting at the value already drawn (6366F1, Width 8 with no unit)
-  reads as "broken". That is a default problem first; my part is the unit on Width and naming
-  what the line overrides. Never fix a no-op with explanatory text.
-- (2026-10-21) Color names are words I own on the spoken path: compact-mantine colorWord checks CSS
-  keywords before hue ("gold" for FFD700, "red" for a salmon), and two group colors share one
-  spoken name in T46. Spoken names must name the hue family first; fix in compact-mantine.
-- (2026-10-21) The color box never says it takes a color word; readers who tried "orange" always
-  succeeded. A placeholder showing a word (not a sentence) is the cheapest aid. Untested.
-- (2026-10-21) Layer Values tab lists members by id (s05), not the node's label. Show the label
-  attribute the app already shows elsewhere; ids are for the table.
-- (2026-10-21) A find-box layer is named by its count ("4 nodes"); a layer name should say what was
-  picked (the value row's words), since the row "kind is company (6)" reads as a rule.
-- (2026-10-21) The <<Layer>> token: avoided by 6 sessions, misused by 0. Avoidance is not
-  understanding; next round needs a measure that separates them before I touch the word.
-- (2026-10-21) Opinion-only word complaints ("Style layers", "Folder", "Everything" as developer
-  words, no "Cube") were weakened to 0-1: no behavior cost. Do not rename on model opinion or a
-  task's wording (no "cube" synonym).
-- (2026-10-21) Grading leaks: the answer key describes most problems graders cite; the yellow/gold
-  F came from the rule's word table, not the reader. Read round-2 tasks and keys for leading words.
-- (2026-10-21) Two start-page controls named "Samples" doing one scroll: one name per control, and
-  focus must move with the scroll (a word fix alone would not help keyboard users).
-- (2026-10-13) Unset vs cover stay two acts with two wordings (minus = unset, "Hide label from X" =
-  cover). Two row nouns only: layer, folder. Figma words where Figma has the concept.
-- (2026-10-13) Open for the owner: element default label font "Verdana" with no generic fallback;
-  screen pixels as default label size.
+- (2026-10-30) Tier 4 round 1 closed at the 1-round cap: task success held, 0 severity 4, no
+  severity 3 survived the skeptic check. Again words were not the main cost -- order of choices,
+  defaults and one fact drawn two ways were.
+- (2026-10-30) Most severe open problem is a preview that does not say what the act will do: the
+  join preview marks "1 not in graph", which 3 of 4 read as "will be left out", yet Join adds it.
+  A preview's tag must name the outcome of the act, not the row's current state.
+- (2026-10-30) "Leave out" does not say it deletes; a reader backed off it for that reason. A
+  destructive choice's label names the effect (remove/delete), never a soft verb.
+- (2026-10-30) One fact, one drawing: a time column still showing the text glyph while the
+  timeline draws dates made four sessions check a second menu. Header glyph, chip and caption must
+  agree with what the program does; mismatch costs steps, not answers.
+- (2026-10-30) Counts must state their basis: filter chips count the whole graph under Hide and the
+  picture under Select; "12 nodes" sits beside an 11-row table. Same number word, two bases = doubt.
+- (2026-10-30) "Hide" alone is ambiguous; its tooltip ("Hide nodes that do not match") is right.
+  The planned "Select | Filter to | Filter out" renames the effect but keeps the take-out default:
+  the default, not the word, is the bigger cost.
+- (2026-10-30) Owner-approved text clipped out of sight ("17/19 rows joined", source name cut)
+  breaks the approved-surface rule; a layout fix, not a rewording. "17 of 19 joined" beside 18
+  edges reads self-contradictory -- the ratio's noun must match what was counted.
+- (2026-10-30) The inspector's "Set in Data" is a trap only when the column's kind matters; a
+  shortcut label that does half the job should say which half.
+- (2026-10-30) Study-tool caveat: hovers that open a popover were reported "tooltip: null", so
+  hover findings this round are suspect until the tool is fixed. Do not reword on them.
+- (2026-10-21) Fix by pointing, not prose; never fix a no-op with explanatory text.
+- (2026-10-21) Do not rename on model opinion or a task's wording; avoidance is not understanding.
+- (2026-10-21) Spoken color names name the hue family first; fix in compact-mantine.
+- (2026-10-13) Unset vs cover stay two acts with two wordings. Two row nouns only: layer, folder.
 - (2026-10-06) Budgets: at rest <= 50 words, inspector ~30 (max 40). Simulated users: fail strong,
   pass weak. Element returns codes + params; the app writes every word.
-- (2026-10-21) Summarized: the earlier Top of mind (2026-10-10 to 2026-10-16 bulk iterations and
-  round-4/5 watch items) is in git history of this file at 7e4ebbbe70.
+- (2026-10-30) Summarized: the tier 3 Top of mind (2026-10-21) is in git history of this file at 0c6bf1066b.
 
 ## Priorities and values
 
@@ -327,3 +322,10 @@ I read this file at the start of every session and update it as I decide and lea
   2026-10-03); extraction script `design/ui/studio/tmp/content_agents.py`
 - Owner messages: `design/ui/studio/tmp/owner-all.jsonl` (2026-09-05 text-heavy, 2026-09-26 terms,
   2026-09-29 overfitting, 2026-10-01 toolbar tooltips, 2026-10-03 presentation neutrality)
+
+## Tier 4 round 1 lessons (2026-10-30)
+
+- Decided: preview tags and destructive-choice labels name the act's outcome (join preview, "Leave out"). Evidence: problem 1 (3 of 4 misread), problem 6 (r1-s24 backed off).
+- Decided: a count or glyph shown in two places must share one basis and one kind. Evidence: problems 2, 16, 3.
+- Tried: tier 3 watch on words -- worked as a check; again no surviving insight was word-first.
+- Did not work: trusting hover findings from the study tool (popovers logged as null).

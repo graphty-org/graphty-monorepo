@@ -310,7 +310,7 @@ export default tseslint.config(
                         // @babylonjs/* is "type": "module", so webpack 5 requires a fully specified
                         // deep import and refuses one without its extension (issue #3219).
                         {
-                            regex: "^@babylonjs/[^/]+/.+(?<!\\.js)$",
+                            regex: String.raw`^@babylonjs/[^/]+/.+(?<!\.js)$`,
                             message: "Name the file in a Babylon.js deep import, with its .js extension.",
                         },
                     ],

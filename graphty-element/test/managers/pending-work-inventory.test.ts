@@ -149,7 +149,22 @@ const INVENTORY: Record<string, Covered> = {
         reason: "a capture read back for the AI; it never reaches the canvas",
     },
     "src/ai/providers/index.ts": { count: 2, reason: "an AI provider's module; it draws nothing" },
-    "src/ai/providers/WebLlmProvider.ts": { count: 2, reason: "the in-browser model's module; it draws nothing" },
+    "src/ai/providers/WebLlmProvider.ts": {
+        count: 3,
+        reason: "the in-browser model's module and the AI SDK it converts tools with; it draws nothing",
+    },
+    "src/ai/providers/VercelAiProvider.ts": {
+        count: 4,
+        reason: "the AI SDK and its three provider packages, optional peers; they draw nothing",
+    },
+    "src/ai/keys/ApiKeyManager.ts": {
+        count: 1,
+        reason: "encrypt-storage, the optional peer that persists API keys; it draws nothing",
+    },
+    "src/layout/graphviz/loader.ts": {
+        count: 1,
+        reason: "the Graphviz package, loaded inside the layout Worker; the layout's own run is what draws",
+    },
     "src/shaders/chunk.ts": { count: 1, kind: "shader", reason: "the shader runtime, loaded the first time one draws" },
     "src/meshes/NodeShaderDrawing.ts": {
         count: 3,

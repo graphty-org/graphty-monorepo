@@ -574,3 +574,49 @@ triage of that name is at 6ac9f2eb57). Screenshots are under the main checkout's
   recorded on the first build expected dates in a text column (`T63B/rewalk.json`), which this build draws as text
   by decision ("A column's kind is drawn one way everywhere", dry run pass 1). T63 B adds no filter card, so a new
   walk could not differ, and the old rule would have sent it back as a block.
+
+## Fix pass after round 1 (engineer, 2026-10-30)
+
+Settled by the fix pass the report decided (`report.md`, section 7; problems by number in
+`rounds/round-1/scores.md`). Re-walks are under the main checkout's `tmp/design-studio/tier4/fixpass/`.
+
+- **A new filter card starts on Select; the effects read Select | Filter to | Filter out.** A card from
+  Filters "+" (and a Structure row: Largest component, Neighbors of selection, Data source) is written
+  as Select, which takes nothing out of the picture; an attribute's or a column's "Filter to..." starts
+  on Filter to, as its words say. Filter to writes `keep`, Filter out writes `exclude`, and every card,
+  an exclude card included, carries the three-way toggle, each segment's tooltip and name saying what
+  it does. REVERSES "a new card starts on Filter out" in "Tier 4 data management questions" (2026-10-29)
+  and replaces the Select / Hide toggle of R4. Why: 5 of 5 participants who made a card to mark first
+  took part of the picture away (problem 15), and "Hide" kept what matched (problem 14).
+- **Every filter card counts against the whole graph.** A Select card's chip reads what it would mark
+  out of the graph's total, as a Filter to card's does. NARROWS the dry run's "a within-picture Select
+  card counts what it marks" (it still counts what it marks; only the total changed). Why: two bases on
+  cards side by side (problem 16).
+- **The join screen shows what Join will do, row by row, and the unknown end is decided there.** Each
+  incoming row's tag is the element's row fate: what it joins, "<ends>, new node", "Repeat, not added"
+  or "Left out". An "N unknown ends" menu chooses Add as new nodes (in effect at first) or Leave those
+  rows out before Join. The repeat and unknown-end menus check the choice in effect. "N edges added"
+  and "N new nodes" are toggle chips that narrow the file's table. An act chosen from the Join choices
+  menu is done, not only picked. Why: problems 1, 5, 6 and 7; R13.
+- **Setting a text column of dates as the time makes it a date column.** When the element's preview says
+  every value reads as a date, designating the time (Attributes, the inspector's Set in Data) converts
+  the column first. NARROWS "A column's kind is drawn one way everywhere" (dry run pass 1): the kind is
+  still the only thing that draws cells, and now follows the time when the values allow. Why: the
+  round's one false done (r1-s08).
+- **A found location is its column's role on the header too.** Latitude and Longitude the element found
+  carry their role chip on the header, as a designated role does (problem 21).
+- **A joined source row draws its ratio whole and its name readable.** The ratio never truncates, the
+  name keeps about nine characters beside the icon, and the count chips move to a second line, right
+  aligned, when they do not fit (bar 6, problem 8). Restores the approved ratio.
+- **A table's tabs name rendered tab panels** (bar 5): the table body is the showing tab's panel.
+- **A format that writes no styles saves at once.** CSV export no longer stops on "Styles lost"; the
+  Format box's "No styles" is its one line. A format that keeps some styles and loses others still
+  stops (problem 23, R14).
+- **Names.** "Fields" reads "Attributes" and "Sources" reads "Data sources" (2026-10-29 team decision);
+  an unknown-end issue names its end ("N edges with an unknown target") and its removing fix reads
+  "Remove nodes and edges"; a Fields row's words are its box's label; the column "..." tooltip shows
+  Alt+Down; Open network data has an Open button beside its address box (R8).
+- **A source row's issue list has Show rows** (problem 13), and its chip shows a check, not "0" beside
+  a warning, once every issue is fixed with the list open (problem 24).
+- **The study tool reports a hover card a hover opened** (`opened a hover card: ...`), never
+  `tooltip: null` over a card the screenshot shows (report section 3, item 1).

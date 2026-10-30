@@ -100,6 +100,10 @@ showing.
   files". B the same with gauges.csv and flows.csv: "Join flows.csv -> gauges.csv", chips "14
   edges added", "1 new node", "1 not in graph", "1 repeated key"; Overview Nodes 12, Edges 14.
   Path steps: 7 (Open a file, the file chosen, Data, Add source, File..., the file chosen, Join).
+  **From the round 1 fix pass on:** the screen adds "1 unknown end" (a menu: Add as new nodes, in
+  effect, or Leave those rows out), each row of the file's table is tagged with what Join does with
+  it (the unknown-end row "P05 - P13, new node", the repeat "Repeat, not added"), and "18 edges
+  added" and "1 new node" narrow the table. The path and its count are unchanged.
 - **Detour that still succeeds**: opening deliveries.csv first and pantries.csv second (Data >
   "+" > File...), if the end network has both. On 0ffeae2ef5 through a53beb7179 that order gives A 13 nodes and **19**
   edges with "1 repeated edge" listed (the repeat is kept); those counts are that network's own and
@@ -223,6 +227,9 @@ showing.
   order gives the same 14 of 24 and 4 selected. Path steps: 14 (A): Data, Add filter, trained,
   "trained: how to match", Yes, Add a condition, hours, the "from" box, 10 typed, Enter, Add
   filter, role, staff, Select.
+  **From the round 1 fix pass on**, a card from "+" starts on Select and the effects read Select |
+  Filter to | Filter out: the trained card is switched to Filter to and the role card needs no
+  switch. Path steps: still 14 (Select is replaced by Filter to on the first card).
 - **B on 0ffeae2ef5**: the first half matched (one card, telemetry yes and depth_cm Between 70 to
   210, Hide: 5 of 12). The second half could not be built: `installed` was offered as text, so
   "before 2005" had no condition. B was blocked on that build.
@@ -258,7 +265,8 @@ showing.
   18 (B 12 of 12 and 14 of 14). 037e96e9bb, ff17391bb1 and 79ed770292 are such builds; with both files ticked
   the top bar reads "13 of 13 nodes" (B "12 of 12 nodes") with no edge count, and only the
   inspector shows 18 of 18 (B 14 of 14). The card's effect control reads "Select | Hide", with Hide
-  on.
+  on. From the round 1 fix pass on, it reads "Select | Filter to | Filter out" and a Data source card
+  starts on Select: switching it to Filter to (one more step) is what takes P13 (B G12) out.
 - **A card on the id cannot leave one node out on 0ffeae2ef5, 037e96e9bb or ff17391bb1**: the id card offers
   only Contains, Starts with, Ends with and Is exactly (the `site` / `station` card adds Has a value
   and Has no value), and Hide hides what does not match, so an id card for P13 with Hide leaves P13

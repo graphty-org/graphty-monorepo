@@ -4,6 +4,43 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-30 -- For the owner: two compact-mantine behaviors the tier 4 round faulted (compact-mantine)
+
+From the tier 4 round 1 fix pass (`tier4/rounds/round-1/scores.md`). Both change how a Figma-locked
+component looks or behaves, so neither is built without the owner's `Figma-Approved` trailer.
+
+- **A data table column's "..." is not drawn at rest** (problem 22; s05, s06, s07, s08, s19 and the
+  accessibility walk). It appears only on hover or focus, so readers looking for a column's menu found
+  nothing to click. Drawing it at rest changes DataTable's look. Its tooltip now names its key
+  (Alt+Down), which needed no look change.
+- **A Popout closes when the reader drags the table's scrollbar** (problem 25, repro `r1-s16-script`).
+  The source row's issue list is a compact-mantine Popout, which closes on any pointer press outside it.
+  Keeping it open while a scrollbar is dragged changes Popout's dismiss behavior.
+
+## 2026-10-30 -- Decided by the team: the tier 4 round 1 fix pass (graphty-element, compact-mantine, babylonjs-map)
+
+From the tier 4 round 1 fix pass (`tier4/report.md`, section 7; `tier4/decided.md`, "Fix pass after
+round 1").
+
+- **graphty-element, non-breaking.** `JoinChoices.unknownEnds?: "add" | "leave-out"`: for an edge join,
+  a row with an end the graph lacks adds that end as a new node (`"add"`, the default and today's
+  behavior) or is left out. `JoinReport.rowFates` (new type `JoinRowFate`: `"joined"`, `"new-end"`,
+  `"repeat"`, `"left-out"`, an open union) says per incoming row what Join does with it, and
+  `JoinReport.unknownEndRows` counts the edge rows with an unknown end. Why: the join screen tagged the
+  wrong rows (round 1's most severe open problem) and could not decide an unknown end before Join; the
+  app needed the row-by-row outcome as an element fact rather than recomputing the join.
+- **graphty-element, part of the unreleased `within` addition (`@beta`).**
+  `FilterConditionMatches.total` is the graph's count for every condition, a select condition within
+  the picture included; `matched` still counts what it would mark. This supersedes the 2026-10-29 entry
+  below that made `total` the count drawn. Why: a Select card and a Filter to card beside it read
+  against different totals (problem 16); one basis makes the cards comparable. `within` and its count
+  were never released.
+- **compact-mantine, non-breaking.** `FileSource` takes an opt-in `openLabel`: a button with that text
+  beside the URL field that does what Enter does. Without it nothing is drawn differently.
+- **babylonjs-map, unreleased (0.0.0).** The DMS reader refuses text with no hemisphere, no degree,
+  minute or second mark and no space or comma between parts: "555-0101" no longer reads as 5 55' N,
+  101 W, so a column of phone numbers is no longer detected as a location (problem 26).
+
 ## 2026-10-29 -- Decided by the team: a select condition's `within` after master's select rule (graphty-element)
 
 - **graphty-element, non-breaking.** Master now makes every select condition select only among the

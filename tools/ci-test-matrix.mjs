@@ -80,6 +80,15 @@ const OFF_SHARDS = [
         "test-command": "cd graph-io && pnpm exec vitest run --config vitest.browser.config.ts",
         "needs-browser": true,
     },
+    // graph-io-fidelity's stories (graph-io/fidelity-stories): every play function run as a test, so the
+    // selector has an import graph that picks the stories a change reaches. No coverage: the graph-io shard
+    // measures graph-io.
+    {
+        shard: "graph-io-storybook",
+        package: "graph-io",
+        "test-command": "cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
+    },
     // webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
     // project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
     // pass (four node shards, below), and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
@@ -423,7 +432,8 @@ export const STORY_SHARDS = [
  *                  githerd 0.7                                       about 4 + setup = 6 minutes
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
- *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8, layout-storybook 0.3,
+ *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8,
+ *                  graph-io-storybook 1.6 (on this machine), layout-storybook 0.3,
  *                  cytoscape-extensions-storybook 0.7
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
@@ -449,6 +459,7 @@ export const GROUPS = {
         "visual-review",
         "webgpu-graph-algorithms-browser",
         "algorithms-storybook",
+        "graph-io-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
     ],
@@ -463,6 +474,7 @@ const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
     "graphty-storybook",
     "algorithms-storybook",
+    "graph-io-storybook",
     "layout-storybook",
     "cytoscape-extensions-storybook",
     "graph-io-browser",

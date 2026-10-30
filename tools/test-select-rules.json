@@ -141,10 +141,11 @@
         "selectProjects": [
             "graphty-element",
             "graphty",
-            "layout",
-            "cytoscape-extensions",
+            "algorithms",
+            "graph-io-fidelity",
             "compact-mantine",
-            "algorithms"
+            "layout",
+            "cytoscape-extensions"
         ],
         "drawnBy": {
             "graph-io-fidelity": ["graph-io", "graphty-element"]

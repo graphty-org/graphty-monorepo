@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
@@ -199,6 +200,11 @@ export default defineConfig(({ mode, command }) => {
                 // reader copies them; a story that runs one reaches the source, not a stale dist/.
                 "@graphty/graphty-element/extend": resolve(__dirname, "./extend.ts"),
                 "@graphty/graphty-element/logging": resolve(__dirname, "./logging.ts"),
+                // `@jsonhero/schema-infer` requires the standalone `lodash.omit` package while its
+                // own dependency `@jsonhero/json-schema-fns` requires `lodash/omit`: the same
+                // function twice. Both are copied into the build (see `bundledDependencies`), so
+                // point the standalone one at lodash's and ship one copy.
+                "lodash.omit": createRequire(resolve(__dirname, "package.json")).resolve("lodash/omit"),
             },
         },
         server: {

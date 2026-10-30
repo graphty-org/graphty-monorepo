@@ -1036,6 +1036,12 @@ export class Ingest<K extends KnownEdge> {
         );
 
         const batch: EdgeBatch = { endpoints, policy, recordIdPath, weightPath, legacyFallback, tally };
+        if (this.loadTally === null) {
+            // An earlier push that threw mid-batch was rolled back, and the endpoints it noted
+            // with it: they are not this batch's to draw.
+            this.loadMadeEndpoints.clear();
+        }
+
         for (const edge of edges) {
             if (this.addEdgeRecord(edge, batch, writer)) {
                 legacyWeights++;

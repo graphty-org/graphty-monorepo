@@ -123,6 +123,25 @@ describe("a node named only by an edge is drawn (#3192)", () => {
         assert.deepStrictEqual(await picture(element), { counted: 2, nodes: ["a", "b"], edges: 1 });
     });
 
+    it("and a push rolled back by a refused repeat leaves no node behind for the next one", async () => {
+        const element = await mount();
+        const refused = [
+            { source: "a", target: "b" },
+            { source: "c", target: "d" },
+            { source: "a", target: "b" },
+        ];
+        let threw = false;
+        try {
+            await element.addEdges(refused, { repeated: "error" });
+        } catch {
+            threw = true;
+        }
+
+        assert.isTrue(threw, "the repeated a-b edge is refused");
+        await element.addEdges([{ source: "x", target: "y" }]);
+        assert.deepStrictEqual(await picture(element), { counted: 2, nodes: ["x", "y"], edges: 1 });
+    });
+
     it("through a JSON file with an empty node list", async () => {
         const element = await mount();
         const data = JSON.stringify({ nodes: [], edges: [{ source: "a", target: "b" }] });

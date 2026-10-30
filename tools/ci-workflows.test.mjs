@@ -26,7 +26,16 @@ import { after, describe, it } from "node:test";
 
 import { parse as parseYaml } from "yaml";
 
-import { ciCommand, GROUPS, groupEntry, parseOnly, plan, SHARDS, storiesPlan } from "./ci-test-matrix.mjs";
+import {
+    ciCommand,
+    GROUPS,
+    groupEntry,
+    parseOnly,
+    plan,
+    SHARDS,
+    storiesPlan,
+    STORY_SHARDS,
+} from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -1939,6 +1948,17 @@ describe("verification runs of ci.yml", () => {
         assert.match(job(ci, "stories"), /github.event_name == 'pull_request'/);
         // the story tests feed the results store's flaky-story detection on a pull request too
         assert.doesNotMatch(job(ci, "story-tests"), /\n {8}if: .*pull_request/);
+    });
+
+    it("judges the full run's story tests by the store's quarantine, `-shots` families included", () => {
+        const stories = job(ci, "story-tests");
+        assert.match(
+            stories,
+            /- name: Read the results plan\n {14}if: steps\.skip\.outputs\.skip != 'true' && github\.event_name != 'pull_request'\n {14}continue-on-error: true\n[\s\S]*?node tools\/results\/plan-read\.mjs "\$pkg" "\$RUNNER_TEMP\/results-plan"/,
+        );
+        // plan-read.mjs asks for the `-shots` family of exactly the shards this job runs
+        const include = parseYaml(ci).jobs["story-tests"].strategy.matrix.include;
+        assert.deepEqual([...new Set(include.map((e) => e.shard))].sort(), [...STORY_SHARDS].sort());
     });
 
     it("runs the story tests' capture blocking, outside All Checks Pass", () => {

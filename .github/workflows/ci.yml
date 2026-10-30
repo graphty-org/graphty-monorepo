@@ -2610,6 +2610,20 @@ jobs:
                   name: results-plan
                   path: ${{ runner.temp }}/results-plan
 
+            # Outside a pull request (the full run) no Packages job reads the store, so this job reads the plan of
+            # its own shard's package, `-shots` family included (#4612): a story the store quarantined as
+            # screenshot-flaky must not turn the blocking full run red. No answer leaves the committed list.
+            - name: Read the results plan
+              if: steps.skip.outputs.skip != 'true' && github.event_name != 'pull_request'
+              continue-on-error: true
+              env:
+                  SHARD: ${{ matrix.shard }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  pkg=$(node --input-type=module -e 'const { SHARDS } = await import("./tools/ci-test-matrix.mjs"); console.log(JSON.stringify([SHARDS.find((s) => s.shard === process.env.SHARD).package]))')
+                  node tools/results/plan-read.mjs "$pkg" "$RUNNER_TEMP/results-plan" --sha "$GITHUB_SHA"
+
             - name: Run the story tests with their screenshots
               if: steps.skip.outputs.skip != 'true'
               env:

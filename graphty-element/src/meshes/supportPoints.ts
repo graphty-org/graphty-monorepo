@@ -247,6 +247,43 @@ function springsAndGravity(
 }
 
 /**
+ * Whether an edge's two ends are at one place in the plane of the drawing.
+ * @param e - The edge.
+ * @returns True when it has no length there.
+ */
+const atOnePlace = (e: SupportEdge): boolean => e.src.x === e.dst.x && e.src.y === e.dst.y;
+
+/**
+ * The bodies of a step, in the forces' units: every node first, then room for each edge's support point; and the
+ * middle of the nodes that have a place.
+ * @param nodes - Every node's center.
+ * @param m - How many support points follow the nodes.
+ * @param unit - Scene units per force unit.
+ * @returns Every body's x and y, and the middle.
+ */
+function bodiesOf(
+    nodes: readonly Xyz[],
+    m: number,
+    unit: number,
+): { xs: Float64Array; ys: Float64Array; center: [number, number] } {
+    const n = nodes.length;
+    const xs = new Float64Array(n + m);
+    const ys = new Float64Array(n + m);
+    let cx = 0;
+    let cy = 0;
+    const placed = nodes.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)).length;
+    for (let i = 0; i < n; i++) {
+        xs[i] = nodes[i].x / unit;
+        ys[i] = nodes[i].y / unit;
+        if (Number.isFinite(xs[i]) && Number.isFinite(ys[i])) {
+            cx += xs[i] / placed;
+            cy += ys[i] / placed;
+        }
+    }
+    return { xs, ys, center: [cx, cy] };
+}
+
+/**
  * Step every support point toward where its forces balance, with the nodes held still. The points are read from
  * and written back to `points` (flat x, y per edge, in scene units); `velocities` (the same layout, in the forces'
  * units) carries their speed from one call to the next. The simulation runs in the first edge's units and over the
@@ -276,21 +313,7 @@ export function stepSupportPoints(
     const given = edges[0].forces.unit > 0 ? edges[0].forces.unit : 1;
     const unit = edges[0].forces.scale === "drawing" ? (balancedUnit(nodes, edges, points) ?? given) : given;
     const n = nodes.length;
-    const xs = new Float64Array(n + m);
-    const ys = new Float64Array(n + m);
-    let cx = 0;
-    let cy = 0;
-    // the middle of the nodes that have a place
-    const placed = nodes.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)).length;
-    for (let i = 0; i < n; i++) {
-        xs[i] = nodes[i].x / unit;
-        ys[i] = nodes[i].y / unit;
-        if (Number.isFinite(xs[i]) && Number.isFinite(ys[i])) {
-            cx += xs[i] / placed;
-            cy += ys[i] / placed;
-        }
-    }
-    const center: [number, number] = [cx, cy];
+    const { xs, ys, center } = bodiesOf(nodes, m, unit);
     const ends = edges.map(
         (e) => [e.src.x / unit, e.src.y / unit, e.dst.x / unit, e.dst.y / unit] as [number, number, number, number],
     );
@@ -304,11 +327,11 @@ export function stepSupportPoints(
         const root = treeOf(xs, ys);
         let fastest = 0;
         for (let j = 0; j < m; j++) {
-            const { forces, src, dst } = edges[j];
+            const { forces } = edges[j];
             // an edge with both ends at one place has no length to hold its point along: the point is put back on the
             // edge every frame (toRel), so moving it only shoved it away again each frame and kept every curve from
             // resting (json-vis-lesmiserables at vis-network's positions ran to MAX_STEPS_TO_REST); it stays a body
-            if (src.x === dst.x && src.y === dst.y) {
+            if (atOnePlace(edges[j])) {
                 velocities.fill(0, 2 * j, 2 * j + 2);
                 continue;
             }

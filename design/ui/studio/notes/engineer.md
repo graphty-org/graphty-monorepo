@@ -41,7 +41,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   `IssueRows.real-element.test.tsx` "marks the target column, and only the target cell" (fails
   without: the source cell tinted). The fraud fixture's 18 unknown ends are targets too, so
   `TableDockConfig.real-element.test.tsx` now expects the warning on "to". Known limit: "both" tints
-  a row's source cell even when only its target is unknown (the tint is per row).
+  a row's source cell even when only its target is unknown (the tint is per row). Re-walk on
+  `graphty/dist` (`design/ui/studio/tmp/r1-dry2-U2/`): T61A x1-success, T61B z1-success,
+  z2-detours and T61A q3-keyboard replayed with every check point matching; T61A 20.png and
+  T61B-z1-with-issues 20.png show the glyph on Target, P13 / G12 tinted, P05 / G09 plain; the
+  Issues list still reads "1 unknown end" with Add nodes, Leave out; 13 / 18 (B 12 / 14). The
+  replay tolerance did not flag the moved glyph: look at the screenshot, not only "matches". No
+  keyboard route reaches the Edges header's spoken issue; the real-element test covers its name.
 
 - (2026-10-29) Re-walk of "every inspector node row is called by its name" (d612c60665): ten
   routes matched every check point (`design/ui/studio/tmp/r1-dry2-recheck-U3/`); keys on the rows

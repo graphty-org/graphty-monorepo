@@ -431,3 +431,27 @@ defect by its row). Screenshots are under the main checkout's `tmp/design-studio
   pass said PASS INCOMPLETE, and every task had its success path, its detours and a keyboard walk on
   037e96e9bb. Narrows nothing: it extends "A PASS INCOMPLETE that left no route unwalked is not a
   block" (dry run pass 1) to replays.
+
+## Dry run pass 3 (director, 2026-10-29)
+
+Settled by the triage of the re-pilot walks on build ff17391bb1 (`dry-run-r1-3.md`, which names each
+defect by its row). Screenshots are under the main checkout's `tmp/design-studio/tier4/r1d2/pilot/`.
+No earlier entry is reversed.
+
+- **A Select card's count counts what it marks.** A select condition that selects only within the
+  picture counts, on its card, its matches among what the keep and exclude conditions that are on leave
+  drawn, out of how many are drawn (T65 A: "4 of 14"; B: "3 of 5"), whether the card is on or off. A Hide
+  card, and a select condition over the whole graph, count their rule over the whole graph as before. The
+  count never depends on the order of the cards. A card's value list keeps the column's own counts over
+  the whole graph. Why: the previous pass made the card select only what is in the picture and left its
+  count over the whole graph, so the card that marks 4 people read "5 of 24" (`T65A/u1-path/17.png`) and
+  B's read "5 of 12" with 3 marked (`T65B/z1-path/14.png`); what is ringed and what is described never
+  differ (`interaction-patterns.md` line 321, the reason for "A select condition selects only what is in
+  the picture"). Narrows `design/data/filter-cards.md` "Counts" for this one kind of condition.
+
+- **What the join screen resolved is not an issue after Join.** A repeated key the join screen showed,
+  and resolved by the choice made there (keep the first, keep both, ignore), is not listed again in the
+  source's issues after Join; the result on screen (18 edges, 1 unknown end) is true. Whether people
+  notice it on the join screen, and whether a resolved choice should stay listed, is a question for the
+  sessions (T61). Why: the T61 A pilot read the missing repeat after Join as a lost answer
+  (`T61A/w1-success/18.png`); the join screen shows it before Join (`answers.md` T61).

@@ -4,6 +4,20 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-29 -- Decided by the team: a within-picture Select card counts what it marks (graphty-element)
+
+From the tier 4 dry run, pass 3 (`tier4/dry-run-r1-3.md`, unit U1).
+
+- **graphty-element, part of the unreleased `within` addition.** `visibility.conditionCounts()` counts a
+  select condition with `within: "picture"` as what it would select: `matched` is its rule's matches
+  among what the on keep and exclude conditions leave drawn, `total` is how many are drawn, on or off.
+  Every other condition's count is unchanged (over the whole graph, independent of the other
+  conditions). Why: with the selection limited to the picture, a count over the whole graph put "5 of
+  24" on the card that marks 4 (T65). Not breaking: `within` exists only on the studio branch, never
+  released, so this defines the count of the same new field rather than changing an existing return
+  value; a condition without `within` counts exactly as before. The count's cache must key on the
+  picture for these conditions.
+
 ## 2026-10-29 -- Decided by the team: a select condition can select only what is in the picture (graphty-element)
 
 From the tier 4 dry run, pass 2 (`tier4/dry-run-r1-2.md`, unit U1).

@@ -201,21 +201,17 @@ describe("Filter cards on the real element", () => {
             assert.lengthOf(session.selection.nodes, 4);
         });
         assert.equal(session.visibility.conditions[1]?.within, "picture");
-        // Its chip counts what it marks, out of what is drawn.
-        await (await card("label contains e")).findByText("4 of 5");
 
-        // Turning the Hide card off brings the other three back into the picture, the selection and the chip.
+        // Turning the Hide card off brings the other three back into the picture and the selection.
         const apply = (await card(VALUE)).getByRole("checkbox", { name: `Apply ${VALUE}` });
         await userEvent.click(apply);
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 7);
         });
-        await (await card("label contains e")).findByText("7 of 8");
         await userEvent.click(apply);
         await waitFor(() => {
             assert.lengthOf(session.selection.nodes, 4);
         });
-        await (await card("label contains e")).findByText("4 of 5");
     });
 
     it("the box switches the card, Undo and Redo name it, and an off card keeps its count", async () => {

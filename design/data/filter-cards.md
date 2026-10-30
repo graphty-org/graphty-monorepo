@@ -139,13 +139,6 @@ edge chip), with no rule parsing. A rule on a column that does not resolve repor
 `unresolved` instead of a silent "0 of 900". The combined result stays the header chip's
 `140 of 900` (`visibility.summary`).
 
-One exception: a select condition with `within: "picture"` selects only among what the keep and
-exclude conditions that are on leave drawn, so its count is what it would select. `matched` is its
-rule's matches among the drawn elements and `total` is how many are drawn (the whole graph when no
-keep or exclude condition is on). It still holds whether the card is on or off and whatever the
-order, so an off card shows what switching it on would mark. A select condition without `within`,
-and every keep and exclude condition, count over the whole graph as above.
-
 ## 2. What today's steps become
 
 Every step becomes one **keep** condition with the same id, the same `on` and the same rule,
@@ -206,9 +199,7 @@ New exported types: `FilterCondition`, `FilterConditionInput`, `FilterConditionC
   changes; a select-only change fires only `selection:changed` (section 1).
 - **Counts.** Synchronous like `summary` and `previewSteps`. Cached per condition, keyed by the
   canonical rule and the data revision: a count depends on neither effect, `on` nor the other
-  conditions, so one edited condition recomputes one count. A within-picture select count also
-  keys on the picture (the rules of the keep and exclude conditions that are on), so switching or
-  editing one of those recounts it. Re-read on `visibility:changed` or
+  conditions, so one edited condition recomputes one count. Re-read on `visibility:changed` or
   `history:changed` (a data load, a rename and every condition op are history steps).
 - **Select.** Applied inside the condition op's history step as
   `selection.apply({ scope: { define: { kind: "rule", where: all[on select rules] } } })` over the

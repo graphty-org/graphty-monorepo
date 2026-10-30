@@ -17,21 +17,6 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-- (2026-10-29) A within-picture Select card's chip counts what it marks. `countsNow` /
-  `countRule` (VisibilityApi.ts): for a select condition with `within: "picture"` (on or off),
-  `matched` is its rule's matches among what the keep and exclude conditions that are on leave
-  drawn (`drawnBy`, the same pass `selectedBy` uses) and `total` is how many are drawn; every
-  other condition counts over the whole graph as before. The cache key adds the picture rule
-  (`combinedRule(null, conditions)`) and its set signature, so switching the keep card recounts
-  it -- the same trap as the run-reuse regression (an input missing from a key). Tests:
-  `conditions.test.ts` (2 of 3 both orders, 3 of 5 with keep off, off card keeps 2 of 3; fails
-  without: 3 of 5) and `Filters.real-element.test.tsx` chip "4 of 5" / "7 of 8" / "4 of 5".
-  Re-walk `design/ui/studio/tmp/r1-dry2-U1/`: T65A-path 17.png role 4 of 14, 4 selected;
-  T65A-order 11.png keep off 5 of 24 / 5, 12.png on 4 of 14 / 4; T65B-path-diverged 09.png
-  installed 3 of 5, 3 selected (the divergence is the chip); T65B-order 08.png the same; keys,
-  style detour and T68A/B match. Not changed: the typing preview (`usePreviewCount`) still counts
-  over the whole graph while a Select card's text is retyped.
-
 - (2026-10-29) An unknown end's warning marks the end that is unknown. graphty-element: the
   `unknown-end` issue's params gain `ends` ("source", "target", "both"), from the touching edges
   (issues.ts loadIssues; additive, recorded in owner-decisions.md). The app's `issuePlace` now

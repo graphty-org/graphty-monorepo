@@ -69,10 +69,6 @@ function selected(session: GraphSession): { nodes: string[]; edges: string[] } {
     };
 }
 
-function countOf(session: GraphSession, id: string): { matched: number; total: number } | null | undefined {
-    return session.visibility.conditionCounts().find((each) => each.id === id)?.nodes;
-}
-
 describe("filter conditions", () => {
     it("a select condition within the picture selects only what the keep and exclude conditions leave drawn", async () => {
         const kept: FilterConditionInput = {
@@ -93,21 +89,12 @@ describe("filter conditions", () => {
             // b is a host the keep condition hides, so it is not selected, whichever came first.
             assert.deepStrictEqual(visible(session).nodes, ["a", "c", "e"]);
             assert.deepStrictEqual(selected(session).nodes, ["a", "e"], `order ${order[0].id} first`);
-            // Its count is what it selects, out of what is drawn; the keep condition's is over the graph.
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
-            assert.deepStrictEqual(countOf(session, "kept"), { matched: 3, total: 5 });
 
-            // The selection and the count follow the keep condition off and on, and its undo and redo.
+            // The selection follows the keep condition off and on, and its undo and redo.
             await session.visibility.updateCondition("kept", { on: false });
             assert.deepStrictEqual(selected(session).nodes, ["a", "b", "e"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 3, total: 5 });
             await session.visibility.updateCondition("kept", { on: true });
             assert.deepStrictEqual(selected(session).nodes, ["a", "e"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
-            // Off, it still says what switching it on would select.
-            await session.visibility.updateCondition("hosts", { on: false });
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
-            await session.undo();
             await session.undo();
             assert.deepStrictEqual(selected(session).nodes, ["a", "b", "e"]);
             await session.redo();
@@ -128,7 +115,6 @@ describe("filter conditions", () => {
         const whole = await graph();
         await whole.visibility.setConditions([kept, { id: "hosts", effect: "select", rule: HOSTS }]);
         assert.deepStrictEqual(selected(whole).nodes, ["a", "b", "e"]);
-        assert.deepStrictEqual(countOf(whole, "hosts"), { matched: 3, total: 5 });
         assert.throws(() => {
             void whole.visibility.setConditions([{ effect: "select", rule: HOSTS, within: "nowhere" as never }]);
         }, /within/);

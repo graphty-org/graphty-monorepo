@@ -189,15 +189,9 @@ export interface VisibilityChange extends FilterResult {
  * @since 3.32.0
  */
 export interface FilterConditionMatches {
-    /**
-     * How many the rule matches over the whole graph, or, for a select condition that reads
-     * `within: "picture"`, among what is drawn.
-     */
+    /** How many the rule matches over the whole graph. */
     readonly matched: number;
-    /**
-     * How many the graph holds, or, for a select condition that reads `within: "picture"`, how
-     * many the keep and exclude conditions that are on leave drawn.
-     */
+    /** How many the graph holds. */
     readonly total: number;
 }
 
@@ -205,11 +199,6 @@ export interface FilterConditionMatches {
  * What one filter condition's rule matches, as written, over the whole graph: the same whatever
  * its effect, whether it is on, and whatever the other conditions are, so a condition that is off
  * still says what switching it on would match.
- *
- * One exception: a select condition that reads `within: "picture"` counts what it would select,
- * its rule's matches among what the keep and exclude conditions that are on leave drawn, out of
- * how many they leave drawn (the whole graph when none is on). That too holds whether it is on or
- * off, and whatever order the conditions are in.
  * @since 3.32.0
  */
 export interface FilterConditionCount {
@@ -508,12 +497,6 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns The bytes, or null while not ghosting.
      */
     ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
-}
-
-/** What a keep-and-exclude rule leaves drawn, one mask per kind. */
-interface Drawn {
-    readonly nodes: ElementMask<NodeId>;
-    readonly edges: ElementMask<EdgeId>;
 }
 
 /** Visible nodes and edges. */
@@ -1528,16 +1511,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param conditions - The conditions.
      * @returns The drawn elements, or null.
      */
-    const pictureOf = (active: VisibilityFrame, conditions: readonly FilterCondition[]): Drawn | null =>
-        selectsInPicture(conditions) ? drawnBy(active, combinedRule(null, conditions)) : null;
-
-    /**
-     * What a keep-and-exclude rule leaves drawn, in masks of their own.
-     * @param active - The frame.
-     * @param kept - The rule, or null when nothing filters.
-     * @returns The drawn elements, or null when the rule is null.
-     */
-    const drawnBy = (active: VisibilityFrame, kept: RuleTree | null): Drawn | null => {
+    const pictureOf = (
+        active: VisibilityFrame,
+        conditions: readonly FilterCondition[],
+    ): { readonly nodes: ElementMask<NodeId>; readonly edges: ElementMask<EdgeId> } | null => {
+        const kept = selectsInPicture(conditions) ? combinedRule(null, conditions) : null;
         if (kept === null) {
             return null;
         }
@@ -1669,36 +1647,27 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     } | null = null;
 
     /**
-     * What one rule matches, as written, over the whole graph or only among what is drawn.
+     * What one rule matches, as written, over the whole graph.
      * @param active - The frame.
      * @param rule - The rule.
-     * @param drawn - What is drawn, to count among; null for the whole graph.
      * @returns The count, without an id.
      */
-    const countRule = (
-        active: VisibilityFrame,
-        rule: RuleTree,
-        drawn: Drawn | null,
-    ): Omit<FilterConditionCount, "id"> => {
+    const countRule = (active: VisibilityFrame, rule: RuleTree): Omit<FilterConditionCount, "id"> => {
         const compiled = compiledOver(active, rule);
-        const tally = (
-            test: ((index: number) => boolean) | null,
-            count: number,
-            among: ElementMask<NodeId> | ElementMask<EdgeId> | undefined,
-        ): FilterConditionMatches | null => {
+        const tally = (test: ((index: number) => boolean) | null, total: number): FilterConditionMatches | null => {
             if (test === null) {
                 return null;
             }
 
             let matched = 0;
-            for (let at = 0; at < count; at++) {
-                matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
+            for (let at = 0; at < total; at++) {
+                matched += test(at) ? 1 : 0;
             }
 
-            return Object.freeze({ matched, total: among === undefined ? count : among.size });
+            return Object.freeze({ matched, total });
         };
-        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes);
-        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges);
+        const nodes = tally(compiled.node, active.graph.nodeCount);
+        const edges = tally(compiled.edge, active.graph.edgeCount);
 
         return Object.freeze({ nodes, edges, unresolved: compiled.unresolvedPaths() });
     };
@@ -1716,21 +1685,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         const conditions = conditionsNow();
         const bucket = countBucket;
-        // A select condition that looks only within the picture counts among what the keep and
-        // exclude conditions that are on leave drawn, so that picture is part of its key.
-        const picture = combinedRule(null, conditions);
-        const inPicture = (condition: FilterCondition): boolean =>
-            picture !== null && condition.effect === "select" && condition.within === "picture";
-        const pictureSignature = conditions.some(inPicture) ? signatureOf(picture) : "";
-        let drawn: Drawn | null | undefined;
-        const each = conditions.map((condition) => {
-            const own = signatureOf(condition.rule);
-            if (!inPicture(condition)) {
-                return own;
-            }
-
-            return own === null || pictureSignature === null ? null : `${own}\n${pictureSignature}`;
-        });
+        const each = conditions.map((condition) => signatureOf(condition.rule));
         const signatures = JSON.stringify(each);
         if (
             countsMemo?.conditions === conditions &&
@@ -1748,22 +1703,10 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 const signature = each[at];
                 // A rule reading a set whose inputs cannot be enumerated is counted every time.
                 // By id too, so a condition nothing changed hands back the same object.
-                const among = inPicture(condition) ? picture : null;
                 const key =
-                    signature === null
-                        ? null
-                        : `${condition.id}\n${JSON.stringify(condition.rule)}\n${JSON.stringify(among)}\n${signature}`;
+                    signature === null ? null : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
                 let count = key === null ? undefined : bucket.byRule.get(key);
-                if (count === undefined) {
-                    if (among !== null) {
-                        drawn ??= drawnBy(active, among);
-                    }
-
-                    count = Object.freeze({
-                        id: condition.id,
-                        ...countRule(active, condition.rule, among === null ? null : (drawn ?? null)),
-                    });
-                }
+                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule) });
 
                 if (key !== null) {
                     kept.set(key, count);

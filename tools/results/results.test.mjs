@@ -536,6 +536,36 @@ describe("groupFamily", () => {
             ],
         );
     });
+
+    it("judges a full run's story tests by the store's `-shots` quarantine when its plan holds the family", async () => {
+        const root = join(TMP, "checkout-shots-full");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        const plan = {
+            families: ["layout", "layout-shots"],
+            quarantine: [{ family: "layout-shots", file: "l/A.stories.ts", name: "Shots", issue: 9 }],
+        };
+        writeFileSync(join(root, "plan.json"), JSON.stringify(plan));
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            GRAPHTY_RESULTS: "0",
+            GITHUB_EVENT_NAME: "workflow_call",
+            VISUAL_REVIEW_STORY_OUT: root,
+            RESULTS_PLAN: join(root, "plan.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("layout", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(
+            quarantine.map((q) => [q.name, q.family]),
+            [["Shots", "layout-shots"]],
+        );
+    });
 });
 
 describe("planRead", () => {
@@ -558,13 +588,20 @@ describe("planRead", () => {
         };
         assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
     });
-    it("also asks for a story shard's screenshot family", () => {
-        const stories = [{ shard: "graphty-storybook", package: "graphty" }];
-        assert.deepEqual(variantsOf(stories, ["graphty"]), [
+    it("also asks for a story shard's screenshot family, whatever the family is called", () => {
+        const stories = [
+            { shard: "graphty-storybook", package: "graphty" },
+            { shard: "layout", package: "layout" },
+        ];
+        assert.deepEqual(variantsOf(stories, ["graphty", "layout"], ["graphty-storybook", "layout"]), [
             "graphty-storybook|flags=off|whole",
             "graphty-storybook|flags=off|selected",
             "graphty-storybook-shots|flags=off|shots",
+            "layout|flags=off|whole",
+            "layout|flags=off|selected",
+            "layout-shots|flags=off|shots",
         ]);
+        assert.ok(!variantsOf(stories, ["graphty"]).some((v) => v.includes("-shots")), "only a story-tests shard");
     });
     it("takes a selected run's file time over a whole run's", () => {
         const plan = {
@@ -598,10 +635,11 @@ describe("planRead", () => {
         });
         assert.equal(seen.length, 1);
         const q = new URL(seen[0].url, url).searchParams;
+        // layout's stories run in ci.yml's story-tests job, so its `-shots` family is asked too (STORY_SHARDS)
         assert.equal(
             q.get("variants"),
-            "layout|flags=off|whole,layout|flags=off|selected,layout-storybook|flags=off|whole," +
-                "layout-storybook|flags=off|selected,layout-storybook-shots|flags=off|shots",
+            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots," +
+                "layout-storybook|flags=off|whole,layout-storybook|flags=off|selected",
         );
         assert.equal(q.get("inputs"), "-,-,-,-,-");
         assert.equal(q.get("files"), "layout/src/x.ts");

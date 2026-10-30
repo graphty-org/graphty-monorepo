@@ -1025,7 +1025,7 @@ export class Edge {
             return Vector3.FromArray(bendPoints(src, dst, labelAt));
         }
 
-        return ((bent || this.bundled) ? this.routeMiddle() : null) ?? Vector3.Center(src, dst);
+        return (bent || this.bundled ? this.routeMiddle() : null) ?? Vector3.Center(src, dst);
     }
 
     /**

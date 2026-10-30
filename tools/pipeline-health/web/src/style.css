@@ -335,10 +335,6 @@ summary:hover {
     color: var(--ink2);
     font-weight: 600;
 }
-.kpi.other .kv {
-    color: var(--ink2);
-    font-weight: 450;
-}
 .kpi .spark {
     margin-top: 4px;
 }
@@ -602,6 +598,15 @@ h3 {
     font-size: 14px;
     padding: 2px 9px;
 }
+/* The sentence wraps under the chips on a narrow screen rather than push the page sideways. */
+.pstate {
+    flex-wrap: wrap;
+    row-gap: 6px;
+}
+.pstate > span:last-child {
+    flex: 1 1 260px;
+    min-width: 0;
+}
 .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -685,6 +690,10 @@ h3 {
     min-width: 0;
     overflow-wrap: anywhere;
 }
+/* A column name breaks between words, never inside one. */
+.thead > span {
+    overflow-wrap: break-word;
+}
 .tr.past {
     color: var(--muted);
 }
@@ -718,6 +727,10 @@ h3 {
     grid-template-columns: minmax(0, 2fr) 90px 110px minmax(120px, 1fr) 50px;
     align-items: center;
 }
+/* A sparkline in a table cell is a block, so no line box puts its descender gap under it and lifts it off the row. */
+.tr .spark {
+    display: block;
+}
 .t-spans .thead,
 .t-spans .tr {
     grid-template-columns: 110px 150px minmax(0, 1fr) 130px;
@@ -748,7 +761,7 @@ h3 {
 }
 .t-trains .thead,
 .t-trains .tr {
-    grid-template-columns: minmax(110px, 190px) minmax(110px, 170px) minmax(0, 1fr);
+    grid-template-columns: minmax(110px, 170px) minmax(100px, 150px) minmax(0, 1fr) minmax(0, 200px);
 }
 .t-wf .thead,
 .t-wf .tr {
@@ -1246,36 +1259,61 @@ h2.top {
     .row > .chev {
         display: none;
     }
-    .tbl,
-    .shards,
-    .hott {
+    /*
+     * Tables stack: each row is a card, its first cell the title and every other cell a "column: value" line, so
+     * no column is cut off and nothing scrolls sideways (the column's name is the cell's data-h).
+     */
+    .tbl .thead {
+        display: none;
+    }
+    .tbl .tr,
+    .tbl.dropped .tr {
+        display: block;
+        padding: 8px 0;
+        border-top: 1px solid var(--faint);
+    }
+    .tbl .tr > span {
+        display: block;
         position: relative;
-        overflow-x: auto;
+        padding-left: 42%;
+        min-height: 1.4em;
     }
-    /* Wide tables keep readable columns and scroll inside themselves; the page never scrolls sideways. */
-    :is(
-            .t-shared,
-            .t-quar,
-            .t-chronic,
-            .t-nongating,
-            .t-bench,
-            .t-lanes,
-            .t-trains,
-            .t-wf,
-            .t-load,
-            .t-cost,
-            .t-src,
-            .t-hist,
-            .t-spans
-        )
-        > *,
-    .shards .srow,
-    .hott .hrow {
-        min-width: 560px;
+    .tbl .tr > span::before {
+        content: attr(data-h);
+        position: absolute;
+        left: 0;
+        width: 40%;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
     }
-    /* A shard's name keeps a readable column; the row scrolls inside .shards instead. */
+    .tbl .tr > span:first-child {
+        padding-left: 0;
+        font-weight: 600;
+    }
+    .tbl .tr > span:first-child::before {
+        content: none;
+    }
+    /* Shard and hotspot rows: the name on its own line, the numbers under it, the chevron beside the name. */
     .shards .srow {
-        grid-template-columns: minmax(150px, 1.4fr) 40px 50px 48px 110px minmax(90px, 110px) 10px;
+        grid-template-columns: 36px 46px 46px minmax(0, 1fr) 10px;
+        row-gap: 2px;
+    }
+    .shards .srow > .nm,
+    .hott .hrow > .nm {
+        grid-column: 1 / -2;
+    }
+    .shards .srow > :last-child,
+    .hott .hrow > :last-child {
+        grid-row: 1;
+        grid-column: -2 / -1;
+    }
+    .shards .srow > .note2 {
+        grid-column: 1 / -1;
+    }
+    .hott .hrow {
+        grid-template-columns: minmax(0, 1fr) 40px 52px 44px 40px 10px;
+        row-gap: 2px;
     }
     .ep {
         display: block;
@@ -1317,7 +1355,47 @@ h2.top {
 .nm .redm {
     display: block;
     margin-top: 2px;
+    color: var(--muted);
+}
+.nm .redm.on {
     color: var(--ink2);
+}
+/* OK on a row: outlined, not filled, so color still marks exceptions only (3.2) and OK reads apart from gray. */
+.sw.okl {
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink2);
+}
+/* Beside an OK chip: the 7-day measures past red the color leaves out, with the red edge the blocks use. */
+.chips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: none;
+}
+.pstate .sw.slowmark,
+.sw.slowmark {
+    padding: 1px 8px 1px 10px;
+    background: transparent;
+    color: var(--ink);
+    box-shadow:
+        inset 4px 0 var(--bad),
+        inset 0 0 0 1px var(--line);
+}
+/* The section a link or a sub-item of the navigation scrolled to. */
+h2.hit {
+    animation: hit 3s ease-out;
+}
+@keyframes hit {
+    0%,
+    40% {
+        background: var(--warn);
+        color: #000;
+    }
+    100% {
+        background: transparent;
+    }
 }
 .st .cov {
     display: block;

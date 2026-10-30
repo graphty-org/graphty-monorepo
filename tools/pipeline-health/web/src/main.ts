@@ -297,6 +297,15 @@ function draw(failure: Failure | null, fresh: boolean): void {
     if (last) document.title = `${last.title} - Pipeline health`;
 }
 
+/**
+ * Scrolls to the section a link named and marks its heading, so a section near the bottom of a short page, which
+ * cannot scroll to the top, is still found.
+ */
+function mark(target: HTMLElement): void {
+    target.scrollIntoView();
+    target.classList.add("hit");
+}
+
 let current: Here = parse(location.hash);
 let seq = 0;
 let drawn = false;
@@ -315,7 +324,7 @@ async function show(navigated: boolean): Promise<void> {
         drawn = true;
         if (navigated) {
             const target = current.section ? document.getElementById(`s-${current.section}`) : null;
-            if (target) target.scrollIntoView();
+            if (target) mark(target);
             else window.scrollTo(0, 0);
             (target ?? app.querySelector<HTMLElement>("h1"))?.focus({ preventScroll: true });
         } else window.scrollTo(0, y);
@@ -347,5 +356,6 @@ window.addEventListener("hashchange", () => {
 });
 setInterval(() => void show(false), REFRESH_MS);
 void show(false).then(() => {
-    if (current.section) document.getElementById(`s-${current.section}`)?.scrollIntoView();
+    const target = current.section ? document.getElementById(`s-${current.section}`) : null;
+    if (target) mark(target);
 });

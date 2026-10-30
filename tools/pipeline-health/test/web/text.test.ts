@@ -121,14 +121,24 @@ describe("stateChip", () => {
         expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain("data for 2 of 7 days");
         expect(stateChip(slow)).not.toContain("data for");
         // The coverage is a line of its own: it never replaces the state.
-        expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain(">7-day measure<");
+        expect(stateChip({ ...slow, coveredDays: { d: 2, of: 7 } })).toContain(
+            ">7-day measure; does not set the page's color<",
+        );
+    });
+
+    it("shows OK as an outlined chip, so within target reads apart from not judged", () => {
+        expect(stateChip({ state: "ok" })).toContain('class="sw okl">OK<');
+        const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 } };
+        expect(stateChip({ ...slow, inTarget: true })).toContain('class="sw okl">OK<');
+        // A payload that does not say whether it is within target never shows OK.
+        expect(stateChip(slow)).not.toContain(">OK<");
     });
 
     it("shows a 7-day measure past its red line as FAILING, out of the page state", () => {
         const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 }, breach: "bad" as const };
         const chip = stateChip(slow);
         expect(chip).toContain('class="sw bad">FAILING<');
-        expect(chip).toContain("7-day measure, not in the page state");
+        expect(chip).toContain("7-day measure; does not set the page's color");
         expect(stateChip({ ...slow, window: "28d", breach: "warn" })).toContain("28-day measure");
     });
 });
@@ -210,10 +220,12 @@ describe("page state", () => {
         const html = pageView(page([member({ breach: "bad" })]));
         expect(html).not.toContain("within its target");
         expect(html).toContain(
-            "1 7-day measure is past its red line: full runs able to promote 0%. It does not set this page's state.",
+            "1 7-day measure is past its red line: full runs able to promote 0%. It does not set this page's state; see its row below.",
         );
-        // The OK chip says what it covers, so it never reads as "everything is fine".
-        expect(html).toContain("No measure that sets this page's state is past its target.");
+        // The OK chip says what it covers, so it never reads as "everything is fine", and a mark beside it counts the
+        // 7-day measures past red.
+        expect(html).toContain("Every hourly and current measure meets its target, so the color is OK.");
+        expect(html).toContain('class="sw slowmark">1 past red, not in the color<');
         expect(html).toContain("Red: Below 25%");
     });
 
@@ -245,7 +257,7 @@ describe("fmtSpan", () => {
 });
 
 describe("status blocks", () => {
-    it("say a 7-day measure past red is not part of the block's color, and mute a headline that did not set it", async () => {
+    it("say a 7-day measure past red is not part of the block's color, and show the measure that set the color under it", async () => {
         const { overviewView, headline, setHere } = await import("../../web/src/render.js");
         setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
         const m = {
@@ -271,10 +283,13 @@ describe("status blocks", () => {
             episodes: [],
         } as never);
         expect(html).toContain("1 7-day measure past red; not part of this color");
-        expect(headline(m, { member: "releases.lanes_red", state: "bad" } as never)).toContain(
-            "Not what set the color above.",
-        );
-        expect(headline(m, { member: "releases.green_clean", state: "bad" } as never)).not.toContain("Not what set");
+        // Under a block colored by another member, the number shown is that member's, never the calm headline's.
+        const setBy = { member: "releases.lanes_red", state: "bad", value: { n: 2 } } as never;
+        expect(headline(m, setBy)).toContain("Set the color:</b> Red lanes on the candidate");
+        expect(headline(m, setBy)).not.toContain("Full runs able to promote");
+        const driver = { ...m, id: "releases.lanes_red", window: "now", state: "bad", value: { n: 2 } } as never;
+        expect(headline(m, setBy, driver)).toContain("Set the color:</b> Red lanes on the candidate, now");
+        expect(headline(m, { member: "releases.green_clean", state: "bad" } as never)).not.toContain("Set the color");
     });
 });
 
@@ -303,5 +318,121 @@ describe("dev server", () => {
         } finally {
             delete process.env.PORT;
         }
+    });
+});
+
+describe("page state names each state apart", () => {
+    it("never calls a NO DATA member past target, nor a yellow one failing", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "flaky", range: "1h", q: new URLSearchParams() });
+        const html = pageView({
+            page: "flaky",
+            range: "1h",
+            generated: "2026-10-25T23:30:00Z",
+            state: "bad",
+            setBy: { member: "flaky.flake_rate", state: "bad", value: { n: 40, unit: "per1000" } },
+            others: [
+                { member: "flaky.blocked", state: "nodata", value: null },
+                { member: "flaky.no_issue", state: "warn", value: { n: 2 } },
+            ],
+            notes: [],
+            members: [],
+            sections: [],
+        } as never);
+        expect(html).toContain("Also past target: flaky tests with no issue 2.");
+        expect(html).toContain("Also NO DATA: PRs blocked by a flake.");
+        expect(html).not.toContain("Also failing");
+        expect(html).toContain('href="#/data-sources/sources"');
+    });
+});
+
+describe("last 24 hours", () => {
+    it("shows every ongoing red episode, and no cleared one above a folded ongoing one", async () => {
+        const { overviewView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        const ep = (i: number, worst: string, end: string | null) => ({
+            id: `e${i}`,
+            category: "costs",
+            member: "costs.t4",
+            worst,
+            start: "2026-10-25T20:00:00Z",
+            end,
+            fact: { code: "ep.past_threshold", params: { member: `x${i}` } },
+            link: "/costs",
+        });
+        const episodes = [
+            ...Array.from({ length: 7 }, (_, i) => ep(i, "bad", null)),
+            ...Array.from({ length: 3 }, (_, i) => ep(10 + i, "warn", null)),
+            ep(20, "warn", "2026-10-25T21:00:00Z"),
+        ];
+        const html = overviewView({
+            generated: "2026-10-25T23:30:00Z",
+            range: "1h",
+            categories: [],
+            episodes,
+        } as never);
+        const open = html.split('<details class="epm">')[0];
+        for (let i = 0; i < 7; i++) expect(open).toContain(`x${i} out of target`);
+        expect(open).not.toContain("x20 out of target");
+        expect(html).toContain("3 more ongoing");
+        expect(html).toContain("1 more cleared");
+    });
+});
+
+describe("tables", () => {
+    it("say none is ongoing when every row has ended, and keep the header over the folded rows", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "master", range: "1h", q: new URLSearchParams() });
+        const html = pageView({
+            page: "master",
+            range: "1h",
+            generated: "2026-10-25T23:30:00Z",
+            state: "ok",
+            others: [],
+            notes: [],
+            members: [],
+            sections: [
+                {
+                    kind: "table",
+                    id: "shared",
+                    rows: [{ past: true, cells: { check: { t: "name", v: "Build" } } }],
+                },
+            ],
+        } as never);
+        expect(html).toContain("No shared failure now.");
+        expect(html).toMatch(/<summary>1 ended or idle row.*<\/summary><div class="thead">/);
+        expect(html).toContain('data-h="check"');
+    });
+
+    it("show only regressed benchmarks and count the rest by why they are folded", async () => {
+        const { pageView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "ci", range: "1h", q: new URLSearchParams() });
+        const bench = (name: string, ratio?: unknown) => ({
+            cells: { benchmark: { t: "name", v: name }, ...(ratio ? { ratio } : {}) },
+        });
+        const html = pageView({
+            page: "ci",
+            range: "1h",
+            generated: "2026-10-25T23:30:00Z",
+            state: "ok",
+            others: [],
+            notes: [],
+            members: [],
+            sections: [
+                {
+                    kind: "table",
+                    id: "benchmarks",
+                    rows: [
+                        bench("slow one", { t: "mark", state: "bad", cell: { t: "num", n: 1.5, unit: "x" } }),
+                        bench("steady", { t: "num", n: 1, unit: "x" }),
+                        bench("new"),
+                    ],
+                },
+            ],
+        } as never);
+        expect(html.split("<details")[0]).toContain("slow one");
+        expect(html.split("<details")[0]).not.toContain("steady");
+        expect(html).toContain("2 more: 1 within 1.2x, 1 with fewer than 13 runs, not judged yet");
+        expect(html).toContain("2 of 3 have the 13 runs detection needs");
     });
 });

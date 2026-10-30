@@ -213,16 +213,23 @@ export function fewText(
 export const partialText = (c: Member["covered"]): string =>
     `only ${fmtN(c?.h ?? 0)} h of ${fmtN(c?.of ?? 1)} h recorded`;
 
-/** The state cell of a member row: a chip for a judged state not OK, muted words for the gray ones. */
+/** A muted, outlined OK: within target, so it reads apart from "not judged" without adding color (3.2). */
+export const OK_CHIP = `<span class="sw okl">OK</span>`;
+
+/**
+ * The state cell of a member row: a filled chip for a judged state not OK, an outlined OK, muted words for the gray
+ * ones. A 7- or 28-day measure says on a second line that it does not set the page's color.
+ */
 export function stateChip(
     m: Pick<Member, "state" | "n" | "minN" | "covered"> &
-        Partial<Pick<Member, "id" | "window" | "value" | "coveredDays" | "breach">>,
+        Partial<Pick<Member, "id" | "window" | "value" | "coveredDays" | "breach" | "inTarget">>,
     range?: Range | SlowRange,
 ): string {
     switch (m.state) {
         case "ok":
+            return OK_CHIP;
         case "info":
-            return "";
+            return `<span class="sw low">for information</span>`;
         case "warn":
         case "bad":
         case "nodata":
@@ -239,10 +246,12 @@ export function stateChip(
             const days = m.coveredDays
                 ? `<small class="cov">data for ${fmtN(m.coveredDays.d)} of ${fmtN(m.coveredDays.of)} days</small>`
                 : "";
-            const what = dayMeasure(m.window ?? "7d");
+            const what = `<small class="cov">${m.window === "now" ? "shown for information" : dayMeasure(m.window ?? "7d")}; does not set the page's color</small>`;
             if (m.breach)
-                return `<span class="sw ${stateClass(m.breach)}">${STATE_WORD[m.breach]}</span><small class="cov">${what}, not in the page state</small>${days}`;
-            return `<span class="sw low">${what}</span>${days}`;
+                return `<span class="sw ${stateClass(m.breach)}">${STATE_WORD[m.breach]}</span>${what}${days}`;
+            if (m.inTarget) return OK_CHIP + what + days;
+            // A payload built before `inTarget` was: whether it is within target is not known here.
+            return what + days;
         }
         case "notsetup":
             return `<span class="sw low">not set up</span>`;
@@ -309,6 +318,8 @@ interface MemberText {
     nOf?: string;
     /** The headline's name under a status block, when it differs. */
     headline?: string;
+    /** What the value is, in a sentence, when "now" would mislead (" projected for month-end"). */
+    when?: string;
 }
 
 export const MEMBER: Record<MemberId, MemberText> = {
@@ -333,8 +344,8 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "master.full_run_verdict": {
         name: "Latest full test run",
         short: "latest full test run",
-        def: "Result of the CI lane in the newest 6-hourly full run.",
-        red: "The newest full run failed, so nothing promotes to nightly until it is fixed or reverted. See Releases > Lanes on the candidate.",
+        def: "Whether the CI lane (every test shard) of the newest full run passed. A full run tests master every 6 hours.",
+        red: "The newest full run's CI lane failed, so nothing promotes to nightly until agents fix or revert the change its bisect names. See Releases > Lanes on the candidate.",
     },
     "master.untested_age": {
         name: "Hours since master was fully tested",
@@ -346,7 +357,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Reverted merges",
         short: "reverted merges",
         def: "Share of merges in the last 7 days that were reverted, in %.",
-        red: "Over 10%: changes land broken. See Master builds.",
+        red: "Over 10% of merges in 7 days were reverted: changes land broken, so reviews and PR tests miss real failures. See Master builds.",
     },
     "pull-requests.time_to_merge": {
         name: "Time to merge",
@@ -365,7 +376,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Oldest open PR",
         short: "oldest open PR",
         def: "Age in hours of the oldest open PR not waiting on the owner.",
-        red: "Over 72 h: that PR is stuck. Open it from this row.",
+        red: "Over 72 h: that PR is stuck. It is named in this row; its author fixes or closes it.",
     },
     "pull-requests.merge_ratio": {
         name: "Merged per opened",
@@ -378,20 +389,20 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Runs failed by their own change",
         short: "runs failed by their own change",
         def: "Share of PR first runs in the last 7 days that failed on a test the PR itself changed, in %.",
-        red: "",
+        red: "No red line. Past 5% (yellow): more PRs than usual arrive with their own tests failing, so authors should run the tests they changed before opening the PR.",
         nOf: "runs",
     },
     "pull-requests.automerge_green_stuck": {
         name: "Green but not merging",
         short: "green but not merging",
         def: "PRs that are green with auto-merge on and still unmerged 2 h later.",
-        red: "2 or more: merging itself is broken (branch rules or GitHub).",
+        red: "2 or more: merging itself is broken (branch rules or GitHub). The PRs are named in this row; an agent checks why they do not merge.",
     },
     "pull-requests.automerge_armed_long": {
         name: "Auto-merge on over 24 h",
         short: "auto-merge on over 24 h",
         def: "PRs with auto-merge on for over 24 h, green or red. Green but not merging counts only green ones.",
-        red: "4 or more: PRs sit red with auto-merge on. Fix or close them.",
+        red: "4 or more: PRs sit for a day with auto-merge on, mostly red. The PRs are named in this row; their authors fix or close them.",
     },
     "pull-requests.screenshot_backlog": {
         name: "Screenshots waiting for review",
@@ -448,7 +459,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.bins_over": {
         name: "PR test groups over 8 min",
         short: "PR test groups over 8 min",
-        def: "Share of PR test groups (the test selector's bins) that ran longer than 8 min, in %. The selector aims to keep each under 8 min.",
+        def: "Share of PR test groups (the test selector's bins) that ran longer than 8 min in the last hour, in %. The selector aims to keep each under 8 min. Shard times below, pull request bins, covers 7 days instead.",
         red: "Over 25%: the PR test split needs rebalancing. See Shard times, pull request bins.",
         nOf: "bins",
     },
@@ -462,7 +473,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.shards_over": {
         name: "Full-run shards over budget",
         short: "full-run shards over budget",
-        def: "Full-run test shards whose 7-day median time is over their budget.",
+        def: "Full-run test shards whose 7-day median time is over their budget. Shard times below shows the same shards; while CI test results sends too little this row says NO DATA rather than count from data that may be missing.",
         red: "3 or more: full runs are slowing down. See Shard times.",
     },
     "ci.runner_minutes": {
@@ -475,25 +486,25 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.screenshot_set_age": {
         name: "Oldest screenshot set",
         short: "oldest screenshot set",
-        def: "Age in hours of the stalest story group's newest rolling screenshot.",
-        red: "Over 12 h: rolling screenshot captures are not running, so candidates get stale pictures.",
+        def: "Hours since the least recently captured group of Storybook stories got a new screenshot from the background captures that run many times a day.",
+        red: "Over 12 h: the background screenshot captures stopped, so the owner reviews stale pictures. Agents check story-slices.yml runs.",
     },
     "ci.slice_base_budget": {
         name: "Scheduled screenshot captures, daily cap",
         short: "scheduled screenshot captures, share of daily cap",
-        def: 'Runner-minutes used today (UTC) by the scheduled background screenshot captures ("slices"), as a share of their daily cap, in %.',
+        def: "Runner-minutes used today (UTC) by the scheduled background screenshot captures, as a share of their daily cap, in %.",
         red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
     },
     "ci.slice_idle_budget": {
         name: "Spare-time screenshot captures, daily cap",
         short: "spare-time screenshot captures, share of daily cap",
-        def: "The same for the extra captures that run only when runners are free.",
+        def: "Runner-minutes used today by the extra screenshot captures that run only when runners are free, as a share of their daily cap, in %.",
         red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
     },
     "ci.slice_idle_hour_budget": {
         name: "Spare-time screenshot captures, hourly cap",
         short: "spare-time screenshot captures, share of hourly cap",
-        def: "The same over the last hour.",
+        def: "Runner-minutes used in the last hour by the extra screenshot captures that run only when runners are free, as a share of their hourly cap, in %.",
         red: "Over 125%: the captures overspend their cap. See Runners > Who holds the runners.",
     },
     "ci.slice_contended": {
@@ -512,7 +523,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Superseded runs still running",
         short: "superseded runs still running",
         def: "Runs still running after a newer push to the same PR made them pointless.",
-        red: "",
+        red: "No red line: shown for information. Each such run holds runners other jobs wait for; see Superseded runs still running.",
     },
     "ci.chronic_jobs": {
         name: "Chronically failing jobs",
@@ -523,7 +534,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.bench_regressions": {
         name: "Benchmark regressions",
         short: "benchmark regressions",
-        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before (needs 13 runs).",
+        def: "Benchmarks whose last 3 results have a median more than 1.2x that of the 10 runs before. A benchmark with fewer than 13 runs is not judged, so the count stays 0 until benchmarks have that history.",
         red: "3 or more: performance regressed. See Benchmarks below.",
     },
     "flaky.blocked": {
@@ -541,7 +552,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "flaky.flake_rate": {
         name: "Flake rate",
         short: "flake rate",
-        def: "Flaky test results per 1,000 CI test-file runs.",
+        def: "Flaky test results per 1,000 CI test-file runs. Hotspots below covers 7 days, so it can list flaky tests while this hour has none or NO DATA.",
         red: "Over 10 per 1,000 in the last hour and the last 6 h. See Hotspots.",
         nOf: "test-file runs",
     },
@@ -555,20 +566,20 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Days to fix a flaky test",
         short: "days to fix a flaky test",
         def: "Median days from a test first flaking to its fix merging, over 28 days.",
-        red: "Over 7 d.",
+        red: "Over 7 d: flaky tests stay broken for a week or more. Agents take the oldest flaky issues first.",
     },
     "releases.lanes_red": {
         name: "Red lanes on the candidate",
         short: "red lanes on the candidate",
-        def: "Lanes of the full run (CI, T4 GPU, host matrix, macOS autosave, audit, LLM tests) that are red on the held nightly candidate.",
-        red: "A lane has been red 6 h or more, so nightly is held. Fix forward from the candidate.",
+        def: "Lanes of the full run (CI, T4 GPU, host matrix, macOS autosave, audit, LLM tests) that failed on the held nightly candidate: the commit the newest full run tested and holds back from nightly until it passes.",
+        red: "A lane has been red 6 h or more, or a passed candidate has waited 6 h for screenshot review, so nightly cannot move. Agents fix forward from the candidate; changed screenshots wait on the owner.",
         headline: "Release lanes red",
     },
     "releases.workflows_failing": {
         name: "Release workflows failing",
         short: "release workflows failing",
-        def: "release.yml, promote.yml and release-watch.yml whose newest run failed.",
-        red: "One failed 3 times in a row: releases are broken.",
+        def: "Release workflows (release.yml, promote.yml, release-watch.yml) whose newest run failed.",
+        red: "One failed 3 times in a row: releases are broken until agents fix the workflow. See Release workflows below.",
     },
     "releases.train_skipped": {
         name: "Newest commit skipped",
@@ -592,13 +603,13 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Channel members",
         short: "channel members",
         def: "Canary, nightly and production age.",
-        red: "",
+        red: "Not set up yet, so it is never red; its red line comes with the channel ages.",
     },
     "releases.review_lag": {
         name: "Screenshot review time",
         short: "screenshot review time",
         def: "Median hours from a changed picture's first capture to its approval merging, over 7 days.",
-        red: "Over 24 h.",
+        red: "Over 24 h: changed pictures wait a day for the owner, so nightly waits too.",
         nOf: "pictures",
     },
     "releases.slots_unreviewed": {
@@ -625,20 +636,23 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Spend this month",
         short: "spend",
         def: "Every paid service, projected to month-end, in USD.",
-        red: "Spent past the monthly budget. Yellow when only the month-end forecast is over it.",
+        red: "Spent past the monthly budget. Yellow when only the month-end forecast is over it. The owner picks a new limit or accepts the overrun.",
         headline: "Spend projected",
+        when: " projected for month-end",
     },
     "costs.t4": {
         name: "T4 GPU",
         short: "T4 GPU",
         def: 'The machine.dev bill for the paid T4 GPU runner, projected to month-end, in USD. "Money by workflow" below is GitHub\'s list-price value, not this bill.',
-        red: "Spent past its budget. Yellow when only the month-end forecast is over it.",
+        red: "Spent past its budget. Yellow when only the month-end forecast is over it. The owner picks a new limit or accepts the overrun.",
+        when: " projected for month-end",
     },
     "costs.llm": {
         name: "LLM tests (estimated)",
         short: "LLM tests spend",
         def: "Gemini calls made by the CI LLM regression tests, at a flat estimated rate, projected to month-end, in USD.",
-        red: "Over budget: see Money this month.",
+        red: "Spent past its budget. Yellow when only the month-end forecast is over it. The owner picks a new limit, or agents cut the LLM test runs.",
+        when: " projected for month-end",
     },
     "costs.aws": {
         name: "AWS",
@@ -662,26 +676,26 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Weekly stress run",
         short: "weekly stress run",
         def: "The newest weekly run of every test shard under half the runner's CPU, which files an issue per load-sensitive test.",
-        red: "Load-sensitive tests may have no issues. Yellow (found nothing 3 weeks running): check that the weekly run still restricts the CPU.",
+        red: "The weekly run or its issue filing failed, so tests that fail under load may go untracked. Yellow: it found nothing 3 weeks running; agents check it still limits the CPU.",
     },
     "data-sources.past_age": {
-        name: "Sources past their age limit",
-        short: "sources past their age limit",
-        def: "Data sources that have not written within their age limit.",
-        red: "A source is past twice its limit: the pages it feeds are stale. See Sources below.",
+        name: "Sources not OK",
+        short: "sources not OK",
+        def: "Data sources past their age limit, sending too little, or failing.",
+        red: "A source is failing or has not written for twice its age limit: the pages it feeds show NO DATA or stale values. See Sources below; agents fix its writer.",
     },
     "data-sources.thin": {
         name: "Data volume vs normal",
         short: "data volume vs normal",
         def: "Rows written per collector run in the last hour divided by the 7-day median (1.0 = normal).",
-        red: "Below 0.2: a writer is dropping rows.",
+        red: "Below 0.2: a writer is dropping rows, so the measures it feeds show NO DATA. See Sources below.",
         nOf: "runs",
     },
     "data-sources.collector": {
         name: "Collector last ran",
         short: "collector last ran",
         def: "Time since the dashboard's own data collector last ran.",
-        red: "Over 20 min: every page is stale.",
+        red: "Over 20 min: every page is stale. The owner gets a phone alert.",
     },
     "data-sources.app_rate": {
         name: "GitHub API quota left",
@@ -699,7 +713,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         name: "Sources not OK",
         short: "sources not OK",
         def: "Data sources past their age limit, sending too little, or failing.",
-        red: "A source is failing or past twice its limit: the pages it feeds are stale. See Sources below.",
+        red: "A source is failing or has not written for twice its age limit: the pages it feeds show NO DATA or stale values. See Sources below; agents fix its writer.",
     },
     "local-runs.local_vs_ci": {
         name: "Local vs CI disagreement",
@@ -734,13 +748,13 @@ export const LABEL: Record<string, string> = {
     "cause.infrastructure": "infrastructure",
     "cost.t4": "T4 GPU",
     "cost.llm": "LLM regression (CI, estimated)",
-    "cost.sentry": "Sentry",
+    "cost.sentry": "Sentry (plan price)",
     "cost.github": "GitHub",
-    "cost.cloudflare": "Cloudflare",
+    "cost.cloudflare": "Cloudflare (plan price)",
     "cost.aws": "AWS",
     "cost.total": "<b>Total</b>",
-    "cost.sentry_usage": "Sentry usage",
-    "cost.cloudflare_usage": "Cloudflare usage",
+    "cost.sentry_usage": "Sentry usage (share of the plan's quota)",
+    "cost.cloudflare_usage": "Cloudflare usage (share of the plan's allowance)",
     "load.pr": "Pull request runs",
     "load.master": "Master push builds",
     "load.full": "Full runs",
@@ -823,7 +837,8 @@ const isCmp = (x: Cmp | Fact): x is Cmp => "op" in x;
 export function slaText(sla: Sla | null, targetOnly = false): string {
     if (!sla) return "no target (shown for information)";
     const target = isCmp(sla.target) ? cmpText(sla.target, true) : sentence(sla.target);
-    if (targetOnly || !sla.red) return `good ${target}`;
+    if (targetOnly) return `good ${target}`;
+    if (!sla.red) return `good ${target}; no red line`;
     const red = isCmp(sla.red) ? cmpText(sla.red, true) : sentence(sla.red);
     return `good ${target}; red ${red}${sla.needs6h ? " (in the last hour and the last 6 h)" : ""}`;
 }
@@ -851,13 +866,15 @@ const S: Record<string, (p: P) => string> = {
     "sla.blocked": () => "&gt;= 3 or any &gt;= 24 h",
     "sla.any_no_issue": () => "any with no open issue (yellow: any, each with an open issue)",
     "sla.none": () => "none",
-    "sla.lanes_open": (p) => `open &gt;= ${fmtN(num(p, "h"))} h`,
+    "sla.lanes_open": (p) => `a lane red ${fmtN(num(p, "h"))} h or more`,
     "sla.failed_in_a_row": (p) => `${fmtN(num(p, "runs"))} failed in a row`,
     "sla.word": (p) => str(p, "word"),
     "sla.after": (p) => `after ${fmtN(num(p, "min"))} min`,
     "sla.passed_and_filed": () => "passed and filed what it found",
-    "sla.filing_failed": () => "the run or its issue filing failed (yellow: found nothing 3 weeks running)",
-    "sla.past_2x": () => "any past 2x",
+    "sla.filing_failed": () => "the run or its issue filing failed",
+    "sla.past_2x": () => "any source past twice its age limit",
+    "sla.projected_within": (p) => `projected &lt;= ${fmtN(num(p, "usd"))} USD`,
+    "sla.spent_over": (p) => `spent &gt; ${fmtN(num(p, "usd"))} USD (yellow: projected over it)`,
     "sla.under_pct": (p) => `under ${fmtN(num(p, "pct"))}%`,
     "sla.canary_age": (p) => `canary age &lt; ${fmtN(num(p, "h"))} h`,
 
@@ -896,7 +913,7 @@ const S: Record<string, (p: P) => string> = {
     "note.chronic_no_issue": (p) => `${fmtN(num(p, "n"))} of them ${num(p, "n") === 1 ? "has" : "have"} no open issue`,
     "chronic.no_issue_jobs": (p) =>
         `${plural(num(p, "n"), "chronically failing job")} ${num(p, "n") === 1 ? "has" : "have"} no open issue`,
-    "note.oldest_pr": (p) => `#${num(p, "pr")}, opened ${fmtN(num(p, "h"))} h ago`,
+    "note.oldest_pr": (p) => `${prLink(num(p, "pr"))} opened ${fmtN(num(p, "h"))} h ago`,
     "note.prs": (p) =>
         arr(p, "prs")
             .map((n) => prLink(Number(n)))
@@ -927,7 +944,8 @@ const S: Record<string, (p: P) => string> = {
     "reason.idle": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} is idle by design`,
     "reason.stale": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} stopped writing`,
     "reason.error": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} is failing`,
-    "reason.thin": (p) => `${esc(SOURCE[String(p.source)] ?? p.source)} sends less than usual for its activity`,
+    "reason.thin": (p) =>
+        `${esc(SOURCE[String(p.source)] ?? p.source)} is sending ${p.ratio === undefined ? "less data than usual" : `${fmtN(Math.round(num(p, "ratio") * 100))}% of its usual data`} for the work CI did`,
     "reason.no_value": () => "no value in the window",
     "section.no_detail": () => "Not collected yet: no writer records this detail.",
     "section.no_events": () => "Nothing recorded in this range.",
@@ -1033,6 +1051,9 @@ const S: Record<string, (p: P) => string> = {
     "train.nothing_new": () => "skipped: nothing new to test",
     "train.tested_failed": (p) => `tested: ${and(arr(p, "lanes").map((l) => lane(String(l))))} failed`,
     "train.failed_before": (p) => `failed before the lanes, in ${str(p, "job")}`,
+    "train.promoted": () => "promoted",
+    "train.held": () => "held: screenshots to review, or a hold is open",
+    "train.not_promoted": () => "not promoted",
     "wf.failed_of": (p) => `${fmtN(num(p, "failed"))} of ${fmtN(num(p, "runs"))} failed`,
     "wf.in_a_row": (p) => `${fmtN(num(p, "n"))} in a row`,
     "wf.since_merge": (p) => `${at(p, "at")}, merge of ${prLink(num(p, "pr"))}`,
@@ -1119,15 +1140,17 @@ export function memberLine(m: Member): string {
 }
 
 /** "7-day measure" or "28-day measure": a member judged on days, which never sets its page's state. */
-export const dayMeasure = (w: Member["window"]): string => `${w === "28d" ? "28-day" : "7-day"} measure`;
+export const dayMeasure = (w: Member["window"]): string =>
+    w === "now" ? "measure shown for information" : `${w === "28d" ? "28-day" : "7-day"} measure`;
 
 /** HTML without its links, for text inside a row that is itself a link (anchors cannot nest). */
 export const unlinked = (html: string): string => html.replace(/<a\b[^>]*>|<\/a>/g, "");
 
 /** A member in a sentence: "runner wait p90 31 min", or its short fact. */
-export function refText(r: { member: MemberId; value: Value; fact?: Fact }): string {
+export function refText(r: { member: MemberId; value: Value; fact?: Fact }, brief = false): string {
     if (r.fact) return sentence(r.fact);
     // No value (NO DATA, not set up): the state word says why, so the name stands alone, never "name --".
     if (r.value === null || ("word" in r.value && r.value.word === "yes")) return esc(MEMBER[r.member].short);
-    return `${esc(MEMBER[r.member].short)} ${fmtValue(r.value)}`;
+    // In a status block the value stands alone; the measure under the block says it is a projection.
+    return `${esc(MEMBER[r.member].short)} ${fmtValue(r.value)}${brief ? "" : (MEMBER[r.member].when ?? "")}`;
 }

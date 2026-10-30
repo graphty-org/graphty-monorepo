@@ -185,16 +185,26 @@ function rangePicker(slow: boolean): string {
                 `<a href="${hereWith({ range: r })}"${r === here.range ? ' class="on" aria-current="true"' : ""}>${rangeLabel(r)}</a>`,
         )
         .join("");
-    return `<div class="range" role="group" aria-label="${slow ? "History" : "Range"}">${slow ? `<span class="rlab">7-day / 28-day history</span>` : ""}${links}</div>`;
+    return `<div class="range" role="group" aria-label="${slow ? "History" : "Range"}">${slow ? `<span class="rlab">days in the charts (the money is always this month)</span>` : ""}${links}</div>`;
 }
 
 function updated(generated: string): string {
     return `<span class="upd">updated ${fmtAgo(generated)}, ${fmtTime(generated).slice(-5)} UTC</span>`;
 }
 
-function header(title: string, crumbs: [string, string][], generated: string, slow = false, picker = true): string {
-    const c = crumbs.length
-        ? `<div class="crumbs">${crumbs.map(([r, n]) => `<a href="${href(r)}">${esc(n)}</a><span class="sep">&gt;</span>`).join("")}<span aria-current="page">${esc(title)}</span></div>`
+function header(
+    title: string,
+    crumbs: [string, string][],
+    generated: string,
+    slow = false,
+    picker = true,
+    section = "",
+): string {
+    // Opened at a section (a sub-item of the navigation): the page is a link and the section ends the trail.
+    const path = here.page === "test" ? "/flaky" : PAGE_PATH[here.page];
+    const trail: [string, string][] = section ? [...crumbs, [path, title]] : crumbs;
+    const c = trail.length
+        ? `<div class="crumbs">${trail.map(([r, n]) => `<a href="${href(r)}">${esc(n)}</a><span class="sep">&gt;</span>`).join("")}<span aria-current="page">${esc(section || title)}</span></div>`
         : "";
     return `<header class="ph">${c}<div class="phrow"><h1 tabindex="-1">${esc(title)}</h1>${picker ? rangePicker(slow) : ""}${updated(generated)}</div></header>`;
 }
@@ -289,8 +299,9 @@ function memberRow(m: Member): string {
           )
         : "";
     const val = m.state === "nodata" ? "--" : bigValue(m.value);
-    // What red means is shown when the row is past a line, and is always the row's tooltip.
-    const red = breached(m) && t.red ? `<small class="redm">Red: ${esc(t.red)}</small>` : "";
+    // What red means is on every row ("If red:"), and reads "Red:" in ink when the row is past a line.
+    const lead = breached(m) ? "Red: " : m.sla?.red ? "If red: " : "";
+    const red = t.red ? `<small class="redm${breached(m) ? " on" : ""}">${lead}${esc(t.red)}</small>` : "";
     const title = t.red ? ` title="${esc(`Red: ${t.red}`)}"` : "";
     // A row whose link is the page it is on goes nowhere, so it is no link and has no chevron; its own links work.
     const still = linksHere(m.link);
@@ -327,17 +338,25 @@ function memberRows(members: Member[]): string {
     );
 }
 
+/** Where a NO DATA member's source is listed, so the reader can see why and who fixes it. */
+const SOURCES_LINK = `<a class="ln" href="#/data-sources/sources">See Data sources</a>`;
+
 /** The page's state sentence: the member that set it, the others not OK, and the page's notes. */
 function pageState(p: PageResponse): string {
     const word = p.state === "idle" ? "IDLE" : STATE_WORD[p.state];
-    const chip = `<span class="sw ${p.state === "idle" ? "idle" : stateClass(p.state)}">${word}</span>`;
+    const slowRed = p.members.filter((m) => m.breach === "bad").length;
+    // A 7-day measure past red never sets the color, so the chip says so beside it rather than read as all clear.
+    const slowChip = slowRed ? `<span class="sw slowmark">${fmtN(slowRed)} past red, not in the color</span>` : "";
+    const chip = `<span class="chips"><span class="sw ${p.state === "idle" ? "idle" : stateClass(p.state)}">${word}</span>${slowChip}</span>`;
     const find = (r: MemberRef) => p.members.find((m) => m.id === r.member);
     const parts: string[] = [];
     if (p.setBy) {
         const m = find(p.setBy);
         if (p.setBy.fact && p.setBy.state !== "nodata") parts.push(`${capital(sentence(p.setBy.fact))}.`);
         else if (m && p.setBy.state === "nodata")
-            parts.push(`${capital(MEMBER[m.id].short)} has NO DATA${m.reason ? `: ${sentence(m.reason)}` : ""}.`);
+            parts.push(
+                `${capital(MEMBER[m.id].short)} has NO DATA${m.reason ? `: ${sentence(m.reason)}` : ""}. ${SOURCES_LINK}.`,
+            );
         else if (
             m &&
             p.setBy.member === "ci.chronic_jobs" &&
@@ -347,7 +366,8 @@ function pageState(p: PageResponse): string {
             parts.push(`Because ${sentence({ code: "chronic.no_issue_jobs", params: m.note.params })}.`);
         else if (m) {
             const win =
-                m.window === "now" ? " now" : m.window === "1h" || m.window === "1h6h" ? " over the last hour" : "";
+                MEMBER[m.id].when ??
+                (m.window === "now" ? " now" : m.window === "1h" || m.window === "1h6h" ? " over the last hour" : "");
             const v6 = m.value6h ? ` (6 h: ${fmtValue(m.value6h)})` : "";
             // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing".
             const is = m.value && "word" in m.value ? ":" : " is";
@@ -357,19 +377,25 @@ function pageState(p: PageResponse): string {
         // A member past a line on an OK page is a 7- or 28-day measure, which never sets the state: say so.
         parts.push(
             p.members.some(breached)
-                ? "No measure that sets this page's state is past its target."
+                ? "Every hourly and current measure meets its target, so the color is OK."
                 : "Every judged member is within its target.",
         );
-    const others = p.others.filter((r) => r.state === "bad" || r.state === "warn" || r.state === "nodata");
-    if (others.length) {
-        const txt = others.map((r) => {
-            const m = find(r);
-            const v6 = m?.value6h && !r.fact ? ` (6 h: ${fmtValue(m.value6h)})` : "";
-            return refText(r) + v6;
-        });
-        parts.push(`Also ${others.some((r) => r.state === "bad") ? "failing" : "past target"}: ${txt.join(", ")}.`);
-    }
+    // On an OK or NO DATA page, a 7-day measure past its line is the news: it comes before the notes.
     parts.push(...slowBreaches(p.members));
+    const named = (state: MemberRef["state"]) =>
+        p.others
+            .filter((r) => r.state === state)
+            .map((r) => {
+                const m = find(r);
+                const v6 = m?.value6h && !r.fact ? ` (6 h: ${fmtValue(m.value6h)})` : "";
+                return refText(r) + v6;
+            });
+    const bad = named("bad");
+    const warn = named("warn");
+    const nodata = named("nodata");
+    if (bad.length) parts.push(`Also failing (past the red line): ${bad.join(", ")}.`);
+    if (warn.length) parts.push(`Also past target: ${warn.join(", ")}.`);
+    if (nodata.length) parts.push(`Also NO DATA: ${nodata.join(", ")}. ${SOURCES_LINK}.`);
     parts.push(...p.notes.map(sentence));
     if (p.page === "costs") parts.push(...budgetLine(p.sections));
     return `<p class="pstate">${chip}<span>${parts.join(" ")}</span></p>`;
@@ -386,9 +412,9 @@ function slowBreaches(members: Member[]): string[] {
         if (!ms.length) continue;
         const what = ms.every((m) => m.window === ms[0].window) ? dayMeasure(ms[0].window) : "7- or 28-day measure";
         const one = ms.length === 1;
-        const names = ms.map((m) => `${esc(MEMBER[m.id].short)} ${fmtValue(m.value)}`).join(", ");
+        const names = ms.map((m) => refText({ member: m.id, value: m.value })).join(", ");
         out.push(
-            `${fmtN(ms.length)} ${what}${one ? " is" : "s are"} past ${one ? "its" : "their"} ${line}: ${names}. ${one ? "It does" : "They do"} not set this page's state.`,
+            `${fmtN(ms.length)} ${what}${one ? " is" : "s are"} past ${one ? "its" : "their"} ${line}: ${names}. ${one ? "It does" : "They do"} not set this page's state; see ${one ? "its row" : "their rows"} below.`,
         );
     }
     return out;
@@ -407,7 +433,21 @@ function budgetLine(sections: Section[]): string[] {
 
 // ---------------------------------------------------------------- sections
 
-export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap?: number }> = {
+interface TableDef {
+    cls: string;
+    cols: [string, string][];
+    cap?: number;
+    /** Rows shown open; the rest fold even when live (benchmarks: only the regressed show). */
+    open?: (r: TableSection["rows"][number]) => boolean;
+    /** The fold's words for a table with `open` ("250 more: 10 within 1.2x, 240 with too few runs"). */
+    foldText?: (folded: TableSection["rows"]) => string;
+    /** What a table with no ongoing row says above its folded, ended rows. */
+    noneNow?: string;
+}
+
+const isMark = (c: Cell | undefined) => c?.t === "mark";
+
+export const TABLES: Record<string, TableDef> = {
     "red-spans": {
         cls: "t-spans",
         cols: [
@@ -426,6 +466,7 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
             ["suspects", "suspects: master merges since its last pass"],
             ["issue", "issue and fix"],
         ],
+        noneNow: "No shared failure now.",
     },
     owner: {
         cls: "t-owner",
@@ -481,6 +522,13 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
             ["spark", "results, one per run"],
             ["runs", "runs"],
         ],
+        open: (r) => isMark(r.cells.ratio),
+        foldText: (rows) => {
+            const judged = rows.filter((r) => filled(r.cells.ratio)).length;
+            const few = rows.length - judged;
+            return `${fmtN(rows.length)} more: ${fmtN(judged)} within 1.2x, ${fmtN(few)} with fewer than 13 runs, not judged yet`;
+        },
+        noneNow: "No benchmark regressed.",
     },
     lanes: {
         cls: "t-lanes",
@@ -497,6 +545,7 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
             ["attempt", "attempt"],
             ["candidate", "candidate"],
             ["lanes", "lanes"],
+            ["nightly", "nightly"],
         ],
     },
     workflows: {
@@ -507,6 +556,7 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
             ["since", "failing since"],
             ["cause", "cause"],
         ],
+        noneNow: "No release workflow failing now.",
     },
     money: {
         cls: "t-cost",
@@ -514,7 +564,7 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
         cols: [
             ["line", "line"],
             ["projected", "projected month-end, USD"],
-            ["sofar", "spent so far / budget"],
+            ["sofar", "spent so far / red line, USD"],
             ["spark", "projection by day"],
             ["state", "state"],
         ],
@@ -533,7 +583,7 @@ export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap
         cls: "t-unit",
         cols: [
             ["measure", "measure"],
-            ["value", "value"],
+            ["value", "value, USD"],
             ["note", "note"],
         ],
     },
@@ -587,27 +637,46 @@ function table(s: TableSection): string {
         ? ` style="--cols: minmax(0, 1.6fr)${cols.length > 1 ? ` repeat(${cols.length - 1}, minmax(0, 1fr))` : ""}"`
         : "";
     const head = `<div class="thead">${cols.map(([, h]) => `<span>${esc(h)}</span>`).join("")}</div>`;
+    // Each cell carries its column's name, which a phone shows beside it when the row stacks (style.css).
     const row = (r: TableSection["rows"][number]) => {
         const cls = `tr${r.past ? " past" : ""}${r.total ? " tot" : ""}`;
         const cells = cols
-            .map(([k]) => `<span>${filled(r.cells[k]) ? cellHtml(r.cells[k]) : `<span class="muted">--</span>`}</span>`)
+            .map(
+                ([k, h]) =>
+                    `<span data-h="${esc(h)}">${filled(r.cells[k]) ? cellHtml(r.cells[k]) : `<span class="muted">--</span>`}</span>`,
+            )
             .join("");
         return r.link ? `<a class="${cls}" href="${href(r.link)}">${cells}</a>` : `<div class="${cls}">${cells}</div>`;
     };
     const cap = def.cap ?? TABLE_CAP;
     const live = s.rows.filter((r) => !r.past && !r.total);
-    const shown = live.slice(0, cap);
-    const folded = [...live.slice(cap), ...s.rows.filter((r) => r.past && !r.total)];
+    const keep = def.open ? live.filter(def.open) : live;
+    const shown = keep.slice(0, cap);
+    const folded = [
+        ...keep.slice(cap),
+        ...live.filter((r) => !keep.includes(r)),
+        ...s.rows.filter((r) => r.past && !r.total),
+    ];
     const totals = s.rows.filter((r) => r.total);
     const ended = folded.filter((r) => r.past).length;
-    const what = shown.length
-        ? `${fmtN(folded.length)} more`
-        : `${fmtN(folded.length)} ${folded.length === 1 ? "row" : "rows"}`;
+    const what = def.foldText
+        ? def.foldText(folded)
+        : shown.length
+          ? `${fmtN(folded.length)} more`
+          : `${fmtN(folded.length)} ended or idle ${folded.length === 1 ? "row" : "rows"}`;
+    const endedNote = def.foldText || !shown.length || !ended ? "" : ` (${fmtN(ended)} ended or idle)`;
+    // With no row open, the header goes inside the fold, over the rows it names.
+    const headOpen = shown.length > 0 || totals.length > 0;
     const fold = folded.length
-        ? `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${ended ? ` (${fmtN(ended)} ended or idle)` : ""}${chev()}</summary>${folded.map(row).join("")}</details>`
+        ? `<details class="epm tfold" data-key="t-${esc(s.id)}"><summary>${what}${endedNote}${chev()}</summary>${headOpen ? "" : head}${folded.map(row).join("")}</details>`
         : "";
+    // Nothing live: say so in words above the fold, so a table never reads as a header with no rows.
+    const none =
+        s.rows.length && !shown.length && !totals.length
+            ? `<p class="empty">${esc(def.noneNow ?? (def.open ? "None past its line." : "None ongoing now."))}</p>`
+            : "";
     const empty = s.rows.length ? "" : `<p class="empty">none in this range</p>`;
-    return `<div class="tbl ${def.cls}${dropped ? " dropped" : ""}" role="table"${style}>${head}${shown.map(row).join("")}${totals.map(row).join("")}${fold}</div>${empty}`;
+    return `${none}<div class="tbl ${def.cls}${dropped ? " dropped" : ""}" role="table"${style}>${headOpen ? head : ""}${shown.map(row).join("")}${totals.map(row).join("")}${fold}</div>${empty}`;
 }
 
 /** Bars a list shows before the rest folds into "N more". */
@@ -796,13 +865,20 @@ function sectionHead(s: Section): string {
         case "non-gating":
             return h(
                 "Allowed to fail",
-                "ci.yml jobs with continue-on-error, every run kind, last 7 d; most failures first",
+                "ci.yml jobs with continue-on-error, every run kind, last 7 d; most failures first; marked when a quarter of runs fail, red at half",
             );
-        case "benchmarks":
+        case "benchmarks": {
+            const rows = s.kind === "table" ? s.rows : [];
+            const judged = rows.filter((r) => filled(r.cells.ratio)).length;
+            const can =
+                judged === 0
+                    ? "detection cannot run yet: no benchmark has 13 runs"
+                    : `${fmtN(judged)} of ${fmtN(rows.length)} have the 13 runs detection needs`;
             return h(
                 "Benchmarks",
-                "red: median of the last 3 results over 1.2x the median of the 10 before; regressed first, under 13 runs last",
+                `red: median of the last 3 results over 1.2x the median of the 10 before; ${can}; only regressions show, the rest are folded`,
             );
+        }
         case "lanes":
             return h("Lanes on the candidate", subText);
         case "trains":
@@ -814,7 +890,10 @@ function sectionHead(s: Section): string {
         case "unit":
             return h("Unit costs", "for comparison; never part of the status");
         case "by-workflow":
-            return h("By workflow", "money and list-price value are never summed");
+            return h(
+                "By workflow",
+                "only the money a workflow spends (T4 GPU, LLM tests), so it is less than the total: flat plans and AWS are not split by workflow; money and list-price value are never summed",
+            );
         case "stress":
             return h("Weekly stress run", subText);
         case "sources":
@@ -852,10 +931,17 @@ function section(s: Section): string {
 
 // ---------------------------------------------------------------- views
 
+/** A section's title, as its heading reads, for the breadcrumb of a view opened at that section. */
+function sectionTitle(s: Section): string {
+    return /<h2[^>]*>([^<]*)/.exec(sectionHead(s))?.[1] ?? "";
+}
+
 export function pageView(p: PageResponse): string {
     const title = PAGE_TITLE[p.page];
     const crumbs: [string, string][] = [["/", "Overview"]];
     if (p.page === "runners" || p.page === "local-runs") crumbs.push(["/ci", "CI"]);
+    const at = here.section ? p.sections.find((x) => x.id === here.section) : undefined;
+    const atTitle = at ? sectionTitle(at) : "";
     // Local runs with nothing recorded: one line says why, not a page of empty rows.
     const idle = p.page === "local-runs" && p.state === "idle" && p.members.every((m) => m.value === null);
     if (idle)
@@ -864,7 +950,7 @@ export function pageView(p: PageResponse): string {
             `<p class="pstate"><span>No local test runs recorded. This page fills when agents run tests on the development machine with tools/run-tests.sh.</span></p>`
         );
     return (
-        header(title, crumbs, p.generated, p.page === "costs") +
+        header(title, crumbs, p.generated, p.page === "costs", true, atTitle) +
         pageState(p) +
         (p.page === "costs" ? "" : memberRows(p.members)) +
         p.sections.map(section).join("")
@@ -875,10 +961,10 @@ function block(c: CategoryStatus): string {
     const name = CATEGORY_NAME[c.id];
     const word = c.state === "idle" ? "IDLE" : STATE_WORD[c.state];
     const lab = (h: string) => (c.state === "nodata" ? `<span class="lab">${h}</span>` : h);
-    const by = c.setBy ? unlinked(refText(c.setBy)) : "";
+    const by = c.setBy ? unlinked(refText(c.setBy, true)) : "";
     const more =
         c.others.length === 1
-            ? `+ ${unlinked(refText(c.others[0]))}`
+            ? `+ ${unlinked(refText(c.others[0], true))}`
             : c.others.length > 1
               ? `+ ${c.others.length} more`
               : "";
@@ -909,12 +995,25 @@ function headlineValue(m: Member): string {
 }
 
 /**
- * The measure under a status block. When another member set the block's state, it is labelled the headline
- * measure, so its calm value never reads as the reason for the color above it.
+ * The measure under a status block: the one that set the block's color when it is not OK, else the category's
+ * headline measure, so the big number under a colored block is always the reason for its color.
  * @param m the category's headline member
  * @param setBy the member that set the category's state, when there is one
+ * @param driver that member as a full row (payloads built before it was have only `setBy`)
  */
-export function headline(m: Member, setBy?: MemberRef): string {
+export function headline(m: Member, setBy?: MemberRef, driver?: Member): string {
+    if (setBy !== undefined && setBy.member !== m.id) {
+        if (driver) return measure(driver, true);
+        // No full row for it: its name and value, and where its target is.
+        const t = MEMBER[setBy.member];
+        const kv = setBy.value === null ? "--" : bigValue(setBy.value);
+        return `<a class="kpi set" href="${href(m.link)}"><span class="kn"><b class="knot">Set the color:</b> ${esc(t.name)}</span><span class="kv">${kv}</span><span class="kt">its target is on the page</span></a>`;
+    }
+    return measure(m, false);
+}
+
+/** One measure under a block, with its window, value, target and sparkline; `set` labels it as the color's reason. */
+function measure(m: Member, set: boolean): string {
     const t = MEMBER[m.id];
     const win = m.window === "now" ? "now" : here.range === "1h" ? "last 1 h" : `last ${rangeLabel(here.range)}`;
     const kv = headlineValue(m);
@@ -931,10 +1030,9 @@ export function headline(m: Member, setBy?: MemberRef): string {
     }
     kt.push(slaText(m.sla));
     const sp = m.spark ? sparkline(m.spark, clock.generated, `${t.name} trend`) : "";
-    // When another member set the block's color, the headline says it is not the reason and its value is muted.
-    const other = setBy !== undefined && setBy.member !== m.id;
-    const lead = other ? `<b class="knot">Not what set the color above.</b> Headline measure: ` : "";
-    return `<a class="kpi${other ? " other" : ""}" href="${href(m.link)}"><span class="kn">${lead}${esc(t.headline ?? t.name)}, ${win}</span><span class="kv">${kv}</span><span class="kt">${unlinked(kt.join("; "))}</span>${sp}</a>`;
+    const lead = set ? `<b class="knot">Set the color:</b> ` : "";
+    const name = set ? t.name : (t.headline ?? t.name);
+    return `<a class="kpi${set ? " set" : ""}" href="${href(m.link)}"><span class="kn">${lead}${esc(name)}, ${win}</span><span class="kv">${kv}</span><span class="kt">${unlinked(kt.join("; "))}</span>${sp}</a>`;
 }
 
 function episode(e: Episode): string {
@@ -995,22 +1093,24 @@ export function overviewView(o: OverviewResponse): string {
             : "the last 6 h by 15 min with the last hour shaded; the faint line at the left is the rest of the last 24 h, hourly.");
     const cols = [...o.categories]
         .sort((a, b) => prio(a.id) - prio(b.id))
-        .map((c) => `<li class="col">${block(c)}${headline(c.headline, c.setBy)}</li>`)
+        .map((c) => `<li class="col">${block(c)}${headline(c.headline, c.setBy, c.driver)}</li>`)
         .join("");
     const ongoing = o.episodes
         .filter((e) => e.end === null)
         .sort((a, b) => Number(a.worst !== "bad") - Number(b.worst !== "bad") || prio(a.category) - prio(b.category));
     const cleared = o.episodes.filter((e) => e.end !== null);
-    // The overview fits 1440 x 900 (2.1): the worst ongoing episodes, cleared ones up to the cap, the rest folded.
-    const open = ongoing.slice(0, ONGOING_SHOWN);
-    const shown = Math.max(0, EPISODES_SHOWN - open.length);
+    // Every ongoing red episode shows, then ongoing yellow ones up to the cap; cleared ones only once nothing ongoing
+    // is folded, so a cleared row never sits above an ongoing one that is hidden.
+    const reds = ongoing.filter((e) => e.worst === "bad").length;
+    const open = ongoing.slice(0, Math.max(reds, ONGOING_SHOWN));
+    const shown = open.length < ongoing.length ? 0 : Math.max(0, EPISODES_SHOWN - open.length);
     const fold = (list: Episode[], what: string) =>
         list.length
             ? `<details class="epm"><summary>${fmtN(list.length)} more ${what}${chev()}</summary>${list.map(episode).join("")}</details>`
             : "";
     const eps = o.episodes.length
         ? [...open, ...cleared.slice(0, shown)].map(episode).join("") +
-          fold(ongoing.slice(ONGOING_SHOWN), "ongoing") +
+          fold(ongoing.slice(open.length), "ongoing") +
           fold(cleared.slice(shown), "cleared")
         : `<p class="empty">No member went past its target in the last 24 h.</p>`;
     const channels = o.channels?.length
@@ -1034,8 +1134,8 @@ export function testView(h: TestHistoryResponse): string {
     const rows = h.events
         .map(
             (e) =>
-                `<div class="tr${e.outcome === "passed" ? " past" : ""}"><span>${fmtTime(e.at)}</span><span>${e.pr ? prLink(e.pr) : e.kind === "full" ? "full run" : "local"}</span>` +
-                `<span>${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small></span><span>${outcome(e.outcome)}</span><span>${esc(e.signature ?? "")}</span><span>${runLink(e.run)}</span></div>`,
+                `<div class="tr${e.outcome === "passed" ? " past" : ""}"><span data-h="when">${fmtTime(e.at)}</span><span data-h="where">${e.pr ? prLink(e.pr) : e.kind === "full" ? "full run" : "local"}</span>` +
+                `<span data-h="commit">${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small></span><span data-h="result">${outcome(e.outcome)}</span><span data-h="signature">${esc(e.signature ?? "")}</span><span data-h="run">${runLink(e.run)}</span></div>`,
         )
         .join("");
     return (

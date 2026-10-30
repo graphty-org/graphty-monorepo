@@ -304,7 +304,14 @@ export function stepSupportPoints(
         const root = treeOf(xs, ys);
         let fastest = 0;
         for (let j = 0; j < m; j++) {
-            const { forces } = edges[j];
+            const { forces, src, dst } = edges[j];
+            // an edge with both ends at one place has no length to hold its point along: the point is put back on the
+            // edge every frame (toRel), so moving it only shoved it away again each frame and kept every curve from
+            // resting (json-vis-lesmiserables at vis-network's positions ran to MAX_STEPS_TO_REST); it stays a body
+            if (src.x === dst.x && src.y === dst.y) {
+                velocities.fill(0, 2 * j, 2 * j + 2);
+                continue;
+            }
             const [x, y] = [xs[n + j], ys[n + j]];
             const [px, py] = repulsionOn(root, n + j, x, y, forces);
             const [sx, sy] = springsAndGravity(x, y, ends[j], center, forces);

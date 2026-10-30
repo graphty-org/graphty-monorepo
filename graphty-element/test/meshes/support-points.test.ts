@@ -207,6 +207,29 @@ describe("support points", () => {
         assert.isNull(support.pointOf("other"));
     });
 
+    it("come to rest beside an edge whose two ends are at one place, whose point stays there", () => {
+        // two nodes at one spot (a self-loop, or nodes moved onto each other): the edge has no length to hold its
+        // point along, so each frame put the point back and the push sent it off again, and nothing ever rested
+        const nodes = [at(0, 0), at(100, 0), at(40, 20), at(40, 20)];
+        const edges: (readonly [number, number])[] = [
+            [0, 1],
+            [2, 3],
+        ];
+        const read = ([a, b]: readonly [number, number]): SupportEdge => ({
+            src: nodes[a],
+            dst: nodes[b],
+            forces: BARNES_HUT,
+        });
+        const support = new SupportPoints<readonly [number, number]>();
+        let frames = 0;
+        while (frames < 100 && support.update(() => nodes, edges, read, frames === 0)) {
+            frames++;
+        }
+        assert.isTrue(support.resting);
+        assert.isAtMost(frames, 15, "at rest by speed, not at the 1500-step limit (38 frames)");
+        assert.deepInclude(support.pointOf(edges[1]), { x: 40, y: 20 });
+    });
+
     it("come to rest on vis-network's siblings sample by their speed, well before the step limit", () => {
         // 284 edges among 200 nodes, several between the same two: the Barnes-Hut tree keeps every point trembling a
         // little, which once kept them moving until the 1500-step limit (39 frames) and ran out a stable-frame wait

@@ -88,6 +88,23 @@ describe("a Sources row's issues", () => {
         });
     });
 
+    it("shows an issue's rows from the row's list: the table opens narrowed to them", async () => {
+        await openSites();
+        const place = within(screen.getByRole("region", { name: "Data place" }));
+        const row = await place.findByRole("listitem", { name: "sites.csv" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(
+            await within(row).findByRole("button", { name: "1 issue in sites.csv" }, { timeout: TIMEOUT_MS }),
+        );
+        const dialog = await screen.findByRole("dialog", { name: "Issues in sites.csv" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Show rows: 1 value with padded spaces" }));
+        const table = await screen.findByRole("region", { name: "Table" }, { timeout: TIMEOUT_MS });
+        await waitFor(() => {
+            const grid = within(table).getByRole("grid", { name: "Nodes" });
+            // The header row and the one row the padded value is on.
+            assert.lengthOf(within(grid).getAllByRole("row"), 2);
+        });
+    });
+
     it("opens with Enter and closes with Escape, focus back on the chip", async () => {
         await openSites();
         const place = within(screen.getByRole("region", { name: "Data place" }));

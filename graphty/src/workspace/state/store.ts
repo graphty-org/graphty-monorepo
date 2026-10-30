@@ -90,6 +90,11 @@ export interface WorkspaceState {
      */
     readonly dockColumn: string | null;
     /**
+     * An issue whose rows the table narrows to once the dock shows its table, set by an issue
+     * list's Show rows outside the table and cleared by the dock; null when none is asked for.
+     */
+    readonly dockIssue: string | null;
+    /**
      * A new filter card to open once the Filters section shows it: on a field
      * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
      * Filters); cleared by the section. Null when none is asked for.
@@ -257,6 +262,7 @@ const INITIAL: WorkspaceState = {
     timeSpeed: 1,
     dockTab: "nodes",
     dockColumn: null,
+    dockIssue: null,
     filterDraft: null,
     fieldsEntry: null,
     dockMaximized: false,

@@ -580,6 +580,19 @@ export function TableDock(): React.JSX.Element {
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
+    // Show rows from an issue list outside the table: narrow the asked-for tab to the issue's rows.
+    const issueAsked = useWorkspaceState((state) => state.dockIssue);
+    useEffect(() => {
+        if (issueAsked === null) {
+            return;
+        }
+        const askedKind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
+        setArrangement((now) => ({
+            ...now,
+            views: { ...now.views, [askedKind]: { ...now.views[askedKind], issue: issueAsked as IssueId } },
+        }));
+        store.set({ dockIssue: null });
+    }, [issueAsked, store]);
 
     const close = (
         <ActionIcon

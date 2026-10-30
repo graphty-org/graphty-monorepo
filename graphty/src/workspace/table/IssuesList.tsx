@@ -243,7 +243,11 @@ export function IssuesList({ source }: Readonly<{ source?: SourceKey }> = {}): R
     const ignored = all.filter((issue) => issue.status !== "fixed" && issue.ignored);
     const row = (issue: DataIssue): React.JSX.Element => {
         const { kind, name } = issuePlace(issue, session);
-        return <IssueRow key={issue.id} issue={issue} where={{ kind, name }} />;
+        // Show rows opens the table on the issue's tab, narrowed to the rows it is on.
+        const showRows = (shown: DataIssue): void => {
+            store.set({ dockOpen: true, dockTab: kind === "edge" ? "edges" : "nodes", dockIssue: shown.id });
+        };
+        return <IssueRow key={issue.id} issue={issue} where={{ kind, name }} onShowRows={showRows} />;
     };
     return (
         <ControlSection

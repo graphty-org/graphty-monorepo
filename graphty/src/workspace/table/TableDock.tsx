@@ -779,7 +779,9 @@ export function TableDock(): React.JSX.Element {
             {tabValues
                 .filter((value) => value !== active)
                 .map((value) => (
-                    <Tabs.Panel key={value} value={value} />
+                    <Tabs.Panel key={value} value={value}>
+                        {null}
+                    </Tabs.Panel>
                 ))}
             <Tabs.Panel value={active} className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (

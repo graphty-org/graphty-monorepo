@@ -42,6 +42,38 @@ export interface MemberConfig {
     slowWindow?: "7d" | "28d";
     sources: string[];
     headline?: boolean;
+    /** Pages the owner's phone (section 13). A member without it never pages. */
+    alert?: AlertConfig;
+}
+
+/**
+ * When and how a member pages. Only critical outages and what only the owner can do page; agents handle the rest.
+ * Texts take {value}, {limit} (red threshold), {target}, {for} (how long), {peak}, {source}, {error}, {since} (how
+ * long the cause has lasted) and {ms:<fact>} (a fact as a duration), all in human units.
+ */
+export interface AlertConfig {
+    /** Pages once its condition has held this long without a break. */
+    afterMs: number;
+    /** Pushover priority: 1 for a critical outage (bypasses quiet hours), 0 for an owner action. */
+    priority: 0 | 1;
+    /** At most one page per this span, even across episodes (6 h when absent). */
+    floorMs?: number;
+    /** The condition is the value past this, instead of the member being FAILING (the member must still be bad). */
+    value?: Threshold;
+    /** And each of these facts (MemberStatus.facts) past its threshold; the episode ends once one is not. */
+    facts?: Record<string, Threshold>;
+    /** A month-end projection: not before this day of the month unless month-to-date spend is already past red. */
+    fromDay?: number;
+    /** Not while any of these members is FAILING (one cause, one page). */
+    notWhileFailing?: string[];
+    /** Members of one group due together go out as one message. */
+    group?: string;
+    title: string;
+    text: string;
+    /** The owner's action, sent as "What to do: ...". */
+    action: string;
+    /** Sends a quiet "resolved" once the member has been OK for clearAfterMs; absent, nothing is sent. */
+    resolved?: { title: string; text: string; clearAfterMs: number };
 }
 
 export interface SourceConfig {

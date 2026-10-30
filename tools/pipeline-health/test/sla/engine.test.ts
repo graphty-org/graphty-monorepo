@@ -357,6 +357,36 @@ describe("data states", () => {
     });
 });
 
+describe("credential errors (alerts, section 13)", () => {
+    it("a credential error an hour old turns data.sources_age red and names the source and error", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 70 * MIN, {
+            ok: false,
+            error: "ExpiredTokenException: token expired",
+        });
+        await recordSource(store, "billing", T0, { ok: false, error: "ExpiredTokenException: token expired" });
+        expect(await member(store, "data.sources_age")).toMatchObject({
+            state: "FAILING",
+            facts: { credential_error_ms: 70 * MIN },
+            cause: { params: { source: "billing", error: "ExpiredTokenException: token expired" } },
+        });
+    });
+
+    it("an ordinary error, or a credential error the collector reports, gives no credential fact", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 70 * MIN, { ok: false, error: "Cost Explorer: HTTP 500" });
+        await recordSource(store, "npm", T0 - 70 * MIN, { ok: false, error: "HTTP 401" });
+        const m = await member(store, "data.sources_age");
+        expect(m.facts?.credential_error_ms).toBeUndefined();
+        expect(m.cause).toBeUndefined();
+    });
+
+    it("a projected cost line also gives its month-to-date spend", async () => {
+        const store = await world([]);
+        expect((await member(store, "cost.t4")).facts).toEqual({ month_to_date: 0 });
+    });
+});
+
 describe("categories", () => {
     it("take their worst judged member; gray members never color them", async () => {
         const store = await world([...hangs(1), pr(1, { readyAt: T0 - 40 * MIN, mergedAt: T0 - MIN })]);

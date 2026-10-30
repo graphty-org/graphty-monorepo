@@ -6,7 +6,7 @@
 // 5-minute step of the last 24 h come from one path. Slow members and costs read daily buckets.
 
 import { quantile } from "../model/histogram.js";
-import { type Bucket, DAY, floorTo, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
+import { type Bucket, DAY, floorTo, HOUR, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
 import { quotaUsed } from "../model/raw.js";
 import { aggQuantile, emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
@@ -46,6 +46,10 @@ export interface MemberStatus {
     clearedAt?: number;
     /** When the current bad state began, where the engine can tell without history (sources, collector). */
     since?: number;
+    /** Numbers the alerts read: each `also` metric's newest value, month_to_date, credential_error_ms. */
+    facts?: Record<string, number>;
+    /** What a source member's state comes from: the erroring source and its error. */
+    cause?: Reason;
 }
 
 export interface CategoryStatus {
@@ -121,7 +125,7 @@ interface Point {
     end: number;
 }
 
-function hit(v: number, [op, x]: Threshold): boolean {
+export function hit(v: number, [op, x]: Threshold): boolean {
     switch (op) {
         case "<":
             return v < x;
@@ -219,6 +223,8 @@ interface Computed {
     n6h?: number;
     failExtra?: boolean;
     since?: number;
+    facts?: Record<string, number>;
+    cause?: Reason;
     /** Whole days of a slow window the store holds history for. */
     covered?: number;
 }
@@ -270,19 +276,46 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     return { value: measureValue(m, b, (covered || days) * DAY), n: b.n, covered };
 }
 
+/** An error only the owner can fix: an expired, rejected or missing credential. */
+const CREDENTIAL =
+    /\b40[13]\b|AccessDenied|ExpiredToken|Unauthorized|bad credentials|ParameterNotFound|InvalidClientTokenId|UnrecognizedClient|security token/i;
+/** Sources the collector writes: a credential it lacks is data.collector's to report, not each source's. */
+const COLLECTOR_WRITES = new Set(["collector", "release", "npm", "stress", "hosts", "deploy"]);
+/** A credential error this old turns data.sources_age red, even while the source's last good values hold. */
+const CREDENTIAL_RED_MS = HOUR;
+
 /**
- * Sources past their age limit or failing, and whether one is past twice it.
+ * Sources past their age limit or failing, and whether one is past twice it or has had a credential error for an
+ * hour (an erroring source has no age ratio, so an expired token would otherwise stay yellow for good).
  * @param ctx
  */
 function sourcesNotOk(ctx: Ctx): Computed {
-    const bad = [...ctx.sources.values()].filter((s) => (s.state === "stale" || s.state === "error") && !s.holding);
-    if (!bad.length) {
+    const all = [...ctx.sources.values()];
+    const bad = all.filter((s) => (s.state === "stale" || s.state === "error") && !s.holding);
+    const cred = all
+        .filter((s) => s.state === "error" && !COLLECTOR_WRITES.has(s.id))
+        .filter((s) => CREDENTIAL.test(String(s.reason?.params.error ?? "")))
+        .sort((a, b) => (a.since ?? ctx.now) - (b.since ?? ctx.now))[0];
+    const credMs = cred ? ctx.now - (cred.since ?? ctx.now) : undefined;
+    const credential: Computed =
+        cred && credMs !== undefined
+            ? {
+                  facts: { credential_error_ms: credMs },
+                  cause: {
+                      code: "error",
+                      params: { source: cred.id, label: cred.label, error: String(cred.reason?.params.error) },
+                  },
+              }
+            : {};
+    if (!bad.length && !cred) {
         return { value: 0 };
     }
     return {
-        value: bad.length,
-        failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2),
-        since: Math.min(...bad.map((s) => s.since ?? ctx.now)),
+        // A holding source with a credential error counts too, so a red member never reads "0 sources".
+        value: bad.length + (cred && !bad.includes(cred) ? 1 : 0),
+        failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2) || (credMs ?? 0) >= CREDENTIAL_RED_MS,
+        since: Math.min(...[...bad, ...(cred ? [cred] : [])].map((s) => s.since ?? ctx.now)),
+        ...credential,
     };
 }
 
@@ -314,8 +347,12 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
         case "sources_thin":
             return sourcesThin(ctx);
         case "collector_age": {
-            const ok = ctx.metas.get("collector")?.lastOkAt;
-            return ok === undefined ? {} : { value: ctx.now - ok, since: ok };
+            const meta = ctx.metas.get("collector");
+            const ok = meta?.lastOkAt;
+            const cause: Computed = meta?.error
+                ? { cause: { code: "error", params: { source: "collector", error: meta.error } } }
+                : {};
+            return ok === undefined ? cause : { value: ctx.now - ok, since: ok, ...cause };
         }
         case "write_budget":
             return { value: ctx.quota / ctx.cfg.dailyRowLimit };
@@ -356,7 +393,10 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
         return p.end === ctx.now ? engineValue(ctx, m.name) : null;
     }
     if (m.type === "month") {
-        return { value: monthValue(ctx, m, p.end) };
+        const value = monthValue(ctx, m, p.end);
+        // A projection also gives what is spent so far: the alerts page early in a month only on real spend.
+        const mtd = m.projected && p.end === ctx.now ? monthValue(ctx, { ...m, projected: false }, p.end) : undefined;
+        return { value, ...(mtd === undefined ? {} : { facts: { month_to_date: mtd } }) };
     }
     if (m.type === "dims_median_over") {
         return null;
@@ -376,6 +416,9 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
             merged(ctx.five.get(a.metric), p.t - HOUR_SPAN + STEP, p.t),
             0,
         );
+        if (v !== undefined && p.end === ctx.now) {
+            out.facts = { ...out.facts, [a.metric]: v };
+        }
         if (v !== undefined && hit(v, a.fail)) {
             out.failExtra = true;
         }
@@ -578,6 +621,8 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
         ...(v.value6h === undefined ? {} : { value6h: v.value6h }),
         ...(v.n === undefined ? {} : { n: v.n }),
         ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
+        ...(v.facts ? { facts: v.facts } : {}),
+        ...(v.cause ? { cause: v.cause } : {}),
     });
     // A source failing within its age limit: the value its last good writes give, marked stale with its age.
     const held = srcs.find((s) => s.holding);

@@ -296,6 +296,23 @@ describe("runner use", () => {
     });
 });
 
+describe("runner use: waiting is not queued", () => {
+    it("a lone job waiting for an environment approval does not read as runners not assigned", () => {
+        const base = jobs("jobs-pr-40238975833.json")[0];
+        const old = new Date(NOW - 300 * MIN).toISOString();
+        const use = runnerUse(
+            [
+                { ...base, status: "waiting", labels: ["ubuntu-24.04"], created_at: old },
+                { ...base, status: "pending", labels: ["ubuntu-24.04"], created_at: old },
+            ],
+            [],
+            NOW,
+        );
+        expect(use.queuedOver2).toBe(0);
+        expect(runnerFlags(use, 60)).toEqual({ saturated: false, unassigned: false });
+    });
+});
+
 describe("pull requests and issues", () => {
     const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] }; recent: { nodes: GqlPr[] } } } }>(
         "gql-pr.json",

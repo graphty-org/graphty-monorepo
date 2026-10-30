@@ -293,7 +293,7 @@ export function masterState(runs: RunItem[]): MasterState {
 export interface RunnerUse {
     running: Record<JobItem["pool"], number>;
     queued: number;
-    /** Jobs queued over 2 minutes. */
+    /** Jobs waiting for a runner (status "queued") over 2 minutes. */
     queuedOver2: number;
     longestQueuedMs: number;
 }
@@ -314,7 +314,9 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
             if (p === "other") continue; // machine.dev and self-hosted pools are outside GitHub's limit
             const age = nowMs - Date.parse(j.created_at);
             use.queued++;
-            if (age > 2 * MIN) use.queuedOver2++;
+            // Only "queued" waits for a runner: "waiting" is an environment approval and "pending" a concurrency
+            // group, so neither says GitHub is short of runners (the owner's own Promote run read as an outage).
+            if (age > 2 * MIN && j.status === "queued") use.queuedOver2++;
             use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
         }
     }

@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { after, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
+import { findingId } from "./pr-integrity.mjs";
 
 const script = fileURLToPath(new URL("./pr-review.sh", import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), "pr-review-test-"));
@@ -130,6 +131,51 @@ describe("pr-review.sh", () => {
         r = run(["--proof", proof, "--again"], "looks fine");
         assert.equal(r.code, 1, r.out);
         assert.match(r.out, /without a 'Blocking findings: N' line/);
+    });
+
+    // #5083: test-integrity findings are answered by this review, bound to the head, one marker per cleared finding.
+    it("hands the reviewer each test-integrity finding and records the ones it cleared for this head", () => {
+        git(work, "checkout", "-q", "master");
+        mkdirSync(join(work, "tools"));
+        writeFileSync(
+            join(work, "tools/check-test-integrity.mjs"),
+            readFileSync(new URL("./check-test-integrity.mjs", import.meta.url)),
+        );
+        const TEST = 'it("a", () => { expect(1).toBe(1); });\nit("b", () => { expect(2).toBe(2); });\n';
+        writeFileSync(join(work, "a.test.mjs"), TEST);
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "test: two tests");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "fix/1234-thing");
+        git(work, "merge", "-q", "--no-edit", "origin/master");
+        writeFileSync(join(work, "a.test.mjs"), TEST.split("\n")[0] + "\n");
+        git(work, "commit", "-q", "-am", "test: drop b");
+        const head = git(work, "rev-parse", "HEAD").trim();
+        // tests -1 and assertions -1; the reviewer clears the first only
+        let r = run(
+            undefined,
+            "Integrity 1: cleared -- moved\nIntegrity 2: not cleared -- gone\n\nBlocking findings: 0",
+        );
+        assert.equal(r.code, 3, r.out);
+        const prompt = readFileSync(promptLog, "utf8");
+        const [, list] = prompt.split("===== TEST-INTEGRITY FINDINGS =====\n");
+        const found = [...list.matchAll(/^\d+\. (.*)$/gm)].map((m) => m[1]);
+        assert.equal(found.length, 2, list);
+        const report = readFileSync(reportPath(), "utf8").split("\n");
+        assert.equal(report[1], `<!-- integrity-review ${head} -->`);
+        assert.equal(report[2], `<!-- integrity-cleared ${head} ${findingId(found[0])} -->`);
+        assert.ok(!report.some((l) => l.includes(findingId(found[1]))), "the uncleared finding has no marker");
+        assert.match(report.join("\n"), /Blocking findings: 1\n?$/);
+        // the same head reuses the report; a new head is reviewed again
+        rmSync(argsLog);
+        assert.equal(run().code, 3);
+        assert.ok(!existsSync(argsLog), "claude was not called for the same head");
+        git(work, "commit", "-q", "--allow-empty", "-m", "chore: another head");
+        assert.equal(
+            run(undefined, "Integrity 1: cleared -- x\nIntegrity 2: cleared -- y\n\nBlocking findings: 0").code,
+            0,
+        );
+        assert.ok(existsSync(argsLog), "a new head is reviewed again");
     });
 
     it("reviews a branch once: a fix reuses the report without calling claude; --again reviews it again", () => {

@@ -116,6 +116,13 @@ Each: signal, meaning, action. Add to this list (see the next section).
   progress note, the branch's last commit time, the session's journal in `.claudehistory/`, and `ListAgents`. Take
   it only when the owner has been inactive for 6 hours or more, and say so on the issue
   (`pipeline-round: taken by session ... -- previous owner <session>, inactive since <time>`).
+- **An old issue already fixed by a commit that did not name it.** Four of six issues picked on 2026-10-30
+  (#2149, #2477, #3100, #3241) were. Before marking an issue more than a week old, read its comments and
+  `git log --oneline --since=<its date> origin/master -- <the files it names>`; for an intermittent test
+  (`intermittent`, or a `Flaky test:` title) also read the test's history with the `pipeline-health` MCP tool
+  `test_history`. When a later commit plainly fixed it (and, for a test, nothing has failed since), close it
+  with that evidence in a `pipeline-round:` comment instead of starting a job, and pick the next issue in the
+  same round. When unsure, start the job: its subagent verifies first.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, the Release status
   issue, `Release held:` issues and `lane red on master` issues.
 

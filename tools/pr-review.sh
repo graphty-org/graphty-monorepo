@@ -14,6 +14,14 @@
 # exactly as PR Integrity (tools/pr-integrity.mjs, patchId) recomputes it; tools/pr-open.sh posts the report
 # as a COMMENT review, which is what PR Integrity looks for. Its last line is `Blocking findings: N`.
 #
+# When tools/check-test-integrity.mjs has findings for the branch (a weakened test, a changed script, a grown
+# timeout), the reviewer must answer each one, adversarially, and the report's second line is
+#   <!-- integrity-review <head sha> -->
+# followed by one `<!-- integrity-cleared <head sha> <finding id> -->` per finding the reviewer cleared (the id
+# is pr-integrity.mjs's findingId). PR Integrity accepts exactly those, for exactly that head (owner,
+# 2026-10-29: he reviews no code), so such a report is never reused for another head. A finding about
+# screenshot capture settings (`parameters.chromatic`) is the owner's and is not handed to the reviewer.
+#
 # Exit 0: no blocking finding. Exit 3: N > 0; fix them (a fix changes the patch id, so the next run reviews
 # again) or answer each one in the Proof and open with `tools/pr-open.sh --review-answered`. Exit 1: refused
 # or failed (no Proof, no issue, nothing to review, no verdict from the review).
@@ -66,6 +74,12 @@ id=$(git diff -U0 --binary --no-color --no-ext-diff --no-renames --diff-algorith
 marker="<!-- fresh-review $id -->"
 
 top=$(git rev-parse --show-toplevel)
+head=$(git rev-parse HEAD)
+# The test-integrity findings an agent review may clear, one per line (the screenshot settings ones are the owner's).
+mapfile -t findings < <(node "$top/tools/check-test-integrity.mjs" --base "$base" --head HEAD --json 2>/dev/null |
+    node -e 'for (const f of JSON.parse(require("fs").readFileSync(0, "utf8") || "[]")) console.log(f)' |
+    grep -v ': parameters\.chromatic ' || true)
+integrity_marker="<!-- integrity-review $head -->"
 report="$top/tmp/pr-review/$branch/report.md"
 verdict() { sed -nE 's/^Blocking findings: ([0-9]+)[[:space:]]*$/\1/p' "$1" | tail -n 1; }
 finish() {
@@ -78,7 +92,9 @@ finish() {
 }
 # One review per branch (owner, 2026-10-26): every fix used to change the patch id and start a full new review,
 # about 40% of all token use. An existing report stands for the branch unless --again asks for another.
-if [ "$again" = 0 ] && [ "$dry" = 0 ] && [ -f "$report" ]; then
+# A report that answers test-integrity findings stands only for the head it answered them on.
+if [ "$again" = 0 ] && [ "$dry" = 0 ] && [ -f "$report" ] &&
+    { [ "${#findings[@]}" = 0 ] || grep -qxF -- "$integrity_marker" "$report"; }; then
     n=$(verdict "$report")
     [ -z "$n" ] || finish "$n"
 fi
@@ -117,6 +133,18 @@ $issue_text
 EOF
     cat "$proof"
     echo
+    if [ "${#findings[@]}" -gt 0 ]; then
+        echo "===== TEST-INTEGRITY FINDINGS ====="
+        echo "PR Integrity flagged these in the change; nobody else reviews them, so be adversarial. For EACH one,"
+        echo "decide from the diff whether the change really weakens a test or a check (a test or assertion gone,"
+        echo "a wait lengthened, a script that no longer runs a test). Clear it only when the diff shows it does"
+        echo "not: the test moved, the number is a fixture inside a string, the script still runs every test."
+        echo "Answer each with exactly one line, \"Integrity N: cleared -- <reason>\" or"
+        echo "\"Integrity N: not cleared -- <reason>\". A finding not cleared is a critical finding."
+        echo
+        for i in "${!findings[@]}"; do echo "$((i + 1)). ${findings[$i]}"; done
+        echo
+    fi
     echo "===== DIFF (git diff $base...HEAD) ====="
     # Data and generated files (design records, sample datasets, lockfiles) are named, never inlined; a diff
     # still larger than PR_REVIEW_INLINE_MAX bytes goes in as its --stat, and the reviewer reads each file's
@@ -153,10 +181,27 @@ claude -p --output-format text \
     <"$prompt" >"$out" || die "claude -p failed (exit $?)"
 n=$(verdict "$out")
 [ -n "$n" ] || die "the review ended without a 'Blocking findings: N' line; its output is not a verdict"
+# One marker per finding the reviewer cleared; one it did not clear counts as blocking.
+cleared=() uncleared=0
+for i in "${!findings[@]}"; do
+    if grep -qE "^Integrity $((i + 1)): cleared\b" "$out"; then
+        cleared+=("<!-- integrity-cleared $head $(printf '%s' "${findings[$i]}" | sha256sum | cut -c1-16) -->")
+    else
+        uncleared=$((uncleared + 1))
+    fi
+done
+given=$n
+[ "$uncleared" -le "$n" ] || n=$uncleared
 mkdir -p "$(dirname "$report")"
 {
     echo "$marker"
+    if [ "${#findings[@]}" -gt 0 ]; then
+        echo "$integrity_marker"
+        printf '%s\n' "${cleared[@]}"
+    fi
     echo
     cat "$out"
+    # the verdict is the last such line: a finding left uncleared raises it
+    [ "$n" = "$given" ] || printf '\nBlocking findings: %s\n' "$n"
 } >"$report"
 finish "$n"

@@ -214,7 +214,6 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
         expectBitwiseEqual(sortedU32(fits.queue), oracle, "the whole edge queue when the capacity fits");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 11 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
     it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row longer than one window) the sorted edge queue (edgeQueue buffer) and the counters block of the hub alone and of the whole vertex set equal the unwindowed run's and the oracle, twice", async (t) => {
         const ctx = await context(t);
         const scale = gpuScale();
@@ -259,7 +258,7 @@ describe("advance: the block-mapped expansion and the edge queue (design 6 row 8
             residency.destroyAll();
         }
         ctx.release(s);
-    }, 300_000);
+    });
 
     it("the sabotage check passes on the real kernel (factor 0)", async (t) => {
         const ctx = await context(t);

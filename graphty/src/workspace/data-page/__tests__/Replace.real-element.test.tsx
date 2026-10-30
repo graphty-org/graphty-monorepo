@@ -19,9 +19,6 @@ import { Workspace } from "../../Workspace";
 import { canReplace, replaceSource } from "../request";
 import { replacedWords, replaceWords } from "../words";
 
-/** A hang guard for the element coming up, loading and running, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 const FRIENDS = "source,target,weight\nAva,Ben,3\nBen,Chloe,4\nChloe,Ava,5\nChloe,Dev,1\n";
 /** The same people and links, new weights. */
 const FRIENDS_V2 = "source,target,weight\nAva,Ben,1\nBen,Chloe,2\nChloe,Ava,1\nChloe,Dev,5\n";
@@ -63,74 +60,63 @@ describe("Replace with file...", () => {
         assert.equal(replacedWords("friends.csv", { nodes: 1, edges: 1 }, 0), "friends.csv replaced: 1 node, 1 edge.");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "marks the PageRank run out of date with its reason, and Rerun brings it up to date",
-        async () => {
-            const store = createWorkspaceStore({ project: { name: "friends", id: 1 }, place: "graph" });
-            render(<Workspace store={store} />);
-            let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            if (session === undefined) {
-                throw new Error("the element never came up");
-            }
-            const live = session;
-            await live.data.import({ type: "csv", config: { data: FRIENDS }, name: "friends.csv" });
-            const run = live.runs.start("pagerank");
-            await act(async () => {
-                await run;
-                await live.styles.settled();
-            });
-            await screen.findByRole("treeitem", { name: /^Influence, / });
+    it("marks the PageRank run out of date with its reason, and Rerun brings it up to date", async () => {
+        const store = createWorkspaceStore({ project: { name: "friends", id: 1 }, place: "graph" });
+        render(<Workspace store={store} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const live = session;
+        await live.data.import({ type: "csv", config: { data: FRIENDS }, name: "friends.csv" });
+        const run = live.runs.start("pagerank");
+        await act(async () => {
+            await run;
+            await live.styles.settled();
+        });
+        await screen.findByRole("treeitem", { name: /^Influence, / });
 
-            act(() => {
-                replaceSource(store, live.data.sources()[0], new File([FRIENDS_V2], "friends-v2.csv"));
-            });
-            await screen.findByRole("heading", { name: "Replace: friends-v2.csv" });
-            const report = await screen.findByTestId("replace-report", {}, { timeout: TIMEOUT_MS });
-            assert.equal(report.textContent, "Was 4 nodes, 4 edges; now 4, 4");
-            // Every column matches, so Replace has focus and one Enter replaces.
-            const load = screen.getByRole("button", { name: "Replace" });
-            await waitFor(() => {
-                assert.strictEqual(document.activeElement, load);
-            });
-            await userEvent.keyboard("{Enter}");
+        act(() => {
+            replaceSource(store, live.data.sources()[0], new File([FRIENDS_V2], "friends-v2.csv"));
+        });
+        await screen.findByRole("heading", { name: "Replace: friends-v2.csv" });
+        const report = await screen.findByTestId("replace-report", {});
+        assert.equal(report.textContent, "Was 4 nodes, 4 edges; now 4, 4");
+        // Every column matches, so Replace has focus and one Enter replaces.
+        const load = screen.getByRole("button", { name: "Replace" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, load);
+        });
+        await userEvent.keyboard("{Enter}");
 
-            await waitFor(
-                () => {
-                    assert.equal(store.get().announcement, "friends.csv replaced: 4 nodes, 4 edges. 1 run out of date");
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            // Load hands focus to the graph's heading, never to the drawing's outline.
-            await waitFor(() => {
-                assert.equal(document.activeElement?.id, INSPECTOR_TITLE_ID, "focus is not on the graph's heading");
-            });
-            assert.isDefined(live.runs.get(run.id), "the run is kept");
-            assert.strictEqual(live.runs.get(run.id)?.stale?.reason, "data-changed");
-            const row = await screen.findByRole("treeitem", { name: /^Influence, / });
-            await waitFor(() => {
-                assert.include(row.textContent, "Data changed since this run", "the row says why it is out of date");
-            });
+        await waitFor(() => {
+            assert.equal(store.get().announcement, "friends.csv replaced: 4 nodes, 4 edges. 1 run out of date");
+        });
+        // Load hands focus to the graph's heading, never to the drawing's outline.
+        await waitFor(() => {
+            assert.equal(document.activeElement?.id, INSPECTOR_TITLE_ID, "focus is not on the graph's heading");
+        });
+        assert.isDefined(live.runs.get(run.id), "the run is kept");
+        assert.strictEqual(live.runs.get(run.id)?.stale?.reason, "data-changed");
+        const row = await screen.findByRole("treeitem", { name: /^Influence, / });
+        await waitFor(() => {
+            assert.include(row.textContent, "Data changed since this run", "the row says why it is out of date");
+        });
 
-            await userEvent.click(row);
-            const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-            assert.isNotNull(await inspector.findByText("Data changed since this run"));
-            assert.strictEqual(live.runs.get(run.id)?.status, "succeeded", "nothing reran by itself");
+        await userEvent.click(row);
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        assert.isNotNull(await inspector.findByText("Data changed since this run"));
+        assert.strictEqual(live.runs.get(run.id)?.status, "succeeded", "nothing reran by itself");
 
-            await userEvent.click(inspector.getByRole("button", { name: "Rerun" }));
-            await waitFor(() => {
-                assert.notInclude(row.textContent, "Data changed since this run");
-                assert.isNull(inspector.queryByText("Data changed since this run"));
-            });
-            assert.strictEqual(live.runs.get(run.id)?.stale, null);
-        },
-        TIMEOUT_MS * 2,
-    );
+        await userEvent.click(inspector.getByRole("button", { name: "Rerun" }));
+        await waitFor(() => {
+            assert.notInclude(row.textContent, "Data changed since this run");
+            assert.isNull(inspector.queryByText("Data changed since this run"));
+        });
+        assert.strictEqual(live.runs.get(run.id)?.stale, null);
+    });
 });

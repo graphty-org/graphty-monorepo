@@ -25,9 +25,6 @@ declare module "vitest/browser" {
 /** The file the element loads when the map first runs. */
 const PLACEMENT_CODE = "locationMap/place";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** Three airports with a latitude and longitude each. */
 const AIRPORTS = [
     { id: "SFO", latitude: 37.619, longitude: -122.375 },
@@ -48,13 +45,10 @@ describe("the location map whose placement code cannot be loaded", () => {
     it("says so on Apply and leaves the layout and the drawing as they were", async () => {
         render(<Workspace store={createWorkspaceStore({ project: { name: "Airports", id: 1 } })} />);
         let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-        await waitFor(
-            () => {
-                element = document.querySelector("graphty-element");
-                assert.isDefined(element?.session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            element = document.querySelector("graphty-element");
+            assert.isDefined(element?.session);
+        });
         if (element === null) {
             throw new Error("the element never came up");
         }
@@ -72,7 +66,7 @@ describe("the location map whose placement code cannot be loaded", () => {
         await userEvent.click(within(popover).getByRole("option", { name: /^Map/ }));
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
 
-        const alert = await within(popover).findByRole("alert", undefined, { timeout: TIMEOUT_MS });
+        const alert = await within(popover).findByRole("alert", undefined);
         assert.include(alert.textContent, "could not be loaded");
         assert.strictEqual(el.session.layout.id, before, "the layout it had stays");
         assert.isNull(el.mapFrame, "no map is claimed");

@@ -14,7 +14,6 @@ import { describe, expect, it } from "vitest";
 
 import { compactTheme } from "../../src";
 import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../src/constants/popout";
-import { TOOLTIP_WAIT } from "../waits";
 
 /**
  * Helper to render a component with the compact theme.
@@ -109,7 +108,7 @@ describe("Tooltip - All CSS Values (Browser)", () => {
             await waitFor(() => {
                 const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
                 expect(tooltip).toBeTruthy();
-            }, TOOLTIP_WAIT);
+            });
 
             const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
             expect(getComputedStyle(tooltip!).zIndex).toBe(String(TOOLTIP_Z_INDEX));

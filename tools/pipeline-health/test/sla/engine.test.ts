@@ -144,16 +144,17 @@ describe("thresholds", () => {
             attempt: 1,
             line: "t4",
             day: monthStart + d * DAY,
-            usd: 10,
+            usd: 11,
         }));
         const store = await world(lines);
         const t4 = await member(store, "cost.t4");
-        expect(t4.value).toBeCloseTo(310);
-        expect(t4.state).toBe("FAILING");
+        expect(t4.value).toBeCloseTo(341);
+        expect(t4.facts?.month_to_date).toBeCloseTo(264);
+        expect(t4.state).toBe("FAILING"); // $264 already spent, past the $240 limit
         expect((await member(store, "cost.llm")).value).toBe(0);
     });
 
-    it("T4: the 200 USD budget is red past 200, amber from 180", async () => {
+    it("T4: a projection past the 240 USD limit is yellow; red only once spend so far passes it", async () => {
         const monthStart = Date.UTC(2026, 9, 1);
         const days = (floorTo(T0, "1d") - monthStart) / DAY;
         // A flat daily spend projected over 31 days.
@@ -168,11 +169,12 @@ describe("thresholds", () => {
             }));
             return member(await world(lines), "cost.t4");
         };
-        expect((await t4At(5.5)).state).toBe("OK"); // about 170
-        expect((await t4At(6.2)).state).toBe("WARNING"); // about 192
-        const red = await t4At(7);
-        expect(red.value).toBeGreaterThan(200);
-        expect(red.value).toBeLessThan(240);
+        expect((await t4At(7)).state).toBe("OK"); // $168 spent, about $217 projected
+        const yellow = await t4At(8); // $192 spent, about $248 projected
+        expect(yellow.value).toBeGreaterThan(240);
+        expect(yellow.state).toBe("WARNING");
+        const red = await t4At(10.5); // $252 spent
+        expect(red.facts?.month_to_date).toBeGreaterThan(240);
         expect(red.state).toBe("FAILING");
     });
 
@@ -354,6 +356,72 @@ describe("data states", () => {
         expect(await member(store, "data.sources_age")).toMatchObject({ state: "WARNING", value: 1 });
         await recordSource(store, "stress", T0 - 20 * DAY, { ok: true }); // 8 d limit: past 2x
         expect(await member(store, "data.sources_age")).toMatchObject({ state: "FAILING", value: 2 });
+    });
+});
+
+describe("credential errors (alerts, section 13)", () => {
+    it("a credential error an hour old turns data.sources_age red and names the source and error", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 70 * MIN, {
+            ok: false,
+            error: "ExpiredTokenException: token expired",
+        });
+        await recordSource(store, "billing", T0, { ok: false, error: "ExpiredTokenException: token expired" });
+        expect(await member(store, "data.sources_age")).toMatchObject({
+            state: "FAILING",
+            facts: { credential_error_ms: 70 * MIN },
+            cause: { params: { source: "billing", error: "ExpiredTokenException: token expired" } },
+        });
+    });
+
+    it("an owner's credential is the cause ahead of an older one agents can fix", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 3 * HOUR, { ok: false, error: "ExpiredTokenException" });
+        await recordSource(store, "billing", T0, { ok: false, error: "ExpiredTokenException" });
+        await recordSource(store, "cloudflare-token", T0 - 70 * MIN, { ok: false, error: "HTTP 403" });
+        await recordSource(store, "cloudflare-token", T0, { ok: false, error: "HTTP 403" });
+        expect(await member(store, "data.sources_age")).toMatchObject({
+            facts: { credential_error_ms: 70 * MIN },
+            cause: { params: { source: "cloudflare-token" } },
+        });
+    });
+
+    it("an ordinary error, a credential error the collector reports, or a public feed's 403 gives no credential error", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 70 * MIN, { ok: false, error: "Cost Explorer: HTTP 500" });
+        await recordSource(store, "npm", T0 - 70 * MIN, { ok: false, error: "HTTP 401" });
+        await recordSource(store, "coverage", T0 - 70 * MIN, { ok: false, error: "coveralls: HTTP 403" }); // public
+        const m = await member(store, "data.sources_age");
+        // Zero, not absent: an absent fact is a gap to the alerts, which would keep a credential page's episode open.
+        expect(m.facts?.credential_error_ms).toBe(0);
+        expect(m.cause).toBeUndefined();
+    });
+
+    it("a projected cost line also gives its month-to-date spend", async () => {
+        const store = await world([]);
+        expect((await member(store, "cost.t4")).facts).toEqual({ month_to_date: 0 });
+    });
+
+    it("a cost line of spend so far also gives its month-end projection, the one the Costs page shows", async () => {
+        // A flat $0.3207 a day of AWS through yesterday; billing has nothing for today yet.
+        const now = Date.UTC(2026, 9, 30, 19);
+        const today = floorTo(now, "1d");
+        const days = Array.from({ length: 29 }, (_, i): CostItem => ({
+            kind: "cost",
+            id: `aws-${i}`,
+            attempt: 1,
+            line: "aws",
+            workflow: "aws",
+            day: today - (i + 1) * DAY,
+            usd: 0.3207,
+        }));
+        const m = await member(await world(days, now), "cost.aws", now);
+        expect(m.value).toBeCloseTo(9.3, 2);
+        expect(m.facts?.projected).toBeCloseTo(
+            projectMonth((t) => (t < today ? 0.3207 : 0), now),
+            6,
+        );
+        expect(m.facts?.projected).toBeCloseTo(9.94, 2);
     });
 });
 

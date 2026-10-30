@@ -91,30 +91,6 @@ export function skipIfNoApiKey(): boolean {
 }
 
 /**
- * How long one case may take, per provider, sized from measured call latency. One prompt asks the
- * model at most six times (five tool turns, then an answer-only ask; src/ai/AiController.ts).
- *
- * - google (gemini-3.8-flash), measured over 19 runs on 2026-10-07: 2-3 s per call at the median,
- *   7-24 s at the 99th percentile depending on the hour, 40.5 s for the slowest call that answered,
- *   and one call that had not answered after 57 s. A 503 the SDK retries adds a few seconds, not
- *   these. 120 s holds one such stall plus the prompt's other calls at the slow hours' p99.
- * - openai and anthropic keep the 60 s the suite used before it ran on Google.
- */
-const CASE_TIMEOUT_MS: Record<VercelProviderType, number> = {
-    openai: 60_000,
-    anthropic: 60_000,
-    google: 120_000,
-};
-
-/**
- * The per-case limit for the selected provider: vitest's testTimeout for the llm-regression project.
- * @returns Milliseconds
- */
-export function getLlmRegressionCaseTimeoutMs(): number {
-    return CASE_TIMEOUT_MS[getLlmRegressionProvider()];
-}
-
-/**
  * Get the model to use for LLM regression tests.
  * @returns LLM_REGRESSION_MODEL, or the selected provider's default model
  */

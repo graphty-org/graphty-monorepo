@@ -18,9 +18,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { dotPng, quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and drawing, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const MODEL = "https://models.example.com/kit/panel.glb";
 const PICTURE = "https://pictures.example.com/dot.png";
 
@@ -59,13 +56,10 @@ async function openWithGraph(): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Web", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector(".ws-canvas graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector(".ws-canvas graphty-element");
+        assert.isDefined(element?.session);
+    });
     const { session } = element as unknown as HTMLElementTagNameMap["graphty-element"];
     await session.layout.set("fixed");
     await session.data.addNodes([
@@ -95,12 +89,9 @@ async function layerFromAFile(session: GraphSession): Promise<void> {
  * @param state - the state.
  */
 async function reaches(session: GraphSession, ref: string, state: string): Promise<void> {
-    await waitFor(
-        () => {
-            assert.equal(session.assets.states().find((change) => change.ref === ref)?.state, state);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.equal(session.assets.states().find((change) => change.ref === ref)?.state, state);
+    });
 }
 
 describe("web addresses a project names, from the app", () => {
@@ -111,7 +102,7 @@ describe("web addresses a project names, from the app", () => {
     it("asks before opening a model a project names, and Continue opens it", async () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
-        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
         assert.isNotNull(within(dialog).getByText(`This project wants to open ${MODEL}. Continue?`));
         assert.notInclude(requested, MODEL, "nothing is fetched before the answer");
 
@@ -123,7 +114,7 @@ describe("web addresses a project names, from the app", () => {
     it("Cancel leaves the node's shape and fetches nothing", async () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
-        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
         await reaches(session, MODEL, "rejected");
         assert.notInclude(requested, MODEL);
@@ -132,7 +123,7 @@ describe("web addresses a project names, from the app", () => {
     it("Don't ask again for this project is kept on this machine, not in the project file", async () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
-        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
         await userEvent.click(within(dialog).getByRole("button", { name: "Don't ask again for this project" }));
         await reaches(session, MODEL, "drawn");
         assert.deepEqual(readProjectHosts(session.project.id), ["models.example.com"]);
@@ -152,14 +143,14 @@ describe("web addresses a project names, from the app", () => {
         requested = [];
         const elsewhere = await openWithGraph();
         await elsewhere.project.open(text, { discard: true });
-        await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("dialog", { name: "Open a web address?" });
         assert.notInclude(requested, MODEL, "nothing is fetched before the answer");
     });
 
     it("Don't ask again for this project does not reach another project", async () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
-        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
         await userEvent.click(within(dialog).getByRole("button", { name: "Don't ask again for this project" }));
         await reaches(session, MODEL, "drawn");
         cleanup();
@@ -167,14 +158,14 @@ describe("web addresses a project names, from the app", () => {
         // Another project naming the same site, on the same machine, asks.
         const other = await openWithGraph();
         await layerFromAFile(other);
-        await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("dialog", { name: "Open a web address?" });
         assert.notEqual(other.project.id, session.project.id);
     });
 
     it("Don't ask again is the reader's own preference, kept by the app", async () => {
         const session = await openWithGraph();
         await layerFromAFile(session);
-        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" }, { timeout: TIMEOUT_MS });
+        const dialog = await screen.findByRole("dialog", { name: "Open a web address?" });
         await userEvent.click(within(dialog).getByRole("button", { name: "Don't ask again" }));
         await reaches(session, MODEL, "drawn");
         assert.equal(session.network.policy, "allow");

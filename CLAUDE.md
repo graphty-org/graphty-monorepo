@@ -561,7 +561,9 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
 
 **The held nightly candidate.** A run that is not green-clean after its re-run holds its commit: branch
 `channel/candidate`, the store's hold and a "Nightly held on <sha12>" issue (`tools/channel/hold.mjs`). Master
-keeps merging, but nothing promotes or replaces the held commit. Fix it forward from the candidate's head, never
+keeps merging, and nothing promotes past the held commit, except that a newer commit's green-clean or green-images
+run replaces a held head judged red, owner-item or rejected (`hold.mjs replace`): the red hold ends, and the newer
+commit promotes or is held for review in its place. A held green-images head awaiting review is never replaced. Fix it forward from the candidate's head, never
 from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`,
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
@@ -571,6 +573,10 @@ nothing and the next full run undoes it): anyone's `gh workflow run nightly-aban
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
 has a newer green build. Changed screenshots awaiting review never end a hold.
+
+Every full, restart and candidate run that ends without moving nightly files or updates one `priority:critical`
+"Nightly missed slot <date hh:mm> UTC: <cause>" issue (release.yml's slot job, `tools/channel/nightly.mjs slot`),
+closed when nightly moves; "Nightly stalled since" is only the fallback for a slot that produced no run.
 
 Every outcome is announced on the one open `Release status` issue (`tools/release-status.mjs`) and pushed to the
 owner's phone through Pushover. A failed publish opens a `Release held: publish failed on <sha>` issue; re-run
@@ -737,7 +743,14 @@ Each package has its own CLAUDE.md with package-specific guidance:
     that interaction in its play function (pointer events on the canvas, clicks on the controls),
     and graphty's play functions run as tests in the `storybook` project.
 - Use `assert` instead of `expect` in layout tests
-- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
+- Tests wait on conditions and assert on counted work, with no local deadline anywhere: one global
+  hang guard, set in one place (`tools/test-wait-guard.mjs`), ends a hang -- every vitest config is
+  wrapped in its `withTestGuards`, which sets every test's, hook's and wait's limit (`vi.waitFor`,
+  `expect.poll`, `expect.element`, Testing Library, graphty-element's `waitForStableFrame()`) far
+  above the slowest legitimate test. No test, story, helper, setup file or config sets a timeout,
+  an interval or a deadline loop of its own, and no override of the guard exists. The
+  `local/no-test-timing` lint rule enforces it. A measurement is not a test: it goes in a project
+  named `bench*` (started by hand, never by the gate), which runs with no time limit.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - `pnpm run test:changed` runs only the tests your change can affect (`--dry-run` shows them and why), the

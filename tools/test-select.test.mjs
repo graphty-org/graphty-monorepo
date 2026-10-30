@@ -51,6 +51,7 @@ import {
     sourceOf,
     startAdvisory,
     testRefs,
+    useNamesRoot,
     wholePackageRule,
     withLockfile,
 } from "./test-select.mjs";
@@ -1128,9 +1129,28 @@ describe("misses found by mutation testing", () => {
     });
 
     it("a rule ESLint loads at run time runs the package whose eslint.config imports it", () => {
-        const sel = run(["tools/eslint-rules/story-wait-options.mjs"], ["graphty", "layout"]).packages;
-        assert.equal(sel.get("graphty").mode, "all");
-        assert.equal(sel.get("layout").mode, "none");
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-lint-rule-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("tools/eslint-rules/a-rule.mjs", "export default {};\n");
+            put(
+                "pa/eslint.config.js",
+                'import rule from "../tools/eslint-rules/a-rule.mjs";\nexport default [rule];\n',
+            );
+            put("pb/eslint.config.js", "export default [];\n");
+            execFileSync("git", ["init", "-q"], { cwd: fixture });
+            execFileSync("git", ["add", "-A"], { cwd: fixture });
+            useNamesRoot(fixture);
+            const sel = run(["tools/eslint-rules/a-rule.mjs"], ["pa", "pb"]).packages;
+            assert.equal(sel.get("pa").mode, "all");
+            assert.equal(sel.get("pb").mode, "none");
+        } finally {
+            useNamesRoot(ROOT);
+            rmSync(fixture, { recursive: true, force: true });
+        }
     });
 
     it("a root file no rule, import or test accounts for runs everything; unread tools code runs nothing", () => {
@@ -2537,7 +2557,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("packs a change's stories into at most the job budget, growing every bin's limit only as needed (#3448)", () => {
-        const ids = Array.from({ length: 700 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins(
             [
                 entry("graph-io-fidelity", "all", [], ids),
@@ -2547,7 +2567,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             projects,
             list,
         );
-        assert.ok(700 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
+        assert.ok(1200 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
         assert.ok(bins.length <= STORY_JOB_BUDGET, `${bins.length} bins`);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_MAX_MS, `${b.name} planned at ${b.ms} ms`);
         assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids, "a--one"].sort());
@@ -2558,13 +2578,13 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("never stretches a bin past 3 minutes with jobBudget Infinity (the rolling slices, early-capture.md 4a)", () => {
-        const ids = Array.from({ length: 700 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
         const stories = [entry("graph-io-fidelity", "all", [], ids), entry("layout", "all")];
         const bins = storyBins(stories, projects, list, {}, () => 1, { jobBudget: Infinity });
         assert.ok(bins.length > STORY_JOB_BUDGET, `${bins.length} bins`);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
         assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids].sort());
-        // the default budget still stretches the same stories into 9 jobs
+        // the default budget still stretches the same stories into STORY_JOB_BUDGET jobs
         assert.ok(storyBins(stories, projects, list).length <= STORY_JOB_BUDGET);
     });
 

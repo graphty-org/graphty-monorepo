@@ -5,6 +5,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
@@ -24,26 +25,29 @@ const VISUAL = process.env.VISUAL_REVIEW_STORY_OUT
 // package's shard and its coverage are unchanged: `vitest run --config vitest.storybook.config.ts`. Beside the
 // vitest.config.ts storybook project, which composes the stories itself to run axe on each with real input; this
 // one runs them as the built Storybook does, so it can take their screenshots.
-export default defineConfig({
-    plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
-    ...(VISUAL && PRODUCTION),
-    // Bundled before the run starts: React's renderer is first imported when a story mounts, and found then Vite
-    // re-optimizes and reloads the page mid-run (vitest.config.ts, browserOptimizeDeps).
-    optimizeDeps: { include: ["react-dom/client", "react/jsx-dev-runtime", "react/jsx-runtime"] },
-    test: {
-        ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
-        name: "storybook",
-        browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright(VISUAL?.providerOptions),
-            instances: [{ browser: "chromium" }],
-            // The size the visual capture draws every story at.
-            viewport: VISUAL?.viewport ?? { width: 1200, height: 900 },
-            ...(VISUAL && { commands: VISUAL.commands }),
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(
+    defineConfig({
+        plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+        ...(VISUAL && PRODUCTION),
+        // Bundled before the run starts: React's renderer is first imported when a story mounts, and found then Vite
+        // re-optimizes and reloads the page mid-run (vitest.config.ts, browserOptimizeDeps).
+        optimizeDeps: { include: ["react-dom/client", "react/jsx-dev-runtime", "react/jsx-runtime"] },
+        test: {
+            ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
+            name: "storybook",
+            browser: {
+                enabled: true,
+                headless: true,
+                provider: playwright(VISUAL?.providerOptions),
+                instances: [{ browser: "chromium" }],
+                // The size the visual capture draws every story at.
+                viewport: VISUAL?.viewport ?? { width: 1200, height: 900 },
+                ...(VISUAL && { commands: VISUAL.commands }),
+            },
+            setupFiles: [...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []), ".storybook/vitest.setup.ts"],
+            // One story file at a time, as graphty-element's and graphty's storybook projects.
+            fileParallelism: false,
         },
-        setupFiles: [...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []), ".storybook/vitest.setup.ts"],
-        // One story file at a time, as graphty-element's and graphty's storybook projects.
-        fileParallelism: false,
-    },
-});
+    }),
+);

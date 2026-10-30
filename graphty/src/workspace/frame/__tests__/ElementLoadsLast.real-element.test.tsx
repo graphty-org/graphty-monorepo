@@ -15,9 +15,6 @@ import { LAYOUT_SEED } from "../../layout/methods";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** The element's chunk, held until the test lets it load. */
 const held = vi.hoisted(() => {
     let release: () => void = () => undefined;
@@ -42,13 +39,10 @@ describe("graphty-element loading after the frame", () => {
 
         held.release();
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
 
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);

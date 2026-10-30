@@ -33,12 +33,14 @@ export const PR_QUERY = `query($owner: String!, $name: String!, $cursor: String,
 
 const ISSUE_FIELDS = `number title state stateReason createdAt updatedAt closedAt labels(first: 20) { nodes { name } }`;
 
-export const ISSUE_QUERY = `query($owner: String!, $name: String!, $cursor: String, $held: String!) {
+export const ISSUE_QUERY = `query($owner: String!, $name: String!, $cursor: String, $held: String!, $nightly: String!) {
   repository(owner: $owner, name: $name) {
     recent: issues(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo { hasNextPage endCursor } nodes { ${ISSUE_FIELDS} } }
   }
   held: search(query: $held, type: ISSUE, first: 20) { nodes { ... on Issue { ${ISSUE_FIELDS} } } }
+  nightly: search(query: $nightly, type: ISSUE, first: 5) { nodes { ... on Issue {
+    number title state createdAt body comments(last: 20) { nodes { body createdAt } } } } }
 }`;
 
 /** Check runs and their first annotations for a batch of check suites (cancel class, hangs). */

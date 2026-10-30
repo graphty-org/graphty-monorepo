@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { GhJob, GhRun, GqlPr } from "../../src/collector/parse.js";
-import { failureCause, nextHolders, nextShared, supersededRuns } from "../../src/collector/snapshots.js";
+import { failingChecks, failureCause, nextHolders, nextShared, supersededRuns } from "../../src/collector/snapshots.js";
 import { HOUR, MIN, T0 } from "../model/helpers.js";
 
 const at = (ms: number) => new Date(ms).toISOString();
@@ -120,6 +120,24 @@ describe("snapshots", () => {
         expect(h.holders["CI, pull_request"]).toEqual({ running: 2, queued: 1, macos: 1 });
         expect(h.noJobs["other: Hosts, push"]).toEqual({ runs: 1, since: T0 - 20 * MIN });
         expect(h.saturated).toEqual([{ at: T0, running: { "CI, pull_request": 2 } }]);
+    });
+
+    it("judges a check by its newest run: a failure a later run of the same check passed is not failing", () => {
+        const p = gqlPr(1, ["PR Integrity", "All Checks Pass"]);
+        const nodes = p.commits!.nodes[0].commit.statusCheckRollup!.contexts.nodes;
+        expect(failingChecks(p).map((f) => f.name)).toEqual(["PR Integrity"]);
+        nodes.push(
+            { __typename: "CheckRun", name: "PR Integrity", conclusion: "SUCCESS", startedAt: at(T0 - 29 * MIN) },
+            { __typename: "CheckRun", name: "All Checks Pass", conclusion: "SUCCESS", startedAt: at(T0 - 29 * MIN) },
+        );
+        expect(failingChecks(p)).toEqual([]);
+        nodes.push({
+            __typename: "CheckRun",
+            name: "PR Integrity",
+            conclusion: "FAILURE",
+            startedAt: at(T0 - 28 * MIN),
+        });
+        expect(failingChecks(p).map((f) => f.name)).toEqual(["PR Integrity"]);
     });
 
     it("lists unfinished pull request runs whose pull request has a newer head", () => {

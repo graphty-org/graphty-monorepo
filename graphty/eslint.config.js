@@ -12,7 +12,6 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
-import storyWaitOptions from "../tools/eslint-rules/story-wait-options.mjs";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
@@ -209,13 +208,5 @@ export default tseslint.config(
                 },
             ],
         },
-    },
-
-    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
-    // of its own under a test runner (#2930). The rule: tools/eslint-rules/story-wait-options.mjs.
-    {
-        files: ["src/**/*.stories.{ts,tsx}"],
-        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
-        rules: { "local-stories/story-wait-options": "error" },
     },
 );

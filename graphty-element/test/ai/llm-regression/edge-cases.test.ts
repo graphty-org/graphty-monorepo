@@ -14,7 +14,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
 import { type LlmRegressionResult, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
@@ -216,7 +216,6 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             );
 
             assert.ok(result.latencyMs > 0, "Expected positive latency");
-            assert.ok(result.latencyMs < getLlmRegressionCaseTimeoutMs(), "Expected latency under the per-case limit");
         });
     });
 });

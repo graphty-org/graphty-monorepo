@@ -7,7 +7,7 @@ import { MemoryStore } from "../../src/model/store.js";
 import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
 import { Reads } from "../../src/views/members.js";
-import { byWorkflow, runnerMinutes, stressTable, unitCosts } from "../../src/views/sections.js";
+import { byWorkflow, moneyTable, runnerMinutes, stressTable, unitCosts } from "../../src/views/sections.js";
 import type { BarsSection, TableSection } from "../../web/src/contract.js";
 import { HOUR, job, MIN, pr, run, T0 } from "../model/helpers.js";
 
@@ -30,6 +30,14 @@ async function reads(items: RawItem[]) {
 }
 
 describe("Costs and Data sources sections", () => {
+    it("money: so far is shown against the limit the cost pages name, the red line", async () => {
+        const { reads: r } = await reads([cost("c1", "t4", "gpu.yml", 50), cost("c2", "llm", "ci.yml", 20)]);
+        const t = (await moneyTable(r, "28d", new Map())) as TableSection;
+        const sofar = t.rows.map((row) => row.cells.sofar as { budget: number | null });
+        // T4 $240, LLM $90 and the total $415: the limits the pages name.
+        expect(sofar.map((c) => c.budget)).toEqual([240, 90, 415]);
+    });
+
     it("unit costs: money per tested train and list-price value per merged pull request", async () => {
         const { reads: r } = await reads([
             cost("t4#1", "t4", "release.yml", 1.5),

@@ -21,9 +21,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * The notice after a reopen. Issue #909: graphty-element reopens an undirected graph as directed
  * and reports `W_DATA_DIFFERS` for the saved run, so the notice adds "1 part did not come back".
@@ -81,17 +78,14 @@ function snapshot(session: GraphSession): Snapshot {
  */
 async function elementSession(previous?: GraphSession): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            // The project's element, not the start page's graph behind a closed project.
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-            assert.notStrictEqual(session, previous);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        // The project's element, not the start page's graph behind a closed project.
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+        assert.notStrictEqual(session, previous);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -149,12 +143,9 @@ async function saveAs(name: string, current = "Florentine families"): Promise<vo
     });
     assert.equal(field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0), current);
     await userEvent.keyboard(`${name}{Enter}`);
-    await waitFor(
-        () => {
-            assert.isNull(screen.queryByRole("dialog"));
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("dialog"));
+    });
     // The closed dialog hands focus back to its opener a moment later (Mantine's focus return). A
     // rename field opened before that would lose focus to it, and a field that loses focus closes.
     await waitFor(() => {
@@ -252,12 +243,9 @@ describe("T14: save and reopen, on the real element", () => {
 
         await userEvent.click(recent);
         const reopened = await elementSession(session);
-        await waitFor(
-            () => {
-                assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+        });
         assert.deepEqual(snapshot(reopened), saved);
         assert.include(saved.runs, before.runs[0]);
         assert.deepEqual(saved.selection, before.selection);
@@ -291,12 +279,9 @@ describe("T14: save and reopen, on the real element", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Florentine, my copy/ }));
         const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
         await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
-        await waitFor(
-            () => {
-                assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+        });
         assert.notDeepEqual(snapshot(reopened).styles, kept.styles);
     });
 
@@ -450,7 +435,7 @@ function drawnBounds(): number[] {
  * Waits for the legend card to come up and for the element's picture to be final.
  */
 async function framedWithLegend(): Promise<void> {
-    await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+    await screen.findByRole("region", { name: "Legend" });
     await document
         .querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")
         ?.waitForStableFrame();
@@ -492,12 +477,9 @@ describe("a reopened project's framing, on the real element", () => {
         await closeFromMenu();
         await userEvent.click(await screen.findByRole("gridcell", { name: /^Friends framed/ }));
         const reopened = await elementSession(session);
-        await waitFor(
-            () => {
-                assert.match(store.get().notice?.message ?? "", OPENED("Friends framed"));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", OPENED("Friends framed"));
+        });
         assert.isAbove(reopened.runs.list().length, 0);
         await framedWithLegend();
         const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
@@ -555,14 +537,11 @@ describe("focus after Save", () => {
         await userEvent.keyboard("{Control>}s{/Control}");
         let dialog = await screen.findByRole("dialog", { name: "Save Florentine families as" });
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-        await waitFor(
-            () => {
-                assert.isNull(screen.queryByRole("dialog"));
-                // Back on the note it was opened from, not on the page.
-                assert.equal(document.activeElement?.tagName, "LI", focusedWords());
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+            // Back on the note it was opened from, not on the page.
+            assert.equal(document.activeElement?.tagName, "LI", focusedWords());
+        });
         await showsMarkOnNextKey();
 
         // The menu, by pointer: Save as... closed by its Save button.
@@ -570,17 +549,14 @@ describe("focus after Save", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Save as/ }));
         dialog = await screen.findByRole("dialog");
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-        await waitFor(
-            () => {
-                assert.isNull(screen.queryByRole("dialog"));
-                assert.strictEqual(
-                    document.activeElement,
-                    screen.getByRole("button", { name: "Main menu" }),
-                    focusedWords(),
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+            assert.strictEqual(
+                document.activeElement,
+                screen.getByRole("button", { name: "Main menu" }),
+                focusedWords(),
+            );
+        });
         await showsMarkOnNextKey();
     });
 });
@@ -625,12 +601,9 @@ describe("a saved sample opened again with Open a file, on the real element", ()
             await commands.chooseNextFile("Books about US politics.graphty.json", "application/json", text);
             await userEvent.click(await screen.findByRole("button", { name: /^Open a file/ }));
             const reopened = await elementSession(session);
-            await waitFor(
-                () => {
-                    assert.match(store.get().notice?.message ?? "", /^Opened /);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.match(store.get().notice?.message ?? "", /^Opened /);
+            });
             assert.deepEqual({ nodes: reopened.data.nodes().length, edges: reopened.data.edges().length }, counts);
         } finally {
             vi.unstubAllGlobals();

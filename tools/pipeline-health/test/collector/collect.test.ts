@@ -288,6 +288,26 @@ describe("collector with the GitHub App", () => {
         expect(await store.get(sourceKey("coverage"))).toMatchObject({ error: expect.stringMatching(/HTTP 500/) });
         expect((await store.get(sourceKey("collector")))?.lastOkAt).toBe(NOW);
     });
+
+    it("a failing part other than the runs read errors its own source; the collector's age and error stay the runs read's", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        const base = fake.fetch;
+        fake.fetch = async (url, init) =>
+            new URL(url).pathname === "/graphql" && String(init?.body).includes("issues(")
+                ? new Response("{}", { status: 502 })
+                : base(url, init);
+        const report = await collect(deps(store, fake));
+        expect(report.errors.issues).toBeDefined();
+        // The runs were read: the dashboard is not blind, so data.collector has nothing to page on.
+        const collector = await store.get(sourceKey("collector"));
+        expect(collector).toMatchObject({ lastOkAt: NOW });
+        expect(collector?.error).toBeUndefined();
+        expect(await store.get(sourceKey("collector-parts"))).toMatchObject({
+            error: expect.stringMatching(/^issues: /),
+        });
+        expect((await store.get(sourceKey("collector-parts")))?.lastOkAt).toBeUndefined();
+    });
 });
 
 type Fake = ReturnType<typeof fakeGitHub>;
@@ -345,6 +365,8 @@ describe("runner job counts", () => {
         await collect(deps(store, fake));
         expect(observed(store, "ci.jobs_running")).toBe(2);
         expect(observed(store, "ci.jobs_queued")).toBe(2);
+        // The runners page's count: only Linux and Windows jobs queued for a runner over 2 minutes.
+        expect(observed(store, "ci.jobs_waiting_runner")).toBe(2);
     });
 
     it("leaves out a queued run whose pull request is no longer open", async () => {

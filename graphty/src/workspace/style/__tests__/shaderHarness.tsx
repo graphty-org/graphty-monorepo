@@ -20,9 +20,6 @@ import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceConte
 import { Workspace } from "../../Workspace";
 import { StylePanel } from "../StylePanel";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-export const TIMEOUT_MS = 60_000;
-
 const NODES = [
     { id: "1", group: "a" },
     { id: "2", group: "a" },
@@ -61,12 +58,9 @@ export async function mountElement(): Promise<Mounted> {
     element.style.height = "100%";
     host.appendChild(element);
     document.body.appendChild(host);
-    await waitFor(
-        () => {
-            assert.isDefined(element.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.isDefined(element.session);
+    });
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(EDGES);
     return { element, session: element.session };
@@ -120,14 +114,11 @@ export async function addNodeLayer(
  */
 export async function mountWorkspace(): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Shaders", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -142,7 +133,7 @@ export async function mountWorkspace(): Promise<GraphSession> {
  * @returns the row.
  */
 export async function treeRow(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     return within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
 }
 
@@ -164,14 +155,11 @@ export function section(side: "node" | "edge", id: string): HTMLElement {
  * @returns the gallery.
  */
 export async function openGallery(side: "node" | "edge" = "node"): Promise<HTMLElement> {
-    const plus = await waitFor(
-        () => within(section(side, "shaders")).getByRole("button", { name: `Add to ${side} shaders` }),
-        {
-            timeout: TIMEOUT_MS,
-        },
+    const plus = await waitFor(() =>
+        within(section(side, "shaders")).getByRole("button", { name: `Add to ${side} shaders` }),
     );
     await userEvent.click(plus);
-    return screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+    return screen.findByTestId("shader-gallery", {});
 }
 
 /**

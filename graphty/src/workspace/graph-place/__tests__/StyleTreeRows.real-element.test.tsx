@@ -23,24 +23,18 @@ import { findTreeRow } from "../rows";
 /** Where the pictures for the owner's review go, relative to this file. */
 const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Waits for the open project's element and its session.
  * @returns the session.
  */
 async function elementSession(): Promise<GraphSession> {
-    return waitFor<GraphSession>(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            if (found === undefined) {
-                throw new Error("the element is not up yet");
-            }
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor<GraphSession>(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        if (found === undefined) {
+            throw new Error("the element is not up yet");
+        }
+        return found;
+    });
 }
 
 /**
@@ -57,11 +51,9 @@ function tree(): HTMLElement {
  * @returns the row.
  */
 async function row(name: string): Promise<HTMLElement> {
-    return within(await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS })).findByRole(
-        "treeitem",
-        { name: new RegExp(`^${name}, `) },
-        { timeout: TIMEOUT_MS },
-    );
+    return within(await screen.findByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
+        name: new RegExp(`^${name}, `),
+    });
 }
 
 /**
@@ -138,7 +130,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         const keyRow = await row("Key people");
         const mark = await within(keyRow).findByRole("img", { name: "Painted over by Cover" });
         await userEvent.hover(mark);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        const tip = await screen.findByRole("tooltip", {});
         assert.equal(tip.textContent, "Painted over by Cover");
         assert.isNull(within(await row("Cover")).queryByRole("img", { name: /Painted over/ }));
     });

@@ -127,7 +127,7 @@
         ],
         "storyless": [
             "^\\.github/(?!workflows/ci\\.yml$|actions/)",
-            "^tools/(?!(features-on|storybook-brand-theme|test-slots|wait-log|ci-test-matrix|ci-reuse-plan|test-select)\\.mjs$|results/)",
+            "^tools/(?!(features-on|storybook-brand-theme|test-slots|test-wait-guard|wait-log|ci-test-matrix|ci-reuse-plan|test-select)\\.mjs$|results/)",
             "^design/",
             "^docs/",
             "^(?!.*/(\\.storybook|stories)/).*\\.md$"

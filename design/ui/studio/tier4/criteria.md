@@ -1,6 +1,6 @@
-The study runs on build 71230abff1 served from /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/builds/tier4-r1d4-71230abff1
+The study runs on build 79ed770292 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d3-79ed770292
 
-Frozen on 2026-10-30 for the tier 4 rounds (the build before it was a53beb7179, at /home/apowers/Projects/graphty-monorepo/.study-builds/tier4-r1d3-a53beb7179).
+Frozen on 2026-10-30 for the tier 4 rounds (the build before it was 71230abff1, at /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/builds/tier4-r1d4-71230abff1).
 
 # Success criteria and round plan: data management (tier 4)
 
@@ -359,3 +359,7 @@ first two by itself; the dry run owns the rest.
       picture", and "leave out" joins the avoided words.
     - T65 A, T66 A and T67 A: the other points were already in the key ("Select | Hide", the
       Select card chip's whole-graph count, the T67 points from a walk on 0ffeae2ef5).
+- 2026-10-30: frozen on build 79ed770292 (served from .study-builds/tier4-r1d3-79ed770292), replacing
+  71230abff1 (tmp/design-studio/tier4/builds/tier4-r1d4-71230abff1). The app, graphty-element and
+  compact-mantine sources are the same as 71230abff1; the new build adds only master's CI tool
+  changes and study documents, so the answer key's build ranges for 71230abff1 hold.

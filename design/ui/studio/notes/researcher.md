@@ -10,40 +10,35 @@ made and evidence comes in. Summarized 2026-10-30 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-30) Tier 4 round 1 scored (`tier4/rounds/round-1/scores.md`): bar 1 holds (25 of 26
-  pointer S/SD); bars 2, 3, 5, 7 fail outright; 4 and 6 fail pending the skeptics. 0 severity 4
-  (end-state check: 60 items, 0 mismatches). 0 Sonnet sessions, 0 VOID.
-- (2026-10-30) The round's main pattern: one fact drawn two ways (time role vs column kind, Hide
-  label vs keep behavior, chip bases, suggestions counted as issues). Its one false done (r1-s08)
-  came from the inspector's "Set in Data", which designates the time and leaves the column text.
-- (2026-10-30) Bar 7 as frozen counts every input, including checks after success. T61 fails either
-  way (about 12 to the joined network vs path 7); T65 and T67 fail only because people checked a
-  result the screen did not confirm. Report both; never re-set the limit from the round.
-- (2026-10-30) Bar 3 on a 2-session task is the mean of two: one participant with 4 wrong turns
-  (r1-s21, T64) fails it. Say so whenever a 2-session median decides a bar.
-- (2026-10-30) Approved-surface checks need the reference image beside a session screenshot: the
-  joined row's "17/19" ratio is gone on 79ed770292, but the audit's text only judged the cut name.
-  Look at `tmp/design-studio/tier4/reference/` against a session screenshot myself.
+- (2026-10-30) Tier 4 round 1 settled (`tier4/rounds/round-1/insights.md`): bar 4 HOLDS after the
+  skeptics (no severity 3 survives); bars 2, 3, 5, 6, 7 fail as frozen, but bar 2 rests on the
+  key's definition and bar 3 on post-success checks plus a tool defect. Bar 6 is real (ratio clipped).
+- (2026-10-30) Fix `tool/real.mjs` before round 2: a hover that opens a popover prints
+  `tooltip: null`, and simulated participants believe the line over the screenshot (s13, s15, s21,
+  s22 reported "nothing appears" while 03.png shows the fix list). Check tool lines against images.
+- (2026-10-30) Top open problem: the join preview mismarks rows (one skeptic 3, one 2; held at 2).
+  Readers recover from the counts after Join; cost is steps (T61 about 12 vs path 7).
+- (2026-10-30) A severity 3 needs a reader who drew a wrong conclusion and left it standing. A
+  "false done" defined only by the answer key (a type the product itself blurs) is contestable.
+- (2026-10-30) Count wrong turns before the success state only, and decide whether a hover is a
+  turn before grading; graders split on it this round.
+- (2026-10-30) Bar 3 on a 2-session task is the mean of two: say so whenever it decides a bar.
 - (2026-10-30) Owner decision item 1 (Select | Filter to | Filter out, new card on Filter out)
-  renames the effect but keeps the default behind 5 of 5 "card hid the picture first" detours.
-  Flag it to the director before the fix lands.
+  keeps the default behind 5 of 5 "card hid the picture first" detours; but the task order forces
+  that trap, so test the default on a task that does not start with filtering.
+- (2026-10-30) Approved-surface checks: reference image beside a session screenshot, and the
+  route's text, to tell "removed" from "clipped" (the ratio was clipped, not removed).
+- (2026-10-30) An A/B split with 2 sessions per half is confounded with dataset and persona; never
+  report "people go where they are" from it.
 - (2026-10-30) Brief every row before a round; a fact in "Facts no briefing may hold" must be a
-  phrase no persona or README holds (bare `5` and `3` refused all 28 briefings).
-- (2026-10-30) A prompt word that is a detour control's label steers into it (T66 "Leave it out"
-  vs the issue list's "Leave out", which deletes and yields the success count). Grep prompts against
-  detour controls too; a deletion route that yields the success count needs a Not-success line.
-- (2026-10-30) First check of any pilot finding: the build in its walk's session.json. Before
-  trusting a key line, check that its commit is in the frozen build (`git merge-base --is-ancestor`).
-- (2026-10-29) Grep the app's strings (graphty/src) for every prompt word, not only the avoided
-  list ("Picked", "farther apart", "Web address" were echoes).
-- (2026-10-29) For returning users the false pass hides in the starting state (an auto-set role,
-  an unfiltered export). Check every task's start for the part of success it already satisfies.
-- (2026-10-21) Graders over-rate on one half: count a 3 only with its behavioral cost (blocked,
-  misread). Expert counts are not user evidence; an expert-only 3 needs a repro under `repro/`.
-- (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
-  participant is one model. Read tasks and key for leading before spending sessions.
-- (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts
-  the screen; never rewrite the key toward decided.md.
+  phrase no persona or README holds.
+- (2026-10-30) A prompt word that is a detour control's label steers into it; grep prompts
+  against detour controls too.
+- (2026-10-30) First check of any pilot finding: the build in its walk's session.json.
+- (2026-10-29) Grep the app's strings for every prompt word, not only the avoided list.
+- (2026-10-21) Graders over-rate on one half: count a 3 only with its behavioral cost. Expert
+  counts are not user evidence; an expert-only 3 needs a repro under `repro/`.
+- (2026-10-21) Leading risk: every participant is one model; read tasks and key for leading.
 
 ## Priorities and values
 
@@ -77,6 +72,17 @@ logged). Their reasons, in short:
 - **A bar only a route under study can meet**; a pass around the feature does not hold it.
 
 ## Decisions and reasons
+
+- **2026-10-30 (tier 4 round 1 insights, skeptics applied):** Two drops = dropped, one drop or
+  weaken = weakened. All four severity 3 candidates fell to 2 or below (join preview 2, time vs
+  kind 2, "With issues 11" 1, Export focus a candidate), so bar 4 holds. Bar 2 counted but flagged
+  (false done only under the key's definition). Bar 3 reported as "fails as frozen, not shown as a
+  design failure" (1 wrong turn before success per T64 session). Bar 6 kept with the mechanism
+  corrected to clipping. Insights "a fix created a trap" dropped, "issue home depends on where
+  people are" confounded; the other four weakened. Added the tool's `tooltip: null` defect as a
+  must-fix. Reason: a claim stands only where both a screen and a reader's cost back it. Evidence:
+  `rounds/round-1/insights.md`; viewed repro/r1-s03/02.png, sessions/r1-s08/05.png,
+  r1-s09/16.png, r1-s03/20.png, r1-s13/03.png myself.
 
 - **2026-10-30 (tier 4 round 1 scoring):** Scored by hand from grade.md lines plus the two scripts
   (`steps.mjs`, `endstate.mjs`), and wrote r1-s08 as P (grade.md and the criteria) where the
@@ -116,6 +122,9 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-30 (insights) -- Worked: viewing each owner screenshot before citing it (r1-s03/20.png
+  showed "deliveri...", not one letter: wording corrected). Did not work: my scoring trusted the
+  tool's `tooltip: null` and grader wrong-turn counts that included post-success checks.
 - 2026-10-30 (round 1 scoring) -- Worked: running `steps.mjs` and `endstate.mjs` on the round
   first, then one script (`tmp/researcher/score-t4r1/doors.py`) for grade, wrong turns, first door
   and build per session with an assert on the build; parsing grade.md problem tables for kind and
@@ -139,6 +148,10 @@ logged). Their reasons, in short:
 
 ## Thinking
 
+- 2026-10-30 -- Simulated participants trust the tool's text over the picture. Every tool line
+  that says "nothing" is a claim to verify against the screenshot, before it becomes a finding.
+- 2026-10-30 -- A trap that a task's order guarantees (filter first, then mark) measures the task
+  as much as the default; vary the order before calling the default the cause.
 - 2026-10-30 -- A fix can create the trap the next round finds: R15 made the first header click
   sort A to Z, which on ISO-day text looks exactly like a date column. Ask of every fix what a
   half-done state now looks like.

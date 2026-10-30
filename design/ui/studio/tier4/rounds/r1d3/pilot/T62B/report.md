@@ -83,3 +83,26 @@ Nothing on these routes crashes, blocks the task or spoils its grading. Still pr
 
 - The fix-pass routes, which all belong to other tasks.
 - No route of this task was skipped.
+
+## Targeted re-walk on this build (79ed770292)
+
+- Success path by pointer, replayed again in its own session from `T62B/w1-pointer` into
+  `T62B/t00-T62B-path`: all 9 steps matched and the session ended. 10.png shows the calendar glyph
+  on `installed`, "Sorted by installed, newest first" and G10 Birch Hollow, Jun 27, 2018 on top,
+  with 11 nodes and the file's own values.
+- The listed routes of other tasks (T65 A and B, T66 A and B, T68 A and B, T64 A and B) were
+  queued for replay on this build from the T62 A walks of the same routes recorded on 79ed770292
+  (`T62B/t-replay-list.txt`), but were still waiting for a free browser slot when this report was
+  written, so none of them was walked here. The `T62B/s01`-`s16` folders were replayed on the
+  earlier build a53beb7179, not this one, and do not count as walks of this build.
+
+## Second targeted re-walk on this build (79ed770292)
+
+- Success path by pointer: `T62B/t00-T62B-path` matched all 9 steps and ended; 10.png shows the
+  calendar glyph on `installed`, "Sorted by installed, newest first" and G10 Birch Hollow,
+  Jun 27, 2018 on top, 11 nodes, the file's own values.
+- The listed routes of other tasks were started again, replayed in order from the T62 A walks of
+  the same routes recorded on this build (`T62B/u-replay-list.txt`, runner `T62B/u-run.sh`, results
+  in `T62B/u-routes.status`). The first, T65 A success path (`T62B/u01-T65A-path`), matched all 24 steps and
+  ended. The other fifteen (u02 to u16) were still replaying when this report was written; see
+  `T62B/u-routes.status` for their exits. None of them belongs to T62 B.

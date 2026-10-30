@@ -1,0 +1,14 @@
+id,lat,lon,families,site,zip,opened,volunteer_run
+P01,42.3389,-71.0701,0,Central Warehouse,02118,2015-03-02,N
+P02,42.3751,-71.0395,140,Eastside Pantry,02128,2017-06-14,Y
+P03,42.3626,-71.1003,95,Riverside Church,02139,2016-09-01,Y
+P04,42.3097,-71.1151,60,Hilltop School,02130,2019-01-21,Y
+P05,42.3483,-71.041,210,Harbor Market,02210,2018-04-30,N
+P06,42.3782,-71.0602,75,"  Northgate Center",02129,2020-02-10,Y
+P07,42.324,-71.085,n/a,Library Annex,02119,2021-08-05,Y
+P08,42.3334,-71.049,180,Southside Pantry,02127,2017-11-12,N
+P09,42.3496,-71.156,40,Mill Street Shelf,02135,2022-05-16,Y
+P10,42.355,-71.132,120,Westgate Mosque,02134,2019-10-03,Y
+P11,42.3815,-71.098,85,Union Hall,02143,2016-02-22,N
+P12,42.316,-71.059,55,Bayview Clinic,02125,2023-03-08,Y
+P13,,,,,,,

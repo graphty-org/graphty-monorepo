@@ -1,0 +1,2 @@
+{"file":"pantries_nodes.csv","network":{"totalEdges":18,"totalNodes":13,"visibleEdges":17,"visibleNodes":12,"sources":[{"key":"s1","name":"pantries.csv","nodes":12,"edges":0},{"key":"s2","name":"deliveries.csv","nodes":13,"edges":18}]}}
+{"file":"pantries_edges.csv","network":{"totalEdges":18,"totalNodes":13,"visibleEdges":17,"visibleNodes":12,"sources":[{"key":"s1","name":"pantries.csv","nodes":12,"edges":0},{"key":"s2","name":"deliveries.csv","nodes":13,"edges":18}]}}

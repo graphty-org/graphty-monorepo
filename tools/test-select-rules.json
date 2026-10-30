@@ -136,7 +136,7 @@
             "pattern": "^compact-mantine/src/theme/",
             "projects": ["graphty", "compact-mantine"]
         },
-        "selectProjects": [],
+        "selectProjects": ["graphty-element"],
         "drawnBy": {
             "graph-io-fidelity": ["graph-io", "graphty-element"]
         }

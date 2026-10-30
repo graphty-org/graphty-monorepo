@@ -322,6 +322,25 @@ describe("the red issue and its bisect", () => {
         assert.match(body, /`Refs #<this issue>` restarts the full run after this run ends/);
     });
 
+    // #4556: GitHub reports a job that hit its timeout-minutes as "cancelled", and the verdict runs only in a run
+    // nobody cancelled (!cancelled()), so a cancelled lane there timed out: say so, or it reads as a cancelled run
+    it("calls a cancelled lane timed out, since the verdict never runs in a cancelled run", () => {
+        const { title, body } = redIssue({
+            sha: "abcdef1234",
+            red: ["llm"],
+            lanes: { ...ALL_GREEN, llm: "cancelled" },
+            run: "https://run",
+            bisect: "Bisect dispatched.",
+        });
+        assert.equal(title, "Full run red: LLM regression on abcdef1");
+        assert.match(body, /LLM regression timed out \(cancelled\), T4 GPU success/);
+        assert.match(body, /a lane GitHub reports as cancelled hit its job time limit/);
+        assert.doesNotMatch(
+            redIssue({ sha: "a", red: ["t4"], lanes: { ...ALL_GREEN, t4: "failure" }, run: "r", bisect: "" }).body,
+            /time limit/,
+        );
+    });
+
     it("dispatches one bisect, for the first lane that has one, with the run's failing tests", () => {
         const failures = { tests: [{ shard: "layout", file: "x", name: "y" }], failedBefore: ["layout: x > y"] };
         const plan = bisectPlan({ red: ["ci", "hosts"], sha: "bad", good: "good", run: 9, failures });

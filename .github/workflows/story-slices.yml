@@ -13,6 +13,9 @@
 # LFS baselines) and uses only the Storybook artifacts of exactly X's green ci.yml push build: when they are gone,
 # its bins fail.
 name: Story slices
+# The pipeline-health collector reads the mode from the run name to charge the slice's runner-minutes to its share
+# (tools/pipeline-health/src/collector/slices.ts sliceMode).
+run-name: "Story slices: ${{ inputs.mode }} ${{ inputs.sha }}"
 
 on:
     workflow_dispatch:

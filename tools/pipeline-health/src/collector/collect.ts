@@ -76,6 +76,17 @@ import {
 } from "./parse.js";
 import { markPrCaused } from "./pr-caused.js";
 import {
+    decideSlice,
+    newestGreen,
+    nextState,
+    type RunnerSample,
+    type SliceConfig,
+    type SliceDecision,
+    type SliceMode,
+    type SliceState,
+    type StoreSummary,
+} from "./slices.js";
+import {
     CHANNEL_REFS_QUERY,
     ISSUE_QUERY,
     OPEN_PAGE,
@@ -111,6 +122,15 @@ export interface Deps {
     repo: string;
     /** The health stack's deploy build. Undefined: the stack is not redeployed from master. */
     deploy?: DeployBuilds;
+    /**
+     * The rolling screenshot slice dispatcher (slices.ts). Without `readStore` it never decides to dispatch; without
+     * `dispatch` it decides and reports, and dispatches nothing (a dry run).
+     */
+    slices?: {
+        cfg: SliceConfig;
+        readStore?: () => Promise<StoreSummary>;
+        dispatch?: (sha: string, mode: SliceMode) => Promise<void>;
+    };
 }
 
 export interface CycleReport {
@@ -120,6 +140,8 @@ export interface CycleReport {
     errors: Record<string, string>;
     /** Items skipped because one GitHub request kept failing (section 10.4). */
     skipped: string[];
+    /** The slice dispatcher's decision this cycle, and whether it dispatched. */
+    slice?: SliceDecision & { dispatched: boolean };
 }
 
 const iso = (t: number) => new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -161,6 +183,10 @@ class Cycle {
     openRuns?: GhRun[];
     /** Open pull requests with their checks (pull requests part), for "Blocked by a flake". */
     openPrs?: GqlPr[];
+    /** This cycle's runner use (runners part) and master's newest green build (github part), for the slices. */
+    runnerSample?: RunnerSample;
+    newestGreen?: { sha: string };
+    slice?: SliceDecision & { dispatched: boolean };
     private readonly jsonCursors = new Map<string, unknown>();
 
     readonly d: Deps;
@@ -540,6 +566,13 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);
+    c.runnerSample = {
+        at: c.now,
+        running: use.running.linux_windows,
+        queued: use.queued,
+        saturated,
+        longestQueuedMs: use.longestQueuedMs,
+    };
     const prev = await c.json<HoldersSnapshot | undefined>(SNAPSHOT.holders, undefined);
     await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now));
 }
@@ -1027,6 +1060,47 @@ async function changed(store: Store, items: RawItem[]): Promise<RawItem[]> {
     return items.filter((_, i) => keep[i]);
 }
 
+/**
+ * The rolling screenshot slice dispatcher (slices.ts): records this cycle's runner sample and the runner-minutes of
+ * slice runs that finished, decides, and makes at most one dispatch. The store is read only when nothing else stops
+ * a slice.
+ */
+async function slices(c: Cycle, xs: Collected[]) {
+    const s = c.d.slices;
+    if (!s) return;
+    const runs = xs.filter((x) => x.repo === c.d.repo && workflowFile(x.run.path) === s.cfg.workflow);
+    const finished = runs.filter((x) => x.run.status === "completed").map((x) => ({ run: x.run, jobs: x.jobs ?? [] }));
+    const state: SliceState = nextState(
+        await c.json<SliceState>("slices", { samples: [], spent: [] }),
+        c.now,
+        c.runnerSample,
+        finished,
+    );
+    const d = state.dispatched;
+    if (d && runs.some((x) => Date.parse(x.run.created_at) >= d.at - MIN)) d.seen = true;
+    const input = {
+        now: c.now,
+        cfg: s.cfg,
+        state,
+        running: runs.some((x) => x.run.status !== "completed"),
+        ...(c.newestGreen ? { newestGreen: c.newestGreen } : {}),
+    };
+    let decision = decideSlice({ ...input, store: null });
+    if (decision.action === "none" && decision.reason === "store-unavailable" && s.readStore) {
+        const store = await s.readStore().catch((e: unknown) => {
+            c.errors.slicesStore = message(e);
+            return undefined;
+        });
+        decision = decideSlice({ ...input, store });
+    }
+    c.slice = { ...decision, dispatched: false };
+    await c.setJson("slices", state);
+    if (decision.action !== "dispatch" || !s.dispatch) return;
+    await s.dispatch(decision.sha, decision.mode);
+    c.slice.dispatched = true;
+    await c.setJson("slices", { ...state, dispatched: { at: c.now, sha: decision.sha, mode: decision.mode } });
+}
+
 /** Every GitHub part of one cycle; the collector source is OK when the runs, pull requests and issues were. */
 async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: boolean) {
     const d = c.d;
@@ -1049,6 +1123,8 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         collected = xs;
         c.openRuns = xs.filter((x) => x.run.status !== "completed").map((x) => x.run);
         await master(c, masterList, cancels, elapsed);
+        const green = newestGreen(masterList.map((x) => x.run));
+        if (green) c.newestGreen = green;
     });
     const missing = async (name: string) => (await c.cursor(name)) === undefined;
     if (hourly || (await missing("quarantine")) || (await missing("non-gating")) || (await missing("ci-jobs")))
@@ -1079,6 +1155,7 @@ async function collectGitHub(c: Cycle, gh: GitHub, elapsed: number, hourly: bool
         await c.part("hosts", "hosts", () => hosts(c, gh));
         await c.part("npm", "npm", () => npm(c, gh));
     }
+    if (xs) await c.part("slices", undefined, () => slices(c, xs));
     const builds = d.deploy;
     if (builds) await c.part("deploy", "deploy", () => deploy(c, gh, builds));
     if (gh.rate) c.o("github.rate_remaining_share", gh.rate.remaining / gh.rate.limit);
@@ -1114,5 +1191,6 @@ export async function collect(d: Deps): Promise<CycleReport> {
         calls: gh?.calls ?? 0,
         errors: c.errors,
         skipped: c.skipped,
+        ...(c.slice ? { slice: c.slice } : {}),
     };
 }

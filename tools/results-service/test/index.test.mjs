@@ -1586,6 +1586,8 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
             /^tools\/channel\/story-slices\.mjs$/,
             /^tools\/channel\/rolling\.mjs$/,
             /^tools\/full-run\.mjs$/,
+            // the slice dispatcher (4b): when to start a slice, never a verdict
+            /^tools\/pipeline-health\/(src|test)\/collector\/slices(\.test)?\.ts$/,
         ];
         const { readFileSync, statSync } = await import("node:fs");
         const readers = files.filter(

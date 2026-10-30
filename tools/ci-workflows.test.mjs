@@ -184,6 +184,17 @@ describe("the test matrix", () => {
         assert.equal(own["webgpu-graph-algorithms-node"], undefined);
     });
 
+    // graph-io-storybook's fidelity stories decode the oracles' PNGs, Git LFS objects; a pointer file fails to
+    // decode and every story errors (#4989). The test job pulls a matrix entry's "lfs" (see ci.yml below).
+    it("names the Git LFS files a shard reads, alone, in its group and in a light-check bin", () => {
+        const oracles = "graph-io/test/fidelity/oracles/*.png";
+        assert.equal(SHARDS.find((s) => s.shard === "graph-io-storybook").lfs, oracles);
+        assert.equal(plan(PACKAGES).find((e) => e.shard === "small-browser").lfs, oracles);
+        assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
+        const bin = { name: "graph-io-storybook-1", shard: "graph-io-storybook", command: "true", files: [] };
+        assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
+    });
+
     it("runs every member of a group even after one fails, then fails naming it", () => {
         const fake = (shard, cmd) => ({ shard, package: shard, "test-command": cmd, "needs-browser": false });
         const entry = groupEntry("g", [fake("a", "echo ran-a"), fake("b", "cd / && false"), fake("c", "echo ran-c")]);
@@ -624,9 +635,10 @@ describe("the pre-push gate matches CI", () => {
             "graphty-element-default",
             "graphty-element-storybook-1",
             "layout",
+            "layout-storybook",
         ]);
         // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
-        assert.deepEqual(startable([pick("graphty-element-browser-1")], []), ["layout"]);
+        assert.deepEqual(startable([pick("graphty-element-browser-1")], []).sort(), ["layout", "layout-storybook"]);
         // A warmed family's siblings still wait for the package's other families.
         const afterBrowser = startable([], ["graphty-element-browser"]);
         assert.ok(!afterBrowser.includes("graphty-element-browser-3"));
@@ -1237,6 +1249,15 @@ describe("every workflow", () => {
 
 describe("ci.yml", () => {
     const ci = workflow("ci.yml");
+
+    it("pulls the Git LFS files a test shard reads before it runs (#4989)", () => {
+        const test = job(ci, "test");
+        assert.match(
+            test,
+            /- name: Fetch the Git LFS files the shard reads\n\s+if: matrix\.lfs\n\s+run: git lfs pull --include "\$\{\{ matrix\.lfs \}\}"\n/,
+        );
+        assert.ok(test.indexOf("Fetch the Git LFS files the shard reads") < test.indexOf("- name: Run tests"));
+    });
 
     it("runs every pull request, a draft too, and still names the merge queue once (#3418)", () => {
         // Pull requests are opened ready (tools/pr-open.sh); there is no draft probe and no draft skip.
@@ -3672,12 +3693,22 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
     });
 
     // #3952: the first nightly run's candidate predated tools/channel/recapture.mjs, so every re-capture failed
-    it("runs master's nightly and capture code, never the picked commit's, in every job that checks the pick out", () => {
-        const nightlyCode = /tools\/channel\/|visual-review (capture|gate)|visual-review\/(trusted|capture)/;
-        // the one overlay step (tools/own-tools-overlay.test.mjs), with the capture code beside tools/
+    it("runs master's nightly code, never the picked commit's, in every job that checks the pick out", () => {
+        const nightlyCode = /tools\/channel\//;
+        // the one overlay step (tools/own-tools-overlay.test.mjs)
         const overlay = /git archive "\$GITHUB_SHA" \$OVERLAY \| tar -x/;
         const own = parseYaml(workflow("release.yml")).jobs.recapture.steps.find((st) => overlay.test(st.run ?? ""));
-        assert.equal(own.env.OVERLAY, "tools .github/actions visual-review/capture visual-review/trusted");
+        // #4940: the re-capture shoots with the candidate's capture code, the code the CI lane's story tests shot
+        // the first picture with (ci.yml takes master's capture code only for a pull request); master's would draw
+        // a different picture whenever the two differ, and every re-shot story would read as flaky
+        assert.equal(own.env.OVERLAY, "tools .github/actions");
+        const ci = parseYaml(workflow("ci.yml")).jobs["story-tests"].steps;
+        assert.ok(
+            ci.some(
+                (st) => /git archive HEAD\^1 \$CAPTURE_CODE/.test(st.run ?? "") && /pull_request/.test(st.if ?? ""),
+            ),
+            "ci.yml's story tests take other capture code only for a pull request; re-check the re-capture if not",
+        );
         let checked = 0;
         for (const [id, j] of Object.entries(parseYaml(workflow("release.yml")).jobs)) {
             const steps = j.steps ?? [];

@@ -1751,9 +1751,13 @@ export const STORY_BIN_MAX_MS = 12 * 60_000;
  */
 // ponytail: one rate per project; graphty's workspace stories take about twice its average, so record capture time per story in the results store if bins drift from 4 min
 export const STORY_MS = {
-    // its Specimens files; its Samples files are in STORY_FILE_MS (11 PR runs of 2026-10-27, 40573748841 to
-    // 40602189710: 132 bins fitted at 2.75 s a Specimens story, 6.2 s a Samples story)
-    "graph-io-fidelity": 2_800,
+    // its Specimens files; its Samples files are in STORY_FILE_MS. Fitted at 2.75 s a Specimens story and 6.2 s a
+    // Samples story (11 PR runs of 2026-10-27) while its pictures matched their baselines; now that they differ,
+    // each changed picture is shot twice (capture.mjs needsSecondShot: the reference, master's story-test capture,
+    // never matches the built-Storybook capture byte for byte), and PR run 41005977433 (#4559, Stories
+    // (graph-io-fidelity-1), both attempts) captured cx2 and cys Specimens at 6.1 to 6.5 s a story, graphology
+    // and pajek at 5.0 to 5.5 s, Samples at 8 to 12.4 s, and overran the job's 20 minutes at a 12-minute plan (#4639)
+    "graph-io-fidelity": 6_500,
     // PR runs 40590034554, 40591791083, 40602189710 (2026-10-27): graphty's bins without a STORY_FILE_MS file
     // captured at 0.26 to 0.66 of their plan at 6 s, so it is 3 s; its heavy files keep their own times
     graphty: 3_000,
@@ -1780,18 +1784,19 @@ export const STORY_FILE_MS = {
     "graphty/src/workspace/frame/Frame.stories.tsx": 11_500,
     "graphty/src/workspace/style/StylePanel.stories.tsx": 11_500,
     // graph-io-fidelity's Samples files draw real datasets, about twice its Specimens stories (fit above, at
-    // STORY_MS); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
-    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 6_200,
+    // STORY_MS), and are shot twice while they differ from their baselines: 12.4 s, gexf's measured rate in PR run
+    // 41005977433 (#4639); xgmml's bin with half of gexf/Specimens took 246 s against 182 s fitted, so its samples are 12 s
+    "graph-io/fidelity-stories/stories/cx/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cx2/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cys/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/cytoscapejs/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/dot/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gephi-json/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gexf/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/gml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/graphology/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/pajek/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/vis-network/Samples.stories.ts": 12_400,
     "graph-io/fidelity-stories/stories/xgmml/Samples.stories.ts": 12_000,
     // PR run 40891650568 (2026-10-29): Stories (graph-io-fidelity-4) captured 46 dot Specimens stories and 8 gexf
     // Samples ones in 361 s and Stories (graph-io-fidelity-9) 41 xgmml Specimens and 9 cytoscapejs Samples in 370 s,
@@ -1800,8 +1805,8 @@ export const STORY_FILE_MS = {
     // gexf's Specimens, measured in the same runs at 4.1 s a story
     "graph-io/fidelity-stories/stories/gexf/Specimens.stories.ts": 4_100,
     "graph-io/fidelity-stories/stories/xgmml/Specimens.stories.ts": 7_700,
-    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 6_200,
-    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 6_200,
+    "graph-io/fidelity-stories/stories/yed-graphml/Samples.stories.ts": 12_400,
+    "graph-io/fidelity-stories/stories/yed-live-graphml/Samples.stories.ts": 12_400,
 };
 
 const STORY_EXPORT = /^export const [A-Z]/gmu;
@@ -2014,7 +2019,8 @@ async function walkFile(project, file, ctx) {
 }
 
 /**
- * Another package's build output, as the source file it was built from, when that is known: the selection
+ * A package's build output (another package's, or its own), as the source file it was built from, when that is
+ * known: the selection
  * graph then follows a change to that package's source to exactly the tests that load it (design/ci/
  * minimal-tests.md section 2.2). Only the graph is changed; the tests themselves still run the build. A file
  * reached this way, and what it reaches outside the package under test, is kept in `viaAlias`: it is the

@@ -1395,6 +1395,31 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         assert.equal(body.summary.lastSliced.sha, "b".repeat(40));
     });
 
+    it("answers each unapproved story's first render since it last matched its baseline (the full-run pick rule)", async () => {
+        const { call } = service();
+        const one = (story, status) => ({ project: "graphty", story, status, hash: status });
+        const post = (run, sha, captures, baselinesTree = TREE) =>
+            call("POST", "/v1/story-captures", {
+                token: slices({ run_id: String(run) }),
+                body: slice({ sha: sha.repeat(40), baselinesTree, captures }),
+            });
+        // a: changed under an older tree, then changed twice under TREE; b: changed, unchanged, changed again;
+        // c: unchanged now
+        await post(4001, "o", [one("a", "changed")], "OLD");
+        await post(4010, "a", [one("a", "changed"), one("b", "changed"), one("c", "changed")]);
+        await post(4020, "b", [one("a", "new"), one("b", "unchanged"), one("c", "unchanged")]);
+        await post(4030, "c", [one("a", "changed"), one("b", "changed")]);
+        const { body } = await call("GET", "/v1/story-captures", { token: LOCAL_TOKEN });
+        assert.deepEqual(
+            body.captures.map((c) => [c.story, c.sha.slice(0, 1), c.firstUnapprovedSha?.slice(0, 1) ?? null]),
+            [
+                ["a", "c", "a"],
+                ["b", "c", "c"],
+                ["c", "b", null],
+            ],
+        );
+    });
+
     it("keeps the last-notified times a slice job reports", async () => {
         const { call } = service();
         await call("POST", "/v1/story-captures", { token: slices(), body: slice({ notified: ["queue"] }) });

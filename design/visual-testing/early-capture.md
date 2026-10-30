@@ -466,6 +466,32 @@ as today. This uses rolling captures only to choose which commit to render, neve
 full run still renders that commit completely and its verdict comes from its own captures. The cost is a
 nightly a few hours older. It is flagged as ordering-only and measured in the trial against today's rule.
 
+How it is built (`rollingPick` in `tools/full-run.mjs`):
+
+- **Switch.** The repository variable `FULL_RUN_PICK_RULE` set to `rolling` lets the rule choose. Unset, the
+  pick still works out the rule's choice and only logs it, so every slot records both choices: a notice line
+  and a step summary line "ordering pick rule on|off (shadow): <sha> (<why>); today's rule: <sha>", and the
+  outputs `today`, `rolling_sha` and `rolling_why`. The trial compares the two from these lines.
+- **Only a full slot.** A restart, a candidate run, a held head and a pick without the store are unchanged.
+- **"Holds the newest approval merge"** is "has head's `visual-baselines` tree".
+- **"Unapproved"** is a story's newest rolling capture with status changed, new or unseeded, rendered under
+  head's baselines tree. A capture rendered under an older tree is left out (an approval merged since may
+  cover it; the next slice renders it again). The "first commit" is the oldest render on master's first
+  parents of such a story since it last rendered unchanged under that tree (the store answers it as
+  `firstUnapprovedSha`), so a story re-rendered since it changed still bounds the rule at its first changed
+  render. That render is not the merge that changed the picture: a picture changed between the story's last
+  unchanged render and its first changed one is held by the full run, as today.
+- **Never idles a slot.** A preferred commit that would only inherit an older verdict (nothing but versions
+  or approval records since a judged commit) would test nothing, so the slot keeps today's rule.
+- **No preference** (today's rule chooses) when no capture is unapproved, when no kept-site commit older than
+  the first one holds head's tree, or when that commit is already judged or older than nightly. So the rule
+  never makes a slot idle: a commit the rule would pick a second time is judged, and the slot tests master's
+  newest instead.
+- **Known limit.** A candidate older than the dispatch commit runs on channel/full-run with its own workflow
+  files (release.yml's hand-off); when those differ from the dispatch commit's, the hand-off tests the
+  dispatch commit instead, as it does today for any older candidate. The rule's choice is then not tested in
+  that slot; the summary line still shows it.
+
 ### 4f. What stays the gate
 
 Unchanged: the full run's complete capture (ci.yml's story tests and release.yml's re-capture) of the exact
@@ -551,7 +577,8 @@ gate step and story-test jobs.
    rolling capture of a changed picture to its approval merging); share of slots that met an unreviewed
    change; green-clean rate and nightly promotions per day.
 7. **Pick rule** (section 4e) in `tools/full-run.mjs pick`, ordering-only, behind a repository variable so
-   the trial can compare it with today's rule.
+   the trial can compare it with today's rule. Built as `FULL_RUN_PICK_RULE=rolling`; unset, it logs its
+   choice beside today's on every slot (section 4e).
 
 **Trial on real CI** (in step order, each recorded in `tmp/early-screenshots/journal.md`):
 

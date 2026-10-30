@@ -4258,6 +4258,8 @@ describe("release.yml", () => {
         assert.match(pick, /node tools\/full-run.mjs pick\n/);
         assert.match(pick, /RESULTS_URL: \$\{\{ vars.RESULTS_URL \}\}/);
         assert.match(pick, /id-token: write/);
+        // the ordering-only rule (early-capture.md 4e) is switched by a repository variable, so the trial can turn it off
+        assert.match(pick, /PICK_RULE: \$\{\{ vars.FULL_RUN_PICK_RULE \}\}/);
         assert.match(
             pick,
             /id: releasable\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && env.MODE != 'full' && env.MODE != 'restart' && env.MODE != 'candidate' && env.MODE != 'promote-nightly' \}\}/,

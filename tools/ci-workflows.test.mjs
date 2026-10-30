@@ -1941,12 +1941,19 @@ describe("verification runs of ci.yml", () => {
         assert.doesNotMatch(job(ci, "story-tests"), /\n {8}if: .*pull_request/);
     });
 
-    it("runs the story tests' capture report-only, outside All Checks Pass", () => {
+    it("runs the story tests' capture blocking, outside All Checks Pass", () => {
         const jobs = parseJobs(ci);
         for (const name of ["story-tests", "story-tests-merge"]) {
             assert.ok(jobs[name], `${name} exists`);
-            assert.equal(jobs[name].coe, "true", `${name} is report-only`);
+            // a broken story fails the job and so the workflow: the full run's CI lane goes red (#4612)
+            assert.equal(jobs[name].coe, undefined, `${name} blocks`);
+            // a pull request is gated by its own Stories jobs; this one runs whole projects
             assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
+            // both combine steps judge with the blocking switch on: broken fails, a changed picture holds nightly
+            assert.match(
+                job(ci, name),
+                /- name: Combine the capture\n.*\n {14}env:\n {18}VISUAL_REVIEW_BLOCKING: "1"\n/,
+            );
         }
         assert.match(job(ci, "story-tests"), /VISUAL_REVIEW_STORY_OUT: /);
         // Through the results store like every test shard, and judged against the committed quarantine list.
@@ -1970,8 +1977,6 @@ describe("verification runs of ci.yml", () => {
             job(ci, "story-tests"),
             /GH_TOKEN: \$\{\{ github\.event_name != 'pull_request' && github\.token \|\| '' \}\}/,
         );
-        // The blocking switch stays off until the project switches.
-        assert.doesNotMatch(job(ci, "story-tests"), /VISUAL_REVIEW_BLOCKING/);
         // graph-io-fidelity runs in four legs (one job was about 44 of its 45 minutes); story-tests-merge combines
         // their partials, every leg's file once, into the one capture visual-<project>-<attempt>.
         for (let n = 1; n <= 4; n++) {

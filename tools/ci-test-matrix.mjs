@@ -385,6 +385,21 @@ export const FEATURES_ON_SHARDS = [
 export const SHARDS = FEATURES_DECLARED ? [...OFF_SHARDS, ...FEATURES_ON_SHARDS] : OFF_SHARDS;
 
 /**
+ * The shards ci.yml's story-tests job runs with their screenshots (its matrix's `shard` values; a test checks the
+ * two agree). Each one's screenshot run is a results family of its own, `<family>-shots`
+ * (tools/results/run-group.mjs groupFamily()), whose quarantines only the results store holds.
+ */
+export const STORY_SHARDS = [
+    "graphty-storybook",
+    "graphty-element-storybook-1",
+    "algorithms-browser",
+    "cytoscape-extensions",
+    "layout",
+    "compact-mantine",
+    "graph-io-browser",
+];
+
+/**
  * Shards too short to be worth a runner of their own (one to four minutes each, most of it
  * setup) run one after another in a single job. A group job runs only its affected members, and
  * every member runs even when an earlier one failed, so one job reports every failure. Without

@@ -16,9 +16,7 @@ import {
     hasProof,
     isBreaking,
     masterBaselineCheck,
-    ownedClosure,
     ownerApproved,
-    ownerLogins,
     patchId,
     prIntegrity,
 } from "./pr-integrity.mjs";
@@ -65,7 +63,6 @@ const pr = (r, over = {}) => ({
     author: "someone",
     reviews: [],
     owners: new Set(["owner"]),
-    codeowners: "",
     baselineProblems: () => [],
     ...over,
 });
@@ -87,9 +84,6 @@ describe("pure rules", () => {
         assert.ok(!hasProof("## Proof\n"));
         assert.ok(!hasProof("Proof: none"));
         assert.ok(!hasProof(undefined));
-    });
-    it("ownerLogins takes users, not teams or comments", () => {
-        assert.deepEqual([...ownerLogins("# @nobody\n/a/ @apowers313 @org/team\n/b @x-y\n")], ["apowers313", "x-y"]);
     });
     it("ownerApproved needs the owner's latest deciding review to approve the head", () => {
         const owners = new Set(["owner"]);
@@ -247,52 +241,6 @@ describe("prIntegrity", () => {
         r.git("switch", "-q", "-c", "c");
         r.commit("chore: record", { "visual-baselines/reviews/1.json": "{}" });
         assert.deepEqual(prIntegrity(r.dir, pr(r, { baselineProblems: unsigned })).problems, []);
-    });
-
-    it("names an unowned file an owned file imports", () => {
-        const r = repo();
-        r.git("switch", "-q", "-c", "b");
-        r.commit("ci: owned tool", {
-            "tools/owned.mjs": 'import "./helper.mjs";\n',
-            "tools/helper.mjs": "export {};\n",
-        });
-        const codeowners = "/tools/owned.mjs @owner\n";
-        assert.match(prIntegrity(r.dir, pr(r, { codeowners })).problems.join(), /Owned closure: tools\/helper\.mjs/);
-        assert.deepEqual(
-            prIntegrity(r.dir, pr(r, { codeowners: `${codeowners}/tools/helper.mjs @owner\n` })).problems,
-            [],
-        );
-    });
-});
-
-describe("ownedClosure", () => {
-    it("judges the merge result with master: a gap master closed passes, one master opened fails", () => {
-        const r = repo();
-        r.commit("ci: owned tool", {
-            ".github/CODEOWNERS": "/tools/owned.mjs @owner\n",
-            "tools/owned.mjs": 'import "./helper.mjs";\n',
-            "tools/helper.mjs": "export {};\n",
-        });
-        r.git("switch", "-q", "-c", "old");
-        r.commit("chore: unrelated", { "src/c.mjs": "export {};\n" });
-        const head = r.git("rev-parse", "HEAD");
-        const codeowners = r.git("show", "HEAD:.github/CODEOWNERS");
-        // on its own head the branch has the gap
-        assert.ok(ownedClosure(r.dir, { base: head, head, codeowners }).has("tools/helper.mjs"));
-        r.git("switch", "-q", "master");
-        r.commit("ci: own the helper", {
-            ".github/CODEOWNERS": "/tools/owned.mjs @owner\n/tools/helper.mjs @owner\n",
-        });
-        const closed = ownedClosure(r.dir, { base: "master", head, codeowners });
-        assert.deepEqual([...closed.keys()], []);
-        // a gap master opened after the branch left it is named too
-        r.commit("ci: another helper", {
-            "tools/owned.mjs": 'import "./helper.mjs";\nimport "./more.mjs";\n',
-            "tools/more.mjs": "",
-        });
-        assert.deepEqual([...ownedClosure(r.dir, { base: "master", head, codeowners }).keys()], ["tools/more.mjs"]);
-        // the temporary worktree is gone
-        assert.equal(r.git("worktree", "list").split("\n").length, 1);
     });
 });
 

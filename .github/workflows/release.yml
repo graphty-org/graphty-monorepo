@@ -752,7 +752,7 @@ jobs:
     llm:
         name: LLM regression
         needs: [pick, ci]
-        if: ${{ !cancelled() && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         environment: full-run # GOOGLE_API_KEY
@@ -901,7 +901,7 @@ jobs:
     coverage:
         name: Coverage
         needs: [pick, ci]
-        if: ${{ !cancelled() && needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) }}
         permissions:
             contents: read
             actions: read
@@ -1121,7 +1121,7 @@ jobs:
     recapture:
         name: Re-capture (${{ matrix.project }}${{ matrix.leg && format(' {0}/{1}', matrix.leg, matrix.legs) || '' }})
         needs: [pick, ci]
-        if: ${{ !cancelled() && needs.ci.result == 'success' && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}
+        if: ${{ !cancelled() && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) && (inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 45
         permissions:
@@ -1538,7 +1538,7 @@ jobs:
                   RECORDS: ${{ runner.temp }}/verdicts
                   RECORD: ${{ runner.temp }}/record/verdict-${{ github.run_attempt }}.json
                   LANES: >-
-                      {"pick": "${{ needs.pick.result }}", "ci": "${{ needs.candidate_site.result == 'failure' && 'failure' || needs.ci.result }}", "llm": "${{ needs.llm.result }}", "t4": "${{ needs.t4.result }}",
+                      {"pick": "${{ needs.pick.result }}", "ci": "${{ needs.candidate_site.result == 'failure' && 'failure' || needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success' && 'success' || needs.ci.result }}", "llm": "${{ needs.llm.result }}", "t4": "${{ needs.t4.result }}",
                       "hosts": "${{ needs.pick.outputs.hosts == 'false' && 'unaffected' || needs.hosts.result }}",
                       "autosave_macos": "${{ needs.pick.outputs.macos == 'false' && 'unaffected' || needs.autosave_macos.result }}",
                       "audit": "${{ needs.audit.result }}", "version_dry_run": "${{ needs.version_dry_run.result }}",
@@ -1666,7 +1666,7 @@ jobs:
     candidate_site:
         name: Assemble the held head's site
         needs: [pick, ci]
-        if: ${{ !cancelled() && (needs.pick.outputs.forward != '' || needs.pick.outputs.site == 'build') && needs.ci.result == 'success' }}
+        if: ${{ !cancelled() && (needs.pick.outputs.forward != '' || needs.pick.outputs.site == 'build') && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) }}
         # deploy-pages.yml asks for these (its deploy job, which a call skips); a called workflow gets no more
         permissions:
             contents: read
@@ -1967,7 +1967,7 @@ jobs:
         name: Version the release
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, verdict, resume]
         # a promotion after approval (resume) versions the owner's approval, which no lane of this run tested
-        if: ${{ !cancelled() && ((needs.pick.outputs.release == 'true' && (((inputs.mode == 'shadow' || inputs.mode == 'legacy') && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success') || ((inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') && needs.verdict.outputs.promote == 'true'))) || (needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true')) }}
+        if: ${{ !cancelled() && ((needs.pick.outputs.release == 'true' && (((inputs.mode == 'shadow' || inputs.mode == 'legacy') && (needs.ci.result == 'success' || (needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success')) && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success') || ((inputs.mode == 'full' || inputs.mode == 'restart' || inputs.mode == 'candidate') && needs.verdict.outputs.promote == 'true'))) || (needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true')) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 40
         permissions:

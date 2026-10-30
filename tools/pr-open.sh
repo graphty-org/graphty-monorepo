@@ -155,8 +155,13 @@ if [ -z "$url" ]; then
     url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$body")
 fi
 # The review goes on the pull request once per patch id: a re-run after a master merge does not post it again.
-marker=$(head -n 1 "$report")
-if ! grep -qF -- "$marker" <<<"$(gh pr view "$url" --json reviews --jq '.reviews[].body')"; then
+# A report that answers test-integrity findings also names its head, so one for a new head is posted again.
+posted=$(gh pr view "$url" --json reviews --jq '.reviews[].body')
+missing=0
+while IFS= read -r marker; do
+    grep -qF -- "$marker" <<<"$posted" || missing=1
+done < <(grep -E '^<!-- (fresh|integrity)-review [^ ]+ -->$' "$report")
+if [ "$missing" = 1 ]; then
     gh pr review "$url" --comment --body-file "$report" >/dev/null || die "the review could not be posted on $url"
 fi
 # The files that guard the owner rather than judge CI: the screenshot gate (keys, trusted gate, capture,

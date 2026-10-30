@@ -122,7 +122,9 @@ export const rangeLabel = (r: Range | SlowRange): string => r.replace(/(\d+)/, "
 export const prLink = (n: number) => `<a class="ln" href="${REPO}/pull/${n}">#${n}</a>`;
 export const issueLink = (n: number) => `<a class="ln" href="${REPO}/issues/${n}">#${n}</a>`;
 export const runLink = (id: number) => `<a class="ln" href="${REPO}/actions/runs/${id}">${id}</a>`;
-export const shaLink = (sha: string) => `<a class="ln" href="${REPO}/commit/${esc(sha)}">${esc(sha)}</a>`;
+/** A commit: its first 9 characters, the full SHA in the link and its title. */
+export const shaLink = (sha: string) =>
+    `<a class="ln" href="${REPO}/commit/${esc(sha)}" title="${esc(sha)}">${esc(sha.slice(0, 9))}</a>`;
 
 /** "a", "a and b", "a, b and c". */
 export function and(items: string[]): string {

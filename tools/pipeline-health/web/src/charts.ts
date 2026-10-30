@@ -137,7 +137,9 @@ export function sortedBars(
             const cls = i.tone === "bad" ? " bad" : i.tone === "value" ? " lv" : "";
             const val = i.unit === "usd" || i.unit === "count" ? fmtN(i.n) : fmtUnit(i.n, i.unit);
             const detail = i.detail ? `<small> ${cellHtml(i.detail)}</small>` : "";
-            return `<div class="br"><span class="bl">${cellHtml(i.label)}${detail}</span><span class="bv" aria-hidden="true"><span class="hb${cls}" style="width: ${w}%"></span><span class="bn2">${esc(val)}</span></span></div>`;
+            // cellHtml escapes its text, so the HTML without its tags is safe in an attribute.
+            const title = `${cellHtml(i.label)}${i.detail ? ` ${cellHtml(i.detail)}` : ""}`.replace(/<[^>]+>/g, "");
+            return `<div class="br"><span class="bl" title="${title}">${cellHtml(i.label)}${detail}</span><span class="bv" aria-hidden="true"><span class="hb${cls}" style="width: ${w}%"></span><span class="bn2">${esc(val)}</span></span></div>`;
         })
         .join("");
     const table = hiddenTable(
@@ -158,8 +160,9 @@ function ticks(from: number, to: number, nowLabel: boolean): string {
     const span = to - from;
     const out = [`<span style="left: 0%">${fmtTime(new Date(from).toISOString()).slice(-5)}</span>`];
     const every = span > 12 * HOUR ? 3 * HOUR : HOUR;
-    for (let t = Math.ceil(from / every) * every; t < to - every / 3; t += every) {
-        if (t - from < every / 3) continue;
+    // A tick closer than 0.6 of a step to either end label would touch it.
+    for (let t = Math.ceil(from / every) * every; t < to - every * 0.6; t += every) {
+        if (t - from < every * 0.6) continue;
         out.push(
             `<span style="left: ${r1(((t - from) / span) * 100)}%">${fmtTime(new Date(t).toISOString()).slice(-5)}</span>`,
         );

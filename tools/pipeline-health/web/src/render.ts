@@ -302,7 +302,7 @@ function pageState(p: PageResponse): string {
 
 // ---------------------------------------------------------------- sections
 
-const TABLES: Record<string, { cls: string; cols: [string, string][] }> = {
+export const TABLES: Record<string, { cls: string; cols: [string, string][]; cap?: number }> = {
     "red-spans": {
         cls: "t-spans",
         cols: [
@@ -816,7 +816,7 @@ export function testView(h: TestHistoryResponse): string {
         .map(
             (e) =>
                 `<div class="tr${e.outcome === "passed" ? " past" : ""}"><span>${fmtTime(e.at)}</span><span>${e.pr ? prLink(e.pr) : e.kind === "full" ? "full run" : "local"}</span>` +
-                `<span>${shaLink(e.sha)}, attempt ${fmtN(e.attempt)}</span><span>${outcome(e.outcome)}</span><span>${esc(e.signature ?? "")}</span><span>${runLink(e.run)}</span></div>`,
+                `<span>${shaLink(e.sha)}<small>attempt ${fmtN(e.attempt)}</small></span><span>${outcome(e.outcome)}</span><span>${esc(e.signature ?? "")}</span><span>${runLink(e.run)}</span></div>`,
         )
         .join("");
     return (

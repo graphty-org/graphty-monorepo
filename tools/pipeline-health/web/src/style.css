@@ -494,7 +494,9 @@ h3 {
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
-    white-space: nowrap;
+    white-space: normal;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .row.dim .val,
 .tr.dim {
@@ -596,6 +598,12 @@ h3 {
     gap: 14px;
     align-items: center;
 }
+.bl {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .bv {
     display: flex;
     align-items: center;
@@ -633,6 +641,23 @@ h3 {
     align-items: baseline;
     padding: 6px 0;
 }
+/* A table class with no column rule of its own still gets one column per cell, never one cell per line. */
+.tbl .thead,
+.tbl .tr {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+}
+.tbl {
+    /* The hidden value tables of the sparklines inside stay inside the table's own scroll. */
+    position: relative;
+}
+.tr > span,
+.tbl .thead > span,
+.srow > span,
+.hrow > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
 .tr.past {
     color: var(--muted);
 }
@@ -646,10 +671,25 @@ h3 {
 .ln {
     color: var(--link);
     margin-right: 4px;
+}
+.bn2 .ln {
     white-space: nowrap;
 }
 .ln:hover {
     text-decoration: underline;
+}
+.t-chronic .thead,
+.t-chronic .tr {
+    grid-template-columns: minmax(0, 2fr) 120px 90px 90px 90px;
+}
+.t-nongating .thead,
+.t-nongating .tr {
+    grid-template-columns: minmax(0, 2fr) 80px 70px 80px;
+}
+.t-bench .thead,
+.t-bench .tr {
+    grid-template-columns: minmax(0, 2fr) 90px 110px minmax(120px, 1fr) 50px;
+    align-items: center;
 }
 .t-spans .thead,
 .t-spans .tr {
@@ -681,7 +721,7 @@ h3 {
 }
 .t-trains .thead,
 .t-trains .tr {
-    grid-template-columns: 190px 170px minmax(0, 1fr);
+    grid-template-columns: minmax(110px, 190px) minmax(110px, 170px) minmax(0, 1fr);
 }
 .t-wf .thead,
 .t-wf .tr {
@@ -898,16 +938,35 @@ a.more:hover {
         gap: 12px;
     }
     .shards .srow {
-        grid-template-columns: minmax(160px, 1.4fr) 40px 50px 48px 200px 110px 10px;
+        grid-template-columns: minmax(0, 1.4fr) 40px 50px 48px minmax(100px, 200px) minmax(0, 110px) 10px;
         gap: 10px;
     }
+    .shards .sbar {
+        width: 100%;
+        height: auto;
+    }
     .hott .hrow {
-        grid-template-columns: minmax(200px, 2fr) 110px 50px 64px 80px 64px 10px;
+        grid-template-columns: minmax(0, 2fr) 90px 50px 64px 80px 64px 10px;
         gap: 10px;
     }
     .t-shared .thead,
     .t-shared .tr {
-        grid-template-columns: minmax(130px, 1fr) minmax(120px, 1fr) 80px minmax(150px, 1.3fr) 110px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 80px minmax(0, 1.3fr) minmax(0, 110px);
+        gap: 10px;
+    }
+    .t-cost .thead,
+    .t-cost .tr {
+        grid-template-columns: minmax(0, 1.5fr) 90px 100px 124px 70px;
+        gap: 10px;
+    }
+    .t-src .thead,
+    .t-src .tr {
+        grid-template-columns: minmax(0, 1.5fr) 70px 80px minmax(0, 1fr) minmax(0, 1fr) 70px;
+        gap: 10px;
+    }
+    .t-hist .thead,
+    .t-hist .tr {
+        grid-template-columns: 90px 80px minmax(0, 110px) 90px minmax(0, 1fr) minmax(0, 100px);
         gap: 10px;
     }
 }
@@ -993,7 +1052,7 @@ p.more {
 }
 .t-hist .thead,
 .t-hist .tr {
-    grid-template-columns: 100px 90px 190px 110px minmax(0, 1fr) 110px;
+    grid-template-columns: 100px 90px minmax(0, 130px) 110px minmax(0, 1fr) 110px;
 }
 .hott .nm small {
     display: inline;
@@ -1085,8 +1144,136 @@ h2.top {
     background: transparent;
     border: 1px solid var(--muted);
 }
+/* ---- phones: one column, the pages as a scroll strip on top, member rows as cards ---- */
 @media (max-width: 700px) {
     .tiles {
         grid-template-columns: 1fr;
+    }
+    .app {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .side {
+        position: static;
+        height: auto;
+        padding: 12px 0 0;
+        min-width: 0;
+    }
+    .brand {
+        padding: 0 16px 8px;
+    }
+    .side > ul {
+        display: flex;
+        overflow-x: auto;
+        border-bottom: 1px solid var(--faint);
+    }
+    .ni {
+        padding: 6px 12px 6px 0;
+    }
+    .ni .bar {
+        margin-right: 8px;
+    }
+    .sub,
+    .sub.open,
+    .sample {
+        display: none;
+    }
+    main {
+        padding: 16px 16px 32px;
+    }
+    .status {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .blk {
+        height: auto;
+        min-height: 120px;
+    }
+    .rowh {
+        display: none;
+    }
+    .row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "nm st"
+            "val tg"
+            "sp sp";
+        row-gap: 4px;
+    }
+    .row .nm {
+        grid-area: nm;
+    }
+    .row .st {
+        grid-area: st;
+        text-align: right;
+    }
+    .row .val {
+        grid-area: val;
+    }
+    .row .tg {
+        grid-area: tg;
+        text-align: right;
+    }
+    .row .sp {
+        grid-area: sp;
+    }
+    .row > .chev {
+        display: none;
+    }
+    .tbl,
+    .shards,
+    .hott {
+        position: relative;
+        overflow-x: auto;
+    }
+    /* Wide tables keep readable columns and scroll inside themselves; the page never scrolls sideways. */
+    :is(
+            .t-shared,
+            .t-quar,
+            .t-chronic,
+            .t-nongating,
+            .t-bench,
+            .t-lanes,
+            .t-trains,
+            .t-wf,
+            .t-load,
+            .t-cost,
+            .t-src,
+            .t-hist,
+            .t-spans
+        )
+        > *,
+    .shards .srow,
+    .hott .hrow {
+        min-width: 560px;
+    }
+    .ep {
+        display: block;
+        position: relative;
+        padding: 6px 4px 6px 14px;
+    }
+    .ep .eb {
+        position: absolute;
+        left: 0;
+        top: 6px;
+        bottom: 6px;
+        width: 4px;
+    }
+    .ep .et,
+    .ep .ec {
+        display: inline;
+        margin-right: 8px;
+    }
+    .ep .ex {
+        display: block;
+    }
+    .ep .en {
+        display: block;
+        text-align: left;
+    }
+    .ep > .chev {
+        display: none;
+    }
+    /* Hour ticks: every other one, so no two labels touch. */
+    .ticks span:nth-child(even):not(:last-child) {
+        display: none;
     }
 }

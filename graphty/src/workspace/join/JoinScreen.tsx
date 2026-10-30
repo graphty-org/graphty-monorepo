@@ -587,6 +587,13 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
             if (show === "not-in-graph") {
                 return row.match.length === 0;
             }
+            // An edge join's chips narrow to the rows that become edges, or that add a node.
+            if (show === "added") {
+                return row.fate === "joined" || row.fate === "new-end";
+            }
+            if (show === "new-end") {
+                return row.fate === "new-end";
+            }
             return show !== "matched" || row.match.length > 0;
         });
     const matchedIds = show === "matched" ? [...new Set(counts?.rowMatches.flat() ?? [])] : null;

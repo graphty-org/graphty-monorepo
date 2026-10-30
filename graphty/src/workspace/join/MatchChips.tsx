@@ -135,12 +135,16 @@ export function MatchChips({
                 <>
                     {report.newEdges > 0 ? (
                         <li>
-                            <EntityChip kind="edge">{counted(report.newEdges, "edge added", "edges added")}</EntityChip>
+                            <CountChip which="added" show={show} onShow={onShow}>
+                                {counted(report.newEdges, "edge added", "edges added")}
+                            </CountChip>
                         </li>
                     ) : null}
                     {report.newNodes > 0 ? (
                         <li>
-                            <EntityChip kind="node">{counted(report.newNodes, "new node", "new nodes")}</EntityChip>
+                            <CountChip which="new-end" show={show} onShow={onShow}>
+                                {counted(report.newNodes, "new node", "new nodes")}
+                            </CountChip>
                         </li>
                     ) : null}
                     {report.updatedNodes > 0 ? (

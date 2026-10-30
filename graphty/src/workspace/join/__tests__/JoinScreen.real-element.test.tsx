@@ -397,6 +397,19 @@ describe("the join screen on the real element", () => {
             assert.strictEqual(now[11], "Edge G09 - G12, new node");
         });
 
+        // The new node's chip narrows the file's table to the row that adds it, and takes it back.
+        await toggle(join, "1 new node");
+        await waitFor(() => {
+            assert.deepEqual(tags(), ["Edge G09 - G12, new node"]);
+        });
+        await toggle(join, "1 new node");
+        await toggle(join, "14 edges added");
+        await waitFor(() => {
+            assert.lengthOf(tags(), 14);
+            assert.notInclude(tags(), "Repeat, not added");
+        });
+        await toggle(join, "14 edges added");
+
         // Keep both: the repeated row is joined too.
         await userEvent.click(within(join).getByRole("button", { name: "1 repeated key" }));
         const both = await screen.findByRole("menuitem", { name: "Keep both" });
@@ -407,6 +420,9 @@ describe("the join screen on the real element", () => {
         await userEvent.click(both);
         await waitFor(() => {
             assert.strictEqual(tags()[10], "Edge G03 - G04");
+        });
+        await waitFor(() => {
+            assert.lengthOf(tags(), 15);
         });
 
         // The unknown end is decided here: leave its row out.

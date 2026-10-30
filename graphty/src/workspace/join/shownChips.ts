@@ -1,7 +1,7 @@
 import type { JoinChoices, JoinReport } from "@graphty/graphty-element/session";
 
 /** What a count chip narrows the tables to. */
-export type JoinShow = "matched" | "not-in-graph" | "without-value" | null;
+export type JoinShow = "matched" | "not-in-graph" | "without-value" | "added" | "new-end" | null;
 
 /**
  * The count chips drawn now, so a narrowing whose chip went (its count fell to zero, the shape
@@ -13,7 +13,10 @@ export type JoinShow = "matched" | "not-in-graph" | "without-value" | null;
 export function shownChips(report: JoinReport, choices: JoinChoices): JoinShow[] {
     const shape = choices.shape ?? "node-values";
     const values = shape === "node-values";
+    const edges = shape === "edges";
     return [
+        ...(edges && report.newEdges > 0 ? (["added"] as const) : []),
+        ...(edges && report.newNodes > 0 ? (["new-end"] as const) : []),
         ...(values && report.matched > 0 ? (["matched"] as const) : []),
         ...(report.notInGraph > 0 ? (["not-in-graph"] as const) : []),
         ...(values && report.withoutValue > 0 ? (["without-value"] as const) : []),

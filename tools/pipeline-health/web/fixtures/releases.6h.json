@@ -221,7 +221,8 @@
                 "n": 1,
                 "of": 3
             },
-            "n": 3
+            "n": 3,
+            "inTarget": true
         },
         {
             "state": "notsetup",
@@ -266,7 +267,8 @@
                 "unit": "h"
             },
             "n": 6,
-            "minN": 3
+            "minN": 3,
+            "inTarget": true
         },
         {
             "state": "slow",
@@ -609,12 +611,22 @@
                             "v": "a870943ef"
                         },
                         "lanes": {
+                            "t": "mark",
+                            "state": "bad",
+                            "cell": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "train.tested_failed",
+                                    "params": {
+                                        "lanes": ["audit", "t4"]
+                                    }
+                                }
+                            }
+                        },
+                        "nightly": {
                             "t": "fact",
                             "fact": {
-                                "code": "train.tested_failed",
-                                "params": {
-                                    "lanes": ["audit", "t4"]
-                                }
+                                "code": "train.not_promoted"
                             }
                         }
                     }

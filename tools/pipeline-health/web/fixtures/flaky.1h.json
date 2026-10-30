@@ -251,7 +251,8 @@
                     "added": 4,
                     "resolved": 2
                 }
-            }
+            },
+            "inTarget": true
         },
         {
             "state": "slow",
@@ -274,7 +275,8 @@
                 "n": 1.5,
                 "unit": "d"
             },
-            "n": 2
+            "n": 2,
+            "inTarget": true
         },
         {
             "state": "ok",

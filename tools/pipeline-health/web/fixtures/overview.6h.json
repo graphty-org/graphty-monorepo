@@ -93,6 +93,60 @@
                 "note": {
                     "code": "master.green_time.def"
                 }
+            },
+            "driver": {
+                "state": "bad",
+                "window": "now",
+                "sla": {
+                    "target": {
+                        "op": "<=",
+                        "n": 1
+                    },
+                    "red": {
+                        "op": ">=",
+                        "n": 3
+                    }
+                },
+                "link": "/master/shared",
+                "id": "master.same_check",
+                "value": {
+                    "n": 5
+                },
+                "spark": {
+                    "step": "15m",
+                    "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "trend": [
+                        0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.4, 2.83, 3.27, 3.7, 4.13, 4.57, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+                        5
+                    ],
+                    "breach": [
+                        null,
+                        null,
+                        null,
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad"
+                    ],
+                    "target": 1
+                }
             }
         },
         {
@@ -432,6 +486,58 @@
                     "h": 2.8,
                     "of": 6
                 }
+            },
+            "driver": {
+                "state": "bad",
+                "window": "now",
+                "sla": {
+                    "target": {
+                        "op": "==",
+                        "n": 0
+                    },
+                    "red": {
+                        "code": "sla.blocked"
+                    }
+                },
+                "link": "/flaky/hotspots",
+                "id": "flaky.blocked",
+                "value": {
+                    "n": 3
+                },
+                "spark": {
+                    "step": "15m",
+                    "ctx": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    "trend": [
+                        0, 0, 0, 0, 0.1, 0.4, 0.6, 0.9, 1.1, 1.4, 1.6, 1.9, 2, 2, 2, 2, 2.1, 2.4, 2.6, 2.9, 3, 3, 3, 3
+                    ],
+                    "breach": [
+                        null,
+                        null,
+                        null,
+                        null,
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "warn",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad",
+                        "bad"
+                    ],
+                    "target": 0
+                }
             }
         },
         {
@@ -611,6 +717,24 @@
                         "filed": 0,
                         "failures": 27
                     }
+                }
+            },
+            "driver": {
+                "state": "bad",
+                "window": "now",
+                "sla": {
+                    "target": {
+                        "code": "sla.passed_and_filed"
+                    },
+                    "red": {
+                        "code": "sla.filing_failed"
+                    }
+                },
+                "link": "/data-sources/stress",
+                "id": "data-sources.stress_run",
+                "value": {
+                    "word": "filed",
+                    "n": 0
                 }
             },
             "others": [],

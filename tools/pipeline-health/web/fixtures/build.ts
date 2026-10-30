@@ -96,7 +96,9 @@ function spark(ctx: (number | null)[], trend: (number | null)[], sla: Sla | null
 
 type M = Omit<Member, "state" | "window" | "sla" | "link"> & Partial<Pick<Member, "state" | "window" | "sla" | "link">>;
 function member(m: M): Member {
-    return { state: "ok", window: "now", sla: null, link: "/", ...m };
+    const out: Member = { state: "ok", window: "now", sla: null, link: "/", ...m };
+    // A 7-day member the API judged within its target says so (contract.ts, inTarget).
+    return out.state === "slow" && !out.breach && out.value !== null ? { ...out, inTarget: true } : out;
 }
 
 const SLA = {
@@ -751,6 +753,7 @@ const categories: CategoryStatus[] = [
         ),
         others: [ref(greenTime)],
         headline: greenTime,
+        driver: byId(masterMembers, "master.same_check"),
     },
     { id: "pull-requests", state: "ok", others: [], headline: ttm },
     {
@@ -766,6 +769,7 @@ const categories: CategoryStatus[] = [
         setBy: ref(byId(flakyMembers, "flaky.blocked"), f("short.blocked", { prs: 3 })),
         others: [ref(byId(flakyMembers, "flaky.no_issue"), f("short.no_issue", { tests: 2 }))],
         headline: flakeRate,
+        driver: byId(flakyMembers, "flaky.blocked"),
     },
     {
         id: "releases",
@@ -783,6 +787,7 @@ const categories: CategoryStatus[] = [
         id: "data-sources",
         state: "bad",
         setBy: ref(dataMembers[0], f("short.stress_filed", { filed: 0, failures: 27 })),
+        driver: dataMembers[0],
         others: [],
         headline: member({
             id: "data-sources.sources_not_ok",
@@ -1604,7 +1609,8 @@ const releaseSections: Section[] = [
                 cells: {
                     attempt: cell.time("10-24 18:15"),
                     candidate: { t: "sha", v: "a870943ef" },
-                    lanes: cell.fact("train.tested_failed", { lanes: ["audit", "t4"] }),
+                    lanes: cell.bad(cell.fact("train.tested_failed", { lanes: ["audit", "t4"] })),
+                    nightly: cell.fact("train.not_promoted"),
                 },
             },
             {

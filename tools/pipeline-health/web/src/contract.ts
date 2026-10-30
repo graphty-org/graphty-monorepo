@@ -253,6 +253,8 @@ export interface Member {
      * state, but the page shows it as the breach it is; absent from payloads built before it was.
      */
     breach?: "warn" | "bad";
+    /** A 7- or 28-day member within its target (no `breach`); absent from payloads built before it was. */
+    inTarget?: boolean;
     /** Where the member is acted on. */
     link: Route;
 }
@@ -278,6 +280,11 @@ export interface CategoryStatus {
     headline: Member;
     /** Its 7- and 28-day members past their red line: out of the state, shown under it. */
     slowPastRed?: MemberRef[];
+    /**
+     * The member that set the state, as a full row, when it is not the headline: the overview shows it under the
+     * block in the headline's place, so the number under a colored block is the one that colored it.
+     */
+    driver?: Member;
 }
 
 /** One episode of the last 24 h: a member that went past its target (section 2.4). */

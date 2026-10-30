@@ -184,6 +184,8 @@ class Builder {
             others: await Promise.all(c.others.map(ref)),
             headline: await this.member(head, range, HEADLINE_ID[head]),
             slowPastRed: await Promise.all(slowBad.map((m) => ref(m.id))),
+            // The member that set the color, as a full row, when it is not the headline: shown in its place.
+            ...(c.setBy && c.setBy !== head ? { driver: await this.member(c.setBy, range) } : {}),
         };
     }
 

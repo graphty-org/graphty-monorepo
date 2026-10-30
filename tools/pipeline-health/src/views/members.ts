@@ -45,6 +45,8 @@ interface Spec {
     /** A target or red threshold that is not a plain comparison (catalog codes in web/src/text.ts). */
     target?: Fact;
     red?: Fact;
+    /** A slow member whose value is read now (a cap share, an age), not over 7 days: its window says "now". */
+    now?: boolean;
 }
 
 const PCT = 100;
@@ -107,10 +109,10 @@ export const SPEC: Record<string, Spec> = {
     },
     "ci.bench_regressions": { id: "ci.bench_regressions", link: "/ci/benchmarks" },
     // Rolling screenshot capture (design/visual-testing/early-capture.md, plan step 6).
-    "slices.set_age": { id: "ci.screenshot_set_age", unit: "h", k: toH, link: "/ci" },
-    "slices.base_budget": { id: "ci.slice_base_budget", unit: "pct", k: PCT, link: "/ci" },
-    "slices.idle_budget": { id: "ci.slice_idle_budget", unit: "pct", k: PCT, link: "/ci" },
-    "slices.idle_hour_budget": { id: "ci.slice_idle_hour_budget", unit: "pct", k: PCT, link: "/ci" },
+    "slices.set_age": { id: "ci.screenshot_set_age", unit: "h", k: toH, link: "/ci", now: true },
+    "slices.base_budget": { id: "ci.slice_base_budget", unit: "pct", k: PCT, link: "/ci", now: true },
+    "slices.idle_budget": { id: "ci.slice_idle_budget", unit: "pct", k: PCT, link: "/ci", now: true },
+    "slices.idle_hour_budget": { id: "ci.slice_idle_hour_budget", unit: "pct", k: PCT, link: "/ci", now: true },
     "slices.contended": { id: "ci.slice_contended", unit: "min", link: "/ci/runners" },
     "slices.queue_wait": { id: "ci.slice_queue_wait", unit: "min", link: "/ci/runners" },
     "flaky.rate": { id: "flaky.flake_rate", unit: "per1000", link: "/flaky/hotspots" },
@@ -306,6 +308,11 @@ const cmp = ([op, n]: Threshold, spec: Spec): Cmp => ({
  * @param spec
  */
 export function slaOf(c: MemberConfig, spec: Spec): Sla | null {
+    // A money line red only on real spend: its target is the projection, its red line what is spent (section 7).
+    if (c.measure.type === "month" && c.measure.redOnSpent && c.fail) {
+        const usd = round(c.fail[1] * (spec.k ?? 1));
+        return { target: f("sla.projected_within", { usd }), red: f("sla.spent_over", { usd }) };
+    }
     const target = spec.target ?? (c.ok ? cmp(c.ok, spec) : undefined);
     if (!target) {
         return null;
@@ -497,9 +504,10 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
     const state = stateOf(s, c);
     const m = c.measure;
     const reason = reasonFact(s.reason, reads);
+    const slowWindow = spec.now ? "now" : (c.slowWindow ?? "7d");
     const out: Member = {
         id: id ?? spec.id,
-        window: c.window === "slow" ? (c.slowWindow ?? "7d") : MEMBER_WINDOW[c.window],
+        window: c.window === "slow" ? slowWindow : MEMBER_WINDOW[c.window],
         state,
         value: null,
         sla: slaOf(c, spec),
@@ -512,6 +520,8 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
     const breach = state === "slow" ? BREACH[s.state] : undefined;
     if (breach) {
         out.breach = breach;
+    } else if (state === "slow") {
+        out.inTarget = true;
     }
     if (GRAY.has(state) && state !== "info") {
         return out;

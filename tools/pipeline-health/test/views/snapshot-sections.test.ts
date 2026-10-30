@@ -118,6 +118,7 @@ describe("snapshot sections", () => {
                     ciFailed: false,
                     run: 1,
                     ok: false,
+                    nightly: "skipped",
                     lanes: { ci: "passed", t4: "failed", land: "skipped", publish: "skipped" },
                     jobs: {
                         t4: { job: "T4 GPU / Test", n: 1, s: 2340, redAt: at + HOUR },
@@ -189,11 +190,43 @@ describe("snapshot sections", () => {
         expect(
             trains.kind === "table" && trains.rows.map((x) => JSON.stringify(x.cells.lanes).match(/train\.\w+/)?.[0]),
         ).toEqual(["train.untested", "train.nothing_new", "train.tested_failed"]);
+        // A failed attempt is marked red, and says it did not move nightly.
+        const failed = trains.kind === "table" ? trains.rows[2].cells : undefined;
+        expect(failed?.lanes).toMatchObject({ t: "mark", state: "bad" });
+        expect(failed?.nightly).toEqual({ t: "fact", fact: { code: "train.not_promoted" } });
         const wf = await workflowsTable(r);
         expect(wf.kind === "table" && wf.rows.map((x) => [x.cells.workflow, !!x.past])).toEqual([
             [{ t: "name", v: "promote.yml" }, false],
             [{ t: "name", v: "release-watch.yml" }, true],
         ]);
+    });
+});
+
+describe("train attempts", () => {
+    it("say whether each tested attempt promoted nightly or was held", async () => {
+        const at = NOW - 5 * HOUR;
+        const passed = { sha: "b".repeat(40), tested: true, red: [], ciFailed: false, ok: true };
+        const r = await reads({
+            release: {
+                "1.1": { ...passed, at, created: at, run: 1, nightly: "passed" },
+                "2.1": {
+                    ...passed,
+                    sha: "c".repeat(40),
+                    at: at + HOUR,
+                    created: at + HOUR,
+                    run: 2,
+                    nightly: "skipped",
+                },
+            },
+        });
+        const trains = await trainsTable(r);
+        if (trains.kind !== "table") throw new Error(trains.kind);
+        expect(trains.rows.map((x) => x.cells.nightly)).toEqual([
+            { t: "mark", state: "warn", cell: { t: "fact", fact: { code: "train.held" } } },
+            { t: "fact", fact: { code: "train.promoted" } },
+        ]);
+        // A pass is plain: only failures and untested commits carry a mark.
+        expect(trains.rows.map((x) => x.cells.lanes.t)).toEqual(["fact", "fact"]);
     });
 });
 

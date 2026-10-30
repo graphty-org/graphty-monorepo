@@ -43,10 +43,10 @@ function fixtureName(v: View): string {
 const fixture = (name: string): Record<string, unknown> =>
     JSON.parse(readFileSync(new URL(`../../web/fixtures/${name}.json`, import.meta.url), "utf8"));
 
-/** Keys present whatever the state: setBy appears only when a category is not OK. */
+/** Keys present whatever the state: setBy and driver appear only when a category is not OK. */
 const keysOf = (o: object) =>
     Object.keys(o)
-        .filter((k) => k !== "setBy")
+        .filter((k) => k !== "setBy" && k !== "driver")
         .sort();
 
 const pages = (vs: View[]) =>
@@ -118,6 +118,10 @@ describe("views", () => {
         const master = (vs[0].body as StatusResponse).categories.find((c) => c.id === "master")!;
         expect(master.state).toBe("bad");
         expect(master.setBy).toMatchObject({ member: "master.red_now", state: "bad", value: { n: 20, unit: "min" } });
+        // The member that set the color is sent as a full row, so the overview shows its number, target and trend.
+        expect(master.headline.id).toBe("master.green_time");
+        expect(master.driver).toMatchObject({ id: "master.red_now", state: "bad", value: { n: 20, unit: "min" } });
+        expect(master.driver?.sla).toBeTruthy();
         expect(
             (vs[0].body as StatusResponse).episodes.some((e) => e.member === "master.red_now" && e.end === null),
         ).toBe(true);
@@ -314,6 +318,43 @@ describe("views", () => {
             breach: "bad",
         });
         expect(status.categories.find((c) => c.id === "master")!.slowPastRed).toEqual([]);
+    });
+
+    it("says a 7-day member within its target is, so its row reads OK rather than blank", async () => {
+        const store = new MemoryStore();
+        const ev = await evaluate(store, T0);
+        const su = ev.members.find((m) => m.id === "release.slots_unreviewed")!;
+        Object.assign(su, { state: "OK", value: 0.1, judged: false });
+        const gc = ev.members.find((m) => m.id === "release.green_clean")!;
+        Object.assign(gc, { state: "FAILING", value: 0.17, judged: false });
+        const page = pages(await buildViews(store, T0, ev)).find((p) => p.page === "releases" && p.range === "1h")!;
+        expect(page.members.find((m) => m.id === "releases.slots_unreviewed")).toMatchObject({
+            state: "slow",
+            inTarget: true,
+        });
+        expect(page.members.find((m) => m.id === "releases.green_clean")?.inTarget).toBeUndefined();
+    });
+
+    it("a money line's target is its projection and its red line what is spent, never one comparison", async () => {
+        const vs = await views(new MemoryStore());
+        const costs = pages(vs).find((p) => p.page === "costs")!;
+        const t4 = costs.members.find((m) => m.id === "costs.t4")!;
+        expect(t4.sla?.target).toMatchObject({ code: "sla.projected_within", params: { usd: expect.any(Number) } });
+        expect(t4.sla?.red).toMatchObject({ code: "sla.spent_over" });
+        // AWS is judged on what is spent, not a projection.
+        expect(costs.members.find((m) => m.id === "costs.aws")!.sla?.target).toMatchObject({ op: "<=" });
+    });
+
+    it("a rolling screenshot cap is read now, not over 7 days", async () => {
+        const store = new MemoryStore();
+        const ev = await evaluate(store, T0);
+        Object.assign(
+            ev.members.find((m) => m.id === "slices.idle_hour_budget")!,
+            { state: "OK", value: 0.5 },
+        );
+        const ci = pages(await buildViews(store, T0, ev)).find((p) => p.page === "ci" && p.range === "1h")!;
+        expect(ci.members.find((m) => m.id === "ci.slice_idle_hour_budget")?.window).toBe("now");
+        expect(ci.members.find((m) => m.id === "ci.runner_minutes")?.window).toBe("7d");
     });
 
     it("names the pull requests behind a PR count, and the chronic jobs with no issue that turn CI red", async () => {

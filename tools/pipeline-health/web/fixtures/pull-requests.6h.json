@@ -238,7 +238,8 @@
             "value": {
                 "n": 9,
                 "of": 112
-            }
+            },
+            "inTarget": true
         },
         {
             "state": "ok",

@@ -316,7 +316,8 @@
             "value": {
                 "n": 0,
                 "of": 41
-            }
+            },
+            "inTarget": true
         }
     ],
     "sections": [

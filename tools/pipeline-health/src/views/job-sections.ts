@@ -70,12 +70,14 @@ export async function nonGatingTable(reads: Reads): Promise<Section> {
         id: "non-gating",
         rows: rows.map(({ pattern, n, failed }) => {
             const rate: Cell = n ? { t: "num", n: pct((n - failed) / n), unit: "pct" } : none;
+            // Red when it fails half its runs, yellow from a quarter: a job allowed to fail still says how often.
+            const mark = !n ? undefined : failed * 2 >= n ? "bad" : failed * 4 >= n ? "warn" : undefined;
             return {
                 cells: {
                     job: name(pattern),
                     runs: n ? { t: "num", n } : none,
                     failed: n ? { t: "num", n: failed } : none,
-                    rate: n && failed * 2 >= n ? { t: "mark", state: "bad", cell: rate } : rate,
+                    rate: mark ? { t: "mark", state: mark, cell: rate } : rate,
                 },
                 ...(n ? {} : { past: true }),
             };

@@ -489,7 +489,8 @@
             "id": "ci.shards_over",
             "value": {
                 "n": 1
-            }
+            },
+            "inTarget": true
         },
         {
             "state": "slow",
@@ -513,7 +514,8 @@
                 "unit": "min"
             },
             "n": 146,
-            "minN": 10
+            "minN": 10,
+            "inTarget": true
         },
         {
             "state": "ok",
@@ -640,7 +642,8 @@
             "value": {
                 "n": 2.4,
                 "unit": "h"
-            }
+            },
+            "inTarget": true
         },
         {
             "state": "slow",
@@ -662,7 +665,8 @@
             "value": {
                 "n": 41,
                 "unit": "pct"
-            }
+            },
+            "inTarget": true
         },
         {
             "state": "slow",
@@ -684,7 +688,8 @@
             "value": {
                 "n": 63,
                 "unit": "pct"
-            }
+            },
+            "inTarget": true
         },
         {
             "state": "slow",
@@ -706,7 +711,8 @@
             "value": {
                 "n": 24,
                 "unit": "pct"
-            }
+            },
+            "inTarget": true
         },
         {
             "state": "slow",
@@ -728,7 +734,8 @@
             "value": {
                 "n": 5,
                 "unit": "min"
-            }
+            },
+            "inTarget": true
         },
         {
             "state": "slow",
@@ -750,7 +757,8 @@
             "value": {
                 "n": 0,
                 "unit": "min"
-            }
+            },
+            "inTarget": true
         }
     ],
     "sections": [

@@ -1364,3 +1364,41 @@ h2.top {
 .chart + .ticks {
     margin-right: 96px;
 }
+/* ---- the API cannot be reached: a retry button in the banner and the diagnostics under it ---- */
+.banner .retry {
+    margin: 0 6px;
+    padding: 1px 10px;
+    border: 1px solid #000;
+    border-radius: 3px;
+    background: #fff;
+    color: #000;
+    font: inherit;
+    cursor: pointer;
+}
+.banner a {
+    color: #000;
+    text-decoration: underline;
+}
+.diag {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 16px;
+    margin: 0;
+    font-size: 13px;
+}
+.diag dt {
+    color: var(--muted);
+}
+.diag dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+    .diag {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+    .diag dd {
+        margin-bottom: 8px;
+    }
+}

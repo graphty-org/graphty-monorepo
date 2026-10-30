@@ -3,13 +3,19 @@
  * every 60 s, and the banners for fixture data, stale data and an API that did not answer.
  *
  * Data source: `VITE_HEALTH_API_URL` at build time is the API base (https://...; default the live
- * API). When the URL has `?fixtures` (`?fixtures=gray`, `?fixtures=stale` pick a scenario), the page
- * reads web/fixtures/*.json instead and says so in a FIXTURE DATA banner.
+ * API). The dev server reads it through its own proxy at DEV_API_PATH (vite.config.ts), so a dev server on
+ * any host works without a CORS entry. When the URL has `?fixtures` (`?fixtures=gray`, `?fixtures=stale` pick
+ * a scenario), the page reads web/fixtures/*.json instead and says so in a FIXTURE DATA banner.
+ *
+ * When the API does not answer, the page says the pipeline's state is UNKNOWN, names the request and the
+ * error, and shows the last data this browser loaded for the view (kept in localStorage), with its age.
  */
 import "./style.css";
 
 import {
     CATEGORY_IDS,
+    DEV_API_PATH,
+    LIVE_API,
     apiPath,
     type CategoryId,
     type OverviewResponse,
@@ -22,8 +28,15 @@ import {
 import { type Here, nav, overviewView, PAGE_TITLE, pageView, setHere, stateWord, testView } from "./render";
 import { clock, esc, fmtDur, fmtTime } from "./text";
 
-const DEFAULT_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com";
-const API = ((import.meta.env.VITE_HEALTH_API_URL as string | undefined) || DEFAULT_API).replace(/\/$/, "");
+const API = import.meta.env.DEV
+    ? DEV_API_PATH
+    : ((import.meta.env.VITE_HEALTH_API_URL as string | undefined) || LIVE_API).replace(/\/$/, "");
+/** The API's base URL as the page requests it, and as the error panel describes it. */
+const API_URL = import.meta.env.DEV ? `${location.origin}${DEV_API_PATH}` : API;
+const API_SHOWN = import.meta.env.DEV ? `${API_URL} (the dev server's proxy to the API)` : API;
+/** What to check when the page cannot reach the API. */
+const RUNBOOK =
+    "https://github.com/graphty-org/graphty-monorepo/blob/master/tools/pipeline-health/README.md#when-the-page-cannot-reach-the-api";
 const search = new URLSearchParams(location.search);
 /**
  * The bundled fixtures exist only in the dev server and in a build made with VITE_HEALTH_FIXTURES=1, so the
@@ -50,9 +63,25 @@ async function get<T>(path: string, fixture: string): Promise<T> {
         if (!key) throw new Error(`no fixture for ${fixture}`);
         return (await FIXTURES[key]()) as T;
     }
-    const res = await fetch(`${API}${path}`, { headers: { accept: "application/json" } });
-    if (!res.ok) throw new Error(`${path} answered ${res.status}`);
+    let res: Response;
+    try {
+        res = await fetch(`${API}${path}`, { headers: { accept: "application/json" } });
+    } catch (e) {
+        throw new ApiError(path, e instanceof Error ? e.message : String(e), true);
+    }
+    if (!res.ok) throw new ApiError(path, `answered HTTP ${res.status}`, false);
     return (await res.json()) as T;
+}
+
+/** A request to the API that failed: which one, why, and whether no answer came back at all. */
+class ApiError extends Error {
+    constructor(
+        readonly path: string,
+        readonly why: string,
+        readonly network: boolean,
+    ) {
+        super(`${path}: ${why}`);
+    }
 }
 
 /** Records the data's time; in fixture mode the clock follows it, so ages read as the mockup's. */
@@ -85,6 +114,8 @@ function parse(hash: string): Here {
 // ---------------------------------------------------------------- loading
 
 interface Loaded {
+    /** The view's route (location.hash), so data is never drawn under another view. */
+    key: string;
     status: StatusResponse;
     html: string;
     generated: string;
@@ -103,7 +134,7 @@ async function load(h: Here): Promise<Loaded> {
             `overview.${h.range}`,
         );
         stamp(o.generated);
-        return { status: o, html: overviewView(o), generated: o.generated, title: "Pipeline health" };
+        return { key: "", status: o, html: overviewView(o), generated: o.generated, title: "Pipeline health" };
     }
     const statusP = get<StatusResponse>(apiPath({ kind: "status" }), "status");
     if (h.page === "test") {
@@ -115,7 +146,7 @@ async function load(h: Here): Promise<Loaded> {
             get<TestHistoryResponse>(apiPath({ kind: "test-history", file, test, range }), "test-history"),
         ]);
         stamp(hist.generated);
-        return { status, html: testView(hist), generated: hist.generated, title: hist.test ?? hist.file };
+        return { key: "", status, html: testView(hist), generated: hist.generated, title: hist.test ?? hist.file };
     }
     const page = h.page;
     const [status, p] = await Promise.all([
@@ -151,6 +182,7 @@ async function load(h: Here): Promise<Loaded> {
     const own = { ...status, categories: status.categories.map((c) => (c.id === page ? { ...c, state: p.state } : c)) };
     const cat = own.categories.find((c) => c.id === page);
     return {
+        key: "",
         status: own,
         html: pageView(p),
         generated: p.generated,
@@ -162,8 +194,75 @@ async function load(h: Here): Promise<Loaded> {
 
 const app = document.getElementById("app") as HTMLElement;
 let last: Loaded | null = null;
+/** When this browser last loaded a view from the API, this session. */
+let lastOk: number | null = null;
 
-function banners(error: string | null): string {
+const CACHE_PREFIX = "health:last:";
+/** Storage can be missing or refuse (private windows, full quota): the page works without it. */
+function cacheWrite(l: Loaded): void {
+    if (FIXTURE) return;
+    try {
+        localStorage.setItem(CACHE_PREFIX + l.key, JSON.stringify(l));
+    } catch {
+        // ponytail: no cache this time; the next good load tries again.
+    }
+}
+function cacheRead(key: string): Loaded | null {
+    if (FIXTURE) return null;
+    try {
+        const raw = localStorage.getItem(CACHE_PREFIX + key);
+        return raw ? (JSON.parse(raw) as Loaded) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** A failed load: the error, and what the status route said when asked on its own. */
+interface Failure {
+    error: ApiError | Error;
+    status: string;
+}
+
+function failureBanner(f: Failure): string {
+    const e = f.error;
+    const req = e instanceof ApiError ? `GET ${esc(API_URL)}${esc(e.path)}` : "loading the view";
+    const why =
+        e instanceof ApiError && e.network
+            ? ` failed with no answer (${esc(e.why)}). A browser reports a request blocked by CORS (this page's origin, ${esc(location.origin)}, is not one the API allows) the same way as a network failure or an API that is down.`
+            : ` failed: ${esc(e instanceof ApiError ? e.why : e.message)}.`;
+    const shown = last
+        ? ` Below is the data from ${fmtTime(last.generated)} UTC (${fmtDur((clock.now() - Date.parse(last.generated)) / 1000)} old) that this browser loaded last; every state in it may be out of date.`
+        : "";
+    return (
+        `<div class="banner stale" role="alert"><b>Cannot reach the health API.</b> ${req}${why}${shown} ` +
+        `<button type="button" class="retry" data-retry>Retry</button> <a href="${RUNBOOK}">What to check</a></div>`
+    );
+}
+
+/** With no data at all: the pipeline's state is unknown, and the facts to find out why. */
+function unknownPanel(f: Failure): string {
+    const e = f.error;
+    const row = (k: string, v: string) => `<dt>${k}</dt><dd>${v}</dd>`;
+    return (
+        `<header class="ph"><div class="phrow"><h1 tabindex="-1">Pipeline status: UNKNOWN</h1></div></header>` +
+        `<p class="pstate"><span class="sw none">UNKNOWN</span><span>This page cannot reach its data, so it says nothing about the pipeline: the pipeline may be healthy or not. The facts below say where the request failed.</span></p>` +
+        `<dl class="diag">` +
+        row("page origin", esc(location.origin)) +
+        row("health API", esc(API_SHOWN)) +
+        row("failed request", e instanceof ApiError ? esc(e.path) : "--") +
+        row("error", esc(e instanceof ApiError ? e.why : e.message)) +
+        row("/v1/status on its own", esc(f.status)) +
+        row(
+            "last good load in this browser",
+            lastOk
+                ? `${fmtTime(new Date(lastOk).toISOString())} UTC`
+                : "none this session, and none stored for this view",
+        ) +
+        `</dl>`
+    );
+}
+
+function banners(failure: Failure | null): string {
     const out: string[] = [];
     if (FIXTURE) {
         const scenario = SCENARIO ? " (scenario " + esc(SCENARIO) + ")" : "";
@@ -171,11 +270,8 @@ function banners(error: string | null): string {
             `<div class="banner fixture" role="note"><b>FIXTURE DATA</b> Sample numbers from web/fixtures${scenario}, not the live pipeline. Remove ?fixtures from the URL for live data.</div>`,
         );
     }
-    if (error)
-        out.push(
-            `<div class="banner stale" role="alert"><b>The health API did not answer</b> (${esc(error)}).${last ? ` Showing the data from ${fmtTime(last.generated)} UTC.` : ""}</div>`,
-        );
-    if (last) {
+    if (failure) out.push(failureBanner(failure));
+    if (last && !failure) {
         const age = clock.now() - Date.parse(last.generated);
         if (age > STALE_MS)
             out.push(
@@ -185,13 +281,14 @@ function banners(error: string | null): string {
     return out.join("");
 }
 
-function draw(error: string | null, fresh: boolean): void {
+function draw(failure: Failure | null, fresh: boolean): void {
     const open = new Set(
         [...app.querySelectorAll<HTMLDetailsElement>("details[data-key]")]
             .filter((d) => d.open)
             .map((d) => d.dataset.key),
     );
-    app.innerHTML = `<div class="app">${nav(last?.status ?? null, FIXTURE)}<main>${banners(error)}${last?.html ?? ""}</main></div>`;
+    const body = last?.html ?? (failure ? unknownPanel(failure) : "");
+    app.innerHTML = `<div class="app">${nav(last?.status ?? null, FIXTURE)}<main>${banners(failure)}${body}</main></div>`;
     for (const d of app.querySelectorAll<HTMLDetailsElement>("details[data-key]")) {
         if (open.has(d.dataset.key)) d.open = true;
         else if (fresh && d.dataset.key && /^tree\/0(\/0)?$/.test(d.dataset.key)) d.open = true;
@@ -208,9 +305,11 @@ async function show(navigated: boolean): Promise<void> {
     const mine = ++seq;
     setHere(current);
     try {
-        const loaded = await load(current);
+        const loaded = { ...(await load(current)), key: location.hash };
         if (mine !== seq) return;
         last = loaded;
+        lastOk = Date.now();
+        cacheWrite(loaded);
         const y = window.scrollY;
         draw(null, navigated || !drawn);
         drawn = true;
@@ -222,9 +321,25 @@ async function show(navigated: boolean): Promise<void> {
         } else window.scrollTo(0, y);
     } catch (e) {
         if (mine !== seq) return;
-        draw(e instanceof Error ? e.message : String(e), false);
+        const error = e instanceof Error ? e : new Error(String(e));
+        // Ask the status route on its own, so the reader can tell "nothing answers" from "this view fails".
+        const status =
+            error instanceof ApiError && error.path === apiPath({ kind: "status" })
+                ? `failed: ${error.why}`
+                : await get<StatusResponse>(apiPath({ kind: "status" }), "status").then(
+                      () => "answered",
+                      (s: unknown) => `failed: ${s instanceof ApiError ? s.why : String(s)}`,
+                  );
+        if (mine !== seq) return;
+        // Data from another view is never drawn under this one; this view's stored copy is, with its age.
+        if (last?.key !== location.hash) last = cacheRead(location.hash);
+        draw({ error, status }, false);
     }
 }
+
+app.addEventListener("click", (ev) => {
+    if ((ev.target as HTMLElement).closest("[data-retry]")) void show(false);
+});
 
 window.addEventListener("hashchange", () => {
     current = parse(location.hash);

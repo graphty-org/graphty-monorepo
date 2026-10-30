@@ -590,6 +590,15 @@ export interface RunResponse {
     jobs: { name: string; conclusion: string | null; created: Iso; started: Iso | null; completed: Iso | null }[];
 }
 
+/** The live health API, the page's data source unless VITE_HEALTH_API_URL names another. */
+export const LIVE_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com";
+
+/**
+ * The dev server's same-origin path to the API (vite.config.ts proxies it), so a dev server on any host
+ * reads the live data without that host being on the API's CORS list.
+ */
+export const DEV_API_PATH = "/health-api";
+
 /** The path of an API route, relative to the API base. */
 export function apiPath(
     route:

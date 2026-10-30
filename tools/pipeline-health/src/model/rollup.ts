@@ -6,16 +6,20 @@ import { addValue, emptyHistogram, mergeInto, quantile } from "./histogram.js";
 import {
     type Agg,
     type Bucket,
+    BUMP_BRANCH,
     CHILD,
     DIRTY_PK,
     dirtyKey,
     floorTo,
     HOUR,
     idxKey,
+    isOffMaster,
     KEEP_MS,
+    loadOf,
     PARENT,
     type RawKind,
     rollKey,
+    type RunItem,
     type RollupItem,
     skTime,
     type Step,
@@ -138,6 +142,50 @@ function contribute(out: Buckets, metric: string, c: Contribution | Contribution
     }
 }
 
+/** A run's stored record (its RUN#<id> index copies, any attempt: they share a branch and event), read once. */
+function runOf(store: Store, runId: number, nowMs: number, runs: Map<number, Promise<RunItem | undefined>>) {
+    let got = runs.get(runId);
+    if (!got) {
+        got = store
+            .query(`RUN#${runId}`, { from: "run#", to: "run#~" })
+            .then((rows) => rows.find((r) => isLive(r, nowMs)) as RunItem | undefined);
+        runs.set(runId, got);
+    }
+    return got;
+}
+
+/**
+ * An item with what its stored run says filled in where the item itself is silent (#5053), so a filter the collector
+ * added later holds for items stored before it, not only for new ones: a job's load (e07383582a) and offMaster
+ * (3796ced414), and a flaky CI test's bump (a4a249fc67). The run's branch and event decide, as they did when the
+ * collector stamped them.
+ * ponytail: a master job has no offMaster flag, so its run is read on every recompute of its bucket (one query per
+ * run per bucket); store offMaster: false on new jobs if those reads ever show.
+ */
+async function withRun(
+    store: Store,
+    item: Item,
+    nowMs: number,
+    runs: Map<number, Promise<RunItem | undefined>>,
+): Promise<Item> {
+    if (item.kind === "job" && (item.offMaster === undefined || item.load === undefined)) {
+        const run = await runOf(store, item.runId as number, nowMs, runs);
+        if (!run) return item;
+        return {
+            ...item,
+            load: item.load ?? loadOf(run.workflow, run.event, run.branch),
+            ...(item.offMaster === undefined && isOffMaster(run.branch) ? { offMaster: true } : {}),
+        };
+    }
+    if (item.kind === "test" && item.source === "ci" && item.outcome === "flaky" && item.bump === undefined) {
+        // A CI invocation id starts with its run id and run attempt (ingest.ts ownId).
+        const id = /^(\d+)\.\d+\./.exec(String(item.invocation))?.[1];
+        const run = id === undefined ? undefined : await runOf(store, Number(id), nowMs, runs);
+        return run && BUMP_BRANCH.test(run.branch) ? { ...item, bump: true } : item;
+    }
+    return item;
+}
+
 /**
  * One 5-minute bucket of every metric, from the raw items copied into it.
  * @param store
@@ -146,10 +194,9 @@ function contribute(out: Buckets, metric: string, c: Contribution | Contribution
  */
 export async function fromRaw(store: Store, start: number, nowMs: number): Promise<Buckets> {
     const out: Buckets = new Map();
-    for (const item of await store.query(`T#${skTime(start)}`)) {
-        if (!isLive(item, nowMs)) {
-            continue;
-        }
+    const runs = new Map<number, Promise<RunItem | undefined>>();
+    const live = (await store.query(`T#${skTime(start)}`)).filter((i) => isLive(i, nowMs));
+    for (const item of await Promise.all(live.map((i) => withRun(store, i, nowMs, runs)))) {
         const kind = item.kind as RawKind;
         const field = item.field as string;
         const at = item[field] as number;

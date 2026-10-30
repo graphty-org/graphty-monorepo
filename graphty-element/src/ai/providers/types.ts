@@ -83,6 +83,11 @@ export interface ProviderOptions {
     maxTokens?: number;
     /** Temperature for response generation (0-1) */
     temperature?: number;
+    /**
+     * The fetch the provider sends its HTTP requests with, for a proxy, a request log or a test's
+     * transport. Default: the global fetch.
+     */
+    fetch?: typeof globalThis.fetch;
 }
 
 /**

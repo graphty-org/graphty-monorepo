@@ -13,7 +13,7 @@ import {
     type JobHistory,
 } from "../../src/collector/jobs.js";
 import { releaseAttempt, type GhJob, type GhRun } from "../../src/collector/parse.js";
-import { DAY, HOUR, type JobItem } from "../../src/model/items.js";
+import { DAY, HOUR, type JobItem, type RawItem, type RunItem } from "../../src/model/items.js";
 import { jobFamily } from "../../src/model/metrics.js";
 import { putRaw, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
@@ -105,13 +105,21 @@ describe("chronically failing jobs", () => {
             },
         ]);
         expect(obs).toEqual({ "ci.chronic_jobs": 1, "ci.chronic_no_issue": 1 });
-        expect(asked).toEqual([`repo:${REPO} is:issue is:open "Performance Benchmarks"`]);
+        expect(asked).toEqual([
+            `repo:${REPO} is:issue is:open label:bug -label:ci-budget "Performance Benchmarks" in:title`,
+        ]);
     });
 
     it("names the open issue that names the job, and then it no longer counts as unfiled", async () => {
         const store = await stored(perfJobs());
         const { gh } = searchGitHub([
             { number: 3000, title: "Benchmarks: a faster PageRank", body: "" },
+            // A mention in a body is not ownership (#3447 named "All Checks Pass" only in its body).
+            {
+                number: 3447,
+                title: "Check step 5 over the first 20 merged pull requests",
+                body: "Performance Benchmarks",
+            },
             {
                 number: 3413,
                 title: "ci: the Performance Benchmarks job has failed on every release train since 2026-10-21",
@@ -143,6 +151,72 @@ describe("chronically failing jobs", () => {
         const store = await stored([...pr, ...cancelled, ...sometimes]);
         const { list } = await jobMembers(store, searchGitHub([]).gh, REPO, NOW);
         expect(list).toEqual([]);
+    });
+
+    it("leaves out runs on other branches, whose failures may be the branch's own", async () => {
+        // Test (graphty-element-lifecycle) on 2026-10-28: four ci.yml dispatches on the probe branches
+        // ci/4237-probe-1 and ci/4237-probe-2 failed it, while every master run passed; the table called it chronic.
+        const probes = PERF.slice(0, 6).map(([run, end]) =>
+            jobItem(run, "Test (graphty-element-lifecycle)", end, "failure", {
+                workflow: "ci.yml",
+                load: "other",
+                offMaster: true,
+            }),
+        );
+        const master = PERF.slice(6).map(([run, end]) =>
+            jobItem(run, "Test (graphty-element-lifecycle)", end, "success", { workflow: "ci.yml", load: "other" }),
+        );
+        const store = await stored([...probes, ...master]);
+        const { list } = await jobMembers(store, searchGitHub([]).gh, REPO, NOW);
+        expect(list).toEqual([]);
+    });
+
+    it("leaves out a run on another branch whose jobs were stored before they carried offMaster (#5053)", async () => {
+        // The four ci.yml dispatches on the probe branches of #4237 on 2026-10-28, stored before 3796ced414 stamped
+        // offMaster on jobs: Story tests (graphty-element) and Test (graphty-element-lifecycle) failed in each, and
+        // the table still listed both as chronic on 2026-10-30, though every master run since had passed them.
+        const now = Date.parse("2026-10-30T12:00:00Z");
+        const probes: [number, string, string][] = [
+            [40716130272, "ci/4237-probe-1", "2026-10-28T16:10:00Z"],
+            [40728357923, "ci/4237-probe-2", "2026-10-28T17:20:00Z"],
+            [40733744826, "ci/4237-probe-2", "2026-10-28T18:00:00Z"],
+            [40742555405, "ci/4237-probe-2", "2026-10-28T18:53:00Z"],
+        ];
+        // Two earlier dispatches of ci.yml on master that passed both jobs (the issue's "last pass 2026-10-27").
+        const masters: [number, string, string][] = [
+            [40500000001, "master", "2026-10-27T13:59:00Z"],
+            [40500000002, "master", "2026-10-27T15:07:00Z"],
+        ];
+        const items = [...probes, ...masters].flatMap(([runId, branch, end]): RawItem[] => {
+            const conclusion = branch === "master" ? "success" : "failure";
+            const at = Date.parse(end);
+            const run: RunItem = {
+                kind: "run",
+                id: `${REPO}/${runId}`,
+                attempt: 1,
+                repo: REPO,
+                runId,
+                workflow: "ci.yml",
+                event: "workflow_dispatch",
+                branch,
+                sha: "ab425a0699",
+                status: "completed",
+                conclusion,
+                createdAt: at - HOUR,
+                completedAt: at,
+            };
+            const jobs = ["Story tests (graphty-element)", "Test (graphty-element-lifecycle)"].map((name) =>
+                // As toJobItem stored it then: a load, and no offMaster.
+                jobItem(runId, name, end, conclusion, { workflow: "ci.yml", load: "other" }),
+            );
+            return [run, ...jobs];
+        });
+        const store = new MemoryStore();
+        await putRaw(store, items, now);
+        await recompute(store, now);
+        const { list, obs } = await jobMembers(store, searchGitHub([]).gh, REPO, now);
+        expect(list).toEqual([]);
+        expect(obs).toEqual({ "ci.chronic_jobs": 0, "ci.chronic_no_issue": 0 });
     });
 
     it("stops judging a ci.yml job once ci.yml no longer defines it, and nothing else", async () => {
@@ -281,7 +355,8 @@ describe("non-gating jobs", () => {
     it("reads ci.yml's job-level continue-on-error, not a step's", () => {
         const jobs = nonGatingJobs(ci);
         expect(jobs).toContain("Performance Benchmarks");
-        expect(jobs).toContain("Story tests (${{ matrix.name || matrix.project }})");
+        // gating since #4613 (the screenshot gate blocks again)
+        expect(jobs).not.toContain("Story tests (${{ matrix.name || matrix.project }})");
         expect(jobs).not.toContain("Build");
         expect(jobs).not.toContain("Lint");
     });

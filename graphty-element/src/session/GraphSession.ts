@@ -625,6 +625,12 @@ class Session implements ElementSession {
             });
             beside?.(change);
         };
+        this.dispatcher.events.caughtUp = (change) => {
+            publish(this.watchers, "project:derived", {
+                slices: change.slices as readonly ProjectSlice[],
+                cause: change.cause,
+            });
+        };
         // A command that replaces the project is announced before it runs (autosave keeps the
         // work it replaces); chained, because a test may spy here too.
         const { dispatched } = this.dispatcher.events;
@@ -1439,19 +1445,27 @@ function layoutOf(
             await dispatch({ op: "view.dimension", dimension });
         },
         optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
-            const ignored = (dimension ?? choice().dimension) === "2d" && IGNORED_IN_2D_OPTIONS.has(`${id}.${option}`);
+            const drawn =
+                (dimension ?? choice().dimension) === "2d" ? IGNORED_IN_2D_OPTIONS.get(`${id}.${option}`) : undefined;
+            const params: Record<string, string> = { setting: option };
+            if (drawn !== undefined) {
+                params.drawn = drawn;
+            }
             return Object.freeze({
-                inEffect: !ignored,
-                code: ignored ? "setting.notIn2d" : "setting.inEffect",
-                params: Object.freeze({ setting: option }),
+                inEffect: drawn === undefined,
+                code: drawn === undefined ? "setting.inEffect" : "setting.notIn2d",
+                params: Object.freeze(params),
             });
         },
         locationColumns: locate,
     });
 }
 
-/** The layout options the 2D view ignores, as `<layout>.<option>`: it always draws the location map flat. */
-const IGNORED_IN_2D_OPTIONS: ReadonlySet<string> = new Set(["location-map.surface"]);
+/**
+ * The layout options the 2D view ignores, as `<layout>.<option>`, with the value it draws instead:
+ * it always draws the location map's 2D map.
+ */
+const IGNORED_IN_2D_OPTIONS: ReadonlyMap<string, string> = new Map([["location-map.mapDimension", "2d"]]);
 
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;
@@ -2846,6 +2860,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     /** The timeline's hooks, built after the runs it re-runs; read through calls until then. */
     let timeline: TimeInternals | null = null;
+    /** Told when the reader changes the selection by hand: the select conditions switch off. */
+    let onHandSelection: (() => void) | null = null;
     const visibility = createVisibilityApi({
         snapshot,
         instants: (path: Path) => timeline?.instants(path) ?? null,
@@ -2879,6 +2895,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintGhosts();
         },
         onMaskVersion: advanceTick,
+        selection: {
+            current: () => ({
+                nodes: requireSelection(selection).nodeMembers().ids(),
+                edges: requireSelection(selection).edgeMembers().ids(),
+            }),
+            replace: (ids, cause) => {
+                requireSelection(selection).applyNow(
+                    { nodes: [...ids.nodes], edges: [...ids.edges] },
+                    "replace",
+                    cause,
+                );
+            },
+            onHandChange: (listener) => {
+                onHandSelection = listener;
+            },
+        },
     });
 
     const defaultScope: Scope = runsOptions.defaultScope ?? "visible";
@@ -3244,6 +3276,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, "selection:changed", delta);
             // A hover layer that falls back to the selection follows it too.
             repaintHover();
+            if (delta.cause === "user") {
+                onHandSelection?.();
+            }
         },
         onHover: (before, after) => {
             const nodes = [before, after].flatMap((id) => {

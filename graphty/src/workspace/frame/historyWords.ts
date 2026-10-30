@@ -12,7 +12,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
-import { stepChange } from "../data-place/filterSteps";
+import { filterChange } from "../data-place/filterCards";
 import { findTreeRow } from "../graph-place/rows";
 import { count } from "../inspector/words";
 import { runName } from "../runWords";
@@ -114,6 +114,18 @@ function settingsWords(params: Params): string {
     return background ? "changing the background" : "changing settings";
 }
 
+/**
+ * A filter condition by its effect: "a select condition", "a hide condition" or "a filter condition".
+ * @param params - the params, whose `effect` is the condition's effect.
+ * @returns its words.
+ */
+function conditionName(params: Params): string {
+    if (params.effect === "select") {
+        return "a select condition";
+    }
+    return params.effect === "exclude" ? "a hide condition" : "a filter condition";
+}
+
 /** Each code's words, read from its params. Every code the element documents has one. */
 const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession) => string>> = {
     "algo.run": (p, s) => `running ${algorithmName(s, p.algorithm)}`,
@@ -192,6 +204,11 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "visibility.step-on": () => "turning on a filter step",
     "visibility.step-off": () => "turning off a filter step",
     "visibility.step-remove": () => "deleting a filter step",
+    "visibility.condition-add": (p) => `adding ${conditionName(p)}`,
+    "visibility.condition-edit": (p) => `editing ${conditionName(p)}`,
+    "visibility.condition-on": (p) => `turning on ${conditionName(p)}`,
+    "visibility.condition-off": (p) => `turning off ${conditionName(p)}`,
+    "visibility.condition-remove": (p) => `deleting ${conditionName(p)}`,
     "visibility.steps": () => "changing the filter steps",
     "visibility.playback": () => "changing how time plays",
     "time.field": () => "setting the time field",
@@ -285,7 +302,7 @@ function historyWords(session: GraphSession, step: Step): string {
     }
     // A code the element adds in a minor release has no words yet: name it generically.
     const words = WORDS[fact.code] as (typeof WORDS)[HistoryCode] | undefined;
-    return stepChange(session, fact) ?? words?.(fact.params, session) ?? "the last change";
+    return filterChange(session, fact) ?? words?.(fact.params, session) ?? "the last change";
 }
 
 /**
@@ -333,11 +350,11 @@ export function historyTip(session: GraphSession | null, undo: boolean): string 
 export async function undoOrRedo(session: GraphSession, undo: boolean): Promise<string | null> {
     const next = nextStep(session, undo);
     const before = next === null ? null : historyWords(session, next);
-    const filterStep = next === null ? null : stepChange(session, next.fact);
+    const filterStep = next === null ? null : filterChange(session, next.fact);
     await (undo ? session.undo() : session.redo());
     if (next === null) {
         return null;
     }
-    const words = filterStep ?? stepChange(session, next.fact) ?? before ?? "the last change";
+    const words = filterStep ?? filterChange(session, next.fact) ?? before ?? "the last change";
     return `${undo ? "Undid" : "Redid"} ${words}.`;
 }

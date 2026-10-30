@@ -360,6 +360,19 @@ describe("stopping a run", () => {
         const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
         return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
     };
+    // Whether a process is gone or on its way out. The pipe ends when the process closes its files in the kernel's
+    // exit path, which is BEFORE it becomes a zombie: in between, /proc shows it running (state R), with
+    // PF_EXITING (0x4) set in its flags since the start of that path. So "exiting" is the flag, not the state.
+    const dying = (pid) => {
+        let stat;
+        try {
+            stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+        } catch {
+            return true; // gone, and reaped
+        }
+        const [state, , , , , , flags] = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+        return state === "Z" || state === "X" || (Number(flags) & 0x4) !== 0;
+    };
 
     it("stops a live run's whole process group, records it stopped, and start resumes it", async () => {
         const { leader, gate, closed } = await liveRun();
@@ -373,11 +386,8 @@ describe("stopping a run", () => {
             line,
             new RegExp(`run pid ${leader.pid} at gate .*stopped \\(SIGTERM to process group ${leader.pid}\\)`),
         );
-        await closed; // the run and its gate are both gone: nobody holds the pipe any more
-        assert.equal(
-            existsSync(`/proc/${gate}/stat`) && !/\) Z /.test(readFileSync(`/proc/${gate}/stat`, "utf8")),
-            false,
-        );
+        await closed; // the run and its gate are both exiting: nobody holds the pipe any more
+        assert.equal(dying(gate), true, "the gate got the SIGTERM and is exiting or gone");
         const s = readState(ctx);
         assert.equal(s.run, null);
         assert.deepEqual([s.stopped.pid, s.stopped.step, s.stopped.commit], [leader.pid, "gate", tip]);

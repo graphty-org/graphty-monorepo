@@ -296,7 +296,6 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
         ctx.release(grid);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 43 s on CI's lavapipe, 28 s on lavapipe on the dev box under load, 20 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("the unit-weight route (PD-22): on an unweighted snapshot sssp(s, source) with no options (the element's call) is the BFS -- dist the depths as f32, predArc a tight arc one depth down, reachedCount the visited count; cutoff Infinity is the same, 2.5 reaches depth <= 2, -1 the source alone, NaN is refused; an all-ones override on a weighted snapshot takes the same route", async (t) => {
         const ctx = await context(t);
         for (const [name, edges, sources] of [
@@ -334,7 +333,7 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
             "all-ones override: dist vs the depths",
         );
         ctx.release(weighted);
-    }, 300_000);
+    });
 
     it("weights overrides (PD-22): an F64 vector differing from the column on the weighted grid; an integer U32 vector on the unweighted path and an F32 one on the unweighted grid, bitwise the f32 oracle's on that vector and NOT the depths (the option is never dropped when the snapshot's own flags say unit weights); a short vector is E_INVALID_ARGUMENT { argument: 'weights' }", async (t) => {
         const ctx = await context(t);

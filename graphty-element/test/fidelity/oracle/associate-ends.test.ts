@@ -3,7 +3,8 @@
  * node's box but on the outline of a small node drawn over it belongs to the small node (cys-affinity-purification);
  * and a shape inside a node at the end of a line of the node's own drawing (a chart's slice) is no arrowhead; but an
  * arrowhead lying over a flat node it does not end at, small beside that node, is its line's (json-vis-siblings: 31
- * of vis-network's 284 arrowheads, each over a neighbour's flat box, were read as free shapes).
+ * of vis-network's 284 arrowheads, each over a neighbour's flat box, were read as free shapes), and at a crowded node it
+ * is the line's it lies along, not the line whose end its tip touches first (#4272).
  */
 import { assert, describe, it } from "vitest";
 
@@ -398,5 +399,46 @@ describe("edge ends at overlapping nodes", () => {
         // a shape half a round node's size in its middle is still that node's drawing
         const inRound = shape(disc(100, 200, 6));
         assert.isNull(arrowheadEdge(inRound, [line], [node("s", 100, 200, 20, 20), flat("p", 300, 200)], true));
+    });
+
+    it("gives each arrowhead at a crowded node to the line it lies along, not the line whose end its tip is nearest", () => {
+        // json-vis-siblings' Mervin Maniago: two lines run up into a flat 28 x 7 box, leaving it under a pixel apart; both
+        // heads went to the line whose end lay nearest their tips, leaving the other line headless
+        const nodes = [node("j", 247, 315), node("k", 281.5, 270.7), node("m", 300, 200, 28, 7)];
+        const lineTo = (id: string, from: Pt): PEdge => ({
+            ...edge(id, id.slice(0, 1), "m"),
+            points: [from, [300, 200]],
+        });
+        const lines = [lineTo("j->m#g0", [247, 315]), lineTo("k->m#g0", [281.5, 270.7])];
+        /** A 5 x 3 head on a line from a point to the box's middle, its tip where the line leaves the box. */
+        const headOn = (from: Pt): Prim => {
+            const len = Math.hypot(300 - from[0], 200 - from[1]);
+            const [ux, uy] = [(300 - from[0]) / len, (200 - from[1]) / len];
+            const t = (203.5 - from[1]) / uy;
+            const tip: Pt = [from[0] + ux * t, 203.5];
+            const back: Pt = [tip[0] - 5 * ux, tip[1] - 5 * uy];
+            const points: Pt[] = [
+                tip,
+                [back[0] - 1.5 * uy, back[1] + 1.5 * ux],
+                [back[0] + 1.5 * uy, back[1] - 1.5 * ux],
+                tip,
+            ];
+            return {
+                index: 9,
+                tag: "path",
+                kind: "shape",
+                box: boxOfPoints(points),
+                points,
+                closed: true,
+                corners: 0,
+                fill: { color: "#2b7ce9", opacity: 1, gradient: null },
+                stroke: null,
+                text: null,
+                markers: { start: false, end: false },
+                hint: null,
+            };
+        };
+        assert.strictEqual(arrowheadEdge(headOn([247, 315]), lines, nodes, true)?.e.id, "j->m#g0");
+        assert.strictEqual(arrowheadEdge(headOn([281.5, 270.7]), lines, nodes, true)?.e.id, "k->m#g0");
     });
 });

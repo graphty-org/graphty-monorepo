@@ -249,6 +249,18 @@ describe("a background shader", () => {
         assert.isTrue(leads(await pixelAt(element, { x: 6, y: 6 }), 1), "the color shows");
     });
 
+    it("is on the canvas once the stable frame resolves (issue #3536)", async () => {
+        const element = await mounted([{ id: "a", x: 4, y: 0 }], []);
+        element.background = { backgroundType: "color", color: "#000000", shader: { id: "e6/sky" } };
+        await element.graph.waitForStableFrame();
+        // Read the frame on screen now, with no frame drawn after the wait: the layer that shows
+        // the shader compiles after the shader does, and the picture is not final until it drew.
+        const { engine } = element.graph;
+        const read = (await engine.readPixels(6, engine.getRenderHeight() - 7, 1, 1)) as unknown as Uint8Array;
+        const pixel = [read[0], read[1], read[2], read[3]];
+        assert.isTrue(leads(pixel, 2), `the stable frame shows the shader's blue, not ${pixel.join(",")}`);
+    });
+
     it("is drawn again only when it moves or the camera does", async () => {
         const element = await mounted([{ id: "a", x: 0, y: 0 }], []);
         element.background = { backgroundType: "color", shader: { id: "e6/drift", params: { drift: 0 } } };

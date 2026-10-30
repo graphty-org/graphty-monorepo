@@ -158,6 +158,36 @@ describe("Graphviz layouts in the element", () => {
         assert.isAbove(off / length, 0.05, "it bows off the line between its nodes, round b");
     });
 
+    it("draws a dashed edge along the route dot laid it too, its dashes round b (issue #3102)", async () => {
+        await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await graph.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "a", dst: "c" },
+        ]);
+        await graph.getSession().styles.add({
+            name: "dashed",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.style": "dash" },
+        });
+        await graph.setLayout("graphviz-dot");
+        await settled();
+        await graph.waitForStableFrame();
+
+        const edge = [...graph.getDataManager().edges.values()].find((e) => e.srcId === "a" && e.dstId === "c");
+        const dashes = edge?.drawnPattern ?? [];
+        assert.isAbove(dashes.length, 2, "the edge is drawn as dashes");
+        const [a, c] = [at("a"), at("c")];
+        const length = Math.hypot(c.x - a.x, c.y - a.y);
+        const off = Math.max(
+            ...dashes.map(
+                ({ position: p }) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length,
+            ),
+        );
+        assert.isAbove(off / length, 0.05, "its dashes bow off the line between its nodes, round b");
+    });
+
     it("draws a DOT file loaded with layout recommended with the engine the file names", async () => {
         const session = graph.getSession();
         await session.data.import(
@@ -321,7 +351,8 @@ describe("Graphviz layouts in the element", () => {
         assert.lengthOf(nodes, 2);
         // The file's 2 x 0.5 inches, drawn about one point (1/72 inch) smaller.
         for (const line of nodes) {
-            const box = /shape=box, width=([\d.]+), height=([\d.]+)/.exec(line);
+            // as Graphviz reads the file (the recommendation sizes a DOT file's nodes as Graphviz does), or drawn
+            const box = /shape="?box"?, (?:fixedsize="false", )?width="?([\d.]+)"?, height="?([\d.]+)"?/.exec(line);
             assert.isNotNull(box, `a box, not the default circle: ${line}`);
             assert.closeTo(Number(box?.[1]), 2, 0.02, line);
             assert.closeTo(Number(box?.[2]), 0.5, 0.02, line);
@@ -429,9 +460,30 @@ describe("Graphviz layouts in the element", () => {
         );
     });
 
+    it("draws a DOT file's edge label where dot put it, beside the line, not on its middle", async () => {
+        // dot ranks an edge label as a node of its own and draws it to the right of the edge
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: 'digraph { a -> b [label="a long edge label"] }' } },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+        await graph.waitForStableFrame();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const [a, b] = [at("a"), at("b")];
+        const label = [...graph.getDataManager().edges.values()][0]?.label?.labelMesh?.position;
+        assert.isDefined(label, "the edge label is drawn");
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+        const off = ((label?.x ?? 0) - a.x) * (b.y - a.y) - ((label?.y ?? 0) - a.y) * (b.x - a.x);
+        // y grows upward: a negative turn from a -> b is to its right
+        assert.isBelow(off / length / length, -0.1, "right of the line going from a to b");
+    });
+
     it('lays a DOT file out with lengths "file" at a point to the scene unit, 72 to the inch', async () => {
         // The file's lengths are kept as points, so Graphviz's half-inch ranksep is 36 scene units:
-        // the boxes' centres are one box height (as drawn) plus 36 apart.
+        // the boxes' centres are the file's half-inch box (Graphviz sizes the nodes as it does the
+        // file's own) plus 36 apart, 72 as Graphviz draws them.
         const session = graph.getSession();
         await session.data.import(
             { type: "dot", config: { data: "digraph { node [shape=box, width=2, height=0.5]; a -> b }" } },
@@ -441,9 +493,8 @@ describe("Graphviz layouts in the element", () => {
 
         assert.strictEqual(session.layout.id, "graphviz-dot");
         assert.strictEqual(session.layout.options.scale, 72);
-        const height = 2 * (graph.getNode("a")?.drawnHalfExtents.y ?? Number.NaN);
         const step = Math.hypot(at("a").x - at("b").x, at("a").y - at("b").y);
-        assert.closeTo(step - height, 36, 1, `a box ${String(height)} tall, its centres ${String(step)} apart`);
+        assert.closeTo(step, 72, 1, `its centres ${String(step)} apart`);
     });
     // twopi spaces its rings, and patchwork sizes its cells, without reading a node's width: both
     // must be told the drawn size, or nodes 1.5 units wide land 1 unit apart and draw as one blob.

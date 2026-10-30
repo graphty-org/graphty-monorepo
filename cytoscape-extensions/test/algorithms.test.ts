@@ -685,6 +685,25 @@ describe("link prediction", () => {
         expect(e.graphtyEvaluateAdamicAdar(held).auc).toBe(1);
         expect(e.graphtyCompareAdamicAdarWithCommonNeighbors(held).commonNeighbors.auc).toBe(1);
     });
+
+    it("predicts every ordered pair of a directed graph, whatever the node order (#961)", () => {
+        // Nodes a, b, c added in that order, arcs c -> b and b -> a: c reaches a through b.
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                ...["a", "b", "c"].map((id) => ({ data: { id } })),
+                { data: { id: "cb", source: "c", target: "b" } },
+                { data: { id: "ba", source: "b", target: "a" } },
+            ],
+        });
+        const e = cy.elements();
+        const pairs = (r: { source: { id(): string }; target: { id(): string } }[]): string[] =>
+            r.map((p) => `${p.source.id()}->${p.target.id()}`);
+        expect(pairs(e.graphtyCommonNeighborsPrediction({ directed: true }))).toEqual(["c->a"]);
+        expect(pairs(e.graphtyAdamicAdarPrediction({ directed: true }))).toEqual(["c->a"]);
+        expect(e.graphtyCommonNeighborsScore({ directed: true, source: "#c", target: "#a" })).toBe(1);
+        expect(pairs(e.graphtyTopCandidatesForNode({ directed: true, root: "#c" }))).toEqual(["c->a"]);
+    });
 });
 
 describe("errors", () => {

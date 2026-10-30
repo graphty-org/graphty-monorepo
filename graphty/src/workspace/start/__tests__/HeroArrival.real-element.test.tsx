@@ -18,9 +18,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { HeroTurns } from "../heroTurns";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 type ElementUnderTest = HTMLElementTagNameMap["graphty-element"];
 
 /**
@@ -61,16 +58,13 @@ describe("the start page's graph, starting still", () => {
         );
         try {
             // As soon as the element has placed every node of the sample.
-            const hero = await waitFor(
-                () => {
-                    const found = document.querySelector<ElementUnderTest>("graphty-element[data-start-page]");
-                    const positions = found?.session?.positions;
-                    assert.isAbove(positions?.count ?? 0, 0);
-                    assert.equal(positions?.placedCount, positions?.count);
-                    return found as ElementUnderTest;
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            const hero = await waitFor(() => {
+                const found = document.querySelector<ElementUnderTest>("graphty-element[data-start-page]");
+                const positions = found?.session?.positions;
+                assert.isAbove(positions?.count ?? 0, 0);
+                assert.equal(positions?.placedCount, positions?.count);
+                return found as ElementUnderTest;
+            });
             const first = positionsOf(hero);
             await hero.waitForStableFrame();
             const final = positionsOf(hero);

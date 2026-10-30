@@ -222,7 +222,8 @@ async function setupShowcase(): Promise<void> {
         return;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // The element is upgraded, so its graph exists.
+    await customElements.whenDefined("graphty-element");
     const graph = element.graph as VoiceGraph & GraphtyElement["graph"];
 
     // State

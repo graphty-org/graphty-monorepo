@@ -11,6 +11,10 @@ on:
                 type: string
                 required: true
 
+env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
 jobs:
     # Merge blob reports from graphty-element shards
     merge-reports:

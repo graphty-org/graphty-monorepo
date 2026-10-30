@@ -9,7 +9,7 @@ import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { addNodeLayer, mountElement, removeElement, renderPanel, section, TIMEOUT_MS } from "./shaderHarness";
+import { addNodeLayer, mountElement, removeElement, renderPanel, section } from "./shaderHarness";
 
 afterEach(removeElement);
 
@@ -28,13 +28,10 @@ describe("Wireframe in Shape", () => {
 
         await userEvent.click(within(section("node", "shape")).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Wireframe" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(set()["node.wireframe"], true);
-                assert.strictEqual(set()["node.meshDetail"], "low");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(set()["node.wireframe"], true);
+            assert.strictEqual(set()["node.meshDetail"], "low");
+        });
         assert.strictEqual(session.history.position, steps + 1, "one step");
         assert.isNotNull(section("node", "shape").querySelector('.ws-row[data-line="node.wireframe"]'));
 

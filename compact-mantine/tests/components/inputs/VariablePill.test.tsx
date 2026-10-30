@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { VariablePill } from "../../../src/components/inputs/VariablePill";
-import { TOOLTIP_WAIT } from "../../waits";
 
 function renderPill(ui: React.ReactElement): ReturnType<typeof render> {
     return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
@@ -67,7 +66,7 @@ describe("VariablePill", () => {
         // The theme opens tooltips after a delay and mounts them hidden first.
         await waitFor(() => {
             expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("Edge betweenness");
-        }, TOOLTIP_WAIT);
+        });
     });
 
     it("takes the tooltip's words from the caller", async () => {
@@ -77,7 +76,7 @@ describe("VariablePill", () => {
             const tip = screen.getByRole("tooltip", { hidden: true });
             expect(tip).toHaveTextContent("Layer Each layer's own value");
             expect(tip.textContent).not.toContain("<");
-        }, TOOLTIP_WAIT);
+        });
     });
 
     it("the property chip carries its kind", () => {

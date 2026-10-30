@@ -1,7 +1,7 @@
 /**
  * A yes-or-no column on the REAL graphty-element: graphty-element types it `boolean`, and the app
  * writes it one way everywhere -- Yes and No in the node's values, the selection's summary and
- * Find's value rows -- marks it with the yes-or-no icon in Data > Attributes, and a filter step on
+ * Find's value rows -- marks it with the yes-or-no icon in Data > Attributes, and a filter card on
  * it offers Yes and No and keeps the nodes that hold Yes.
  */
 
@@ -18,9 +18,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** Five people, three of them trained: a GraphML file whose `trained` column is typed boolean. */
 const TRAINED_GRAPHML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -48,13 +45,10 @@ async function openWithGraph(place: "data" | "graph"): Promise<{ session: GraphS
     const store = createWorkspaceStore({ project: { name: "Volunteers", id: 1 }, place });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -67,15 +61,16 @@ describe("A yes-or-no column", () => {
         await page.viewport(1366, 768);
     });
 
-    it("is a yes-or-no column, and a filter step on it from the table header keeps the Yes nodes", async () => {
+    it("is a yes-or-no column, and a filter card on it from the table header keeps the Yes nodes", async () => {
         const { session } = await openWithGraph("data");
         assert.equal(session.data.attributes().find((a) => a.path === "data.trained")?.type, "boolean");
 
         // Filter to... from the column's header in the table (the Data place lists no attributes).
         await columnVerb("node", "trained", "Filter to...");
-        // The step is the yes-or-no condition card: Yes or No, starting at Yes, then whether it has one.
+        // A new yes-or-no card shows no choice and no count, and writes nothing, until one is picked.
         const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained: how to match" });
-        assert.equal(is.value, "Yes");
+        assert.equal(is.value, "");
+        assert.lengthOf(session.visibility.conditions, 0);
         await userEvent.click(is);
         const listbox = await screen.findByRole("listbox");
         assert.deepEqual(
@@ -85,12 +80,11 @@ describe("A yes-or-no column", () => {
             ["Yes", "No", "Has a value", "Has no value"],
         );
         await userEvent.click(within(listbox).getByRole("option", { name: "Yes" }));
-        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
 
         await waitFor(() => {
-            assert.equal(session.visibility.steps.length, 1);
+            assert.equal(session.visibility.conditions.length, 1);
         });
-        assert.deepEqual(session.visibility.steps[0].rule, {
+        assert.deepEqual(session.visibility.conditions[0].rule, {
             kind: "text",
             reads: "data.trained",
             mode: "exact",
@@ -98,7 +92,7 @@ describe("A yes-or-no column", () => {
             caseSensitive: true,
         });
         assert.equal(session.visibility.summary.visibleNodes, 3);
-        await screen.findByRole("treeitem", { name: /trained is Yes/ });
+        await screen.findByRole("listitem", { name: /^trained is Yes, Hide/ });
     });
 
     it("reads Yes and No in a node's values, the selection's summary and Find's value rows", async () => {

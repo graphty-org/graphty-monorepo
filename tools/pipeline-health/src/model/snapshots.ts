@@ -1,5 +1,5 @@
 // "Now" lists the collector keeps as JSON cursors and the page builder reads as tables: the pull requests waiting
-// on the owner, the release attempts and workflows, the committed quarantine list. A list the collector has not
+// on the owner, the release attempts and workflows, the quarantine in force. A list the collector has not
 // written yet reads as undefined (the section says "not collected"), never as an empty list.
 
 import { getCursor } from "./raw.js";
@@ -50,6 +50,36 @@ export interface ReleaseSeen {
     jobs?: Record<string, LaneJob>;
     /** The first job that failed, for an attempt that failed before any lane. */
     failedJob?: string;
+    /** Its "Deploy the nightly site" job's result ("passed": promoted to nightly); absent on attempts read before it was kept. */
+    nightly?: string;
+    /** The run's conclusion ("success", "failure", "cancelled", ...). */
+    conclusion?: string;
+}
+
+/** The release attempts a channel's tile shows, newest last (the design's 14 dots). */
+export const CHANNEL_ATTEMPTS = 14;
+
+/** How one release attempt of a channel ended: promoted or deployed, failed, passed but held back, or cancelled. */
+export type ChannelOutcome = "ok" | "bad" | "held" | "cancelled";
+
+/** One release attempt of a channel (#4460): a deploy-pages.yml run, a nightly promotion, a production promotion. */
+export interface ChannelAttempt {
+    /** Its end, epoch ms. */
+    at: number;
+    outcome: ChannelOutcome;
+    /** The commit it deployed or tested; absent for a production promotion (the channel's ref says what it serves). */
+    sha?: string;
+    run: number;
+}
+
+/** The release channels' attempts the collector reads; nightly's come from the `release` cursor. */
+export interface ChannelsSnapshot {
+    /** deploy-pages.yml runs on master that did not skip, newest first. */
+    canary: ChannelAttempt[];
+    /** promote.yml runs by `<run id>.<attempt>`: a production promotion, or null for any other run (a dry run). */
+    promotions: Record<string, ChannelAttempt | null>;
+    /** The head of channel/nightly and channel/production: what each serves. */
+    refs: { nightly?: string; production?: string };
 }
 
 /** A release workflow's newest runs (4.5, Release workflows). */
@@ -64,7 +94,7 @@ export interface WorkflowState {
     since?: number;
 }
 
-/** An entry of tools/test-quarantine.json. */
+/** A quarantined test: an entry of the results store's quarantine, or of tools/test-quarantine.json. */
 export interface QuarantineEntry {
     file: string;
     name: string;
@@ -101,6 +131,7 @@ export interface Snapshots {
     "non-gating": string[];
     /** Every job ci.yml on master defines, by name; `${{ }}` matches anything. */
     "ci-jobs": string[];
+    channels: ChannelsSnapshot;
 }
 
 /**

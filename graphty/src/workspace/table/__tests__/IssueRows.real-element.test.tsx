@@ -18,9 +18,6 @@ import { datasetBase } from "../../start/open";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and the sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * The workspace on the airline sample's airports, laid out in a still layout in the 2D view. Its
  * 37,000 routes are removed once it has loaded: the tests are about the Nodes table, and every
@@ -31,13 +28,10 @@ const TIMEOUT_MS = 90_000;
 async function openAirlines(): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Airlines", id: 1 } })} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -73,13 +67,13 @@ describe("the table's rows with issues", () => {
     it("shows BRISTOL alone with issues, and Ignore all clears the warning until Undo", async () => {
         const session = await openAirlines();
         await userEvent.keyboard("{Shift>}T{/Shift}");
-        const dock = await screen.findByRole("region", { name: "Table" }, { timeout: TIMEOUT_MS });
+        const dock = await screen.findByRole("region", { name: "Table" });
 
         // The key column says it with its glyph: no "id" pill beside the name "id".
-        const id = await waitFor(() => headerCell(dock, "id"), { timeout: TIMEOUT_MS });
+        const id = await waitFor(() => headerCell(dock, "id"));
         assert.isNull(id.querySelector(".ws-th-role"), "no role pill on the key");
 
-        const chip = await within(dock).findByRole("checkbox", { name: /^With issues/ }, { timeout: TIMEOUT_MS });
+        const chip = await within(dock).findByRole("checkbox", { name: /^With issues/ });
         // A Chip's checkbox is hidden; the reader clicks its label.
         const label = (chip as HTMLInputElement).labels?.[0];
         assert.isDefined(label, "the chip has a label");

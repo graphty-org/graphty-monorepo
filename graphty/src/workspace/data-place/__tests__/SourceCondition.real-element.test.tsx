@@ -18,10 +18,6 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML, PLAIN_JSON } from "../fixtures";
-import { addStepCondition } from "./stepCards";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /**
  * Renders the workspace on the Data place and waits for the session, with the small graph file
@@ -32,13 +28,10 @@ async function openWithGraph(): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -47,12 +40,12 @@ async function openWithGraph(): Promise<GraphSession> {
 }
 
 /**
- * Opens a new filter step from the Filters "+" and picks an attribute in its editor by typing.
- * @param name - the attribute's name, as the list shows it.
+ * Opens a new filter card from the Filters "+" on a field.
+ * @param name - the field's name, as the list shows it.
  */
-async function newStepOn(name: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-    await addStepCondition(name);
+async function newCardOn(name: string): Promise<void> {
+    await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name }));
 }
 
 /**
@@ -75,28 +68,31 @@ describe("picking nodes by a condition card from the Data place", () => {
 
     it("keeps the nodes a number card's range holds", async () => {
         const session = await openWithGraph();
-        await newStepOn("group");
+        await newCardOn("group");
         const from = await screen.findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
-        await userEvent.type(from, "3");
-        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+        await userEvent.type(from, "3{Enter}");
 
         await waitFor(() => {
-            assert.lengthOf(session.visibility.steps, 1);
+            assert.lengthOf(session.visibility.conditions, 1);
         });
-        assert.deepEqual(session.visibility.steps[0].rule, { kind: "range", attribute: "data.group", min: 3, max: 3 });
+        assert.deepEqual(session.visibility.conditions[0].rule, {
+            kind: "range",
+            attribute: "data.group",
+            min: 3,
+            max: 3,
+        });
         // Marius and Gavroche are the two nodes in group 3.
         assert.deepEqual(shownNodes(session), ["4", "6"]);
     });
 
     it("offers Data source once two loads are in, and keeps only the ticked load's nodes", async () => {
         const session = await openWithGraph();
-        // One load: no Data source card.
-        await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
-        await screen.findByRole("option", { name: /^group(,|$)/ });
-        assert.isNull(screen.queryByRole("option", { name: "Data source" }));
-        await userEvent.keyboard("{Escape}{Escape}");
+        // One load: no Data source in "+".
+        await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+        await screen.findByRole("menuitem", { name: "group" });
+        assert.isNull(screen.queryByRole("menuitem", { name: "Data source" }));
+        await userEvent.keyboard("{Escape}");
 
         await session.data.import(
             { type: "json", name: "people.json", config: { data: PLAIN_JSON } },
@@ -107,19 +103,36 @@ describe("picking nodes by a condition card from the Data place", () => {
         });
         const people = session.data.sources()[1];
 
-        await newStepOn("Data source");
+        await newCardOn("Data source");
         const loads = await screen.findByRole("group", { name: "Data source values" });
         await userEvent.click(within(loads).getByRole("checkbox", { name: /^people\.json, 4 nodes$/ }));
-        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
 
         await waitFor(() => {
-            assert.lengthOf(session.visibility.steps, 1);
+            assert.lengthOf(session.visibility.conditions, 1);
         });
-        assert.deepEqual(session.visibility.steps[0].rule, { kind: "source", sources: [people.key] });
+        assert.deepEqual(session.visibility.conditions[0].rule, { kind: "source", sources: [people.key] });
         assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
-        // The step's row names the load, not its key.
-        await within(screen.getByRole("region", { name: "Data place" })).findByRole("treeitem", {
-            name: "from people.json",
+        // The card is named for the load, not its key, and counts both kinds.
+        const card = await within(screen.getByRole("region", { name: "Data place" })).findByRole("listitem", {
+            name: /^from people\.json/,
+        });
+        assert.lengthOf(within(card).getAllByText(/ of /), 2);
+        // Both chips show their whole "X of Y" at the panel's width: not cut to an ellipsis, and not
+        // clipped or covered by the card's controls (the chip is what the reader sees at its far end).
+        for (const text of card.querySelectorAll<HTMLElement>(".cm-entity-text")) {
+            assert.isAtMost(text.scrollWidth, text.clientWidth, text.textContent ?? "");
+            const box = text.getBoundingClientRect();
+            const seen = document.elementFromPoint(box.right - 1, box.top + box.height / 2);
+            assert.isTrue(text.contains(seen), `${text.textContent ?? ""} is not fully shown`);
+        }
+
+        // A card that exists stays once the sources drop back to one.
+        await session.data.removeSource(people.key);
+        await waitFor(() => {
+            assert.lengthOf(session.data.sources(), 1);
+        });
+        await within(screen.getByRole("region", { name: "Data place" })).findByRole("listitem", {
+            name: /^from a removed source/,
         });
     });
 });

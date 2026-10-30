@@ -1812,7 +1812,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const borderOf = (i: number): StyleValue =>
         node.values.borderColor?.[i] ?? (toolNode?.borderColor?.value as StyleValue | undefined) ?? "#2b7ce9";
     const geometry = visGeometry(snapshot, node.values, shapes);
-    const support = visSupport(options.physics, options.layout);
+    const support = visSupport(options.physics, options.layout, visPlacesAll(snapshot));
     const edges = visLayer(options.edges, "edge");
     const edge = visEdges(snapshot, edges, borderOf, { ...geometry, support }, notes, context);
     const values = { node: node.values, edge: edge.values };
@@ -2746,11 +2746,14 @@ const VIS_SOLVERS: Readonly<Record<string, { model: string; g: number; cg: numbe
  * ForceAtlas2BasedRepulsionSolver, their central gravity solvers and SpringSolver). None where physics is off, where
  * a hierarchical layout turns every dynamic curve static (`_forceDisableDynamicCurves`), or under the repulsion and
  * hierarchicalRepulsion solvers (ponytail: drawn straight; their force laws when a file uses them).
+ * vis-network lays out a file that does not place every node under the same forces, so their unit is then the
+ * drawing's (`supportScale: "drawing"`), whatever layout draws it; a file that places every node keeps its px.
  * @param physics - `options.physics`
  * @param layout - `options.layout`
+ * @param placed - whether the file places every node
  * @returns the neutral support values, or null
  */
-function visSupport(physics: unknown, layout: unknown): Row | null {
+function visSupport(physics: unknown, layout: unknown, placed: boolean): Row | null {
     const hierarchical = isJsonObject(layout) ? layout.hierarchical : undefined;
     if (hierarchical === true || (isJsonObject(hierarchical) && hierarchical.enabled !== false)) {
         return null;
@@ -2772,7 +2775,30 @@ function visSupport(physics: unknown, layout: unknown): Row | null {
         supportSpringConstant: Math.max(0, num(given.springConstant, base.k)),
         supportRepulsion: Math.max(0, -num(given.gravitationalConstant, base.g)),
         supportCentralGravity: Math.max(0, num(given.centralGravity, base.cg)),
+        ...(placed ? {} : { supportScale: "drawing" }),
     };
+}
+
+/**
+ * vis.js: whether every node has a position in the file (`x` and `y`), so vis-network starts from the file's places.
+ * @param snapshot - the graph
+ * @returns true when every node is placed
+ */
+function visPlacesAll(snapshot: GraphSnapshot): boolean {
+    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    // as visGeometry reads a place: a number, or a string vis-network parses as one
+    const at = (cell: ((i: number) => unknown) | null, i: number): boolean => {
+        const v = cell?.(i);
+        return typeof v === "string"
+            ? !Number.isNaN(Number.parseInt(v, 10))
+            : typeof v === "number" && Number.isFinite(v);
+    };
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        if (!at(xs, i) || !at(ys, i)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -3159,7 +3185,7 @@ function visWritten(snapshot: GraphSnapshot, edgeValues: Values): Written {
             isLoop(i) ? (edgeValues[property]?.[i] ?? null) : want(property);
     // the writer writes no `smooth` and no `options.physics`, so every other edge reads back as vis-network's default,
     // a dynamic curve under the default barnesHut physics
-    const dynamic = visSupport(undefined, undefined) ?? {};
+    const dynamic = visSupport(undefined, undefined, visPlacesAll(snapshot)) ?? {};
     const support = (property: string) => (_want: unknown, i: number) =>
         isLoop(i) ? (edgeValues[property]?.[i] ?? null) : (dynamic[property] ?? null);
     const supports = Object.fromEntries(Object.keys(dynamic).map((property) => [property, support(property)]));

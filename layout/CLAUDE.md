@@ -165,7 +165,9 @@ node stays where the user put it and `scale` / `center` are the only mapping bet
   own option (the exported `ForceAtlas2SimulationOptions`, `ForceAtlas2Options & { compat? }`), absent from the exported `ForceAtlas2Options` and
   therefore not reachable through `createSimulation`'s typed options: `new ForceAtlas2Simulation({ compat: "networkx" })`. Mass is `nodeMass`, else the role-`mass` column,
   else `outDegree + 1`; `weight: true` uses the snapshot's arc weights, a string names an edge column. `nodeSize`,
-  `dissuadeHubs` and `maxInFlight` are accepted and unused; `load()` seeds the NaN rows of the array with
+  `dissuadeHubs` and `maxInFlight` are accepted and unused; `barnesHutOptimize` (off by default, so the oracle parity
+  holds) replaces K3's every-pair repulsion with the Barnes-Hut tree of `barnes-hut.ts` (`barnesHutTheta`, default 1.2,
+  Gephi's), O(n log n) per iteration; `load()` seeds the NaN rows of the array with
   `seedPositions` from the `seed` option, as the GPU simulation does. `iterationsDone` and `reheat()` are public beyond the interface. The one-shot `forceAtlas2` layout runs this
   class (`settleThreshold: 0`, every one of `maxIter` iterations) and then rescales.
 - `FruchtermanReingoldSimulation` (`fruchterman-reingold.ts`): the loop body of layout 1.x's

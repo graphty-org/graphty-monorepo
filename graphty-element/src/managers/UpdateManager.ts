@@ -3,6 +3,7 @@ import {
     type AbstractMesh,
     Camera,
     type EffectLayer,
+    Frustum,
     type Mesh,
     type Nullable,
     type Observer,
@@ -18,6 +19,7 @@ import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraC
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
+import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { EdgeShaderDrawing } from "../meshes/EdgeShaderDrawing";
@@ -37,6 +39,9 @@ import type { LayoutManager } from "./LayoutManager";
 import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
 import type { NodePaint, StylePainter } from "./StylePainter";
+
+/** How much room a framed globe leaves around itself, as a share of its radius: its air's glow. */
+const GLOBE_FRAMING = 1.1;
 
 /**
  * How a flat map in 3D is first seen: turned from straight on toward the south by 45 degrees, so
@@ -408,6 +413,10 @@ export class UpdateManager implements Manager {
     /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
     private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
 
+    /** Watch the scene for meshes built or taken down; see {@link UpdateManager.watchFrames}. */
+    private meshAddedWatcher: Nullable<Observer<AbstractMesh>> = null;
+    private meshRemovedWatcher: Nullable<Observer<AbstractMesh>> = null;
+
     /**
      * Creates a new update manager
      * @param eventManager - Event manager for emitting update events
@@ -509,6 +518,14 @@ export class UpdateManager implements Manager {
         this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
             this.viewMoved();
         });
+        // A mesh built or taken down changes the picture wherever it happens -- in a pass, or
+        // outside one, as a tooltip the pointer brings up does (issue #3287) -- so the frame drawn
+        // before it is not the final one. A new mesh's shader is then waited for as well.
+        const pictureChanged = (): void => {
+            this.pending.changed();
+        };
+        this.meshAddedWatcher = scene.onNewMeshAddedObservable.add(pictureChanged);
+        this.meshRemovedWatcher = scene.onMeshRemovedObservable.add(pictureChanged);
         this.lendShaderRepaint();
     }
 
@@ -529,6 +546,8 @@ export class UpdateManager implements Manager {
         scene.onAfterRenderObservable.remove(this.drawWatcher);
         scene.onBeforeDrawPhaseObservable.remove(this.drawPhaseWatcher);
         scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
+        scene.onNewMeshAddedObservable.remove(this.meshAddedWatcher);
+        scene.onMeshRemovedObservable.remove(this.meshRemovedWatcher);
     }
 
     /**
@@ -1357,6 +1376,11 @@ export class UpdateManager implements Manager {
         work.watch("layout", "the layout is still running", () => this.layoutIsMoving());
         work.watch(
             "layout",
+            "the layout's pre-steps are still being computed",
+            () => this.layoutManager.preStepsInFlight,
+        );
+        work.watch(
+            "layout",
             "a layout transition is still moving the nodes",
             () => transitionsOf(this.layoutManager)?.moving === true,
         );
@@ -1382,6 +1406,12 @@ export class UpdateManager implements Manager {
             () =>
                 (this.depthSizingPivot() !== null || this.screenSizingScale() !== null) !== this.depthScaled ||
                 this.screenSizingScale() !== this.screenScaled,
+        );
+        // An edge on screen not yet cut back to the nodes at the scale the zoom stopped at.
+        work.watch(
+            "sizing",
+            "an edge has not been trimmed to its nodes at the new scale yet",
+            () => this.retrimPending,
         );
         work.watch("view", "a filter or a selection has not been drawn yet", () => this.viewMasksPending());
         work.watch("view", "the camera is still moving to the selection", () => this.followingSelection);
@@ -1550,12 +1580,20 @@ export class UpdateManager implements Manager {
         transitions?.endPass();
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
-        if (this.sizeNodesForDepth()) {
-            for (const edge of this.dataManager.edges.values()) {
-                edge.invalidatePositionCache();
+        const scaled = this.sizeNodesForDepth();
+        if (this.screenScaled !== null && this.depthSizingPivot() === null) {
+            this.retrimForScreenScale(this.screenScaled, scaled);
+        } else {
+            this.trimmedAt = new WeakMap();
+            this.retrimPending = false;
+            if (scaled) {
+                this.statsManager.incrementCounter(UpdateManager.RETRIM_COUNTER, this.dataManager.edges.size);
+                for (const edge of this.dataManager.edges.values()) {
+                    edge.invalidatePositionCache();
+                }
+                this.forceEdgeWalk();
+                this.updateEdges();
             }
-            this.forceEdgeWalk();
-            this.updateEdges();
         }
         this.refreshScreenBorders();
 
@@ -2148,6 +2186,105 @@ export class UpdateManager implements Manager {
     /** The screen scale the node meshes were last given on a map with `nodeScale: "screen"`. */
     private screenScaled: number | null = null;
 
+    /** The screen scale each edge was last cut back to its nodes' surfaces at. */
+    private trimmedAt = new WeakMap<Edge, number>();
+
+    /**
+     * The counter (`StatsManager`, when profiling) of edges cut back to their nodes' surfaces
+     * because the nodes' scale changed: the work a zoom step costs.
+     */
+    static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
+
+    /**
+     * How far the nodes' screen scale may drift, as a ratio, while a zoom is under way before an
+     * edge is cut back to its nodes' new surfaces. Between, an edge ends up to this share of a
+     * node's radius short of it or inside it, about a pixel at the sizes nodes are drawn on a map;
+     * once the zoom stops each edge on screen is cut exactly.
+     */
+    private static readonly RETRIM_BAND = 0.5;
+
+    /** Whether an edge on screen was left cut at a scale near, not at, the nodes' own. */
+    private retrimPending = false;
+
+    /** Passes in a row the view and the nodes' scale held still. */
+    private stillPasses = 0;
+
+    /** How many passes in a row the view holds still before edges are cut exactly. */
+    private static readonly STILL_PASSES = 8;
+
+    /** The view matrix the last pass saw, to tell a view that moved from one holding still. */
+    private readonly lastView = new Float32Array(16);
+
+    /**
+     * Cut edges back to their nodes' surfaces after `nodeScale: "screen"` scaled the nodes. Every
+     * zoom step scales every node, and cutting all 36,906 routes of the OpenFlights sample (each
+     * a raised arc) on every one took about 300 ms a step, so zooming was slow and choppy while
+     * turning, which keeps the scale, stayed smooth. Only an edge with an end on screen is cut (an
+     * end off screen shows no gap), and while the zoom is under way only once the scale has
+     * drifted past {@link RETRIM_BAND} from the one it was cut at; once the view holds still,
+     * exactly. An edge left uncut off screen is cut when the view brings an end of it on screen.
+     *
+     * ponytail: O(nodes + edges) a frame while the option is on, a test per node and a look-up per
+     * edge; an index of edges by node would make it O(edges of the nodes on screen).
+     * @param scale - The nodes' screen scale now.
+     * @param scaled - Whether the scale changed this pass.
+     */
+    private retrimForScreenScale(scale: number, scaled: boolean): void {
+        const camera = this.graphContext.getScene().activeCamera;
+        if (camera === null) {
+            return;
+        }
+
+        const view = camera.getViewMatrix().m;
+        let moved = scaled;
+        for (let i = 0; i < 16; i++) {
+            if (this.lastView[i] !== Math.fround(view[i])) {
+                moved = true;
+                this.lastView[i] = view[i];
+            }
+        }
+
+        // A wheel's notches come a few frames apart: the view counts as still only after it held
+        // for STILL_PASSES passes, so a zoom by notches is not cut exactly between each two.
+        this.stillPasses = moved ? 0 : this.stillPasses + 1;
+        const moving = this.stillPasses < UpdateManager.STILL_PASSES;
+
+        const planes = Frustum.GetPlanes(camera.getViewMatrix().multiply(camera.getProjectionMatrix()));
+        const onScreen = new Set<Node>();
+        for (const node of this.layoutManager.nodes) {
+            if (node.mesh.isInFrustum(planes)) {
+                onScreen.add(node);
+            }
+        }
+
+        const tolerance = moving ? UpdateManager.RETRIM_BAND : 0;
+        let cut = 0;
+        this.retrimPending = false;
+        for (const edge of this.dataManager.edges.values()) {
+            if (!onScreen.has(edge.srcNode) && !onScreen.has(edge.dstNode)) {
+                continue;
+            }
+
+            const at = this.trimmedAt.get(edge);
+            const drift = at === undefined ? Infinity : Math.abs(scale / at - 1);
+            if (drift <= tolerance) {
+                // Within the band while moving: cut exactly once the view holds still.
+                this.retrimPending ||= drift > 0;
+                continue;
+            }
+
+            edge.invalidatePositionCache();
+            this.trimmedAt.set(edge, scale);
+            cut++;
+        }
+
+        if (cut > 0) {
+            this.statsManager.incrementCounter(UpdateManager.RETRIM_COUNTER, cut);
+            this.forceEdgeWalk();
+            this.updateEdges();
+        }
+    }
+
     /** The map frame the camera last turned to face, so a new map is faced once. */
     private facedFrame: LocationMapFrame | null = null;
 
@@ -2172,7 +2309,7 @@ export class UpdateManager implements Manager {
     /**
      * The scale that holds every node at one size on screen while the location map layout runs
      * with `nodeScale: "screen"`: a node of size 1 is drawn as one scene unit is when the map's
-     * extent fills the view's height, whatever the zoom. Null when the layout does not ask for it.
+     * extent fills the view's height, whatever the zoom, on a flat map and on a globe alike. Null when the layout does not ask for it.
      * @returns The scale, or null.
      */
     private screenSizingScale(): number | null {
@@ -2184,16 +2321,22 @@ export class UpdateManager implements Manager {
             return null;
         }
 
-        const span = frame.surface === "flat" ? frame.size : 2 * frame.radius;
+        // The data's extent as drawn, on either map: a globe's radius is set so it spans `size` too.
+        // A map drawn `mapScale` times larger keeps its nodes their size on screen, so they spread
+        // apart rather than grow with it.
+        const extent = frame.size / frame.mapScale;
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
-            const height = (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0);
-            return height > 0 ? height / span : null;
+            return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, extent);
         }
 
+        // Nodes stand on the map's surface: the flat map at the point the camera turns about, the
+        // globe's face under the camera, its height above the globe.
         const orbit = this.camera.getActiveController();
-        const target = orbit instanceof OrbitCameraController ? orbit.pivot.getAbsolutePosition() : Vector3.Zero();
-        const distance = Vector3.Distance(camera.globalPosition, target);
-        return distance > 0 ? (2 * distance * Math.tan(camera.fov / 2)) / span : null;
+        const globe = frame.surface === "globe";
+        const target =
+            orbit instanceof OrbitCameraController && !globe ? orbit.pivot.getAbsolutePosition() : Vector3.Zero();
+        const eye = Vector3.Distance(camera.globalPosition, target);
+        return screenNodeScale({ fov: camera.fov, depth: mapDepth(eye, globe ? frame.radius : 0) }, extent);
     }
 
     /**
@@ -2557,15 +2700,23 @@ export class UpdateManager implements Manager {
         }
 
         const size = boundingBoxMax.subtract(boundingBoxMin);
+        const active = this.camera.getActiveController();
+        // A globe is framed as the sphere it is, filling the view, not as the box around its nodes
+        // and the arcs above it, which drew the earth half the size.
+        const sphere = frame?.surface === "globe" && active instanceof OrbitCameraController ? frame.radius : null;
 
-        if (size.length() <= this.config.minBoundingBoxSize) {
+        if (sphere === null && size.length() <= this.config.minBoundingBoxSize) {
             // A box too small to frame is the empty-graph case again: the request stays, and it is
             // waiting for a graph rather than for the camera.
             this.framingHasNothingToFrame = true;
             return;
         }
 
-        this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax, box.spots);
+        if (sphere !== null && active instanceof OrbitCameraController) {
+            active.zoomToSphere(Vector3.Zero(), sphere * GLOBE_FRAMING);
+        } else {
+            this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax, box.spots);
+        }
 
         this.hasZoomedToFit = true;
         this.forceZoomToFit = false;

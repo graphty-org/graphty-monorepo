@@ -4,6 +4,7 @@ import rates from "../../config/rates.json" with { type: "json" };
 import { DAY, MIN } from "../../src/model/items.js";
 import type { ReleaseSeen } from "../../src/model/snapshots.js";
 import {
+    canaryAttempts,
     classifyCancel,
     failedInRow,
     family,
@@ -14,6 +15,7 @@ import {
     masterState,
     NOT_ON_NPM,
     npmName,
+    offMaster,
     oldestUntested,
     OWNER_LOGIN,
     pool,
@@ -40,10 +42,12 @@ import {
     workflowState,
     type GhJob,
     type GhRun,
+    screenshotReview,
     type GqlIssue,
     type GqlPr,
     type Rates,
     type SuiteNode,
+    promotion,
 } from "../../src/collector/parse.js";
 import { nextShared } from "../../src/collector/snapshots.js";
 import { fixture, masterRuns, NOW } from "./fake-github.js";
@@ -114,6 +118,14 @@ describe("runs and jobs", () => {
         const lint = jobs("jobs-master-40239928447.json").find((j) => j.name === "Lint")!;
         expect(toJobItem(lint, REPO, "ci.yml", false, "master").load).toBe("master");
         expect(toJobItem(lint, REPO, "ci.yml")).not.toHaveProperty("load");
+        // A run on another branch is marked, so the job history can leave its failures out.
+        expect(offMaster({ head_branch: "master" })).toBe(false);
+        expect(offMaster({ head_branch: "refs/heads/master" })).toBe(false);
+        expect(offMaster({ head_branch: "ci/4237-probe-2" })).toBe(true);
+        expect(offMaster({ head_branch: "refs/pull/4096/head" })).toBe(true);
+        expect(offMaster({ head_branch: null })).toBe(true);
+        expect(toJobItem(lint, REPO, "ci.yml", false, "other", true).offMaster).toBe(true);
+        expect(toJobItem(lint, REPO, "ci.yml", false, "master")).not.toHaveProperty("offMaster");
     });
 
     it("folds bins into families and sorts jobs into runner pools", () => {
@@ -285,6 +297,45 @@ describe("runner use", () => {
     });
 });
 
+describe("runner use: waiting is not queued", () => {
+    it("a lone job waiting for an environment approval does not read as runners not assigned", () => {
+        const base = jobs("jobs-pr-40238975833.json")[0];
+        const old = new Date(NOW - 300 * MIN).toISOString();
+        const use = runnerUse(
+            [
+                { ...base, status: "waiting", labels: ["ubuntu-24.04"], created_at: old },
+                { ...base, status: "pending", labels: ["ubuntu-24.04"], created_at: old },
+            ],
+            [],
+            NOW,
+        );
+        expect(use.queuedOver2).toBe(0);
+        expect(runnerFlags(use, 60)).toEqual({ saturated: false, unassigned: false });
+    });
+
+    it("macOS jobs queued behind their own limit while Linux jobs run are not an outage", () => {
+        const base = jobs("jobs-pr-40238975833.json")[0];
+        const old = new Date(NOW - 90 * MIN).toISOString();
+        const linux = Array.from({ length: 10 }, () => ({ ...base, status: "in_progress", labels: ["ubuntu-24.04"] }));
+        const mac = Array.from({ length: 3 }, () => ({
+            ...base,
+            status: "queued",
+            labels: ["macos-26"],
+            created_at: old,
+        }));
+        const use = runnerUse([...linux, ...mac], [], NOW);
+        expect(use.queuedOver2).toBe(0);
+        expect(runnerFlags(use, 60).unassigned).toBe(false);
+    });
+
+    it("a run queued with no jobs yet for over 2 minutes counts as waiting (an Actions outage)", () => {
+        const run = { created_at: new Date(NOW - 30 * MIN).toISOString(), status: "queued" } as GhRun;
+        const use = runnerUse([], [run, { ...run, status: "pending" }], NOW);
+        expect(use.queuedOver2).toBe(1);
+        expect(runnerFlags(use, 60).unassigned).toBe(true);
+    });
+});
+
 describe("pull requests and issues", () => {
     const page = fixture<{ data: { repository: { open: { nodes: GqlPr[] }; recent: { nodes: GqlPr[] } } } }>(
         "gql-pr.json",
@@ -437,6 +488,59 @@ describe("release lanes", () => {
     });
 });
 
+describe("release channels", () => {
+    const base = fixture<{ workflow_runs: GhRun[] }>("release-runs.json").workflow_runs[0];
+    const run = (id: number, conclusion: string, at: string, more: Partial<GhRun> = {}): GhRun => ({
+        ...base,
+        id,
+        status: "completed",
+        conclusion,
+        updated_at: at,
+        ...more,
+    });
+    const j = (name: string, conclusion: string) => ({ name, status: "completed", conclusion }) as GhJob;
+
+    it("canary: newest first, the built commit from the run name, a skipped run (red build) is no attempt", () => {
+        const sha = "b".repeat(40);
+        const got = canaryAttempts([
+            run(1, "success", "2026-10-26T01:00:00Z", { display_title: `Deploy ${sha}` }),
+            run(2, "skipped", "2026-10-26T02:00:00Z"),
+            run(3, "failure", "2026-10-26T03:00:00Z", { head_sha: "c".repeat(40) }),
+            run(4, "cancelled", "2026-10-26T00:00:00Z"),
+            { ...run(5, "success", "2026-10-26T04:00:00Z"), status: "in_progress", conclusion: null },
+        ]);
+        expect(got).toEqual([
+            { at: Date.parse("2026-10-26T03:00:00Z"), outcome: "bad", sha: "c".repeat(40), run: 3 },
+            { at: Date.parse("2026-10-26T01:00:00Z"), outcome: "ok", sha, run: 1 },
+            { at: Date.parse("2026-10-26T00:00:00Z"), outcome: "cancelled", sha: base.head_sha, run: 4 },
+        ]);
+    });
+
+    it("production: a run that moved channel/production, or whose promotion failed; dry runs and nightly are none", () => {
+        const at = "2026-10-26T05:00:00Z";
+        const ok = promotion(run(1, "success", at), [
+            j("Promote (owner approval)", "success"),
+            j("Move channel/production", "success"),
+        ]);
+        expect(ok).toEqual({ at: Date.parse(at), outcome: "ok", run: 1 });
+        const failed = promotion(run(2, "failure", at), [
+            j("Promote (owner approval)", "failure"),
+            j("Move channel/production", "skipped"),
+        ]);
+        expect(failed?.outcome).toBe("bad");
+        const dry = [j("Promote (owner approval)", "success"), j("Move channel/production", "skipped")];
+        expect(promotion(run(3, "success", at), dry)).toBeNull();
+        const nightly = [j("Promote (owner approval)", "success"), j("Move channel/nightly", "success")];
+        expect(promotion(run(4, "success", at), nightly)).toBeNull();
+    });
+
+    it("a release attempt records whether its nightly site job ran", () => {
+        const a = releaseAttempt(base, [j("Deploy the nightly site / Deploy", "success")]);
+        expect(a.nightly).toBe("passed");
+        expect(releaseAttempt(base, []).nightly).toBe("absent");
+    });
+});
+
 describe("costs", () => {
     const tested = jobs("jobs-release-tested-40119894804.json");
 
@@ -461,6 +565,37 @@ describe("costs", () => {
                 R,
             ),
         ).toMatchObject({ line: "llm", usd: 0.94 });
+    });
+
+    it("prices an LLM run at the cost its cost step logged, when it has one", () => {
+        const llm = tested.find((x) => x.name === "LLM regression")!;
+        const step = (name: string) => ({ ...llm.steps![0], name });
+        const logged = { ...llm, steps: [...llm.steps!, step("LLM regression cost: 0.2871 USD")] };
+        expect(llmCost(logged, REPO, R)).toMatchObject({ line: "llm", usd: 0.2871 });
+        // a cost step that did not run names no number: the flat rate stands
+        const skipped = { ...llm, steps: [...llm.steps!, step("LLM regression cost:  USD")] };
+        expect(llmCost(skipped, REPO, R)).toMatchObject({ usd: 0.94 });
+    });
+
+    it("prices each point of a bisect of the llm lane, and no point of another lane", () => {
+        // bisect.yml run 40492117633 (2026-10-27) bisected the llm lane before the run name carried the lane: one
+        // point, its paid step "Run the failing files" (375 Gemini calls).
+        const run = fixture<GhRun>("run-bisect-llm-40492117633.json");
+        const point = fixture<{ jobs: GhJob[] }>("jobs-bisect-llm-40492117633.json").jobs.find((j) =>
+            j.name.startsWith("Point "),
+        )!;
+        expect(llmCost(point, REPO, R, "bisect.yml", run)).toMatchObject({
+            id: `llm#${REPO}/122148555385`,
+            line: "llm",
+            workflow: "bisect.yml",
+            usd: 0.94,
+        });
+        const named = { id: 1, display_title: "Bisect (llm lane)" };
+        expect(llmCost(point, REPO, R, "bisect.yml", named)).toMatchObject({ usd: 0.94 });
+        expect(llmCost(point, REPO, R, "bisect.yml", { id: 1, display_title: "Bisect (ci lane)" })).toBeUndefined();
+        expect(llmCost(point, REPO, R, "bisect.yml", { id: 1, display_title: "Bisect" })).toBeUndefined();
+        // the bisect's step name means nothing in release.yml
+        expect(llmCost(point, REPO, R, "release.yml", run)).toBeUndefined();
     });
 
     it("spreads fixed monthly lines over the month", () => {
@@ -732,5 +867,43 @@ describe("stress run: found nothing three weeks running", () => {
         ).toBe(false);
         // A failure found four weeks ago is outside the rule.
         expect(stressQuiet([...runs, { at: at("2026-10-04T08:00:00Z"), foundFailures: true }], now)).toBe(true);
+    });
+});
+
+describe("the nightly hold waiting on the owner's screenshot review", () => {
+    const hold = (body: string, comments: string[] = []) => ({
+        number: 4700,
+        title: "Nightly held on 0123456789ab",
+        state: "OPEN",
+        createdAt: new Date(NOW - 30 * 60 * MIN).toISOString(),
+        body,
+        comments: {
+            nodes: comments.map((c, i) => ({ body: c, createdAt: new Date(NOW - (20 - i) * 60 * MIN).toISOString() })),
+        },
+    });
+
+    it("a green-images hold waits on the owner, from its first green-images verdict", () => {
+        expect(screenshotReview([hold("Nightly is held on x: its full run ended green-images (12 changed)")])).toEqual({
+            since: NOW - 30 * 60 * MIN,
+            issue: 4700,
+        });
+        const retested = hold("its full run ended red (ci)", [
+            "The full run on the held head y ended green-images (3 changed): url",
+            "The full run on the held head z ended green-images (3 changed): url",
+        ]);
+        expect(screenshotReview([retested])).toEqual({ since: NOW - 20 * 60 * MIN, issue: 4700 });
+    });
+
+    it("a red hold, a hold since re-tested red, and a publish hold do not wait on the owner", () => {
+        expect(screenshotReview([hold("its full run ended red (ci)")])).toBeUndefined();
+        expect(
+            screenshotReview([
+                hold("ended green-images (2 changed)", ["The full run on the held head y ended red (t4)"]),
+            ]),
+        ).toBeUndefined();
+        expect(
+            screenshotReview([{ ...hold("ended green-images"), title: "Release held: publish failed on 7a2ca69" }]),
+        ).toBeUndefined();
+        expect(screenshotReview([])).toBeUndefined();
     });
 });

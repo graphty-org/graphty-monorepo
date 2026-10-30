@@ -17,6 +17,9 @@ const claude = read("CLAUDE.md");
 // The land.mjs commands that refuse since golden was retired (tools/land.mjs RETIRED).
 const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
+// Where a step's heading starts, by its name: steps are renumbered whenever one is added.
+const step = (name) => flat.search(new RegExp(`### \\d+\\. ${name}`));
+
 describe("pipeline-round skill", () => {
     it("names no interim rule: the skill describes only the channels pipeline", () => {
         assert.doesNotMatch(flat, /\*\*Interim rules/);
@@ -29,13 +32,24 @@ describe("pipeline-round skill", () => {
         assert.match(prompt, /tools\/pr-open\.sh --proof <file>/);
     });
 
+    it("checks nightly every slot and every dashboard member's owner in every round, before step 1 (#5052)", () => {
+        const nightly = flat.indexOf("### Nightly every slot");
+        const owned = flat.indexOf("### Every dashboard member owned");
+        const first = step("Red master");
+        assert.ok(nightly >= 0 && owned >= 0 && nightly < first && owned < first);
+        assert.match(flat, /node tools\/health-owner-sweep\.mjs/);
+        assert.match(flat, /"The rows should age out" is not an owner/);
+        assert.match(flat, /nightly-abandon\.yml/);
+        assert.match(flat, /the round's last line leads with nightly's age/);
+    });
+
     it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
-        const at = (s) => flat.indexOf(s);
-        assert.ok(at("### 1. Red master") >= 0);
-        assert.ok(at("### 1. Red master") < at("### 7. Red or conflicted agent pull requests"));
-        assert.ok(
-            at("### 7. Red or conflicted agent pull requests") < at("### 8. Finished branches with no pull request"),
-        );
+        const red = step("Red master");
+        const prs = step("Red or conflicted agent pull requests");
+        const branches = step("Finished branches with no pull request");
+        assert.ok(red >= 0 && prs >= 0 && branches >= 0);
+        assert.ok(red < prs);
+        assert.ok(prs < branches);
         assert.match(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
@@ -71,9 +85,11 @@ describe("pipeline-round skill", () => {
     });
 
     it("fixes only graphty-agent's red pull requests, never the owner's", () => {
-        const step = flat.slice(flat.indexOf("### 7. Red or conflicted agent pull requests"), flat.indexOf("### 8."));
-        assert.match(step, /opened by graphty-agent \(its `author`\)/);
-        assert.match(step, /#1677/);
+        const prs = step("Red or conflicted agent pull requests");
+        assert.ok(prs >= 0);
+        const body = flat.slice(prs, step("Finished branches with no pull request"));
+        assert.match(body, /opened by graphty-agent \(its `author`\)/);
+        assert.match(body, /#1677/);
     });
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {
@@ -168,5 +184,32 @@ describe("pipeline-round skill in the channels order", () => {
         for (const name of ["bisect.yml", "base-check.yml", "ci-budgets.json", "[UNRELATED]", "[FLAKY-UNRELATED]"]) {
             assert.ok(skill.includes(name), name);
         }
+    });
+});
+
+// Issue #3269: the dry run of the graphty app (graphty/acceptance/run.mjs) is run by the agent that owns a long-lived
+// branch, before it opens the pull request -- never automatically. CLAUDE.md step 2 and the subagent rules both
+// skills append to every prompt name the command and when to run it.
+describe("the dry run before a long-lived branch's pull request", () => {
+    const flatClaude = claude.replace(/\s*\n\s*/g, " ");
+    const shipping = flatClaude.slice(flatClaude.indexOf("## Shipping a change"));
+    const step2 = shipping.slice(shipping.indexOf(" 2. "), shipping.indexOf(" 3. "));
+    const rules = flatShared.slice(flatShared.indexOf("## Subagent rules"));
+
+    for (const [name, text] of [
+        ["CLAUDE.md, Shipping a change, step 2", step2],
+        ["shared.md, Subagent rules", rules],
+    ]) {
+        it(`${name} names check:quick --with-dry-run for a long-lived branch that reaches the app`, () => {
+            assert.match(text, /pnpm run check:quick --with-dry-run/);
+            assert.match(text, /long-lived/);
+            assert.match(text, /graphty app/);
+            assert.match(text, /node graphty\/acceptance\/run\.mjs/);
+            assert.match(text, /shared component/);
+        });
+    }
+
+    it("the issue-round prompt appends the shared subagent rules", () => {
+        assert.match(issueRound.replace(/\s*\n\s*/g, " "), /"Subagent rules" paragraph from the shared file verbatim/);
     });
 });

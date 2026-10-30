@@ -15,7 +15,7 @@
         "./webgpu": 5832,
         "./ai": 204475,
         "./credentials": 5723,
-        "./bundle": 3835255
+        "./bundle": 4517659
     },
     "lazyChunks": {
         "models": {

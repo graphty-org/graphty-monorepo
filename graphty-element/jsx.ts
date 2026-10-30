@@ -194,6 +194,10 @@ export interface GraphtyElementJSXProps {
      */
     attributionOffset?: Graphty["attributionOffset"];
     /**
+     * Sets how the globe looks.
+     */
+    globeLook?: Graphty["globeLook"];
+    /**
      * Sets how long camera moves take.
      */
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];

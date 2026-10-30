@@ -91,14 +91,26 @@ export class BackgroundPass {
     private dirty = true;
     /** How many times the target was drawn, for tests and tools. */
     draws = 0;
+    /** Whether the last frame drew the layer that shows the target (issue #3536). */
+    private onScreen = false;
 
     /**
-     * Whether the canvas shows the shader: the target is drawn and the layer that shows it has
-     * compiled (Babylon skips a layer whose own program is still compiling). For tests and tools.
+     * Whether the frame on screen shows the shader: the last frame drew the layer that shows the
+     * target. Babylon skips a layer whose own program is still compiling, and that program can
+     * finish between two frames, so the layer being ready now does not mean the canvas shows it.
      * @returns True once it does.
      */
     get shown(): boolean {
-        return this.draws > 0 && this.layer.isEnabled && this.layer.isReady();
+        return this.draws > 0 && this.layer.isEnabled && this.onScreen;
+    }
+
+    /**
+     * Whether the layer is on but the frame on screen does not show it yet: its program still
+     * compiles, or the frame that draws it has not run. Either way a frame is asked for.
+     * @returns True while the shader is on its way to the canvas.
+     */
+    get showPending(): boolean {
+        return this.layer.isEnabled && !this.shown;
     }
 
     /**
@@ -121,6 +133,9 @@ export class BackgroundPass {
         this.renderer = new EffectRenderer(engine);
         this.layer = new Layer(BACKGROUND_LAYER, null, scene, true);
         this.layer.isEnabled = false;
+        this.layer.onAfterRenderObservable.add(() => {
+            this.onScreen = true;
+        });
         // First of the scene's layers, so it is drawn under every other one.
         const { layers } = scene;
         layers.splice(layers.indexOf(this.layer), 1);
@@ -337,6 +352,7 @@ export class BackgroundPass {
 
     /** Before each frame: draw the target again when it is due. */
     private frame(): void {
+        this.onScreen = false;
         const { program } = this;
         const camera = this.scene.activeCamera;
         if (program === null || camera === null) {

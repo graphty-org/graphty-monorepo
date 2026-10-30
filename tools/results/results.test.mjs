@@ -8,7 +8,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
+import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it, mock } from "node:test";
 
@@ -153,15 +153,28 @@ describe("client", () => {
         assert.equal(s.seen.length, 3, "sent once and retried twice");
         assert.deepEqual(JSON.parse(readFileSync(r.spooled, "utf8")), { id: "r1.1" });
     });
-    it("sends a request again when no answer came, and never one that got an answer", async () => {
+    it("sends a request again when no answer or a 5xx came, and never one that got a 4xx", async () => {
         let calls = 0;
         const slowOnce = await serve(() => (++calls === 1 ? undefined : { order: ["b"] }));
         const cfg = { ...config({ RESULTS_URL: slowOnce.url, GRAPHTY_RESULTS_TOKEN: "t" }), retryMs: [10, 10] };
         assert.deepEqual(await call(cfg, "GET", "/v1/plan", undefined, 300), { ok: true, data: { order: ["b"] } });
         assert.equal(calls, 2);
-        mock.method(globalThis, "fetch", () => Promise.resolve(new Response("", { status: 503 })));
+        const answers = (...statuses) =>
+            mock.method(globalThis, "fetch", () => {
+                const status = statuses.shift();
+                return Promise.resolve(new Response(status === 200 ? "{}" : "", { status }));
+            });
         try {
-            assert.deepEqual(await call(cfg, "GET", "/v1/plan"), { ok: false, why: "HTTP 503" });
+            answers(500, 200);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: true, data: {} });
+            assert.equal(globalThis.fetch.mock.callCount(), 2);
+            mock.restoreAll();
+            answers(500, 500, 500);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 500" });
+            assert.equal(globalThis.fetch.mock.callCount(), 3, "sent once and retried twice");
+            mock.restoreAll();
+            answers(404, 200);
+            assert.deepEqual(await call(cfg, "GET", "/v1/candidate"), { ok: false, why: "HTTP 404" });
             assert.equal(globalThis.fetch.mock.callCount(), 1);
         } finally {
             mock.restoreAll();
@@ -523,6 +536,36 @@ describe("groupFamily", () => {
             ],
         );
     });
+
+    it("judges a full run's story tests by the store's `-shots` quarantine when its plan holds the family", async () => {
+        const root = join(TMP, "checkout-shots-full");
+        mkdirSync(join(root, "tools"), { recursive: true });
+        writeFileSync(
+            join(root, "tools/ci-test-matrix.mjs"),
+            `export const SHARDS = [{ shard: "layout", package: "layout", "test-command": "exit 0" }];\n`,
+        );
+        writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine: [] }));
+        const plan = {
+            families: ["layout", "layout-shots"],
+            quarantine: [{ family: "layout-shots", file: "l/A.stories.ts", name: "Shots", issue: 9 }],
+        };
+        writeFileSync(join(root, "plan.json"), JSON.stringify(plan));
+        const out = join(root, "quarantine.json");
+        const env = {
+            PATH: process.env.PATH,
+            GRAPHTY_RESULTS: "0",
+            GITHUB_EVENT_NAME: "workflow_call",
+            VISUAL_REVIEW_STORY_OUT: root,
+            RESULTS_PLAN: join(root, "plan.json"),
+            RESULTS_QUARANTINE_OUT: out,
+        };
+        assert.equal(await runGroup("layout", undefined, { root, env }), 0);
+        const { quarantine } = JSON.parse(readFileSync(out, "utf8"));
+        assert.deepEqual(
+            quarantine.map((q) => [q.name, q.family]),
+            [["Shots", "layout-shots"]],
+        );
+    });
 });
 
 describe("planRead", () => {
@@ -545,13 +588,20 @@ describe("planRead", () => {
         };
         assert.deepEqual(variantsOf([...shards, on], ["graphty-element"]), variantsOf(shards, ["graphty-element"]));
     });
-    it("also asks for a story shard's screenshot family", () => {
-        const stories = [{ shard: "graphty-storybook", package: "graphty" }];
-        assert.deepEqual(variantsOf(stories, ["graphty"]), [
+    it("also asks for a story shard's screenshot family, whatever the family is called", () => {
+        const stories = [
+            { shard: "graphty-storybook", package: "graphty" },
+            { shard: "layout", package: "layout" },
+        ];
+        assert.deepEqual(variantsOf(stories, ["graphty", "layout"], ["graphty-storybook", "layout"]), [
             "graphty-storybook|flags=off|whole",
             "graphty-storybook|flags=off|selected",
             "graphty-storybook-shots|flags=off|shots",
+            "layout|flags=off|whole",
+            "layout|flags=off|selected",
+            "layout-shots|flags=off|shots",
         ]);
+        assert.ok(!variantsOf(stories, ["graphty"]).some((v) => v.includes("-shots")), "only a story-tests shard");
     });
     it("takes a selected run's file time over a whole run's", () => {
         const plan = {
@@ -585,8 +635,13 @@ describe("planRead", () => {
         });
         assert.equal(seen.length, 1);
         const q = new URL(seen[0].url, url).searchParams;
-        assert.equal(q.get("variants"), "layout|flags=off|whole,layout|flags=off|selected");
-        assert.equal(q.get("inputs"), "-,-");
+        // layout's stories run in ci.yml's story-tests job, so its `-shots` family is asked too (STORY_SHARDS)
+        assert.equal(
+            q.get("variants"),
+            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots," +
+                "layout-storybook|flags=off|whole,layout-storybook|flags=off|selected",
+        );
+        assert.equal(q.get("inputs"), "-,-,-,-,-");
         assert.equal(q.get("files"), "layout/src/x.ts");
     });
 });
@@ -1326,6 +1381,7 @@ describe("health API fan-out", () => {
             source: "algorithms",
             unit: "ms",
             sha: "abc",
+            machine: cpus()[0].model.trim(),
             rows: [{ name: "PageRank n=1000", value: 4.5 }],
         });
     });

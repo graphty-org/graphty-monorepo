@@ -15,9 +15,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** A hub "a" with three spokes, and the givers' donations. */
 const NODES = [
     { id: "a", name: "Ava", donations: 12000 },
@@ -39,13 +36,10 @@ async function openWithGraph(): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Givers", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -61,7 +55,7 @@ async function openWithGraph(): Promise<GraphSession> {
  * @returns the box.
  */
 async function focusFind(): Promise<HTMLElement> {
-    const find = await screen.findByRole("combobox", { name: "Find" }, { timeout: TIMEOUT_MS });
+    const find = await screen.findByRole("combobox", { name: "Find" });
     await userEvent.click(find);
     return find;
 }
@@ -86,7 +80,7 @@ describe("the find box", () => {
         await userEvent.keyboard("=nosuch > `1`{Enter}");
 
         // The line under the box, and the status line that speaks it.
-        await screen.findAllByText('No column named "nosuch"', {}, { timeout: TIMEOUT_MS });
+        await screen.findAllByText('No column named "nosuch"', {});
         assert.isNull(screen.queryByText("Nothing matches this rule"));
         assert.lengthOf(session.selection.nodes, 0);
     });
@@ -97,7 +91,7 @@ describe("the find box", () => {
         await focusFind();
         await userEvent.keyboard("=degree > `2`");
 
-        await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Did you mean Degree?", {});
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["a"]);
@@ -110,7 +104,7 @@ describe("the find box", () => {
         await focusFind();
         await userEvent.keyboard("=degr");
 
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
         assert.isNotNull(within(list).queryByRole("group", { name: "Columns" }));
     });
 
@@ -118,7 +112,7 @@ describe("the find box", () => {
         await openWithGraph();
         const find = await focusFind();
         await userEvent.keyboard("Av");
-        await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("listbox", { name: "Find results" });
 
         await userEvent.tab();
         assert.strictEqual(document.activeElement?.getAttribute("aria-label"), "Clear search");
@@ -141,7 +135,7 @@ describe("the find box", () => {
         await openWithGraph();
         await focusFind();
         await userEvent.keyboard("Av");
-        const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" }, { timeout: TIMEOUT_MS });
+        const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" });
         const [first] = within(toolbar).getAllByRole("button");
         first.focus();
         await userEvent.keyboard("{Control>}f{/Control}");
@@ -163,9 +157,9 @@ describe("the find box", () => {
         });
         const before = readerLayers(session).length;
         const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-        await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         const field = await screen.findByRole("textbox", { name: /^Node color(,|$)/ });
         await userEvent.clear(field);
@@ -176,7 +170,7 @@ describe("the find box", () => {
 
         const made = readerLayers(session).at(-1);
         assert.strictEqual(made?.name, "donations 10000 or more");
-        const which = await screen.findByRole("button", { name: /^Which nodes/ }, { timeout: TIMEOUT_MS });
+        const which = await screen.findByRole("button", { name: /^Which nodes/ });
         const said = which.getAttribute("aria-label") ?? "";
         assert.include(said, "donations 10000 or more");
         assert.notInclude(said, "A rule set elsewhere");

@@ -616,6 +616,11 @@ const css = `
     width: 24px;
     margin-inline-start: 0;
 }
+/* A touch screen has no hover to reveal Detach, so it stays visible (spec 9.6's coarse-pointer rule). */
+@media (hover: none) {
+    .cm-var-field .cm-var-detach { opacity: 1; }
+    .cm-var-fill .cm-var-detach { opacity: 1; width: 24px; margin-inline-start: 0; }
+}
 .cm-var-detach:hover {
     background-color: var(--cm-bg-transparent-hover);
 }

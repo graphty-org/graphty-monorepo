@@ -146,6 +146,24 @@ describe("DOT styles: edges", () => {
         expect((await edges(doc, "targetArrowSide"))[2]).toBe("left");
     });
 
+    it("keeps every shape of a stacked arrowhead, each with its own open and side, nearest the node first", async () => {
+        const doc = `digraph { a -> b [arrowhead=boxdotnormal]; b -> c [arrowhead=lteeoldiamond]; c -> d [arrowhead=normal]; d -> e [dir=both, arrowtail=invodot] }`;
+        expect(await edges(doc, "targetArrow")).toEqual(["square", "tee", "triangle", "triangle"]);
+        expect(await edges(doc, "targetArrowParts")).toEqual(["circle triangle", "diamond-open:left", null, null]);
+        expect((await edges(doc, "targetArrowSide"))[1]).toBe("left");
+        expect((await edges(doc, "sourceArrowParts"))[3]).toBe("circle-open");
+    });
+
+    it("reads at most four shapes of an arrow name, a none among them, as Graphviz does", async () => {
+        const doc = `digraph { a -> b [arrowhead=normalnormalnormalnormalnormal]; b -> c [arrowhead=boxboxboxboxbox]; c -> d [arrowhead=nonenormalnormalnormalnormal]; d -> e [arrowhead="${"dot".repeat(20000)}"] }`;
+        expect(await edges(doc, "targetArrowParts")).toEqual([
+            "triangle triangle triangle",
+            "square square square",
+            "triangle triangle",
+            "circle circle circle",
+        ]);
+    });
+
     it("draws a color list with fractions as segments along the line, each a band with a hard switch", async () => {
         const doc = `digraph { a -> b [color="red;0.2:green;0.3:blue"]; b -> c [color="red:blue"] }`;
         expect(await edges(doc, "gradientColors")).toEqual(["#ff0000 #ff0000 #008000 #008000 #0000ff #0000ff", null]);

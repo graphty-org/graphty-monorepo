@@ -43,6 +43,7 @@ export class VercelAiProvider implements LlmProvider {
     private baseUrl?: string;
     private maxTokens?: number;
     private temperature?: number;
+    private fetch?: typeof globalThis.fetch;
     private readonly providerType: VercelProviderType;
 
     /**
@@ -64,6 +65,7 @@ export class VercelAiProvider implements LlmProvider {
         this.baseUrl = options.baseUrl;
         this.maxTokens = options.maxTokens;
         this.temperature = options.temperature;
+        this.fetch = options.fetch;
     }
 
     /**
@@ -79,13 +81,14 @@ export class VercelAiProvider implements LlmProvider {
 
         switch (this.providerType) {
             case "openai": {
-                const openai = createOpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
+                const openai = createOpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl, fetch: this.fetch });
                 return openai(this.model ?? DEFAULT_MODELS.openai);
             }
             case "anthropic": {
                 const anthropic = createAnthropic({
                     apiKey: this.apiKey,
                     baseURL: this.baseUrl,
+                    fetch: this.fetch,
                     // Enable browser support - Anthropic requires this header for CORS
                     headers: {
                         "anthropic-dangerous-direct-browser-access": "true",
@@ -95,7 +98,11 @@ export class VercelAiProvider implements LlmProvider {
             }
             case "google":
             default: {
-                const google = createGoogleGenerativeAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
+                const google = createGoogleGenerativeAI({
+                    apiKey: this.apiKey,
+                    baseURL: this.baseUrl,
+                    fetch: this.fetch,
+                });
                 return google(this.model ?? DEFAULT_MODELS.google);
             }
         }

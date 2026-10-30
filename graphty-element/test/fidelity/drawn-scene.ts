@@ -39,6 +39,7 @@ import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel"
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
 import { piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
 import type { Node } from "../../src/Node";
+import { spansAlongCenters } from "./pattern-spans";
 
 /**
  * Drawn values a third-party consumer cannot read through the public API today, so cannot check
@@ -223,7 +224,6 @@ interface PatternInternals {
     color: string;
     opacity: number;
     wave: WaveShape | undefined;
-    laidAt: { start: Vector3; direction: Vector3; length: number } | null;
 }
 interface NodeInternals {
     border: AbstractMesh | null;
@@ -650,6 +650,8 @@ export interface DrawnNode {
     outer?: { border: DrawnBorder; gapPx: number } | null;
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
+    /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
+    picture?: ScreenBox;
     label: DrawnLabel | null;
     /** The further texts it draws over its face (`shape.texts`). */
     texts?: DrawnLabel[];
@@ -932,6 +934,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
             return read === null ? [] : [read];
         }),
         // the image of a node with no body is the node itself
+        ...(picture === undefined ? {} : { picture: picture.box }),
         pieces: pieces.filter(
             (piece): piece is { kind: "shape" | "image"; box: ScreenBox } => piece !== picture && piece.kind !== "body",
         ),
@@ -1108,16 +1111,11 @@ function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | 
         const s = p.point(el.position);
         return [s.x, s.y] as const;
     });
-    const [a, b] = [centers[0], centers[centers.length - 1]];
-    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    if (L < 1e-9) {
+    // along the line as it was laid, its corners and curves too (issue #3102)
+    const spans = spansAlongCenters(centers, outlines as [number, number][][]);
+    if (spans === null) {
         return null;
     }
-    const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
-    const spans = (outlines as [number, number][][]).map((o) => {
-        const t = o.map(([x, y]) => (x - a[0]) * u[0] + (y - a[1]) * u[1]);
-        return [Math.min(...t), Math.max(...t)] as const;
-    });
     const pairs = spans.slice(0, -1).flatMap(([t0, t1], i) => [t1 - t0, spans[i + 1][0] - t1]);
     // the last element too (a dash-dot of two elements is a dash and a dot), followed by the line's usual gap
     const gaps = pairs.filter((_, i) => i % 2 === 1).sort((x, y) => x - y);
@@ -1242,12 +1240,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dash or dot pattern's line runs from where it was laid to its end, as a stroke's dashes do, not from its
         // first element's middle to its last's: a wide dotted line's route started half a dot late, and one element
         // on a line too short for two had no route at all (`pajek-synth-lines` 12 -> 13, 2 -> 3)
-        const laid = fields.laidAt;
-        world =
-            pm.drawnEnds() ??
-            (laid === null
-                ? pm.elements.map((el: ArrowCap) => el.position)
-                : [laid.start, laid.start.add(laid.direction.scale(laid.length))]);
+        // and along the route it was laid on, its bends, curve or loop too (issue #3102)
+        world = pm.drawnRoute() ?? pm.elements.map((el: ArrowCap) => el.position);
         const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
         // a wave with a swing of its own is a line `width` thick waving across its path: as thick as the band one
         // period of it draws, read as an outline drawn as a fill is (twice its area over its edges)
@@ -1274,13 +1268,17 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     if (world.length >= 2 && head !== null) {
         world = [...world.slice(0, -1), head];
     }
-    const caps = edge.drawnCaps.map((c) => {
-        const cap = {
-            arrowHead: edge.arrowCap,
-            arrowTail: edge.arrowTailCap,
-            arrowMiddleHead: edge.arrowMiddleHeadCap,
-            arrowMiddleTail: edge.arrowMiddleTailCap,
-        }[c.end];
+    // the caps in the order drawnCaps lists them: each end cap followed by the row drawn behind it (`stack`)
+    const capObjects = [
+        edge.arrowCap,
+        ...edge.arrowHeadStackCaps,
+        edge.arrowTailCap,
+        ...edge.arrowTailStackCaps,
+        edge.arrowMiddleHeadCap,
+        edge.arrowMiddleTailCap,
+    ].filter((cap) => cap !== null && !cap.isDisposed());
+    const caps = edge.drawnCaps.map((c, k) => {
+        const cap = capObjects[k];
         const at = cap?.position ?? Vector3.Zero();
         // a billboard's color is its slot's; a flat cap's, its batch's material
         const look = cap?.drawnAppearance?.colour ?? null;

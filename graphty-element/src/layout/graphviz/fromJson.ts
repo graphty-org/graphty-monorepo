@@ -16,6 +16,7 @@ interface JsonObject {
     readonly name?: unknown;
     readonly id?: unknown;
     readonly pos?: unknown;
+    readonly lp?: unknown;
 }
 
 /** The part of the `-Tjson` answer this reads. */
@@ -100,6 +101,44 @@ export function edgeBends(
         const bends = source && target ? bendsOf(source, target, pos) : null;
         if (bends !== null) {
             out.set(k, bends);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * Read where Graphviz put each edge's label (its `lp`, the label's center) out of its json output, as `along` of the
+ * way from the source node's center to the target's and `across` that length to the left of the line, as an edge's
+ * bends are given: the edges are named `e<k>` by their place in the list handed over (see `toDot`).
+ * @param json - the `-Tjson` text
+ * @param edges - the edges handed over, each with its end rows
+ * @returns each labelled edge's label place, by place in the list; absent for an edge with no `lp` or a self-loop
+ */
+export function edgeLabelPlaces(
+    json: string,
+    edges: readonly { readonly src: number; readonly dst: number }[],
+): Map<number, readonly [along: number, across: number]> {
+    const parsed = JSON.parse(json) as JsonGraph;
+    const centers = nodeCenters(parsed);
+    const out = new Map<number, readonly [number, number]>();
+    for (const { id, lp } of parsed.edges ?? []) {
+        const k = typeof id === "string" && /^e\d+$/.test(id) ? Number(id.slice(1)) : -1;
+        const edge = k >= 0 ? edges[k] : undefined;
+        const source = edge && centers.get(`n${edge.src}`);
+        const target = edge && centers.get(`n${edge.dst}`);
+        const [x, y] = typeof lp === "string" ? lp.split(",").map(Number) : [];
+        if (source === undefined || target === undefined || !Number.isFinite(x) || !Number.isFinite(y)) {
+            continue;
+        }
+
+        const dx = target[0] - source[0];
+        const dy = target[1] - source[1];
+        const length2 = dx * dx + dy * dy;
+        if (length2 > 0) {
+            const vx = x - source[0];
+            const vy = y - source[1];
+            out.set(k, [(vx * dx + vy * dy) / length2, (vy * dx - vx * dy) / length2]);
         }
     }
 

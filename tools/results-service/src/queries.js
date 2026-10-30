@@ -58,26 +58,40 @@ async function passesSince(db, q, before = Number.MAX_SAFE_INTEGER) {
  * The quarantine as it stands now: entries not left, not expired, without 20 passes since their last
  * failure, and never a GPU family.
  * @param db the D1 database
- * @param families shard families
+ * @param families shard families, or null for every family
  * @param now milliseconds
- * @returns the entries, each with family, file, name, issue, expires and passes
+ * @returns the entries, each with family, file, name, issue, since, expires and passes
  */
 async function activeQuarantine(db, families, now) {
-    const wanted = families.filter((f) => !NEVER_QUARANTINED.test(f));
-    if (!wanted.length) return [];
+    const wanted = families?.filter((f) => !NEVER_QUARANTINED.test(f));
+    if (wanted?.length === 0) return [];
+    const byFamily = wanted ? ` AND family IN (${placeholders(wanted)})` : "";
     const rows = await all(
         db,
         `SELECT family, file, name, issue, since, expires FROM quarantine
-         WHERE left_at IS NULL AND expires > ? AND family IN (${placeholders(wanted)})`,
+         WHERE left_at IS NULL AND expires > ?${byFamily}`,
         now,
-        ...wanted,
+        ...(wanted ?? []),
     );
     const out = [];
     for (const q of rows) {
+        if (NEVER_QUARANTINED.test(q.family)) continue;
         const passes = await passesSince(db, q);
-        if (passes < QUARANTINE_PASSES) out.push({ ...q, since: undefined, passes });
+        if (passes < QUARANTINE_PASSES) out.push({ ...q, passes });
     }
     return out;
+}
+
+/**
+ * GET /v1/quarantine : every entry in force, of every family, for the health dashboard's quarantine list.
+ * @param _q the query (unused)
+ * @param _who the caller
+ * @param db the D1 database
+ * @param now milliseconds
+ * @returns quarantine: family, file, name, issue, since, expires (milliseconds) and passes
+ */
+export async function getQuarantine(_q, _who, db, now) {
+    return { quarantine: await activeQuarantine(db, null, now) };
 }
 
 /**
@@ -101,10 +115,17 @@ export async function trackedIssues(db, family, now) {
 // Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
 // inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    if (!pairs.length) return [];
+    // 1 + 3 parameters a variant: chunks of 30 stay under D1's 100 (an everything run asks about ~55 variants)
+    const rows = [];
+    for (let i = 0; i < pairs.length; i += 30)
+        rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 30))));
+    return rows.filter((r) => !changed.has(r.file)); // rule 1, the file itself; its import closure is the client's
+}
+
+async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
-    const rows = await all(
+    return all(
         db,
         `SELECT DISTINCT i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
          FROM failure f JOIN invocation i ON i.id = f.invocation
@@ -115,7 +136,6 @@ async function failingOnBase(db, base, pairs, changed) {
         ...variants,
         ...pairs.flat(),
     );
-    return rows.filter((r) => !changed.has(r.file)); // rule 1, the file itself; its import closure is the client's
 }
 
 async function variantFacts(db, variant, inputs, now) {
@@ -194,11 +214,14 @@ export async function getPlan(q, who, db, now) {
     if (variants.length !== inputs.length) refuse(400, "variants and inputs must be lists of the same length");
     const pairs = variants.map((v, i) => [v, inputs[i]]);
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
-    const facts = {};
-    for (const [v, k] of pairs) facts[v] = await variantFacts(db, v, k, now);
+    // in parallel: one after another, an everything run's ~55 variants took past the client's wait, so its bins
+    // were packed without history, about eight times too many test jobs, and they queued pull requests for an hour
+    const facts = Object.fromEntries(
+        await Promise.all(pairs.map(async ([v, k]) => [v, await variantFacts(db, v, k, now)])),
+    );
     const files = list(q.get("files"));
     return {
-        quarantine: await activeQuarantine(db, families, now),
+        quarantine: (await activeQuarantine(db, families, now)).map((q) => ({ ...q, since: undefined })),
         failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(files)),
         variants: facts,
         ...(pairs.length === 0 && files.length ? await fileFacts(db, files, now) : {}),

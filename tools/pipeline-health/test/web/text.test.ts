@@ -49,6 +49,72 @@ describe("headline", () => {
     });
 });
 
+describe("release channel tiles", () => {
+    const tile = {
+        id: "nightly",
+        state: "warn",
+        sha: "9c41d07e2b8a6f3c1d5e7a9b0c2d4e6f8a1b3c5d",
+        at: "2026-10-25T22:30:00Z",
+        attempts: [
+            { at: "2026-10-25T12:00:00Z", outcome: "bad", run: 1, sha: "1".repeat(40) },
+            { at: "2026-10-25T22:30:00Z", outcome: "ok", run: 2 },
+            { at: "2026-10-25T23:00:00Z", outcome: "held", run: 3 },
+        ],
+        link: "/releases",
+    } as const;
+
+    it("draws the state, the served commit, its age and a dot per attempt, oldest first", async () => {
+        const { channelTile } = await import("../../web/src/render.js");
+        const { clock } = await import("../../web/src/text.js");
+        clock.now = () => Date.parse("2026-10-25T23:30:00Z");
+        const html = channelTile({ ...tile, attempts: [...tile.attempts] });
+        expect(html).toContain('class="tile warn"');
+        expect(html).toContain(">Nightly<");
+        expect(html).toContain(">WARNING<");
+        expect(html).toContain(">9c41d07<");
+        expect(html).toContain("promoted 60 min ago");
+        expect([...html.matchAll(/class="dot d-(\w+)"/g)].map((m) => m[1])).toEqual(["bad", "ok", "held"]);
+        expect(html).toContain('title="12:00: failed, 1111111"');
+        expect(html).toContain("last 3 release attempts, oldest first");
+        clock.now = () => Date.now();
+    });
+
+    it("shows a channel with nothing recorded as NO DATA with hollow dots", async () => {
+        const { channelTile } = await import("../../web/src/render.js");
+        const html = channelTile({
+            id: "canary",
+            state: "nodata",
+            sha: null,
+            at: null,
+            attempts: [],
+            link: "/releases",
+        });
+        expect(html).toContain('class="tile none"');
+        expect(html).toContain(">NO DATA<");
+        expect(html).toContain(">--<");
+        expect(html).toContain("no deploys recorded");
+        expect(html.match(/d-none/g)).toHaveLength(14);
+    });
+
+    it("puts the tiles at the top of the overview, before the category blocks", async () => {
+        const { overviewView, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        const o = {
+            page: "overview",
+            range: "1h",
+            generated: "2026-10-25T23:30:00Z",
+            categories: [],
+            episodes: [],
+            sources: [],
+            channels: [{ ...tile, attempts: [...tile.attempts] }],
+        } as unknown as Parameters<typeof overviewView>[0];
+        const html = overviewView(o);
+        expect(html.indexOf('class="tiles"')).toBeGreaterThan(-1);
+        expect(html.indexOf('class="tiles"')).toBeLessThan(html.indexOf('class="status"'));
+        expect(overviewView({ ...o, channels: undefined })).not.toContain('class="tiles"');
+    });
+});
+
 describe("stateChip", () => {
     it("labels a slow measure with the days of history it covers, and not when the history covers it", () => {
         const slow = { state: "slow" as const, window: "7d" as const, value: { n: 0 } };

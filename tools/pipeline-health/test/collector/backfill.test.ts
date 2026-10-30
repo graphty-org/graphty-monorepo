@@ -74,17 +74,29 @@ function fake(
                 "x-ratelimit-limit": "5000",
             };
             const reply = (body: unknown) => new Response(JSON.stringify(body), { headers });
-            if (/\/actions\/runs$/.test(u.pathname) && u.searchParams.get("created")) {
+            const listing = /\/actions\/(?:workflows\/([^/]+)\/)?runs$/.exec(u.pathname);
+            if (listing && u.searchParams.get("created")) {
                 // A day ("2026-10-25") or a range ("a..b"), newest first; past `listed` runs a page comes back empty.
+                // A workflow's list (actions/workflows/<file>/runs) holds only that workflow's runs.
                 const created = u.searchParams.get("created")!;
                 const [from, to] = created.split("..");
                 const day = runs
+                    .filter((r) => !listing[1] || workflowFile(r.path) === listing[1])
                     .filter((r) => (to ? r.created_at >= from && r.created_at <= to : r.created_at.startsWith(created)))
                     .toSorted((a, b) => b.created_at.localeCompare(a.created_at));
                 const per = Number(u.searchParams.get("per_page"));
                 const page = Number(u.searchParams.get("page"));
                 const shown = day.slice(0, opts.listed ?? Infinity);
                 return reply({ total_count: day.length, workflow_runs: shown.slice((page - 1) * per, page * per) });
+            }
+            if (u.pathname === "/graphql") {
+                // GitHub refuses a query that leaves a required (`$x: T!`) variable out.
+                const { query, variables } = JSON.parse(String(init?.body)) as {
+                    query: string;
+                    variables: Record<string, unknown>;
+                };
+                const missing = [...query.matchAll(/\$(\w+): \w+!/g)].filter(([, v]) => variables[v] === undefined);
+                if (missing.length) throw new Error(`graphql: required variable $${missing[0][1]} not provided`);
             }
             const ids =
                 opts.suites &&
@@ -159,6 +171,77 @@ describe("backfill", () => {
         await backfill({ ...options(store, g), gh: new GitHub(async () => "t", g.fetch) });
         expect(g.urls.filter((u) => !u.endsWith("/access_tokens"))).toEqual([]);
         expect(homes(store, "run")).toHaveLength(7);
+    });
+
+    it("repairs only the given days' runs of the given workflows, whatever the cursors say", async () => {
+        // 2026-10-09 to 10-15 each had over 1,000 runs; the first backfill read each day in one query, GitHub listed
+        // only the newest 1,000, and the cursor moved on, so 18 of the month's paid LLM steps were never loaded.
+        const store = new MemoryStore();
+        const release = (id: number, i: number) => ({
+            ...master,
+            id,
+            path: ".github/workflows/release.yml",
+            created_at: `2026-10-25T0${i}:00:00Z`,
+        });
+        const f = fake({ runs: [...history(), release(3000, 1), release(3001, 2)] });
+        await setCursor(store, runsCursor(REPO), JSON.stringify({ day: "2026-09-01", page: 1 }), NOW);
+        const r = await backfill({
+            ...options(store, f),
+            repair: { days: ["2026-10-25"], workflows: ["release.yml"] },
+        });
+        expect(r).toMatchObject({ done: true, runs: 2 });
+        expect(
+            homes(store, "run")
+                .map((i) => i.pk)
+                .sort(),
+        ).toEqual([`R#run#${REPO}/3000`, `R#run#${REPO}/3001`]);
+        expect(f.urls.every((u) => !u.includes("/actions/runs?") && !u.endsWith("/graphql"))).toBe(true);
+        expect(JSON.parse((await getCursor(store, runsCursor(REPO)))!)).toEqual({ day: "2026-09-01", page: 1 });
+        expect(await getCursor(store, PRS_CURSOR)).toBeUndefined();
+    });
+
+    it("a repair stopped at its deadline continues where it stopped, and once done reads nothing", async () => {
+        // 2026-10-29: every invocation of a repair started again at its first day and workflow, re-read the same 419
+        // runs until its deadline, and spent the day's write budget writing them over and over.
+        const release = (id: number, day: string, i: number) => ({
+            ...master,
+            id,
+            path: ".github/workflows/release.yml",
+            created_at: `${day}T0${i}:00:00Z`,
+        });
+        const runs = [
+            ...[0, 1, 2, 3].map((i) => release(3000 + i, "2026-10-24", i)),
+            ...[0, 1].map((i) => release(3100 + i, "2026-10-25", i)),
+        ];
+        const repair = { days: ["2026-10-24", "2026-10-25"], workflows: ["release.yml"] };
+        const store = new MemoryStore();
+        const c = clock();
+        // 1 s a call: 2026-10-24's first page (a list and 3 runs' jobs) is written; the deadline falls in its second.
+        const first = await backfill({
+            ...options(store, fake({ runs }), c),
+            perHour: 3600,
+            deadline: NOW + 4_000,
+            repair,
+        });
+        expect(first).toMatchObject({ done: false, stopped: "deadline", runs: 3 });
+
+        const g = fake({ runs });
+        const second = await backfill({ ...options(store, g), repair });
+        expect(second).toMatchObject({ done: true, runs: 3 });
+        const listed = g.urls.filter((u) => u.includes("/workflows/release.yml/runs?"));
+        expect(
+            listed.map((u) => `${new URL(u).searchParams.get("created")}/${new URL(u).searchParams.get("page")}`),
+        ).toEqual(["2026-10-24/2", "2026-10-25/1"]);
+        expect(homes(store, "run")).toHaveLength(6);
+
+        const h = fake({ runs });
+        expect(await backfill({ ...options(store, h), repair })).toMatchObject({ done: true, runs: 0 });
+        expect(h.urls).toEqual([]);
+        // A different repair starts from its own beginning.
+        const k = fake({ runs });
+        expect(
+            await backfill({ ...options(store, k), repair: { days: ["2026-10-25"], workflows: ["release.yml"] } }),
+        ).toMatchObject({ done: true, runs: 2 });
     });
 
     it("stops at the days the earlier oldest-first backfill loaded (its cursor's day, reloaded whole)", async () => {

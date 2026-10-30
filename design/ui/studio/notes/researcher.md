@@ -10,16 +10,16 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-29) Key now names bccf8fe47f. On it T65's Select card chip counts the whole graph
+- (2026-10-30) Key now names a53beb7179; its re-pilot of T60, T65 A and T66 matched the key's
+  counts. Pilot "mismatches" there were decided.md wording, the key's existing dead ends or another
+  task's routes ("PASS INCOMPLETE" for other tasks' routes is not a gap in this task).
+- (2026-10-29) Earlier key named bccf8fe47f. On it T65's Select card chip counts the whole graph
   (A 5 of 24, B 5 of 12) while 4 / 3 are selected: a key line written ahead of a fix (42ce7201c7)
   outlived its revert (5b25463780). Before trusting a key line, check that the commit behind it is
   in the frozen build (`git merge-base --is-ancestor`). A 5 read off that chip is graded on the act.
-- (2026-10-29) Earlier: key named ff17391bb1. On ff: T65 Select counts only what is in the picture (A 4,
-  B 3: the old "5 not 4" grading line is gone); T64 Shortest path reads only "farther" weights, so
-  A opens on None with "not read" (right for A; grade on Fields); re-runs recompute and paths list
-  names. T68 B's gauges.csv row export (11 nodes, 0 edges) is F, the flows.csv row's is success.
-  Still open: no `data.json` from `--end`; T67 not re-walked since 0ffeae2ef5 (its latest pilot
-  still names that build: treat its mismatches as stale). T60 re-walked on ff: matches the key.
+- (2026-10-29) On ff17391bb1 and later: T65 Select selects only what is in the picture (A 4, B 3);
+  T64 Shortest path reads only "farther" weights; T68 B's gauges.csv row export is F. Still open:
+  no `data.json` from `--end`.
 - (2026-10-29) Pilot subagents cannot write report.md files (the harness refuses); their returned
   findings are the record. A finding's names can steer a report the wrong way even with right
   counts: T61's Edges table marks P05 (Source) for P13's unknown end, so the key tells graders to
@@ -44,8 +44,6 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   bars that count only what the round can observe.
 - (2026-10-21) Graders over-rate on one half: every single-half or single-persona "3" came down to
   2 under skeptic check. Count a 3 only with its behavioral cost (blocked, misread).
-- (2026-10-21) A grade.md without the three header lines is silently dropped by `score.mjs`: tally
-  by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
 - (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
   participant is one model. Read tasks and key for leading before spending sessions.
 - (2026-10-20) Pilot "mismatches" are often the key right and decided.md wrong-way: the key counts
@@ -87,6 +85,12 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-10-30 (key matched to a53beb7179):** Changed only the header and T65's card-count line
+  (A's chip has no accessible name, so a screen-reader participant hears 4 only from the live
+  message). Left T60's "no Open button" and Server dead end and T66's "Select | Hide" alone. Reason:
+  each pilot mismatch was either the screen agreeing with the key or decided.md wording the build
+  does not have; the key writes the screen. Evidence: r1d3 pilot T60A/T60B/T65A/T66A/T66B walks.
 
 - **2026-10-29 (key matched to bccf8fe47f):** Replaced T65's "Card counts" (4 of 14 / 3 of 5, an
   engineer's line for a change reverted before the freeze) with the screen's 5 of 24 / 5 of 12, and
@@ -180,6 +184,9 @@ logged). Their reasons, in short:
   reaches; more sessions cannot move either.
 
 ## Tried: worked / did not work
+
+- 2026-10-30 (key to a53b) -- Worked: reading each mismatch against the key text before editing;
+  three of four "mismatches" needed no change.
 
 - 2026-10-29 (key to bccf) -- Worked: `git log -S'4 of 14'` on the key found which commit wrote the
   stale line, and `merge-base --is-ancestor` on the revert proved the build lacks it.

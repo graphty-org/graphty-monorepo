@@ -333,3 +333,13 @@ first two by itself; the dry run owns the rest.
 - 2026-10-29: frozen on build a53beb7179 (served from .study-builds/tier4-r1d3-a53beb7179), replacing
   bccf8fe47f (.study-builds/tier4-r1d2-bccf8fe47f). The Select card's count change stays taken back,
   so the chip still counts over the whole graph; the build adds master's overlay behavior changes.
+- 2026-10-30: answer key matched to build a53beb7179 from its targeted re-pilot of T60, T65 A and
+  T66 (no bar, success definition or step count changed; tasks.md needed no change):
+    - Header: the key names a53beb7179.
+    - T65: A's Select card chip still reads 5 of 24 while 4 are selected, in either order, as the
+      key's card-count line says; on this build A's chip has no accessible name, so a
+      screen-reader participant hears the marked count only from "4 nodes selected".
+    - T60 and T66: every route matched the key (A 24 / 59, B 331 / 361; A 12 of 13, B 11 of 12 and
+      13 of 14). The pilots' points that the address box has no Open button, that Server... loads
+      no address, and that the card reads "Select | Hide" are the screen's words the key already
+      holds.

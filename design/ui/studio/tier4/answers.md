@@ -2,10 +2,10 @@
 
 Never shown to participants. Each task: its success definition, the success path, and what the
 final screen, the end-state records or the saved file must show. Paths name controls as the
-frozen build (bccf8fe47f) draws them. The dry run read every value and path off the earlier build
-0ffeae2ef5, the re-pilots re-read the changed ones off 037e96e9bb, ff17391bb1 and then bccf8fe47f, and each
-change is logged in `criteria.md`. A note naming an earlier build that no later note replaces still
-holds on bccf8fe47f. Each core task's path step count is written as "Path steps: N"
+frozen build (a53beb7179) draws them. The dry run read every value and path off the earlier build
+0ffeae2ef5, the re-pilots re-read the changed ones off 037e96e9bb, ff17391bb1, bccf8fe47f and then
+a53beb7179, and each change is logged in `criteria.md`. A note naming an earlier build that no later
+note replaces still holds on a53beb7179. Each core task's path step count is written as "Path steps: N"
 (bar 7).
 
 On 0ffeae2ef5 and 037e96e9bb, `real.mjs --end` writes `work.json`, `key.json` and `styles*.json` but no
@@ -201,10 +201,12 @@ showing.
   selected" with 4 rings, and turning the keep card off selects the fifth staff member again.
   (Builds 0ffeae2ef5 and 037e96e9bb selected over the whole graph: 5 for A, 5 for B. ff17391bb1
   and bccf8fe47f select only what is in the picture: 4 for A, 3 for B.)
-- **Card counts**: on bccf8fe47f (as on every earlier build) the Select card's chip counts over
-  the whole graph, not what it marks: A's role card reads **5 of 24** while "4 nodes selected", B's
-  installed card **5 of 12** while "3 nodes selected", in either order, and a screen reader hears
-  "Node 5 of 12" for B's card. The keep card reads 14 of 24 (A) and 5 of 12 (B), and the top bar
+- **Card counts**: on bccf8fe47f and a53beb7179 (as on every earlier build) the Select card's chip
+  counts over the whole graph, not what it marks: A's role card reads **5 of 24** while "4 nodes
+  selected", B's installed card **5 of 12** while "3 nodes selected", in either order, and a screen
+  reader hears "Node 5 of 12" for B's card. On a53beb7179 A's chip has no accessible name and is
+  not in the focus order, so a screen-reader participant hears A's marked count only from the
+  live message "4 nodes selected". The keep card reads 14 of 24 (A) and 5 of 12 (B), and the top bar
   reads 14 of 24 (A) and 5 of 12 (B). A report of 5 marked that was read off the Select card's
   chip, with both cards built right and the screen reading 4 (B 3) selected, is graded on the cards
   and the selection, not failed for the chip's number; note in the grade that the chip said 5.

@@ -1,5 +1,5 @@
 // "Now" lists the collector keeps as JSON cursors and the page builder reads as tables: the pull requests waiting
-// on the owner, the release attempts and workflows, the committed quarantine list. A list the collector has not
+// on the owner, the release attempts and workflows, the quarantine in force. A list the collector has not
 // written yet reads as undefined (the section says "not collected"), never as an empty list.
 
 import { getCursor } from "./raw.js";
@@ -94,7 +94,7 @@ export interface WorkflowState {
     since?: number;
 }
 
-/** An entry of tools/test-quarantine.json. */
+/** A quarantined test: an entry of the results store's quarantine, or of tools/test-quarantine.json. */
 export interface QuarantineEntry {
     file: string;
     name: string;

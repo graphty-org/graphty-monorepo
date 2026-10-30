@@ -14,6 +14,7 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyStructured
 
 import { dynamoStore } from "../dynamo.js";
 import {
+    BUMP_BRANCH,
     DAY,
     oldestAt,
     putRaw,
@@ -284,8 +285,7 @@ const INV_TESTS = (inv: string) => `INVTESTS#${inv}`;
  * the bump's, deterministic, so they are kept out of the flaky readings (#4147).
  * @param who
  */
-const isBump = (who: Who) =>
-    who.kind === "pr" && /^(dependabot\/|chore\/deps-refresh-)/.test(String(who.claims.head_ref ?? ""));
+const isBump = (who: Who) => who.kind === "pr" && BUMP_BRANCH.test(String(who.claims.head_ref ?? ""));
 
 function testItem(
     inv: string,

@@ -49,7 +49,7 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job`;
 
 /**
  * A flake hotspot family (design section 5): a shard run's variant `<family>|flags=..|<shape>` and a flaky test's
@@ -75,6 +75,8 @@ const isMaster = (base: string) => base === "master" || base === "main";
 /** A finished job's own verdict: cancelled and skipped jobs say nothing about the job. */
 const JOB_PASS = new Set(["success"]);
 const JOB_FAIL = new Set(["failure", "timed_out", "startup_failure"]);
+/** A test job that ran its tests: cancelled, skipped and startup failures post no shard run. */
+const JOB_POSTS = new Set(["success", "failure", "timed_out"]);
 
 /**
  * A job's name with its bin or shard number folded, as checks are grouped by family (section 4):
@@ -332,12 +334,19 @@ export const METRICS: MetricDef[] = [
         id: "release.trains",
         from: [src("run", "completedAt", (r) => (r.workflow === "release.yml" && r.tested ? { n: 1 } : null))],
     },
-    // 4.7 Data sources: rows of CI results per CI run, for "thin for its activity" (section 9).
+    // 4.7 Data sources: rows of CI results per CI test job, for "thin for its activity" (section 9). Each Test (...)
+    // job (ci.yml, or "CI / Test (...)" in a release.yml or bisect.yml full run) posts one shard run, its invocation
+    // id `<run>.<attempt>.test.<shard>` (tools/results/run-group.mjs baseId()), so a healthy feed reads about 1 and
+    // only lost posts lower it. Counting ci.yml runs instead swung with the hour's master builds, which run no tests.
     {
         id: "source.ci_results_per_run",
         from: [
-            src("shard_run", "endedAt", (s) => (s.source === "ci" ? { n: 0, sum: 1 } : null)),
-            src("run", "completedAt", (r) => (r.workflow === "ci.yml" && r.conclusion !== "skipped" ? { n: 1 } : null)),
+            src("shard_run", "endedAt", (s) =>
+                s.source === "ci" && s.id.split(".")[2] === "test" ? { n: 0, sum: 1 } : null,
+            ),
+            src("job", "completedAt", (j) =>
+                j.family !== undefined && JOB_POSTS.has(j.conclusion ?? "") ? { n: 1 } : null,
+            ),
         ],
     },
     // Local runs page.

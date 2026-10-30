@@ -507,6 +507,26 @@ describe("GET /v1/plan", () => {
         );
     });
 
+    it("lists every family's quarantine in force on GET /v1/quarantine, with since, never a GPU family", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.quarantine("graphty-element-browser", "active", { since: NOW - 10 * 60_000 });
+        s.quarantine("cytoscape-extensions-storybook", "story", { issue: 5001 });
+        s.quarantine("graphty-element-browser", "expired", { expires: NOW - 1 });
+        s.quarantine("graphty-element-browser", "left", { left: NOW - HOUR });
+        s.quarantine("webgpu-graph-algorithms-browser", "gpu");
+        assert.equal((await call("GET", "/v1/quarantine")).status, 401);
+        const res = await call("GET", "/v1/quarantine", { token: LOCAL_TOKEN });
+        assert.equal(res.status, 200);
+        assert.deepEqual(
+            res.body.quarantine.map((q) => [q.family, q.name, q.issue, q.since, q.expires]),
+            [
+                ["graphty-element-browser", "active", 9, NOW - 10 * 60_000, NOW + DAY],
+                ["cytoscape-extensions-storybook", "story", 5001, NOW - DAY, NOW + DAY],
+            ],
+        );
+    });
+
     it("excuses only failures master's own runs saw on the base or on the same inputs", async () => {
         const { call, env } = service();
         const s = seed(env);

@@ -103,6 +103,12 @@ permissions:
     checks: write
 
 env:
+    # A cache a job saves is restored by every later run in the same ref's scope, master's included. The release
+    # train's call checks out inputs.ref, which can be an older or held commit, not the commit the run belongs to:
+    # a job saves its caches only when it checked out the run's own commit, and otherwise only restores them
+    # (CodeQL actions/cache-poisoning, #3261). A pull request, a master push and a dispatch always check out their
+    # own commit, so they save as before.
+    SAVE_CACHES: ${{ !inputs.ref || inputs.ref == github.sha }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
@@ -828,8 +834,9 @@ jobs:
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
+              id: fidelity-references
               if: steps.reuse-build.outputs.artifacts-run == ''
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
@@ -872,6 +879,13 @@ jobs:
               run: >-
                   pnpm exec nx run-many -t build-storybook --parallel=3
                   --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
+
+            - name: Save the style fidelity reference pictures
+              if: steps.reuse-build.outputs.artifacts-run == '' && steps.fidelity-references.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the Stories job
@@ -1545,8 +1559,9 @@ jobs:
             # canvas with each oracle's rasterized PNG, a Git LFS object: fetch only the pictures of the oracles it
             # names (about 3 MB), cached like the story tests' baselines.
             - name: Restore the style fidelity oracle pictures
+              id: oracle-pictures
               if: startsWith(matrix.shard, 'graphty-element-browser')
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
@@ -1556,12 +1571,20 @@ jobs:
               if: startsWith(matrix.shard, 'graphty-element-browser')
               run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
+            - name: Save the style fidelity oracle pictures
+              if: startsWith(matrix.shard, 'graphty-element-browser') && steps.oracle-pictures.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
+
             # The Git LFS files a shard reads (its "lfs" in tools/ci-test-matrix.mjs, a group's members' joined):
             # graph-io-storybook's fidelity stories draw the oracles' rasterized PNGs, and without this pull the
             # checkout holds pointer text that fails to decode (#4989). Cached like the story tests' baselines.
             - name: Restore the Git LFS files the shard reads
+              id: shard-lfs
               if: matrix.lfs
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-shard-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
@@ -1571,9 +1594,16 @@ jobs:
               if: matrix.lfs
               run: git lfs pull --include "${{ matrix.lfs }}"
 
-            - name: Cache Playwright browsers
+            - name: Save the Git LFS files the shard reads
+              if: matrix.lfs && steps.shard-lfs.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-shard-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+
+            - name: Restore Playwright browsers
               if: matrix.needs-browser
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
@@ -1590,6 +1620,14 @@ jobs:
             - name: Install Playwright browsers
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium
+
+            # Saved before the step below adds Firefox and WebKit, so the shared key holds Chromium only.
+            - name: Save Playwright browsers
+              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             # The graphty-element lifecycle shard launches Firefox and WebKit too (matrix.browsers). A
             # cache hit may hold only Chromium, so this runs on every such job; a browser already
@@ -1647,7 +1685,7 @@ jobs:
             # median over the last 9 runs). Restored from the newest run of this shard, saved under this run.
             # "--" ends the shard's name, so graphty-storybook never restores graphty-storybook-features-on's.
             - name: Restore the shard's test durations
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               with:
                   path: test-durations
                   key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
@@ -1681,6 +1719,13 @@ jobs:
                   RESULTS_BASE_CHECKS_OUT: ${{ runner.temp }}/base-checks
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
+
+            - name: Save the shard's test durations
+              if: env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: test-durations
+                  key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
 
             - name: Upload the base checks to dispatch
               if: ${{ !cancelled() && github.event_name == 'pull_request' }}
@@ -3304,8 +3349,9 @@ jobs:
               id: playwright
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
-            - name: Cache Playwright browsers
-              uses: actions/cache@v6
+            - name: Restore Playwright browsers
+              id: playwright-cache
+              uses: actions/cache/restore@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -3320,6 +3366,13 @@ jobs:
             - name: Install Chromium
               working-directory: visual-review
               run: pnpm exec playwright install chromium
+
+            - name: Save Playwright browsers
+              if: steps.playwright-cache.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
             - name: Download Storybook build
               uses: actions/download-artifact@v4

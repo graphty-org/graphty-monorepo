@@ -3650,6 +3650,9 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
             "handoff",
             // runs again in every attempt anyway: it needs every job, with always()
             "watchers",
+            // the missed-slot alarm reports; it never fails the run (continue-on-error) and a re-run of the
+            // verdict runs it again as a dependent
+            "slot",
         ];
         for (const [id, j] of Object.entries(jobs)) {
             const name = j.name.replace(/\$\{\{ matrix.project \}\}/, "graphty");
@@ -3764,9 +3767,16 @@ describe("the same-commit re-run of a finished run (release-rerun.yml)", () => {
         const release = workflow("release.yml");
         const jobs = parseYaml(release).jobs;
         const hold = jobs.verdict.steps.find((st) => st.id === "hold");
-        assert.equal(hold.if, "${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' }}");
+        assert.equal(
+            hold.if,
+            "${{ steps.verdict.outputs.hold == 'start' || steps.verdict.outputs.hold == 'update' || steps.verdict.outputs.hold == 'replace' }}",
+        );
         assert.equal(hold.run, 'node tools/channel/hold.mjs "$HOLD"');
-        assert.equal(jobs.candidate_branch.if, "${{ !cancelled() && needs.verdict.outputs.hold == 'start' }}");
+        // a red hold a newer green run replaced (#5052) loses its channel/candidate here too
+        assert.equal(
+            jobs.candidate_branch.if,
+            "${{ !cancelled() && (needs.verdict.outputs.hold == 'start' || needs.verdict.outputs.replaced != '') }}",
+        );
         // abandoning is its own workflow, needing no approval (owner, 2026-10-27; it blocked nightly for 6 hours
         // waiting in production): no abandon mode or job is left here
         assert.ok(!Object.keys(jobs).some((id) => id.startsWith("abandon")));
@@ -4226,6 +4236,8 @@ describe("release.yml", () => {
             'git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$head" origin :refs/heads/channel/candidate ||',
             // channel/full-run, moved to a candidate tested with its own workflow files (handoff)
             'git push --no-verify --force origin "${SHA}:refs/heads/channel/full-run"',
+            // channel/candidate deleted when a newer green run replaced its red hold (candidate_branch, #5052)
+            'git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$REPLACED" origin :refs/heads/channel/candidate ||',
             // channel/candidate, pushed at a held commit (candidate_branch)
             'git push --no-verify origin "$ref" ||',
         ]);
@@ -7342,7 +7354,8 @@ describe("release.yml's nightly promotion (#1020)", () => {
             FIRST: "${{ steps.gate.outputs.first }}",
             // while a candidate is held, only it promotes (channels-pipeline.md section 3): the hold as the store had it
             // at the verdict, not the pick's, which a re-run attempt keeps from attempt 1
-            HELD: "${{ steps.verdict.outputs.held }}",
+            // nothing is held once this run replaced a red hold (#5052)
+            HELD: "${{ steps.hold.outputs.replaced == '' && steps.verdict.outputs.held || '' }}",
         });
         const order = steps.verdict.steps.map((st) => st.id ?? st.name);
         assert.ok(order.indexOf("verdict") < order.indexOf("gate") && order.indexOf("gate") < order.indexOf("promote"));

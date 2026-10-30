@@ -29,10 +29,49 @@ comes from strict title matching (#4468), so an issue it does not name is not li
 request; never re-run a failure hoping for green (a re-run is only for a classified outside cause); never ask for the
 admin bypass; never touch the screenshot gate's trusted files.
 
+## Every round, before the steps
+
+Two checks run in EVERY round, before step 1, even when a step below ends the round early. Their results lead the
+round's last line.
+
+### Nightly every slot
+
+The goal (owner, 2026-10-30): a successful nightly promotion every 6-hour slot; a slot that does not promote is an
+incident with a named cause (#5052).
+
+- **State nightly's age and the current blocker:** nightly.graphty.app's build stamp
+  (`<meta name="graphty-build" content="commit=...">`) and the store's `GET /v1/release-state` (`ageNightlyMs`,
+  `blocking`), the open `Nightly missed slot <date hh:mm> UTC: <cause>` issue (filed by release.yml's slot job when a
+  full, restart or candidate run ends without moving nightly; `Nightly stalled since` is only the fallback for a slot
+  with no run at all) and the `Nightly held on <sha12>` issue.
+- **An unreviewable or stale hold is fixed this round:** a held head judged red, owner-item or rejected while
+  newer green runs could not replace it, a hold whose fix forward is not moving, or one older than a slot with no
+  fix in flight. Fix forward (step 6), or end it with
+  `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"` (allowed, needs no owner).
+- **A held candidate awaiting screenshots** gets its `ACTION NEEDED` review link at once (step 6's check of the
+  review page first), listed first among owner items.
+- **A missed slot whose cause is a red lane** is step 2's; its issue stays until nightly moves.
+
+### Every dashboard member owned
+
+Run `node tools/health-owner-sweep.mjs`: every health dashboard member that is not ok, and every row of the
+chronic, flaky-quarantine and owner tables, with its issue or pull request, whether that owner is live (open, and a
+pull request, touched in 24 hours, or with an open pull request), and how long the member has been not ok. Exit 1
+names each one with no live owner.
+
+- **No live owner:** take it this round -- file the issue (priority by impact) or start the fix within step 12's
+  bounds -- or name who owns it with evidence the sweep can see (an issue whose title or body names the member).
+- **"The rows should age out" is not an owner.** It counts only once the next round's sweep confirms the row is gone.
+- **A member red two rounds running with no live owner is an alarm,** handled like a red full run (step 2): a
+  `priority:critical` issue and a fix subagent the same round.
+
 ## The round, in priority order
 
 Work down the steps. A step that acts may end the round; otherwise continue. "End the round" ends only this skill's
-part: in the one-client normal mode, issue-round still runs after it in the same `/loop` prompt.
+part: in the one-client normal mode, issue-round still runs after it in the same `/loop` prompt. Whatever ends it,
+the round's last line leads with nightly's age and blocker, then the sweep: for example
+`pipeline-round: nightly 3 h (moved at the 12:00 slot); 4 members not ok, all owned; ...` or
+`pipeline-round: nightly 14 h (held e87f65b, waiting on review); took on costs.t4 (#4701); ...`.
 
 ### 1. Red master build and its reverts
 
@@ -108,8 +147,10 @@ first-parent merges since the last green full run.
   read the suspect merge range in the issue, find the task or step that slowed, and revert or fix it. A budget
   raise is never the fix by itself: it is its own pull request with its new measurement, for the owner to review.
 - A job killed at its `timeout-minutes` (labelled `hung`) is a defect: fix the hang, never re-run or raise it.
-- **`Nightly stalled since <date>`** (`priority:critical`, from `age:nightly` over 24 hours): act on the blocking
-  state it names (a red with no culprit is step 2's to fix forward). Over 48 hours, add its `ACTION NEEDED` line.
+- **`Nightly missed slot <date hh:mm> UTC: <cause>`** (`priority:critical`, from release.yml's slot job): act on
+  the cause it names this round (see "Nightly every slot"). **`Nightly stalled since <date>`** (over a slot and a
+  run with no missed-slot issue: a slot produced no run): check the release scheduler and the newest release.yml
+  runs. Over 48 hours, add its `ACTION NEEDED` line.
 
 ### 5. Held release or failed publish
 
@@ -131,7 +172,9 @@ version` (409) means it is propagating (minutes); otherwise re-run the failed pu
 
 A full run that is green but changed screenshots (`green-images`), or not green-clean after its one re-run, holds its
 commit H on `channel/candidate` with a `Nightly held on <sha12>` issue (CLAUDE.md, "The held nightly candidate"). A
-red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt, that base, `Refs #<hold issue>`).
+red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt, that base, `Refs #<hold issue>`). A
+newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected on its
+own (`hold.mjs replace`); a held green-images head awaiting review is never replaced.
 
 - **Before asking the owner,** open the live review page (servherd `visual-review-v3`, `serve --candidate next`) in
   your own browser tab and confirm it lists `master candidate <sha>` for H with its change count. If it does not, that
@@ -155,8 +198,8 @@ red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt,
 Each once per item (an `asked owner` marker on its issue), batched into one `ACTION NEEDED` line when there are
 several:
 
-- **Promotion waiting on screenshots:** the held candidate's Finish (step 6, after its check); a broken story fails
-  its own pull request instead.
+- **Promotion waiting on screenshots, always first:** the held candidate's Finish (step 6, after its check), asked
+  the round it is held; a broken story fails its own pull request instead.
 - **Never ask the owner to merge.** A pull request `tools/pr-open.sh` left auto-merge off for because it touches an
   owner-guarded path: once green, arm its auto-merge yourself (`gh pr merge <n> --auto --merge`). Only a breaking
   change (it needs the label `breaking-go`) is the owner's, in one daily review list. Never arm one that writes an
@@ -217,7 +260,8 @@ minutes, from `.worktrees/worktree-cleanup-live`). Check only that `servherd_lis
 
 ### 12. Dashboard members no step covers
 
-For EVERY member of `health_status` that is not ok (for example `ci.chronic_jobs`, `costs.*`, `ci.runner_wait`,
+The sweep in "Every dashboard member owned" already ran this round; this step works its findings. For EVERY member
+of `health_status` that is not ok (for example `ci.chronic_jobs`, `costs.*`, `ci.runner_wait`,
 `data-sources.*`, `pull-requests.oldest_open`), get its rows from the drill-down tools (or
 `/v1/page/<page>` on the status API for tables such as chronic) and find its owner: an open issue named for it, an
 open pull request, or a claim in `tmp/health-green-owner/journal.md` (the health-to-green workflow's journal). No
@@ -227,8 +271,9 @@ in `tmp/health-green-owner/owner-asks.md`.
 
 ### 13. Nothing to do
 
-End with one line, for example `pipeline-round: nothing due (3 pull requests open, 1 waiting on the owner).` No
-ACTION NEEDED line unless something in "Escalation" is newly due.
+End with one line that still leads with nightly and the sweep, for example
+`pipeline-round: nightly 2 h; 3 members not ok, all owned; nothing due (3 pull requests open, 1 waiting on the owner).`
+No ACTION NEEDED line unless something in "Escalation" is newly due.
 
 ## Known situations
 

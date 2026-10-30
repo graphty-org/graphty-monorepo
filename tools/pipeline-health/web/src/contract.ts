@@ -206,7 +206,7 @@ export const MEMBER_IDS = [
     "costs.aws",
     "costs.cloudflare_usage",
     "costs.sentry_usage",
-    "data-sources.stress_run",
+    "flaky.stress_run",
     "data-sources.past_age",
     "data-sources.thin",
     "data-sources.collector",
@@ -415,7 +415,7 @@ export interface StripSection extends SectionBase {
  * A table. The page names the table's columns by section id; each row maps a column key to a cell.
  * Tables: master/red, master/shared, pull-requests/owner, runners/superseded, ci/chronic, ci/non-gating,
  * ci/benchmarks, releases/lanes,
- * releases/trains, releases/workflows, costs/money, costs/unit, data-sources/stress,
+ * releases/trains, releases/workflows, costs/money, costs/unit, flaky/stress,
  * data-sources/sources, data-sources/not-set-up.
  */
 export interface TableSection extends SectionBase {

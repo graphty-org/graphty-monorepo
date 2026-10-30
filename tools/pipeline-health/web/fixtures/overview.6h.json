@@ -355,6 +355,21 @@
             },
             "others": [
                 {
+                    "member": "flaky.stress_run",
+                    "state": "bad",
+                    "value": {
+                        "word": "filed",
+                        "n": 0
+                    },
+                    "fact": {
+                        "code": "short.stress_filed",
+                        "params": {
+                            "filed": 0,
+                            "failures": 27
+                        }
+                    }
+                },
+                {
                     "member": "flaky.no_issue",
                     "state": "warn",
                     "value": {
@@ -718,41 +733,16 @@
             "id": "data-sources",
             "state": "bad",
             "setBy": {
-                "member": "data-sources.stress_run",
+                "member": "data-sources.sources_not_ok",
                 "state": "bad",
                 "value": {
-                    "word": "filed",
-                    "n": 0
-                },
-                "fact": {
-                    "code": "short.stress_filed",
-                    "params": {
-                        "filed": 0,
-                        "failures": 27
-                    }
-                }
-            },
-            "driver": {
-                "state": "bad",
-                "window": "now",
-                "sla": {
-                    "target": {
-                        "code": "sla.passed_and_filed"
-                    },
-                    "red": {
-                        "code": "sla.filing_failed"
-                    }
-                },
-                "link": "/data-sources/stress",
-                "id": "data-sources.stress_run",
-                "value": {
-                    "word": "filed",
-                    "n": 0
+                    "n": 1,
+                    "of": 8
                 }
             },
             "others": [],
             "headline": {
-                "state": "ok",
+                "state": "bad",
                 "window": "now",
                 "sla": {
                     "target": {
@@ -910,8 +900,8 @@
         },
         {
             "id": "e7",
-            "category": "data-sources",
-            "member": "data-sources.stress_run",
+            "category": "flaky",
+            "member": "flaky.stress_run",
             "worst": "bad",
             "start": "2026-10-25T08:42:00Z",
             "end": null,
@@ -923,7 +913,7 @@
                     "cap": 25
                 }
             },
-            "link": "/data-sources/stress"
+            "link": "/flaky/stress"
         },
         {
             "id": "e8",

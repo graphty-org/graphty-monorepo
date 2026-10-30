@@ -18,6 +18,21 @@
     },
     "others": [
         {
+            "member": "flaky.stress_run",
+            "state": "bad",
+            "value": {
+                "word": "filed",
+                "n": 0
+            },
+            "fact": {
+                "code": "short.stress_filed",
+                "params": {
+                    "filed": 0,
+                    "failures": 27
+                }
+            }
+        },
+        {
             "member": "flaky.no_issue",
             "state": "warn",
             "value": {
@@ -260,6 +275,24 @@
             "n": 2
         },
         {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "code": "sla.passed_and_filed"
+                },
+                "red": {
+                    "code": "sla.filing_failed"
+                }
+            },
+            "link": "/flaky/stress",
+            "id": "flaky.stress_run",
+            "value": {
+                "word": "filed",
+                "n": 0
+            }
+        },
+        {
             "state": "ok",
             "window": "1h6h",
             "sla": {
@@ -287,24 +320,6 @@
             },
             "n": 294,
             "minN": 10
-        },
-        {
-            "state": "bad",
-            "window": "now",
-            "sla": {
-                "target": {
-                    "code": "sla.passed_and_filed"
-                },
-                "red": {
-                    "code": "sla.filing_failed"
-                }
-            },
-            "link": "/data-sources/stress",
-            "id": "data-sources.stress_run",
-            "value": {
-                "word": "filed",
-                "n": 0
-            }
         }
     ],
     "sections": [

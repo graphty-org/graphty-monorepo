@@ -70,9 +70,9 @@ type CategoryPage = (typeof CATEGORY)[string];
 /** The members of Runners (section 2.6): the runner rows of CI. */
 /**
  * Members another category judges, also shown on a page because they are one of its sources: the Flaky page
- * names every flaky source (4.4), so it shows CI's rerun rate and the stress run. They never set its state.
+ * names every flaky source (4.4), so it shows CI's rerun rate. They never set its state.
  */
-const ALSO_SHOWN: Partial<Record<PageId, string[]>> = { flaky: ["ci.reruns", "data.stress_run"] };
+const ALSO_SHOWN: Partial<Record<PageId, string[]>> = { flaky: ["ci.reruns"] };
 
 const RUNNERS = new Set([
     "ci.runner_wait",
@@ -308,12 +308,7 @@ class Builder {
                     ...empty,
                 ];
             case "data-sources":
-                return [
-                    ...empty,
-                    await stressTable(this.reads),
-                    sourcesTable(this.reads),
-                    notSetUpTable(this.reads, this.reads.ev.members),
-                ];
+                return [...empty, sourcesTable(this.reads), notSetUpTable(this.reads, this.reads.ev.members)];
             case "local-runs":
                 return [
                     await dimBars(this.reads, "runs", "local.runs", range, "n"),

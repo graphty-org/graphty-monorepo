@@ -153,8 +153,8 @@ export const SPEC: Record<string, Spec> = {
     "cost.cloudflare_usage": { id: "costs.cloudflare_usage", unit: "pct", k: PCT, link: "/data-sources/not-set-up" },
     "cost.sentry_usage": { id: "costs.sentry_usage", unit: "pct", k: PCT, link: "/data-sources/not-set-up" },
     "data.stress_run": {
-        id: "data-sources.stress_run",
-        link: "/data-sources/stress",
+        id: "flaky.stress_run",
+        link: "/flaky/stress",
         // stress.state: 0 passed and filed, 1 found nothing three weeks running, 2 filing failed or the run broke.
         word: (v) => STRESS_WORD[Math.min(2, Math.max(0, Math.round(v)))],
         target: f("sla.passed_and_filed"),

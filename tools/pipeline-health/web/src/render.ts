@@ -361,9 +361,14 @@ function pageState(p: PageResponse): string {
                 MEMBER[m.id].when ??
                 (m.window === "now" ? " now" : m.window === "1h" || m.window === "1h6h" ? " over the last hour" : "");
             const v6 = m.value6h ? ` (6 h: ${fmtValue(m.value6h)})` : "";
-            // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing".
-            const is = m.value && "word" in m.value ? ":" : " is";
-            parts.push(`${capital(MEMBER[m.id].short)}${is} ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`);
+            // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing", and
+            // is followed by what that state means rather than a target phrase.
+            const word = m.value !== null && "word" in m.value;
+            parts.push(
+                word
+                    ? `${capital(MEMBER[m.id].short)}: ${fmtValue(m.value)}. ${esc(MEMBER[m.id].red)}`
+                    : `${capital(MEMBER[m.id].short)} is ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`,
+            );
         } else parts.push(`${capital(refText(p.setBy))}.`);
     } else if (p.state === "ok") parts.push("Every judged member is within its target.");
     const named = (state: MemberRef["state"]) =>
@@ -981,7 +986,14 @@ export function headline(m: Member, setBy?: MemberRef, driver?: Member): string 
 /** One measure under a block, with its window, value, target and sparkline; `set` labels it as the color's reason. */
 function measure(m: Member, set: boolean): string {
     const t = MEMBER[m.id];
-    const win = m.window === "now" ? "now" : here.range === "1h" ? "last 1 h" : `last ${rangeLabel(here.range)}`;
+    const win =
+        m.window === "now"
+            ? "now"
+            : m.window === "7d" || m.window === "28d"
+              ? `last ${rangeLabel(m.window)}`
+              : here.range === "1h"
+                ? "last 1 h"
+                : `last ${rangeLabel(here.range)}`;
     const kv = headlineValue(m);
     const kt: string[] = [];
     if (m.state === "nodata" && m.reason) kt.push(sentence(m.reason));
@@ -995,6 +1007,10 @@ function measure(m: Member, set: boolean): string {
         else if (m.id.startsWith("costs.")) kt.push("billing is daily");
     }
     kt.push(slaText(m.sla));
+    // The block above is judged on the last hour whatever the picker shows, so a 24 h value past red under a
+    // green block says why it is not red.
+    if (here.range !== "1h" && (m.window === "1h" || m.window === "1h6h"))
+        kt.push("the block's color is judged on the last 1 h");
     const sp = m.spark ? sparkline(m.spark, clock.generated, `${t.name} trend`) : "";
     const lead = set ? `<b class="knot">Set the color:</b> ` : "";
     const name = set ? t.name : (t.headline ?? t.name);
@@ -1047,6 +1063,31 @@ const LEGEND =
     "OK: within target; WARNING (yellow): past target, look soon; FAILING (red): past the red line, act now; " +
     "NO DATA (hatched): the source is not reporting.";
 
+const SEVERITY: Record<CategoryState, number> = { bad: 0, warn: 1, nodata: 2, ok: 3, idle: 4 };
+
+/**
+ * The one line above the blocks: the most urgent category, the member that set it, what that red means and who
+ * acts, and the others not OK, so a reader need not assemble the story from the blocks, tiles and episodes.
+ */
+export function urgent(categories: CategoryStatus[]): string {
+    const bad = categories
+        .filter((c) => c.state === "bad" || c.state === "warn" || c.state === "nodata")
+        .sort((a, b) => SEVERITY[a.state] - SEVERITY[b.state] || prio(a.id) - prio(b.id));
+    if (!bad.length)
+        return `<p class="urgent ok"><b>Nothing needs action:</b> every category is within its targets.</p>`;
+    const [top, ...rest] = bad;
+    const by = top.setBy;
+    const what = by ? `${unlinked(refText(by))}. ${esc(MEMBER[by.member].red)}` : "";
+    const others = rest.length
+        ? ` Also not OK: ${rest.map((c) => `${esc(CATEGORY_NAME[c.id])} (${STATE_WORD[c.state]})`).join(", ")}.`
+        : "";
+    return (
+        `<p class="urgent ${stateClass(top.state)}"><b>Most urgent:</b> ` +
+        `<a class="ln" href="${href(PAGE_PATH[top.id])}">${esc(CATEGORY_NAME[top.id])}</a> ${STATE_WORD[top.state]}` +
+        `${what ? `: ${what}` : "."}${others}</p>`
+    );
+}
+
 export function overviewView(o: OverviewResponse): string {
     const trend =
         here.range === "24h"
@@ -1085,9 +1126,10 @@ export function overviewView(o: OverviewResponse): string {
     return (
         header("Pipeline health", [], o.generated) +
         channels +
+        urgent(o.categories) +
         `<p class="kcap" title="${esc(long)}">${LEGEND} ${trend}</p>` +
         `<ol class="status" aria-label="Category status">${cols}</ol>` +
-        `<h2>Last 24 hours<span class="h2sub">every time a measure went past its target; red first</span></h2><div class="eps">${eps}</div>`
+        `<h2>Last 24 hours<span class="h2sub">every time an hourly or current measure went past its target, ongoing first; the bar is the worst it reached: red past the red line, yellow past the target</span></h2><div class="eps">${eps}</div>`
     );
 }
 

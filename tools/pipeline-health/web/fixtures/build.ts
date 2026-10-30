@@ -519,6 +519,13 @@ const flakyMembers: Member[] = [
         sla: SLA.detected,
         link: "/flaky",
     }),
+    member({
+        id: "flaky.stress_run",
+        state: "bad",
+        value: { word: "filed", n: 0 },
+        sla: SLA.stress,
+        link: "/flaky/stress",
+    }),
 ];
 
 // Releases
@@ -657,13 +664,6 @@ const costMembers: Member[] = [
 // Data sources
 const dataMembers: Member[] = [
     member({
-        id: "data-sources.stress_run",
-        state: "bad",
-        value: { word: "filed", n: 0 },
-        sla: SLA.stress,
-        link: "/data-sources/stress",
-    }),
-    member({
         id: "data-sources.past_age",
         value: num(0),
         sla: SLA.pastAge,
@@ -766,7 +766,10 @@ const categories: CategoryStatus[] = [
         id: "flaky",
         state: "bad",
         setBy: ref(byId(flakyMembers, "flaky.blocked"), f("short.blocked", { prs: 3 })),
-        others: [ref(byId(flakyMembers, "flaky.no_issue"), f("short.no_issue", { tests: 2 }))],
+        others: [
+            ref(byId(flakyMembers, "flaky.stress_run"), f("short.stress_filed", { filed: 0, failures: 27 })),
+            ref(byId(flakyMembers, "flaky.no_issue"), f("short.no_issue", { tests: 2 })),
+        ],
         headline: flakeRate,
         driver: byId(flakyMembers, "flaky.blocked"),
     },
@@ -787,11 +790,11 @@ const categories: CategoryStatus[] = [
     {
         id: "data-sources",
         state: "bad",
-        setBy: ref(dataMembers[0], f("short.stress_filed", { filed: 0, failures: 27 })),
-        driver: dataMembers[0],
+        setBy: { member: "data-sources.sources_not_ok", state: "bad", value: { n: 1, of: 8 } },
         others: [],
         headline: member({
             id: "data-sources.sources_not_ok",
+            state: "bad",
             value: { n: 1, of: 8 },
             sla: { target: cmp("==", 0), red: cmp(">=", 1) },
             spark: spark([...flat(0, 9), ...flat(1, 9)], flat(1, 24), { target: cmp("==", 0), red: cmp(">=", 1) }, 0),
@@ -863,13 +866,13 @@ const episodes: Episode[] = [
     },
     {
         id: "e7",
-        category: "data-sources",
-        member: "data-sources.stress_run",
+        category: "flaky",
+        member: "flaky.stress_run",
         worst: "bad",
         start: t("08:42"),
         end: null,
         fact: f("ep.stress_filing", { filed: 0, failures: 27, cap: 25 }),
-        link: "/data-sources/stress",
+        link: "/flaky/stress",
     },
     {
         id: "e8",
@@ -2019,8 +2022,8 @@ const pages: PageResponse[] = [
         page: "flaky",
         ...head("flaky"),
         notes: [f("flaky.note.judged_again", { since: t("20:42") })],
-        // Every flaky source (design 4.4): CI's rerun rate and the stress run are shown here too, judged elsewhere.
-        members: [...flakyMembers, byId(ciMembers, "ci.reruns"), byId(dataMembers, "data-sources.stress_run")],
+        // Every flaky source (design 4.4): CI's rerun rate is shown here too, judged on CI.
+        members: [...flakyMembers, byId(ciMembers, "ci.reruns")],
         sections: [...flakySections, ...dataSections.filter((s) => s.id === "stress")],
     }),
     page({
@@ -2035,7 +2038,7 @@ const pages: PageResponse[] = [
         ...head("data-sources"),
         notes: [f("data.note.notsetup", { n: 4 })],
         members: dataMembers,
-        sections: dataSections,
+        sections: dataSections.filter((s) => s.id !== "stress"),
     }),
 ];
 

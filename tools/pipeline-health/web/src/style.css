@@ -575,6 +575,23 @@ h3 {
     background: var(--warn);
     box-shadow: inset 0 0 0 1px var(--warnedge);
 }
+/* The overview's one line on what to act on first: a bar in the state's color, the words in ink. */
+.urgent {
+    margin: 0 0 16px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    background: var(--faint);
+    box-shadow: inset 4px 0 var(--none);
+}
+.urgent.bad {
+    box-shadow: inset 4px 0 var(--bad);
+}
+.urgent.warn {
+    box-shadow: inset 4px 0 var(--warnedge);
+}
+.urgent.ok {
+    box-shadow: inset 4px 0 var(--ok);
+}
 .kcap {
     margin: -8px 0 10px;
     color: var(--muted);

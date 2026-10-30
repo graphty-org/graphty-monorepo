@@ -64,7 +64,7 @@ mockup down to the page where it is acted on:
   and held three pull requests. Flaky tests: blocked by a flake (red at 3 pull requests), with
   screenshot captures as their own families.
 - **The CPU-restricted stress run filed nothing.** It failed in its filing step (27 failures over a
-  cap of 25), after two weeks of finding nothing (#3539). Data sources: stress run, read from
+  cap of 25), after two weeks of finding nothing (#3539). Flaky tests: stress run, read from
   GitHub's job results, not from the run's own post.
 - **Release lanes red in shadow mode.** The newest candidate a full train tested (a870943ef) has
   failed its audit and T4 GPU lanes since 2026-10-24 19:25, shadow mode opens no "Release held"
@@ -86,7 +86,11 @@ put the name on its own line over the numbers. From the top: the title,
 the range picker (1 h, 6 h, 24 h; 1 h by default) and "updated 2 min ago, 23:30 UTC"; a muted legend
 of the state words ("OK: within target; WARNING (yellow): past target, look soon; FAILING (red):
 past the red line, act now; NO DATA (hatched): the source is not reporting") and what the small
-chart shows, with the long explanation as its tooltip; the seven category blocks, each with its
+chart shows, with the long explanation as its tooltip; one line naming the most urgent category
+("Most urgent: Releases FAILING: full runs able to promote 0%. Below 25%: nightly rarely moves ...",
+the worst state first, then the blocks' order), the member that set it, what its red means and who
+acts, and the other categories not OK, so a reader does not assemble the story from the blocks, tiles
+and episodes, and "Nothing needs action" when all are OK; the seven category blocks, each with its
 headline measure under it; then "Last 24 hours", the list of episodes. The order follows Few ("a single screen read at a glance") and Google
 SRE ("symptoms first, causes second"): the blocks say whether anything is wrong and where, the
 measures give each category's number, and the episodes say what happened and link to where to act.
@@ -121,7 +125,9 @@ member set the block's color, that member takes the headline's place, labeled "S
 own value, target and sparkline (the API sends it as `driver`), so the big number under a colored block is
 always the reason for its color; the headline measure stays a row of the category page. In a block, a
 member's value stands alone; the sentences on the pages say what it is ("95.2 USD projected for
-month-end").
+month-end"). At 6 h and 24 h an hourly headline shows its value over the picked range and says "the
+block's color is judged on the last 1 h", so a 24 h value past red under a green block is not read as a
+missed alarm.
 
 A sparkline is the last 6 h in 15-minute buckets, with the last hour (the window that sets the
 state) shaded and the target as a thin gray band. To its left, in a faint line, the rest of the last
@@ -132,14 +138,16 @@ history" area. There are no end labels: the value is beside it.
 
 ### 2.4 Last 24 hours
 
-A list of episodes: each time a member went past its target. Ongoing episodes first, red before
+A list of episodes: each time an hourly or current member went past its target; its caption says the
+bar is the worst state reached, red past the red line, yellow past the target. Ongoing episodes first, red before
 yellow, then by the blocks' order. Every ongoing red episode shows, however many there are; ongoing
 yellow ones show up to five rows of ongoing in all; cleared ones fill the list up to six rows only when
 no ongoing episode is folded, so a cleared row never sits above a hidden ongoing one. The rest fold
 into "N more ongoing" and "N more cleared". Each row: a 4 px bar in the worst state the episode
 reached, its span ("20:01 - now", "19:48 - 20:20"; both ends dated when either is not today, and
 "before 10-29 14:40 - now" when the 24 h window cut its start or the engine cannot tell when it
-began), the category, one sentence naming the member, its value and the cause when the
+began), the category, one sentence naming the member, its worst value ("worst 39.5%", never "peak",
+which misreads for a measure where low is bad) and the cause when the
 collector knows it, "ongoing" or "cleared 2.3 h ago", and a chevron to the section where it is
 acted on. Cleared rows are muted. This is how an incident that ended before the reader looked is
 still seen, and how a 1 h member that stays red for up to an hour after its cause ended says so.
@@ -206,10 +214,12 @@ picker: a table or count covers the picked window, a chart covers 6 h at 1 h and
   happen (members idle with hatched "no history" sparklines, 3.1), NO DATA when the writer is stale
   or failing. Values are shown only while the writer reports.
 - **Flaky tests**: Hotspots (section 5, a slow measure with its own 7 d / 28 d choice); Quarantine,
-  which states that no entries exist.
+  which states that no entries exist; the weekly stress run's history. A test's history page names its
+  test group, says where each result ran (a pull request, a full run, locally), and links the issue
+  that tracks the test or, when none does, a GitHub new-issue draft filled with the test's facts.
 - **Releases**: the lanes of the newest tested candidate; train attempts, including those that
   skipped every lane; release workflows; the channels once they exist.
-- **Costs**: section 7. **Data sources**: the stress run's history; one row per source (last
+- **Costs**: section 7. **Data sources**: one row per source (last
   write, limit, volume for its activity, last error, state); then "Not set up", the one list of
   members with no writer or token yet, each with what unblocks it.
 
@@ -524,18 +534,26 @@ logic is unchanged, so a non-gating job still never fails a lane.
 
 ### 4.4 Flaky tests
 
-| Member                         | Measure                                                                | Window          | Min n              | Target | Red                  |
-| ------------------------------ | ---------------------------------------------------------------------- | --------------- | ------------------ | ------ | -------------------- |
-| Flake rate (H)                 | flaky test-file runs per 1,000 test-file runs, CI                      | 1 h, 6 h agrees | 125 test-file runs | < 2    | > 10                 |
-| Blocked by a flake             | open pull requests whose newest failure is flaky, or an unstable story | now             | --                 | 0      | >= 3, or any >= 24 h |
-| Flaky in CI with no open issue | distinct tests seen flaky in CI in 7 d that have no open issue         | now             | --                 | 0      | >= 3                 |
-| Net new flaky                  | newly flaky minus resolved (10 clean runs or issue fixed)              | slow, 7 d       | --                 | <= 0   | > 3                  |
-| Detected to fixed              | median days from flaky issue opened to fixed                           | slow, 28 d      | 5                  | <= 3 d | > 7 d                |
+| Member                         | Measure                                                                | Window          | Min n              | Target           | Red                              |
+| ------------------------------ | ---------------------------------------------------------------------- | --------------- | ------------------ | ---------------- | -------------------------------- |
+| Flake rate (H)                 | flaky test-file runs per 1,000 test-file runs, CI                      | 1 h, 6 h agrees | 125 test-file runs | < 2              | > 10                             |
+| Blocked by a flake             | open pull requests whose newest failure is flaky, or an unstable story | now             | --                 | 0                | >= 3, or any >= 24 h             |
+| Flaky in CI with no open issue | distinct tests seen flaky in CI in 7 d that have no open issue         | now             | --                 | 0                | >= 3                             |
+| Net new flaky                  | newly flaky minus resolved (10 clean runs or issue fixed)              | slow, 7 d       | --                 | <= 0             | > 3                              |
+| Detected to fixed              | median days from flaky issue opened to fixed                           | slow, 28 d      | 5                  | <= 3 d           | > 7 d                            |
+| Stress run                     | the weekly run, from GitHub's job and step results                     | now             | --                 | passed and filed | filing failed, or not run in 8 d |
 
 "Flaky in CI with no open issue" is a backlog read now: the 7 d says how long a test stays on it
 without an issue, not a window it is judged over. The flake rate is judged as soon as per-test
 results cover the last hour; on 2026-10-25 they began at 20:42, so from 21:42 it was judged while
 its 6 h value still said "partial, 2.8 h of 6".
+
+The stress run is yellow when it found nothing three weeks running: a run in each of the last three
+7-day slots and no run in them that found a failure (the last three runs can fall in one week after a
+re-run or a dispatch), and red when its filing step failed or it had failing tests and filed fewer
+issues. It is read from GitHub, because a run that crashes before posting posts nothing. It is a
+flaky-test source, not a data source, so it is judged on the Flaky tests page only (it was on Data
+sources until 2026-10-30, where it set a WARNING no source caused).
 
 "Flaky in CI with no open issue" replaces the quarantine members of version 2: CI keeps no
 quarantine state and files no issues (`tools/test-quarantine.mjs`), and the committed list is
@@ -593,20 +611,15 @@ usage members are not set up until their read-only tokens exist (section 16).
 
 ### 4.7 Data sources
 
-| Member                          | Measure                                                | Window          | Min n              | Target           | Red                              |
-| ------------------------------- | ------------------------------------------------------ | --------------- | ------------------ | ---------------- | -------------------------------- |
-| Stress run                      | the weekly run, from GitHub's job and step results     | now             | --                 | passed and filed | filing failed, or not run in 8 d |
-| Sources past their age limit    | sources past their limit (section 9)                   | now             | --                 | 0                | any past 2x                      |
-| Sources thin for their activity | rows per unit of activity in the hour / the 7 d median | 1 h, 6 h agrees | 3 runs of activity | 0 below 50%      | any below 20%                    |
-| Collector                       | since its last run                                     | now             | --                 | <= 10 min        | > 20 min                         |
-| GitHub App rate limit           | requests left in the collector App's hour              | now             | --                 | > 50%            | < 20%                            |
-| Daily write budget              | rows written today / the daily limit                   | now             | --                 | < 50%            | > 90%                            |
+| Member                          | Measure                                                | Window          | Min n              | Target      | Red           |
+| ------------------------------- | ------------------------------------------------------ | --------------- | ------------------ | ----------- | ------------- |
+| Sources past their age limit    | sources past their limit (section 9)                   | now             | --                 | 0           | any past 2x   |
+| Sources thin for their activity | rows per unit of activity in the hour / the 7 d median | 1 h, 6 h agrees | 3 runs of activity | 0 below 50% | any below 20% |
+| Collector                       | since its last run                                     | now             | --                 | <= 10 min   | > 20 min      |
+| GitHub App rate limit           | requests left in the collector App's hour              | now             | --                 | > 50%       | < 20%         |
+| Daily write budget              | rows written today / the daily limit                   | now             | --                 | < 50%       | > 90%         |
 
-The stress run is yellow when it found nothing three weeks running: a run in each of the last three
-7-day slots and no run in them that found a failure (the last three runs can fall in one week after a
-re-run or a dispatch), and red when its filing step
-failed or it had failing tests and filed fewer issues. It is read from GitHub, because a run that
-crashes before posting posts nothing. Sources that are not set up are not a member: they are
+Sources that are not set up are not a member: they are
 listed under "Not set up" on this page, each with what unblocks it, out of the status.
 
 ## 5. Flake hotspots

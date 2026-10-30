@@ -558,6 +558,12 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "Median days from a test first flaking to its fix merging, over 28 days.",
         red: "Over 7 d: flaky tests stay broken for a week or more. Agents take the oldest flaky issues first.",
     },
+    "flaky.stress_run": {
+        name: "Weekly stress run",
+        short: "weekly stress run",
+        def: "The newest weekly run of every test shard under half the runner's CPU, which files an issue per test that fails under load. Its value is what the newest run did: passed, failed, or found nothing 3 weeks running.",
+        red: "Red: the weekly run or its issue filing failed, so tests that fail under load go untracked; agents fix restricted-cpu-stress.yml. Yellow: it found nothing 3 weeks running, so it may no longer limit the CPU; agents check that it does.",
+    },
     "releases.lanes_red": {
         name: "Red lanes on the candidate",
         short: "red lanes on the candidate",
@@ -662,12 +668,7 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "Events as a share of the plan's quota, in %.",
         red: "Over 100%: Sentry drops events.",
     },
-    "data-sources.stress_run": {
-        name: "Weekly stress run",
-        short: "weekly stress run",
-        def: "The newest weekly run of every test shard under half the runner's CPU, which files an issue per load-sensitive test.",
-        red: "The weekly run or its issue filing failed, so tests that fail under load may go untracked. Yellow: it found nothing 3 weeks running; agents check it still limits the CPU.",
-    },
+
     "data-sources.past_age": {
         name: "Sources not OK",
         short: "sources not OK",
@@ -826,11 +827,15 @@ const isCmp = (x: Cmp | Fact): x is Cmp => "op" in x;
 /** "good <= 5 min; red > 15 min", or what is good alone. */
 export function slaText(sla: Sla | null, targetOnly = false): string {
     if (!sla) return "no target (shown for information)";
-    const target = isCmp(sla.target) ? cmpText(sla.target, true) : sentence(sla.target);
-    if (targetOnly) return `good ${target}`;
-    if (!sla.red) return `good ${target}; no red line`;
-    const red = isCmp(sla.red) ? cmpText(sla.red, true) : sentence(sla.red);
-    return `good ${target}; red ${red}${sla.needs6h ? " (in the last hour and the last 6 h)" : ""}`;
+    // A comparison follows its word ("good <= 5 min"); a phrase follows a colon ("good: passed and filed ...").
+    const target = isCmp(sla.target) ? cmpText(sla.target, true) : `: ${sentence(sla.target)}`;
+    if (targetOnly) return `good ${target}`.replace(" :", ":");
+    if (!sla.red) return `good ${target}; no red line`.replace(" :", ":");
+    const red = isCmp(sla.red) ? cmpText(sla.red, true) : `: ${sentence(sla.red)}`;
+    return `good ${target}; red ${red}${sla.needs6h ? " (in the last hour and the last 6 h)" : ""}`.replaceAll(
+        " :",
+        ":",
+    );
 }
 
 // ---------------------------------------------------------------- sentences
@@ -951,7 +956,7 @@ const S: Record<string, (p: P) => string> = {
     // "out of target", not "past its threshold": several member names already say "past" (sources past their age limit).
     "ep.past_threshold": (p) =>
         `${esc(MEMBER[String(p.member) as MemberId]?.short ?? p.member)} out of target` +
-        (p.peak === undefined ? "" : `, peak ${fmtUnit(num(p, "peak"), p.unit as Unit | undefined)}`),
+        (p.peak === undefined ? "" : `, worst ${fmtUnit(num(p, "peak"), p.unit as Unit | undefined)}`),
 
     // page notes
     "master.note.queued": (p) =>

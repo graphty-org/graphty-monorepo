@@ -5,38 +5,33 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-30 (tier 4 round 1 closed at the round cap; insights settled).
-Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times) and 2026-10-30 (four times);
+Last updated: 2026-10-30 (tier 4 report written after round 1; fix pass next).
+Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20, 2026-10-21, 2026-10-29 (three times) and 2026-10-30 (five times);
 the full earlier text is in this file's git history.
 
 ## Top of mind
 
-- (2026-10-30) TIER 4 ROUND 1 CLOSED; the studio stopped at its 1-round cap without meeting the bars on
-  build 79ed770292. Holds: bar 1 success (25 of 26 S/SD), bar 4 (0 severity 3-4 after the skeptic check).
-  Fails: bar 5 keyboard (axe `aria-valid-attr-value`, table tab names a missing panel), bar 6 (joined
-  source row clips the approved "17/19" ratio), bar 7 cost (T61 ~12 inputs vs path 7). Bars 2 and 3 fail
-  only as frozen and are contested. Source: `tier4/rounds/round-1/insights.md`.
-- (2026-10-30) FIRST fix before any next round is the study tool: `real.mjs` prints `tooltip: null` when
-  hover opens a popover; 4 participants believed it over the screenshot, producing false findings and two
-  T64 wrong turns. A tool line that contradicts the screen is worse than no line.
-- (2026-10-30) Most severe product problem (sev 2): the join preview does not show what Join will do --
-  the unknown-end row is untagged and the repeated key tagged as added. Preview must equal result.
-- (2026-10-30) Pattern: choices come after the act with a default already applied (unknown end -> "Add
-  nodes" after Join; new filter card starts on Hide; "Leave out" does not say it deletes). Ask before, or
-  default to the non-destructive choice.
-- (2026-10-30) Pattern: one fact drawn two ways (time set but header glyph says text; place roles unmarked
-  on headers; filter chip counts on two bases) makes people open a second menu to check. Costs steps.
-- (2026-10-30) Bar 6 fix and problem 8 are one layout fix on the joined source row (name and ratio both
-  clipped); also fix "17 of 19 joined" beside 18 edges.
-- (2026-10-30) Bar 5's axe failure was known before the round and backlogged under the frozen rule; that
-  guaranteed a failed bar. Next tier: fix known bar-failing defects before freezing, not after.
-- (2026-10-30) Answer-key definitions can manufacture failures (r1-s08's "false done" was a right answer
-  against a column-type definition). Review the key against the product's model before the round.
-- (2026-10-30) Grading counted hovers inconsistently; define wrong turn as an input before success only.
-- (2026-10-30) Post-round fix pass owns: tool popover report, join preview, row layout (bar 6), axe tab
-  panel, time-sets-column-kind, the six decided-not-built team decisions. None needs the owner.
-- (2026-10-30) A walk on an earlier build stands when `git diff <earlier> <frozen>` over source is code the
-  route never reaches. Run that diff FIRST in any triage.
+- (2026-10-30) TIER 4 ROUND 1 CLOSED AND REPORTED (`tier4/report.md`, returned as text). 28 sessions, 0 void, 0
+  Sonnet, on 79ed770292. Bar 1 holds (25 of 26), bar 4 holds after skeptics (0 sev 4 in 60 end-state items, no
+  sev 3 survives). Fail: 5 (axe tab panel), 6 (joined row clips "17/19"), 7 (T61 ~12 vs 7). 2 and 3 fail only as
+  frozen. No owner decision. NEXT: the round's fix pass, then land the branch (criteria "When the studio stops").
+- (2026-10-30) Fix pass order: study tool hover report; join preview = result, unknown end decided on the join
+  screen; non-destructive default for a new filter card; time sets kind; one count basis; joined row layout (bar
+  6); table Nodes tab panel (bar 5); R10, R11, R13 as decided; six team decisions; sev 2 problems 5-26.
+- (2026-10-30) Four of fifteen walkthrough fixes (R8, R10, R11, R13) were NOT built as decided, though the old
+  report said all were; the dry run graded only spoils. Give each decided fix its own dry-run acceptance check.
+- (2026-10-30) The team's "Select | Filter to | Filter out" keeps a subtractive new-card default; reopened: a
+  new card starts on the effect that removes nothing (5 of 5 marking-first participants lost picture on Hide).
+- (2026-10-30) A tool line that contradicts the screenshot is worse than none: `tooltip: null` on a popover
+  hover made 4 participants report "nothing appears". Check every tool line against its image before a round.
+- (2026-10-30) Patterns: choices after the act with a default applied; one fact drawn two ways. Both cost
+  steps and checks, not wrong results. Preview must equal result.
+- (2026-10-30) Bars failed by construction: a known axe defect backlogged before the freeze, a key definition
+  (r1-s08 was right), hovers counted unevenly. Fix bar-failing defects before freezing; review the key against
+  the product's model; wrong turn = input before success.
+- (2026-10-30) One round finds but cannot confirm. Plan the next tier's cap for a fix round and a re-test round.
+- (2026-10-30) Run `git diff <earlier> <frozen>` over source FIRST in any triage; an earlier walk stands when the
+  diff is code its route never reaches.
 - (2026-10-29) A fix that gives an answer a new input must move every count and cache derived from it.
 - (2026-10-29) Bars: 1 success (pointer only); 2 false done 0; 3 wrong turns median <= 2; 4 severity 3-4
   open 0; 5 keyboard (Sam S/SD + axe); 6 owner's data rules 0; 7 core median steps <= key path + 3.
@@ -82,38 +77,25 @@ the full earlier text is in this file's git history.
 
 ## Decisions and reasons
 
+- **2026-10-30, tier 4 report after round 1** (returned as text; the harness refuses a report file from a
+  subagent). Replaces the pre-round report (95e48554a6). Told: round 1 per bar as frozen and after the skeptics;
+  the dry run in one table; eight learnings led by the tool defect and the join preview; changes by package with
+  what the round confirmed (end-state check confirms the dry run's data fixes; the weight fix set but never run);
+  R8/R10/R11/R13 not built as decided; deferred items; no owner decision (loadedWeight stays the one near-line
+  item, with the `data.weight()` fallback); next steps: tool hover, fix pass, re-walk plus repro replay, land,
+  next-tier process. Decided: the filter-words team decision goes in with a non-destructive default (reason:
+  5 of 5 marking-first sessions); bar 2 and bar 3 failures are reported as frozen, never re-scored (a rule
+  changed after results makes the grade mean nothing), with the contest stated beside them.
 - **2026-10-30, tier 4 round 1 closed.** Stopped at the 1-round cap with bars 5, 6, 7 failing (2, 3 contested).
   Reason to stop rather than extend: the cap is the rule, and the top blocker (study tool misreporting popovers)
   must be fixed before more sessions are worth running. Evidence: `tier4/rounds/round-1/insights.md`.
-
-- **2026-10-30, tier 4 report** (returned as text; to be committed as `tier4/report.md`). Written with no
-  session results: the round has not run. Reported the dry run pass by pass (318, 144, 103, 106, 93, 83, 81, 96
-  rows; 23, 4, 1, 3, 3, 7, 5, 0 fix-now), the five data screens that misstated the data (Data source card dropped
-  every edge, export scope counted nodes on the edge table, Data weight never read by runs, "6 rows refused" with
-  all 361 edges loaded, unknown-end mark on the wrong site), all fixed in element or graph-io. Decided: the axe
-  tab defect stays backlog under the frozen rule (changing a frozen rule or build after measuring starts makes
-  the bar meaningless); the six unbuilt team decisions wait for the post-round pass; no owner decision from tier
-  4; the fix-pass cap overrun is told as a fact, not asked. Next steps in order: two tool defects, wording check,
-  path recounts, words budget and bar 6 references, T66 A walk, round 1, post-round fix pass.
-- **2026-10-30, tier 4 dry run pass 8 on 79ed770292** (`tier4/dry-run-r1-4.md`; summarized 2026-10-30): 96 rows,
-  0 fix-now, session-ready; the Select card count held (T65 A 4 of 14 with 4 selected). (b): Replace that looks
-  like a join. New decided entry: an earlier build's walk stands when the source diff is code the route never
-  reaches (T63 B's keyboard walk on a53beb7179).
-- **2026-10-29..30, tier 4 dry runs passes 1-7** (summarized 2026-10-30; full text in git history and
-  `tier4/dry-run-r1-1.md`, `-r1-2.md` at 028483e572 and 8f1aa15875, `-r1-3.md` at cc562d52cd, aa8763fc28 and
-  b37f90161a, `-r1-4.md` at 6ac9f2eb57). Pass 1 (0ffeae2ef5): 8 units (source-row chips, a false refused-row
-  issue, Add data... to the join screen, one kind drawing, a date condition card, the Data source card's
-  `side: "nodes"`, Export scope, a weight given after the load). Pass 2 (037e96e9bb): 3 units (Select within the
-  picture, run reuse reads the Data weight, result rows named by `nodeName`) and the reversal of pass 1's Select
-  entry. Pass 3 (ff17391bb1): U1, the Select card's count (a regression of pass 2's fix). Pass 4: U1 again plus U2,
-  an unknown end's warning on the end that is unknown (`params.ends`, additive). Pass 5 (bccf8fe47f): U1 refixed on
-  `selectsOverGraph` (355022569a), reverted unfinished. Pass 6 (a53beb7179): U1 as `git revert 0b1175dabc`, plus
-  "a unit is taken back only for a regression its re-walk shows". Pass 7 (a53beb7179 again, nothing built): U1
-  unchanged; decided entries: an issue fix that removes data says so and is not a filter (T66 B Leave out), an
-  earlier build's evidence is judged on the frozen build's walk, no re-pilot while units are unbuilt. U1 then built
-  as 71230abff1, re-walked to the end, frozen as 79ed770292. Not (a) across them: answer-key-graded cosmetic and
-  keyboard-only rows, decided-but-not-built team entries, T61's repeat resolved on the join screen (b), Replace of
-  the same file, T63 B's place chips, T68 B's source-row Export, PASS INCOMPLETE notes whose routes were walked.
+- **2026-10-29..30, tier 4 pre-round report and dry run passes 1-8** (summarized 2026-10-30; full text in git
+  history, `tier4/dry-run-r1-*.md` and their earlier commits). Eight passes (318 down to 96 rows; 23, 4, 1, 3, 3,
+  7, 5, 0 fix-now) found five screens that misstated data, all fixed in graphty-element or graph-io; the Select
+  card count (U1) was built and taken back twice before 71230abff1 held; froze 79ed770292. Rules from them, in
+  `decided.md`: a fix is taken back only for a regression its re-walk shows; no re-pilot while units are
+  unbuilt; an earlier build's walk stands when the source diff is code its route never reaches; an issue fix
+  that removes data says so. The axe tab defect stayed backlog under the frozen rule.
 - **2026-10-29, tier 4 criteria reviewed and frozen** (three reviews: researcher, user advocate,
   red team; they agreed on most points). Taken: grade from step log and end-state records
   (`data.json`), not the last screenshot alone; end-state check in bar 4; audit confirms only what a
@@ -157,26 +139,21 @@ the full earlier text is in this file's git history.
 
 ## Tried: worked / did not work
 
-- 2026-10-30 Did not work: freezing with a known bar-failing defect (axe tab panel) backlogged -- the bar failed by construction. Worked: two independent skeptics on scores -- they dropped or weakened all four severity 3 candidates and found the tool defect.
-
-- 2026-10-30 (tier 4 report) -- Worked: reading `rounds/round-1/tool-dry-run-2.md` and the engineer's and
-  researcher's Top of mind before writing; they held the open pre-session items the triages did not. Worked:
-  `git log origin/master..HEAD` minus docs commits plus `git diff --stat` per package to list what changed by
-  package; grepping the source for each team decision's words to tell built from unbuilt; counting pilot
-  `session.json` files per pass folder for the size of the dry run. Did not work: Write of `tier4/report.md` from
-  a subagent (the harness refuses report files; known since tier 3, still tried). Return the text.
-- 2026-10-30 (dry run passes 7 and 8; summarized) -- Worked: `git diff --stat <previous build> <frozen build>`
-  over the source first; `git log` first; a per-task `session.json` buildStamp loop; re-reading route.jsonl `out`
-  lines on the frozen build's walk; looking at one fix screenshot myself. Did not work: grep -o with long
-  `.{0,N}` spans (ugrep limit; use -F and cut); the workflow reusing file names and pass numbers.
-- 2026-10-29..30 (dry runs passes 1-6; summarized 2026-10-30, full text in git history) -- Worked: `git log`
-  on rejected-fixes.md and the reverts before reading rows; `git diff <revert> HEAD` on a fix's files to justify
-  a revert-the-revert; grepping every earlier triage for each row's key words (most backlog rows are repeats);
-  `session.json` buildStamp per walk folder; reading the element before classing (`selectedBy`, the source
-  leaf's `side`, `loadedWeight()`, `countsNow`'s cache key); checking a claim against the data file; reading
-  the answer key's newest commit; `git merge-tree` before a refix. Did not work: the pilots' "BLOCKS keyboard"
-  label (friction once checked); claiming repeats "word for word" unchecked; numbering units before the last
-  demotion; copying a table header by line number; the workflow reusing `dry-run-r1-3.md`.
+- 2026-10-30 (tier 4 report after round 1) -- Worked: reading `insights.md` before `scores.md` (the skeptics'
+  outcome first, then the evidence); the other roles' Top of mind for what each saw; `scores.md`'s fix coverage
+  table, which caught four walkthrough fixes the old report called built; `git log <old report>..HEAD` minus docs
+  to prove nothing was built after the round; `grep -l Sonnet */grade.md` then reading the lines (every hit said
+  "no Sonnet"). Did not work: Write of `tier4/report.md` from a subagent, again. Return the text.
+- 2026-10-30 Did not work: freezing with a known bar-failing defect (axe tab panel) backlogged -- the bar failed
+  by construction. Worked: two independent skeptics on scores -- they dropped or weakened all four severity 3
+  candidates and found the tool defect.
+- 2026-10-29..30 (pre-round report, dry runs passes 1-8; summarized 2026-10-30, full text in git history) --
+  Worked: `git diff --stat <previous build> <frozen build>` over source first; `git log` on rejected-fixes.md
+  and reverts before reading rows; grepping earlier triages for each row's key words (most rows repeat);
+  `session.json` buildStamp per walk folder; reading the element before classing; `git merge-tree` before a
+  refix; counting pilot `session.json` files for the dry run's size. Did not work: the pilots' "BLOCKS keyboard"
+  label; claiming repeats unchecked; numbering units before the last demotion; grep -o with long `.{0,N}` spans
+  (ugrep limit; use -F and cut); the workflow reusing file names and pass numbers.
 - 2026-10-29 (tier 4 freeze) -- Worked: searching `graphty/src` strings for each prompt word; it
   found four echoes the hand-written avoid list missed. Worked: starting the changed
   `volunteers.txt` setup on the frozen build before committing it (a PageRank layer coloring 24
@@ -203,31 +180,17 @@ the full earlier text is in this file's git history.
 
 ## Thinking
 
-- **2026-10-30, tier 4 report:** for the second tier running, the report goes to the owner with the round not
-  run and the instrument as the thing holding it back (tier 3 ended the same way). The product work was real:
-  five screens that misstated data are fixed where the facts are computed. But the tool's own readiness (matcher,
-  replay wording, path units, word budget) was checked only after the product dry run had finished, so it lands
-  last on the critical path. Next tier: run the tool dry run FIRST, in parallel with the expert walkthroughs,
-  before any product pilot.
-- **2026-10-30, dry run pass 8:** the dry run ended clean once the one real unit was built and its re-walk
-  finished; four of the seven passes after pass 3 were spent on process, not product (reverts for unfinished
-  re-walks, a re-pilot of an unchanged build, evidence on the wrong build). Next tier: the dry-run loop needs
-  three machine checks before any pilot runs -- the build changed, every unit landed, and the diff from the
-  last judged build -- and the evidence rule should key on that diff, which is what pass 8's entry does by hand.
-  The 77 repeat backlog rows are the decide-and-fix loop's first list; most are keyboard and screen-reader rows
-  (F6, Tab in lists, dialog focus), which Sam's sessions will meet first.
-
-- **2026-10-29..30, dry runs passes 1-6 (summarized 2026-10-30; full text in git history):** two stages with
-  no shared rule (fix reverts an unfinished re-walk, triage treats it as nothing found) cost a pass each time;
-  a rule binds only the stage that reads it, so it goes in decided.md. The answer key drifted into a list of
-  workarounds: grading notes written for wrong screens; key-matching should not run before the triage, or its
-  new notes come to me as untriaged defects. Both regressions shared one shape: a fix gave an answer a new
-  input and the numbers and caches derived from it kept reading the old one; list every derived number and
-  cache key in acceptance. A team entry written after a freeze is an untriaged fix request.
-- **2026-10-29:** six of 23 fix-now rows came from two review fixes meeting on one row (R9's chip,
-  R11's counts) or opening a new door (R14's source-row Export). A review fix that adds a control to a
-  shared row or a new door to a shared dialog needs its neighbors walked before the freeze.
-
+- **2026-10-30, tier 4 report after round 1:** for the first time in three tiers a round ran on time and the
+  instrument mostly held (matcher, end-state check, step counter, axe walk all worked). What it measured: success
+  is saturated (again), the data is now truthful (0 sev 4), and what is left is cost -- people pay steps to check
+  what the screen did not show them before or after an act. The next tier's bars should keep scoring cost and
+  should score "preview equals result" directly. The deeper process lesson is that a dry run graded only on
+  spoils lets decided fixes go unbuilt without anyone noticing; the round found them through fix coverage.
+- **2026-10-29..30, tier 4 dry run (summarized 2026-10-30; full text in git history):** four of seven passes after
+  pass 3 were process, not product; two stages with no shared rule cost a pass each time, so rules go in
+  decided.md. Both regressions shared one shape (a fix gave an answer a new input, derived counts and caches kept
+  the old one). The tool's readiness was checked after the product dry run; run the tool dry run first. A review
+  fix that adds a control to a shared row needs its neighbors walked before the freeze.
 - **2026-10-21, after round 1:** the cheapest next round is one where the instrument moves first.
   Every pre-round claim I carried as a measurement (contrast on every screen, the private-window
   notice gone with a disk profile) was narrower or different once the round measured it. Report
@@ -274,6 +237,9 @@ the full earlier text is in this file's git history.
 
 ## Sources
 
+- Tier 4 round 1: `tier4/rounds/round-1/{plan,scores,insights}.md`, `steps.json`, `sessions/r1-s01..s28/`
+  (grade.md, data.json, endstate.json), `repro/`, `expert/{a11y,engineer,figma,visual}.md`, `bars/`, `bars-light/`.
+  Tier 4 report after round 1: returned as text 2026-10-30 (pre-round version at 95e48554a6).
 - Tier 4: `tier4/{criteria,tasks,answers,roster,decided,backlog,rejected-fixes}.md`; round 1 plan and tool dry
   runs `tier4/rounds/round-1/{plan,tool-dry-run-1,tool-dry-run-2}.md`; reviews `tier4/review/*.md`. Dry run triages
   (summarized 2026-10-30; each file header names the earlier triages it replaced): pass 8 `dry-run-r1-4.md`

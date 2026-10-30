@@ -2387,18 +2387,20 @@ jobs:
     # the review page and the gate read. Every project has switched (two full runs with zero parity differences
     # against the old built-Storybook capture, CI 40515529497 and 40524757006), so this is the capture: it is
     # uploaded as visual-<project>-<attempt>, the artifact `visual-review serve`, the gate (visual-report) and
-    # release.yml read. Report-only, outside All Checks Pass.
+    # release.yml read.
     # Runs through tools/results/run-group.mjs like every test shard (the quarantine wrapper, then the results
     # store), so an unstable story (two renders that drew different pictures fail its test) is retried once,
-    # reported flaky when the retry passes, and recorded with status `unstable`. VISUAL_REVIEW_BLOCKING=1 on the
-    # combine step (story-outcomes.mjs) makes a broken or newly unstable story fail it and a changed picture set
-    # promotion.blocked; it stays unset (report only) until the project switches.
+    # reported flaky when the retry passes, and recorded with status `unstable`. It blocks (#4612): with
+    # VISUAL_REVIEW_BLOCKING=1 on the combine step (story-outcomes.mjs), a broken story or one still unstable and
+    # not quarantined fails the job, and with no job-level continue-on-error that fails the workflow, so the full
+    # run's CI lane is red (bisect, revert). A changed, new or removed picture never fails it: it only sets
+    # promotion.blocked and counts as a changed image, which holds the promotion to nightly (green-images) until
+    # the owner approves. A pull request is gated by its own Stories jobs in All Checks Pass, not by this job.
     story-tests:
         name: Story tests (${{ matrix.name || matrix.project }})
         needs: packages
         if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"') || contains(needs.packages.outputs.test-matrix, '"graph-io-browser"'))
         runs-on: ubuntu-24.04
-        continue-on-error: true
         timeout-minutes: 45
         # id-token: write is the results store's credential (tools/results/run-group.mjs posts the group's record);
         # issues: write files the issue of a story the store quarantines
@@ -2615,6 +2617,20 @@ jobs:
                   name: results-plan
                   path: ${{ runner.temp }}/results-plan
 
+            # Outside a pull request (the full run) no Packages job reads the store, so this job reads the plan of
+            # its own shard's package, `-shots` family included (#4612): a story the store quarantined as
+            # screenshot-flaky must not turn the blocking full run red. No answer leaves the committed list.
+            - name: Read the results plan
+              if: steps.skip.outputs.skip != 'true' && github.event_name != 'pull_request'
+              continue-on-error: true
+              env:
+                  SHARD: ${{ matrix.shard }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  pkg=$(node --input-type=module -e 'const { SHARDS } = await import("./tools/ci-test-matrix.mjs"); console.log(JSON.stringify([SHARDS.find((s) => s.shard === process.env.SHARD).package]))')
+                  node tools/results/plan-read.mjs "$pkg" "$RUNNER_TEMP/results-plan" --sha "$GITHUB_SHA"
+
             - name: Run the story tests with their screenshots
               if: steps.skip.outputs.skip != 'true'
               env:
@@ -2654,6 +2670,8 @@ jobs:
 
             - name: Combine the capture
               if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && !matrix.parts }}
+              env:
+                  VISUAL_REVIEW_BLOCKING: "1"
               run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/stories/quarantine.json" --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
@@ -2686,12 +2704,12 @@ jobs:
     # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty), combined into the one capture the
     # project's single leg would have uploaded (visual-<project>-<attempt>):
     # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
+    # Blocks as story-tests does: a broken or still-unstable story fails it, a changed picture only holds nightly.
     story-tests-merge:
         name: Story tests merge (${{ matrix.project }})
         needs: story-tests
         if: ${{ !cancelled() && needs.story-tests.result != 'skipped' }}
         runs-on: ubuntu-24.04
-        continue-on-error: true
         timeout-minutes: 10
         strategy:
             fail-fast: false
@@ -2749,6 +2767,8 @@ jobs:
             # every leg judged by the same quarantine list; their union is the one the merge judges by
             - name: Combine the capture
               if: steps.found.outputs.any != ''
+              env:
+                  VISUAL_REVIEW_BLOCKING: "1"
               run: |
                   jq -s '{ quarantine: (map(.quarantine // []) | add | unique) }' "$RUNNER_TEMP"/parts/*/quarantine.json > "$RUNNER_TEMP/quarantine.json" 2>/dev/null \
                       || echo '{ "quarantine": [] }' > "$RUNNER_TEMP/quarantine.json"

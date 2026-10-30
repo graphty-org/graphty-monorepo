@@ -810,6 +810,8 @@ export class Edge {
     // (undocumented)
     ray: Ray;
     // @internal
+    refreshFonts(families: ReadonlySet<string>): boolean;
+    // @internal
     refreshShaderPaint(): void;
     setRenderVisible(visible: boolean): boolean;
     setSelected(selected: boolean): boolean;
@@ -2104,6 +2106,8 @@ class Node_2 implements ModelUser {
     pin(): void;
     // (undocumented)
     pinOnDrag: boolean;
+    // @internal
+    refreshFonts(families: ReadonlySet<string>): boolean;
     // @internal
     refreshScreenBorder(): void;
     refreshSelectionOverlay(): void;

@@ -95,6 +95,7 @@ jobs:
         runs-on: ubuntu-24.04 # the full run's test runner class
         # GOOGLE_API_KEY is a secret of environment full-run, as for release.yml's llm job
         environment: ${{ inputs.lane == 'llm' && 'full-run' || '' }}
+        # the build and every run; each run of a shard stops at its lane's own limit (bisect-ci.mjs LANES.minutes)
         timeout-minutes: 120
         strategy:
             fail-fast: false

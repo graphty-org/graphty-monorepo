@@ -25,6 +25,7 @@ import {
     T4_CAP_MINUTES,
     unsafeTargets,
 } from "./bisect-ci.mjs";
+import { budgetFor, hangMinutes, loadBudgets } from "./ci-budgets.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 isolateGit();
@@ -408,6 +409,29 @@ describe("runPoint", () => {
         assert.deepEqual(r, { sha: "p", runs: 2, failed: { a: 2 } });
         assert.equal(calls.length, 2);
         assert.equal(await runArgs("no-such-shard-at-this-point", []), null);
+    });
+});
+
+describe("a point's time limit", () => {
+    it("stops a run at its lane's limit and fails its targets, so the point writes a result", async () => {
+        const s = {
+            lane: "llm",
+            next: { confirm: true },
+            targets: [{ id: "a", shard: "llm-regression", file: "graphty-element/test/ai/x.test.ts" }],
+        };
+        const calls = [];
+        const spawn = (cmd, args) => (calls.push([cmd, ...args]), { status: 124 }); // timeout's "timed out"
+        const r = await runPoint(s, "p", 2, spawn, () => true);
+        assert.deepEqual(r, { sha: "p", runs: 2, failed: { a: 2 } });
+        assert.deepEqual(calls[0].slice(0, 3), ["timeout", "--kill-after=1m", "20m"]);
+        assert.match(calls[0][3], /tools\/run-tests\.sh$/);
+    });
+
+    it("is the lane's own job timeout in the full run", () => {
+        const release = parseYaml(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+        assert.equal(LANES.llm.minutes, release.jobs.llm["timeout-minutes"]);
+        const file = loadBudgets();
+        assert.equal(LANES.ci.minutes, hangMinutes(file, budgetFor(file, "job:ci.yml:Test (layout)").minutes));
     });
 });
 

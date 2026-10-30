@@ -18,14 +18,25 @@ export const APP_PARAMS = {
     privateKey: "/graphty-health/github-app/private-key",
 } as const;
 
-/** Reads the App's three parameters; undefined when any is missing (the App is not set up yet). */
+/**
+ * The release-scheduler App (Actions write), which the slice dispatcher starts story-slices.yml as; the same
+ * parameters the release scheduler's move to AWS (#3608) uses.
+ */
+export const DISPATCH_APP_PARAMS = {
+    appId: "/graphty-health/release-scheduler/app-id",
+    installationId: "/graphty-health/release-scheduler/installation-id",
+    privateKey: "/graphty-health/release-scheduler/private-key",
+} as const;
+
+/** Reads an App's three parameters; undefined when any is missing (the App is not set up yet). */
 export async function readAppConfig(
     getParams: (names: string[]) => Promise<Record<string, string>>,
+    names: { appId: string; installationId: string; privateKey: string } = APP_PARAMS,
 ): Promise<AppConfig | undefined> {
-    const got = await getParams(Object.values(APP_PARAMS));
-    const appId = got[APP_PARAMS.appId];
-    const installationId = got[APP_PARAMS.installationId];
-    const privateKey = got[APP_PARAMS.privateKey];
+    const got = await getParams(Object.values(names));
+    const appId = got[names.appId];
+    const installationId = got[names.installationId];
+    const privateKey = got[names.privateKey];
     return appId && installationId && privateKey ? { appId, installationId, privateKey } : undefined;
 }
 
@@ -48,19 +59,20 @@ const HEADERS = {
     "user-agent": "graphty-health",
 };
 
-let cached: { key: string; token: string; expiresMs: number } | undefined;
+const cached = new Map<string, { token: string; expiresMs: number }>();
 
 /** An installation token, cached in memory until 5 minutes before it expires. */
 export async function installationToken(cfg: AppConfig, f: Fetch, nowMs: number): Promise<string> {
     const key = `${cfg.appId}/${cfg.installationId}`;
-    if (cached && cached.key === key && cached.expiresMs - 5 * 60_000 > nowMs) return cached.token;
+    const hit = cached.get(key);
+    if (hit && hit.expiresMs - 5 * 60_000 > nowMs) return hit.token;
     const res = await f(`${API}/app/installations/${cfg.installationId}/access_tokens`, {
         method: "POST",
         headers: { ...HEADERS, authorization: `Bearer ${appJwt(cfg.appId, cfg.privateKey, nowMs)}` },
     });
     if (!res.ok) throw new Error(`installation token: HTTP ${res.status}`);
     const body = (await res.json()) as { token: string; expires_at: string };
-    cached = { key, token: body.token, expiresMs: Date.parse(body.expires_at) };
+    cached.set(key, { token: body.token, expiresMs: Date.parse(body.expires_at) });
     return body.token;
 }
 
@@ -151,6 +163,12 @@ export class GitHub {
         if (res.status === 404) return undefined;
         if (!res.ok) throw new HttpError(res.status, path.split("?")[0]);
         return (await res.json()) as T;
+    }
+
+    /** POST a REST path with a JSON body; throws unless GitHub answers 2xx. */
+    async post(path: string, body: unknown): Promise<void> {
+        const res = await this.send(`${API}/${path}`, { method: "POST", body: JSON.stringify(body) });
+        if (!res.ok) throw new HttpError(res.status, path.split("?")[0]);
     }
 
     async graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {

@@ -205,6 +205,15 @@ const OFF_SHARDS = [
         "test-command": "cd algorithms && pnpm exec vitest run --project=browser --coverage",
         "needs-browser": true,
     },
+    // algorithms' stories: every play function run as a test (106 s of vitest for 30 stories), so the
+    // selector has an import graph that picks the stories a change reaches. No coverage: the
+    // algorithms shards measure algorithms.
+    {
+        shard: "algorithms-storybook",
+        package: "algorithms",
+        "test-command": "cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
+    },
     // layout - single shard
     {
         shard: "layout",
@@ -414,7 +423,7 @@ export const STORY_SHARDS = [
  *                  githerd 0.7                                       about 4 + setup = 6 minutes
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
- *                  webgpu-graph-algorithms-browser 1.1, layout-storybook 0.3,
+ *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8, layout-storybook 0.3,
  *                  cytoscape-extensions-storybook 0.7
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
@@ -439,6 +448,7 @@ export const GROUPS = {
         "compact-mantine",
         "visual-review",
         "webgpu-graph-algorithms-browser",
+        "algorithms-storybook",
         "layout-storybook",
         "cytoscape-extensions-storybook",
     ],
@@ -446,12 +456,13 @@ export const GROUPS = {
 
 // Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
 // and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
-// package); graphty-storybook, layout-storybook and cytoscape-extensions-storybook write none (their packages' own shards measure them); nor does
+// package); graphty-storybook, algorithms-storybook, layout-storybook and cytoscape-extensions-storybook write none (their packages' own shards measure them); nor does
 // graph-io-browser (the graph-io shard measures graph-io).
 // Nor do the On shards: coverage is judged on the Off run.
 const NO_COVERAGE = new Set([
     "webgpu-graph-algorithms-browser",
     "graphty-storybook",
+    "algorithms-storybook",
     "layout-storybook",
     "cytoscape-extensions-storybook",
     "graph-io-browser",

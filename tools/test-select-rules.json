@@ -138,7 +138,7 @@
             "pattern": "^compact-mantine/src/theme/",
             "projects": ["graphty", "compact-mantine"]
         },
-        "selectProjects": ["graphty-element", "graphty", "layout", "cytoscape-extensions", "compact-mantine"],
+        "selectProjects": ["graphty-element", "graphty", "layout", "cytoscape-extensions", "compact-mantine", "algorithms"],
         "drawnBy": {
             "graph-io-fidelity": ["graph-io", "graphty-element"]
         }

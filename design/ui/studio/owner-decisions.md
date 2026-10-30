@@ -16,6 +16,9 @@ component looks or behaves, so neither is built without the owner's `Figma-Appro
 - **A Popout closes when the reader drags the table's scrollbar** (problem 25, repro `r1-s16-script`).
   The source row's issue list is a compact-mantine Popout, which closes on any pointer press outside it.
   Keeping it open while a scrollbar is dragged changes Popout's dismiss behavior.
+  **Owner, 2026-10-30: rejected.** "if the scrollbar is part of the popout, then clicking on it shouldn't close
+  the popout. if it's a scrollbar outside the popout, obviously clicking on it counts as a click outside the
+  popout." The table's scrollbar is outside, so closing is correct; a Popout's own scrollbar must never close it.
 
 ## 2026-10-30 -- Decided by the team: the tier 4 round 1 fix pass (graphty-element, compact-mantine, babylonjs-map)
 

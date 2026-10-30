@@ -1,6 +1,6 @@
 # T64 B pilot: the gauge's name and the river distance (targeted re-pilot)
 
-Build bccf8fe47f (frozen, served from .study-builds/tier4-r1d2-bccf8fe47f), start `gauges-joined.txt`.
+Build a53beb7179 (frozen, served from .study-builds/tier4-r1d3-a53beb7179), start `gauges-joined.txt`.
 The walk started from the task's real start and was driven by clicks and typing only. Screenshots
 are under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T64B.
 
@@ -9,16 +9,16 @@ inspector names G05 **Old Bridge**, and Shortest path lists the path by name (Ol
 Marsh, Lake Inlet) with Total km 5.3 and Weight km (farther). No mismatch with the answer key. The
 data stayed the task's own the whole way (12 nodes, 14 edges, gauges.csv and flows.csv).
 
-## Success path, by pointer (r4-pointer)
+## Success path, by pointer (r8-pointer)
 
 A replay of the earlier pointer route on this build (20 steps) matched every check point to the
 end, and the session was ended.
 
 - Fields > gauges.csv "+" > Label > station; flows.csv "+" > Weight > km; Higher means > farther:
-  the Graph overview reads Loaded weight "km (farther)" (r4-pointer/12.png).
-- Clicking the G05 row names it Old Bridge in the inspector (r4-pointer/15.png).
+  the Graph overview reads Loaded weight "km (farther)" (r8-pointer/12.png).
+- Clicking the G05 row names it Old Bridge in the inspector (r8-pointer/15.png).
 - Analyze > Shortest path to Lake Inlet: Nodes in order Old Bridge, Heron Marsh, Lake Inlet,
-  Total km 5.3, Weight km (farther) (r4-pointer/21.png).
+  Total km 5.3, Weight km (farther) (r8-pointer/21.png).
 
 ## Not walked
 

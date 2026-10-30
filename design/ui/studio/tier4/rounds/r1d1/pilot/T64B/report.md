@@ -1,65 +1,37 @@
-# T64 B pilot: the gauge's name and the river distance
+# T64 B pilot: the gauge's name and the river distance (targeted re-pilot)
 
-Build 037e96e9bb (frozen tier 4 build), start `gauges-joined.txt` (gauges.csv with flows.csv joined).
-Every walk replayed the previous walk of the same route and matched it screen for screen; each was
-looked at screenshot by screenshot. Screenshots are under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T64B/rp.
+Build ff17391bb1 (frozen, served from .study-builds/tier4-r1d2-ff17391bb1), start `gauges-joined.txt`.
 
-**Reached: yes.** The program calls G05 **Old Bridge**: the inspector heading, the find box's
-result ("Old Bridge, Node id: G05") and the edge table's Source and Target all use the station
-name. The weight is km with "Higher means" farther, and Shortest path opens on "km (farther,
-loaded)" and reports Total km.
+**Reached: yes**, on the walks already taken on this same build (screenshots under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T64B, folders r3-*).
+With Label station and Weight km, Higher means farther set in Data > Fields, the inspector names
+G05 **Old Bridge**; Shortest path opens on "km (farther, loaded)" and lists Old Bridge, Heron
+Marsh, Lake Inlet with Total km 5.3 (r3-pointer-sp/21.png). No mismatch with the answer key. The
+data stayed the task's own (12 nodes, 14 edges) on every walk.
 
-## Success path, by pointer
+## Routes on this build
 
-/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T64B/rp/pointer (18 steps) and /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T64B/rp/success-keys (the same path plus Enter, Tab and Escape in every field
-it opens, 37 steps).
+- Success path by pointer, then Shortest path (r3-pointer-sp): reached.
+- Success path with Enter, Tab and Escape in every field (r3-success): matched.
+- Table header Role > Weight, then Shortest path again (r3-detour-table-role, -rerun): a new run
+  after Higher means > farther, path listed by name (r3-detour-table-role/15.png).
+- Analyze list for a weight (r3-detour-analyze-weight): matched; names by code on this route
+  because no label is set there, which is right.
+- Style text, Analyze list, table header Role menu (r3-detour-style-table): reached Total km 5.3.
+- The inspector and the canvas menu (r3-detour-inspector): matched.
+- Keyboard only (r3-keyboard, 128 steps): reached; every control named, focus never fell to the
+  page body.
 
-- Data > Fields: Expand gauges.csv, "+" Add to node fields > Label > station (07.png); flows.csv
-  "+" Add to edge fields > Weight > km; Higher means > farther (12.png: the Graph overview reads
-  "Loaded weight km (farther)").
-- Clicking the G05 row: the inspector names it Old Bridge (pointer/15.png).
-- The canvas toolbar's Quick actions answers "No results" for "Old" and "G05" (pointer/14.png), as
-  the answer key says. The Graph place's find box finds it (success-keys/27.png); Enter selects it,
-  Escape clears the box and keeps the selection (28.png); Tab leaves the box.
-- Higher means: Escape closes the list, Enter opens it, ArrowDown + Enter picks, Tab moves on
-  (success-keys/32-37.png). Picking capacity shows "Loaded weight km (capacity)" (36.png); setting
-  farther again restores it (38.png).
-
-No mismatch with the answer key's path or result.
-
-## Detours
-
-Held to the detours the first pilot walked.
-
-- **Style text, then the Analyze list for a weight, then the table header Role menu**
-  (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T64B/rp/detour-style-table, 26 steps). Graph > Everything > Text "+" > Label > station draws the
-  names (09.png). Analyze, typed "weight", lists Shortest path (09.png); its Weight list offers
-  None and km (farther) and opens on None while Data has no weight (11.png). Table header station
-  > Role > Label, then km > Role > Weight sets the weight and leaves Higher means empty (20.png), as
-  the answer key says. With farther set in Data, Shortest path opens on "km (farther, loaded)"
-  (22.png) and the run reports Total km 5.3 from Old Bridge to Lake Inlet (27.png).
-- **The inspector and the canvas menu** (/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T64B/rp/detour-inspector, 7 steps): Node actions, the
-  row's context menu, a node's context menu > Path between... (opens Shortest path from G02,
-  06.png), Settings and Escape. Nothing broke.
-
-## Keyboard only
-
-/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T64B/rp/keyboard (116 steps, keyboard-only session). Reached the end: Fields Label station and Weight
-km farther set from the keyboard, F6 cycles the regions, the find box finds "Old Bridge Node id:
-G05" and Enter moves focus to the inspector heading "Old Bridge", Analyze > Shortest path from
-Old Bridge to Lake Inlet with Weight "km (farther, loaded)", Find path. Focus never fell to the
-page body. Every control had a name.
+A fresh replay of each of these into
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T64B/r4-<walk> was
+started but was still queued for a browser slot when this report was written.
 
 ## Defects
 
-- **The path result names gauges by code after the label is set.** Shortest path's "Nodes in
-  order" lists G05, G08, G09 while From and To read Old Bridge and Lake Inlet, and the screen
-  reader reads the rows as "G05 1", "G08 2". Seen with the label set in Fields (keyboard/114.png,
-  117.png) and from the table header (detour-style-table/27.png). It does not change the answer
-  (Old Bridge), but the prompt asks that the program use the station name everywhere, so a
-  participant checking the result can think the label did not take.
+- Escape on the path form's "Pick To on the canvas" goes back to the list of analyses, and
+  reopening Shortest path shows From empty: the chosen Old Bridge is dropped
+  (r3-detour-style-table/26.png, 27.png). Does not change the answer.
+- The status region's first message ("Queued, 1st") may not be spoken by a screen reader (keyboard
+  walk, Find path step). Minor.
 
-## Not walked
-
-The other routes in this re-pilot's list belong to other tasks (T60 to T63, T65 to T68, T64 A)
-and to their own pilots.
+Nothing crashed, blocked the task or gave a wrong result.

@@ -634,9 +634,11 @@ function groupTitle(ds: Due[], f: (t: string, d: Due) => string): string {
     const total = ds.find((d) => d.c.id === "cost.spend");
     const rest = ds.filter((d) => d !== total).map((d) => d.c.alert.short ?? d.c.label);
     const names = rest.join(" and ");
-    return total
-        ? f(`Over budget for {mon}: {value} of {limit}${rest.length ? ` (${names})` : ""}. Pick {pick} limits`, total)
-        : f(`${names} over {mon} limits: pick {pick} limits`, ds[0]);
+    if (!total) {
+        return f(`${names} over {mon} limits: pick {pick} limits`, ds[0]);
+    }
+    const which = rest.length ? ` (${names})` : "";
+    return f(`Over budget for {mon}: {value} of {limit}${which}. Pick {pick} limits`, total);
 }
 
 /**

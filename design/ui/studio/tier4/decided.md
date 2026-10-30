@@ -472,3 +472,18 @@ No earlier entry is reversed.
   site, so the table is where a person reads which one did not fit, and reading it right gave the
   wrong answer. A grading note in the answer key that works around a wrong screen is not a reason to
   keep it.
+
+## Dry run pass 5 (director, 2026-10-29)
+
+Settled by the triage of the re-pilot walks on build bccf8fe47f (`dry-run-r1-3.md` as committed with this
+entry; the third pass's triage of that name is at cc562d52cd). Screenshots are under the main checkout's
+`tmp/design-studio/tier4/r1d2/pilot/`. No earlier entry is reversed.
+
+- **A repeated edge's mark is on both of its end columns.** An issue about a repeated edge puts its warning
+  on the source and the target column of the edge table, and draws both end cells of the repeated row in
+  the warning color, the way an unknown end on both ends does. Why: in T61 A's detour (deliveries.csv opened
+  first) the "1 repeated edge" mark sat on the from column and tinted P03 alone, so the row read as if site
+  P03 were the problem rather than the route P03 -> P10 listed twice (`T61A/d9-deliveries-first/05.png`);
+  "An issue's mark is on what has the problem" (dry run pass 4) applies, and for a repeated edge the
+  problem is the pair. It does not spoil grading (the row shows both ends and Overview reads 1 repeated
+  edge), so it waits in `backlog.md` (dry run pass 5, T61A-2).

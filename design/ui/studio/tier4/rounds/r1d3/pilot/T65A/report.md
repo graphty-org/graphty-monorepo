@@ -1,5 +1,46 @@
 # T65 A pilot, round 1 dry run 3: only the trained volunteers with 10 hours or more in the picture, staff marked
 
+## Confirming re-walk on build 79ed770292
+
+Build: 79ed770292 (frozen, `.study-builds/tier4-r1d3-79ed770292`, the first line of `criteria.md`). Every
+route on the fix list, the first round's three detours and both first-round keyboard walks were walked again,
+each in its own session from its real start, one browser at a time, by replaying the newest walk of the same
+route (the ones in the section below). Every session was ended. Walk folders are under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T65A/ (names starting `y`). The data
+stayed each task's own on every walk: volunteers.graphml 24 nodes and 63 edges; gauges + flows 12 and 14;
+pantries + deliveries 13 and 18. Nothing crashed and no script error was printed.
+
+| Route | Walk | Result |
+| ----- | ---- | ------ |
+| T65A success path (pointer) | y01-T65A-path | 24 of 24 steps matched |
+| T65A, the other card order | y02-T65A-order | 11 of 11 |
+| T65A keyboard walk (the card's count; the live "4 nodes selected") | y03-T65A-keys | 127 of 127 |
+| T65A redo route (undo and redo of the keep card) | y04-T65A-redo | 28 of 28 |
+| T65B success path | y05-T65B-path | 15 of 15 |
+| T65B, the other card order (undo and redo of the depth edit) | y06-T65B-order | 7 of 7 |
+| T65B keyboard and screen-reader walk (the card's spoken count) | y07-T65B-keys-sr | 12 of 12 |
+| T65B detour: a style layer's Which nodes | y08-T65B-whichnodes | 7 of 7 |
+| T66A, T66B: the Data source card's count | y09-T66A-sourcecard, y10-T66B-sourcecard | 15 of 15, 17 of 17 |
+| T68A, T68B starts: the narrowed Hide card's count | y11-T68A-start, y12-T68B-start | 4 of 4, 3 of 3 |
+| T64A success path | y13-T64A-path | 21 of 21 |
+| T64A detours (Analyze's weight) | y14-T64A-detours | 31 of 31 |
+| T64B detour: the table role, then the reading | y15-T64B-rerun | 5 of 5 |
+| First round's success path, both walks | y-s1-path, y-w1-path | 20 of 20, 20 of 20 |
+| First round's detours: find box, toolbar filter button, style layer | y-s2-detours, y-w2-find, y-w3-style | 23 of 23, 16 of 16, 6 of 6 |
+| First round's keyboard walks | y-s3-keys, y-w4-keys | 114 of 114, 118 of 118 |
+
+Every route matched its last walk to the end, so the screens are the ones the section below describes.
+Checked again by eye: 4 of 14 with "4 nodes selected" and 4 rings (y01-T65A-path/17.png); keep card off, 5
+of 24 and 5 selected (y01-T65A-path/24.png); the other order, the same (y02-T65A-order/08.png); keyboard,
+focus on Select with 4 of 14 and the live "4 nodes selected" (y03-T65A-keys/111.png); redo, 14 of 24, 4 of
+14, 4 selected and "Redid turning on the filter ..." (y04-T65A-redo/29.png); T65B 5 of 12, 3 of 5, "3 nodes
+selected", G01, G02 and G09 (y05-T65B-path/09.png), with "Node 3 of 5" read for the installed card
+(y07-T65B-keys-sr, step 12); hours "to" 40 gives 11 of 24 and 1 of 11 (y-s1-path/19.png); the style layer
+detour hides the 15 trained nodes and leaves their edges (y-s2-detours/23.png), not success, as the key says.
+
+Mismatch between the answer key and the screen: none. Defects: nothing new; the four known ones listed
+below are unchanged. Not walked: nothing.
+
 ## Targeted re-pilot on build 79ed770292 (the Select card's count)
 
 Build: 79ed770292 (frozen, `.study-builds/tier4-r1d3-79ed770292`, the first line of `criteria.md`). This build

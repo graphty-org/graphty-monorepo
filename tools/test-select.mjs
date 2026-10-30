@@ -1582,9 +1582,11 @@ function storiesGlobal(project, dir, changed, rules, lockMoved) {
  * @param pkg the package that holds its stories
  * @param shards `[{ shard: SHARDS entry, sel: selectShards() entry }]`
  * @param drawnBy packages whose selection runs the project whole when it has no story graph
+ * @param reach storiesReaching() for the project's package: its stories when its shard runs no storybook project
+ *   (compact-mantine's play test imports every story file), or null
  * @returns `{ mode, files, reasons }`
  */
-function storiesFromTests(project, pkg, shards, drawnBy) {
+function storiesFromTests(project, pkg, shards, drawnBy, reach = null) {
     const own = shards.filter((s) => s.shard.package === pkg && storyShard(s.shard));
     if (own.length > 0) {
         const all = own.find((s) => s.sel.mode === "all");
@@ -1596,6 +1598,9 @@ function storiesFromTests(project, pkg, shards, drawnBy) {
     }
     // ponytail: no story graph for these projects yet, so any selected package that draws them runs all of them
     const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
+    if (reach && hit && shards.every((s) => !drawnBy.includes(s.shard.package) || s.sel.mode !== "all")) {
+        return { mode: reach.length > 0 ? "files" : "none", files: reach, reasons: [] };
+    }
     return hit
         ? { mode: "all", files: [], reasons: [`${hit.shard.package} is selected and ${project} has no story graph`] }
         : { mode: "none", files: [], reasons: [] };
@@ -1659,12 +1664,13 @@ function unprovenStories(project, shards, drawnBy, deps, drawable, packages) {
  * @param input.selection selectShards() for them
  * @param input.rules loadRules(root).stories
  * @param input.lockMoved lockMoves() for the change (false when the lockfile did not change)
+ * @param input.graphs import graphs by package directory (selectChange().graphs), optional: storiesReaching()
  * @param input.deps nx's dependencies by package directory (selectChange().deps), which an unproven project's drawnBy
  *   packages bring in
  * @returns `[{ project, mode: "all"|"files"|"none", files, baselines, reasons }]`; baselines are the story ids
  *   whose baseline image changed, which run whatever the mode
  */
-export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved, deps }) {
+export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved, deps, graphs }) {
     const paired = shards.map((shard) => ({ shard, sel: selection.find((s) => s.shard === shard.shard) }));
     const known = paired.filter((p) => p.sel);
     // CI, tool, design and docs files no story reads (test-select-rules stories.storyless); a test that names one selects its
@@ -1690,7 +1696,7 @@ export function selectStories({ projects, changed, everything, shards, selection
         } else if (!global) {
             const drawnBy = rules.drawnBy[project] ?? [pkg];
             sel = rules.selectProjects.includes(project)
-                ? storiesFromTests(project, pkg, known, drawnBy)
+                ? storiesFromTests(project, pkg, known, drawnBy, storiesReaching(dir, drawable, graphs?.get(pkg)))
                 : unprovenStories(project, known, drawnBy, withDeps(drawnBy, deps), drawable, packages);
         }
         return { project, ...sel, baselines };
@@ -1698,6 +1704,26 @@ export function selectStories({ projects, changed, everything, shards, selection
 }
 
 const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
+
+/**
+ * The story files of a package that import a changed file, through its tests' import graphs (a test that globs
+ * the story files makes them graph nodes), or null when that cannot be told: no usable graph, or a changed file
+ * outside the package or unknown to every graph (a file read at run time, an asset).
+ * @param dir the package directory
+ * @param changed the changed paths that a story may read
+ * @param gs the package's graphs (buildGraphs()), optional
+ * @returns sorted story files, or null
+ */
+export function storiesReaching(dir, changed, gs) {
+    const g = usable(gs);
+    if (!g || changed.length === 0 || changed.some((f) => !f.startsWith(`${dir}/`) || !g.some((x) => knows(x, f)))) {
+        return null;
+    }
+    const files = new Set(
+        g.flatMap((x) => [...reaching(changed, reverse(x.imports))]).filter((f) => STORY_FILE.test(f)),
+    );
+    return [...files].sort();
+}
 
 /**
  * The longest a light-check Stories bin's capture is planned to take: the job's setup (about 1.5 min) comes on
@@ -2884,7 +2910,7 @@ function graphChild(root, dir, config, on = false) {
  * @param deferDownstream selectPackages' option of that name
  * @param lockRefs `{ base, head }` (head null for the working tree) to read a changed lockfile between; without
  *   it a changed lockfile runs everything
- * @returns `{ everything, packages, shards, deps }` (deps: nx's dependencies by package directory)
+ * @returns `{ everything, packages, shards, deps, graphs }` (deps: nx's dependencies by package directory; graphs: the import graphs used)
  */
 export async function selectChange(root, changed, shards, graphs, deferDownstream = false, lockRefs = null) {
     const graph = projectGraph(root);
@@ -2911,6 +2937,7 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     return {
         ...sel,
         shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+        graphs: all,
         // by directory: nx names remote-logger, which has no project.json, @graphty/remote-logger
         deps: new Map(
             [...graph.deps].map(([name, ds]) => [
@@ -3012,6 +3039,7 @@ function planOf(root, { changed, selection, shards, base, head, durations }) {
         rules,
         lockMoved,
         deps: selection.deps,
+        graphs: selection.graphs,
     });
     const listFiles = (dir) =>
         execFileSync("git", ["ls-files", "--", dir], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);

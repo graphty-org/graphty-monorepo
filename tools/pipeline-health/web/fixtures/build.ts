@@ -422,6 +422,41 @@ ciMembers.push(
         sla: { target: cmp("<=", 0), red: cmp(">=", 3) },
         link: "/ci/benchmarks",
     }),
+    // Rolling screenshot capture (design/visual-testing/early-capture.md, plan step 6).
+    member({
+        id: "ci.screenshot_set_age",
+        window: "7d",
+        state: "slow",
+        value: num(2.4, "h"),
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 12, "h") },
+        link: "/ci",
+    }),
+    ...(
+        [
+            ["ci.slice_base_budget", 41],
+            ["ci.slice_idle_budget", 63],
+            ["ci.slice_idle_hour_budget", 24],
+        ] as const
+    ).map(([id, pct]) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(pct, "pct"),
+            sla: { target: cmp("<=", 100, "pct"), red: cmp(">", 125, "pct") },
+            link: "/ci",
+        }),
+    ),
+    ...(["ci.slice_contended", "ci.slice_queue_wait"] as const).map((id) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(id === "ci.slice_contended" ? 5 : 0, "min"),
+            sla: { target: cmp("<=", 35, "min"), red: cmp(">", 105, "min") },
+            link: "/ci/runners",
+        }),
+    ),
 );
 const runnerMembers: Member[] = [runnerWait, longestQueued, saturated, notAssigned, superseded];
 
@@ -528,6 +563,44 @@ const releaseMembers: Member[] = [
         sla: SLA.channels,
         reason: f("unblock.channels", { issue: 3418 }),
         link: "/data-sources/not-set-up",
+    }),
+    member({
+        id: "releases.review_lag",
+        window: "7d",
+        state: "slow",
+        value: num(3.5, "h"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 24, "h") },
+        link: "/releases",
+    }),
+    member({
+        id: "releases.slots_unreviewed",
+        window: "7d",
+        state: "slow",
+        value: num(50, "pct"),
+        n: 4,
+        minN: 3,
+        sla: { target: cmp("<=", 25, "pct"), red: cmp(">", 75, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.green_clean",
+        window: "7d",
+        state: "slow",
+        value: num(33, "pct"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp(">=", 50, "pct"), red: cmp("<", 25, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.nightly_promotions",
+        window: "7d",
+        state: "slow",
+        value: num(1.3),
+        sla: { target: cmp(">=", 2), red: cmp("<", 1) },
+        link: "/releases",
     }),
 ];
 

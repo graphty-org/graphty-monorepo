@@ -73,6 +73,7 @@ export function NetworkDataDialog(): React.JSX.Element {
                             url
                             multiple
                             placeholder="Web address of a graph file"
+                            openLabel="Open"
                             onUrl={(url) => {
                                 close();
                                 addUrl(ctx, url);

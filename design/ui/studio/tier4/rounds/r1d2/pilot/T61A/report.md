@@ -123,3 +123,100 @@ so this pass replayed T61's own routes again, from the empty start, into
   recorded here.
 
 No new crash, block or grading-spoiling result. The defects listed above are unchanged.
+
+## Re-walk on build bccf8fe47f (the unknown end's mark moved to the end that is unknown)
+
+Build bccf8fe47f (`.study-builds/tier4-r1d2-bccf8fe47f`), 1440 x 900, start `empty`. Screenshots
+are under `/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T61A/`. The
+data stayed the task's own on every walk (pantries.csv P01-P12, deliveries.csv 19 rows, P13 only in
+the route list).
+
+The earlier walks were replayed on this build first: d2-start-screen, d3-main-menu,
+d4-start-screen, d5-main-menu, d6-start-screen, d7-row-menus, k1-keyboard and k2-keyboard matched
+every check point to the end, so the findings above stand for them. w1, w2, w3, d1 and k3 went
+another way at the same steps as on ff17391bb1 (the deliveries.csv row's name is cut to "d..", the
+join-canceled notice's Undo is a second "Undo", focus lands on Join after the second file is chosen)
+and were walked again:
+
+| Walk | How | Result |
+| ---- | --- | ------ |
+| w2-success | replay of the r1 walk, stopped at the hover over the cut name, finished by hand to Edges > With issues 1 and Nodes > With issues 2 | Reached |
+| w1-success | replay of the ff17391bb1 walk (r3/w1-success) | All 18 steps matched; reached |
+| w3-success | replay of the new w2-success | All 18 steps matched; reached |
+| d1-main-menu | replay of the ff17391bb1 walk (r4/d1-main-menu) | All 15 steps matched; the findings above stand |
+| d9-deliveries-first | new walk: deliveries.csv opened first, then pantries.csv through Data > Sources "+" > File..., Join, Edges > With issues | Reached (13 nodes, 19 edges) |
+| k3-keyboard | replay of the r1 walk, stopped where focus now lands on Join, finished by hand and carried on to the Edges table's Target header | Reached |
+
+### Success path by pointer (w2-success): reached
+
+- The join screen reads "Join deliveries.csv -> pantries.csv", Edges, from = Id, to = Id, "18 edges
+  added", "1 new node", "1 not in graph", "1 repeated key" (w2-success/04.png).
+- After Join: Overview Nodes 13, Edges 18, "From 2 files"; Sources lists pantries.csv (12) and
+  deliveries.csv (13, 18, issue chip 1) (w2-success/12.png). Hovering the cut name shows
+  "deliveries.csv"; hovering the counts shows "13 nodes, 18 edges" (13.png, 14.png).
+- The issue chip opens "Issues in deliveries.csv": edges, 1 unknown end, Add nodes, Leave out,
+  Ignore (15.png).
+- Edges, 18 edges, "With issues 1": the warning glyph is now on the Target header ("Issues in
+  Target"), Source has none (16.png); narrowed, the one row is P05 -> P13, 4 trips, with P13 drawn
+  in the warning color and P05 plain (17.png). The table now names the site that did not fit.
+- Nodes, "With issues 2": P06 and P07, the pantries list's own issues (19.png).
+
+### Detour: deliveries.csv first, then pantries.csv (d9-deliveries-first): reached
+
+- The join screen reads "Join pantries.csv -> deliveries.csv", Node values, id = Id, "12 matched",
+  "1 no value" (d9-deliveries-first/02.png).
+- After Join: Overview 13 nodes, 19 edges, "1 repeated edge", "From 2 files" (04.png). Edges,
+  "With issues 1": the glyph is on the "from" header, and the one row is P03 -> P10, 6 trips, with
+  P03 drawn in the warning color (05.png). The header's menu reads "1 repeated edge" with Keep,
+  Merge, Ignore, Show rows (06.png); Escape closes it. Nothing after Join names P13 as not on the site
+  list (Nodes "With issues 2" are P06 and P07, 08.png); the join screen's "1 no value" is the only
+  place. These counts are the ones the answer key accepts for this order.
+- Neither Sources row carries an issue chip in this order (04.png), as on ff17391bb1
+  (d4-start-screen/09.png).
+
+### Success path by keyboard (k3-keyboard, keys only, screen-reader mode): reached
+
+- Steps 1-85 matched the earlier walk. Enter, Enter, deliveries.csv: focus on button "Join"; Enter:
+  focus on "deliveries.csv 17 of 19 rows joined 13 nodes, 18 edges" (pressed), live "13 nodes, 18
+  edges". The issue dialog opens and Tabs through as before; Escape leaves focus on Collapse Fields.
+- Tab from Collapse Fields reaches tab "Nodes" in 10 presses; ArrowRight selects "Edges"; Tab goes
+  "With issues 1", "Columns: 3 of 3", "Table options", "Maximize table", "Close table", "Key
+  Source", then out of the table to "From 2 files". ArrowRight from "Key Source" goes to "Key
+  Target", then "number, joined trips"; the glyph is not a stop of its own.
+- On the Target header the focused name is "Key Target" (after Enter sorts it, "Target, sorted
+  ascending") and its description is empty: nothing spoken on focus says this column has an issue.
+  Browse mode reads the header row as "... Key Target Issues in Target Options for Target ...".
+- Shift+F10 (and Alt+ArrowDown) on the Target header opens its menu: "1 unknown end", Add nodes
+  (checked), Leave out, Ignore, Show rows, then Hide, Hide others, Sort ascending, Sort descending
+  (k3-keyboard/112.png). Escape returns focus to the Target header; ArrowDown goes to P13.
+- Control+Z after Enter had sorted the Target column undid the join ("Undid joining
+  deliveries.csv.", 12 nodes, 0 edges) and moved focus to "From pantries.csv" in the right panel;
+  Control+Shift+Z redid it ("Redid joining deliveries.csv.", focus on the deliveries.csv row). A
+  sort is not an undo step, so this is Undo behaving as designed; no focus fell to the page body on
+  this walk.
+
+### Mismatches between the answer key and the screen
+
+None new. The four listed above for ff17391bb1 still hold (the repeat is readable only on the join
+screen in the forward order; deliveries-first gives 19 edges and "1 repeated edge"; Replace gives
+the same counts and columns as a join).
+
+### Defects (crash, block, or a result that would spoil grading)
+
+No crash and no block on any walk. The fix holds: the Target header carries the mark and P13 is
+the tinted cell (w2-success/17.png). The four grading risks listed above for ff17391bb1 are unchanged
+(d1-main-menu/13.png and 16.png on this build).
+
+Smaller, seen on this pass:
+
+1. Keyboard: the Target header's focused name does not say it has an issue ("Key Target", empty
+   description); only browse mode reads "Issues in Target", and the fixes are found only by opening
+   the header's menu with Shift+F10 (k3-keyboard/100.png to 102.png, 112.png).
+2. Deliveries-first order: the "1 repeated edge" mark sits on the "from" header and tints only P03,
+   the first end of the repeated route P03 -> P10, so the table reads as if P03 were the problem
+   (d9-deliveries-first/05.png).
+
+### Not walked here
+
+The other routes the fix pass touched are other tasks' (T65 A and B, T66, T67, T68 and T61 B); they
+are walked by those tasks' pilots.

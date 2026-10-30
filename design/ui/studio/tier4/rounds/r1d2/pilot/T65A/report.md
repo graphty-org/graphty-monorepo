@@ -1,5 +1,50 @@
 # T65 A pilot, round 1 dry run 2: only the trained volunteers with 10 hours or more in the picture, staff marked
 
+## Targeted re-pilot on build bccf8fe47f
+
+Build: bccf8fe47f (frozen, `.study-builds/tier4-r1d2-bccf8fe47f`). Start: `volunteers.txt`. Walks under
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T65A/, each its own session. The
+data stayed the task's own throughout: one source, volunteers.graphml, 24 nodes and 63 edges.
+
+On this build the change that made the Select card's chip count only what is in the picture is NOT
+present: it was reverted before the freeze (see `rejected-fixes.md`). The build's one new change makes a
+redone filter change select among what it leaves visible.
+
+- **Success path by pointer** (`v1-path/`, replayed from `u1-path/`): all 24 steps matched, ended. The top
+  bar reads "14 of 24 nodes, 22 of 63 edges" and the inspector "4 nodes selected" with 4 rings
+  (v1-path/17.png). Keep card off: "5 nodes selected", all 24 drawn (v1-path/24.png); on again: 14 of 24
+  and 4 selected (v1-path/25.png).
+- **Success path, the other card order** (`v2-order/`, replayed from `u2-order/`): all 11 steps matched,
+  ended. Role on Select first, then trained Yes and hours from 10: 14 of 24 and "4 nodes selected"
+  (v2-order/08.png); keep card off 5, on 4 (v2-order/11.png, 12.png). The order makes no difference.
+- **Keyboard only** (`v3-keys/`, replayed from `u3-keys/`): all 127 steps matched, ended. Moving the role
+  card to Select announces "Filter on: 14 of 24 nodes, 22 edges" and "4 nodes selected" (v3-keys/111.png).
+  The role card's count chip has no name of its own in the accessibility tree, so a screen reader hears
+  the selection count (4) only from the live status and the inspector heading. Focus never fell to the
+  page body after the first step.
+- **Undo and redo of the keep card** (`v4-redo/`, the success path replayed and carried on by hand):
+  Control+Z turns the keep card off ("5 nodes selected"); Control+Shift+Z turns it back on: "Redid turning
+  on the filter", 14 of 24 and "4 nodes selected", 4 rings (v4-redo/27.png). Undo twice and redo twice
+  land on 14 of 24 and 4 selected again (v4-redo/29.png). The redo fix holds on this route.
+
+Result: reached on both card orders, by pointer and by keyboard; the screen's counts, 14 in the picture
+and 4 selected, match the answer key.
+
+Mismatch between the answer key and the screen: the key's "Card counts" says the role card's chip reads
+"4 of 14" while on Select; on this build it reads "5 of 24", and its value list "staff 5", in both orders
+(v1-path/17.png, v1-path/25.png, v2-order/08.png, v4-redo/27.png). With the keep card off the chip reads
+"5 of 24", as the key says (v1-path/24.png).
+
+Defect still open (would spoil grading): a participant who reads the marked count off the role card
+answers 5, not 4, while the inspector says "4 nodes selected" (same screenshots).
+
+Seen on the keyboard walk, also on every earlier keyboard walk: Control+A pressed while focus is on the
+hours range slider selects every node in the picture ("15 nodes, 25 edges selected", v3-keys/73.png);
+the role card on Select replaces that selection later, so the result is not affected.
+
+The other routes on the fix list (T65B, T66A/B, T67A/B, T68A/B, T61A/B) belong to other tasks and were
+not walked here.
+
 ## Targeted re-pilot after the fix pass
 
 Three sessions were walked again on the frozen build ff17391bb1, each in its own session from the task's real

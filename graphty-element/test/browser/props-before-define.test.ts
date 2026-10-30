@@ -101,7 +101,7 @@ describe("autosave set up before the tag is defined", () => {
      * @param key - The autosave key.
      */
     async function leaveWork(key: string): Promise<void> {
-        const first = document.createElement("graphty-element") as Graphty;
+        const first = document.createElement("graphty-element");
         first.setAttribute("autosave", key);
         first.layout = "fixed";
         first.style.display = "block";
@@ -132,7 +132,7 @@ describe("autosave set up before the tag is defined", () => {
         const key = `test.props-before-define.${crypto.randomUUID()}`;
         await leaveWork(key);
 
-        const el = document.createElement("graphty-element") as Graphty;
+        const el = document.createElement("graphty-element");
         el.setAttribute("autosave", key);
         el.layout = "fixed";
         el.style.display = "block";

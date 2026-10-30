@@ -775,8 +775,8 @@ export class Autosaver {
         metas: readonly AutosaveEntryMeta[],
         live: (meta: AutosaveEntryMeta) => boolean,
     ): Promise<AutosaveRestored | null | "next" | "taken"> {
-        const restored = await this.#restoreFrom(meta, isOwn && live(meta), metas, live);
-        return restored === "taken" && isOwn ? this.#restoreFrom(meta, true, metas, live) : restored;
+        const restored = await this.#restoreFrom(meta, isOwn && live(meta), metas, live, true);
+        return restored === "taken" && isOwn ? this.#restoreFrom(meta, true, metas, live, true) : restored;
     }
 
     /**
@@ -1382,6 +1382,8 @@ export class Autosaver {
      * @param copy - Copy it into a new entry instead of claiming it.
      * @param metas - Every entry of the key, as listed.
      * @param live - Whether a tab holds an entry.
+     * @param startup - The automatic restore at the start, which gives way to a graph the page
+     *     already asked for; a restore the reader picks opens over it.
      * @returns What was restored; null when opening failed; `"next"` to try the next candidate;
      *   `"taken"` when another tab holds its lock.
      */
@@ -1390,6 +1392,7 @@ export class Autosaver {
         copy: boolean,
         metas: readonly AutosaveEntryMeta[],
         live: (meta: AutosaveEntryMeta) => boolean,
+        startup = false,
     ): Promise<AutosaveRestored | null | "next" | "taken"> {
         let release: (() => void) | null = null;
         if (!copy) {
@@ -1447,7 +1450,7 @@ export class Autosaver {
         // The page asked the graph for data of its own while the entry was read (a sample, a file,
         // rows): that newer load wins. The open would queue behind it and replace it, so the work
         // is offered instead, as when the page's own data replaces a restore (issue #3313).
-        if (this.#graphTaken()) {
+        if (startup && this.#graphTaken()) {
             await this.#takeBack(current, untried, copy);
             release?.();
             this.#available(meta, live(meta), "page-data-changed", null);

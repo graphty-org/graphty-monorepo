@@ -21,6 +21,15 @@ Trimmed 2026-10-30 (the file passed 25 KB); the full earlier Top of mind (the Se
 fix 71230abff1, the unknown-end mark, inspector node names, the weight re-run, Select within the
 picture, the r1 dry-run-1 fixes, each with tests and re-walks): `git show dc360dd57f:design/ui/studio/notes/engineer.md`.
 
+- (2026-10-30) Round 1 screenshot audit on 79ed770292 at 1200x900 and 900x700:
+  `tier4/rounds/round-1/expert/engineer.md`. No severity 3 or 4. Top severity 2s, all app: the
+  table dock header overflows at 900 (issues chip drawn over the Edges tab, Edges tab gone with a
+  Hide card on, "Columns:..." cut); source names cut to ONE letter after a join ("d..", "f...");
+  kind glyphs differ between table header and Fields/Filters lists (still); Export Columns chip
+  "1 of 1" for Edges while the table says 3 of 3; at 900 the canvas toolbar covers a third of the
+  drawing. Fix order if a fix pass comes: header row overflow, source name truncating last, the
+  export column count, the one glyph map.
+
 - (2026-10-30) The study tool now checks tier 4's scripted bars itself. `real.mjs --end` writes
   `data.json` (`dataState` in `measure.mjs`: counts, sources with element counts, a `sourcesOf`
   recount and the row chips, load mappings, known fields, columns, filter cards with their chips),
@@ -169,6 +178,18 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-30 worked (screenshot audit): `bars.mjs <out> --dist <frozen> --tier 4 --size <WxH>`
+  walks the nine data screens at any size and adds the cut-text check (bar10 in bars.json) for
+  free; then plain `real.mjs` walks with `REAL_VIEWPORT` for the states it skips (cards, header
+  menu, export scopes), each walk in one background script, one browser at a time. Without
+  `REAL_SCHEME` the sessions open light, the bars walk dark: both themes for nothing.
+- 2026-10-30 did not work (names in audit walks): "Expand gauges.csv" is not there while the group
+  is open; a column name with the Filters picker open is ambiguous (header button vs option): use
+  `role=option:<name>`; "Add a condition" exists only once a value is ticked; with the picker open,
+  a bare `--click installed` sorted the table instead.
+- 2026-10-30: design-studio screenshots never go into git (`tools/check-committed-images.mjs`);
+  commit only the audit's .md, naming screenshots by path.
 
 - 2026-10-30 worked: verifying the browser gate with ten `--start`s in one background script, each
   holding its browser for two `--wait` steps, counting `node ... real.mjs --serve|--warm`

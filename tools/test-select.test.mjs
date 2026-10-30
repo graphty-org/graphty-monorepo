@@ -37,6 +37,7 @@ import {
     selectPackages,
     selectShards,
     selectStories,
+    storiesReaching,
     storyBins,
     STORY_BIN_LIMIT_MS,
     STORY_BIN_MAX_MS,
@@ -2047,6 +2048,26 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
                 .mode,
             "all",
         );
+    });
+
+    it("selects a proven project's stories through its package graph when no shard runs its stories as tests", () => {
+        const play = "compact-mantine/tests/stories/play.storybook.test.tsx";
+        const [a, b] = ["compact-mantine/stories/A.stories.tsx", "compact-mantine/stories/B.stories.tsx"];
+        const graph = {
+            imports: { [play]: [a, b], [a]: ["compact-mantine/src/X.tsx"], [b]: [], "compact-mantine/src/X.tsx": [] },
+            projects: { storybook: { specs: [play], setup: [] } },
+        };
+        const graphs = new Map([["compact-mantine", [graph]]]);
+        const rules = { ...stories, selectProjects: ["compact-mantine"] };
+        const withCm = [...shards, byName("compact-mantine")];
+        const cm = [...none, sel("compact-mantine", "files", [play])];
+        const run = (changed, selection = cm) =>
+            pick(selection, changed, { rules, graphs, shards: withCm })["compact-mantine"];
+        assert.deepEqual(run(["compact-mantine/src/X.tsx"]).files, [a]);
+        assert.deepEqual(run([b]).files, [b]);
+        assert.equal(run(["compact-mantine/src/unknown.css"]).mode, "all", "a file no graph knows");
+        assert.equal(run(["compact-mantine/src/X.tsx"], [...none, sel("compact-mantine", "all")]).mode, "all");
+        assert.equal(storiesReaching("compact-mantine", ["graphty/src/X.tsx"], [graph]), null, "outside the package");
     });
 
     it("runs no story for a change only to CI and tool files no story reads, proven project or not", () => {

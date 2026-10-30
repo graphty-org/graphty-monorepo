@@ -84,8 +84,9 @@ import {
     type SliceDecision,
     type SliceMode,
     type SliceState,
-    type StoreSummary,
+    storeSummary,
 } from "./slices.js";
+import { budgetShares, contention, type ReviewState, reviewLags, setAge, type StoryCaptures } from "./slice-metrics.js";
 import {
     CHANNEL_REFS_QUERY,
     ISSUE_QUERY,
@@ -128,7 +129,7 @@ export interface Deps {
      */
     slices?: {
         cfg: SliceConfig;
-        readStore?: () => Promise<StoreSummary>;
+        readStore?: () => Promise<StoryCaptures>;
         dispatch?: (sha: string, mode: SliceMode) => Promise<void>;
     };
 }
@@ -186,6 +187,8 @@ class Cycle {
     /** This cycle's runner use (runners part) and master's newest green build (github part), for the slices. */
     runnerSample?: RunnerSample;
     newestGreen?: { sha: string };
+    /** Merge times of screenshot approval pull requests (visual/approve-*) seen this cycle, for the review lag. */
+    approvalMerges: number[] = [];
     slice?: SliceDecision & { dispatched: boolean };
     private readonly jsonCursors = new Map<string, unknown>();
 
@@ -573,6 +576,12 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number) {
         saturated,
         longestQueuedMs: use.longestQueuedMs,
     };
+    if (c.d.slices) {
+        // What slices cost other work (early-capture.md, plan step 6): 0 whenever no slice job holds a runner.
+        const cost = contention(open, c.d.slices.cfg.workflow, saturated, elapsed / MIN);
+        c.o("slices.contended_min", cost.contendedMin);
+        c.o("slices.queue_wait_min", cost.queueWaitMin);
+    }
     const prev = await c.json<HoldersSnapshot | undefined>(SNAPSHOT.holders, undefined);
     await c.setJson(SNAPSHOT.holders, nextHolders(prev, open, c.d.repo, saturated, c.now));
 }
@@ -622,6 +631,9 @@ async function pullRequests(c: Cycle, gh: GitHub) {
     }
     await pendingPrRuns(c, gh, [...open, ...recentSeen]);
     for (const p of recentSeen) c.items.push(await withStages(c, toPrItem(p, c.d.repo)));
+    c.approvalMerges = recentSeen
+        .filter((p) => p.mergedAt && p.headRefName?.startsWith("visual/approve-"))
+        .map((p) => Date.parse(p.mergedAt as string));
     for (const p of open) c.items.push(toPrItem(p, c.d.repo));
     c.openPrs = open;
     await ownerWaits(c, gh, open);
@@ -869,6 +881,9 @@ async function channels(c: Cycle, gh: GitHub) {
             ...(refs.production ? { production: refs.production.target.oid } : {}),
         },
     };
+    // A nightly promotion is channel/nightly moving to another commit.
+    if (prev?.refs.nightly && snap.refs.nightly && prev.refs.nightly !== snap.refs.nightly)
+        c.o("release.nightly_promotions", 1);
     await c.setJson("channels", snap);
 }
 
@@ -1086,19 +1101,52 @@ async function slices(c: Cycle, xs: Collected[]) {
         ...(c.newestGreen ? { newestGreen: c.newestGreen } : {}),
     };
     let decision = decideSlice({ ...input, store: null });
-    if (decision.action === "none" && decision.reason === "store-unavailable" && s.readStore) {
-        const store = await s.readStore().catch((e: unknown) => {
+    const needed = decision.action === "none" && decision.reason === "store-unavailable";
+    let read = false;
+    // The dashboard reads the store every 15 minutes too, so the set's age and the review lag stay current.
+    if (s.readStore && (needed || (await c.due("capture-read", 15 * MIN)))) {
+        const body = await s.readStore().catch((e: unknown) => {
             c.errors.slicesStore = message(e);
             return undefined;
         });
-        decision = decideSlice({ ...input, store });
+        if (body) await captureMetrics(c, body);
+        if (needed) decision = decideSlice({ ...input, store: body && storeSummary(body, c.now) });
+        read = !!body;
+    }
+    // Pull requests are read every cycle and the store every 15 minutes: keep this cycle's approval merges for the next read.
+    if (!read && c.approvalMerges.length) {
+        const prev = await c.json<ReviewState>("review-lag", { pending: {}, approvals: [] });
+        await c.setJson("review-lag", { ...prev, approvals: [...new Set([...prev.approvals, ...c.approvalMerges])] });
     }
     c.slice = { ...decision, dispatched: false };
+    const share = budgetShares(state.spent, c.now, s.cfg);
+    c.o("slices.base_cap_share", share.base);
+    c.o("slices.idle_cap_share", share.idle);
+    c.o("slices.idle_hour_cap_share", share.idleHour);
     await c.setJson("slices", state);
     if (decision.action !== "dispatch" || !s.dispatch) return;
     await s.dispatch(decision.sha, decision.mode);
     c.slice.dispatched = true;
     await c.setJson("slices", { ...state, dispatched: { at: c.now, sha: decision.sha, mode: decision.mode } });
+}
+
+/** The set's age and the review lag from one read of the story captures (source story-slices). */
+async function captureMetrics(c: Cycle, body: StoryCaptures) {
+    const age = setAge(body, c.now);
+    if (age.oldestAt !== null) c.o("slices.set_age_ms", c.now - age.oldestAt);
+    c.o("slices.units_dropped", age.dropped);
+    const review = reviewLags(
+        await c.json<ReviewState | undefined>("review-lag", undefined),
+        body.captures ?? [],
+        c.approvalMerges,
+        c.now,
+    );
+    review.lags.forEach((lag, k) =>
+        c.items.push({ ...obs("release.review_lag_ms", lag, c.now), id: `release.review_lag_ms#${c.now}.${k}` }),
+    );
+    await c.setJson("review-lag", review.state);
+    await setCursor(c.d.store, "capture-read", String(c.now), c.now);
+    await recordSource(c.d.store, "story-slices", c.now, { ok: true });
 }
 
 /** Every GitHub part of one cycle; the collector source is OK when the runs, pull requests and issues were. */

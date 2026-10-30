@@ -152,7 +152,11 @@ At the end of each cycle it also decides whether to start one rolling screenshot
 (`story-slices.yml`, design `design/visual-testing/early-capture.md` section 4b): only after a quiet half hour
 on the runners, within the daily runner-minute caps in [`config/slices.json`](config/slices.json), and never
 while a slice is in flight. Without the dispatch App's parameters, or with `dispatch` false there, it only logs
-its decision (`slice` in the cycle's log line).
+its decision (`slice` in the cycle's log line). Every 15 minutes it also reads the store's story captures for the CI and Releases
+pages' rolling screenshot measures (the set's age, slice minutes against each cap, what slices cost other jobs,
+the screenshot review lag, green-clean full runs, slots meeting an unapproved picture and nightly promotions
+per day; design `design/visual-testing/early-capture.md`, plan step 6). They are slow measures: shown with their
+targets, never judged into a page's state or alerted.
 
 ### CI
 

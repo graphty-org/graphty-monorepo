@@ -17,6 +17,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-10-29) Re-walk of "every inspector node row is called by its name" (d612c60665) on
+  `graphty/dist` built after the edit: the five label and path routes (`--rewalk` of
+  `tmp/r1-dry2-U3/`) and five T65 selection routes (replays of `tmp/r1-dry2-recheck-U1/`) all
+  matched every check point, into `design/ui/studio/tmp/r1-dry2-recheck-U3/`. Nothing worse; the
+  acceptance holds (T64B-detour-table-role 09.png Old Bridge, Heron Marsh, Lake Inlet;
+  T64A-label-path 09.png Central Warehouse, Harbor Market; T65A-path 17.png selection inspector
+  unchanged, no node list). Keys on the changed rows (`T64B-keys-rows/`): the path layer's Values
+  lists the same names; Tab and Shift+Tab move through the rows in order (20.png, 21.png), Escape
+  on a row with nothing selected does nothing (22.png), Enter selects that node and opens it with
+  focus on its Values tab (23.png); the Selected layer's "Now" lists "Heron Marsh" (24.png). Not
+  walked: a grouping run's Members and a run's Top list (no route in this unit reaches them; the
+  unit test covers group Members). Clicking the legend card does not open the run (12.png): reach
+  a path's rows through its layer's Values.
+
 - (2026-10-29) Every inspector node row is called by its name: path "Nodes in order", a set or
   group run's Members, a layer's Top list, Members and Selected (RunValues.tsx, LayerValues.tsx)
   now go through `nodeName` (inspector/words.ts, the element's `session.data.name`), as From/To

@@ -102,14 +102,14 @@ function textWords(rule: Extract<RuleTree, { kind: "text" }>, names: Namer): str
 }
 
 /**
- * The header chip's tooltip: what is showing, and that a click opens Filters to turn it off.
+ * The header chip's tooltip: the cards that filter the picture, and that a click opens Filters to turn it off.
  * The Filters list is not on the Graph page, so the words say how to reach it.
  * @param on - the words of the cards that are on.
  * @returns the words.
  */
 export function chipTip(on: readonly string[]): string {
     const named = on.map((words) => `"${words}"`).join(", ");
-    return `Showing only: ${named}. Click to open Filters, where you can turn ${on.length === 1 ? "it" : "them"} off.`;
+    return `Filtered by: ${named}. Click to open Filters, where you can turn ${on.length === 1 ? "it" : "them"} off.`;
 }
 
 /** How much of the graph is showing, as the element's summary has it. */

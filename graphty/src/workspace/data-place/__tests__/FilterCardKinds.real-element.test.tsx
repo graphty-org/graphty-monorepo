@@ -140,8 +140,10 @@ describe("Each kind of filter card", () => {
                 values: ["board", "staff"],
             });
         });
-        assert.equal(session.visibility.summary.visibleNodes, 8);
-        await screen.findByRole("group", { name: "role is board or staff, Hide" });
+        // A card from "+" starts on Select: it marks the matches and takes nothing out of the picture.
+        assert.equal(session.visibility.summary.visibleNodes, session.data.nodes().length);
+        assert.lengthOf(session.selection.nodes, 8);
+        await screen.findByRole("group", { name: "role is board or staff, Select" });
         assert.equal(cardsDrawn(), 1);
     });
 
@@ -184,8 +186,9 @@ describe("Each kind of filter card", () => {
             });
         });
         assert.equal(session.history.position, before + 1);
-        assert.equal(session.visibility.summary.visibleNodes, 6);
-        await screen.findByRole("group", { name: "name contains Mme, Hide" });
+        assert.equal(session.visibility.summary.visibleNodes, session.data.nodes().length);
+        assert.lengthOf(session.selection.nodes, 6);
+        await screen.findByRole("group", { name: "name contains Mme, Select" });
     });
 
     it("picking a match hands focus to the value; Escape with a value writes it and goes to the on box", async () => {

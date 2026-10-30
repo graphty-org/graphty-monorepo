@@ -1,7 +1,7 @@
 /**
  * Filters (design/data/filter-cards.md section 5): the Data place's Filters section, a flat list of
  * condition cards, and the header chip. Each card is one of graphty-element's filter conditions
- * (`visibility.conditions`): its count is the element's (`conditionCounts`), its Select / Hide
+ * (`visibility.conditions`): its count is the element's (`conditionCounts`), its Select / Filter to / Filter out
  * toggle writes the condition's effect, its box switches it on and off, and its body is the Which
  * picker's card for its field. Order never matters. The app holds only a card not yet written.
  */
@@ -77,11 +77,22 @@ function focusCard(target: string, onBox = false): boolean {
     return control !== null;
 }
 
-/** A card not yet written: the id it is written with, and the field it opened on. */
+/** A card not yet written: the id it is written with, the field it opened on, and its effect. */
 interface Draft {
     readonly id: string;
     readonly field: CardField;
+    readonly effect: StartEffect;
 }
+
+/**
+ * The effect a new card is written with. A card from "+" starts on Select, which takes nothing out
+ * of the picture (tier 4 round 1: 5 of 5 participants who made a card to mark lost part of the
+ * picture first); an attribute's "Filter to..." starts on Filter to, as its words say.
+ */
+type StartEffect = { readonly effect: "select"; readonly within: "picture" } | { readonly effect: "keep" };
+
+/** The effect that removes nothing. */
+const SELECT: StartEffect = { effect: "select", within: "picture" };
 
 /**
  * The fields a card can test on one kind. The Data source speaks of nodes and edges at once, so it
@@ -100,8 +111,12 @@ const valueFields = (session: GraphSession, side: Side): CardField[] =>
  */
 const hides = (condition: FilterCondition): boolean => condition.effect !== "select";
 
-/** A card's action word for each effect, read in its name: the toggle shows keep and select. */
-const ACTION_WORDS: Record<FilterCondition["effect"], string> = { keep: "Hide", select: "Select", exclude: "Exclude" };
+/** A card's action word for each effect, read in its name and on its toggle (glossary: filter step outcomes). */
+const ACTION_WORDS: Record<FilterCondition["effect"], string> = {
+    keep: "Filter to",
+    select: "Select",
+    exclude: "Filter out",
+};
 
 /**
  * The Filters section: one card per condition, in the element's order, the new cards while they
@@ -136,12 +151,12 @@ export function FiltersSection(): React.JSX.Element {
         }
     }, [version]);
 
-    const open = (field: CardField): void => {
+    const open = (field: CardField, effect: StartEffect = SELECT): void => {
         const id = newConditionId(
             session?.visibility.conditions ?? [],
             drafts.map((each) => each.id),
         );
-        setDrafts((now) => [...now, { id, field }]);
+        setDrafts((now) => [...now, { id, field, effect }]);
         setOpenId(id);
     };
     const openRef = useRef(open);
@@ -162,7 +177,7 @@ export function FiltersSection(): React.JSX.Element {
         if (side === "node" || side === "edge") {
             const field = cardFields(session, side).find((each) => each.path === path);
             if (field !== undefined) {
-                openRef.current(field);
+                openRef.current(field, { effect: "keep" });
             }
         }
     }, [asked, session, store]);
@@ -195,8 +210,8 @@ export function FiltersSection(): React.JSX.Element {
             </span>
         );
     const cards = [
-        ...conditions.map((condition) => ({ id: condition.id, condition, field: undefined })),
-        ...waiting.map((each) => ({ id: each.id, condition: undefined, field: each.field })),
+        ...conditions.map((condition) => ({ id: condition.id, condition, field: undefined, effect: SELECT })),
+        ...waiting.map((each) => ({ id: each.id, condition: undefined, field: each.field, effect: each.effect })),
     ];
     const empty = cards.length === 0 && !timed;
 
@@ -214,6 +229,7 @@ export function FiltersSection(): React.JSX.Element {
                             condition={each.condition}
                             count={counts.find((c) => c.id === each.id)}
                             field={each.field}
+                            startEffect={each.effect}
                             open={openId === each.id}
                             onOpen={(next) => {
                                 setOpenId(next ? each.id : null);
@@ -259,7 +275,7 @@ function structureItems(
         const id = newConditionId(session.visibility.conditions, taken);
         pendingFocus = { target: id };
         onWritten(id);
-        void writeCondition(store, () => session.visibility.addCondition({ id, effect: "keep", rule }));
+        void writeCondition(store, () => session.visibility.addCondition({ id, ...SELECT, rule }));
     };
     const selected = session.selection.nodes;
     const source = cardFields(session, "node").find((field) => field.path === SOURCE_PATH);
@@ -399,7 +415,7 @@ function usePreviewCount(session: GraphSession, rule: RuleTree | null, side: Sid
 
 /**
  * One filter card (design/data/filter-cards.md section 5, tier 4 R3 and R4): a header row with
- * its field, its count and its remove button; a row with Select / Hide and its on box; then its
+ * its field, its count and its remove button; a row with Select / Filter to / Filter out and its on box; then its
  * body while it is open, else its summary. A card not yet written (`condition` undefined) is
  * written by its first value. Typed text is written when it is committed (Enter, Tab or a click
  * out, Escape), its count following each key meanwhile without a write. Only Escape takes a card
@@ -411,6 +427,7 @@ function usePreviewCount(session: GraphSession, rule: RuleTree | null, side: Sid
  * @param props.condition - the condition, or undefined for a draft
  * @param props.count - the element's count of it
  * @param props.field - a draft's field
+ * @param props.startEffect - the effect a draft is written with
  * @param props.open - whether its body is shown
  * @param props.onOpen - opens or closes it
  * @param props.onDiscard - drops a draft
@@ -424,6 +441,7 @@ function FilterCard({
     condition,
     count,
     field,
+    startEffect,
     open,
     onOpen,
     onDiscard,
@@ -435,6 +453,7 @@ function FilterCard({
     condition: FilterCondition | undefined;
     count: FilterConditionCount | undefined;
     field: CardField | undefined;
+    startEffect: StartEffect;
     open: boolean;
     onOpen: (open: boolean) => void;
     onDiscard: () => void;
@@ -501,7 +520,7 @@ function FilterCard({
         const rule = condition === undefined ? made : keepReadings(made, condition.rule);
         if (condition === undefined) {
             written.current = JSON.stringify(rule);
-            void writeCondition(store, () => session.visibility.addCondition({ id, effect: "keep", rule }));
+            void writeCondition(store, () => session.visibility.addCondition({ id, ...startEffect, rule }));
         } else if (!sameRule(rule, condition.rule)) {
             written.current = JSON.stringify(rule);
             void writeCondition(store, () => session.visibility.updateCondition(id, { rule }));
@@ -538,13 +557,14 @@ function FilterCard({
     };
 
     const name = condition === undefined ? (field?.name ?? "New filter") : conditionWords(session, condition.rule);
-    const select = condition?.effect === "select";
     const on = condition?.on ?? true;
-    // Only keep and select swap with the toggle; any other effect (exclude) is named as it is and
-    // keeps it, since writing keep or select would change what the condition does.
-    const toggles = condition?.effect === "keep" || select;
-    const action = ACTION_WORDS[condition?.effect ?? "keep"];
-    const hideWords = `Hide ${side === "node" ? "nodes" : "edges"} that do not match`;
+    const action = ACTION_WORDS[condition?.effect ?? startEffect.effect];
+    // Each effect's toggle segment, with what it does in its tooltip and its name.
+    const effects = [
+        { value: "select", label: "Select", says: `Select the ${things} that match; nothing leaves the picture` },
+        { value: "keep", label: "Filter to", says: `Keep only the ${things} that match in the picture` },
+        { value: "exclude", label: "Filter out", says: `Remove the ${things} that match from the picture` },
+    ] as const;
     // The header names the card's field (or its kind); the summary under it says the rule.
     let title = "Rule";
     if (shape.kind === "fields") {
@@ -629,39 +649,33 @@ function FilterCard({
                 </Group>
                 {condition !== undefined && (
                     <Group gap={4} wrap="nowrap" justify="flex-end" className="dp-filter-switches">
-                        {toggles && (
-                            <SegmentedControl
-                                size="xs"
-                                label={`${name} action`}
-                                data={[
-                                    { value: "select", label: "Select" },
-                                    {
-                                        value: "hide",
-                                        // The visible word stays "Hide"; its tooltip and its name say what it does.
-                                        label: (
-                                            <Tooltip label={hideWords}>
-                                                <span>
-                                                    <span aria-hidden>Hide</span>
-                                                    <VisuallyHidden>{hideWords}</VisuallyHidden>
-                                                </span>
-                                            </Tooltip>
-                                        ),
-                                    },
-                                ]}
-                                value={select ? "select" : "hide"}
-                                onChange={(value) => {
-                                    void writeCondition(store, () =>
-                                        session.visibility.updateCondition(
-                                            id,
-                                            // A Select card selects only what is in the picture.
-                                            value === "select"
-                                                ? { effect: "select", within: "picture" }
-                                                : { effect: "keep" },
-                                        ),
-                                    );
-                                }}
-                            />
-                        )}
+                        <SegmentedControl
+                            size="xs"
+                            label={`${name} action`}
+                            data={effects.map((each) => ({
+                                value: each.value,
+                                label: (
+                                    <Tooltip label={each.says}>
+                                        <span>
+                                            <span aria-hidden>{each.label}</span>
+                                            <VisuallyHidden>{`${each.label}: ${each.says}`}</VisuallyHidden>
+                                        </span>
+                                    </Tooltip>
+                                ),
+                            }))}
+                            value={condition.effect}
+                            onChange={(value) => {
+                                void writeCondition(store, () =>
+                                    session.visibility.updateCondition(
+                                        id,
+                                        // A Select card selects only what is in the picture.
+                                        value === "select"
+                                            ? SELECT
+                                            : { effect: value === "exclude" ? "exclude" : "keep" },
+                                    ),
+                                );
+                            }}
+                        />
                         <Tooltip label={`Apply ${name}`}>
                             <Checkbox
                                 size="xs"
@@ -884,7 +898,7 @@ function FieldRow({
 
 /**
  * The Time window card, once added from "+" or while a window is on: the condition card's header
- * (its count, an on box, remove) with no Select / Hide, since the window has no effect to choose,
+ * (its count, an on box, remove) with no effect toggle, since the window has no effect to choose,
  * and a button that opens its settings in the inspector. It is the element state the dock moves.
  * @param props - Component props
  * @param props.session - the element's session

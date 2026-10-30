@@ -70,6 +70,15 @@ async function newCardOn(name: string): Promise<void> {
 }
 
 /**
+ * Sets the one card's effect to Filter to by its toggle, as a reader does: a new card starts on
+ * Select, which takes nothing out of the picture.
+ */
+async function filterTo(): Promise<void> {
+    const place = within(screen.getByRole("region", { name: "Data place" }));
+    await userEvent.click(await place.findByRole("radio", { name: /^Filter to:/ }));
+}
+
+/**
  * The ids of the nodes the filter shows.
  * @param session - the element's session.
  * @returns the ids, sorted.
@@ -96,6 +105,10 @@ describe("picking nodes by a condition card from the Data place", () => {
 
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
+        });
+        await filterTo();
+        await waitFor(() => {
+            assert.equal(session.visibility.conditions[0].effect, "keep");
         });
         assert.deepEqual(session.visibility.conditions[0].rule, {
             kind: "range",
@@ -130,6 +143,10 @@ describe("picking nodes by a condition card from the Data place", () => {
 
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
+        });
+        await filterTo();
+        await waitFor(() => {
+            assert.equal(session.visibility.conditions[0].effect, "keep");
         });
         assert.deepEqual(session.visibility.conditions[0].rule, {
             kind: "source",
@@ -182,7 +199,10 @@ describe("picking nodes by a condition card from the Data place", () => {
         await waitFor(() => {
             assert.lengthOf(session.visibility.conditions, 1);
         });
-        assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
+        await filterTo();
+        await waitFor(() => {
+            assert.deepEqual(shownNodes(session), ["a", "b", "c", "d"]);
+        });
         // The four routes among a to d stay; only d to e, whose end is left out, goes.
         const shownEdges = session.data.edges().filter((edge) => session.visibility.isVisible(edge.id));
         assert.lengthOf(shownEdges, 4);

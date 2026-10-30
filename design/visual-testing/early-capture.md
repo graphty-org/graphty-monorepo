@@ -1,9 +1,10 @@
 # Early screenshot capture: rolling slices and idle-time capture
 
-Date: 2026-10-29. Issue #4540. Status: design and plan, revised after three reviews (CI cost, owner rules,
-owner flow); plan steps 1 to 4 built (step 3: the slice planner, the reach rows and `story-slices.yml`, which
-nothing dispatches yet; step 4: the review page's rolling target and the one-approval-in-flight rules, see "Step 4
-as built" under section 5).
+Date: 2026-10-29. Issue #4540. Status (2026-10-29 evening): plan steps 1 to 7 are built and on master (the
+pick rule switched off; step 4, the review page's rolling target and the one-approval-in-flight rules, is
+described in "Step 4 as built" under section 5). The dispatcher runs as a dry run until the owner's AWS
+parameters exist (section 7), so the only slice so far was dispatched by hand. Trial results so far: "Trial
+status" at the end of section 5.
 
 Every story's picture is rendered fresh from master many times a day, in small slices: a fixed small
 slice after green master builds while runners are free, and more slices while GitHub's runners are
@@ -655,6 +656,21 @@ bins=2 post=false`, then `post=true`. Check: 3 jobs, about 10 runner-minutes fro
    0; slice runner-minutes stay under each cap every day; freshness stays under 6 hours; and against the
    7 days before, review lag, the share of slots meeting an unreviewed change, green-clean rate and
    promotions per day all improve. Then turn on the pick rule (step 7) for 7 more days and compare.
+
+**Trial status (2026-10-29 evening).** Trial 1 passed by hand: run 40982899865, `mode=base bins=2
+post=true` on master 907fab6ed4, 3 jobs and 7.5 runner-minutes (the estimate was 10), 54 of the 280
+rotation units, 387 renders posted to the store (385 unchanged, 2 changed). The slice waited 23 to 30
+minutes in the queue behind pull request work, as a dispatched workflow does; it took nothing ahead of
+it. The `post=false` dry run was skipped. Trial 3, its listing half: the owner's review server lists
+"master rolling: rendered from 907fab6ed4, 2 images" first under "Ready for you", and opens it as its own
+target with baseline and new side by side; the Finish half waits for the owner. Trial 2 and the automatic
+half of trial 1 wait for the owner's two AWS parameters, and the pool was never quiet in the trial window.
+A replay of the quiet rule over the health API's 15-minute runner series (2026-10-26 to 2026-10-30)
+allows an idle slice in 13.3% of buckets, about 3.2 hours a day, and a base slice in 16.7%. Found: since
+the move to the Enterprise plan the health stack's runner limit is 500, and on the evening of 2026-10-29
+only 15 to 30 jobs ran while 150 to 700 waited, so `ci.saturated` read 0 throughout. The quiet rule still
+yields, because it also needs nothing queued, but "slice minutes held while contended" must be read from
+its queued half while jobs wait without the pool being full.
 
 ## 6. Review answers
 

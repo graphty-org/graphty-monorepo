@@ -187,6 +187,53 @@ describe("every run reads the loaded weight", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
+        "the same run asked again after the weight role or its meaning changed computes again",
+        async () => {
+            const element = await loaded(undefined, false);
+            const { runs } = element.session;
+            const params = { source: "p01", target: "p03" };
+
+            const first = runs.start("shortest-path", params);
+            await first;
+            assert.isNull(first.caveats.weight ?? null);
+            assert.strictEqual(first.result?.graph.cost, 1);
+
+            // Nothing changed: the stored run answers, without computing.
+            assert.strictEqual(runs.answered("shortest-path", params), first);
+            const same = runs.start("shortest-path", params);
+            assert.strictEqual(same, first);
+            assert.strictEqual(same.status, "succeeded");
+
+            await element.session.data.setRole({ kind: "edge", name: "emails" }, "weight");
+            await element.session.config.set({ data: { knownFields: { edgeWeightMeaning: "distance" } } });
+            assert.isUndefined(runs.answered("shortest-path", params));
+
+            const again = runs.start("shortest-path", params);
+            assert.notStrictEqual(again.status, "succeeded", "computes again");
+            await again;
+            assert.deepStrictEqual(again.caveats.weight, EMAILS_AS_DISTANCE);
+            assert.strictEqual(again.result?.graph.cost, 9);
+            assert.strictEqual(runs.answered("shortest-path", params), again);
+
+            // Only the meaning changes: computes again, and now leaves the strength unread.
+            await element.session.config.set({ data: { knownFields: { edgeWeightMeaning: "strength" } } });
+            assert.isUndefined(runs.answered("shortest-path", params));
+            const strength = runs.start("shortest-path", params);
+            await strength;
+            assert.isNull(strength.caveats.weight ?? null);
+            assert.strictEqual(strength.caveats.weightSkipped?.params.meaning, "strength");
+
+            // An algorithm with no weighted form is not computed again for a weight change.
+            const degree = runs.start("degree");
+            await degree;
+            await element.session.config.set({ data: { knownFields: { edgeWeightMeaning: "distance" } } });
+            assert.strictEqual(runs.answered("degree"), degree);
+        },
+        TEST_TIMEOUT_MS,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
         "weight null reads none, and an algorithm with no weighted form reads none",
         async () => {
             const element = await loaded();

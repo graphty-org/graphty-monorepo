@@ -17,6 +17,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-10-29) A run asked again after the default weight changed computes again. A run's
+  identity (`RunsApi.resolve`) is explicit params + scope + seed + sample; the weight the Data role
+  supplies is not in it, so the same From/To handed back the stored unweighted run after the
+  previous weight-role fix. Fix: `RunsApiOptions.defaultWeight` (internal, GraphSession passes
+  `JSON.stringify(data.loadedWeight())`), recorded per run id in `startRun`; `shouldReexecute`
+  adds `weightMoved` -- only for an algorithm whose descriptor has a `weightMeaning` and a run with
+  no `weight` param, so degree is not redone. `answered()` follows. Not in the identity: that
+  would change derived run ids, which saved projects reference. Test:
+  `test/browser/runs-loaded-weight.test.ts` "the same run asked again after the weight role or its
+  meaning changed computes again" (fails without: answered() still returns the old run). Re-walk
+  `design/ui/studio/tmp/r1-dry2-U2/`: T64B 09.png new Ran 5:54:40, Total km 5.3, Weight km
+  (farther); T64A 11.png new Ran, "trips means closer" reason; success and Analyze routes match.
+
 - (2026-10-29) A Select card selects only what is in the picture. graphty-element: optional
   `FilterCondition.within` (`FilterSelectWithin`, "graph" | "picture"; absent = graph, as before).
   With "picture", `selectedBy` (VisibilityApi.ts) intersects the select rule with a fresh pass of
@@ -180,64 +193,9 @@ date)` lost its kind and column arguments: a text or number time field shows its
   checking ids against the graph fails when the issue names a key, not a node. A flag on the issue
   is the smallest fact, additive (`params` was already optional), and serves every consumer.
 
-- (2026-10-21) **A screenshot audit runs as `bars.mjs --tier 3 --size <WxH> --dist <frozen>`,
-  one size per run, into the auditor's own folder.** Its walks are real.mjs sessions that reach
-  every bar 6 screen with no MISS and leave a screenshot per step; hand-driving 36 screens twice
-  would cost hours and miss states. The first size of a run is the light theme; the round's own
-  bars run gives the dark theme at 900 x 700 for free.
-
-- (2026-10-21) **Bar 6's list lives in `measure.mjs` (`BAR6`), read by both bars.mjs and the gate.**
-  The gate must not trust a bars run's own idea of what it should have walked; one list both sides
-  import cannot drift. Names are the walk's screen names, not the criteria's sentences.
-- (2026-10-21) **The gate tells walks apart by folder name** (keys/keyboard, detour, else success).
-  session.json holds no task or walk kind; the dry runs already name folders that way. Stricter
-  than preflight 4 in one place: a walk on an earlier build "on routes no fix touched" does not
-  count; it must be re-walked on the frozen build or one with the same app code.
-- (2026-10-21) **spoken.json is read in `measure`, not with `--sr`.** `--sr` is the screen-reader
-  participant's mode and refuses pointer steps; the walk clicks.
-- (2026-10-21) **A phrase echo needs one word that is not common, and fails even when each word is
-  kept.** All-common runs ("of the") would fail every prompt; kept words are kept one at a time.
-- (2026-10-21) **Bar 4's limit is a constant, not `2 * --key-steps`.** The criteria fix the number;
-  a flag let a documented default of 6 hold a median of 12.
-- (2026-10-20) **A replacing load remaps hand-picked edge layers in the import command, not in the
-  app or in the store.** The command already sweeps file layers in the same step
-  (`applyFileStyles`), so the remap undoes with the load; the app holding old ids and rewriting
-  them would be a workaround, and the store knows nothing of layers. Only edges: node ids survive
-  a reload. An edge the new file lacks keeps its old id (matches nothing), never guessed.
-- (2026-10-20) **A renamed channel is read in the style document reader, not in the project file
-  reader.** `planTemplate` is where every saved style document (a project's member, a style file
-  applied by a consumer) becomes layers, so one place covers both; `projectFile.ts` would have left
-  `applyTemplate` callers broken. Only `set` and `encode` keys name channels in a layer. Where a
-  layer names both the old and new name, the new one wins. Not in `channelDescriptor`: the old
-  name stays out of the channel set, the catalog and new documents.
-- (2026-10-19) **Escape clears the selection only on the selection's own inspector.** A layer,
-  run or attribute's inspector is about that row; clearing a find selection from there had no
-  Undo and nothing said Escape would do it (decided.md "Escape in the inspector").
-- (2026-10-19) **A tooltip never takes Escape's job.** It is a hint opened by focus, not by the
-  reader; Escape closes it and still does what it does on that control.
-- (2026-10-19) **A redrawn line restores focus by the control's name, else its field.** The name
-  survives a redraw for buttons (bind, remove); a box's name changes with its state, and the
-  field is where a box's focus belongs anyway. By position failed the Undo of Stop varying.
-- (2026-10-19) **A discard note is spoken by a live region that is always mounted and shown by a
-  copy hidden from assistive tech.** A region that appears with its words is not reliably read;
-  showing the region itself would read the words twice or need its own layout slot.
-
-- (2026-10-19) **Select all means the whole drawing: every visible node and the edges among
-  them**, through `{ scope: "visible" }`. A node a filter hides is not one the reader can see
-  selected. Two-way door: a node-only variant would need a new element target.
-- (2026-10-19) **A tooltip and its control's name are one string in code**, so they cannot
-  drift; the longer words win ("Stop varying node size by data: use one value for all"), and
-  tests match the name by its start.
-- (2026-10-19) **Check what the study tool reads before changing a name.** Its candidate list
-  used `aria-label || innerText`, so an `aria-labelledby` group read as all its text ("Shape
-  Shape Size"); the app was right and the fix was the tool's.
-- (2026-10-19) **A pressed switch over nothing says so; a default-on switch over nothing stays
-  quiet.** Only the reader's press is a request, so only it shows the empty key's line.
-- (2026-10-19) **A key row no element shows is no row, whatever hides it.** "covered by X" kept a
-  value the reader cannot find on the canvas; the Style panel already names the covering layer.
-- (2026-10-19) **A layer's kind is the union of its looks and its conditions.** A condition is
-  the reader building that half as surely as a look is.
-- Entries dated before 2026-10-19, in full: `git show 3892643e51:design/ui/studio/notes/engineer.md`.
+- Decisions dated 2026-10-19 to 10-21 (screenshot audit bars, Escape and tooltips, focus after a
+  redraw, select all, layer kinds, replacing loads, renamed channels): in full in
+  `git show d3302b379c:design/ui/studio/notes/engineer.md` (trimmed 2026-10-29 for size).
 
 ## Thinking
 

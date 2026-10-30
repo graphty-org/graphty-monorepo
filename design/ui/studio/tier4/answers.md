@@ -184,15 +184,14 @@ showing.
   `gauges-tidy.txt`: Stone Weir's depth blank, `installed` read as dates): one keeps telemetry yes
   and depth_cm at least 70 -- **5 of 12** visible (G01, G02, G04, G09, G11); one selects installed
   before 2005 -- **3** selected among those in the picture (G01, G02, G09).
-- **Selected count on 0ffeae2ef5**: a Select card also selects nodes another card has taken out of
-  the picture, so A shows "5 nodes selected" with 4 rings drawn (Selected layer 5, spoken "5 nodes
-  selected"). With both cards right, a report of 5 read off the screen is graded on the cards: the
-  count is the build's defect, not the participant's.
+- **Selected count**: a Select card selects only what is in the picture, so A reads "4 nodes
+  selected" with 4 rings, and turning the keep card off selects the fifth staff member again.
+  (Builds 0ffeae2ef5 and 037e96e9bb selected over the whole graph: 5 for A, 5 for B.)
 - **Path**: Data > Filters "+" (Add filter) > trained > Yes; on that card "Add a condition" >
   hours > Between, "from" 10 (the "to" stays 52) > Enter. A new card starts on Hide, so this one
   needs no Select / Hide step (14 of 24). Add filter > role > staff ("Is any of"); switch that
   card from Hide to Select (left on Hide it leaves 4 of 24 in the picture). Order free: the other
-  order gives the same 14 of 24 and 5 selected. Path steps: 12 (A).
+  order gives the same 14 of 24 and 4 selected. Path steps: 12 (A).
 - **B on 0ffeae2ef5**: the first half matched (one card, telemetry yes and depth_cm Between 70 to
   210, Hide: 5 of 12). The second half could not be built: `installed` was offered as text, so
   "before 2005" had no condition. B was blocked on that build.
@@ -200,9 +199,8 @@ showing.
   `installed` with the calendar glyph; its card opens on Before with the box focused. **Path**:
   Add filter > telemetry > Yes; Add a condition > depth_cm > "from" 70 > Enter; Add filter >
   installed > type 2005 > Enter (3 of 12 while it hides); switch that card to Select. The screen
-  reads **5 of 12** nodes and **"5 nodes selected"**: G01, G02 and G09 are marked among the five in
-  the picture, and the two hidden gauges put in before 2005 (G05, G03) are selected too by the
-  Select rule above. Graded on the cards, as for A. Path steps: 12 (B). The same Before 2005 in a
+  reads **5 of 12** nodes and **"3 nodes selected"**: G01, G02 and G09, the gauges in the picture put
+  in before 2005; a screen reader hears 3. Path steps: 12 (B). The same Before 2005 in a
   style layer's Which nodes keeps 5 of 12 nodes ("installed before 2005, 5 nodes"). On 037e96e9bb
   the collapsed date card reads "installed is at most 1104537599999" (a raw number for the end of
   2004), not "before 2005"; that wording is the build's, and the card is right.

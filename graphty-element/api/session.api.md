@@ -1213,6 +1213,7 @@ export interface FilterCondition {
     readonly id: string;
     readonly on: boolean;
     readonly rule: RuleTree;
+    readonly within?: FilterSelectWithin;
 }
 
 // @public
@@ -1254,6 +1255,9 @@ export interface FilterResult {
         readonly edges: number;
     };
 }
+
+// @public
+export type FilterSelectWithin = "graph" | "picture";
 
 // @public
 export interface FilterStep {

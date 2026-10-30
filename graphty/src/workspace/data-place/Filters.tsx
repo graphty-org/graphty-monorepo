@@ -651,9 +651,13 @@ function FilterCard({
                                 value={select ? "select" : "hide"}
                                 onChange={(value) => {
                                     void writeCondition(store, () =>
-                                        session.visibility.updateCondition(id, {
-                                            effect: value === "select" ? "select" : "keep",
-                                        }),
+                                        session.visibility.updateCondition(
+                                            id,
+                                            // A Select card selects only what is in the picture.
+                                            value === "select"
+                                                ? { effect: "select", within: "picture" }
+                                                : { effect: "keep" },
+                                        ),
                                     );
                                 }}
                             />

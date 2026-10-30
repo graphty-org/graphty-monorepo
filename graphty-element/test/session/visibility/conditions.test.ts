@@ -70,6 +70,56 @@ function selected(session: GraphSession): { nodes: string[]; edges: string[] } {
 }
 
 describe("filter conditions", () => {
+    it("a select condition within the picture selects only what the keep and exclude conditions leave drawn", async () => {
+        const kept: FilterConditionInput = {
+            id: "kept",
+            effect: "keep",
+            rule: { kind: "range", attribute: "data.score", min: 0.75 },
+        };
+        const hosts: FilterConditionInput = { id: "hosts", effect: "select", rule: HOSTS, within: "picture" };
+        for (const order of [
+            [kept, hosts],
+            [hosts, kept],
+        ]) {
+            const session = await graph();
+            for (const condition of order) {
+                await session.visibility.addCondition(condition);
+            }
+
+            // b is a host the keep condition hides, so it is not selected, whichever came first.
+            assert.deepStrictEqual(visible(session).nodes, ["a", "c", "e"]);
+            assert.deepStrictEqual(selected(session).nodes, ["a", "e"], `order ${order[0].id} first`);
+
+            // The selection follows the keep condition off and on, and its undo and redo.
+            await session.visibility.updateCondition("kept", { on: false });
+            assert.deepStrictEqual(selected(session).nodes, ["a", "b", "e"]);
+            await session.visibility.updateCondition("kept", { on: true });
+            assert.deepStrictEqual(selected(session).nodes, ["a", "e"]);
+            await session.undo();
+            assert.deepStrictEqual(selected(session).nodes, ["a", "b", "e"]);
+            await session.redo();
+            assert.deepStrictEqual(selected(session).nodes, ["a", "e"]);
+            assert.strictEqual(
+                session.visibility.conditions.find((each) => each.id === "hosts")?.within,
+                "picture",
+                "within is kept",
+            );
+        }
+
+        // An exclude condition narrows the picture too.
+        const excluded = await graph();
+        await excluded.visibility.setConditions([hosts, { id: "high", effect: "exclude", rule: HIGH }]);
+        assert.deepStrictEqual(selected(excluded).nodes, ["b", "e"]);
+
+        // With no within, a select condition still selects over the whole graph.
+        const whole = await graph();
+        await whole.visibility.setConditions([kept, { id: "hosts", effect: "select", rule: HOSTS }]);
+        assert.deepStrictEqual(selected(whole).nodes, ["a", "b", "e"]);
+        assert.throws(() => {
+            void whole.visibility.setConditions([{ effect: "select", rule: HOSTS, within: "nowhere" as never }]);
+        }, /within/);
+    });
+
     it("combines keep, exclude and select for every on/off combination, whatever the order", async () => {
         const session = await graph();
         for (let mask = 0; mask < 8; mask++) {

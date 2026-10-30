@@ -55,7 +55,7 @@ export function assertConditions(conditions: unknown): asserts conditions is rea
     for (const condition of conditions as unknown[]) {
         if (!wellFormed(condition)) {
             throw bad(
-                'A filter condition is { id: a non-empty string, on: a boolean, effect: "keep", "exclude" or "select", rule: a filter }.',
+                'A filter condition is { id: a non-empty string, on: a boolean, effect: "keep", "exclude" or "select", rule: a filter, within?: "graph" or "picture" }.',
                 { condition },
             );
         }
@@ -71,19 +71,41 @@ export function assertConditions(conditions: unknown): asserts conditions is rea
 }
 
 /**
+ * A condition's own fields with a new rule: `within` only when it was given.
+ * @param condition - The condition.
+ * @param rule - Its rule.
+ * @returns The condition, unfrozen.
+ */
+export function conditionOf(condition: FilterCondition, rule: RuleTree): FilterCondition {
+    const { id, on, effect, within } = condition;
+    return within === undefined ? { id, on, effect, rule } : { id, on, effect, rule, within };
+}
+
+/**
+ * Whether the selection follows what is drawn: some select condition that is on reads
+ * `within: "picture"`.
+ * @param conditions - The conditions.
+ * @returns True when it does.
+ */
+export function selectsInPicture(conditions: readonly FilterCondition[]): boolean {
+    return conditions.some((each) => each.on && each.effect === "select" && each.within === "picture");
+}
+
+/**
  * Whether one value is a well-formed condition (its rule unchecked).
  * @param condition - The value.
  * @returns True when it is.
  */
 export function wellFormed(condition: unknown): condition is FilterCondition {
-    const { id, on, effect, rule } = (condition ?? {}) as Partial<FilterCondition>;
+    const { id, on, effect, rule, within } = (condition ?? {}) as Partial<FilterCondition>;
     return (
         typeof id === "string" &&
         id !== "" &&
         typeof on === "boolean" &&
         knownEffect(effect) &&
         typeof rule === "object" &&
-        rule !== null
+        rule !== null &&
+        (within === undefined || within === "graph" || within === "picture")
     );
 }
 
@@ -475,7 +497,7 @@ function readable(
     try {
         const rule = remap(entry.rule);
         check(rule);
-        return Object.freeze({ id: entry.id, on: entry.on, effect: entry.effect, rule });
+        return Object.freeze(conditionOf(entry, rule));
     } catch {
         return null;
     }

@@ -2108,7 +2108,7 @@ export type FilterEffect = "keep" | "exclude" | "select";
  * Conditions are independent and order never matters: every keep condition that is on narrows
  * what stays, every exclude condition that is on hides its matches (two of them hide what either
  * matches), and the select conditions that are on select what all of them match, over the whole
- * graph, visible or not.
+ * graph, visible or not, or only within what is drawn (see {@link FilterCondition.within}).
  *
  * A `range`, `categories` or `text` leaf on an edge value that names no `nodes` reading gets one
  * from the effect: keep keeps the matching edges and the nodes at their ends, exclude hides only
@@ -2124,7 +2124,27 @@ export interface FilterCondition {
     readonly effect: FilterEffect;
     /** What it matches. */
     readonly rule: RuleTree;
+    /**
+     * Where a select condition looks for its matches; read only when `effect` is `"select"`.
+     * `"graph"` (the default, when absent): every match in the graph, visible or not. `"picture"`:
+     * only the matches the keep and exclude conditions that are on leave drawn. With any select
+     * condition that is on reading `"picture"`, the selection is what every select condition that
+     * is on matches AND what those keep and exclude conditions keep; it is recomputed whenever a
+     * keep or exclude condition is added, removed, switched or edited, and on undo and redo of
+     * such a change. The order of the conditions never matters.
+     * @since 3.33.0
+     */
+    readonly within?: FilterSelectWithin;
 }
+
+/**
+ * Where a select condition looks for its matches: the whole graph, or only what the keep and
+ * exclude conditions leave drawn. See {@link FilterCondition.within}.
+ *
+ * OPEN UNION: a later release may add a value; handle unknown values.
+ * @since 3.33.0
+ */
+export type FilterSelectWithin = "graph" | "picture";
 
 /**
  * A filter condition as it is handed in: the id is made when absent, and `on` defaults to true.

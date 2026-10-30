@@ -8,8 +8,8 @@ before it lands on master. Newest first.
 
 From the tier 4 dry run, pass 2 (`tier4/dry-run-r1-2.md`, unit U1).
 
-- **graphty-element, non-breaking.** `FilterCondition` takes an optional `within: "graph" | "picture"`,
-  read only when `effect` is `"select"`. Absent, or `"graph"`, the condition selects over the whole graph,
+- **graphty-element, non-breaking.** `FilterCondition` takes an optional `within: "graph" | "picture"`
+  (the type exported as `FilterSelectWithin`, an open union), read only when `effect` is `"select"`. Absent, or `"graph"`, the condition selects over the whole graph,
   exactly as today. With `"picture"`, the selection is the AND of the on select conditions intersected
   with what the on keep and exclude conditions leave drawn; it is recomputed when a keep or exclude
   condition, its rule or its on box changes, and on undo and redo of such a change, and it never depends

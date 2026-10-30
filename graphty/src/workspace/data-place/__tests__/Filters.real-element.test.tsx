@@ -184,6 +184,36 @@ describe("Filter cards on the real element", () => {
         assert.lengthOf(session.selection.edges, 4);
     });
 
+    it("a Select card selects only what the Hide cards leave in the picture, and follows them on and off", async () => {
+        const { session } = await openWithGraph();
+        // Hide: edges of value 9 or more, which leave Valjean, Javert, Fantine, Cosette and Marius.
+        await addValueCard(session);
+        await clickBlank();
+        // Select: labels with an e -- seven in the graph, four of them in the picture.
+        await addFromPlus("label");
+        await within(filters()).findByRole("combobox", { name: "label: text to match" });
+        await realInput.keyboard("e{Escape}{Escape}");
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 2);
+        });
+        await userEvent.click((await card("label contains e")).getByRole("radio", { name: "Select" }));
+        await waitFor(() => {
+            assert.lengthOf(session.selection.nodes, 4);
+        });
+        assert.equal(session.visibility.conditions[1]?.within, "picture");
+
+        // Turning the Hide card off brings the other three back into the picture and the selection.
+        const apply = (await card(VALUE)).getByRole("checkbox", { name: `Apply ${VALUE}` });
+        await userEvent.click(apply);
+        await waitFor(() => {
+            assert.lengthOf(session.selection.nodes, 7);
+        });
+        await userEvent.click(apply);
+        await waitFor(() => {
+            assert.lengthOf(session.selection.nodes, 4);
+        });
+    });
+
     it("the box switches the card, Undo and Redo name it, and an off card keeps its count", async () => {
         const { session, store } = await openWithGraph();
         await addValueCard(session);

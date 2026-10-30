@@ -96,7 +96,16 @@ import { sealedSet } from "../sealed";
 import { type DependencySources, visibilityCycle } from "../sets/dependencies";
 import type { SetWatch } from "../sets/notify";
 import type { HistoryCause } from "../types";
-import { assertConditions, combinedRule, conditionsOfSteps, selectRule, stepsOf, wellFormed } from "./conditions";
+import {
+    assertConditions,
+    combinedRule,
+    conditionOf,
+    conditionsOfSteps,
+    selectRule,
+    selectsInPicture,
+    stepsOf,
+    wellFormed,
+} from "./conditions";
 import {
     assertEvaluable,
     assertVisibility,
@@ -344,7 +353,9 @@ export interface VisibilityApi {
      * the time window AND every keep condition that is on AND no exclude condition that is on.
      * Select conditions hide nothing: whenever the select conditions change (one is added,
      * edited, switched on or off, or removed), the selection becomes what every select condition
-     * that is on matches, over the whole graph, replacing a selection the reader made; with none
+     * that is on matches, over the whole graph (or only within what the keep and exclude
+     * conditions leave drawn, for one that reads `within: "picture"`, which then also follows
+     * those conditions), replacing a selection the reader made; with none
      * on, nothing is selected. Opening a project never applies them; undo puts the selection
      * back.
      * @since 3.32.0
@@ -1418,7 +1429,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             const rule = sources.admit === undefined ? shaped.rule : sources.admit(shaped.rule);
             assertVisibility(rule, null, sources.dependencies);
-            return Object.freeze({ id: shaped.id, on: shaped.on, effect: shaped.effect, rule });
+            return Object.freeze(conditionOf(shaped, rule));
         });
         assertConditions(list);
         return Object.freeze(list);
@@ -1457,7 +1468,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         compileVisibility(active.graph, rule, null, passSources(active.graph));
 
     /**
-     * The ids a select rule matches, over the whole graph; a kind it says nothing of has none.
+     * The ids a select rule matches, over the whole graph, or, when a select condition reads
+     * `within: "picture"`, among what the keep and exclude conditions that are on leave drawn; a
+     * kind it says nothing of has none.
      * @param conditions - The conditions whose select ones to read.
      * @returns The ids.
      */
@@ -1471,17 +1484,18 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         const active = upToDate();
         const compiled = compiledOver(active, rule);
+        const picture = pictureOf(active, conditions);
         const nodes: NodeId[] = [];
         const edges: EdgeId[] = [];
         const { node, edge } = compiled;
         for (let at = 0; node !== null && at < active.graph.nodeCount; at++) {
-            if (node(at)) {
+            if ((picture === null || picture.nodes.has(at)) && node(at)) {
                 nodes.push(active.nodeSpace.idOf(at));
             }
         }
 
         for (let at = 0; edge !== null && at < active.graph.edgeCount; at++) {
-            if (edge(at)) {
+            if ((picture === null || picture.edges.has(at)) && edge(at)) {
                 edges.push(active.edgeSpace.idOf(at));
             }
         }
@@ -1490,11 +1504,39 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * What the select conditions that are on say, by value: equal keys select the same.
+     * What the keep and exclude conditions that are on leave drawn, when a select condition looks
+     * only there; null when every select condition looks over the whole graph or none of them
+     * filters.
+     * @param active - The frame.
+     * @param conditions - The conditions.
+     * @returns The drawn elements, or null.
+     */
+    const pictureOf = (
+        active: VisibilityFrame,
+        conditions: readonly FilterCondition[],
+    ): { readonly nodes: ElementMask<NodeId>; readonly edges: ElementMask<EdgeId> } | null => {
+        const kept = selectsInPicture(conditions) ? combinedRule(null, conditions) : null;
+        if (kept === null) {
+            return null;
+        }
+
+        const nodes = new ElementMask<NodeId>(() => active.nodeSpace, 1);
+        const edges = new ElementMask<EdgeId>(() => active.edgeSpace, 1);
+        nodes.grow(active.graph.nodeCount);
+        edges.grow(active.graph.edgeCount);
+        runPass({ compiled: compiledOver(active, kept), edges, graph: active.graph, nodes });
+        return { nodes, edges };
+    };
+
+    /**
+     * What the select conditions that are on say, by value: equal keys select the same. When one
+     * looks only within what is drawn, the keep and exclude conditions that are on are part of
+     * it, so changing them moves the selection.
      * @param conditions - The conditions.
      * @returns The key.
      */
-    const selectKey = (conditions: readonly FilterCondition[]): string => JSON.stringify(selectRule(conditions));
+    const selectKey = (conditions: readonly FilterCondition[]): string =>
+        JSON.stringify([selectRule(conditions), selectsInPicture(conditions) ? combinedRule(null, conditions) : null]);
 
     /** The selection before each select change, by the conditions list it produced: what undo puts back. */
     const selectionBefore = new WeakMap<
@@ -1963,9 +2005,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         ): Run<FilterResult> {
             const list = conditionsNow();
             const at = indexOfCondition(list, id);
-            const { on, effect, rule } = { ...list[at], ...change };
+            const merged = { ...list[at], ...change, id };
             return editConditions(
-                admitConditions(list.map((each, index) => (index === at ? { id, on, effect, rule } : each))),
+                admitConditions(list.map((each, index) => (index === at ? conditionOf(merged, merged.rule) : each))),
                 options,
             );
         },

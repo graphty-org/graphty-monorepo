@@ -495,6 +495,7 @@ export type {
     FilterConditionMatches,
     FilterEffect,
     FilterResult,
+    FilterSelectWithin,
     FilterStep,
     RuleTree,
     StepCounts,

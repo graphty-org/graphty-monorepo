@@ -17,6 +17,23 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-10-29) A Select card selects only what is in the picture. graphty-element: optional
+  `FilterCondition.within` (`FilterSelectWithin`, "graph" | "picture"; absent = graph, as before).
+  With "picture", `selectedBy` (VisibilityApi.ts) intersects the select rule with a fresh pass of
+  `combinedRule(null, conditions)` (keep and exclude only, NOT the single filter or the time
+  window), and `selectKey` adds that rule, so a keep/exclude edit, its on box, undo and redo all
+  move the selection through the existing select-history code. `conditionOf` (conditions.ts) is
+  the one place a condition is rebuilt, so `within` survives admit, `updateCondition` and a saved
+  project. App: the Select / Hide toggle writes `{ effect: "select", within: "picture" }`.
+  Tests: element `conditions.test.ts` "a select condition within the picture..." (both orders,
+  keep off/on, undo/redo, exclude, no within = whole graph, bad value refused); app
+  `Filters.real-element.test.tsx` "a Select card selects only what the Hide cards leave..." (fails
+  without the app change: 7 instead of 4). Re-walk `design/ui/studio/tmp/r1-dry2-U1/`: T65A path
+  17.png and cards 19.png "4 nodes selected", 4 rings, 14 of 24; T65B path 09.png "3 nodes
+  selected" (G01, G02, G09), screen reader "5 of 5 rows, 3 selected"; T65B style detour and T68A/B
+  unchanged. The old routes now diverge where they narrowed hours to 40: the selection follows
+  (one staff member left), which is the fix, not a regression.
+
 - (2026-10-29) Re-walk of the five fixes (source row chips, Add data doors, column kind, Data
   source filter card, export scope) on dist stamp 9eb2d0d4d89d (built after every source edit):
   nothing worse, each acceptance holds. Walks: `design/ui/studio/tmp/r1-dry1-recheck-U1/`
@@ -75,7 +92,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     (re-walk T65B-path/17.png, 24.png). Fix: a date card with no bound must write no condition (or
     keep the bound it can carry over); test by real input switching the match.
 
-Summarized 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
+## Working facts and open defects
+
+Summarized again 2026-10-29 (27 KB): full copy `git show b14af76f0e:design/ui/studio/notes/engineer.md`. Earlier summary 2026-10-29 from 26 KB; the full prior Top of mind (tier 3 round 1 lessons, the screenshot
 audit, older re-walk pointers): `git show c413f93c4f:design/ui/studio/notes/engineer.md`.
 
 0. (2026-10-29) The weight runs read is `data.loadedWeight()`, which now follows the weight ROLE
@@ -277,55 +296,13 @@ date)` lost its kind and column arguments: a text or number time field shows its
   `rounds/r1/pilot/`), `design/ui/studio/owner-decisions.md`.
 - Full notes before this summary: `git show 54c009f84:design/ui/studio/notes/engineer.md`; before
   the first summary: `git show 6b160deb5:design/ui/studio/notes/engineer.md`.
-- (2026-10-18) Re-asked for truthful counts after a restart: already landed in 97d8bff7c (in the frozen build ed4351b258); `TruthfulCounts.real-element` still passes on the branch tip, walks in `design/ui/studio/tmp/r1-dry1-truthful-counts/w1`, `w2`. Check `git log` for a task's title before rebuilding it.
-- (2026-10-18, second re-ask) Truthful counts again: still landed (97d8bff7c, swatch and Color
-  line; 52cb47a85 `builtParts`). The pilot screenshots cited were taken on build 58556989e, older
-  than both. On the tip, whose `graphty/dist` equals the frozen build tier3-r1d3-52cb47a85a byte for
-  byte, `TruthfulCounts.real-element` (2) and `LayerRowAndKey.real-element` (5) pass. `groupMarks`
-  in `StyleTree.tsx` reads the swatch from the layer's `set`/`encode` only, never its selector, so
-  a gained condition (T48B) keeps it as well as a lost one. Check a pilot folder's
-  `session.json` `commit` before treating its screenshots as current.
-- (2026-10-18) Re-asked for the key (column title, 250,000, no stale fold, no repeated "Agencies", no cut entry, Tab and arrows) after a restart: already landed in ed4351b25, the frozen build itself; on the branch tip element `legend-copies`/`legend-reach` (5), app `legendWords` (21) and `LegendCard.real-element` (7) pass; walks `design/ui/studio/tmp/r1-dry1-key/w2`, `w3` show "Size: donations 0 - 250,000" and Group 1-10 whole in a focusable scrolling key.
+- (2026-10-18) Re-asks after a restart (truthful counts, the key) were already landed: check
+  `git log` for a task's title and a pilot folder's `session.json` `commit` before rebuilding.
+  Details: `git show b14af76f0e:design/ui/studio/notes/engineer.md`.
 
-## 2026-10-29 -- A weight given in Data is the weight the analyses read
+## Dated decision records (2026-10-29)
 
-- Decided: fix in graphty-element only (`session/data.ts` loadedWeight, `algorithms/input/weight.ts`
-  `designatedWeight` + `stored` parameter, `algorithms/Algorithm.ts` loadedWeightOf). The app's
-  OptionsForm and GraphValues already read `loadedWeight()`, so they needed no change. Why: Fields >
-  Weight and the header's Role > Weight write `edgeWeightPath`, but the runs read only the last
-  import's `weights.attribute`.
-- Tried: proved both new tests fail on HEAD's three source files (null loadedWeight; Shortest path
-  read no weight) and pass with the change. A configured path that names no column of the data falls
-  back to the loaded column, so a global `edgeWeightPath` set before load cannot make runs throw
-  ("nothing carries the weight").
-- Note: "dijkstra" is not a run key; the catalog's Dijkstra is `shortest-path`.
-
-## 2026-10-29 -- Add data... opens the join screen
-
-- Decision: Quick actions > Add data... runs `chooseAndOpenFile`, the same as Sources + File....
-  Why: it opened the older "Add to <project>" Data page, whose default dropped an edge to an unknown
-  node and reported nothing (decided.md, "Every door that adds a data file to an open graph opens
-  the join screen").
-- Same root, two more doors found by grepping `openDataPage(... "add")` and `openProjectFile`
-  callers: the canvas drop (`canvas/useCanvasDrop.ts`) called `openProjectFile` with no `onData`,
-  so a data file dropped on the canvas also reached the old page; it now calls `openFiles`, as the
-  window drop does. A Recent entry that is a data file, opened inside a project, now goes through
-  `addSource` instead of the page.
-- Tried: removed the DataPage test of the old Add data... door (the page itself keeps its tests
-  through `openDataPage`). New test fails on HEAD's commands.ts (times out waiting for the join
-  screen), passes with the change. Walk on a fresh build: gauges.csv, then Add data... flows.csv
-  shows "14 edges added, 1 new node, 1 not in graph, 1 repeated key"; Join gives 12 nodes, 14
-  edges, and an issue chip on the flows row (design/ui/studio/tmp/r1-dry1-U3/walk/04-06.png).
-
-## 2026-10-29 -- A Data source filter card keeps the edges whose two ends it keeps
-
-- Decision: the side is written by the Filters only (`filterLeaf` around `leafOf` in
-  `data-place/filterCards.ts`), not by an option on `leafOf`: the Style card's reading is approved
-  and the Filters are `ruleOfCards`' only caller, so no option was needed. An old condition with no
-  side is rewritten with `side: "nodes"` on its next edit.
-- Decision: the header Filter chip counts edges when the filter hid any. Why: with the node-only
-  rule the chip dropped to "12 of 13 nodes" and the 17 of 18 edges were readable only in the
-  inspector; a node card that hides edges at the nodes it hides now says so too.
-- Tried, worked: replaying T66 A s1-path and B success-2 with `REAL_WARM_POOL=0` (they diverge at a
-  hover only because the card moved); `--start` of a setup needs the setup file's full path
-  (`rounds/tier-4/setups/...`), a bare name looks in tier2.
+Weight given in Data read by analyses (element only, `loadedWeight` follows the weight role);
+Add data... and the canvas drop open the join screen (`chooseAndOpenFile`, `openFiles`); a Data
+source filter card writes `side: "nodes"` and the Filter chip names edges when any are hidden.
+Full reasons, tests and walks: `git show b14af76f0e:design/ui/studio/notes/engineer.md`.

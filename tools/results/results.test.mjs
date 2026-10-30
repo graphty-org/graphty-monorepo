@@ -749,6 +749,22 @@ describe("the pull request rules", () => {
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
     });
 
+    // #5128: a failure with no retry failed once; it must not read "failed every time"
+    it("says a failing test was not retried when no retry ran", () => {
+        const plan = { quarantine: [], failingOnBase: [], affected: ["a.test.ts"] };
+        const d = decide({
+            family: FAMILY,
+            first: report(fail("once")),
+            firstOutcome: "failed",
+            list: storeList(plan),
+        });
+        const why = "not retried: its command cannot be narrowed to the failed files";
+        const once = prJudge(plan, o)(d, { firstOutcome: "failed", unretried: why });
+        assert.equal(once.lines[0].text, `[FAIL] ${o.shard}: a.test.ts > once failed (${why})`);
+        const again = judge(plan, report(fail("once")), report(fail("once")));
+        assert.equal(again.lines[0].text, `[FAIL] ${o.shard}: a.test.ts > once failed every time`);
+    });
+
     it("writes the base checks it names for ci.yml's base-checks job, which dispatches only valid ones", async () => {
         const dir = mkdtempSync(join(tmpdir(), "base-checks-"));
         const out = join(dir, "checks");

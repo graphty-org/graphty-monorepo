@@ -815,7 +815,7 @@ export function trainSkipped(attempts: ReleaseSeen[], runs: GhRun[]): boolean {
 export const RELEASE_WORKFLOW_EVENTS: Record<string, string[]> = {
     "release.yml": ["workflow_dispatch"],
     "promote.yml": ["workflow_dispatch"],
-    "release-watch.yml": ["workflow_run"],
+    "release-watch.yml": ["workflow_run", "workflow_dispatch"],
 };
 
 /** The runs of an event the workflow declares; every run when the workflow's events are not known. */

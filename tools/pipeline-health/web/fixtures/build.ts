@@ -2041,6 +2041,26 @@ for (const range of RANGES) {
             sections: p.sections.map((s) => sectionFor(s, range)),
         } satisfies PageResponse);
 }
+// The 7 d runner history (runners/jobs): its last 3 hours here, a quiet night giving way to a merge burst.
+write("runners.jobs.7d", {
+    page: "runners",
+    range: "7d",
+    generated: GEN,
+    section: {
+        kind: "jobs",
+        id: "jobs",
+        step: "15m",
+        start: "2026-10-24T20:30:00Z",
+        running: [4, 2, 0, 0, 0, 6, 9, 24, 41, 57, 57, 52],
+        queued: [0, 0, 0, 0, 0, 0, 0, 0, 12, 30, 18, 4],
+        runningMax: [6, 4, 2, 0, null, 8, 12, 30, 52, 60, 60, 57],
+        queuedMax: [0, 0, 0, 0, null, 0, 0, 3, 26, 79, 40, 18],
+        longestQueuedMs: [0, 0, 0, 0, null, 0, 0, 40_000, 260_000, 610_000, 540_000, 120_000],
+        saturatedMs: [0, 0, 0, 0, null, 0, 0, 0, 0, 600_000, 900_000, 300_000],
+        limit: 60,
+        peak: { n: 60, at: "2026-10-24T22:45:00Z" },
+    },
+} satisfies SectionResponse);
 for (const range of ["7d", "28d"] as SlowRange[]) {
     write(
         `costs.${range}`,

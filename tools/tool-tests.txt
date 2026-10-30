@@ -1,3 +1,4 @@
+tools/acceptance.test.mjs
 tools/bisect-ci.test.mjs
 tools/bisect-core.test.mjs
 tools/branch-tracking.test.mjs

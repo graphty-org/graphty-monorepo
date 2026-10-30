@@ -189,15 +189,9 @@ export interface VisibilityChange extends FilterResult {
  * @since 3.32.0
  */
 export interface FilterConditionMatches {
-    /**
-     * How many the rule matches over the whole graph, or, for a select condition that selects
-     * only within the picture, among what is drawn.
-     */
+    /** How many the rule matches over the whole graph. */
     readonly matched: number;
-    /**
-     * How many the graph holds, or, for a select condition that selects only within the picture,
-     * how many are drawn.
-     */
+    /** How many the graph holds. */
     readonly total: number;
 }
 
@@ -205,12 +199,6 @@ export interface FilterConditionMatches {
  * What one filter condition's rule matches, as written, over the whole graph: the same whatever
  * its effect, whether it is on, and whatever the other conditions are, so a condition that is off
  * still says what switching it on would match.
- *
- * One exception: a select condition counts what it would select. Unless every select condition
- * that is on (this one counted as on) reads `within: "graph"`, it selects only within the picture,
- * so it counts its rule's matches among what is drawn, out of how many are drawn (the whole graph
- * when nothing filters). That too holds whether it is on or off, and whatever order the
- * conditions are in.
  * @since 3.32.0
  */
 export interface FilterConditionCount {
@@ -511,12 +499,6 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns The bytes, or null while not ghosting.
      */
     ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
-}
-
-/** What is drawn, one mask per kind. */
-interface Drawn {
-    readonly nodes: ElementMask<NodeId>;
-    readonly edges: ElementMask<EdgeId>;
 }
 
 /** Visible nodes and edges. */
@@ -1679,36 +1661,27 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     } | null = null;
 
     /**
-     * What one rule matches, as written, over the whole graph or only among what is drawn.
+     * What one rule matches, as written, over the whole graph.
      * @param active - The frame.
      * @param rule - The rule.
-     * @param drawn - What is drawn, to count among; null for the whole graph.
      * @returns The count, without an id.
      */
-    const countRule = (
-        active: VisibilityFrame,
-        rule: RuleTree,
-        drawn: Drawn | null,
-    ): Omit<FilterConditionCount, "id"> => {
+    const countRule = (active: VisibilityFrame, rule: RuleTree): Omit<FilterConditionCount, "id"> => {
         const compiled = compiledOver(active, rule);
-        const tally = (
-            test: ((index: number) => boolean) | null,
-            count: number,
-            among: ElementMask<NodeId> | ElementMask<EdgeId> | undefined,
-        ): FilterConditionMatches | null => {
+        const tally = (test: ((index: number) => boolean) | null, total: number): FilterConditionMatches | null => {
             if (test === null) {
                 return null;
             }
 
             let matched = 0;
-            for (let at = 0; at < count; at++) {
-                matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
+            for (let at = 0; at < total; at++) {
+                matched += test(at) ? 1 : 0;
             }
 
-            return Object.freeze({ matched, total: among === undefined ? count : among.size });
+            return Object.freeze({ matched, total });
         };
-        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes);
-        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges);
+        const nodes = tally(compiled.node, active.graph.nodeCount);
+        const edges = tally(compiled.edge, active.graph.edgeCount);
 
         return Object.freeze({ nodes, edges, unresolved: compiled.unresolvedPaths() });
     };
@@ -1726,22 +1699,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         const conditions = conditionsNow();
         const bucket = countBucket;
-        // A select condition selects only among what is drawn unless every select condition that is
-        // on reads "graph" (selectsOverGraph), and its count follows the same predicate: among the
-        // live masks, synced by upToDate above, so their version is part of its key. An off one is
-        // judged as if it were switched on, so it says what switching it on would mark.
-        const inPicture = (condition: FilterCondition): boolean =>
-            condition.effect === "select" &&
-            !selectsOverGraph(
-                condition.on
-                    ? conditions
-                    : conditions.map((each) => (each === condition ? { ...each, on: true } : each)),
-            );
-        const pictureSignature = `${nodeMaskValue.version}:${edgeMaskValue.version}`;
-        const each = conditions.map((condition) => {
-            const own = signatureOf(condition.rule);
-            return own === null || !inPicture(condition) ? own : `${own}\n${pictureSignature}`;
-        });
+        const each = conditions.map((condition) => signatureOf(condition.rule));
         const signatures = JSON.stringify(each);
         if (
             countsMemo?.conditions === conditions &&
@@ -1761,9 +1719,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 // By id too, so a condition nothing changed hands back the same object.
                 const key =
                     signature === null ? null : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
-                const drawn = inPicture(condition) ? { nodes: nodeMaskValue, edges: edgeMaskValue } : null;
                 let count = key === null ? undefined : bucket.byRule.get(key);
-                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule, drawn) });
+                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule) });
 
                 if (key !== null) {
                     kept.set(key, count);

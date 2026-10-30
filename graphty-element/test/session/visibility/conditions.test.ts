@@ -69,10 +69,6 @@ function selected(session: GraphSession): { nodes: string[]; edges: string[] } {
     };
 }
 
-function countOf(session: GraphSession, id: string): { matched: number; total: number } | null | undefined {
-    return session.visibility.conditionCounts().find((each) => each.id === id)?.nodes;
-}
-
 describe("filter conditions", () => {
     it("a select condition within the picture selects only what the keep and exclude conditions leave drawn", async () => {
         const kept: FilterConditionInput = {
@@ -81,13 +77,9 @@ describe("filter conditions", () => {
             rule: { kind: "range", attribute: "data.score", min: 0.75 },
         };
         const hosts: FilterConditionInput = { id: "hosts", effect: "select", rule: HOSTS, within: "picture" };
-        // Without within, a select condition stays within the picture too, and counts there.
-        const { within: _within, ...unsaid } = hosts;
         for (const order of [
             [kept, hosts],
             [hosts, kept],
-            [kept, unsaid],
-            [unsaid, kept],
         ]) {
             const session = await graph();
             for (const condition of order) {
@@ -97,40 +89,19 @@ describe("filter conditions", () => {
             // b is a host the keep condition hides, so it is not selected, whichever came first.
             assert.deepStrictEqual(visible(session).nodes, ["a", "c", "e"]);
             assert.deepStrictEqual(selected(session).nodes, ["a", "e"], `order ${order[0].id} first`);
-            // Its count is what it selects, out of what is drawn; the keep condition's is over the graph.
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
-            assert.deepStrictEqual(countOf(session, "kept"), { matched: 3, total: 5 });
 
-            // The selection and the count follow the keep condition off and on, and its undo and redo.
+            // The selection follows the keep condition off and on, and its undo and redo.
             await session.visibility.updateCondition("kept", { on: false });
             assert.deepStrictEqual(selected(session).nodes, ["a", "b", "e"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 3, total: 5 });
             await session.visibility.updateCondition("kept", { on: true });
             assert.deepStrictEqual(selected(session).nodes, ["a", "e"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
-            // Off, it still says what switching it on would select.
-            await session.visibility.updateCondition("hosts", { on: false });
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
-            await session.undo();
             await session.undo();
             assert.deepStrictEqual(selected(session).nodes, ["a", "b", "e"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 3, total: 5 }, "undo recounts");
             await session.redo();
             assert.deepStrictEqual(selected(session).nodes, ["a", "e"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 }, "redo recounts");
-            // Editing the keep condition's rule recounts it too, and its undo and redo.
-            await session.visibility.updateCondition("kept", {
-                rule: { kind: "range", attribute: "data.score", min: 0.85 },
-            });
-            assert.deepStrictEqual(selected(session).nodes, ["a"]);
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 1, total: 1 });
-            await session.undo();
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 2, total: 3 });
-            await session.redo();
-            assert.deepStrictEqual(countOf(session, "hosts"), { matched: 1, total: 1 });
             assert.strictEqual(
                 session.visibility.conditions.find((each) => each.id === "hosts")?.within,
-                order.includes(hosts) ? "picture" : undefined,
+                "picture",
                 "within is kept",
             );
         }
@@ -144,7 +115,6 @@ describe("filter conditions", () => {
         const whole = await graph();
         await whole.visibility.setConditions([kept, { id: "hosts", effect: "select", rule: HOSTS, within: "graph" }]);
         assert.deepStrictEqual(selected(whole).nodes, ["a", "b", "e"]);
-        assert.deepStrictEqual(countOf(whole, "hosts"), { matched: 3, total: 5 });
         assert.throws(() => {
             void whole.visibility.setConditions([{ effect: "select", rule: HOSTS, within: "nowhere" as never }]);
         }, /within/);
@@ -169,12 +139,6 @@ describe("filter conditions", () => {
             // Select selects only what is in the picture.
             const picked = on[2] ? ["c", "d"].filter((id) => shown.includes(id)) : [];
             assert.deepStrictEqual(selected(session).nodes, picked, `selection, mask ${mask}`);
-            // The select condition's count is what it marks, out of what is drawn, on or off.
-            assert.deepStrictEqual(
-                countOf(session, "services"),
-                { matched: ["c", "d"].filter((id) => shown.includes(id)).length, total: shown.length },
-                `count, mask ${mask}`,
-            );
         }
 
         session.dispose();
@@ -220,8 +184,7 @@ describe("filter conditions", () => {
         await session.visibility.setConditions([
             { id: "hosts", effect: "keep", rule: HOSTS },
             { id: "heavy", effect: "exclude", rule: HEAVY, on: false },
-            // Over the whole graph: a select condition that stays within the picture counts there.
-            { id: "ends", effect: "select", rule: { ...HEAVY, nodes: "ends" }, within: "graph" },
+            { id: "ends", effect: "select", rule: { ...HEAVY, nodes: "ends" } },
             { id: "gone", effect: "keep", rule: { kind: "range", attribute: "data.nothing", min: 1 } },
         ]);
 

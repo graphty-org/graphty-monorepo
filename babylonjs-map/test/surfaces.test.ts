@@ -88,6 +88,10 @@ describe("FlatMap", () => {
         expect(box.minimum.x).toBeCloseTo(-50);
         expect(box.maximum.y).toBeCloseTo(50);
         expect(map.status).toMatchObject({ loading: 0, ready: 1, failed: 0 });
+        // A lone picture has nothing to stack under: its depth is not pushed back at all. A push
+        // past the far end of the depth range is clamped there, and a globe's far side then ties
+        // with its near side and draws over it in bands.
+        expect((mesh.material as StandardMaterial).zOffsetUnits).toBe(0);
         expect(map.attribution).toEqual(["Natural Earth"]);
         expect(map.credits).toEqual([{ text: "Natural Earth", url: "https://www.naturalearthdata.com/" }]);
     });
@@ -346,6 +350,27 @@ describe("FlatMap tile recovery and edges", () => {
         await tiles.answerAll();
         map.update();
         expect(shownMeshes(scene).map((m) => zoomOf(`${m.name.replace(/.*\|/, "/")}.png`))).toEqual([1, 1, 1, 1]);
+    });
+
+    it("keeps the finer tiles on screen while zooming out, until the coarser tile arrives", async () => {
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 100 });
+        view(25); // four zoom-1 tiles, no zoom-0 tile ever loaded
+        map.update();
+        expect(tiles.requests.map((r) => zoomOf(r.url))).toEqual([1, 1, 1, 1]);
+        await tiles.answerAll();
+        map.update();
+        const zooms = (): number[] => shownMeshes(scene).map((m) => zoomOf(`${m.name.replace(/.*\|/, "/")}.png`));
+        expect(zooms()).toEqual([1, 1, 1, 1]);
+
+        view(50); // zoomed out: the zoom-0 tile is wanted and not loaded yet
+        map.update();
+        expect(tiles.requests.map((r) => zoomOf(r.url))).toEqual([0]);
+        expect(zooms(), "the zoom-1 tiles stay up, no hole while the zoom-0 tile loads").toEqual([1, 1, 1, 1]);
+
+        await tiles.answerAll();
+        map.update();
+        expect(zooms()).toEqual([0]);
     });
 
     it("asks for failed tiles again at once when the browser comes back online", async () => {

@@ -39,6 +39,30 @@ function counted(count: number, one: string, many: string): string {
 }
 
 /**
+ * A menu choice that shows whether it is the one in effect, with a check and aria-checked.
+ * @param props - Component props
+ * @param props.checked - whether it is in effect
+ * @param props.onClick - chooses it
+ * @param props.children - its words
+ * @returns the item
+ */
+function ChoiceItem({
+    checked,
+    onClick,
+    children,
+}: Readonly<{ checked: boolean; onClick: () => void; children: string }>): React.JSX.Element {
+    return (
+        <Menu.Item
+            aria-checked={checked}
+            leftSection={checked ? <GLYPHS.check size={14} aria-hidden /> : <span className="jn-check-room" />}
+            onClick={onClick}
+        >
+            {children}
+        </Menu.Item>
+    );
+}
+
+/**
  * A count chip that narrows the tables to what it counts, the table bar's "With issues" chip.
  * @param props - Component props
  * @param props.which - what it narrows to
@@ -103,6 +127,8 @@ export function MatchChips({
     const edges = shape === "edges";
     const kind = shape === "edge-values" ? "edge" : "node";
     const toggles = shownChips(report, choices);
+    // Rows with an end the graph lacks: added with a new node, or left out, as the reader chooses.
+    const unknownEnds = report.unknownEndRows;
     return (
         <ul className="jn-chips" aria-label="Matches" id={id}>
             {edges ? (
@@ -168,23 +194,57 @@ export function MatchChips({
                             </Button>
                         </Menu.Target>
                         <Menu.Dropdown>
-                            <Menu.Item
-                                aria-checked={choices.repeated !== "both"}
+                            <ChoiceItem
+                                checked={choices.repeated !== "both"}
                                 onClick={() => {
                                     onChange({ ...choices, repeated: "first" });
                                 }}
                             >
                                 Keep first
-                            </Menu.Item>
-                            <Menu.Item
-                                aria-checked={choices.repeated === "both"}
+                            </ChoiceItem>
+                            <ChoiceItem
+                                checked={choices.repeated === "both"}
                                 onClick={() => {
                                     onChange({ ...choices, repeated: "both" });
                                 }}
                             >
                                 Keep both
-                            </Menu.Item>
+                            </ChoiceItem>
                             <Menu.Item onClick={onIgnoreRepeated}>Ignore</Menu.Item>
+                        </Menu.Dropdown>
+                    </Menu>
+                </li>
+            ) : null}
+            {edges && unknownEnds > 0 ? (
+                <li className="jn-chip" data-warning="">
+                    <Menu position="bottom-start" withinPortal>
+                        <Menu.Target>
+                            <Button
+                                size="compact-xs"
+                                variant="subtle"
+                                color="yellow"
+                                leftSection={<GLYPHS.warning size={14} aria-hidden />}
+                            >
+                                {counted(unknownEnds, "unknown end", "unknown ends")}
+                            </Button>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                            <ChoiceItem
+                                checked={choices.unknownEnds !== "leave-out"}
+                                onClick={() => {
+                                    onChange({ ...choices, unknownEnds: "add" });
+                                }}
+                            >
+                                Add as new nodes
+                            </ChoiceItem>
+                            <ChoiceItem
+                                checked={choices.unknownEnds === "leave-out"}
+                                onClick={() => {
+                                    onChange({ ...choices, unknownEnds: "leave-out" });
+                                }}
+                            >
+                                Leave those rows out
+                            </ChoiceItem>
                         </Menu.Dropdown>
                     </Menu>
                 </li>

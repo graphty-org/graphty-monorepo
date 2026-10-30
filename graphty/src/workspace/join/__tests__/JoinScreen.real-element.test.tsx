@@ -358,7 +358,13 @@ describe("the join screen on the real element", () => {
             await userEvent.keyboard("{Control>}k{/Control}");
             await userEvent.click(await screen.findByRole("option", { name: /Add data\.\.\./ }));
             const join = await screen.findByRole("region", { name: "Join flows.csv" }, { timeout: TIMEOUT_MS });
-            assert.deepEqual(chips(join), ["14 edges added", "1 new node", "1 not in graph", "1 repeated key"]);
+            assert.deepEqual(chips(join), [
+                "14 edges added",
+                "1 new node",
+                "1 not in graph",
+                "1 repeated key",
+                "1 unknown end",
+            ]);
             await userEvent.click(within(join).getByRole("button", { name: "Join" }));
             await waitFor(
                 () => {
@@ -371,5 +377,55 @@ describe("the join screen on the real element", () => {
         } finally {
             vi.unstubAllGlobals();
         }
+    });
+
+    it("tags each row with what Join does, and decides an unknown end before joining", async () => {
+        const { session } = await projectWith(new File([GAUGES], "gauges.csv"), 11);
+        drop(new File([FLOWS], "flows.csv"));
+        const join = await screen.findByRole("region", { name: "Join flows.csv" }, { timeout: TIMEOUT_MS });
+        const incoming = within(join).getByRole("grid", { name: "flows.csv" });
+        // The first cell of each drawn row: its tag.
+        const tags = (): string[] =>
+            [...incoming.querySelectorAll('[role="row"]')]
+                .slice(1)
+                .map((row) => row.querySelector('[role="rowheader"], [role="gridcell"]')?.textContent?.trim() ?? "");
+        await waitFor(() => {
+            const now = tags();
+            // Row 11 repeats row 6 (G03 to G04); row 12 ends at G12, which the graph lacks.
+            assert.strictEqual(now[5], "Edge G03 - G04");
+            assert.strictEqual(now[10], "Repeat, not added");
+            assert.strictEqual(now[11], "Edge G09 - G12, new node");
+        });
+
+        // Keep both: the repeated row is joined too.
+        await userEvent.click(within(join).getByRole("button", { name: "1 repeated key" }));
+        const both = await screen.findByRole("menuitem", { name: "Keep both" });
+        assert.strictEqual(
+            (await screen.findByRole("menuitem", { name: "Keep first" })).getAttribute("aria-checked"),
+            "true",
+        );
+        await userEvent.click(both);
+        await waitFor(() => {
+            assert.strictEqual(tags()[10], "Edge G03 - G04");
+        });
+
+        // The unknown end is decided here: leave its row out.
+        await userEvent.click(within(join).getByRole("button", { name: "1 unknown end" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Leave those rows out" }));
+        await waitFor(() => {
+            assert.strictEqual(tags()[11], "Left out");
+            assert.notInclude(chips(join), "1 new node");
+        });
+
+        // "Join", chosen from the Join choices menu, joins.
+        await userEvent.click(within(join).getByRole("button", { name: "Join choices" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Join" }));
+        await waitFor(
+            () => {
+                assert.strictEqual(session.data.edges().length, 14);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.strictEqual(session.data.nodes().length, 11, "G12 was left out, not added");
     });
 });

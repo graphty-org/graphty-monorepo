@@ -31,7 +31,7 @@ the evidence; the old entry stays.
 A fix may add to these surfaces but never removes or restyles them (the owner rule above). The
 screenshot audit judges "restyled" against these references, taken on 2026-10-30 from build
 e52d7c4f57, before any tier 4 fix (the review's frozen copy, the main checkout's
-`tmp/design-studio/tier4/review/a11y/dist`), at 1440 x 900 in the dark scheme's default, with
+`tmp/design-studio/tier4/review/a11y/dist`), at 1440 x 900 in the default color scheme, with
 pantries.csv open and deliveries.csv joined where a surface needs two files. The images are under
 the main checkout's `tmp/design-studio/tier4/reference/` (never in git); the walk that took them is
 `reference/walk-e52d7c4f57/`.

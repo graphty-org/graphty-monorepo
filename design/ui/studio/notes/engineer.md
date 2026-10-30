@@ -17,6 +17,20 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+- (2026-10-29) Re-walk of "an unknown end's warning marks the end that is unknown" (67de06e337) on
+  `graphty/dist` stamp ac8586556932: nine pilot routes replayed with every check point matching
+  (`design/ui/studio/tmp/r1-dry2-recheck-U2/`: T61A success, deliveries-first detour, keyboard;
+  T61B success, detours; T67A table; T67B table marks; T66A path; T66B success). Nothing worse; the
+  acceptance holds: T61A-success/20.png glyph on Target, P13 tinted, P05 plain; T61B-keys/23.png
+  the same for G12 / G09; T66B-success/15.png the mark on Target with the Data source card on.
+  Keys on the Edges header (T61B-keys/24-36.png): Tab reaches Source's header then leaves the
+  grid, ArrowRight reaches Target, Enter sorts Target A to Z, Escape leaves the grid; `--read`
+  names the header row "Key Target Issues in Target", nothing on Source. Seen, not caused: in the
+  deliveries-first order (T61A-deliveries-first-edges/10.png) there is no unknown end at all, the
+  one issue is the repeated edge, on From with P03 tinted, and the deliveries.csv row shows no
+  issue chip while the table says "With issues 1" (the frozen route's 09.png shows the same row).
+  Focus lines print only in an `--sr` session; in a plain one read focus from the screenshot.
+
 - (2026-10-29) An unknown end's warning marks the end that is unknown. graphty-element: the
   `unknown-end` issue's params gain `ends` ("source", "target", "both"), from the touching edges
   (issues.ts loadIssues; additive, recorded in owner-decisions.md). The app's `issuePlace` now
@@ -214,6 +228,10 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-29 worked: `--replay <route> <folder> --keep` on a route that ends just short of the
+  changed screen, then hand `--step`s (With issues, Tab, ArrowRight, `--read`) to reach it; the
+  pilot's own success routes stop one click before the fix shows.
 
 - 2026-10-29 did not work: a background wait loop on `pgrep -f "<pattern>"` matches its own shell
   command line and never ends; wait on a file the job writes instead.

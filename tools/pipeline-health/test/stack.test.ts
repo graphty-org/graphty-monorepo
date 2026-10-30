@@ -90,7 +90,10 @@ describe("health stack", () => {
     });
 
     it("alarms when no collector run succeeded in 20 minutes, on ALARM and OK", () => {
-        const alarm = Object.values(t.findResources("AWS::CloudWatch::Alarm"))[0].Properties;
+        const found = t.findResources("AWS::CloudWatch::Alarm", {
+            Properties: { AlarmName: "graphty-health-collector-dead-man" },
+        });
+        const alarm = Object.values(found)[0].Properties;
         expect(alarm.EvaluationPeriods).toBe(4);
         expect(alarm.DatapointsToAlarm).toBe(4);
         expect(alarm.TreatMissingData).toBe("breaching");
@@ -99,6 +102,19 @@ describe("health stack", () => {
         expect(alarm.Metrics.find((m: { Id: string }) => m.Id === "inv").MetricStat.Period).toBe(300);
         expect(alarm.AlarmActions).toHaveLength(1);
         expect(alarm.OKActions).toHaveLength(1);
+    });
+
+    it("alarms when the alerts could not reach Pushover for three runs in a row", () => {
+        t.hasResourceProperties("AWS::Logs::MetricFilter", {
+            FilterPattern: '{ ($.alerts.state = "error") || ($.alerts.state = "not set up") || ($.alerts.failed > 0) }',
+        });
+        t.hasResourceProperties("AWS::CloudWatch::Alarm", {
+            AlarmName: "graphty-health-alerts-failing",
+            EvaluationPeriods: 3,
+            DatapointsToAlarm: 3,
+            ComparisonOperator: "GreaterThanOrEqualToThreshold",
+            TreatMissingData: "notBreaching",
+        });
     });
 
     it("budgets 10 USD and denies the Lambda roles at 100% actual", () => {

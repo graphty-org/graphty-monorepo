@@ -6,7 +6,7 @@
 // 5-minute step of the last 24 h come from one path. Slow members and costs read daily buckets.
 
 import { quantile } from "../model/histogram.js";
-import { type Bucket, DAY, floorTo, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
+import { type Bucket, DAY, floorTo, HOUR, type SourceItem, sourceKey, STEP_MS } from "../model/items.js";
 import { quotaUsed } from "../model/raw.js";
 import { aggQuantile, emptyAgg, loadSeries, mergeAgg, mergeBucket } from "../model/rollup.js";
 import type { Store } from "../model/store.js";
@@ -46,6 +46,10 @@ export interface MemberStatus {
     clearedAt?: number;
     /** When the current bad state began, where the engine can tell without history (sources, collector). */
     since?: number;
+    /** Numbers the alerts read: each `also` metric's newest value, month_to_date, credential_error_ms. */
+    facts?: Record<string, number>;
+    /** What a source member's state comes from: the erroring source and its error. */
+    cause?: Reason;
 }
 
 export interface CategoryStatus {
@@ -121,7 +125,7 @@ interface Point {
     end: number;
 }
 
-function hit(v: number, [op, x]: Threshold): boolean {
+export function hit(v: number, [op, x]: Threshold): boolean {
     switch (op) {
         case "<":
             return v < x;
@@ -218,7 +222,11 @@ interface Computed {
     n?: number;
     n6h?: number;
     failExtra?: boolean;
+    /** A `redOnSpent` month member's spend so far: red is judged on it, not on the projection. */
+    spent?: number;
     since?: number;
+    facts?: Record<string, number>;
+    cause?: Reason;
     /** Whole days of a slow window the store holds history for. */
     covered?: number;
 }
@@ -270,19 +278,67 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
     return { value: measureValue(m, b, (covered || days) * DAY), n: b.n, covered };
 }
 
+/** An error only the owner can fix: an expired, rejected or missing credential. */
+const CREDENTIAL =
+    /\b40[13]\b|AccessDenied|ExpiredToken|Unauthorized|bad credentials|ParameterNotFound|InvalidClientTokenId|UnrecognizedClient|security token/i;
 /**
- * Sources past their age limit or failing, and whether one is past twice it.
+ * Sources that page no credential error of their own: those the collector reads through its GitHub App
+ * (data.collector reports that credential), and Coveralls, which is public (a 401 or 403 there is not a key to renew).
+ */
+const COLLECTOR_WRITES = new Set([
+    "collector",
+    "collector-parts",
+    "release",
+    "npm",
+    "stress",
+    "hosts",
+    "deploy",
+    "coverage",
+]);
+/**
+ * The sources whose credential only the owner can make (alerts/index.ts CREDENTIALS): one of these erroring is the
+ * cause, ahead of an older error on a credential agents can fix, so the owner's page is never masked.
+ */
+const OWNER_CREDENTIALS = new Set(["cloudflare-token", "sentry-token"]);
+/** A credential error this old turns data.sources_age red, even while the source's last good values hold. */
+const CREDENTIAL_RED_MS = HOUR;
+
+/**
+ * Sources past their age limit or failing, and whether one is past twice it or has had a credential error for an
+ * hour (an erroring source has no age ratio, so an expired token would otherwise stay yellow for good).
  * @param ctx
  */
 function sourcesNotOk(ctx: Ctx): Computed {
-    const bad = [...ctx.sources.values()].filter((s) => (s.state === "stale" || s.state === "error") && !s.holding);
-    if (!bad.length) {
-        return { value: 0 };
+    const all = [...ctx.sources.values()];
+    const bad = all.filter((s) => (s.state === "stale" || s.state === "error") && !s.holding);
+    const cred = all
+        .filter((s) => s.state === "error" && !COLLECTOR_WRITES.has(s.id))
+        .filter((s) => CREDENTIAL.test(String(s.reason?.params.error ?? "")))
+        .sort(
+            (a, b) =>
+                Number(OWNER_CREDENTIALS.has(b.id)) - Number(OWNER_CREDENTIALS.has(a.id)) ||
+                (a.since ?? ctx.now) - (b.since ?? ctx.now),
+        )[0];
+    const credMs = cred ? ctx.now - (cred.since ?? ctx.now) : undefined;
+    const credential: Computed =
+        cred && credMs !== undefined
+            ? {
+                  facts: { credential_error_ms: credMs },
+                  cause: {
+                      code: "error",
+                      params: { source: cred.id, label: cred.label, error: String(cred.reason?.params.error) },
+                  },
+              }
+            : { facts: { credential_error_ms: 0 } }; // no credential error: ends its alert (an absent fact is a gap)
+    if (!bad.length && !cred) {
+        return { value: 0, ...credential };
     }
     return {
-        value: bad.length,
-        failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2),
-        since: Math.min(...bad.map((s) => s.since ?? ctx.now)),
+        // A holding source with a credential error counts too, so a red member never reads "0 sources".
+        value: bad.length + (cred && !bad.includes(cred) ? 1 : 0),
+        failExtra: bad.some((s) => (s.ageRatio ?? 0) > 2) || (credMs ?? 0) >= CREDENTIAL_RED_MS,
+        since: Math.min(...[...bad, ...(cred ? [cred] : [])].map((s) => s.since ?? ctx.now)),
+        ...credential,
     };
 }
 
@@ -314,8 +370,12 @@ function engineValue(ctx: Ctx, name: Extract<Measure, { type: "engine" }>["name"
         case "sources_thin":
             return sourcesThin(ctx);
         case "collector_age": {
-            const ok = ctx.metas.get("collector")?.lastOkAt;
-            return ok === undefined ? {} : { value: ctx.now - ok, since: ok };
+            const meta = ctx.metas.get("collector");
+            const ok = meta?.lastOkAt;
+            const cause: Computed = meta?.error
+                ? { cause: { code: "error", params: { source: "collector", error: meta.error } } }
+                : {};
+            return ok === undefined ? cause : { value: ctx.now - ok, since: ok, ...cause };
         }
         case "write_budget":
             return { value: ctx.quota / ctx.cfg.dailyRowLimit };
@@ -342,6 +402,25 @@ function thinRatios(ctx: Ctx, metric: string, p: Point) {
 }
 
 /**
+ * A month member's value. A projection also gives what is spent so far (the alerts page early in a month only on
+ * real spend), and spend so far its projection (the AWS page's forecast is the one the Costs page shows).
+ * @param ctx
+ * @param m
+ * @param p
+ */
+function monthComputed(ctx: Ctx, m: Extract<Measure, { type: "month" }>, p: Point): Computed {
+    const value = monthValue(ctx, m, p.end);
+    const spent = m.redOnSpent ? monthValue(ctx, { ...m, projected: false }, p.end) : undefined;
+    const other = p.end === ctx.now ? monthValue(ctx, { ...m, projected: !m.projected }, p.end) : undefined;
+    const fact = m.projected ? "month_to_date" : "projected";
+    return {
+        value,
+        ...(spent === undefined ? {} : { spent }),
+        ...(other === undefined ? {} : { facts: { [fact]: other } }),
+    };
+}
+
+/**
  * The member's values at a point: 1 h and 6 h for windowed members, the newest value for states.
  * @param ctx
  * @param c
@@ -356,7 +435,7 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
         return p.end === ctx.now ? engineValue(ctx, m.name) : null;
     }
     if (m.type === "month") {
-        return { value: monthValue(ctx, m, p.end) };
+        return monthComputed(ctx, m, p);
     }
     if (m.type === "dims_median_over") {
         return null;
@@ -376,7 +455,10 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
             merged(ctx.five.get(a.metric), p.t - HOUR_SPAN + STEP, p.t),
             0,
         );
-        if (v !== undefined && hit(v, a.fail)) {
+        if (v !== undefined && p.end === ctx.now) {
+            out.facts = { ...out.facts, [a.metric]: v };
+        }
+        if (v !== undefined && a.fail && hit(v, a.fail)) {
             out.failExtra = true;
         }
     }
@@ -395,8 +477,29 @@ function verdict(c: MemberConfig, v: Computed): { state: MemberState; excess?: n
     if (v.value === undefined) {
         return { state: v.failExtra ? "FAILING" : "NO DATA", reason: { code: "no_value", params: {} } };
     }
+    if (c.measure.type === "month" && c.measure.redOnSpent) {
+        return spentVerdict(c, v.value, v.spent ?? 0);
+    }
     const out = thresholds(c, v.value, v.value6h);
     return v.failExtra && out.state !== "FAILING" ? { state: "FAILING", excess: out.excess ?? 0 } : out;
+}
+
+/**
+ * A spending limit: red once what is spent so far passes it, yellow while only the projection does.
+ * @param c
+ * @param projected
+ * @param spent
+ */
+function spentVerdict(c: MemberConfig, projected: number, spent: number): { state: MemberState; excess?: number } {
+    const ex = (v: number, thr: Threshold) => Math.abs(v - thr[1]) / (Math.abs(thr[1]) || 1);
+    if (c.fail && hit(spent, c.fail)) {
+        return { state: "FAILING", excess: ex(spent, c.fail) };
+    }
+    const over = c.fail ?? c.ok;
+    if (over && (c.fail ? hit(projected, c.fail) : !hit(projected, over))) {
+        return { state: "WARNING", excess: ex(projected, over) };
+    }
+    return thresholds({ ...c, fail: undefined }, projected, undefined);
 }
 
 /**
@@ -553,6 +656,18 @@ function partialWindow(ctx: Ctx, c: MemberConfig, srcs: SourceStatus[]): Reason 
     return covered < 1 ? { code: "partial", params: { hours: Math.round(covered * 10) / 10, of: 1 } } : undefined;
 }
 
+/** The computed fields a status carries, leaving out the ones not computed. */
+function computedFields(v: Computed): Partial<MemberStatus> {
+    return {
+        ...(v.value === undefined ? {} : { value: v.value }),
+        ...(v.value6h === undefined ? {} : { value6h: v.value6h }),
+        ...(v.n === undefined ? {} : { n: v.n }),
+        ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
+        ...(v.facts ? { facts: v.facts } : {}),
+        ...(v.cause ? { cause: v.cause } : {}),
+    };
+}
+
 function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
     const status: MemberStatus = {
         id: c.id,
@@ -573,12 +688,7 @@ function currentStatus(ctx: Ctx, c: MemberConfig): MemberStatus {
         return { ...status, ...gray };
     }
     const v = compute(ctx, c, { t: floorTo(ctx.now, "5m"), end: ctx.now }) ?? {};
-    Object.assign(status, {
-        ...(v.value === undefined ? {} : { value: v.value }),
-        ...(v.value6h === undefined ? {} : { value6h: v.value6h }),
-        ...(v.n === undefined ? {} : { n: v.n }),
-        ...(v.n6h === undefined ? {} : { n6h: v.n6h }),
-    });
+    Object.assign(status, computedFields(v));
     // A source failing within its age limit: the value its last good writes give, marked stale with its age.
     const held = srcs.find((s) => s.holding);
     if (held) {

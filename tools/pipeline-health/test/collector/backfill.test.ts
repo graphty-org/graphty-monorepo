@@ -89,6 +89,15 @@ function fake(
                 const shown = day.slice(0, opts.listed ?? Infinity);
                 return reply({ total_count: day.length, workflow_runs: shown.slice((page - 1) * per, page * per) });
             }
+            if (u.pathname === "/graphql") {
+                // GitHub refuses a query that leaves a required (`$x: T!`) variable out.
+                const { query, variables } = JSON.parse(String(init?.body)) as {
+                    query: string;
+                    variables: Record<string, unknown>;
+                };
+                const missing = [...query.matchAll(/\$(\w+): \w+!/g)].filter(([, v]) => variables[v] === undefined);
+                if (missing.length) throw new Error(`graphql: required variable $${missing[0][1]} not provided`);
+            }
             const ids =
                 opts.suites &&
                 (JSON.parse(String(init?.body ?? "{}")) as { variables?: { ids?: string[] } }).variables?.ids;

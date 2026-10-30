@@ -158,6 +158,36 @@ describe("Graphviz layouts in the element", () => {
         assert.isAbove(off / length, 0.05, "it bows off the line between its nodes, round b");
     });
 
+    it("draws a dashed edge along the route dot laid it too, its dashes round b (issue #3102)", async () => {
+        await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await graph.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "a", dst: "c" },
+        ]);
+        await graph.getSession().styles.add({
+            name: "dashed",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.style": "dash" },
+        });
+        await graph.setLayout("graphviz-dot");
+        await settled();
+        await graph.waitForStableFrame();
+
+        const edge = [...graph.getDataManager().edges.values()].find((e) => e.srcId === "a" && e.dstId === "c");
+        const dashes = edge?.drawnPattern ?? [];
+        assert.isAbove(dashes.length, 2, "the edge is drawn as dashes");
+        const [a, c] = [at("a"), at("c")];
+        const length = Math.hypot(c.x - a.x, c.y - a.y);
+        const off = Math.max(
+            ...dashes.map(
+                ({ position: p }) => Math.abs((p.x - a.x) * (c.y - a.y) - (p.y - a.y) * (c.x - a.x)) / length,
+            ),
+        );
+        assert.isAbove(off / length, 0.05, "its dashes bow off the line between its nodes, round b");
+    });
+
     it("draws a DOT file loaded with layout recommended with the engine the file names", async () => {
         const session = graph.getSession();
         await session.data.import(

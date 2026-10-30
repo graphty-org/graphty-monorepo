@@ -1614,9 +1614,11 @@ jobs:
                   WHAT: ${{ steps.verdict.outputs.what }}
                   ISSUE: ${{ steps.verdict.outputs.issue }}
                   BISECT: ${{ steps.verdict.outputs.bisect }}
+                  # a green-images run that holds its commit is always announced, never deduplicated (#4630)
+                  HOLD: ${{ steps.hold.outputs.action }}
               run: |
                   node tools/release-status.mjs "$STATE" --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
-                      --bisect "$BISECT" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+                      --bisect "$BISECT" --hold "$HOLD" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
 
             # a green-clean run that promotes without the projects the version dry run held: the announcement above
             # names them in a red or green-images run's WHAT, so only green-clean needs its own owner item

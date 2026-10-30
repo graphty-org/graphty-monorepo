@@ -856,7 +856,7 @@ const S: Record<string, (p: P) => string> = {
     "sla.word": (p) => str(p, "word"),
     "sla.after": (p) => `after ${fmtN(num(p, "min"))} min`,
     "sla.passed_and_filed": () => "passed and filed what it found",
-    "sla.filing_failed": () => "the run or its issue filing failed",
+    "sla.filing_failed": () => "the run or its issue filing failed (yellow: found nothing 3 weeks running)",
     "sla.past_2x": () => "any past 2x",
     "sla.under_pct": (p) => `under ${fmtN(num(p, "pct"))}%`,
     "sla.canary_age": (p) => `canary age &lt; ${fmtN(num(p, "h"))} h`,

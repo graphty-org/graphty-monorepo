@@ -209,7 +209,11 @@ describe("page state", () => {
         expect(pageView(page([member({ state: "slow" })]))).toContain("within its target");
         const html = pageView(page([member({ breach: "bad" })]));
         expect(html).not.toContain("within its target");
-        expect(html).toContain("1 7-day measure is past its red line: full runs able to promote 0%.");
+        expect(html).toContain(
+            "1 7-day measure is past its red line: full runs able to promote 0%. It does not set this page's state.",
+        );
+        // The OK chip says what it covers, so it never reads as "everything is fine".
+        expect(html).toContain("No measure that sets this page's state is past its target.");
         expect(html).toContain("Red: Below 25%");
     });
 
@@ -237,5 +241,67 @@ describe("fmtSpan", () => {
         expect(fmtSpan("2026-10-29T10:02:00Z", null, { edge: true })).toBe("before 10-29 10:02 - now");
         expect(fmtSpan("2026-10-30T08:00:00Z", null, { startUnknown: true })).toBe("before 10-30 08:00 - now");
         clock.generated = "";
+    });
+});
+
+describe("status blocks", () => {
+    it("say a 7-day measure past red is not part of the block's color, and mute a headline that did not set it", async () => {
+        const { overviewView, headline, setHere } = await import("../../web/src/render.js");
+        setHere({ page: "overview", range: "1h", q: new URLSearchParams() });
+        const m = {
+            id: "releases.green_clean",
+            window: "7d",
+            state: "slow",
+            value: { n: 40, unit: "pct" },
+            sla: null,
+            link: "/releases",
+        } as unknown as Parameters<typeof headline>[0];
+        const html = overviewView({
+            generated: "2026-10-25T23:30:00Z",
+            range: "1h",
+            categories: [
+                {
+                    id: "releases",
+                    state: "ok",
+                    others: [],
+                    headline: m,
+                    slowPastRed: [{ member: "releases.green_clean", value: null }],
+                },
+            ],
+            episodes: [],
+        } as never);
+        expect(html).toContain("1 7-day measure past red; not part of this color");
+        expect(headline(m, { member: "releases.lanes_red", state: "bad" } as never)).toContain(
+            "Not what set the color above.",
+        );
+        expect(headline(m, { member: "releases.green_clean", state: "bad" } as never)).not.toContain("Not what set");
+    });
+});
+
+describe("sparkline", () => {
+    it("draws a lone value mid-height at the newest end, not on the chart's top edge", async () => {
+        const { sparkline } = await import("../../web/src/charts.js");
+        const svg = sparkline({ step: "1d", ctx: [], trend: [0.75], breach: [null] }, "2026-10-25T23:30:00Z", "x");
+        expect(svg).toContain('cx="117" cy="14"');
+    });
+});
+
+describe("dev server", () => {
+    it("proxies the API path to the API, so a dev server on any host reads live data without CORS", async () => {
+        const { DEV_API_PATH, LIVE_API } = await import("../../web/src/contract.js");
+        process.env.PORT = "9999";
+        try {
+            const { default: config } = await import("../../web/vite.config.js");
+            const c = (
+                config as (e: { command: string; mode: string; isPreview: boolean }) => {
+                    server: { proxy: Record<string, { target: string; rewrite: (p: string) => string }> };
+                }
+            )({ command: "serve", mode: "development", isPreview: false });
+            const proxy = c.server.proxy[DEV_API_PATH];
+            expect(proxy.target).toBe(LIVE_API);
+            expect(proxy.rewrite(`${DEV_API_PATH}/v1/status`)).toBe("/v1/status");
+        } finally {
+            delete process.env.PORT;
+        }
     });
 });

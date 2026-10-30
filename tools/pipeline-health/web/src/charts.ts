@@ -37,11 +37,14 @@ export function sparkline(s: Spark, generated: Iso, caption: string): string {
     let lo = Math.min(0, ...all, s.target ?? 0);
     let hi = Math.max(...all, s.target ?? -Infinity);
     if (hi === lo) hi = lo + 1;
-    const y = (v: number) => r1(25 - ((v - lo) / (hi - lo)) * 22);
+    // One value alone has nothing to scale against: it sits mid-height at the newest end, not on the top edge.
+    const single = all.length === 1 && s.target === undefined;
+    const y = (v: number) => (single ? 14 : r1(25 - ((v - lo) / (hi - lo)) * 22));
     const hourly = s.step !== "15m";
     const xCtx = (i: number) => r1(1 + (i * 28) / Math.max(1, s.ctx.length - 1));
     const tx0 = hourly ? 3 : 35;
-    const xT = (i: number) => r1(tx0 + (i * (117 - tx0)) / Math.max(1, s.trend.length - 1));
+    const xT = (i: number) =>
+        s.trend.length === 1 ? 117 : r1(tx0 + (i * (117 - tx0)) / Math.max(1, s.trend.length - 1));
 
     const parts: string[] = [];
     const winW = hourly ? (117 - tx0) / (s.trend.length - 1) + 3 : 15.5;

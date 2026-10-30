@@ -263,13 +263,15 @@ h1 {
 .by {
     line-height: 1.3;
     padding-right: 10px;
-    /* Two lines at most; the block's title and label hold the whole text. */
+    /* Three lines at most; the block's title and label hold the whole text. */
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 .blk .slowbad {
+    /* Never clamped: it says what the color leaves out. */
+    display: block;
     margin-top: 4px;
     padding-left: 8px;
     box-shadow: inset 4px 0 var(--bad);
@@ -327,6 +329,15 @@ summary:hover {
 .val small {
     font-weight: 450;
     color: var(--ink2);
+}
+.kn .knot {
+    display: block;
+    color: var(--ink2);
+    font-weight: 600;
+}
+.kpi.other .kv {
+    color: var(--ink2);
+    font-weight: 450;
 }
 .kpi .spark {
     margin-top: 4px;
@@ -615,11 +626,10 @@ h3 {
     gap: 14px;
     align-items: center;
 }
+/* A bar's label wraps rather than ending in "...": "shared: the same check in 3 or more pull requests" is the point. */
 .bl {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 .bv {
     display: flex;
@@ -955,7 +965,7 @@ a.more:hover {
         gap: 12px;
     }
     .shards .srow {
-        grid-template-columns: minmax(0, 1.4fr) 40px 50px 48px minmax(100px, 200px) minmax(0, 110px) 10px;
+        grid-template-columns: minmax(130px, 1.6fr) 40px 50px 48px minmax(80px, 1fr) minmax(0, 110px) 10px;
         gap: 10px;
     }
     .shards .sbar {
@@ -1207,11 +1217,13 @@ h2.top {
     .rowh {
         display: none;
     }
+    /* The value and the target each get the full width, so a long target never squeezes the name. */
     .row {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr) fit-content(45%);
         grid-template-areas:
             "nm st"
-            "val tg"
+            "val val"
+            "tg tg"
             "sp sp";
         row-gap: 4px;
     }
@@ -1227,7 +1239,6 @@ h2.top {
     }
     .row .tg {
         grid-area: tg;
-        text-align: right;
     }
     .row .sp {
         grid-area: sp;
@@ -1261,6 +1272,10 @@ h2.top {
     .shards .srow,
     .hott .hrow {
         min-width: 560px;
+    }
+    /* A shard's name keeps a readable column; the row scrolls inside .shards instead. */
+    .shards .srow {
+        grid-template-columns: minmax(150px, 1.4fr) 40px 50px 48px 110px minmax(90px, 110px) 10px;
     }
     .ep {
         display: block;
@@ -1314,6 +1329,7 @@ h2.top {
     margin-left: 6px;
 }
 .tag {
+    white-space: nowrap;
     padding: 0 4px;
     border: 1px solid var(--line);
     border-radius: 3px;

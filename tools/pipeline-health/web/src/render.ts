@@ -349,9 +349,17 @@ function pageState(p: PageResponse): string {
             const win =
                 m.window === "now" ? " now" : m.window === "1h" || m.window === "1h6h" ? " over the last hour" : "";
             const v6 = m.value6h ? ` (6 h: ${fmtValue(m.value6h)})` : "";
-            parts.push(`${capital(MEMBER[m.id].short)} is ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`);
+            // A word value ("found nothing 3 weeks running") reads after a colon, never as "is found nothing".
+            const is = m.value && "word" in m.value ? ":" : " is";
+            parts.push(`${capital(MEMBER[m.id].short)}${is} ${fmtValue(m.value)}${win}${v6}, ${slaText(m.sla)}.`);
         } else parts.push(`${capital(refText(p.setBy))}.`);
-    } else if (p.state === "ok" && !p.members.some(breached)) parts.push("Every judged member is within its target.");
+    } else if (p.state === "ok")
+        // A member past a line on an OK page is a 7- or 28-day measure, which never sets the state: say so.
+        parts.push(
+            p.members.some(breached)
+                ? "No measure that sets this page's state is past its target."
+                : "Every judged member is within its target.",
+        );
     const others = p.others.filter((r) => r.state === "bad" || r.state === "warn" || r.state === "nodata");
     if (others.length) {
         const txt = others.map((r) => {
@@ -379,7 +387,9 @@ function slowBreaches(members: Member[]): string[] {
         const what = ms.every((m) => m.window === ms[0].window) ? dayMeasure(ms[0].window) : "7- or 28-day measure";
         const one = ms.length === 1;
         const names = ms.map((m) => `${esc(MEMBER[m.id].short)} ${fmtValue(m.value)}`).join(", ");
-        out.push(`${fmtN(ms.length)} ${what}${one ? " is" : "s are"} past ${one ? "its" : "their"} ${line}: ${names}.`);
+        out.push(
+            `${fmtN(ms.length)} ${what}${one ? " is" : "s are"} past ${one ? "its" : "their"} ${line}: ${names}. ${one ? "It does" : "They do"} not set this page's state.`,
+        );
     }
     return out;
 }
@@ -873,7 +883,9 @@ function block(c: CategoryStatus): string {
               ? `+ ${c.others.length} more`
               : "";
     const slow = c.slowPastRed?.length ?? 0;
-    const slowText = slow ? `${fmtN(slow)} 7-day ${slow === 1 ? "measure" : "measures"} past red` : "";
+    const slowText = slow
+        ? `${fmtN(slow)} 7-day ${slow === 1 ? "measure" : "measures"} past red; not part of this color`
+        : "";
     const strip = (h: string) => h.replace(/<[^>]+>/g, "");
     const aria = `${name}: ${word}${by ? `, ${strip(by)}` : ""}${more ? `, ${strip(more)}` : ""}${slowText ? `; ${slowText}` : ""}`;
     const cls = c.state === "idle" ? "idle" : stateClass(c.state);
@@ -919,8 +931,10 @@ export function headline(m: Member, setBy?: MemberRef): string {
     }
     kt.push(slaText(m.sla));
     const sp = m.spark ? sparkline(m.spark, clock.generated, `${t.name} trend`) : "";
-    const lead = setBy && setBy.member !== m.id ? "Headline measure: " : "";
-    return `<a class="kpi" href="${href(m.link)}"><span class="kn">${lead}${esc(t.headline ?? t.name)}, ${win}</span><span class="kv">${kv}</span><span class="kt">${unlinked(kt.join("; "))}</span>${sp}</a>`;
+    // When another member set the block's color, the headline says it is not the reason and its value is muted.
+    const other = setBy !== undefined && setBy.member !== m.id;
+    const lead = other ? `<b class="knot">Not what set the color above.</b> Headline measure: ` : "";
+    return `<a class="kpi${other ? " other" : ""}" href="${href(m.link)}"><span class="kn">${lead}${esc(t.headline ?? t.name)}, ${win}</span><span class="kv">${kv}</span><span class="kt">${unlinked(kt.join("; "))}</span>${sp}</a>`;
 }
 
 function episode(e: Episode): string {

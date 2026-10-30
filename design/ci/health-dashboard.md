@@ -96,9 +96,9 @@ Flaky tests, CI, Costs, Data sources** (the page sorts them; the API keeps pipel
 (OK, WARNING, FAILING, NO DATA); when not OK, the member that set it in a few words ("runner wait
 p90 31 min"; the threshold is on the detail page); the others not OK, named when there is one
 ("+ promote.yml failing") and counted when there are more ("+ 3 more"); its 7-day measures past their
-red line, counted ("1 7-day measure past red", with a red edge), since they never set the color; and a
-chevron. Each line holds at most two lines of text; the block's tooltip and accessible name hold all of
-it. The whole block links to the category's page. Below 1280 px the blocks wrap into rows of four, and
+red line, counted and said to be outside the color ("1 7-day measure past red; not part of this
+color", with a red edge, never shortened); and a chevron. The other lines hold at most three lines of
+text each; the block's tooltip and accessible name hold all of it. The whole block links to the category's page. Below 1280 px the blocks wrap into rows of four, and
 on a phone into two columns.
 
 The blocks always show the status: each member is judged on the last 1 h or, for a state, now
@@ -116,8 +116,8 @@ the release candidate (a hold from any lane), spend this month projected (the on
 be rerun), and sources not OK. A headline with too few samples in the last hour says "not judged: 2
 merged this hour, needs 5" in gray in place of its value, with its 6 h value beside it. Its line
 gives the 6 h value with its unit and the whole target ("good <= 5 min; red > 15 min"). When another
-member set the block's color, the headline is labelled "Headline measure:", so a calm headline never
-reads as the reason for a red block.
+member set the block's color, the headline starts "Not what set the color above. Headline measure:"
+and its value is drawn in the muted weight, so a calm headline never reads as the reason for a red block.
 
 A sparkline is the last 6 h in 15-minute buckets, with the last hour (the window that sets the
 state) shaded and the target as a thin gray band. To its left, in a faint line, the rest of the last
@@ -328,9 +328,11 @@ Pass` belonged to the retired Mergify queue and never counts.
   labeled "7-day measure" or "28-day measure", and never sets a state: at hour scale it would either
   never move or move on one event. Past its target or red line it is still shown as the breach it is:
   its row carries the WARNING or FAILING chip with "7-day measure, not in the page state", its block
-  counts it ("1 7-day measure past red"), and the page's sentence names it ("1 7-day measure is past
-  its red line: full runs able to promote 17%."). No text may say every member is within target while
-  one is breached. Whether a breached 7-day measure should color its category is the owner's call;
+  counts it ("1 7-day measure past red; not part of this color"), and the page's sentence names it
+  and says it is outside the state ("1 7-day measure is past its red line: full runs able to promote
+  17%. It does not set this page's state."). No text may say every member is within target while
+  one is breached: an OK page with one says "No measure that sets this page's state is past its
+  target." Whether a breached 7-day measure should color its category is the owner's call;
   today it does not (`categoryOf`).
 
 The 6 h value is the trend: shown beside every 1 h value and as the sparkline. 24 h never decides a
@@ -738,7 +740,8 @@ AWS credential in GitHub at all.
   installation id under `github-app/`, the Pushover keys under `pushover/`, the optional Cloudflare
   and Sentry tokens under `cloudflare/` and `sentry/`.
 - CORS allows `GET` from `https://health.graphty.app` and one dev origin (the page's Vite default,
-  or the one passed as the `devOrigin` context at deploy) only.
+  or the one passed as the `devOrigin` context at deploy) only. The dev server never needs it: it
+  proxies `/health-api` to the API, so a dev page on any host reads the API from its own origin.
 - **The local writer** posts to its own routes, `POST /v1/local/{invocations,push-runs,waits}`,
   with a bearer token whose SHA-256 alone is stored (SSM `local-token-sha256`); those routes accept
   only kind `local` and answer 401 to any other token. The writer is a plain Node script,
@@ -852,6 +855,15 @@ against the API URL in the repository variable `HEALTH_API_URL` and pushes it, w
 that `gh-pages` holds `index.html` and the right `CNAME`. The page holds no data:
 it reads the API on load and every 60 seconds, and says so in red when the data is over 15 minutes
 old.
+
+**When the API cannot be reached** the page never shows a blank view and never implies the pipeline
+is down. A red banner names the request (`GET <api>/v1/...`), the error, and that a browser reports a
+CORS refusal, a network failure and an API that is down the same way ("Failed to fetch"), with a
+Retry button and a link to the README's "When the page cannot reach the API". Under it, the view
+this browser loaded last (kept per view in `localStorage`; never another view's data) with its time
+and age, or, with none, "Pipeline status: UNKNOWN" and the facts to debug it: the page origin, the
+API base, the failed request, the error, whether `/v1/status` answered on its own, and the last good
+load.
 
 **Technology: Vite and TypeScript, no UI framework**: ten views, hash routing, `fetch`, and five
 small SVG drawing functions (sparkline, budget bar, sorted bars, minute strip, tree rows). A chart

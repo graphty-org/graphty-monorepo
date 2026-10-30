@@ -524,18 +524,20 @@ function fill(template: string, d: Due, now: number): string {
         // A GitHub error page or a long GraphQL error must not push the step out of Pushover's 1024 characters.
         error: clip(String(p.error ?? "none recorded"), 200),
         since: duration(m.facts?.credential_error_ms ?? now - start),
-        ...(template.match(/\{(feed|frozen|problem|fix|off)\}/) ? words(m) : {}),
+        ...(/\{(feed|frozen|problem|fix|off)\}/.test(template) ? words(m) : {}),
     };
     return template
-        .replace(/\{ms:([\w.]+)\}/g, (_, k: string) => duration(m.facts?.[k] ?? 0))
-        .replace(/\{n:([\w.]+)\}/g, (_, k: string) => String(Math.round(m.facts?.[k] ?? 0)))
-        .replace(/\{issue:([\w.]+)\}/g, (_, k: string) =>
+        .replaceAll(/\{ms:([\w.]+)\}/g, (_, k: string) => duration(m.facts?.[k] ?? 0))
+        .replaceAll(/\{n:([\w.]+)\}/g, (_, k: string) => String(Math.round(m.facts?.[k] ?? 0)))
+        .replaceAll(/\{issue:([\w.]+)\}/g, (_, k: string) =>
             m.facts?.[k]
                 ? `${REPO_URL}/issues/${m.facts[k]}`
                 : `${REPO_URL}/issues?q=is%3Aissue+is%3Aopen+%22Nightly+held%22`,
         )
-        .replace(/\{(\w+)\}/g, (all, k: string) => vars[k] ?? all)
-        .replace(/ +$/gm, "");
+        .replaceAll(/\{(\w+)\}/g, (all, k: string) => vars[k] ?? all)
+        .split("\n")
+        .map((line) => line.trimEnd())
+        .join("\n");
 }
 
 function link(ctx: Pick<Ctx, "evaluation" | "now">, category: string, d?: Due) {

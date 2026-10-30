@@ -622,7 +622,7 @@ const HOLD_VERDICT = /\bended (green-images|green-clean|red|owner-item|approved|
  */
 export function screenshotReview(issues: (GqlHoldIssue | null)[]): { since: number; issue: number } | undefined {
     for (const i of issues) {
-        if (!i || i.state !== "OPEN" || !i.title.startsWith("Nightly held on")) continue;
+        if (i?.state !== "OPEN" || !i.title.startsWith("Nightly held on")) continue;
         const said = [{ body: i.body ?? "", createdAt: i.createdAt }, ...(i.comments?.nodes ?? [])]
             .map((x) => ({ at: Date.parse(x.createdAt), state: HOLD_VERDICT.exec(x.body)?.[1] }))
             .filter((x) => x.state);

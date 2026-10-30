@@ -201,6 +201,8 @@ env:
     # The package builds ci.yml uploads (its build-<package> artifacts), as one download-artifact pattern for every
     # job that keeps or publishes them: a package missing here is published with no dist
     PACKAGE_BUILDS: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,babylonjs-map,algorithms,layout,cytoscape-extensions,graphty,graphty-element,remote-logger,compact-mantine}"
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
 
 jobs:
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
@@ -2406,6 +2408,12 @@ jobs:
                       mkdir -p "${pkg}/dist"
                       cp -a "${dir}/." "${pkg}/dist/"
                   done
+
+            # Every published package's exports, main, types, bin and files must name files its pack holds: a build
+            # missing from PACKAGE_BUILDS publishes a package with no dist/ (#3275). npm pack --dry-run reads only
+            # the files, so this runs before anything is installed or published.
+            - name: Check every export is in its pack
+              run: node tools/check-packed-exports.mjs
 
             - uses: pnpm/action-setup@v6
 

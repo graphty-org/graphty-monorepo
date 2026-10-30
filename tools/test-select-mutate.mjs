@@ -531,6 +531,7 @@ async function storyMutant(c, n, f) {
         shards: c.SHARDS,
         selection: measuredOf(change.shards),
         rules: c.rules,
+        graphs: c.graphs,
         lockMoved: false,
     }).find((p) => p.project === c.project);
     const what = sel.mode === "files" ? sel.files.length + " story file(s)" : sel.mode;

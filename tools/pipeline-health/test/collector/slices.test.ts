@@ -235,16 +235,24 @@ describe("the slice runner-minutes", () => {
 describe("the store summary", () => {
     it("takes the oldest unit capture, else the oldest newest capture, else null", () => {
         expect(
-            storeSummary({
-                summary: { lastSliced: { sha: "abc" }, oldestNewestAt: 5 },
-                units: [{ at: 30 }, { at: 20 }],
-            }),
+            storeSummary(
+                {
+                    summary: { lastSliced: { sha: "abc" }, oldestNewestAt: 5 },
+                    units: [{ at: 30 }, { at: 20 }],
+                },
+                40,
+            ),
         ).toEqual({ lastSlicedSha: "abc", oldestAt: 20 });
-        expect(storeSummary({ summary: { lastSliced: null, oldestNewestAt: 5 } })).toEqual({
+        expect(storeSummary({ summary: { lastSliced: null, oldestNewestAt: 5 } }, 40)).toEqual({
             lastSlicedSha: null,
             oldestAt: 5,
         });
-        expect(storeSummary({})).toEqual({ lastSlicedSha: null, oldestAt: null });
+        expect(storeSummary({}, 40)).toEqual({ lastSlicedSha: null, oldestAt: null });
+    });
+
+    it("leaves out a unit not rendered for 7 days, so a renamed story file never keeps idle slices going", () => {
+        const units = [{ at: T - HOUR }, { at: T - 8 * 24 * HOUR }];
+        expect(storeSummary({ units }, T).oldestAt).toBe(T - HOUR);
     });
 });
 
@@ -282,7 +290,7 @@ describe("sliceDeps", () => {
             f,
             "o/r",
         );
-        expect(await deps.readStore?.()).toEqual({ lastSlicedSha: "s1", oldestAt: 9 });
+        expect(await deps.readStore?.()).toEqual({ summary: { lastSliced: { sha: "s1" } }, units: [{ at: 9 }] });
         expect(new Headers(calls[0].init?.headers).get("authorization")).toBe("Bearer tok");
         await deps.dispatch?.("abc", "idle");
         const post = calls.at(-1);
@@ -315,7 +323,7 @@ describe("the collector cycle", () => {
                 cfg,
                 readStore: async () => {
                     reads++;
-                    return { lastSlicedSha: null, oldestAt: null };
+                    return {};
                 },
                 dispatch: async (sha, mode) => {
                     dispatched.push(`${mode} ${sha}`);
@@ -323,9 +331,9 @@ describe("the collector cycle", () => {
             },
         });
         expect(report.errors).toEqual({});
-        // One sample is not a quiet half hour.
+        // One sample is not a quiet half hour; the store is read once, for the dashboard, not for the decision.
         expect(report.slice).toEqual({ action: "none", reason: "not-quiet", dispatched: false });
-        expect(reads).toBe(0);
+        expect(reads).toBe(1);
         expect(dispatched).toEqual([]);
         const state = JSON.parse((await getCursor(store, "slices")) ?? "{}");
         expect(state.samples).toHaveLength(1);
@@ -364,7 +372,7 @@ describe("the collector cycle", () => {
             limits: { linux_windows: SLAS.runnerLimits.linux_windows, macos: SLAS.runnerLimits.macos },
             org: "graphty-org",
             repo: "graphty-org/graphty-monorepo",
-            slices: { cfg, readStore: async () => ({ lastSlicedSha: null, oldestAt: null }) },
+            slices: { cfg, readStore: async () => ({}) },
         });
         expect(report.slice).toEqual({ action: "none", reason: "in-flight", dispatched: false });
     });

@@ -101,6 +101,11 @@
         "sentry-token": {
             "label": "Sentry read-only token",
             "notSetUp": "read-only Sentry token not created (owner decision, design section 16)"
+        },
+        "story-slices": {
+            "label": "Rolling screenshot captures (results store)",
+            "yellowAfterMs": 3600000,
+            "notSetUp": "the results store's URL and token are not in SSM yet (owner step, design/visual-testing/early-capture.md)"
         }
     },
     "runnerLimits": {
@@ -506,6 +511,90 @@
             "sources": ["collector", "benchmarks"]
         },
         {
+            "id": "slices.set_age",
+            "category": "ci",
+            "label": "Screenshot set age",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "slices.set_age_ms"
+            },
+            "ok": ["<=", 21600000],
+            "fail": [">", 43200000],
+            "slowWindow": "7d",
+            "sources": ["story-slices"]
+        },
+        {
+            "id": "slices.base_budget",
+            "category": "ci",
+            "label": "Base slices, share of their daily cap",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "slices.base_cap_share"
+            },
+            "ok": ["<=", 1],
+            "fail": [">", 1.25],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "slices.idle_budget",
+            "category": "ci",
+            "label": "Idle slices, share of their daily cap",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "slices.idle_cap_share"
+            },
+            "ok": ["<=", 1],
+            "fail": [">", 1.25],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "slices.idle_hour_budget",
+            "category": "ci",
+            "label": "Idle slices, share of their hourly cap",
+            "window": "slow",
+            "measure": {
+                "type": "last",
+                "metric": "slices.idle_hour_cap_share"
+            },
+            "ok": ["<=", 1],
+            "fail": [">", 1.25],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "slices.contended",
+            "category": "ci",
+            "label": "Slice minutes held while contended",
+            "window": "slow",
+            "measure": {
+                "type": "sum",
+                "metric": "slices.contended_min"
+            },
+            "ok": ["<=", 35],
+            "fail": [">", 105],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
+            "id": "slices.queue_wait",
+            "category": "ci",
+            "label": "Queue wait during slices",
+            "window": "slow",
+            "measure": {
+                "type": "sum",
+                "metric": "slices.queue_wait_min"
+            },
+            "ok": ["<=", 35],
+            "fail": [">", 105],
+            "slowWindow": "7d",
+            "sources": ["collector"]
+        },
+        {
             "id": "flaky.rate",
             "category": "flaky",
             "label": "Flake rate",
@@ -729,6 +818,66 @@
                 "metric": "release.change_failure_rate"
             },
             "sources": ["channels"]
+        },
+        {
+            "id": "release.review_lag",
+            "category": "releases",
+            "label": "Screenshot review lag",
+            "window": "slow",
+            "measure": {
+                "type": "median",
+                "metric": "release.review_lag_ms"
+            },
+            "ok": ["<=", 21600000],
+            "fail": [">", 86400000],
+            "minN": 3,
+            "slowWindow": "7d",
+            "sources": ["story-slices"]
+        },
+        {
+            "id": "release.slots_unreviewed",
+            "category": "releases",
+            "label": "Slots meeting an unapproved picture",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "release.slot_unreviewed"
+            },
+            "ok": ["<=", 0.25],
+            "fail": [">", 0.75],
+            "minN": 3,
+            "slowWindow": "7d",
+            "sources": ["release"]
+        },
+        {
+            "id": "release.green_clean",
+            "category": "releases",
+            "label": "Green-clean full runs",
+            "window": "slow",
+            "measure": {
+                "type": "rate",
+                "metric": "release.green_clean"
+            },
+            "ok": [">=", 0.5],
+            "fail": ["<", 0.25],
+            "minN": 3,
+            "slowWindow": "7d",
+            "sources": ["release"]
+        },
+        {
+            "id": "release.nightly_promotions",
+            "category": "releases",
+            "label": "Nightly promotions per day",
+            "window": "slow",
+            "measure": {
+                "type": "sum",
+                "metric": "release.nightly_promotions",
+                "scale": 0.14285714285714285
+            },
+            "ok": [">=", 2],
+            "fail": ["<", 1],
+            "slowWindow": "7d",
+            "sources": ["collector"]
         },
         {
             "id": "cost.spend",

@@ -7,6 +7,7 @@
 import { DAY, HOUR, MIN } from "../model/items.js";
 import { type AppConfig, type Fetch, GitHub, installationToken } from "./github.js";
 import type { GhJob, GhRun } from "./parse.js";
+import { setAge, type StoryCaptures } from "./slice-metrics.js";
 
 /** config/slices.json: every limit of the dispatcher, tuned by a pull request to that file. */
 export interface SliceConfig {
@@ -119,6 +120,23 @@ export function isQuiet(samples: RunnerSample[], now: number, cfg: SliceConfig):
     return samples.filter((s) => s.at > now - HOUR).every((s) => s.longestQueuedMs <= cfg.maxWaitMinutes * MIN);
 }
 
+/** A slice run is queued or running, or one was dispatched in the last 15 minutes and has not shown up yet. */
+function inFlight(i: SliceInput): boolean {
+    const d = i.state.dispatched;
+    return i.running || (!!d && !d.seen && d.at > i.now - 15 * MIN);
+}
+
+/** Whether each share has room for one more slice of its planned size. */
+function capsLeft(spent: SliceSpend[], now: number, cfg: SliceConfig) {
+    const used = spentMinutes(spent, now);
+    return {
+        idleCap:
+            used.idleToday + cfg.estimateMin.idle <= cfg.idleDailyMin &&
+            used.idleLastHour + cfg.estimateMin.idle <= cfg.idleHourlyMin,
+        baseCap: used.baseToday + cfg.estimateMin.base <= cfg.baseDailyMin,
+    };
+}
+
 /**
  * Whether to start a slice now, and which (design 4b). Never while one is in flight, without this cycle's runner
  * data, unless the pool has been quiet, or past a share's cap. An idle slice when at most `idleRunning` jobs run and
@@ -128,17 +146,12 @@ export function isQuiet(samples: RunnerSample[], now: number, cfg: SliceConfig):
 export function decideSlice(i: SliceInput): SliceDecision {
     const { cfg, now, state } = i;
     const none = (reason: SliceReason): SliceDecision => ({ action: "none", reason });
-    const d = state.dispatched;
-    if (i.running || (d && !d.seen && d.at > now - 15 * MIN)) return none("in-flight");
+    if (inFlight(i)) return none("in-flight");
     const latest = state.samples.at(-1);
     if (!latest || latest.at < now - 6 * MIN) return none("no-runner-data");
     if (!isQuiet(state.samples, now, cfg)) return none("not-quiet");
     if (!i.newestGreen) return none("no-green-build");
-    const used = spentMinutes(state.spent, now);
-    const idleCap =
-        used.idleToday + cfg.estimateMin.idle <= cfg.idleDailyMin &&
-        used.idleLastHour + cfg.estimateMin.idle <= cfg.idleHourlyMin;
-    const baseCap = used.baseToday + cfg.estimateMin.base <= cfg.baseDailyMin;
+    const { idleCap, baseCap } = capsLeft(state.spent, now, cfg);
     if (!idleCap && !baseCap) return none("caps-used");
     const idleOk = idleCap && latest.running <= cfg.idleRunning;
     const baseOk = baseCap && latest.running <= cfg.baseRunning;
@@ -198,14 +211,9 @@ export function nextState(
     };
 }
 
-/** GET /v1/story-captures' summary as the decision reads it; the oldest unit capture is the rotation's age. */
-export function storeSummary(body: {
-    summary?: { lastSliced?: { sha: string } | null; oldestNewestAt?: number | null };
-    units?: { at: number }[];
-}): StoreSummary {
-    const units = body.units ?? [];
-    const oldestAt = units.length ? Math.min(...units.map((u) => u.at)) : (body.summary?.oldestNewestAt ?? null);
-    return { lastSlicedSha: body.summary?.lastSliced?.sha ?? null, oldestAt };
+/** GET /v1/story-captures' summary as the decision reads it; the set's age (setAge) is the rotation's age. */
+export function storeSummary(body: StoryCaptures, now: number): StoreSummary {
+    return { lastSlicedSha: body.summary?.lastSliced?.sha ?? null, oldestAt: setAge(body, now).oldestAt };
 }
 
 /** The results store (tools/results-service) the dispatcher reads: its URL and a local token, in SSM. */
@@ -240,7 +248,7 @@ export function sliceDeps(
                       signal: AbortSignal.timeout(15_000),
                   });
                   if (!res.ok) throw new Error(`results store: HTTP ${res.status}`);
-                  return storeSummary((await res.json()) as Parameters<typeof storeSummary>[0]);
+                  return (await res.json()) as StoryCaptures;
               }
             : undefined;
     const gh = app && cfg.dispatch ? new GitHub(() => installationToken(app, f, Date.now()), f) : undefined;

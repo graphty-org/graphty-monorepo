@@ -619,6 +619,138 @@
             "value": {
                 "n": 0
             }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 6,
+                    "unit": "h"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 12,
+                    "unit": "h"
+                }
+            },
+            "link": "/ci",
+            "id": "ci.screenshot_set_age",
+            "value": {
+                "n": 2.4,
+                "unit": "h"
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 100,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 125,
+                    "unit": "pct"
+                }
+            },
+            "link": "/ci",
+            "id": "ci.slice_base_budget",
+            "value": {
+                "n": 41,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 100,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 125,
+                    "unit": "pct"
+                }
+            },
+            "link": "/ci",
+            "id": "ci.slice_idle_budget",
+            "value": {
+                "n": 63,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 100,
+                    "unit": "pct"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 125,
+                    "unit": "pct"
+                }
+            },
+            "link": "/ci",
+            "id": "ci.slice_idle_hour_budget",
+            "value": {
+                "n": 24,
+                "unit": "pct"
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 35,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 105,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.slice_contended",
+            "value": {
+                "n": 5,
+                "unit": "min"
+            }
+        },
+        {
+            "state": "slow",
+            "window": "7d",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 35,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 105,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.slice_queue_wait",
+            "value": {
+                "n": 0,
+                "unit": "min"
+            }
         }
     ],
     "sections": [

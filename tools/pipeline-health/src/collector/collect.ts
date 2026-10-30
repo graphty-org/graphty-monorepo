@@ -45,6 +45,7 @@ import {
     releaseAttempt,
     releaseTags,
     runnerFlags,
+    screenshotReview,
     runnerUse,
     type StressCursorRun,
     STRESS_WEEKS,
@@ -67,6 +68,7 @@ import {
     type GhJob,
     type GhRun,
     releaseMode,
+    type GqlHoldIssue,
     type GqlIssue,
     type GqlPr,
     type PrRun,
@@ -709,7 +711,7 @@ async function repoFiles(c: Cycle, gh: GitHub) {
     await c.setJson("codeowners", codeownerPatterns(data.repository.codeowners?.text ?? ""));
 }
 
-/** Issues updated since the cursor, and the open "Release held" issues (their age is a hold's age). */
+/** Issues updated since the cursor, the open "Release held" issues (their age is a hold's age), the nightly hold. */
 async function issues(c: Cycle, gh: GitHub): Promise<number> {
     const [owner, name] = c.d.repo.split("/");
     const since = Date.parse((await c.cursor("issues")) ?? iso(c.now - DAY));
@@ -717,19 +719,26 @@ async function issues(c: Cycle, gh: GitHub): Promise<number> {
     let heldSince = 0;
     for (let page = 0; page < 20; page++) {
         type Page = { nodes: GqlIssue[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
-        const data: { repository: { recent: Page }; held: { nodes: (GqlIssue | null)[] } } = await gh.graphql(
-            ISSUE_QUERY,
-            {
-                owner,
-                name,
-                cursor,
-                held: `repo:${c.d.repo} is:issue is:open in:title "Release held"`,
-            },
-        );
-        if (page === 0)
+        const data: {
+            repository: { recent: Page };
+            held: { nodes: (GqlIssue | null)[] };
+            nightly?: { nodes: (GqlHoldIssue | null)[] };
+        } = await gh.graphql(ISSUE_QUERY, {
+            owner,
+            name,
+            cursor,
+            held: `repo:${c.d.repo} is:issue is:open in:title "Release held"`,
+            nightly: `repo:${c.d.repo} is:issue is:open in:title "Nightly held on"`,
+        });
+        if (page === 0) {
             for (const i of data.held.nodes)
                 if (i?.title.startsWith("Release held") && i.state === "OPEN")
                     heldSince = Math.min(heldSince || Infinity, Date.parse(i.createdAt));
+            // The held nightly waiting only on the owner's screenshot review (section 13's reminder).
+            const review = screenshotReview(data.nightly?.nodes ?? []);
+            c.o("release.review_wait_ms", review ? c.now - review.since : 0);
+            c.o("release.review_issue", review?.issue ?? 0);
+        }
         const recent = data.repository.recent;
         const newer = recent.nodes.filter((i) => Date.parse(i.updatedAt) >= since - 5 * MIN);
         for (const i of newer) c.items.push(toIssueItem(i, c.d.repo));

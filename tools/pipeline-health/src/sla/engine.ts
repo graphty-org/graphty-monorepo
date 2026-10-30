@@ -279,8 +279,11 @@ function slowValue(ctx: Ctx, c: MemberConfig, end: number): Computed {
 /** An error only the owner can fix: an expired, rejected or missing credential. */
 const CREDENTIAL =
     /\b40[13]\b|AccessDenied|ExpiredToken|Unauthorized|bad credentials|ParameterNotFound|InvalidClientTokenId|UnrecognizedClient|security token/i;
-/** Sources the collector writes: a credential it lacks is data.collector's to report, not each source's. */
-const COLLECTOR_WRITES = new Set(["collector", "release", "npm", "stress", "hosts", "deploy"]);
+/**
+ * Sources that page no credential error of their own: those the collector reads through its GitHub App
+ * (data.collector reports that credential), and Coveralls, which is public (a 401 or 403 there is not a key to renew).
+ */
+const COLLECTOR_WRITES = new Set(["collector", "release", "npm", "stress", "hosts", "deploy", "coverage"]);
 /** A credential error this old turns data.sources_age red, even while the source's last good values hold. */
 const CREDENTIAL_RED_MS = HOUR;
 
@@ -419,7 +422,7 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
         if (v !== undefined && p.end === ctx.now) {
             out.facts = { ...out.facts, [a.metric]: v };
         }
-        if (v !== undefined && hit(v, a.fail)) {
+        if (v !== undefined && a.fail && hit(v, a.fail)) {
             out.failExtra = true;
         }
     }

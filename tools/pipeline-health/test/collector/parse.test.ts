@@ -42,6 +42,7 @@ import {
     workflowState,
     type GhJob,
     type GhRun,
+    screenshotReview,
     type GqlIssue,
     type GqlPr,
     type Rates,
@@ -310,6 +311,28 @@ describe("runner use: waiting is not queued", () => {
         );
         expect(use.queuedOver2).toBe(0);
         expect(runnerFlags(use, 60)).toEqual({ saturated: false, unassigned: false });
+    });
+
+    it("macOS jobs queued behind their own limit while Linux jobs run are not an outage", () => {
+        const base = jobs("jobs-pr-40238975833.json")[0];
+        const old = new Date(NOW - 90 * MIN).toISOString();
+        const linux = Array.from({ length: 10 }, () => ({ ...base, status: "in_progress", labels: ["ubuntu-24.04"] }));
+        const mac = Array.from({ length: 3 }, () => ({
+            ...base,
+            status: "queued",
+            labels: ["macos-26"],
+            created_at: old,
+        }));
+        const use = runnerUse([...linux, ...mac], [], NOW);
+        expect(use.queuedOver2).toBe(0);
+        expect(runnerFlags(use, 60).unassigned).toBe(false);
+    });
+
+    it("a run queued with no jobs yet for over 2 minutes counts as waiting (an Actions outage)", () => {
+        const run = { created_at: new Date(NOW - 30 * MIN).toISOString(), status: "queued" } as GhRun;
+        const use = runnerUse([], [run, { ...run, status: "pending" }], NOW);
+        expect(use.queuedOver2).toBe(1);
+        expect(runnerFlags(use, 60).unassigned).toBe(true);
     });
 });
 
@@ -844,5 +867,43 @@ describe("stress run: found nothing three weeks running", () => {
         ).toBe(false);
         // A failure found four weeks ago is outside the rule.
         expect(stressQuiet([...runs, { at: at("2026-10-04T08:00:00Z"), foundFailures: true }], now)).toBe(true);
+    });
+});
+
+describe("the nightly hold waiting on the owner's screenshot review", () => {
+    const hold = (body: string, comments: string[] = []) => ({
+        number: 4700,
+        title: "Nightly held on 0123456789ab",
+        state: "OPEN",
+        createdAt: new Date(NOW - 30 * 60 * MIN).toISOString(),
+        body,
+        comments: {
+            nodes: comments.map((c, i) => ({ body: c, createdAt: new Date(NOW - (20 - i) * 60 * MIN).toISOString() })),
+        },
+    });
+
+    it("a green-images hold waits on the owner, from its first green-images verdict", () => {
+        expect(screenshotReview([hold("Nightly is held on x: its full run ended green-images (12 changed)")])).toEqual({
+            since: NOW - 30 * 60 * MIN,
+            issue: 4700,
+        });
+        const retested = hold("its full run ended red (ci)", [
+            "The full run on the held head y ended green-images (3 changed): url",
+            "The full run on the held head z ended green-images (3 changed): url",
+        ]);
+        expect(screenshotReview([retested])).toEqual({ since: NOW - 20 * 60 * MIN, issue: 4700 });
+    });
+
+    it("a red hold, a hold since re-tested red, and a publish hold do not wait on the owner", () => {
+        expect(screenshotReview([hold("its full run ended red (ci)")])).toBeUndefined();
+        expect(
+            screenshotReview([
+                hold("ended green-images (2 changed)", ["The full run on the held head y ended red (t4)"]),
+            ]),
+        ).toBeUndefined();
+        expect(
+            screenshotReview([{ ...hold("ended green-images"), title: "Release held: publish failed on 7a2ca69" }]),
+        ).toBeUndefined();
+        expect(screenshotReview([])).toBeUndefined();
     });
 });

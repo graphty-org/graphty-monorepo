@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { duration, openMessage, REALERT_MS, resolvedMessage, SECRETS, sendAlerts } from "../src/alerts/index.js";
+import {
+    causeWords,
+    daytime,
+    duration,
+    openMessage,
+    REALERT_MS,
+    resolvedMessage,
+    SECRETS,
+    sendAlerts,
+} from "../src/alerts/index.js";
 import { MemoryStore } from "../src/model/store.js";
 import { type AlertConfig, type MemberConfig, type SlaConfig, SLAS } from "../src/sla/config.js";
 import type { Episode, Evaluation, MemberStatus } from "../src/sla/engine.js";
@@ -120,7 +129,6 @@ describe("sendAlerts", () => {
             [
                 "ci.runners_not_assigned",
                 "cost.aws",
-                "cost.cloudflare_usage",
                 "cost.llm",
                 "cost.spend",
                 "cost.t4",
@@ -135,7 +143,7 @@ describe("sendAlerts", () => {
 
     it("never pages a member whose source is not set up", async () => {
         const p = pushover();
-        const m = { ...member("cost.cloudflare_usage", "costs", "NOT SET UP"), value: undefined };
+        const m = { ...member("cost.t4", "costs", "NOT SET UP"), value: undefined };
         const r = await run(new MemoryStore(), evaluation(m), T0 + 30 * DAY, p.fetch, SLAS);
         expect(r.sent).toEqual([]);
     });
@@ -304,26 +312,25 @@ describe("the policy's conditions", () => {
         facts: { month_to_date: mtd },
     });
 
-    it("due cost members go out as one Costs message, after 6 h, never before day 7 unless already spent", async () => {
+    it("due cost members go out as one quiet Costs message, after 6 h, never before day 7 unless already spent", async () => {
         const store = new MemoryStore();
         const p = pushover();
-        const early = Date.UTC(2026, 10, 3, 12);
+        const early = Date.UTC(2026, 10, 3, 20); // noon Pacific
         const ev = evaluation([cost("cost.t4", 232, 40), cost("cost.llm", 87.55, 12)]);
         await run(store, ev, early, p.fetch, SLAS);
         await run(store, ev, early + 7 * HOUR, p.fetch, SLAS);
         expect(p.calls).toHaveLength(0);
-        const late = Date.UTC(2026, 10, 7, 12);
+        const late = Date.UTC(2026, 10, 7, 20);
         await run(store, ev, late, p.fetch, SLAS);
         const r = await run(store, ev, late + 6 * HOUR, p.fetch, SLAS);
         expect(r.sent.map((s) => s.member).sort()).toEqual(["cost.llm", "cost.t4"]);
         expect(p.calls).toHaveLength(1);
         const body = Object.fromEntries(p.calls[0]);
-        expect(body.title).toBe("Over budget: T4 GPU $232, LLM regression $87.55");
-        expect(body.priority).toBe("0");
-        expect(body.message).toContain(
-            "T4 GPU test lane: $232 projected for this month (budget $180, red above $200), over budget for",
-        );
-        expect(body.message).toContain("What to do:\n- ");
+        expect(body.title).toBe("Over budget: T4 GPU $232, LLM regression $88");
+        expect(body.priority).toBe("-1");
+        expect(body.message).toContain("T4 GPU test lane: $232 projected this month vs $180 budget (+$52).\n");
+        expect(body.message).toContain("- T4 GPU: Decide: raise the T4 budget to $240, or run fewer full runs a day");
+        expect(body.message).not.toMatch(/red above|over budget for|what else to cut/);
         // Floor: a week.
         await run(
             store,
@@ -333,6 +340,18 @@ describe("the policy's conditions", () => {
             SLAS,
         );
         expect(p.calls).toHaveLength(1);
+    });
+
+    it("a cost page due at night waits for the morning", async () => {
+        const p = pushover();
+        const store = new MemoryStore();
+        const night = Date.UTC(2026, 10, 10, 8); // midnight Pacific
+        const ev = evaluation(cost("cost.t4", 232, 150));
+        await run(store, ev, night, p.fetch, SLAS);
+        await run(store, ev, night + 7 * HOUR, p.fetch, SLAS);
+        expect(p.calls).toHaveLength(0);
+        expect((await run(store, ev, night + 9 * HOUR, p.fetch, SLAS)).sent).toHaveLength(1);
+        expect([night, night + 9 * HOUR].map(daytime)).toEqual([false, true]);
     });
 
     it("a projection early in the month pages when month-to-date spend is already past red", async () => {
@@ -348,8 +367,9 @@ describe("the policy's conditions", () => {
         const p = pushover();
         const store = new MemoryStore();
         const ev = evaluation({ ...cost("cost.aws", 8.4, 8.4), state: "WARNING" });
-        await run(store, ev, T0, p.fetch, SLAS);
-        expect((await run(store, ev, T0 + HOUR, p.fetch, SLAS)).sent).toHaveLength(1);
+        const day = T0 + 8 * HOUR; // 13:00 Pacific
+        await run(store, ev, day, p.fetch, SLAS);
+        expect((await run(store, ev, day + HOUR, p.fetch, SLAS)).sent).toHaveLength(1);
         expect(p.calls[0].get("title")).toBe("AWS hosting at $8.40 this month, lockout at $10");
     });
 
@@ -375,20 +395,39 @@ describe("the policy's conditions", () => {
         });
     });
 
-    it("the screenshot reminder pages only with no red lane and the hold open a day", async () => {
-        const lanes = (n: number, holdMs: number): MemberStatus => ({
+    it("the screenshot reminder pages for a green-images nightly hold a day old, with its issue", async () => {
+        const held = (waitMs: number, holdOpenMs = 0): MemberStatus => ({
             ...member("release.lanes_red", "releases"),
-            value: n,
-            facts: { "release.hold_open_ms": holdMs },
+            value: 0,
+            facts: {
+                "release.review_wait_ms": waitMs,
+                "release.review_issue": 4700,
+                "release.hold_open_ms": holdOpenMs,
+            },
         });
         const p = pushover();
         const store = new MemoryStore();
-        await run(store, evaluation(lanes(2, 30 * HOUR)), T0, p.fetch, SLAS);
-        await run(store, evaluation(lanes(0, 20 * HOUR)), T0 + 5 * MIN, p.fetch, SLAS);
+        await run(store, evaluation(held(20 * HOUR)), T0, p.fetch, SLAS);
         expect(p.calls).toHaveLength(0);
-        await run(store, evaluation(lanes(0, 25 * HOUR)), T0 + 10 * MIN, p.fetch, SLAS);
+        await run(store, evaluation(held(25 * HOUR)), T0 + 10 * MIN, p.fetch, SLAS);
         expect(p.calls.map((c) => c.get("title"))).toEqual(["Nightly waiting on your screenshot review"]);
-        expect(p.calls[0].get("message")).toContain("held for 25 h");
+        expect(p.calls[0].get("message")).toContain("waited 25 h for your review");
+        expect(p.calls[0].get("message")).toContain(
+            "Hold issue: https://github.com/graphty-org/graphty-monorepo/issues/4700",
+        );
+    });
+
+    it("a publish hold or a red hold open a day never sends the screenshot reminder", async () => {
+        const p = pushover();
+        const m: MemberStatus = {
+            ...member("release.lanes_red", "releases"),
+            value: 2,
+            facts: { "release.review_wait_ms": 0, "release.review_issue": 0, "release.hold_open_ms": 30 * HOUR },
+        };
+        const store = new MemoryStore();
+        await run(store, evaluation(m), T0, p.fetch, SLAS);
+        await run(store, evaluation({ ...m, value: 0 }), T0 + 2 * DAY, p.fetch, SLAS);
+        expect(p.calls).toHaveLength(0);
     });
 
     it("data sources page only for a credential error an hour old, quoting it", async () => {
@@ -404,8 +443,35 @@ describe("the policy's conditions", () => {
         await run(store, evaluation(src({ credential_error_ms: 30 * MIN })), T0 + 5 * MIN, p.fetch, SLAS);
         expect(p.calls).toHaveLength(0);
         await run(store, evaluation(src({ credential_error_ms: 65 * MIN })), T0 + 40 * MIN, p.fetch, SLAS);
-        expect(p.calls[0].get("title")).toBe("Dashboard feed lost its credential: Billing");
+        expect(p.calls[0].get("title")).toBe("Billing feed: AWS refused the cost read");
         expect(p.calls[0].get("message")).toContain("failed for 1 h 5 min with a credential error: 'ExpiredToken'");
+        expect(p.calls[0].get("message")).toContain("Cost alerts are off too.");
+        // Fixed: the resolved names the feed, though the OK member no longer carries the cause.
+        const ok = { ...src(), state: "OK" as const, value: 0, cause: undefined };
+        await run(store, { ...evaluation(ok), episodes: [] }, T0 + 50 * MIN, p.fetch, SLAS);
+        await run(store, { ...evaluation(ok), episodes: [] }, T0 + 65 * MIN, p.fetch, SLAS);
+        expect(p.calls[1].get("title")).toBe("Billing feed is reading again");
+    });
+
+    it("the collector's resolved says how long it was blind, from the run that saw it longest", async () => {
+        const p = pushover();
+        const store = new MemoryStore();
+        const blind = (now: number, value: number): Evaluation => ({
+            ...evaluation({ ...member("data.collector", "data_sources"), value, fail: [">", 20 * MIN] }),
+            // A member the engine measures without history: its episode restarts at every red step, with no peak.
+            episodes: [{ member: "data.collector", category: "data_sources", worst: "FAILING", start: now }],
+        });
+        for (let t = 0; t <= 100 * MIN; t += 10 * MIN) {
+            await run(store, blind(T0 + t, 20 * MIN + t), T0 + t, p.fetch, SLAS);
+        }
+        const ok = { ...evaluation({ ...member("data.collector", "data_sources", "OK"), value: MIN }), episodes: [] };
+        await run(store, ok, T0 + 110 * MIN, p.fetch, SLAS);
+        await run(store, ok, T0 + 125 * MIN, p.fetch, SLAS);
+        expect(p.calls.map((c) => c.get("title"))).toEqual([
+            "Dashboard blind for 30 min: collector failing",
+            "Health dashboard is reading GitHub again",
+        ]);
+        expect(p.calls[1].get("message")).toBe("It was blind for up to 2 h.\nNothing to do.");
     });
 });
 
@@ -414,12 +480,11 @@ describe("messages", () => {
         "master.red_now": { value: 3 * HOUR + 20 * MIN },
         "master.untested_age": { value: 25 * HOUR },
         "ci.runners_not_assigned": { value: 75 * MIN },
-        "release.lanes_red": { value: 0, facts: { "release.hold_open_ms": 26 * HOUR } },
+        "release.lanes_red": { value: 0, facts: { "release.review_wait_ms": 26 * HOUR, "release.review_issue": 4700 } },
         "cost.spend": { value: 412.3, facts: { month_to_date: 280 } },
         "cost.t4": { value: 232.1, facts: { month_to_date: 150 } },
         "cost.llm": { value: 87.55, facts: { month_to_date: 70 } },
         "cost.aws": { value: 8.4, state: "WARNING" },
-        "cost.cloudflare_usage": { value: 0.93 },
         "data.sources_age": {
             value: 1,
             facts: { credential_error_ms: 70 * MIN },
@@ -458,10 +523,36 @@ describe("messages", () => {
             }
             expect(open.message).toMatch(/\nWhat to do: \S/);
             expect(open.message).toMatch(/\d+ (min|h|d)\b|\$\d|\d+%/);
-            expect(open.priority).toBe(c.alert!.priority === 1 ? "1" : "0");
+            expect(open.priority).toBe(String(c.alert!.priority));
             expect(done.priority).toBe("-1");
         });
     }
+
+    it("every alert text uses only placeholders fill() knows, and the thresholds they read exist", () => {
+        const known = /^(value|limit|target|over|suggest|peak|for|error|since|feed|problem|fix|off|(ms|issue):[\w.]+)$/;
+        for (const c of SLAS.members.filter((x) => x.alert)) {
+            const a = c.alert!;
+            const texts = [a.title, a.text, a.action, a.resolved?.title ?? "", a.resolved?.text ?? ""].join(" ");
+            for (const [, k] of texts.matchAll(/\{([^}]+)\}/g)) {
+                expect(k, `${c.id}: {${k}}`).toMatch(known);
+            }
+            if (/\{limit\}/.test(texts)) expect(c.fail, `${c.id} uses {limit}`).toBeDefined();
+            if (/\{(target|over)\}/.test(texts)) expect(c.ok, `${c.id} uses {target}`).toBeDefined();
+        }
+    });
+
+    it("names the collector's one step from its error", () => {
+        const words = (error: string) =>
+            causeWords({
+                ...member("data.collector", "data_sources"),
+                cause: { code: "error", params: { source: "collector", error } },
+            });
+        expect(words("GitHub App token: HTTP 401 Bad credentials").fix).toContain(
+            "/graphty-health/github-app/private-key",
+        );
+        expect(words("GitHub: HTTP 502").problem).toBe("GitHub API failing");
+        expect(words("TypeError: x is undefined").fix).toContain("CloudWatch");
+    });
 
     it("writes durations as a person says them", () => {
         expect([20_000, 45 * MIN, 3 * HOUR + 6 * MIN, 25 * HOUR, 3 * DAY + 4 * HOUR].map(duration)).toEqual([

@@ -372,10 +372,11 @@ describe("credential errors (alerts, section 13)", () => {
         });
     });
 
-    it("an ordinary error, or a credential error the collector reports, gives no credential fact", async () => {
+    it("an ordinary error, a credential error the collector reports, or a public feed's 403 gives no credential fact", async () => {
         const store = await world([]);
         await recordSource(store, "billing", T0 - 70 * MIN, { ok: false, error: "Cost Explorer: HTTP 500" });
         await recordSource(store, "npm", T0 - 70 * MIN, { ok: false, error: "HTTP 401" });
+        await recordSource(store, "coverage", T0 - 70 * MIN, { ok: false, error: "coveralls: HTTP 403" }); // public
         const m = await member(store, "data.sources_age");
         expect(m.facts?.credential_error_ms).toBeUndefined();
         expect(m.cause).toBeUndefined();

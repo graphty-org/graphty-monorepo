@@ -36,7 +36,8 @@ export interface MemberConfig {
     /** Red: FAILING while this holds. */
     fail?: Threshold;
     /** More red conditions, each on the newest value of another stock ("or 2 builds"). */
-    also?: { metric: string; fail: Threshold }[];
+    /** More metrics read with the measure: each past its fail turns the member red; one without fail is only a fact. */
+    also?: { metric: string; fail?: Threshold }[];
     /** Fewest events the window must hold before the member is judged. */
     minN?: number;
     slowWindow?: "7d" | "28d";
@@ -48,14 +49,18 @@ export interface MemberConfig {
 
 /**
  * When and how a member pages. Only critical outages and what only the owner can do page; agents handle the rest.
- * Texts take {value}, {limit} (red threshold), {target}, {for} (how long), {peak}, {source}, {error}, {since} (how
- * long the cause has lasted) and {ms:<fact>} (a fact as a duration), all in human units.
+ * Texts take {value}, {limit} (red threshold), {target} (the budget or normal value), {over} (value minus target),
+ * {suggest} (the value rounded up to the next $10), {for} (how long), {peak}, {error}, {since} (how long the cause
+ * has lasted), {feed}, {problem}, {fix} and {off} (what the cause means, alerts/index.ts causeWords), {ms:<fact>} (a
+ * fact as a duration) and {issue:<fact>} (a fact as an issue URL), all in human units.
  */
 export interface AlertConfig {
     /** Pages once its condition has held this long without a break. */
     afterMs: number;
-    /** Pushover priority: 1 for a critical outage (bypasses quiet hours), 0 for an owner action. */
-    priority: 0 | 1;
+    /** Pushover priority: 1 for a critical outage (bypasses quiet hours), 0 for an owner action, -1 silent. */
+    priority: -1 | 0 | 1;
+    /** Sent only between 9:00 and 21:00 Pacific; a page due at night waits for the morning. */
+    daytime?: boolean;
     /** At most one page per this span, even across episodes (6 h when absent). */
     floorMs?: number;
     /** The condition is the value past this, instead of the member being FAILING (the member must still be bad). */

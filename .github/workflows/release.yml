@@ -384,6 +384,15 @@ jobs:
                   ref: ${{ github.sha }}
                   fetch-depth: 0
 
+            # The health dashboard's dead-man switch from outside AWS: a paused AWS project silences the collector,
+            # its Pushover alerts and the SNS email together (design/ci/health-dashboard.md section 13).
+            - name: Check the pipeline health dashboard is alive
+              continue-on-error: true
+              env:
+                  PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+                  PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
+              run: tools/health-dead-man.sh
+
             - name: Skip while the previous release is pending
               id: pending
               env:

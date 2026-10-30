@@ -11,11 +11,12 @@
 import { DAY, HOUR, MIN } from "../model/items.js";
 import type { Item, Key, Store } from "../model/store.js";
 import { type AlertConfig, type MemberConfig, type SlaConfig, SLAS } from "../sla/config.js";
-import { type Episode, type Evaluation, hit, type MemberStatus } from "../sla/engine.js";
+import { type Episode, type Evaluation, hit, type MemberStatus, type Reason } from "../sla/engine.js";
 import { SPEC } from "../views/members.js";
 
 export const PUSHOVER_URL = "https://api.pushover.net/1/messages.json";
 export const PAGE_URL = "https://health.graphty.app/#/";
+const REPO_URL = "https://github.com/graphty-org/graphty-monorepo";
 export const SECRETS = { token: "/graphty-health/pushover/app-token", user: "/graphty-health/pushover/user-key" };
 /** At most one page per member in this span unless its alert sets floorMs. */
 export const REALERT_MS = 6 * HOUR;
@@ -148,18 +149,41 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
     }
     if (!live) {
         // A new episode; of two overlapping runs only one resets the mark. lastOpenAt is kept for the floor.
-        const fresh = { start: e.start, endedAt: 0, open: 0, clear: 0, redSince: 0, okSince: 0, ttl: ttl(ctx) };
+        const fresh = {
+            start: e.start,
+            endedAt: 0,
+            open: 0,
+            clear: 0,
+            redSince: 0,
+            okSince: 0,
+            peak: 0,
+            cause: null,
+            ttl: ttl(ctx),
+        };
         mark =
             (await ctx.store.update(key, { set: fresh }, { field: "endedAt", op: ">", value: 0, orNotExists: true })) ??
             (await ctx.store.get(key));
     } else if (mark?.okSince) {
         await ctx.store.update(key, { set: { okSince: 0, ttl: ttl(ctx) } }); // a relapse before "resolved" was due
     }
-    if (!mark || mark.open === SENT) {
+    if (!mark) {
+        return undefined;
+    }
+    // The mark keeps the episode's peak and cause: a member the engine measures without history (the collector, the
+    // sources) has neither left once it is OK, and the "resolved" must still say how long and which feed.
+    const peak = Math.max(Number(mark.peak ?? 0), m.value ?? 0);
+    const cause = m.cause && JSON.stringify(m.cause) !== JSON.stringify(mark.cause) ? { cause: m.cause } : {};
+    if (peak > Number(mark.peak ?? 0) || cause.cause) {
+        await ctx.store.update(key, { set: { peak, ...cause, ttl: ttl(ctx) } });
+    }
+    if (mark.open === SENT) {
         return undefined;
     }
     if (!(await due(ctx, key, m, c.alert, mark.redSince as number | undefined))) {
         return undefined;
+    }
+    if (c.alert.daytime && !daytime(ctx.now)) {
+        return undefined; // a cost page waits for the morning; the next daytime run sends it
     }
     // Inside the floor the page waits; a later run sends it once the floor has passed, if the episode is still on.
     if (ctx.now - ((mark.lastOpenAt as number | undefined) ?? 0) < (c.alert.floorMs ?? REALERT_MS)) {
@@ -190,7 +214,15 @@ async function end(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging): 
             worst: "FAILING",
             start: mark.start as number,
         };
-        const d: Due = { key, e, m, c, start: Math.min(e.start, (mark.start as number | undefined) ?? e.start) };
+        const peak = Math.max(e.peak ?? 0, Number(mark.peak ?? 0));
+        const cause = m.cause ?? (mark.cause as Reason | null | undefined) ?? undefined;
+        const d: Due = {
+            key,
+            e: { ...e, ...(peak > 0 ? { peak } : {}) },
+            m: { ...m, ...(cause ? { cause } : {}) },
+            c,
+            start: Math.min(e.start, (mark.start as number | undefined) ?? e.start),
+        };
         const until = okSince || ctx.now;
         if (!(await once(ctx, key, "clear", [d], resolvedMessage(ctx, d, until)))) {
             return; // not sent: the episode stays open and the next run retries
@@ -256,6 +288,17 @@ async function deliver(ctx: Ctx, kind: "open" | "clear", ds: Due[], msg: Message
 
 const ttl = (ctx: Pick<Ctx, "now">) => Math.floor(ctx.now / 1000 + TTL_S);
 
+const PT_HOUR = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "numeric",
+    hourCycle: "h23",
+});
+/** 9:00 to 21:00 in the owner's time zone. */
+export const daytime = (t: number) => {
+    const h = Number(PT_HOUR.format(t));
+    return h >= 9 && h < 21;
+};
+
 // ---------------------------------------------------------------------------------------------------------------
 // The words. Values come in the engine's units (ms, fractions, dollars); the views' SPEC says what each member's
 // unit is, so a page shows the same number the dashboard does, in hours and minutes rather than milliseconds.
@@ -303,7 +346,7 @@ export function human(id: string, v: number | undefined): string {
     const n = v * (spec?.k ?? 1);
     switch (spec?.unit) {
         case "usd":
-            return `$${n >= 100 || Number.isInteger(n) ? Math.round(n) : n.toFixed(2)}`;
+            return `$${n >= 10 || Number.isInteger(n) ? Math.round(n) : n.toFixed(2)}`;
         case "pct":
             return `${Math.round(n)}%`;
         case undefined:
@@ -313,6 +356,81 @@ export function human(id: string, v: number | undefined): string {
     }
 }
 
+/** What a cause means and the one step that fixes it: {feed}, {problem}, {fix} and {off}. */
+interface CauseWords {
+    feed: string;
+    problem: string;
+    fix: string;
+    off: string;
+}
+
+const SSM = (name: string) => `SSM parameter ${name} (an agent can store it for you)`;
+/** A source's credential: what refused, and how to make a new one. */
+const CREDENTIALS: Record<string, Omit<CauseWords, "off"> & { off?: string }> = {
+    billing: {
+        feed: "Billing feed",
+        problem: "AWS refused the cost read",
+        fix: "Ask an agent to check the collector role's Cost Explorer permission (tools/pipeline-health/infra/health-stack.ts). If the dashboard's AWS spend reached $10, the graphty-health Budget has locked it instead: decide whether to raise that budget (https://console.aws.amazon.com/billing/home#/budgets).",
+        off: "Cost alerts are off too.",
+    },
+    "story-slices": {
+        feed: "Screenshot captures feed",
+        problem: "results store token rejected",
+        fix: `Make a new local token for the results store and put it in ${SSM("/graphty-health/results/token")}.`,
+    },
+    "cloudflare-token": {
+        feed: "Cloudflare feed",
+        problem: "Cloudflare token rejected",
+        fix: `Make a new read-only token (Account Analytics: Read, Billing: Read) at https://dash.cloudflare.com/profile/api-tokens and put it in ${SSM("/graphty-health/cloudflare/token")}.`,
+    },
+    "sentry-token": {
+        feed: "Sentry feed",
+        problem: "Sentry token rejected",
+        fix: `Make a new token with org:read at https://sentry.io/settings/account/api/auth-tokens/ and put it in ${SSM("/graphty-health/sentry/token")}.`,
+    },
+};
+
+/**
+ * The cause of a source or collector page in words, from its source and error.
+ * @param m - the member
+ */
+export function causeWords(m: MemberStatus): CauseWords {
+    const p = m.cause?.params ?? {};
+    const error = String(p.error ?? "");
+    if (m.id === "data.collector") {
+        if (/\b401\b|bad credentials|private key|installation|jwt/i.test(error)) {
+            return {
+                feed: "Collector",
+                problem: "GitHub App key refused",
+                fix: `Make a new private key for the graphty-pipeline-health App at https://github.com/organizations/graphty-org/settings/apps/graphty-pipeline-health and put it in ${SSM("/graphty-health/github-app/private-key")}. If the App was uninstalled, reinstall it there.`,
+                off: "",
+            };
+        }
+        if (/\b5\d\d\b|rate limit|timed? ?out|ECONN|fetch failed|socket/i.test(error)) {
+            return {
+                feed: "Collector",
+                problem: "GitHub API failing",
+                fix: "Nothing, unless it lasts: check https://www.githubstatus.com/. It recovers by itself when GitHub does.",
+                off: "",
+            };
+        }
+        return {
+            feed: "Collector",
+            problem: "collector failing",
+            fix: "Ask a Claude session to read the collector's logs and fix it (CloudWatch, us-east-2: https://us-east-2.console.aws.amazon.com/cloudwatch/home?region=us-east-2#logsV2:log-groups$3FlogGroupNameFilter$3DCollector).",
+            off: "",
+        };
+    }
+    const known = CREDENTIALS[String(p.source ?? "")];
+    const label = String(p.label ?? p.source ?? "A dashboard feed");
+    return {
+        feed: known?.feed ?? `${label} feed`,
+        problem: known?.problem ?? "its credential was refused",
+        fix: known?.fix ?? `Renew the credential the ${label} feed uses; the error above names it.`,
+        off: known?.off ?? "",
+    };
+}
+
 function fill(template: string, d: Due, now: number): string {
     const { m, e, start } = d;
     const p = m.cause?.params ?? {};
@@ -320,15 +438,23 @@ function fill(template: string, d: Due, now: number): string {
         value: human(m.id, m.value),
         limit: human(m.id, m.fail?.[1]),
         target: human(m.id, m.ok?.[1]),
+        over: human(m.id, m.value === undefined || m.ok === undefined ? undefined : m.value - m.ok[1]),
+        suggest: human(m.id, m.value === undefined ? undefined : Math.ceil(m.value / 10) * 10),
         peak: human(m.id, e.peak ?? m.value),
         for: duration(now - start),
-        source: String(p.label ?? p.source ?? "a"),
         error: String(p.error ?? "none recorded"),
         since: duration(m.facts?.credential_error_ms ?? now - start),
+        ...(template.match(/\{(feed|problem|fix|off)\}/) ? causeWords(m) : {}),
     };
     return template
         .replace(/\{ms:([\w.]+)\}/g, (_, k: string) => duration(m.facts?.[k] ?? 0))
-        .replace(/\{(\w+)\}/g, (all, k: string) => vars[k] ?? all);
+        .replace(/\{issue:([\w.]+)\}/g, (_, k: string) =>
+            m.facts?.[k]
+                ? `${REPO_URL}/issues/${m.facts[k]}`
+                : `${REPO_URL}/issues?q=is%3Aissue+is%3Aopen+%22Nightly+held%22`,
+        )
+        .replace(/\{(\w+)\}/g, (all, k: string) => vars[k] ?? all)
+        .replace(/ +$/gm, "");
 }
 
 function link(ctx: Pick<Ctx, "evaluation">, category: string) {

@@ -293,7 +293,7 @@ export function masterState(runs: RunItem[]): MasterState {
 export interface RunnerUse {
     running: Record<JobItem["pool"], number>;
     queued: number;
-    /** Jobs waiting for a runner (status "queued") over 2 minutes. */
+    /** Linux and Windows jobs waiting for a runner (status "queued") over 2 minutes, and runs queued with no jobs. */
     queuedOver2: number;
     longestQueuedMs: number;
 }
@@ -316,12 +316,17 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
             use.queued++;
             // Only "queued" waits for a runner: "waiting" is an environment approval and "pending" a concurrency
             // group, so neither says GitHub is short of runners (the owner's own Promote run read as an outage).
-            if (age > 2 * MIN && j.status === "queued") use.queuedOver2++;
+            // macOS jobs queue behind their own 5-job limit while Linux runners sit free: that is no outage.
+            if (age > 2 * MIN && j.status === "queued" && p === "linux_windows") use.queuedOver2++;
             use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
         }
     }
-    for (const r of runsWithoutJobs)
-        use.longestQueuedMs = Math.max(use.longestQueuedMs, nowMs - Date.parse(r.created_at));
+    for (const r of runsWithoutJobs) {
+        const age = nowMs - Date.parse(r.created_at);
+        use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+        // In an Actions outage runs sit queued before GitHub creates their jobs: each counts as one job waiting.
+        if (age > 2 * MIN && r.status === "queued") use.queuedOver2++;
+    }
     return use;
 }
 
@@ -594,6 +599,38 @@ export interface GqlIssue {
     updatedAt: string;
     closedAt: string | null;
     labels: { nodes: { name: string }[] };
+}
+
+/** An open "Nightly held on <sha>" issue (ISSUE_QUERY's `nightly` search), with its body and last comments. */
+export interface GqlHoldIssue {
+    number: number;
+    title: string;
+    state: string;
+    createdAt: string;
+    body?: string;
+    comments?: { nodes: { body: string; createdAt: string }[] };
+}
+
+const HOLD_VERDICT = /\bended (green-images|green-clean|red|owner-item|approved|rejected)\b/;
+
+/**
+ * The held nightly candidate waiting only on the owner's screenshot review: its hold issue's newest verdict
+ * (tools/channel/hold.mjs writes "ended <state>" in the body, then in a comment per re-test) is green-images. A red
+ * or owner-item hold is the agents' to fix, and a publish hold ("Release held") is not a nightly hold at all.
+ * @param issues - the `nightly` search's nodes
+ * @returns since when it has waited and its issue, or undefined
+ */
+export function screenshotReview(issues: (GqlHoldIssue | null)[]): { since: number; issue: number } | undefined {
+    for (const i of issues) {
+        if (!i || i.state !== "OPEN" || !i.title.startsWith("Nightly held on")) continue;
+        const said = [{ body: i.body ?? "", createdAt: i.createdAt }, ...(i.comments?.nodes ?? [])]
+            .map((x) => ({ at: Date.parse(x.createdAt), state: HOLD_VERDICT.exec(x.body)?.[1] }))
+            .filter((x) => x.state);
+        let k = said.length;
+        while (k > 0 && said[k - 1].state === "green-images") k--; // re-tests that stay green-images keep the wait
+        if (k < said.length) return { since: said[k].at, issue: i.number };
+    }
+    return undefined;
 }
 
 export function toIssueItem(i: GqlIssue, repo: string): IssueItem {

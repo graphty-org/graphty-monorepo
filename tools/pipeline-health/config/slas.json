@@ -110,7 +110,7 @@
     },
     "runnerLimits": {
         "linux_windows": 60,
-        "macos": 50
+        "macos": 5
     },
     "prBudgetsMin": {
         "pr": 20,
@@ -141,8 +141,8 @@
                 "priority": 1,
                 "notWhileFailing": ["ci.runners_not_assigned"],
                 "title": "Master broken for {value}, no agent has fixed it",
-                "text": "Master's build has been failing for {value} with no green build. Agents normally fix or revert it within an hour, so the agent loop looks stuck. Canary deploys and the full test run are blocked.",
-                "action": "Merge the open revert pull request (https://github.com/graphty-org/graphty-monorepo/pulls?q=is%3Apr+is%3Aopen+revert). If none is open, restart the pipeline-round /loop session. Failing builds: https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml?query=branch%3Amaster",
+                "text": "Master's build has been failing for {value}. Agents normally fix or revert it within an hour, so no agent loop seems to be running. Canary deploys and the full test runs are blocked.",
+                "action": "Start a Claude session in graphty-monorepo and run /loop 30m /pipeline-round there; it fixes or reverts master. Do not merge master-guard's revert pull request by hand: it has no CI until an agent closes and reopens it. Failing builds: https://github.com/graphty-org/graphty-monorepo/actions/workflows/ci.yml?query=branch%3Amaster",
                 "resolved": {
                     "title": "Master is green again",
                     "text": "Master was broken for about {peak}.",
@@ -206,9 +206,9 @@
             "alert": {
                 "afterMs": 43200000,
                 "priority": 0,
-                "title": "Nightly frozen: master untested for {value}",
-                "text": "No full test run has covered master's newest commit for {value} (normally under {target}), so nightly and npm next have stopped moving.",
-                "action": "Check that release.yml ran in the last 6 hours (https://github.com/graphty-org/graphty-monorepo/actions/workflows/release.yml). If it did not, the release scheduler Worker has stopped: check its Cloudflare and GitHub App credentials. If it did, restart the pipeline-round /loop session.",
+                "title": "Full test runs stopped: master untested for {value}",
+                "text": "No full test run has tested master's newest commits for {value} (normally under {target}). Nothing reaches nightly or npm next until one does.",
+                "action": "Check whether release.yml started in the last 6 hours: https://github.com/graphty-org/graphty-monorepo/actions/workflows/release.yml. If it did not, the release scheduler (a Cloudflare Worker) has stopped: its GitHub App key is the Worker secret PRIVATE_KEY (tools/release-scheduler/README.md); make a new key, or ask an agent to set it. If it did start, ask a Claude session to run /pipeline-round.",
                 "resolved": {
                     "title": "Master is being tested again",
                     "text": "A full test run covers master again (it went untested for up to {peak}).",
@@ -722,6 +722,13 @@
                 {
                     "metric": "release.hold_open_ms",
                     "fail": [">=", 21600000]
+                },
+                {
+                    "metric": "release.review_wait_ms",
+                    "fail": [">=", 21600000]
+                },
+                {
+                    "metric": "release.review_issue"
                 }
             ],
             "sources": ["release"],
@@ -730,13 +737,12 @@
                 "afterMs": 0,
                 "priority": 0,
                 "floorMs": 86400000,
-                "value": ["<=", 0],
                 "facts": {
-                    "release.hold_open_ms": [">=", 86400000]
+                    "release.review_wait_ms": [">=", 86400000]
                 },
                 "title": "Nightly waiting on your screenshot review",
-                "text": "Nightly has been held for {ms:release.hold_open_ms} with every lane green: only your approval of the changed screenshots releases it. Until then nightly and npm next stay frozen.",
-                "action": "Review and approve the changed pictures on the held nightly candidate. The open 'Nightly held' issue has the details: https://github.com/graphty-org/graphty-monorepo/issues?q=is%3Aissue+is%3Aopen+%22Nightly+held%22"
+                "text": "The held nightly candidate passed all its tests but has changed screenshots, and has waited {ms:release.review_wait_ms} for your review. Nightly and npm next stay frozen until you approve or reject them.",
+                "action": "Ask a Claude session to start the screenshot review page for the held nightly candidate and send you its link, then approve or reject the pictures there. Hold issue: {issue:release.review_issue}"
             }
         },
         {
@@ -944,13 +950,14 @@
             "headline": true,
             "alert": {
                 "afterMs": 21600000,
-                "priority": 0,
+                "priority": -1,
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
                 "title": "Total spend projected at {value} this month",
-                "text": "All paid services: {value} projected for this month (budget {target}, red above {limit}), over budget for {for}.",
-                "action": "Open the Costs page to see which line is driving the total, then raise the budget or tell the agents what to cut."
+                "text": "All paid services: {value} projected this month vs {target} budget (+{over}).",
+                "action": "Decide: raise the total budget to {suggest}, or cut the line driving it (the Costs page shows which). Tell any Claude session your choice; it applies it.",
+                "daytime": true
             }
         },
         {
@@ -969,13 +976,14 @@
             "sources": ["collector"],
             "alert": {
                 "afterMs": 21600000,
-                "priority": 0,
+                "priority": -1,
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
                 "title": "T4 GPU lane projected at {value} this month",
-                "text": "T4 GPU test lane: {value} projected for this month (budget {target}, red above {limit}), over budget for {for}.",
-                "action": "Accept it and raise the T4 budget, or tell the agents what else to cut (the T4 lane itself always runs)."
+                "text": "T4 GPU test lane: {value} projected this month vs {target} budget (+{over}).",
+                "action": "Decide: raise the T4 budget to {suggest}, or run fewer full runs a day (the T4 lane runs in every one). Tell any Claude session your choice; it applies it.",
+                "daytime": true
             }
         },
         {
@@ -994,13 +1002,14 @@
             "sources": ["collector"],
             "alert": {
                 "afterMs": 21600000,
-                "priority": 0,
+                "priority": -1,
                 "floorMs": 604800000,
                 "fromDay": 7,
                 "group": "costs",
                 "title": "LLM test spend projected at {value} this month",
-                "text": "LLM regression tests (Gemini): {value} projected for this month, over your {target} ceiling (red above {limit}) for {for}.",
-                "action": "Accept it and raise the ceiling, or have the agents run the LLM regression tests less often."
+                "text": "LLM regression tests (Gemini): {value} projected this month vs your {target} ceiling (+{over}).",
+                "action": "Decide: raise the ceiling to {suggest}, or run the LLM regression tests less often. Tell any Claude session your choice; it applies it.",
+                "daytime": true
             }
         },
         {
@@ -1024,8 +1033,9 @@
                 "group": "costs",
                 "value": [">", 8],
                 "title": "AWS hosting at {value} this month, lockout at $10",
-                "text": "AWS hosting for the dashboard: {value} spent so far this month (budget {target}). At $10 the graphty-health AWS Budget locks the dashboard's Lambdas, stopping the dashboard and these alerts.",
-                "action": "Check AWS Billing for the line that grew. If the spend is expected, raise MONTHLY_BUDGET_USD in tools/pipeline-health/infra/health-stack.ts and redeploy."
+                "text": "AWS hosting for the dashboard: {value} spent so far this month (budget {target}). At $10 the graphty-health AWS Budget locks the dashboard, stopping it and these alerts.",
+                "action": "Decide: approve raising the dashboard's AWS budget, or have an agent find and cut the line that grew (AWS Billing: https://console.aws.amazon.com/billing/home). Tell any Claude session your choice; an agent applies and deploys it.",
+                "daytime": true
             }
         },
         {
@@ -1039,16 +1049,7 @@
             },
             "ok": ["<", 0.5],
             "fail": [">", 0.9],
-            "sources": ["cloudflare-token", "billing"],
-            "alert": {
-                "afterMs": 21600000,
-                "priority": 0,
-                "floorMs": 604800000,
-                "group": "costs",
-                "title": "Cloudflare at {value} of the plan",
-                "text": "Cloudflare: {value} of the plan's included usage used (red above {limit}). Running out stops the release scheduler, results store and nx cache Workers.",
-                "action": "Upgrade the Cloudflare plan, or tell the agents what to cut."
-            }
+            "sources": ["cloudflare-token", "billing"]
         },
         {
             "id": "cost.sentry_usage",
@@ -1095,12 +1096,12 @@
                 "facts": {
                     "credential_error_ms": [">=", 3600000]
                 },
-                "title": "Dashboard feed lost its credential: {source}",
-                "text": "The health dashboard's '{source}' feed has failed for {since} with a credential error: '{error}'. Its numbers are frozen until it is fixed.",
-                "action": "Renew the credential this feed uses (for example the Cloudflare or Sentry read-only token, or the AWS Cost Explorer access). If it is the billing feed, the cost alerts are off until then.",
+                "title": "{feed}: {problem}",
+                "text": "The health dashboard's {feed} has failed for {since} with a credential error: '{error}'. Its numbers are frozen until it is fixed. {off}",
+                "action": "{fix}",
                 "resolved": {
-                    "title": "Dashboard feeds are reading again",
-                    "text": "The feed whose credential failed is writing again.",
+                    "title": "{feed} is reading again",
+                    "text": "The credential works again.",
                     "clearAfterMs": 900000
                 }
             }
@@ -1134,9 +1135,9 @@
             "alert": {
                 "afterMs": 600000,
                 "priority": 1,
-                "title": "Health dashboard blind for {value}",
-                "text": "The dashboard has not read GitHub for {value} (red after {limit}), so nothing is being watched. Last error: '{error}'.",
-                "action": "Usual causes: the GitHub App private key or installation, a GitHub API outage (https://www.githubstatus.com/), or a missing SSM parameter or permission. The collector Lambda's CloudWatch logs have the details.",
+                "title": "Dashboard blind for {value}: {problem}",
+                "text": "The dashboard has not read GitHub for {value}, so nothing is being watched. Last error: '{error}'.",
+                "action": "{fix}",
                 "resolved": {
                     "title": "Health dashboard is reading GitHub again",
                     "text": "It was blind for up to {peak}.",

@@ -1988,7 +1988,8 @@ async function walkFile(project, file, ctx) {
 }
 
 /**
- * Another package's build output, as the source file it was built from, when that is known: the selection
+ * A package's build output (another package's, or its own), as the source file it was built from, when that is
+ * known: the selection
  * graph then follows a change to that package's source to exactly the tests that load it (design/ci/
  * minimal-tests.md section 2.2). Only the graph is changed; the tests themselves still run the build. A file
  * reached this way, and what it reaches outside the package under test, is kept in `viaAlias`: it is the
@@ -2000,10 +2001,14 @@ async function walkFile(project, file, ctx) {
  */
 function throughSource(dep, from, ctx) {
     const own = (f) => f.startsWith(join(ctx.root, ctx.pkg) + "/");
-    const src = own(dep) ? null : sourceOf(ctx.root, dep);
+    // the package's own build (layout's stories import @graphty/layout) is followed into its source too
+    const ownBuild = dep.startsWith(join(ctx.root, ctx.pkg, "dist") + "/");
+    const src = own(dep) && !ownBuild ? null : sourceOf(ctx.root, dep);
     if (src) {
         ctx.aliases[ctx.rel(dep)] = ctx.rel(src);
-        ctx.viaAlias.add(src);
+        if (!ownBuild) {
+            ctx.viaAlias.add(src);
+        }
         return src;
     }
     if (ctx.viaAlias.has(from) && !own(dep)) {
@@ -2535,7 +2540,7 @@ export function graphCacheKey(root, dirs) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 7;
+const GRAPH_VERSION = 8;
 
 const fileHash = (root, f) => {
     try {

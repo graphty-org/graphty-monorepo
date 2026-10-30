@@ -18,6 +18,7 @@
 // event is `{ invocation, file, name, status, message }`.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpus } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -165,7 +166,8 @@ export function postFlaky(env, shard, family, flaky) {
 /**
  * Sends one benchmark job's results to the health API (`POST /v1/benchmarks`), through sendHealth(), so the dashboard
  * keeps each benchmark's trend. Like postFlaky(): only HEALTH_API_URL and an OIDC token in GitHub Actions; anything
- * else sends nothing. Never throws.
+ * else sends nothing. Never throws. Names the machine that measured them (this runner's CPU model): hosted runners
+ * land on CPUs about 2x apart, and the dashboard compares a result only with results of the same machine.
  * @param env the environment
  * @param source what measured them ("algorithms", "webgpu-graph-algorithms")
  * @param rows the results `{ name, value }`, milliseconds
@@ -184,6 +186,7 @@ export function postBenchmarks(env, source, rows) {
         source,
         unit: "ms",
         ...(env.GITHUB_SHA ? { sha: env.GITHUB_SHA } : {}),
+        ...(cpus()[0]?.model ? { machine: cpus()[0].model.trim() } : {}),
         rows,
     });
     return true;

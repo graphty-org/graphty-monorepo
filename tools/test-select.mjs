@@ -2027,12 +2027,12 @@ async function walkFile(project, file, ctx) {
  */
 function throughSource(dep, from, ctx) {
     const own = (f) => f.startsWith(join(ctx.root, ctx.pkg) + "/");
-    // the package's own build (layout's stories import @graphty/layout) is followed into its source too
-    const ownBuild = dep.startsWith(join(ctx.root, ctx.pkg, "dist") + "/");
-    const src = own(dep) && !ownBuild ? null : sourceOf(ctx.root, dep);
+    // the package's own build too: algorithms' stories import @graphty/algorithms, its own dist/, and a walk
+    // of dist/ would never match a changed source file
+    const src = sourceOf(ctx.root, dep);
     if (src) {
         ctx.aliases[ctx.rel(dep)] = ctx.rel(src);
-        if (!ownBuild) {
+        if (!own(dep)) {
             ctx.viaAlias.add(src);
         }
         return src;

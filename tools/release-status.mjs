@@ -28,7 +28,7 @@
 // sends nothing. A Pushover failure is logged, never fatal.
 //
 // Usage: node tools/release-status.mjs <outcome> [--sha S] [--run URL] [--attempt N] [--issue N|URL]
-//            [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME]
+//            [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME] [--hold ACTION]
 // Needs GITHUB_TOKEN (issues: write; run-ended also actions: read) and
 // GITHUB_REPOSITORY (started needs neither); RELEASE_NOTIFY is optional. run-ended reads only the comments made
 // since --since (the attempt's start).
@@ -166,6 +166,25 @@ export async function announce({ request, repo, body, unlessReported }) {
     }
     await request("POST", `/repos/${repo}/issues/${number}/comments`, { body });
     return number;
+}
+
+/**
+ * When a green-images outcome is old news. The same changed screenshots stay changed on every full run until master's
+ * baselines move, so a run that only re-finds them says it once a week. A run that holds its commit for the owner's
+ * review (--hold start or update) always says it: that held candidate is what he reviews, and an earlier comment on
+ * another commit with the same counts did not tell him it is waiting (#4630).
+ * @param f - the outcome's fields: what, hold (the hold step's action: start, update or none)
+ * @param now - the time in ms
+ * @returns announce's unlessReported, or undefined to always announce
+ */
+export function screenshotsReported(f, now = Date.now()) {
+    if (f.hold === "start" || f.hold === "update") {
+        return undefined;
+    }
+    return {
+        since: new Date(now - 7 * 24 * 3_600_000).toISOString(),
+        reported: (b) => b.includes("**Screenshots changed**") && b.includes(f.what ?? ""),
+    };
 }
 
 export const PUSHOVER_URL = "https://api.pushover.net/1/messages.json";
@@ -306,7 +325,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { values, positionals } = parseArgs({
         allowPositionals: true,
         options: Object.fromEntries(
-            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix", "bisect"]
+            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix", "bisect", "hold"]
                 .map((k) => [k, { type: "string" }])
                 .concat([["restart", { type: "boolean" }]]),
         ),
@@ -352,11 +371,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         };
     }
     if (positionals[0] === "green-images") {
-        // the same changed screenshots stay changed on every full run until master's baselines move: say it once a week
-        unlessReported = {
-            since: new Date(Date.now() - 7 * 24 * 3_600_000).toISOString(),
-            reported: (b) => b.includes("**Screenshots changed**") && b.includes(values.what ?? ""),
-        };
+        unlessReported = screenshotsReported(values);
     }
     const body = statusComment(positionals[0], values, process.env.RELEASE_NOTIFY ?? "");
     const number = await announce({ request, repo, body, unlessReported });

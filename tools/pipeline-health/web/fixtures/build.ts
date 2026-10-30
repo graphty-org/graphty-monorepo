@@ -422,6 +422,41 @@ ciMembers.push(
         sla: { target: cmp("<=", 0), red: cmp(">=", 3) },
         link: "/ci/benchmarks",
     }),
+    // Rolling screenshot capture (design/visual-testing/early-capture.md, plan step 6).
+    member({
+        id: "ci.screenshot_set_age",
+        window: "7d",
+        state: "slow",
+        value: num(2.4, "h"),
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 12, "h") },
+        link: "/ci",
+    }),
+    ...(
+        [
+            ["ci.slice_base_budget", 41],
+            ["ci.slice_idle_budget", 63],
+            ["ci.slice_idle_hour_budget", 24],
+        ] as const
+    ).map(([id, pct]) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(pct, "pct"),
+            sla: { target: cmp("<=", 100, "pct"), red: cmp(">", 125, "pct") },
+            link: "/ci",
+        }),
+    ),
+    ...(["ci.slice_contended", "ci.slice_queue_wait"] as const).map((id) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(id === "ci.slice_contended" ? 5 : 0, "min"),
+            sla: { target: cmp("<=", 35, "min"), red: cmp(">", 105, "min") },
+            link: "/ci/runners",
+        }),
+    ),
 );
 const runnerMembers: Member[] = [runnerWait, longestQueued, saturated, notAssigned, superseded];
 
@@ -528,6 +563,44 @@ const releaseMembers: Member[] = [
         sla: SLA.channels,
         reason: f("unblock.channels", { issue: 3418 }),
         link: "/data-sources/not-set-up",
+    }),
+    member({
+        id: "releases.review_lag",
+        window: "7d",
+        state: "slow",
+        value: num(3.5, "h"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 24, "h") },
+        link: "/releases",
+    }),
+    member({
+        id: "releases.slots_unreviewed",
+        window: "7d",
+        state: "slow",
+        value: num(50, "pct"),
+        n: 4,
+        minN: 3,
+        sla: { target: cmp("<=", 25, "pct"), red: cmp(">", 75, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.green_clean",
+        window: "7d",
+        state: "slow",
+        value: num(33, "pct"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp(">=", 50, "pct"), red: cmp("<", 25, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.nightly_promotions",
+        window: "7d",
+        state: "slow",
+        value: num(1.3),
+        sla: { target: cmp(">=", 2), red: cmp("<", 1) },
+        link: "/releases",
     }),
 ];
 
@@ -2041,6 +2114,26 @@ for (const range of RANGES) {
             sections: p.sections.map((s) => sectionFor(s, range)),
         } satisfies PageResponse);
 }
+// The 7 d runner history (runners/jobs): its last 3 hours here, a quiet night giving way to a merge burst.
+write("runners.jobs.7d", {
+    page: "runners",
+    range: "7d",
+    generated: GEN,
+    section: {
+        kind: "jobs",
+        id: "jobs",
+        step: "15m",
+        start: "2026-10-24T20:30:00Z",
+        running: [4, 2, 0, 0, 0, 6, 9, 24, 41, 57, 57, 52],
+        queued: [0, 0, 0, 0, 0, 0, 0, 0, 12, 30, 18, 4],
+        runningMax: [6, 4, 2, 0, null, 8, 12, 30, 52, 60, 60, 57],
+        queuedMax: [0, 0, 0, 0, null, 0, 0, 3, 26, 79, 40, 18],
+        longestQueuedMs: [0, 0, 0, 0, null, 0, 0, 40_000, 260_000, 610_000, 540_000, 120_000],
+        saturatedMs: [0, 0, 0, 0, null, 0, 0, 0, 0, 600_000, 900_000, 300_000],
+        limit: 60,
+        peak: { n: 60, at: "2026-10-24T22:45:00Z" },
+    },
+} satisfies SectionResponse);
 for (const range of ["7d", "28d"] as SlowRange[]) {
     write(
         `costs.${range}`,

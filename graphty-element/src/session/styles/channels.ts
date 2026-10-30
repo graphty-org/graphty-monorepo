@@ -477,6 +477,10 @@ export interface ChannelValues {
     "node.chartMax": number;
     "node.chartHorizontal": boolean;
     "node.chartSize": number;
+    "node.chartWidth": number;
+    "node.chartHeight": number;
+    "node.chartOffsetX": number;
+    "node.chartOffsetY": number;
     "node.chartMargin": number;
     "node.chartGap": number;
     "node.chartLineWidth": number;
@@ -546,6 +550,7 @@ export interface ChannelValues {
     "edge.arrowHeadSide": "left" | "right";
     "edge.arrowHeadPosition": number;
     "edge.arrowHeadGap": number;
+    "edge.arrowHeadStack": string;
     "edge.arrowHeadColor": ColorValue;
     "edge.arrowHeadOpacity": number;
     "edge.arrowHeadImage": string;
@@ -567,6 +572,7 @@ export interface ChannelValues {
     "edge.arrowTailSide": "left" | "right";
     "edge.arrowTailPosition": number;
     "edge.arrowTailGap": number;
+    "edge.arrowTailStack": string;
     "edge.arrowTailColor": ColorValue;
     "edge.arrowTailOpacity": number;
     "edge.arrowTailImage": string;
@@ -1029,7 +1035,8 @@ const NODE_CHART_CAVEAT =
     '`node.chartKind` "bar" (bars side by side), "stacked-bar" (the values piled into one bar), "line", "box" ' +
     "(the values are the low whisker, the quartiles and median, the high whisker; its median in the second " +
     'color, else black) or "cells" (a row of colored cells). The plot is a box `node.chartSize` times the ' +
-    "node's; the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
+    "node's (`node.chartWidth` and `node.chartHeight` give its width and height apart, shares of the node's), " +
+    "centered on the node or moved by `node.chartOffsetX` / `-Y` (in the units of `node.size`, y down); the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
     "`node.chartHorizontal`), the categories along the other side after `node.chartMargin` at each end and " +
     "`node.chartGap` between them, both shares of that side. `node.chartLineWidth` is a line's and a " +
     "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline.";
@@ -1091,7 +1098,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Stack" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -1179,6 +1186,20 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             caveat:
                 "How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the " +
                 "line stops there too. 0 puts the cap against the node.",
+        },
+        {
+            ...id("Stack"),
+            plainName: `Arrow ${end} Stack`,
+            shortName: `${end} stack`,
+            group: "arrows",
+            accepts: "text",
+            stylePath: `arrow${end}.stack`,
+            renderable: true,
+            caveat:
+                "More caps drawn in a row behind this one, nearest first, each from where the one before it ends; " +
+                "the line stops at the last. Cap types separated by spaces, each optionally followed by :left or " +
+                ":right, then * and its size, then x and its width: `dot normal`, `open-diamond:left*1.2`. " +
+                "Unset, the cap alone.",
         },
         {
             ...id("Color"),
@@ -1364,10 +1385,10 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
     const from = end === "MiddleHead" ? "Head" : "Tail";
     const plain = end === "MiddleHead" ? "Middle Head" : "Middle Tail";
     const rows = Object.values(arrowEndChannels(from))
-        // a middle cap has no caption, and no gap from a node it does not touch
+        // a middle cap has no caption, no gap from a node it does not touch, and no row of caps behind it
         .filter((row) => {
             const suffix = row.channel.slice(`edge.arrow${from}`.length);
-            return !suffix.startsWith("Text") && suffix !== "Gap";
+            return !suffix.startsWith("Text") && suffix !== "Gap" && suffix !== "Stack";
         })
         .map((row): ChannelDescriptor => {
             const suffix = row.channel.slice(`edge.arrow${from}`.length);
@@ -3140,6 +3161,54 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "chart.size",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartWidth": {
+        channel: "node.chartWidth",
+        target: "node",
+        plainName: "Node Chart Width",
+        shortName: "Chart width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.width",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartHeight": {
+        channel: "node.chartHeight",
+        target: "node",
+        plainName: "Node Chart Height",
+        shortName: "Chart height",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.height",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartOffsetX": {
+        channel: "node.chartOffsetX",
+        target: "node",
+        plainName: "Node Chart Offset X",
+        shortName: "Chart offset x",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "chart.offsetX",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartOffsetY": {
+        channel: "node.chartOffsetY",
+        target: "node",
+        plainName: "Node Chart Offset Y",
+        shortName: "Chart offset y",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "chart.offsetY",
         renderable: true,
         caveat: NODE_CHART_CAVEAT,
     },

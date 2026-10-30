@@ -178,6 +178,12 @@ export const MEMBER_IDS = [
     "ci.superseded",
     "ci.chronic_jobs",
     "ci.bench_regressions",
+    "ci.screenshot_set_age",
+    "ci.slice_base_budget",
+    "ci.slice_idle_budget",
+    "ci.slice_idle_hour_budget",
+    "ci.slice_contended",
+    "ci.slice_queue_wait",
     "flaky.blocked",
     "flaky.no_issue",
     "flaky.flake_rate",
@@ -189,6 +195,10 @@ export const MEMBER_IDS = [
     "releases.tagged_not_npm",
     "releases.train_first_pass",
     "releases.channels",
+    "releases.review_lag",
+    "releases.slots_unreviewed",
+    "releases.green_clean",
+    "releases.nightly_promotions",
     "costs.spend",
     "costs.t4",
     "costs.llm",
@@ -458,6 +468,14 @@ export interface JobsSection extends SectionBase {
     start: Iso;
     running: number[];
     queued: number[];
+    /**
+     * Per bucket: the peak running and queued counts, the longest queued job (ms) and the saturated time (ms);
+     * null where the collector wrote nothing. The 7 d runner history (`runners/jobs`) is tuned from these.
+     */
+    runningMax?: (number | null)[];
+    queuedMax?: (number | null)[];
+    longestQueuedMs?: (number | null)[];
+    saturatedMs?: (number | null)[];
     /** The plan's limit, from config (`slas.json`). */
     limit: number;
     /** The observed peak: a label beside the limit, never a threshold. */

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * dry-run-check-guard.mjs -- refuses a branch that removes or changes an existing outcome check of
- * the dry run (graphty/dry-run/, design/ci/fast-pipeline.md section 4.4), or anything that decides
+ * the dry run (graphty/acceptance/, design/ci/fast-pipeline.md section 4.4), or anything that decides
  * whether a check passes.
  *
  * A dry-run route has steps (what the user does) and outcome checks (what the user then sees). The
@@ -9,18 +9,18 @@
  * stops. Everything on the path to a verdict is protected, each part compared, without its comments
  * or layout, with its code at the base:
  *
- *  - in graphty/dry-run/routes.mjs: every check of every route ("<route id>: <check name>"), every
+ *  - in graphty/acceptance/routes.mjs: every check of every route ("<route id>: <check name>"), every
  *    other property of a route but `walk`, every import and top-level statement, and every top-level
  *    declaration a check or a protected part uses, directly or through another. A declaration only
  *    the walks use is a step, and free.
- *  - every top-level statement of graphty/dry-run/readers.mjs (what checks read the page through)
- *    and of graphty/dry-run/run.mjs (the runner: it calls the walks and checks, retries them and
+ *  - every top-level statement of graphty/acceptance/readers.mjs (what checks read the page through)
+ *    and of graphty/acceptance/run.mjs (the runner: it calls the walks and checks, retries them and
  *    gives the verdict).
  *
  * Adding a route, a check, a step, a helper or a reader is free, and so is changing a walk or a step.
  * A walk or a step that writes to a protected name (`assert.equal = ...`, `this.checks = ...`) is
  * always refused. Removing or changing a protected part is refused unless the branch is a
- * check-change branch: every file its commits change is under graphty/dry-run/, and every one of its
+ * check-change branch: every file its commits change is under graphty/acceptance/, and every one of its
  * commits carries a `Dry-run-check-change: <reason>` trailer. Merge commits are not counted, and
  * neither are commits already on origin/master (a merge of master brings those). Such a
  * branch is made from a different session than the change that made the check fail, and holds only
@@ -34,7 +34,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -44,9 +44,12 @@ import ts from "typescript";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 
-export const ROUTES = "graphty/dry-run/routes.mjs";
-export const READERS = "graphty/dry-run/readers.mjs";
-export const RUNNER = "graphty/dry-run/run.mjs";
+export const DIR = "graphty/acceptance/";
+// Where the suite lived before it moved to DIR: a base from before the move is read there.
+const OLD_DIR = "graphty/dry-run/";
+export const ROUTES = `${DIR}routes.mjs`;
+export const READERS = `${DIR}readers.mjs`;
+export const RUNNER = `${DIR}run.mjs`;
 export const TRAILER = "Dry-run-check-change";
 const FIRST_ASSIGNMENT = ts.SyntaxKind.FirstAssignment;
 const LAST_ASSIGNMENT = ts.SyntaxKind.LastAssignment;
@@ -560,7 +563,7 @@ export function compare(base, head) {
 }
 
 /**
- * Whether a branch is a check-change branch: it changes nothing outside graphty/dry-run/ and every
+ * Whether a branch is a check-change branch: it changes nothing outside graphty/acceptance/ and every
  * commit states its reason in the trailer.
  * @param files the files the branch changes
  * @param messages its commit messages
@@ -568,8 +571,8 @@ export function compare(base, head) {
  */
 export function checkChangeProblems(files, messages) {
     const problems = [];
-    const outside = files.filter((f) => !f.startsWith("graphty/dry-run/"));
-    if (outside.length) problems.push(`it also changes files outside graphty/dry-run/: ${outside.join(", ")}`);
+    const outside = files.filter((f) => !f.startsWith(DIR));
+    if (outside.length) problems.push(`it also changes files outside ${DIR}: ${outside.join(", ")}`);
     const trailer = new RegExp(String.raw`^${TRAILER}:\s*(.{10,})$`, "m");
     const bare = messages.filter((m) => !trailer.test(m));
     if (!messages.length || bare.length)
@@ -610,11 +613,19 @@ const show = (ref, path, cwd) => {
     }
 };
 
-const versionAt = (ref, cwd) =>
+const showSuite = (ref, path, cwd) => show(ref, path, cwd) ?? show(ref, path.replace(DIR, OLD_DIR), cwd);
+
+/**
+ * The protected units of the suite at a commit, read at DIR, or where it lived before the move.
+ * @param ref a commit
+ * @param cwd the repository
+ * @returns protectedUnits() of its three files
+ */
+export const versionAt = (ref, cwd) =>
     protectedUnits({
-        routes: show(ref, ROUTES, cwd),
-        readers: show(ref, READERS, cwd),
-        runner: show(ref, RUNNER, cwd),
+        routes: showSuite(ref, ROUTES, cwd),
+        readers: showSuite(ref, READERS, cwd),
+        runner: showSuite(ref, RUNNER, cwd),
     });
 
 async function main(argv) {
@@ -642,7 +653,7 @@ async function main(argv) {
             `REFUSED: a walk or a step of the dry run reaches past the user's hands, or into what the checks rely on:\n` +
                 after.writes.map((w) => "  " + w).join("\n") +
                 "\n" +
-                `Steps may only click, type and choose files through the user's hands (graphty/dry-run/README.md).`,
+                `Steps may only click, type and choose files through the user's hands (graphty/acceptance/README.md).`,
         );
         return 1;
     }
@@ -672,7 +683,7 @@ async function main(argv) {
         `REFUSED: this branch removes or changes dry-run outcome checks, or code that decides them:\n${list}\n` +
             `A branch may re-record a route's steps, but not weaken what the route checks. If a check is ` +
             `wrong, change it on a branch of its own, from a different session, holding only that change, ` +
-            `with a "${TRAILER}: <why>" trailer on every commit (graphty/dry-run/README.md). This branch ` +
+            `with a "${TRAILER}: <why>" trailer on every commit (graphty/acceptance/README.md). This branch ` +
             `does not qualify because ${problems.join("; and ")}.`,
     );
     return 1;
@@ -806,10 +817,10 @@ function selfTestReach(assert) {
 
 function selfTestBranches(assert) {
     const reason = `fix(graphty): the check read the wrong column\n\n${TRAILER}: names live in label on this file`;
-    assert.deepEqual(checkChangeProblems(["graphty/dry-run/routes.mjs"], [reason]), [], "a check-change branch");
-    assert.equal(checkChangeProblems(["graphty/dry-run/routes.mjs", "graphty/src/App.tsx"], [reason]).length, 1);
-    assert.equal(checkChangeProblems(["graphty/dry-run/routes.mjs"], ["fix: no trailer"]).length, 1);
-    assert.equal(checkChangeProblems(["graphty/dry-run/routes.mjs"], [`x\n\n${TRAILER}: short`]).length, 1);
+    assert.deepEqual(checkChangeProblems(["graphty/acceptance/routes.mjs"], [reason]), [], "a check-change branch");
+    assert.equal(checkChangeProblems(["graphty/acceptance/routes.mjs", "graphty/src/App.tsx"], [reason]).length, 1);
+    assert.equal(checkChangeProblems(["graphty/acceptance/routes.mjs"], ["fix: no trailer"]).length, 1);
+    assert.equal(checkChangeProblems(["graphty/acceptance/routes.mjs"], [`x\n\n${TRAILER}: short`]).length, 1);
     // A check-change branch that merged master in: the merge commit has no trailer and is not counted.
     const dir = mkdtempSync(join(tmpdir(), "dry-run-guard-"));
     const env = isolatedGitEnv();
@@ -835,11 +846,52 @@ function selfTestBranches(assert) {
     }
 }
 
+// The routes moved from graphty/dry-run/ to graphty/acceptance/: a base from before the move is read
+// at the old place, so the move itself changes nothing and a check dropped on the way is still caught.
+function selfTestMove(assert) {
+    const reason = `fix(graphty): the check read the wrong column\n\n${TRAILER}: names live in label on this file`;
+    assert.deepEqual(checkChangeProblems(["graphty/acceptance/routes.mjs"], [reason]), [], "the new place");
+    const dir = mkdtempSync(join(tmpdir(), "dry-run-guard-"));
+    const env = isolatedGitEnv();
+    const g = (...args) => git(args, dir, env).trim();
+    const write = (at, routes) => {
+        mkdirSync(join(dir, at), { recursive: true });
+        writeFileSync(join(dir, at, "routes.mjs"), routes);
+        writeFileSync(join(dir, at, "readers.mjs"), READERS_FIXTURE);
+        writeFileSync(join(dir, at, "run.mjs"), RUNNER_FIXTURE);
+    };
+    const commit = (message) => {
+        g("add", "-A");
+        g("commit", "-q", "-m", message);
+        return g("rev-parse", "HEAD");
+    };
+    try {
+        g("init", "-q", "-b", "master");
+        write("graphty/dry-run", ROUTES_FIXTURE);
+        const base = commit("base");
+        rmSync(join(dir, "graphty/dry-run"), { recursive: true });
+        write("graphty/acceptance", ROUTES_FIXTURE);
+        const moved = commit("move");
+        const before = versionAt(base, dir).units;
+        assert.ok(before.size > 0, "the base is read at the old place");
+        assert.deepEqual(compare(before, versionAt(moved, dir).units), { removed: [], changed: [] }, "a pure move");
+        write("graphty/acceptance", ROUTES_FIXTURE.replace(/ {12}b: .*\n/, ""));
+        const dropped = commit("move and drop a check");
+        assert.deepEqual(compare(before, versionAt(dropped, dir).units).removed, ['check "r1: b"']);
+        rmSync(join(dir, "graphty/acceptance"), { recursive: true });
+        const gone = commit("delete the suite");
+        assert.ok(compare(before, versionAt(gone, dir).units).removed.length > 0, "deleting the suite is caught");
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
+
 async function selfTest() {
     const assert = (await import("node:assert/strict")).default;
     selfTestUnits(assert);
     selfTestReach(assert);
     selfTestBranches(assert);
+    selfTestMove(assert);
     console.log("dry-run-check-guard self-test: ok");
     return 0;
 }

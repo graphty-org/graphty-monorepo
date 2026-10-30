@@ -125,7 +125,7 @@ describe("views", () => {
 
     it("every payload has the keys, section ids and member ids of its fixture", async () => {
         const vs = await views(await world([job(1), obs("pr.open", 4, T0 - MIN)]));
-        expect(vs).toHaveLength(1 + 3 * 9 + 2 * 4);
+        expect(vs).toHaveLength(2 + 3 * 9 + 2 * 4);
         for (const v of vs) {
             const name = fixtureName(v);
             const fx = fixture(name);
@@ -201,7 +201,7 @@ describe("views", () => {
         }
         const store = await world(items);
         const out = await writeViews(store, T0);
-        expect(out.views).toBe(1 + 3 * 9 + 2 * 4);
+        expect(out.views).toBe(2 + 3 * 9 + 2 * 4);
         expect(out.largest.bytes).toBeLessThan(MAX_VIEW_BYTES);
         expect(viewKey({ kind: "page", page: "ci", range: "6h" })).toEqual({ pk: "PAGE#ci#6h", sk: "-" });
         const item = await store.get(
@@ -219,6 +219,47 @@ describe("views", () => {
         expect(flaky.section.kind).toBe("tree");
         const runners = (await readViewJson(store, { kind: "page", page: "runners", range: "24h" })) as PageResponse;
         expect(runners.sections[0]).toMatchObject({ kind: "jobs", step: "1h" });
+    });
+
+    it("CI and Releases show the rolling screenshot measures with their targets, gray until story-slices writes", async () => {
+        const items = [
+            obs("slices.set_age_ms", 2 * HOUR, T0 - DAY),
+            obs("slices.set_age_ms", 8 * HOUR, T0 - 10 * MIN),
+            obs("slices.idle_cap_share", 0.4, T0 - 10 * MIN),
+            obs("slices.contended_min", 10, T0 - 2 * DAY),
+            obs("slices.contended_min", 5, T0 - HOUR),
+            obs("release.review_lag_ms", 2 * HOUR, T0 - 3 * HOUR),
+            obs("release.review_lag_ms", 4 * HOUR, T0 - 2 * HOUR),
+            obs("release.review_lag_ms", 30 * HOUR, T0 - HOUR),
+            ...[1, 0, 0, 1].map((v, k) => obs("release.green_clean", v, T0 - (k + 1) * 6 * HOUR)),
+            ...[1, 1, 1, 0].map((v, k) => obs("release.slot_unreviewed", v, T0 - (k + 1) * 6 * HOUR)),
+            ...[1, 2, 3].map((k) => obs("release.nightly_promotions", 1, T0 - k * DAY)),
+        ];
+        const member = async (fresh: string[], page: string, id: string) => {
+            const vs = await views(await world(items, T0, fresh));
+            const p = vs.find((v) => v.route.kind === "page" && v.route.page === page && v.route.range === "1h")!
+                .body as PageResponse;
+            return p.members.find((m) => m.id === id)!;
+        };
+        const live = [...LIVE, "story-slices"];
+        expect(await member(LIVE, "ci", "ci.screenshot_set_age")).toMatchObject({ state: "notsetup", value: null });
+        expect(await member(live, "ci", "ci.screenshot_set_age")).toMatchObject({
+            state: "slow",
+            value: { n: 8, unit: "h" },
+            sla: { target: { op: "<=", n: 6, unit: "h" }, red: { op: ">", n: 12, unit: "h" } },
+        });
+        expect(await member(live, "ci", "ci.slice_idle_budget")).toMatchObject({ value: { n: 40, unit: "pct" } });
+        expect(await member(live, "ci", "ci.slice_contended")).toMatchObject({ value: { n: 15, unit: "min" } });
+        expect(await member(live, "releases", "releases.review_lag")).toMatchObject({ n: 3 });
+        expect(await member(live, "releases", "releases.green_clean")).toMatchObject({
+            value: { n: 50, unit: "pct" },
+            n: 4,
+        });
+        expect(await member(live, "releases", "releases.slots_unreviewed")).toMatchObject({
+            value: { n: 75, unit: "pct" },
+        });
+        const promotions = await member(live, "releases", "releases.nightly_promotions");
+        expect(promotions.value).toMatchObject({ n: 0.43 });
     });
 
     it("Flaky shows every flaky source: CI detections, the quarantine list, the stress run and the rerun rate", async () => {

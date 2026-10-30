@@ -7,7 +7,7 @@
  * - `VITE_LLM_REGRESSION_PROVIDER`: openai, anthropic or google (default google, as the release job runs)
  * - the provider's key: `VITE_OPENAI_API_KEY`, `VITE_ANTHROPIC_API_KEY` or `VITE_GOOGLE_API_KEY`
  * - `VITE_LLM_REGRESSION_MODEL`: overrides the provider's default model
- * - `LLM_REGRESSION_GEMINI_TIER`: flex (default) or standard, the Gemini service tier (test/helpers/llm-regression-gemini.ts)
+ * - `LLM_REGRESSION_GEMINI_TIER`: standard (default) or flex, the Gemini service tier (test/helpers/llm-regression-gemini.ts)
  */
 
 import type { VercelProviderType } from "../../src/ai/providers/VercelAiProvider";
@@ -125,12 +125,13 @@ export function getLlmRegressionModel(): string {
 }
 
 /**
- * The Gemini service tier the tests ask for: Flex, half the Standard price, unless the variable says standard.
+ * The Gemini service tier the tests ask for: Standard, unless the variable says flex. Flex is half the price but
+ * queues each call for 20 to over 120 s (2026-10-29), which outlasts the case and job limits (#4579).
  * @returns flex or standard
  * @throws Error when LLM_REGRESSION_GEMINI_TIER names another tier
  */
 export function getLlmRegressionGeminiTier(): "flex" | "standard" {
-    const tier = readEnv("LLM_REGRESSION_GEMINI_TIER") ?? "flex";
+    const tier = readEnv("LLM_REGRESSION_GEMINI_TIER") ?? "standard";
     if (tier !== "flex" && tier !== "standard") {
         throw new Error(`LLM_REGRESSION_GEMINI_TIER must be flex or standard, not "${tier}"`);
     }

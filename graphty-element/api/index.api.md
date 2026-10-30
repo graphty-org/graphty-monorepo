@@ -1024,6 +1024,7 @@ export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
     arrowCap: ArrowCap | null;
+    get arrowHeadStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
     // @deprecated
@@ -1033,6 +1034,7 @@ export class Edge {
     arrowTailCap: ArrowCap | null;
     // @deprecated
     arrowTailMesh: AbstractMesh | null;
+    get arrowTailStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;
@@ -1219,6 +1221,7 @@ export const EdgeStyle: z.ZodObject<{
         }>>;
         position: z.ZodOptional<z.ZodNumber>;
         gap: z.ZodOptional<z.ZodNumber>;
+        stack: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         image: z.ZodOptional<z.ZodString>;
@@ -1466,6 +1469,7 @@ export const EdgeStyle: z.ZodObject<{
         }>>;
         position: z.ZodOptional<z.ZodNumber>;
         gap: z.ZodOptional<z.ZodNumber>;
+        stack: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         image: z.ZodOptional<z.ZodString>;
@@ -5253,6 +5257,10 @@ export const NodeStyle: z.ZodObject<{
         max: z.ZodOptional<z.ZodNumber>;
         horizontal: z.ZodOptional<z.ZodBoolean>;
         size: z.ZodOptional<z.ZodNumber>;
+        width: z.ZodOptional<z.ZodNumber>;
+        height: z.ZodOptional<z.ZodNumber>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
         margin: z.ZodOptional<z.ZodNumber>;
         gap: z.ZodOptional<z.ZodNumber>;
         lineWidth: z.ZodOptional<z.ZodNumber>;

@@ -154,6 +154,10 @@ const DECLARED = [
     "node.chartMax",
     "node.chartHorizontal",
     "node.chartSize",
+    "node.chartWidth",
+    "node.chartHeight",
+    "node.chartOffsetX",
+    "node.chartOffsetY",
     "node.chartMargin",
     "node.chartGap",
     "node.chartLineWidth",
@@ -240,6 +244,7 @@ const DECLARED = [
     "edge.arrowHeadSide",
     "edge.arrowHeadPosition",
     "edge.arrowHeadGap",
+    "edge.arrowHeadStack",
     "edge.arrowHeadColor",
     "edge.arrowHeadOpacity",
     "edge.arrowHeadImage",
@@ -261,6 +266,7 @@ const DECLARED = [
     "edge.arrowTailSide",
     "edge.arrowTailPosition",
     "edge.arrowTailGap",
+    "edge.arrowTailStack",
     "edge.arrowTailColor",
     "edge.arrowTailOpacity",
     "edge.arrowTailImage",
@@ -365,9 +371,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and sixty-eight node channels and one hundred and forty-three edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 168);
-        assert.strictEqual(channelsFor("edge").length, 143);
+    it("splits into one hundred and seventy-two node channels and one hundred and forty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 172);
+        assert.strictEqual(channelsFor("edge").length, 145);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -616,6 +622,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.cornerRadius",
         // Unset, a polygon is drawn as its box.
         "node.shapePoints",
+        // Unset, a chart's plot is as wide and as tall as `node.chartSize` says.
+        "node.chartWidth",
+        "node.chartHeight",
         // Unset, a node draws no image, pie or stripes over its face; the sizes and opacities of slices and
         // bands, and an image's width, height and pixel size, follow from the rest.
         "node.image",
@@ -663,6 +672,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailImage",
         "edge.arrowMiddleHeadImage",
         "edge.arrowMiddleTailImage",
+        // Unset, an end cap is drawn alone, with no row of caps behind it.
+        "edge.arrowHeadStack",
+        "edge.arrowTailStack",
         // Unset, a cap is drawn whole.
         "edge.arrowHeadSide",
         "edge.arrowTailSide",

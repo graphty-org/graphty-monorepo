@@ -1,0 +1,14 @@
+{
+    "$comment": "The rolling screenshot slice dispatcher (src/collector/slices.ts; design/visual-testing/early-capture.md, 4b). Runner-minutes are every job of a story-slices.yml run, from GitHub's job durations. Tune by a pull request to this file; the stack redeploys from master. dispatch false: decide and log only (a dry run), as when the dispatch App's key is not in SSM.",
+    "workflow": "story-slices.yml",
+    "dispatch": true,
+    "baseDailyMin": 800,
+    "idleDailyMin": 700,
+    "idleHourlyMin": 120,
+    "freshHours": 3,
+    "idleRunning": 10,
+    "baseRunning": 30,
+    "quietMinutes": 30,
+    "maxWaitMinutes": 5,
+    "estimateMin": { "base": 10, "idle": 29 }
+}

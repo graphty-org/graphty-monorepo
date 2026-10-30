@@ -125,7 +125,7 @@ function forCause(c: Paging, m: MemberStatus): Paging {
 }
 
 /** The page's condition: FAILING (or the value past alert.value), the facts, the day of the month, no other cause. */
-function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
+async function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): Promise<boolean> {
     if (!BAD(m) || !factsHold(m, a)) {
         return false;
     }
@@ -135,8 +135,10 @@ function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
     if (a.value ? !past(ctx, m.value, a) : m.state !== "FAILING") {
         return false;
     }
-    if (a.notWhileFailing?.some((id) => paging(ctx, id))) {
-        return false;
+    for (const id of a.notWhileFailing ?? []) {
+        if (await paging(ctx, id)) {
+            return false;
+        }
     }
     if (a.fromDay !== undefined && new Date(ctx.now).getUTCDate() < a.fromDay) {
         // A projection early in the month swings on one day's spend: only real spend past red pages before fromDay.
@@ -148,12 +150,18 @@ function condition(ctx: Ctx, m: MemberStatus, a: AlertConfig): boolean {
 
 /**
  * Another member's own page condition holds: FAILING and, when its alert pages on facts, those facts too (the
- * runners member is FAILING in a slowdown as well, which never pages and so must not silence master red).
+ * runners member is FAILING in a slowdown as well, which never pages and so must not silence master red). Or its
+ * page was sent and its episode has not ended: a GitHub outage that later blinds the collector leaves the runners
+ * member in a gap, and the outage has already been reported once.
  */
-function paging(ctx: Ctx, id: string): boolean {
+async function paging(ctx: Ctx, id: string): Promise<boolean> {
     const x = ctx.evaluation.members.find((m) => m.id === id);
     const a = (ctx.config ?? SLAS).members.find((c) => c.id === id)?.alert;
-    return x?.state === "FAILING" && (!a || factsHold(x, a));
+    if (x?.state === "FAILING" && (!a || factsHold(x, a))) {
+        return true;
+    }
+    const mark = await ctx.store.get({ pk: `ALERT#${id}`, sk: "episode" });
+    return mark?.open === SENT && !mark.endedAt && mark.v === MARK_V;
 }
 
 /** The value past alert.value, or its month-end pace past alert.pace (an AWS bill nearing its cap). */
@@ -195,14 +203,11 @@ async function member(ctx: Ctx, m: MemberStatus, c: Paging): Promise<Due | undef
             ttl: ttl(ctx),
         };
         const old = mark !== undefined && mark.v !== MARK_V;
+        const set = old ? { ...fresh, lastOpenAt: 0 } : fresh; // an older version's floor is cleared, live or ended
         mark =
-            (await ctx.store.update(key, { set: fresh }, { field: "endedAt", op: ">", value: 0, orNotExists: true })) ??
+            (await ctx.store.update(key, { set }, { field: "endedAt", op: ">", value: 0, orNotExists: true })) ??
             (old
-                ? await ctx.store.update(
-                      key,
-                      { set: { ...fresh, lastOpenAt: 0 } },
-                      { field: "v", op: "<", value: MARK_V, orNotExists: true },
-                  )
+                ? await ctx.store.update(key, { set }, { field: "v", op: "<", value: MARK_V, orNotExists: true })
                 : undefined) ??
             (await ctx.store.get(key));
     } else if (mark?.okSince) {
@@ -287,7 +292,7 @@ async function end(ctx: Ctx, key: Key, mark: Item, m: MemberStatus, c: Paging): 
 
 /** Due once the condition has held for alert.afterMs without a break. */
 async function due(ctx: Ctx, key: Key, m: MemberStatus, a: AlertConfig, redSince = 0): Promise<boolean> {
-    const red = condition(ctx, m, a);
+    const red = await condition(ctx, m, a);
     if (red !== redSince > 0) {
         await ctx.store.update(key, { set: { redSince: red ? ctx.now : 0, ttl: ttl(ctx) } });
     }
@@ -426,7 +431,6 @@ interface CauseWords {
     alert?: Partial<AlertConfig>;
 }
 
-const SSM = (name: string) => ` (SSM ${name})`;
 /**
  * The sources whose credential only the owner can make: what refused, and where to make a new one. Every other
  * source's credential error is agent work and never pages: the billing feed reads Cost Explorer through the
@@ -438,13 +442,13 @@ const CREDENTIALS: Record<string, Omit<CauseWords, "off"> & { off?: string }> = 
         feed: "Cloudflare token",
         frozen: "Cloudflare costs and usage",
         problem: "Cloudflare token rejected",
-        fix: `Make a new read-only Cloudflare token at https://dash.cloudflare.com/profile/api-tokens (Account Analytics: Read, Billing: Read) and give it to any Claude session to store${SSM("/graphty-health/cloudflare/token")}.`,
+        fix: "Make a new read-only Cloudflare token at https://dash.cloudflare.com/profile/api-tokens (Account Analytics: Read, Billing: Read) and give it to any Claude session to store.",
     },
     "sentry-token": {
         feed: "Sentry token",
         frozen: "Sentry usage",
         problem: "Sentry token rejected",
-        fix: `Make a new Sentry token with org:read at https://sentry.io/settings/account/api/auth-tokens/ and give it to any Claude session to store${SSM("/graphty-health/sentry/token")}.`,
+        fix: "Make a new Sentry token with org:read at https://sentry.io/settings/account/api/auth-tokens/ and give it to any Claude session to store.",
     },
 };
 
@@ -477,7 +481,7 @@ export function causeWords(m: MemberStatus): CauseWords {
                 feed: "Collector",
                 frozen: "GitHub",
                 problem: "GitHub App key refused",
-                fix: `Make a new private key for the graphty-pipeline-health App at https://github.com/organizations/graphty-org/settings/apps/graphty-pipeline-health and give the .pem file to any Claude session to store${SSM("/graphty-health/github-app/private-key")}. If the App was uninstalled, reinstall it there.`,
+                fix: "Make a new private key for the graphty-pipeline-health App at https://github.com/organizations/graphty-org/settings/apps/graphty-pipeline-health and give the .pem file to any Claude session to store. If the App was uninstalled, reinstall it there.",
                 off: "",
             };
         }
@@ -485,7 +489,7 @@ export function causeWords(m: MemberStatus): CauseWords {
             feed: "Collector",
             frozen: "GitHub",
             problem: "code error",
-            fix: "Have a Claude session read the collector's CloudWatch logs (us-east-2) and fix it.",
+            fix: "Have a Claude session read the collector's CloudWatch logs and fix it.",
             off: "",
         };
     }
@@ -558,7 +562,6 @@ function fill(template: string, d: Due, now: number): string {
         mon: monthName(now, "short"),
         end: monthEnd(now),
         ...budgetMonth(now),
-        slots: String(SLAS.runnerLimits.linux_windows),
         peak: human(m.id, peak),
         pace: human(m.id, m.value === undefined ? undefined : pace(m.value, now)),
         for: duration(now - start),
@@ -614,12 +617,33 @@ export function openMessage(ctx: Pick<Ctx, "evaluation" | "now">, ds: Due[]): Me
         title: one ? f(ds[0].c.alert.title, ds[0]) : f(`${ds.length} budgets over for {mon}: ${over}`, ds[0]),
         message: one
             ? `${f(ds[0].c.alert.text, ds[0])}\nWhat to do: ${f(ds[0].c.alert.action, ds[0])}${tail}`
-            : // LLM test runs are the one paid service the agents can cut at once (the T4 lane runs on every release).
-              `${ds.map((d) => f(d.c.alert.text, d)).join("\n")}\nWhat to do: ${f("{choose}", ds[0])}: raise the budgets to ${accept} a month, or have the agents cut LLM test runs from ${f("{cutFrom}", ds[0])}.${tail}`,
+            : `${ds.map((d) => f(d.c.alert.text, d)).join("\n")}\nWhat to do: ${f("{choose}", ds[0])}: raise the budgets to ${accept} a month, or keep them and accept the overruns.${cut(ds, f)}${tail}`,
         ...link(ctx, ds[0].m.category, one ? ds[0] : undefined),
         // Loud only in the day: at night an outage page is held by the owner's quiet hours (as health-dead-man.sh).
         priority: String(top === 1 && !daytime(ctx.now) ? 0 : top),
     };
+}
+
+/**
+ * What cutting LLM test runs (the one paid service the agents can cut at once; the T4 lane runs on every release)
+ * back to their budget would and would not fix, for a group the LLM tests are in.
+ */
+function cut(ds: Due[], f: (t: string, d: Due) => string): string {
+    // Whole dollars, as the title shows each overrun, so the sum the page states is one the reader can check.
+    const over = (d?: Due) => Math.round((d?.m.value ?? 0) - (d?.m.ok?.[1] ?? 0));
+    const llm = ds.find((d) => d.c.id === "cost.llm");
+    if (!llm) {
+        return "";
+    }
+    const total = ds.find((d) => d.c.id === "cost.spend");
+    const left = over(total) - over(llm);
+    const fits = total && left <= 0 ? " and brings the total within budget" : "";
+    const still = [
+        ...ds.filter((d) => d !== llm && d !== total).map((d) => `${d.c.alert.short ?? d.c.label} stays over`),
+        ...(total && left > 0 ? [`the total stays about ${human(total.m.id, left)} over`] : []),
+    ];
+    const but = still.length ? `, but ${still.join(" and ")}` : "";
+    return ` Cutting LLM test runs from ${f("{cutFrom}", llm)} to fit their ${f("{target}", llm)} budget saves about ${f("{over}", llm)}${fits}${but}.`;
 }
 
 /**

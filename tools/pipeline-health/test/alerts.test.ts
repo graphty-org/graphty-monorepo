@@ -139,7 +139,6 @@ describe("sendAlerts", () => {
                 "data.collector",
                 "data.sources_age",
                 "master.red_now",
-                "master.untested_age",
                 "release.lanes_red",
             ].sort(),
         );
@@ -333,19 +332,20 @@ describe("the policy's conditions", () => {
         // The title names every overrun, so the lock screen shows both.
         expect(body.title).toBe("2 budgets over for Nov: T4 GPU +$52, LLM tests +$28");
         expect(body.priority).toBe("0");
+        // The limit the Costs page draws red at is named beside the budget, so both say the same numbers.
         expect(body.message).toContain(
-            "T4 GPU test lane: $40 spent so far, $232 by Nov 30 at this pace, against its $180 budget. It runs on every release, so it cannot be cut.\n",
+            "T4 GPU test lane: $40 spent so far, $232 by Nov 30 at this pace, against its $180 budget (the Costs page shows red above $200). It runs on every release, so it cannot be cut.\n",
         );
         // One decision that names every suggested budget, not one decision per member. Early in the month it holds
         // from now on, and a cut starts today.
         expect(body.message).toContain(
-            "What to do: Choose the budget from now on: raise the budgets to T4 GPU $240, LLM tests $90 a month, or have the agents cut LLM test runs from today.",
+            "What to do: Choose the budget from now on: raise the budgets to T4 GPU $240, LLM tests $90 a month, or keep them and accept the overruns. Cutting LLM test runs from today to fit their $60 budget saves about $28, but T4 GPU stays over.",
         );
         expect(body.message.match(/What to do/g)).toHaveLength(1);
         // The shared closing step is said once, not once per member.
         expect(body.message.match(/Tell any Claude session your choice/g)).toHaveLength(1);
         // The T4 lane runs in every full run (owner's rule): a page never offers running it less.
-        expect(body.message).not.toMatch(/fewer full runs|red above|over budget for/);
+        expect(body.message).not.toMatch(/fewer full runs|over budget for/);
         // Floor: a week.
         await run(
             store,
@@ -355,6 +355,24 @@ describe("the policy's conditions", () => {
             SLAS,
         );
         expect(p.calls).toHaveLength(1);
+    });
+
+    it("a cost still over budget pages again a week later, and in the next month from day 7", async () => {
+        const store = new MemoryStore();
+        const p = pushover();
+        const ev = evaluation(cost("cost.t4", 232, 150), { start: Date.UTC(2026, 9, 1) });
+        const sentAt: number[] = [];
+        // Noon Pacific every day from Oct 20 to Nov 12, and 6 h later, with the forecast over budget throughout.
+        for (let t = Date.UTC(2026, 9, 20, 19); t < Date.UTC(2026, 10, 12); t += DAY) {
+            for (const at of [t, t + 6 * HOUR]) {
+                if ((await run(store, ev, at, p.fetch, SLAS)).sent.length) sentAt.push(at);
+            }
+        }
+        expect(sentAt.map((t) => new Date(t).toISOString().slice(0, 10))).toEqual([
+            "2026-10-21", // 6 h past 19:00 UTC on the 20th
+            "2026-10-28",
+            "2026-11-07", // Nov 1 to 6 (UTC) wait for day 7, as month-to-date is under red; then 6 h
+        ]);
     });
 
     it("a cost page due at night waits for the morning", async () => {
@@ -389,9 +407,7 @@ describe("the policy's conditions", () => {
         };
         const oct = (d: number) => Date.UTC(2026, 9, d, 20); // 13:00 Pacific
         expect(await sent(8.4, oct(29))).toEqual([]); // about $8.70 by Oct 31: under the cap
-        expect(await sent(8.4, oct(20))).toEqual([
-            "AWS Budget: dashboard and alerts stop at $10; $13 projected by Oct 31",
-        ]);
+        expect(await sent(8.4, oct(20))).toEqual(["Dashboard shuts off at $10 AWS spend: $13 forecast"]);
         expect(await sent(9.2, oct(30))).toHaveLength(1); // under $10 by the pace, but within $1 of it
     });
 
@@ -411,12 +427,17 @@ describe("the policy's conditions", () => {
         await run(store, evaluation([red, outage]), T0, p.fetch, SLAS);
         await run(store, evaluation([red, outage]), T0 + 3 * HOUR, p.fetch, SLAS);
         expect(p.calls.map((c) => c.get("title"))).toEqual(["GitHub not starting CI jobs: 0 running, 40 waiting"]);
-        await run(store, evaluation(red), T0 + 3 * HOUR + 5 * MIN, p.fetch, SLAS);
-        expect((await run(store, evaluation(red), T0 + 6 * HOUR + 5 * MIN, p.fetch, SLAS)).sent).toEqual([
+        // GitHub recovers: while the runners page is open (until its resolved), master red still waits.
+        const ok = { ...outage, state: "OK" as const, value: 0 };
+        await run(store, evaluation([red, ok]), T0 + 3 * HOUR + 5 * MIN, p.fetch, SLAS);
+        await run(store, evaluation([red, ok]), T0 + 3 * HOUR + 20 * MIN, p.fetch, SLAS);
+        expect(p.calls.map((c) => c.get("title"))[1]).toBe("GitHub is starting CI jobs again");
+        await run(store, evaluation(red), T0 + 3 * HOUR + 25 * MIN, p.fetch, SLAS);
+        expect((await run(store, evaluation(red), T0 + 6 * HOUR + 25 * MIN, p.fetch, SLAS)).sent).toEqual([
             { member: "master.red_now", kind: "open" },
         ]);
-        expect(Object.fromEntries(p.calls[1])).toMatchObject({
-            title: "Master broken for 3 h 15 min, no agent has fixed it",
+        expect(Object.fromEntries(p.calls[2])).toMatchObject({
+            title: "Master broken for 3 h 15 min, longer than agents usually take",
             priority: "1",
         });
     });
@@ -436,7 +457,9 @@ describe("the policy's conditions", () => {
         const store = new MemoryStore();
         await run(store, evaluation([red, slow]), T0, p.fetch, SLAS);
         await run(store, evaluation([red, slow]), T0 + 3 * HOUR, p.fetch, SLAS);
-        expect(p.calls.map((c) => c.get("title"))).toEqual(["Master broken for 3 h 15 min, no agent has fixed it"]);
+        expect(p.calls.map((c) => c.get("title"))).toEqual([
+            "Master broken for 3 h 15 min, longer than agents usually take",
+        ]);
     });
 
     it("an outage where runs sit queued before GitHub creates their jobs still pages", async () => {
@@ -469,7 +492,7 @@ describe("the policy's conditions", () => {
         await run(store, evaluation(stuck), T0 + 3 * HOUR, p.fetch, SLAS);
         await run(store, evaluation(stuck), T0 + 4 * HOUR, p.fetch, SLAS);
         expect(p.calls[0].get("message")).toContain(
-            "GitHub is running 2 of its 60 CI job slots while 600 jobs wait for a runner, and jobs have been left waiting for 5 h.",
+            "2 CI jobs running and 600 waiting for a runner, some for 5 h. All CI and merging is stalled.",
         );
     });
 
@@ -570,40 +593,41 @@ describe("the policy's conditions", () => {
         ]);
     });
 
-    it("a stopped release scheduler pages; full runs that start but fail do not", async () => {
-        const untested = (sinceSlot: number): MemberStatus => ({
-            ...member("master.untested_age", "master"),
-            value: 26 * HOUR,
-            facts: { "release.since_slot_ms": sinceSlot },
-        });
+    it("a missing fact is a gap: it neither ends the episode nor sends a false resolved", async () => {
+        const cfg = config({ stuck: { facts: { since: [">", 7 * HOUR] } } });
+        const stuck = (facts: Record<string, number>): MemberStatus => ({ ...member("stuck", "x"), facts });
         const p = pushover();
         const store = new MemoryStore();
-        await run(store, evaluation(untested(3 * HOUR)), DAY_T0, p.fetch, SLAS);
-        await run(store, evaluation(untested(4 * HOUR)), DAY_T0 + 2 * HOUR, p.fetch, SLAS);
-        expect(p.calls).toHaveLength(0);
-        await run(store, evaluation(untested(8 * HOUR)), DAY_T0 + 3 * HOUR, p.fetch, SLAS);
-        await run(store, evaluation(untested(9 * HOUR)), DAY_T0 + 4 * HOUR, p.fetch, SLAS);
-        expect(p.calls.map((c) => c.get("title"))).toEqual(["No full test run for 9 h: nothing reaches nightly"]);
-        expect(p.calls[0].get("message")).toContain(
-            "What to do: Tell any Claude session: the release scheduler worker stopped starting full runs",
-        );
+        await run(store, evaluation(stuck({ since: 9 * HOUR })), DAY_T0, p.fetch, cfg);
+        expect(p.calls).toHaveLength(1);
+        // The collector part that measures the fact fails for two hours: no fact, still red.
+        for (const t of [2, 2.5, 3]) await run(store, evaluation(stuck({})), DAY_T0 + t * HOUR, p.fetch, cfg);
+        expect(p.calls).toHaveLength(1);
+        expect((await store.get({ pk: "ALERT#stuck", sk: "episode" }))?.endedAt).toBe(0);
     });
 
-    it("a missing fact is a gap: it neither ends the episode nor sends a false resolved", async () => {
-        const untested = (facts: Record<string, number>): MemberStatus => ({
-            ...member("master.untested_age", "master"),
-            value: 26 * HOUR,
-            facts,
-        });
+    it("a GitHub outage pages once: the collector blinded by it stays quiet while the runners page is open", async () => {
         const p = pushover();
         const store = new MemoryStore();
-        await run(store, evaluation(untested({ "release.since_slot_ms": 8 * HOUR })), DAY_T0, p.fetch, SLAS);
-        await run(store, evaluation(untested({ "release.since_slot_ms": 9 * HOUR })), DAY_T0 + HOUR, p.fetch, SLAS);
+        const outage = {
+            ...member("ci.runners_not_assigned", "ci"),
+            value: 75 * MIN,
+            facts: { "ci.jobs_running": 0, "ci.jobs_waiting_runner": 40 },
+        };
+        await run(store, evaluation(outage), DAY_T0, p.fetch, SLAS);
+        await run(store, evaluation(outage), DAY_T0 + HOUR, p.fetch, SLAS);
+        expect(p.calls.map((c) => c.get("title"))).toEqual(["GitHub not starting CI jobs: 0 running, 40 waiting"]);
+        // GitHub's API then fails too: the runners member has no data (a gap), the collector is blind for hours.
+        const blind = (value: number): MemberStatus => ({
+            ...member("data.collector", "data_sources"),
+            value,
+            cause: { code: "error", params: { source: "collector", error: "GitHub graphql: HTTP 502" } },
+        });
+        const gap = { ...outage, state: "NO DATA" as const, value: undefined, facts: undefined };
+        for (const h of [2, 3, 4, 5]) {
+            await run(store, evaluation([gap, blind(h * HOUR)]), DAY_T0 + h * HOUR, p.fetch, SLAS);
+        }
         expect(p.calls).toHaveLength(1);
-        // The collector's releases part fails for two hours: no fact, still red.
-        for (const t of [2, 2.5, 3]) await run(store, evaluation(untested({})), DAY_T0 + t * HOUR, p.fetch, SLAS);
-        expect(p.calls).toHaveLength(1);
-        expect((await store.get({ pk: "ALERT#master.untested_age", sk: "episode" }))?.endedAt).toBe(0);
     });
 
     it("master's resolved says how long it was broken, to the fix, not the value when it paged", async () => {
@@ -643,8 +667,9 @@ describe("the policy's conditions", () => {
         // The total says it already holds the lines below it, so nobody adds them up.
         expect(costs.message).toContain("All paid services together, T4 GPU and LLM tests included: $385 spent so far");
         // In the month's last week October is spent: the choice is November's budget.
+        // Every option closes the gap it names: cutting the LLM tests is offered with what it leaves over.
         expect(costs.message).toContain(
-            "What to do: October is nearly spent. Choose November's budget: raise the budgets to Total $420, T4 GPU $240, LLM tests $90 a month, or have the agents cut LLM test runs from Nov 1.",
+            "What to do: October is nearly spent. Choose November's budget: raise the budgets to Total $420, T4 GPU $240, LLM tests $90 a month, or keep them and accept the overruns. Cutting LLM test runs from Nov 1 to fit their $60 budget saves about $28, but T4 GPU stays over and the total stays about $84 over.",
         );
         expect(costs.message).toMatch(
             /Nothing is cut unless you say so\. Tell any Claude session your choice; it applies it\.$/,
@@ -692,14 +717,13 @@ describe("the policy's conditions", () => {
             "Health dashboard is reading GitHub again",
         ]);
         // From the episode's start to the first run that saw it fixed (110 min), never less than the peak (2 h).
-        expect(p.calls[1].get("message")).toBe("It was blind for about 2 h.\nNothing to do.");
+        expect(p.calls[1].get("message")).toBe("The health dashboard was blind for about 2 h.\nNothing to do.");
     });
 });
 
 describe("messages", () => {
     const realistic: Record<string, Partial<MemberStatus>> = {
         "master.red_now": { value: 3 * HOUR + 20 * MIN },
-        "master.untested_age": { value: 25 * HOUR, facts: { "release.since_slot_ms": 9 * HOUR } },
         "ci.runners_not_assigned": { value: 75 * MIN, facts: { "ci.jobs_running": 0, "ci.jobs_waiting_runner": 40 } },
         "release.lanes_red": { value: 0, facts: { "release.review_wait_ms": 26 * HOUR, "release.review_issue": 4700 } },
         "cost.spend": { value: 412.3, facts: { month_to_date: 280 } },
@@ -753,7 +777,7 @@ describe("messages", () => {
 
     it("every alert text uses only placeholders fill() knows, and the thresholds they read exist", () => {
         const known =
-            /^(value|limit|target|over|suggest|pace|mtd|month|mon|choose|cutFrom|slots|end|peak|lasted|for|error|since|feed|frozen|problem|fix|off|(ms|issue|n):[\w.]+)$/;
+            /^(value|limit|target|over|suggest|pace|mtd|month|mon|choose|cutFrom|end|peak|lasted|for|error|since|feed|frozen|problem|fix|off|(ms|issue|n):[\w.]+)$/;
         for (const c of SLAS.members.filter((x) => x.alert)) {
             const a = c.alert!;
             const texts = [
@@ -768,6 +792,13 @@ describe("messages", () => {
             for (const [, k] of texts.matchAll(/\{([^}]+)\}/g)) {
                 expect(k, `${c.id}: {${k}}`).toMatch(known);
             }
+            // Every fact a page needs or names is one the engine writes for this member: a typo would be a fact
+            // that is never there, a permanent gap, and the member would silently never page.
+            const facts = new Set(["month_to_date", "credential_error_ms", ...(c.also ?? []).map((x) => x.metric)]);
+            const named = [...texts.matchAll(/\{(?:ms|n|issue):([\w.]+)\}/g)].map(([, k]) => k);
+            for (const k of [...Object.keys(a.facts ?? {}), ...named]) {
+                expect(facts.has(k), `${c.id}: fact ${k}`).toBe(true);
+            }
             if (/\{limit\}/.test(texts)) expect(c.fail, `${c.id} uses {limit}`).toBeDefined();
             if (/\{(target|over)\}/.test(texts)) expect(c.ok, `${c.id} uses {target}`).toBeDefined();
         }
@@ -780,7 +811,7 @@ describe("messages", () => {
                 cause: { code: "error", params: { source: "collector", error } },
             });
         expect(words("GitHub App token: HTTP 401 Bad credentials").fix).toContain(
-            "/graphty-health/github-app/private-key",
+            "settings/apps/graphty-pipeline-health",
         );
         expect(words("GitHub: HTTP 502").problem).toBe("GitHub API down");
         expect(words("installation token: HTTP 503").problem).toBe("GitHub API down");

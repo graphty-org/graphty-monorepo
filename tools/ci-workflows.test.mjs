@@ -8562,6 +8562,7 @@ describe("the Checks job's CI workflow tests run their files side by side", () =
                 new URL("run-ci-workflow-tests.mjs", import.meta.url),
                 join(dir, "tools/run-ci-workflow-tests.mjs"),
             );
+            copyFileSync(new URL("tool-test-guard.mjs", import.meta.url), join(dir, "tools/tool-test-guard.mjs"));
             // "slow" finishes last but is listed first; "bad" fails; "a.mjs" is listed twice (a union merge)
             const slow = 'console.log("slow-1"); setTimeout(() => console.log("slow-2"), 300);';
             writeFileSync(join(dir, "tools/slow.mjs"), slow);
@@ -8593,6 +8594,7 @@ describe("the Checks job's CI workflow tests run their files side by side", () =
                 new URL("run-ci-workflow-tests.mjs", import.meta.url),
                 join(dir, "tools/run-ci-workflow-tests.mjs"),
             );
+            copyFileSync(new URL("tool-test-guard.mjs", import.meta.url), join(dir, "tools/tool-test-guard.mjs"));
             writeFileSync(
                 join(dir, "tools/loud.mjs"),
                 'process.stdout.write("x".repeat(4 * 1024 * 1024) + "\\n"); process.exitCode = 2;',
@@ -8604,6 +8606,58 @@ describe("the Checks job's CI workflow tests run their files side by side", () =
             });
             assert.equal(r.status, 1);
             assert.match(r.stdout, /0 of 1 test files passed\nfailed:\n {2}tools\/loud\.mjs \(exit 2\)\n$/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("the CI workflow tests never reach the real world (#3392)", () => {
+    it("fails a file that calls gh, fetches beyond loopback or writes to the shared tmp/ state, even when it swallows the error", () => {
+        const dir = mkdtempSync(join(tmpdir(), "ci-workflow-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            for (const f of ["run-ci-workflow-tests.mjs", "tool-test-guard.mjs"]) {
+                copyFileSync(new URL(f, import.meta.url), join(dir, "tools", f));
+            }
+            const swallow = (body) => `try { ${body} } catch {}`;
+            const files = {
+                "env.mjs": `if (process.env.GITHUB_ACTIONS || process.env.RESULTS_URL || process.env.GH_TOKEN) process.exit(4);`,
+                "gh.mjs": swallow(
+                    `(await import("node:child_process")).execFileSync("gh", ["issue", "create"], { stdio: "pipe" });`,
+                ),
+                "fetch.mjs": swallow(`await fetch("https://api.github.com/repos/o/r/issues");`),
+                "write.mjs": swallow(`(await import("node:fs")).writeFileSync("tmp/quarantine/state.json", "{}");`),
+                "own.mjs": `const fs = await import("node:fs"); fs.mkdirSync("tmp", { recursive: true }); const d = fs.mkdtempSync("tmp/fixture-"); fs.writeFileSync(d + "/a", "x"); fs.rmSync(d, { recursive: true });`,
+                "child.mjs": `(await import("node:child_process")).spawnSync(process.execPath, ["-e", "fetch('https://results.example/x').catch(() => {})"]);`,
+                "local.mjs": `const fs = await import("node:fs"); const os = await import("node:os"); const p = (await import("node:path")).join(os.tmpdir(), "tt-" + process.pid); fs.writeFileSync(p, "x"); fs.rmSync(p);`,
+            };
+            for (const [f, body] of Object.entries(files)) writeFileSync(join(dir, "tools", f), body);
+            mkdirSync(join(dir, "tmp/quarantine"), { recursive: true }); // the shared state, there before the run
+            writeFileSync(
+                join(dir, "tools/tool-tests.txt"),
+                Object.keys(files)
+                    .map((f) => `tools/${f}`)
+                    .join("\n"),
+            );
+            const r = spawnSync(process.execPath, [join(dir, "tools/run-ci-workflow-tests.mjs")], {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GITHUB_ACTIONS: "true",
+                    RESULTS_URL: "https://results.example",
+                    GH_TOKEN: "x",
+                },
+            });
+            assert.match(r.stdout, /3 of 7 test files passed/, r.stdout);
+            for (const f of ["gh", "fetch", "write", "child"])
+                assert.match(r.stdout, new RegExp(`tools/${f}\\.mjs \\(exit 1\\)`));
+            assert.match(r.stdout, /refused a real gh call: gh issue create/);
+            assert.match(r.stdout, /refused a network call to https:\/\/api\.github\.com/);
+            assert.match(r.stdout, /refused a network call to https:\/\/results\.example/);
+            assert.match(r.stdout, /refused a write to .*tmp\/quarantine\/state\.json/);
+            assert.deepEqual(readdirSync(join(dir, "tmp/quarantine")), [], "nothing written to the shared state");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

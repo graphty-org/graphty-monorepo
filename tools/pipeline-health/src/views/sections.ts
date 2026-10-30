@@ -98,38 +98,63 @@ export function redSpans(strip: StripSection | undefined, now: number): Section 
     return { kind: "table", id: "red-spans", rows };
 }
 
+/** Each jobs chart's bucket and length: 1 h and 6 h draw the last 6 hours, 7 d is the runner history. */
+const JOB_STEPS: Record<Range | "7d", { step: "15m" | "1h"; count: number }> = {
+    "1h": { step: "15m", count: 24 },
+    "6h": { step: "15m", count: 24 },
+    "24h": { step: "1h", count: 24 },
+    // 15-minute buckets are the finest kept for 7 days (KEEP_MS).
+    "7d": { step: "15m", count: 7 * 96 },
+};
+
 /**
- * Running and queued jobs (collector stocks `ci.jobs_running`, `ci.jobs_queued`), gaps carried forward.
+ * Running and queued jobs (collector stocks `ci.jobs_running`, `ci.jobs_queued`), gaps carried forward, and per
+ * bucket the peaks, the longest queued job and the saturated time (null where the collector wrote nothing).
  * @param reads
  * @param range
  */
-export async function jobs(reads: Reads, range: Range): Promise<Section> {
-    const w = range === "24h" ? "24h" : "6h";
-    const [run, q] = await Promise.all([reads.window("ci.jobs_running", w), reads.window("ci.jobs_queued", w)]);
-    const first = run.series.findIndex((s) => s.bucket.lastAt !== undefined);
+export async function jobs(reads: Reads, range: Range | "7d"): Promise<Section> {
+    const { step, count } = JOB_STEPS[range];
+    const to = floorTo(reads.now, step);
+    const from = to - (count - 1) * STEP_MS[step];
+    const [run, q, lq, sat] = await Promise.all(
+        ["ci.jobs_running", "ci.jobs_queued", "ci.longest_queued_ms", "ci.saturated_ms"].map((m) =>
+            reads.series(m, step, from, to),
+        ),
+    );
+    const starts = Array.from({ length: count }, (_, i) => from + i * STEP_MS[step]);
+    const first = starts.findIndex((s) => run.get(s)?.lastAt !== undefined);
     if (first < 0) {
         return notCollected("jobs");
     }
-    const carry = (series: typeof run.series) => {
+    const shown = starts.slice(first);
+    const carry = (series: Map<number, Bucket>) => {
         let prev = 0;
-        return series.slice(first).map((s) => (prev = s.bucket.last ?? prev));
+        return shown.map((s) => (prev = series.get(s)?.last ?? prev));
     };
-    const running = carry(run.series);
-    const queued = carry(q.series);
-    let peak = { n: -1, at: iso(run.series[first].start) };
-    run.series.slice(first).forEach((s) => {
-        const n = s.bucket.max ?? -1;
+    const per = (series: Map<number, Bucket>, v: (b: Bucket) => number | undefined) =>
+        shown.map((s) => {
+            const b = series.get(s);
+            return b?.n ? (v(b) ?? null) : null;
+        });
+    let peak = { n: -1, at: iso(shown[0]) };
+    for (const s of shown) {
+        const n = run.get(s)?.max ?? -1;
         if (n > peak.n) {
-            peak = { n, at: iso(s.start) };
+            peak = { n, at: iso(s) };
         }
-    });
+    }
     const out: JobsSection = {
         kind: "jobs",
         id: "jobs",
-        step: range === "24h" ? "1h" : "15m",
-        start: iso(run.series[first].start),
-        running,
-        queued,
+        step,
+        start: iso(shown[0]),
+        running: carry(run),
+        queued: carry(q),
+        runningMax: per(run, (b) => b.max),
+        queuedMax: per(q, (b) => b.max),
+        longestQueuedMs: per(lq, (b) => b.max),
+        saturatedMs: per(sat, (b) => b.sum),
         limit: reads.cfg.runnerLimits.linux_windows ?? 60,
         peak: { n: Math.max(0, peak.n), at: peak.at },
     };

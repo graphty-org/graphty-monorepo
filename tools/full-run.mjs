@@ -426,13 +426,23 @@ export function changedSummary(changed) {
  */
 export function redIssue({ sha, red, lanes, run, bisect }) {
     const names = red.map((l) => LANES[l].name).join(", ");
+    // the verdict and the early red jobs run only when nobody cancelled the run (!cancelled()), so a lane GitHub
+    // reports as cancelled hit its job time limit (timeout-minutes): a real red, not a cancelled run (#4556)
+    const said = (r) => (r === "cancelled" ? "timed out (cancelled)" : (r ?? "skipped"));
     const results = Object.keys(LANES)
-        .map((l) => `${LANES[l].name} ${lanes[l] ?? "skipped"}`)
+        .map((l) => `${LANES[l].name} ${said(lanes[l])}`)
         .join(", ");
+    const timedOut = red.some((l) => lanes[l] === "cancelled")
+        ? [
+              "",
+              "The run itself was not cancelled (a cancelled run is judged by nobody): a lane GitHub reports as cancelled hit its job time limit, so its tests never finished. Find what made it slow in the job's log.",
+          ]
+        : [];
     const body = [
         `The full run failed on ${sha} (${names}): ${run}`,
         "",
         `Results: ${results}`,
+        ...timedOut,
         "",
         bisect,
         "",

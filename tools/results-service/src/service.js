@@ -616,9 +616,15 @@ async function postStoryCaptures(body, who, db, nowMs) {
         baselineHash,
         nowMs,
     ]);
+    const units = body.units ?? [];
+    if (!Array.isArray(units) || units.length > STORY_ROWS_MAX)
+        refuse(400, `units must be a list of at most ${STORY_ROWS_MAX}`);
+    const unitRows = units.map((u) => [text(u?.project, "project"), text(u?.unit, "unit"), body.sha, ...run, nowMs]);
     const columns = ["project", "story", "mode", "sha", "baselines_tree", "run_id", "attempt", "artifact"];
+    const captureInserts = inserts(db, "story_capture", [...columns, "status", "hash", "baseline_hash", "at"], rows);
     const results = await db.batch([
-        ...inserts(db, "story_capture", [...columns, "status", "hash", "baseline_hash", "at"], rows),
+        ...captureInserts,
+        ...inserts(db, "story_unit", ["project", "unit", "sha", "run_id", "attempt", "at"], unitRows),
         ...notified.map((kind) =>
             db.prepare("INSERT OR REPLACE INTO story_notify (kind, at) VALUES (?, ?)").bind(kind, nowMs),
         ),
@@ -629,9 +635,16 @@ async function postStoryCaptures(body, who, db, nowMs) {
                  AND (n.run_id > story_capture.run_id OR (n.run_id = story_capture.run_id AND n.attempt > story_capture.attempt)))`,
             )
             .bind(nowMs - STORY_KEEP_MS),
+        db
+            .prepare(
+                `DELETE FROM story_unit WHERE at < ? AND EXISTS (SELECT 1 FROM story_unit n WHERE n.project = story_unit.project
+                 AND n.unit = story_unit.unit
+                 AND (n.run_id > story_unit.run_id OR (n.run_id = story_unit.run_id AND n.attempt > story_unit.attempt)))`,
+            )
+            .bind(nowMs - STORY_KEEP_MS),
         db.prepare("DELETE FROM story_reach WHERE at < ?").bind(nowMs - STORY_KEEP_MS),
     ]);
-    const stored = results.slice(0, results.length - notified.length - 2).reduce((n, r) => n + r.meta.changes, 0);
+    const stored = results.slice(0, captureInserts.length).reduce((n, r) => n + r.meta.changes, 0);
     return { stored };
 }
 
@@ -660,18 +673,25 @@ const UNAPPROVED_SINCE_CLEAR = `WITH n AS (SELECT project, story, mode, baseline
  WHERE t.k > m.clear AND t.status IN ('changed', 'new', 'unseeded') ORDER BY t.k DESC`; // QUEUE_STATUSES
 
 async function getStoryCaptures(_query, _who, db) {
-    const [{ results: newest }, last, { results: notified }, { results: since }] = await Promise.all([
-        db
-            .prepare(
-                `SELECT project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, hash, baseline_hash, at
+    const [{ results: newest }, last, { results: notified }, { results: units }, { results: since }] =
+        await Promise.all([
+            db
+                .prepare(
+                    `SELECT project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, hash, baseline_hash, at
                  FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, story, mode ORDER BY run_id DESC, attempt DESC) AS rn
                  FROM story_capture) WHERE rn = 1 ORDER BY project, story, mode`,
-            )
-            .all(),
-        db.prepare("SELECT sha, at FROM story_capture ORDER BY run_id DESC, attempt DESC, at DESC LIMIT 1").first(),
-        db.prepare("SELECT kind, at FROM story_notify").all(),
-        db.prepare(UNAPPROVED_SINCE_CLEAR).all(),
-    ]);
+                )
+                .all(),
+            db.prepare("SELECT sha, at FROM story_capture ORDER BY run_id DESC, attempt DESC, at DESC LIMIT 1").first(),
+            db.prepare("SELECT kind, at FROM story_notify").all(),
+            db
+                .prepare(
+                    `SELECT project, unit, sha, at FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, unit ORDER BY run_id DESC, attempt DESC)
+                 AS rn FROM story_unit) WHERE rn = 1 ORDER BY project, unit`,
+                )
+                .all(),
+            db.prepare(UNAPPROVED_SINCE_CLEAR).all(),
+        ]);
     // newest first, so the last write per story is its first unapproved render
     const first = new Map(since.map((r) => [`${r.project}\n${r.story}\n${r.mode}`, r.sha]));
     const statuses = {};
@@ -703,7 +723,22 @@ async function getStoryCaptures(_query, _who, db) {
             queue: newest.filter((c) => QUEUE_STATUSES.has(c.status)).length,
         },
         notified: Object.fromEntries([...NOTIFY_KINDS].map((k) => [k, when[k] ?? null])),
+        // when each slice unit was last captured whole: the slice planner's rotation (tools/channel/story-slices.mjs)
+        units: units.map((u) => ({ project: u.project, unit: u.unit, sha: u.sha, at: u.at })),
     };
+}
+
+// The story units the listed master commits reach (`?shas=<sha>,<sha>`, at most MAX_PARAMS, which D1 binds): the slice planner renders them
+// first. Ordering only, never a reason to skip a render (early-capture.md, 2d).
+async function getStoryReach(query, _who, db) {
+    const shas = (query.get("shas") ?? "").split(",").filter(Boolean);
+    if (!shas.length || shas.length > MAX_PARAMS || !shas.every((s) => SHA.test(s)))
+        refuse(400, `shas lists 1 to ${MAX_PARAMS} full commit ids`);
+    const { results } = await db
+        .prepare(`SELECT sha, unit FROM story_reach WHERE sha IN (${shas.map(() => "?").join(",")}) ORDER BY sha, unit`)
+        .bind(...shas)
+        .all();
+    return { reach: results.map((r) => ({ sha: r.sha, unit: r.unit })) };
 }
 
 const ROUTES = {
@@ -725,6 +760,7 @@ const ROUTES = {
     "GET /v1/failures": getFailures,
     "GET /v1/durations/medians": getMedians,
     "GET /v1/story-captures": getStoryCaptures,
+    "GET /v1/story-reach": getStoryReach,
     [`GET ${TESTS_PATH}:name`]: getTestDurations,
     [`PUT ${TESTS_PATH}:name`]: putTestDurations,
 };

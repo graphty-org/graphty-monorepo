@@ -145,3 +145,8 @@
 /webgpu-graph-algorithms/scripts/warp-guard-verdict.sh @graphty-org/code-owners
 /webgpu-graph-algorithms/scripts/warp-question.sh @graphty-org/code-owners
 /tools/pipeline-health/web/vite.config.ts @graphty-org/code-owners
+# Reached from tools/check-quick.sh --with-dry-run (the app's acceptance dry run, 9751ba561f)
+/graphty/acceptance/run.mjs @graphty-org/code-owners
+/graphty/acceptance/readers.mjs @graphty-org/code-owners
+/graphty/acceptance/routes.mjs @graphty-org/code-owners
+/design/ui/studio/tool/with-browser.sh @graphty-org/code-owners

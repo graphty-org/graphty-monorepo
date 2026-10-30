@@ -7862,7 +7862,10 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
             /\n {8}if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && inputs\.ref == ''\n/,
         );
         assert.match(graphs, /uses: actions\/cache\/save@v\d+\n/);
-        assert.match(graphs, /lookup-only: true/, "the saved set holds only the current graphs");
+        // an exact-key restore (no prefix restore-keys) and a save only on a miss: the saved set holds only the
+        // current graphs (the restore also serves the reach step, design/visual-testing/early-capture.md 4a)
+        assert.doesNotMatch(graphs, /restore-keys: test-select-graphs/, "the saved set holds only the current graphs");
+        assert.match(graphs, /- name: Save the import graphs\n {14}if: steps\.graphs\.outputs\.cache-hit != 'true'\n/);
     });
 
     it("runs the plan's bins as Test (<family>-<bin>) jobs, each through run-group.mjs", () => {

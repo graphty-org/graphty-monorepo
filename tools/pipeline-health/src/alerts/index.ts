@@ -615,6 +615,10 @@ function budgetMonth(now: number): { choose: string; pick: string; cutFrom: stri
 /** The line a member's page is judged against: red, or the OK line when it has no red. */
 const line = (m: MemberStatus) => m.fail?.[1] ?? m.ok?.[1];
 
+/** What a page measures against its line: spend so far for a limit judged on real spend, else the value. */
+const basis = (d: Due) =>
+    d.c.measure.type === "month" && d.c.measure.redOnSpent ? d.m.facts?.month_to_date : d.m.value;
+
 function fill(template: string, d: Due, now: number): string {
     const { m, e, start } = d;
     const p = m.cause?.params ?? {};
@@ -624,7 +628,7 @@ function fill(template: string, d: Due, now: number): string {
         limit: human(m.id, m.fail?.[1]),
         target: human(m.id, m.ok?.[1]),
         // A page names one limit: the red line that triggered it (the budget's line when there is none).
-        over: human(m.id, m.value === undefined || !line(m) ? undefined : m.value - line(m)!),
+        over: human(m.id, basis(d) === undefined || !line(m) ? undefined : basis(d)! - line(m)!),
         // The next multiple of 10 above the value, so the suggestion always leaves headroom.
         suggest: human(m.id, m.value === undefined ? undefined : Math.floor(m.value / 10) * 10 + 10),
         mtd: human(m.id, m.facts?.month_to_date),
@@ -707,31 +711,16 @@ function groupTitle(ds: Due[], f: (t: string, d: Due) => string): string {
         return f(`${names} over {mon} limits: pick {pick} limits`, ds[0]);
     }
     const which = rest.length ? ` (${names})` : "";
-    return f(`Over budget for {mon}: {value} of {limit}${which}. Pick {pick} limits`, total);
+    return f(`Over budget for {mon}: {mtd} spent of {limit}${which}. Pick {pick} limits`, total);
 }
 
 /**
- * What cutting LLM test runs (the one paid service the agents can cut at once; the T4 lane runs on every release)
- * back to their budget would and would not fix, for a group the LLM tests are in.
+ * The other option when the LLM tests are over: cut their runs from now on (the one paid service the agents can cut at
+ * once; the T4 lane runs on every release). Money already spent stays spent, so no saving is claimed.
  */
 function cut(ds: Due[], f: (t: string, d: Due) => string): string {
-    const raw = (d?: Due) => (d?.m.value ?? 0) - (d ? (line(d.m) ?? 0) : 0);
     const llm = ds.find((d) => d.c.id === "cost.llm");
-    if (!llm) {
-        return "";
-    }
-    const total = ds.find((d) => d.c.id === "cost.spend");
-    // Whether the cut fits is judged on the real amounts; what is left is said in whole dollars against each red
-    // line, so the sum the page states is one the reader can check (cents when it is under a dollar).
-    const left = raw(total) - raw(llm);
-    const whole = Math.round(raw(total)) - Math.round(raw(llm));
-    const fits = total && left <= 0 ? " and brings the total within budget" : "";
-    const still = [
-        ...ds.filter((d) => d !== llm && d !== total).map((d) => `${d.c.alert.short ?? d.c.label} stays over`),
-        ...(total && left > 0 ? [`the total stays about ${human(total.m.id, whole > 0 ? whole : left)} over`] : []),
-    ];
-    const but = still.length ? `, but ${still.join(" and ")}` : "";
-    return ` Cutting LLM test runs from ${f("{cutFrom}", llm)} to fit their ${f("{limit}", llm)} limit saves about ${f("{over}", llm)}${fits}${but}.`;
+    return llm ? f(" Or have the agents cut LLM test runs from {cutFrom} to fit their {limit} limit.", llm) : "";
 }
 
 /**

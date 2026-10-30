@@ -144,16 +144,17 @@ describe("thresholds", () => {
             attempt: 1,
             line: "t4",
             day: monthStart + d * DAY,
-            usd: 10,
+            usd: 11,
         }));
         const store = await world(lines);
         const t4 = await member(store, "cost.t4");
-        expect(t4.value).toBeCloseTo(310);
-        expect(t4.state).toBe("FAILING");
+        expect(t4.value).toBeCloseTo(341);
+        expect(t4.facts?.month_to_date).toBeCloseTo(264);
+        expect(t4.state).toBe("FAILING"); // $264 already spent, past the $240 limit
         expect((await member(store, "cost.llm")).value).toBe(0);
     });
 
-    it("T4: the 200 USD budget is red past 200, amber from 180", async () => {
+    it("T4: a projection past the 240 USD limit is yellow; red only once spend so far passes it", async () => {
         const monthStart = Date.UTC(2026, 9, 1);
         const days = (floorTo(T0, "1d") - monthStart) / DAY;
         // A flat daily spend projected over 31 days.
@@ -168,11 +169,12 @@ describe("thresholds", () => {
             }));
             return member(await world(lines), "cost.t4");
         };
-        expect((await t4At(5.5)).state).toBe("OK"); // about 170
-        expect((await t4At(6.2)).state).toBe("WARNING"); // about 192
-        const red = await t4At(7);
-        expect(red.value).toBeGreaterThan(200);
-        expect(red.value).toBeLessThan(240);
+        expect((await t4At(7)).state).toBe("OK"); // $168 spent, about $217 projected
+        const yellow = await t4At(8); // $192 spent, about $248 projected
+        expect(yellow.value).toBeGreaterThan(240);
+        expect(yellow.state).toBe("WARNING");
+        const red = await t4At(10.5); // $252 spent
+        expect(red.facts?.month_to_date).toBeGreaterThan(240);
         expect(red.state).toBe("FAILING");
     });
 

@@ -317,16 +317,13 @@ describe("the policy's conditions", () => {
         facts: { month_to_date: mtd },
     });
 
-    it("due cost members go out as one Costs message, after 6 h, never before day 7 unless already spent", async () => {
+    it("due cost members go out as one Costs message, once 6 h past their limit in real spend", async () => {
         const store = new MemoryStore();
         const p = pushover();
-        const early = Date.UTC(2026, 10, 3, 20); // noon Pacific
-        const ev = evaluation([cost("cost.t4", 232, 40), cost("cost.llm", 87.55, 12)]);
-        await run(store, ev, early, p.fetch, SLAS);
-        await run(store, ev, early + 7 * HOUR, p.fetch, SLAS);
-        expect(p.calls).toHaveLength(0);
-        const late = Date.UTC(2026, 10, 7, 20);
+        const late = Date.UTC(2026, 10, 12, 20); // noon Pacific
+        const ev = evaluation([cost("cost.t4", 300, 250), cost("cost.llm", 110, 95)]);
         await run(store, ev, late, p.fetch, SLAS);
+        expect(p.calls).toHaveLength(0);
         const r = await run(store, ev, late + 6 * HOUR, p.fetch, SLAS);
         expect(r.sent.map((s) => s.member).sort()).toEqual(["cost.llm", "cost.t4"]);
         expect(p.calls).toHaveLength(1);
@@ -336,12 +333,12 @@ describe("the policy's conditions", () => {
         expect(body.priority).toBe("0");
         // One limit per service: the red line that triggered the page, the one the Costs page draws red at.
         expect(body.message).toContain(
-            "\nT4 GPU test lane: $232 forecast by Nov 30, limit $200, $40 spent so far. It runs on every release, so it cannot be cut.\n",
+            "\nT4 GPU test lane: $250 spent so far, limit $240, $300 forecast by Nov 30. It runs on every release, so it cannot be cut.\n",
         );
         // One decision that names every suggested budget, not one decision per member. Early in the month it holds
         // from now on, and a cut starts today.
         expect(body.message).toContain(
-            "What to do: Choose the limits from now on: raise T4 GPU to $240, LLM tests to $90 a month, or keep them and accept the overruns. Cutting LLM test runs from today to fit their $75 limit saves about $13, but T4 GPU stays over.",
+            "What to do: Choose the limits from now on: raise T4 GPU to $310, LLM tests to $120 a month, or keep them and accept the overruns. Or have the agents cut LLM test runs from today to fit their $90 limit.",
         );
         expect(body.message.match(/What to do/g)).toHaveLength(1);
         expect(body.message).toMatch(/^What to do: /);
@@ -352,7 +349,7 @@ describe("the policy's conditions", () => {
         // Floor: a week.
         await run(
             store,
-            evaluation([cost("cost.t4", 232, 40)], { start: late + 2 * DAY }),
+            evaluation([cost("cost.t4", 300, 250)], { start: late + 2 * DAY }),
             late + 3 * DAY,
             p.fetch,
             SLAS,
@@ -360,12 +357,12 @@ describe("the policy's conditions", () => {
         expect(p.calls).toHaveLength(1);
     });
 
-    it("a cost still over budget pages again a week later, and in the next month from day 7", async () => {
+    it("a cost still over budget pages again a week later, across the month's end", async () => {
         const store = new MemoryStore();
         const p = pushover();
-        const ev = evaluation(cost("cost.t4", 232, 150), { start: Date.UTC(2026, 9, 1) });
+        const ev = evaluation(cost("cost.t4", 300, 250), { start: Date.UTC(2026, 9, 1) });
         const sentAt: number[] = [];
-        // Noon Pacific every day from Oct 20 to Nov 12, and 6 h later, with the forecast over budget throughout.
+        // Noon Pacific every day from Oct 20 to Nov 12, and 6 h later, with spend over the limit throughout.
         for (let t = Date.UTC(2026, 9, 20, 19); t < Date.UTC(2026, 10, 12); t += DAY) {
             for (const at of [t, t + 6 * HOUR]) {
                 if ((await run(store, ev, at, p.fetch, SLAS)).sent.length) sentAt.push(at);
@@ -374,7 +371,8 @@ describe("the policy's conditions", () => {
         expect(sentAt.map((t) => new Date(t).toISOString().slice(0, 10))).toEqual([
             "2026-10-21", // 6 h past 19:00 UTC on the 20th
             "2026-10-28",
-            "2026-11-07", // Nov 1 to 6 (UTC) wait for day 7, as month-to-date is under red; then 6 h
+            "2026-11-04",
+            "2026-11-11",
         ]);
     });
 
@@ -426,8 +424,8 @@ describe("the policy's conditions", () => {
             const start = Date.UTC(2026, 9, 14, 16); // 09:00 Pacific
             const sent: string[][] = [];
             for (let t = start; t < start + DAY; t += 5 * MIN) {
-                const llm = { ...cost("cost.llm", 90, 40) };
-                const ms = t >= spendFrom ? [llm, cost("cost.spend", 420, 180)] : [llm];
+                const llm = { ...cost("cost.llm", 110, 95) };
+                const ms = t >= spendFrom ? [llm, cost("cost.spend", 450, 420)] : [llm];
                 const ev = evaluation(ms);
                 ev.episodes = ev.episodes.map((e) => ({ ...e, start: e.member === "cost.llm" ? start : spendFrom }));
                 const r = await run(store, ev, t, p.fetch, SLAS);
@@ -439,8 +437,10 @@ describe("the policy's conditions", () => {
         // due, it goes out with them, in one message that offers the LLM cut against the total.
         const apart = await sentFor(Date.UTC(2026, 9, 14, 17));
         expect(apart.sent).toEqual([["cost.llm", "cost.spend"]]);
-        expect(apart.p.calls[0].get("title")).toBe("Over budget for Oct: $420 of $360 (LLM tests). Pick new limits");
-        expect(apart.p.calls[0].get("message")).toContain("Cutting LLM test runs from today");
+        expect(apart.p.calls[0].get("title")).toBe(
+            "Over budget for Oct: $420 spent of $415 (LLM tests). Pick new limits",
+        );
+        expect(apart.p.calls[0].get("message")).toContain("Or have the agents cut LLM test runs from today");
         // The total crosses after the LLM page went out: the group's floor holds it, so no second decision.
         const after = await sentFor(Date.UTC(2026, 9, 14, 23));
         expect(after.sent).toEqual([["cost.llm"]]);
@@ -691,20 +691,19 @@ describe("the policy's conditions", () => {
         };
         const ctx = { evaluation: evaluation([]), now: at };
         const costs = openMessage(ctx, [
-            due("cost.spend", { value: 412.3, facts: { month_to_date: 385 } }),
-            due("cost.t4", { value: 232.1, facts: { month_to_date: 221 } }),
-            due("cost.llm", { value: 87.55, facts: { month_to_date: 83 } }),
+            due("cost.spend", { value: 455.3, facts: { month_to_date: 430 } }),
+            due("cost.t4", { value: 262.1, facts: { month_to_date: 251 } }),
+            due("cost.llm", { value: 97.55, facts: { month_to_date: 93 } }),
         ]);
         expect(costs.message.length).toBeLessThanOrEqual(1024);
         // The total already holds T4 and the LLM tests: the title names them, it does not add them up.
-        expect(costs.title).toBe("Over budget for Oct: $412 of $360 (T4 GPU and LLM tests). Pick Nov limits");
+        expect(costs.title).toBe("Over budget for Oct: $430 spent of $415 (T4 GPU and LLM tests). Pick Nov limits");
         expect(costs.message).toContain(
-            "\nAll paid services (T4 GPU and LLM tests included): $412 forecast by Oct 31, limit $360, $385 spent so far.\n",
+            "\nAll paid services (T4 GPU and LLM tests included): $430 spent so far, limit $415, $455 forecast by Oct 31.\n",
         );
         // In the month's last week October is spent: the choice is November's budget.
-        // Every option closes the gap it names: cutting the LLM tests is offered with what it leaves over.
         expect(costs.message).toContain(
-            "What to do: Choose November's limits: raise Total to $420, T4 GPU to $240, LLM tests to $90 a month, or keep them and accept the overruns. Cutting LLM test runs from Nov 1 to fit their $75 limit saves about $13, but T4 GPU stays over and the total stays about $39 over. Nothing is cut unless you say so; tell any Claude session your choice.\n",
+            "What to do: Choose November's limits: raise Total to $460, T4 GPU to $270, LLM tests to $100 a month, or keep them and accept the overruns. Or have the agents cut LLM test runs from Nov 1 to fit their $90 limit. Nothing is cut unless you say so; tell any Claude session your choice.\n",
         );
         expect(costs.message).toMatch(/^What to do: /);
         const blind = openMessage(ctx, [
@@ -719,21 +718,23 @@ describe("the policy's conditions", () => {
         );
     });
 
-    it("the LLM cut is said to bring the total within budget only when the real amounts say so", () => {
+    it("a cost page names the overrun in money already spent, not in the forecast", () => {
         const at = Date.UTC(2026, 9, 14, 19);
-        const due = (id: string, value: number) => {
-            const c = SLAS.members.find((x) => x.id === id)! as Required<Pick<MemberConfig, "alert">> & MemberConfig;
-            const e: Episode = { member: id, category: c.category, worst: "FAILING", start: at - 7 * HOUR };
-            const m: MemberStatus = { ...member(id, c.category), ok: c.ok, fail: c.fail, value };
-            return { key: { pk: "", sk: "" }, e, m, c, start: e.start };
+        const c = SLAS.members.find((x) => x.id === "cost.llm")! as Required<Pick<MemberConfig, "alert">> &
+            MemberConfig;
+        const e: Episode = { member: c.id, category: c.category, worst: "FAILING", start: at - 7 * HOUR };
+        const m: MemberStatus = {
+            ...member(c.id, c.category),
+            ok: c.ok,
+            fail: c.fail,
+            value: 150,
+            facts: { month_to_date: 95.5 },
         };
-        // $5.40 over the total and $4.50 over the LLM tests: each rounds to $5, but the cut leaves $0.90 over.
         const msg = openMessage({ evaluation: evaluation([]), now: at }, [
-            due("cost.spend", 365.4),
-            due("cost.llm", 79.5),
-        ]).message;
-        expect(msg).not.toContain("within budget");
-        expect(msg).toContain("saves about $4.50, but the total stays about $0.90 over.");
+            { key: { pk: "", sk: "" }, e, m, c, start: e.start },
+        ]);
+        expect(msg.title).toBe("LLM tests $5.50 over Oct limit: pick new limit");
+        expect(msg.message).not.toContain("saves");
     });
 
     it("rounds money to cents before choosing its format", () => {

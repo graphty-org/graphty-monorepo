@@ -519,14 +519,16 @@ Month to date, projected to month end, read now (billing data arrives daily, so 
 change nothing). The projection is what a line cost through yesterday plus, for each day left, its
 average day over the trailing 7 days (today at least what it has cost so far): the month-to-date average carried October's first week, when
 the T4 lane still ran on pull requests and pushes, to the month's end. Only money sets the state; list-price values and per-run
-figures are for comparison (section 7). Budgets are configured; these are sample values. The two
+figures are for comparison (section 7). The total, T4 GPU and LLM lines have one limit each (owner, 2026-10-30): the
+month-end projection past it is yellow, and red only once what is already spent passes it, so a red cost always
+means money really spent over the limit. The two
 usage members are not set up until their read-only tokens exist (section 16).
 
 | Member               | Measure                                          | Target     | Red    |
 | -------------------- | ------------------------------------------------ | ---------- | ------ |
-| Spend this month (H) | projected sum of every money line                | <= 300 USD | > 360  |
-| T4 GPU               | projected, machine.dev (the 200 USD budget)      | <= 180 USD | > 200  |
-| LLM regression       | projected, Gemini (the owner's ceiling)          | <= 60 USD  | > 75   |
+| Spend this month (H) | sum of every money line                          | <= 415 USD | > 415  |
+| T4 GPU               | machine.dev                                      | <= 240 USD | > 240  |
+| LLM regression       | Gemini (the owner's ceiling)                     | <= 90 USD  | > 90   |
 | AWS                  | month to date, Cost Explorer (the 10 USD Budget) | <= 8 USD   | > 10   |
 | Cloudflare usage     | usage / the plan's allowance                     | < 50%      | > 90%  |
 | Sentry usage         | events / the plan's quota                        | < 80%      | > 100% |

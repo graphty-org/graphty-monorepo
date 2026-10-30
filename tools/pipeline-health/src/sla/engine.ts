@@ -222,6 +222,8 @@ interface Computed {
     n?: number;
     n6h?: number;
     failExtra?: boolean;
+    /** A `redOnSpent` month member's spend so far: red is judged on it, not on the projection. */
+    spent?: number;
     since?: number;
     facts?: Record<string, number>;
     cause?: Reason;
@@ -408,9 +410,14 @@ function thinRatios(ctx: Ctx, metric: string, p: Point) {
  */
 function monthComputed(ctx: Ctx, m: Extract<Measure, { type: "month" }>, p: Point): Computed {
     const value = monthValue(ctx, m, p.end);
+    const spent = m.redOnSpent ? monthValue(ctx, { ...m, projected: false }, p.end) : undefined;
     const other = p.end === ctx.now ? monthValue(ctx, { ...m, projected: !m.projected }, p.end) : undefined;
     const fact = m.projected ? "month_to_date" : "projected";
-    return { value, ...(other === undefined ? {} : { facts: { [fact]: other } }) };
+    return {
+        value,
+        ...(spent === undefined ? {} : { spent }),
+        ...(other === undefined ? {} : { facts: { [fact]: other } }),
+    };
 }
 
 /**
@@ -470,8 +477,29 @@ function verdict(c: MemberConfig, v: Computed): { state: MemberState; excess?: n
     if (v.value === undefined) {
         return { state: v.failExtra ? "FAILING" : "NO DATA", reason: { code: "no_value", params: {} } };
     }
+    if (c.measure.type === "month" && c.measure.redOnSpent) {
+        return spentVerdict(c, v.value, v.spent ?? 0);
+    }
     const out = thresholds(c, v.value, v.value6h);
     return v.failExtra && out.state !== "FAILING" ? { state: "FAILING", excess: out.excess ?? 0 } : out;
+}
+
+/**
+ * A spending limit: red once what is spent so far passes it, yellow while only the projection does.
+ * @param c
+ * @param projected
+ * @param spent
+ */
+function spentVerdict(c: MemberConfig, projected: number, spent: number): { state: MemberState; excess?: number } {
+    const ex = (v: number, thr: Threshold) => Math.abs(v - thr[1]) / (Math.abs(thr[1]) || 1);
+    if (c.fail && hit(spent, c.fail)) {
+        return { state: "FAILING", excess: ex(spent, c.fail) };
+    }
+    const over = c.fail ?? c.ok;
+    if (over && (c.fail ? hit(projected, c.fail) : !hit(projected, over))) {
+        return { state: "WARNING", excess: ex(projected, over) };
+    }
+    return thresholds({ ...c, fail: undefined }, projected, undefined);
 }
 
 /**

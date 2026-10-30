@@ -22,7 +22,9 @@ export type Measure =
     | { type: "last"; metric: string; scale?: number } // a stock's newest value
     // Dimensions whose median (from the events) passes `over`, or without it each dimension's own budget (sum / n).
     | { type: "dims_median_over"; metric: string; over?: number; minPerDim: number }
-    | { type: "month"; metric: string; dim?: string; projected: boolean } // month to date, or projected to month end
+    // Month to date, or projected to month end. With `redOnSpent` a projection past the limit is yellow, and only
+    // what is already spent past it is red.
+    | { type: "month"; metric: string; dim?: string; projected: boolean; redOnSpent?: boolean }
     | { type: "engine"; name: EngineMeasure };
 
 export interface MemberConfig {

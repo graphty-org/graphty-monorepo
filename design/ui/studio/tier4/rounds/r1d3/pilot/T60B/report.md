@@ -19,11 +19,17 @@ The success path was walked once more by pointer into success-recheck: all 10 st
 first walk on this build and the session ended (success-recheck/06.png Overview 331 / 361,
 07.png the Sources row with the link glyph and 331 / 361, 11.png "361 edges").
 
+The success path was walked by pointer a third time, as its own session, into success-final: all
+10 steps matched and the session ended (success-final/06.png Overview Nodes 331, Edges 361;
+success-final/11.png the Sources row 331 / 361, the inspector's Loaded Nodes 331, Edges 361, and
+"361 edges" in the Edges table). These are the answer key's counts (331 genes, 361 interactions).
+
 Not walked here: the routes the fix pass touched (the keep card and its chip's spoken count, the
 depth card and its undo and redo, a style layer's Which nodes, the Data source card's count, the
-narrowed Hide card's count, the table role re-run and Analyze's weight). Each starts from another
-task's data and setup; none is on this task's path from the start screen to a network opened from
-a web address, so walking them from this task's start is not possible.
+narrowed Hide card's count, the table role re-run and Analyze's weight). Each belongs to another
+task (T64, T65, T66, T68), starts from that task's own data and setup, and is walked in that
+task's own pilot folder; none is on this task's path from the start screen to a network opened
+from a web address, so none can be walked from this task's start.
 
 ## Success path, by pointer (success, success-2, success-3)
 

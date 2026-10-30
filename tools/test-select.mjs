@@ -1332,6 +1332,34 @@ const NO_HISTORY_MS = 30_000;
 export const FILE_OVERHEAD_MS = 5_000;
 
 /**
+ * How a family's bin really runs where FILE_OVERHEAD_MS and the recorded durations are wrong for it (#5048):
+ * `overheadMs` per file and `scale` on each recorded duration. Fitted to the bins of pull request runs
+ * 41040420195, 41058628979 and 41061566840 (2026-10-30), wall time of each bin's run-group invocation against
+ * its files' recorded ms:
+ * - graphty-element-browser and -storybook run their files one after another in a browser: 5.5 to 7.2 s per
+ *   file on top of the recorded time, so bins planned at 8 min ran 8.1 to 9.9 min (14 of 23 over).
+ * - graphty's recorded durations leave out its hooks: bins of a few long files ran 1.2 to 1.35 times their
+ *   recorded sum, plus about 1.5 s per file.
+ * - graphty-element-default and githerd run their files in parallel workers: about 0.3 s per file, so 5 s split
+ *   one 1-minute run into ten bins.
+ * ponytail: constants re-fitted by hand; learn them from the store's invocation records if they drift.
+ */
+export const FAMILY_BIN_COST = {
+    "graphty-element-browser": { overheadMs: 7_500, scale: 1 },
+    "graphty-element-storybook": { overheadMs: 7_500, scale: 1 },
+    graphty: { overheadMs: 2_000, scale: 1.35 },
+    "graphty-element-default": { overheadMs: 500, scale: 1 },
+    githerd: { overheadMs: 500, scale: 1 },
+};
+
+/**
+ * A family's bin cost: FAMILY_BIN_COST's entry, or FILE_OVERHEAD_MS per file and the recorded ms as they are.
+ * @param family a shard family
+ * @returns `{ overheadMs, scale }`
+ */
+export const binCost = (family) => FAMILY_BIN_COST[family] ?? { overheadMs: FILE_OVERHEAD_MS, scale: 1 };
+
+/**
  * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
  * into the first bin it fits (first-fit decreasing). A file with no recorded time counts as the family's longest
  * recorded file; a file longer than the limit gets a bin of its own.
@@ -1339,12 +1367,13 @@ export const FILE_OVERHEAD_MS = 5_000;
  * @param fileMs Map(file -> recorded ms) over the whole family, not only the selected files
  * @param [limitMs] the most one bin may hold
  * @param [overheadMs] added to every file's recorded ms: Vitest's per-file setup and import
+ * @param [scale] multiplies every file's recorded ms (binCost())
  * @returns `[{ files, ms }]`, the longest bin first; `files` sorted
  */
-export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS, overheadMs = FILE_OVERHEAD_MS) {
+export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS, overheadMs = FILE_OVERHEAD_MS, scale = 1) {
     const longest = Math.max(0, ...fileMs.values()) || NO_HISTORY_MS;
     const sized = [...new Set(files)]
-        .map((file) => ({ file, ms: (fileMs.get(file) ?? longest) + overheadMs }))
+        .map((file) => ({ file, ms: Math.round((fileMs.get(file) ?? longest) * scale) + overheadMs }))
         .sort((a, b) => b.ms - a.ms || a.file.localeCompare(b.file));
     const bins = [];
     for (const { file, ms } of sized) {
@@ -1412,9 +1441,13 @@ export function lightPlan(root, shards, selection, durations = {}) {
                 continue;
             }
             const fileWhy = new Map(run.files.map((f) => [f.file, f.why]));
+            const { overheadMs, scale } = binCost(family);
             for (const bin of packBins(
                 run.files.map((f) => f.file),
                 fileMs,
+                BIN_LIMIT_MS,
+                overheadMs,
+                scale,
             )) {
                 n += 1;
                 const command = selectedCommand(root, run.shard, bin.files);
@@ -1472,7 +1505,8 @@ function packWhole(root, family, runs, fileMs, out) {
     const reasons = [...new Set(runs.filter((r) => r.mode === "all").flatMap((r) => r.reasons))];
     const why = `its shard runs whole, packed into bins: ${reasons.join("; ") || "the selector gave no reason"}`;
     const covers = runs.flatMap((r) => r.covers);
-    packBins(files, fileMs).forEach((bin, i) => {
+    const { overheadMs, scale } = binCost(family);
+    packBins(files, fileMs, BIN_LIMIT_MS, overheadMs, scale).forEach((bin, i) => {
         out.bins.push({
             name: `${family}-${i + 1}`,
             family,

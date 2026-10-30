@@ -362,8 +362,38 @@ export const MEMBER: Record<MemberId, MemberText> = {
     "ci.runner_minutes": {
         name: "Runner-minutes per merge",
         short: "runner-minutes per merge",
-        def: "job minutes, every run kind, / pull requests merged into master; slow measure, 7 d",
+        def: "job minutes, every run kind, / pull requests merged into master",
         nOf: "merged",
+    },
+    "ci.screenshot_set_age": {
+        name: "Screenshot set age",
+        short: "screenshot set age",
+        def: "oldest of every story group's newest rolling capture, newest value",
+    },
+    "ci.slice_base_budget": {
+        name: "Base slices, share of their daily cap",
+        short: "base slice budget used",
+        def: "runner-minutes of base slices today (UTC) / their daily cap",
+    },
+    "ci.slice_idle_budget": {
+        name: "Idle slices, share of their daily cap",
+        short: "idle slice budget used",
+        def: "runner-minutes of idle slices today (UTC) / their daily cap",
+    },
+    "ci.slice_idle_hour_budget": {
+        name: "Idle slices, share of their hourly cap",
+        short: "idle slice hourly budget used",
+        def: "runner-minutes of idle slices in the last hour / their hourly cap",
+    },
+    "ci.slice_contended": {
+        name: "Slice minutes held while contended",
+        short: "slice minutes held while contended",
+        def: "slice runner-minutes while the pool was saturated or other jobs queued",
+    },
+    "ci.slice_queue_wait": {
+        name: "Queue wait during slices",
+        short: "queue wait during slices",
+        def: "minutes other jobs queued while a slice job held a runner",
     },
     "ci.superseded": {
         name: "Superseded runs running",
@@ -425,6 +455,29 @@ export const MEMBER: Record<MemberId, MemberText> = {
         def: "attempts that tested",
     },
     "releases.channels": { name: "Channel members", short: "channel members", def: "canary, nightly, production" },
+    "releases.review_lag": {
+        name: "Screenshot review lag",
+        short: "screenshot review lag",
+        def: "median, a changed picture's first rolling capture to its approval merging",
+        nOf: "pictures",
+    },
+    "releases.slots_unreviewed": {
+        name: "Slots meeting an unapproved picture",
+        short: "slots meeting an unapproved picture",
+        def: "green full runs held for changed pictures (green-images)",
+        nOf: "green runs",
+    },
+    "releases.green_clean": {
+        name: "Green-clean full runs",
+        short: "green-clean full runs",
+        def: "full runs that could promote to nightly with no wait for the owner",
+        nOf: "full runs",
+    },
+    "releases.nightly_promotions": {
+        name: "Nightly promotions per day",
+        short: "nightly promotions per day",
+        def: "channel/nightly moving to a new commit",
+    },
     "costs.spend": {
         name: "Spend this month",
         short: "spend",

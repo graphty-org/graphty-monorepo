@@ -1605,7 +1605,7 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
         })
             .split("\n")
             .filter(Boolean);
-        // ponytail: the consumers early-capture.md 4c allows; the dashboard joins the list when it reads them
+        // ponytail: the consumers early-capture.md 4c allows
         const allowed = [
             /^tools\/results-service\//,
             /^tools\/channel\/story-slices\.mjs$/,
@@ -1613,6 +1613,8 @@ describe("story captures (design/visual-testing/early-capture.md, 4c)", () => {
             /^tools\/full-run\.mjs$/,
             // the slice dispatcher (4b): when to start a slice, never a verdict
             /^tools\/pipeline-health\/(src|test)\/collector\/slices(\.test)?\.ts$/,
+            // the dashboard (plan step 6): the set's age and the review lag, never a verdict
+            /^tools\/pipeline-health\/(src|test)\/collector\/slice-metrics(\.test)?\.ts$/,
         ];
         const { readFileSync, statSync } = await import("node:fs");
         const readers = files.filter(

@@ -4634,39 +4634,33 @@ commit (f0b669df00), round 4's last recording commit (0ba5008d36), master before
   comparator's twin pairing (#4265) on round 5's drawings, and 19 in the position-matched views of `cx2-wp1449-tlr`
   and `json-cyjs-tokyo` come from a drawing change since round 5 that is not explained yet (#4452). Whether the
   twin pairing pairs twins rightly is not settled.
-- **One recorded element is a drawing regression.** The four `syn-mappings` copies each add one route since round
-  5's arrowheads (#4254): the sinewave line stops short of its larger half arrow, open as #4253. It is in the known
-  failures now, so the gate no longer shows it.
+- **One element is a drawing regression.** The four `syn-mappings` copies each add one route since round 5's
+  arrowheads (#4254): the sinewave line stops short of its larger half arrow, open as #4253.
 
 What changed:
 
-- The 6-hour full run now runs the whole comparison: four shards, `graphty-element-fidelity-1` to `-4`
+- The 6-hour full run runs the whole comparison: four shards, `graphty-element-fidelity-1` to `-4`
   (`tools/ci-test-matrix.mjs`), each judging every fourth sample (`GRAPHTY_ORACLE_SLICE`), without a GPU, never on a
   pull request or in the pre-push gate. A sample fails only for an element the known failures do not list. Timed on
   CI runners by a dispatch of the four shards (run 40890370190): 285 to 355 s of samples a slice, 6 to 8 minutes a
   job, against the job's 30. The runner fails exactly the elements the workstation fails. A sample judged two ways
   on the same inputs is never quarantined as flaky: it fails the run.
-- The failures above are recorded with `fidelity:ratchet --add`, one reason per group (the `reasons` at the end of
-  `oracle-known-failures.json`): 95 elements failing since round 4's measurement on real-program oracles, 548 on
-  stand-in drawings, 272 newly judged by round 5's comparator, 76 in the three samples above and 24 on the
-  `syn-mappings` copies. The same run took 3,360 known failures that pass now off the list and raised 842 floors;
-  none went down.
+- Nothing above is recorded in `oracle-known-failures.json`: only the owner adds known failures. So the lane stays
+  off (pull request #4455 a draft) until these samples pass or the owner records them.
 
-For the owner to decide: 643 of the 1,015 recorded elements are not newly seen. 95 on real-program oracles and 548
-on stand-ins have failed since round 4's measurement on 2026-10-22, and recording them turns 26 red samples green
-with no drawing changed. The 95 were recorded without looking at each one, and they include visible defects, such
-as two edges missing from `cx2-signor-aml` (135->20, 92->27). "The drawing did not change" rests on the same element
-failing the same property at each commit with equal counts; geometry was not compared, so an element that got worse
-is not ruled out. The 272 round-5 elements include comparator misreadings rather than graphty defects (vis-network
-heads and bent lines, Pajek part-way heads, edge.wiggle, #4272), which the round 6 comparator branch takes off.
+The gate on master 37488cb8 (2026-10-30, workstation, all four slices): 36 samples fail, slice 1 4, slice 2
+11, slice 3 8, slice 4 13. By cause:
 
-Not recorded yet: the Graphviz label-size change (#4203, pull request #4410). Measured by merging #4410 at
-149ad24299 over these records: six samples fail the full gate, 100 elements in all (`tmp/style-round6/runs/with4410`
-in the main checkout): `dot-real-siblings` (no edge.width any more, but 8 node positions, 22 routes and 4 curves),
-`dot-synth-edges-clusters` (15 edge labels off their lines, 2 node positions), `dot-synth-nodes` (4 node heights,
-3 positions), `dot-real-crazy` (#4410 records its own), `dot-profile` and `dot-real-depcruise`. Without #4410,
-`dot-real-siblings` fails on its 284 edge widths alone. They are recorded once #4410 is on master, from a full
-gate run with it, under the owner's 2026-10-29 acceptance of that trade; slices 1, 2 and 3 hold the six samples.
+- Failing since round 4's measurement, never recorded: the Cytoscape annotation arrows (`*-specimen-images-charts-p6`,
+  `cys-annotation-example`, #5117), the missing captions of `json-cyjs-sbgn-sciluna` (#5118), and the untraced rest,
+  real-program and stand-in oracles (`cx2-signor-aml`, `xgmml-aracne-mycccnd1`, `pajek-1crn`, `gexf-hsk-chars`, the
+  draw.io and Graphviz stand-ins; #5119).
+- Already traced to an issue: `syn-mappings` x4 (#4253), `cx2-wp1449-tlr` and `json-cyjs-tokyo` (#4452),
+  `json-cyjs-perf` (#4523), `cx-radiation-bibliography` (#3103), `cx-syn-bypass` (#4515), `pajek-synth-lines`
+  (#4514), `pajek-synth-vertices` and `dot-specimen-edge-labels` (#4524).
+- The Graphviz label-size change (#4203, pull request #4410, merged): `dot-real-siblings`, `dot-synth-edges-clusters`,
+  `dot-synth-nodes`, `dot-profile` and `dot-real-depcruise` fail on node positions, routes and edge labels off their
+  lines (#5116). The owner accepted the trade on 2026-10-29; recording what is left is his.
 
 ## Round 6: comparator blind spots, line widths, stacked arrowheads, chart axes, label shifts and one file scale (2026-10-29)
 

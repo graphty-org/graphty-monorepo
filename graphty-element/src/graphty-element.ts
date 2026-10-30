@@ -114,24 +114,6 @@ const ELEMENT_SOURCE = "element-source";
 const ELEMENT_LAYOUT = "element-layout";
 
 /**
- * The properties that take an object or an array, and so cannot survive being written as an
- * attribute. React 19 writes a prop as an attribute when the element is not yet defined at commit
- * time, which turns `nodeData={[...]}` into `nodedata="[object Object]"`.
- */
-const RICH_PROPERTIES = [
-    "nodeData",
-    "edgeData",
-    "dataSourceConfig",
-    "layoutConfig",
-    "layoutScope",
-    "layoutBehavior",
-    "selectionStyle",
-    "algorithmsOnLoad",
-    "background",
-    "xr",
-] as const;
-
-/**
  * A file name for an export in a format other than a project file: the project's name, or
  * "project" when it has none, and the format's extension.
  * @param name - the project's name.
@@ -674,7 +656,12 @@ export class Graphty extends LitElement {
         }
 
         this.#reportedStrayAttributes = true;
-        for (const name of RICH_PROPERTIES) {
+        // Every reactive property: whichever one took an object, its attribute now reads this.
+        for (const name of (this.constructor as typeof Graphty).elementProperties.keys()) {
+            if (typeof name !== "string") {
+                continue;
+            }
+
             // HTML attribute names are case-insensitive, so this also finds `nodedata`.
             if (this.getAttribute(name) === "[object Object]") {
                 console.error(

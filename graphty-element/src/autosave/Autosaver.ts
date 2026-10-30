@@ -23,7 +23,7 @@
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
-import { supersededError } from "../session/loadLine";
+import { loadLineOf, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
 import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
@@ -1302,9 +1302,29 @@ export class Autosaver {
             });
             return;
         }
-        // The reader cleared the page on purpose: nothing failed, so nothing is announced, and the
-        // entry is written back as it was before the attempt, to be offered on the next load. A
-        // copy this restore made is removed instead: the entry it copied is still there.
+        // The reader cleared the page on purpose: nothing failed, so nothing is announced.
+        await this.#takeBack(current, untried, copied);
+    }
+
+    /**
+     * Whether the graph already holds data, or a load or an edit waits in the session's line,
+     * that this autosave did not bring: the page asked for it before the restore could open.
+     * @returns True when it does.
+     */
+    #graphTaken(): boolean {
+        const snapshot = this.#session.data.snapshot();
+        return snapshot.nodeCount > 0 || snapshot.edgeCount > 0 || loadLineOf(dispatcherOf(this.#session)).size > 0;
+    }
+
+    /**
+     * Take back a restore attempt that did not open: the entry is written back as it was before
+     * the attempt, to be offered on the next load. A copy this restore made is removed instead:
+     * the entry it copied is still there.
+     * @param current - The entry, with the attempt recorded.
+     * @param untried - The entry as it was before the attempt.
+     * @param copied - Whether `current` is a copy this restore made.
+     */
+    async #takeBack(current: AutosaveEntryMeta, untried: AutosaveEntryMeta, copied: boolean): Promise<void> {
         if (copied) {
             await this.#store.remove(current.id).catch(() => undefined);
             return;
@@ -1422,6 +1442,16 @@ export class Autosaver {
                 code: "E_AUTOSAVE_FAILED",
                 params: { name: errorName(error) },
             });
+        }
+
+        // The page asked the graph for data of its own while the entry was read (a sample, a file,
+        // rows): that newer load wins. The open would queue behind it and replace it, so the work
+        // is offered instead, as when the page's own data replaces a restore (issue #3313).
+        if (this.#graphTaken()) {
+            await this.#takeBack(current, untried, copy);
+            release?.();
+            this.#available(meta, live(meta), "page-data-changed", null);
+            return null;
         }
 
         let report: AutosaveRestored["report"];

@@ -87,6 +87,11 @@ changed, the reader's restored work is kept. Change the URL (or the key) when th
 Data calls (`addNodes`, `loadFromUrl`, `loadFromFile` and the rest) also wait for the decision,
 then run as ordinary changes.
 
+A graph the page asks the session for while the entry is still being read (`session.data.import`,
+`loadSample`, `addNodes` and the other session data calls) is never replaced by the restore: the
+work is not reopened over it, stays listed, and fires `graphty-autosave-available` with reason
+`"page-data-changed"`, so the page can offer it.
+
 Restored work that was never saved to a file stays unsaved (`session.project.dirty` is true).
 
 ## What each browser guarantees
@@ -232,12 +237,12 @@ tries again.
 An entry that was not restored by itself is reported by `graphty-autosave-available`, whose detail
 is `{ entry, reason, problem }`:
 
-| `reason`              | When                                                               |
-| --------------------- | ------------------------------------------------------------------ |
-| `"manual"`            | `restore: "manual"` is set and an entry exists                     |
-| `"page-data-changed"` | the page supplied different data, which replaced the restored work |
-| `"held-by-other-tab"` | the newest entry belongs to a tab that is still open               |
-| `"restore-failed"`    | the entry could not be opened; `problem` says why (below)          |
+| `reason`              | When                                                                  |
+| --------------------- | --------------------------------------------------------------------- |
+| `"manual"`            | `restore: "manual"` is set and an entry exists                        |
+| `"page-data-changed"` | the page supplied different data, which replaced or kept out the work |
+| `"held-by-other-tab"` | the newest entry belongs to a tab that is still open                  |
+| `"restore-failed"`    | the entry could not be opened; `problem` says why (below)             |
 
 | `problem.code`               | When                                                                                             |
 | ---------------------------- | ------------------------------------------------------------------------------------------------ |

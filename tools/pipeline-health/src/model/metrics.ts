@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 
 import budgets from "../../../../ci-budgets.json" with { type: "json" };
-import { MIN, type RawItem, type RawKind } from "./items.js";
+import { type JobItem, MIN, type RawItem, type RawKind } from "./items.js";
 
 export interface Contribution {
     n?: number; // default 1
@@ -49,7 +49,18 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs`;
+
+/**
+ * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
+ * took it (runner_id 0, no steps) a started_at equal to its created_at, so its queue time until the cancel would
+ * otherwise read as runner time, and its wait as zero. A job a runner took starts at least a second after it was
+ * created: of 27,000 pull request jobs over 10-27..10-30, none that succeeded started in the second it was created.
+ * @param j a stored job
+ * @returns its start, epoch ms, or undefined for a job no runner ran
+ */
+export const ranAt = (j: Pick<JobItem, "conclusion" | "createdAt" | "startedAt">): number | undefined =>
+    j.conclusion === "cancelled" && j.startedAt === j.createdAt ? undefined : j.startedAt;
 
 /**
  * A flake hotspot family (design section 5): a shard run's variant `<family>|flags=..|<shape>` and a flaky test's
@@ -125,9 +136,10 @@ export const METRICS: MetricDef[] = [
     {
         id: "ci.runner_wait",
         from: [
-            src("job", "startedAt", (j) =>
-                j.startedAt === undefined ? null : { value: Math.max(0, j.startedAt - j.createdAt), dim: j.repo },
-            ),
+            src("job", "startedAt", (j) => {
+                const at = ranAt(j);
+                return at === undefined ? null : { value: Math.max(0, at - j.createdAt), dim: j.repo };
+            }),
         ],
     },
     {
@@ -309,11 +321,12 @@ export const METRICS: MetricDef[] = [
     {
         id: "ci.job_minutes",
         from: [
-            src("job", "completedAt", (j) =>
-                j.os && j.startedAt !== undefined && j.completedAt !== undefined
-                    ? { sum: Math.ceil((j.completedAt - j.startedAt) / MIN), dim: JSON.stringify([j.workflow, j.os]) }
-                    : null,
-            ),
+            src("job", "completedAt", (j) => {
+                const at = ranAt(j);
+                return j.os && at !== undefined && j.completedAt !== undefined
+                    ? { sum: Math.ceil((j.completedAt - at) / MIN), dim: JSON.stringify([j.workflow, j.os]) }
+                    : null;
+            }),
         ],
     },
     // 4.3 Runner-minutes per merge: job minutes (unrounded) by the kind of run that spent them, over the pull
@@ -321,11 +334,12 @@ export const METRICS: MetricDef[] = [
     {
         id: "ci.runner_minutes",
         from: [
-            src("job", "completedAt", (j) =>
-                j.load && j.startedAt !== undefined && j.completedAt !== undefined
-                    ? { n: 0, sum: (j.completedAt - j.startedAt) / MIN, dim: j.load }
-                    : null,
-            ),
+            src("job", "completedAt", (j) => {
+                const at = ranAt(j);
+                return j.load && at !== undefined && j.completedAt !== undefined
+                    ? { n: 0, sum: (j.completedAt - at) / MIN, dim: j.load }
+                    : null;
+            }),
             src("pr", "mergedAt", (p) => (p.mergedAt !== undefined && isMaster(p.base) ? { n: 1 } : null)),
         ],
     },

@@ -1,5 +1,45 @@
 # T65 A pilot, round 1 dry run 1: only the trained volunteers with 10 hours or more in the picture, staff marked
 
+## Targeted re-pilot on build ff17391bb1
+
+Build: ff17391bb1 (frozen, `.study-builds/tier4-r1d2-ff17391bb1`). Start: `volunteers.txt` (volunteers.graphml
+open, 24 nodes and 63 edges). Every walk below was replayed from the newest walk of the same route on this
+build, each in its own session, under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T65A/.
+Every step of every walk matched its recording to the end, and each session was ended. The data stayed the
+task's own throughout: one source, volunteers.graphml, 24 nodes and 63 edges; the filters only took nodes out
+of the picture.
+
+Of the routes on the fix list, only "T65A success path (number and yes/no cards unchanged)" belongs to this
+task; the others belong to other tasks and were not walked here.
+
+- **Success path by pointer** (`y1-path/`, 24 steps, from `x1-path/`): Data > Add filter > trained > Yes;
+  Add a condition > hours, "from" 10, Enter; Add filter > role > staff; Select. The top bar reads "14 of 24
+  nodes, 22 of 63 edges" and the inspector "4 nodes selected" with 4 rings (y1-path/17.png). The yes/no card
+  (trained: Yes) and the number card (hours: Between, 10 to 52, slider, "from" written on Enter) look and
+  behave as before (y1-path/13.png). Hours "to" 40 then Tab, 52 then Escape, the table and the keep card off
+  and on behave as before: off, all 24 drawn and "5 nodes selected" (y1-path/24.png); on, 14 and 4 again.
+- **The other card order** (`y2-order/`, 11 steps, from `x2-order/`): role on Select first, then trained Yes
+  and hours from 10: 14 of 24 and 4 selected, as before.
+- **Detours** (the set walked in round 1): the find box typing a rule, the toolbar's filter button with the
+  cards in the other order, a style layer's Which nodes (`y5-detours/`, 25 steps; `y6-find/`, 16;
+  `y7-style/`, 6). All matched; the earlier findings for them stand.
+- **Keyboard only** (`y4-keys/`, 130 steps, from `v4-keys/`): reached the end. Moving the role card to
+  Select announces "Filter on: 14 of 24 nodes, 22 edges" and "4 nodes selected" (y4-keys/111.png); the
+  attribute picker opens on "Find an attribute", "ho" highlights "hours, 2 to 52", Escape returns focus to
+  "Add filter" (y4-keys/129.png to 131.png). Focus fell to the page body only at the start, before the first
+  key.
+
+Result: reached on both card orders, by pointer and by keyboard; 14 in the picture and 4 marked, as the
+answer key says.
+
+Mismatches between the answer key and the screen: none.
+
+Defect still open (would spoil grading): the role card's count chip reads "5 of 24" while the card is on
+Select and the screen says "4 nodes selected"; the team's settled behavior is "4 of 14". A participant who
+reads the marked count off the card answers 5, not 4 (y1-path/17.png, y4-keys/111.png).
+
+## Earlier walks in this round
+
 Build: 037e96e9bb (frozen, `.study-builds/tier4-r1d1-037e96e9bb`). Start: `volunteers.txt` (volunteers.graphml
 open, 24 nodes and 63 edges, ranked by PageRank). Screenshots are under
 /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T65A/ (not in git). The data stayed

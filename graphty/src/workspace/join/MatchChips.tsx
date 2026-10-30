@@ -123,6 +123,45 @@ function CountChip({
 }
 
 /**
+ * An edge join's counts: edges added and new nodes narrow the file's table; nodes updated names
+ * no rows. A zero count is not drawn.
+ * @param props - Component props
+ * @param props.report - the element's counts
+ * @param props.show - what a count chip narrows the tables to now
+ * @param props.onShow - takes a new Show
+ * @returns the chips
+ */
+function EdgeCounts({
+    report,
+    show,
+    onShow,
+}: Readonly<{ report: JoinReport; show: JoinShow; onShow: (show: JoinShow) => void }>): React.JSX.Element {
+    return (
+        <>
+            {report.newEdges > 0 ? (
+                <li>
+                    <CountChip which="added" show={show} onShow={onShow}>
+                        {counted(report.newEdges, "edge added", "edges added")}
+                    </CountChip>
+                </li>
+            ) : null}
+            {report.newNodes > 0 ? (
+                <li>
+                    <CountChip which="new-end" show={show} onShow={onShow}>
+                        {counted(report.newNodes, "new node", "new nodes")}
+                    </CountChip>
+                </li>
+            ) : null}
+            {report.updatedNodes > 0 ? (
+                <li>
+                    <EntityChip kind="node">{counted(report.updatedNodes, "node updated", "nodes updated")}</EntityChip>
+                </li>
+            ) : null}
+        </>
+    );
+}
+
+/**
  * The join screen's live counts (spec section 3.6), every number from graphty-element's join
  * report. A count the tables can show is a toggle chip that narrows them to what it counts:
  * matched and no value (the graph's nodes), not in graph (the file's rows). A repeated key opens
@@ -157,29 +196,7 @@ export function MatchChips({
     return (
         <ul className="jn-chips" aria-label="Matches" id={id}>
             {edges ? (
-                <>
-                    {report.newEdges > 0 ? (
-                        <li>
-                            <CountChip which="added" show={show} onShow={onShow}>
-                                {counted(report.newEdges, "edge added", "edges added")}
-                            </CountChip>
-                        </li>
-                    ) : null}
-                    {report.newNodes > 0 ? (
-                        <li>
-                            <CountChip which="new-end" show={show} onShow={onShow}>
-                                {counted(report.newNodes, "new node", "new nodes")}
-                            </CountChip>
-                        </li>
-                    ) : null}
-                    {report.updatedNodes > 0 ? (
-                        <li>
-                            <EntityChip kind="node">
-                                {counted(report.updatedNodes, "node updated", "nodes updated")}
-                            </EntityChip>
-                        </li>
-                    ) : null}
-                </>
+                <EdgeCounts report={report} show={show} onShow={onShow} />
             ) : (
                 <li>
                     {toggles.includes("matched") ? (

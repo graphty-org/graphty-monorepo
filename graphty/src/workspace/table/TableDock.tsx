@@ -518,6 +518,17 @@ function leaveGrid(event: React.KeyboardEvent): void {
 }
 
 /**
+ * The table's tab values, in order: Nodes, Edges when there are edges, then one per group run.
+ * @param hasEdges - whether the graph has edges
+ * @param groups - the group runs
+ * @returns the values
+ */
+function tabValuesOf(hasEdges: boolean, groups: readonly { readonly id: string }[]): string[] {
+    const edges = hasEdges ? ["edges"] : [];
+    return ["nodes", ...edges, ...groups.map((run) => `g:${run.id}`)];
+}
+
+/**
  * Show rows from an issue list outside the table: narrows the asked-for tab to the issue's rows,
  * then forgets the ask.
  * @param store - the chrome store, which holds the ask
@@ -720,7 +731,7 @@ export function TableDock(): React.JSX.Element {
     const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groups.length, "group");
 
     // Every tab names a rendered tab panel (aria-controls); the showing one holds the table.
-    const tabValues = ["nodes", ...(hasEdges ? ["edges"] : []), ...groups.map((run) => `g:${run.id}`)];
+    const tabValues = tabValuesOf(hasEdges, groups);
     const table = (
         <Tabs
             className="ws-table-main"

@@ -779,6 +779,7 @@ const categories: CategoryStatus[] = [
         setBy: ref(lanesRed, f("short.lanes_red", { lanes: ["audit", "t4"] })),
         others: [
             ref(byId(releaseMembers, "releases.workflows_failing")),
+            ref(byId(releaseMembers, "releases.train_first_pass")),
             ref(byId(releaseMembers, "releases.green_clean")),
             ref(byId(releaseMembers, "releases.train_skipped")),
             ref(byId(releaseMembers, "releases.slots_unreviewed")),

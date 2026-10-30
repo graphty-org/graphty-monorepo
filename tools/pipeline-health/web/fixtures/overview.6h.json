@@ -580,6 +580,14 @@
                     }
                 },
                 {
+                    "member": "releases.train_first_pass",
+                    "state": "bad",
+                    "value": {
+                        "n": 1,
+                        "of": 3
+                    }
+                },
+                {
                     "member": "releases.green_clean",
                     "state": "bad",
                     "value": {

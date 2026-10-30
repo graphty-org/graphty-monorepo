@@ -2000,10 +2000,14 @@ async function walkFile(project, file, ctx) {
  */
 function throughSource(dep, from, ctx) {
     const own = (f) => f.startsWith(join(ctx.root, ctx.pkg) + "/");
-    const src = own(dep) ? null : sourceOf(ctx.root, dep);
+    // the package's own build too: algorithms' stories import @graphty/algorithms, its own dist/, and a walk
+    // of dist/ would never match a changed source file
+    const src = sourceOf(ctx.root, dep);
     if (src) {
         ctx.aliases[ctx.rel(dep)] = ctx.rel(src);
-        ctx.viaAlias.add(src);
+        if (!own(dep)) {
+            ctx.viaAlias.add(src);
+        }
         return src;
     }
     if (ctx.viaAlias.has(from) && !own(dep)) {
@@ -2535,7 +2539,7 @@ export function graphCacheKey(root, dirs) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 7;
+const GRAPH_VERSION = 8;
 
 const fileHash = (root, f) => {
     try {

@@ -574,6 +574,39 @@ describe("building a package's import graph when its projects transform a file d
     });
 });
 
+describe("building a package's import graph when its tests load its own build", () => {
+    it("walks the package's own dist/ as the source it was built from", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pd/package.json", JSON.stringify({ name: "pd", type: "module" }));
+            put("pd/src/inner.ts", "export const inner = 1;\n");
+            put("pd/src/index.ts", 'export { inner } from "./inner";\n');
+            put("pd/dist/inner.js", "export const inner = 1;\n");
+            put("pd/dist/inner.js.map", JSON.stringify({ version: 3, sources: ["../src/inner.ts"], mappings: "" }));
+            put("pd/dist/pd.js", 'export { inner } from "./inner.js";\n');
+            put("pd/dist/pd.js.map", JSON.stringify({ version: 3, sources: ["../src/index.ts"], mappings: "" }));
+            put(
+                "pd/test/a.test.ts",
+                'import { it } from "vitest";\nimport { inner } from "../dist/pd.js";\nit("a", () => inner);\n',
+            );
+            put("pd/vitest.config.mjs", "export default { test: { include: ['test/**/*.test.ts'] } };\n");
+            const out = execFileSync(
+                process.execPath,
+                [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pd"],
+                { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const g = JSON.parse(out.trim().split("\n").at(-1));
+            assert.ok(selectInGraph(g, ["pd/src/inner.ts"]).specs.has("pd/test/a.test.ts"));
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("building a package's import graph (a fixture package, walked by Vitest for real)", () => {
     const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
     const put = (path, text) => {

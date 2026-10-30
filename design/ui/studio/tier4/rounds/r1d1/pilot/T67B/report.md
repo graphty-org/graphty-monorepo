@@ -5,8 +5,9 @@ wrong. Where the program can put something right for you, do it. Tell us what it
 changed." Start: setup `gauges.txt` (gauges.csv, 11 gauges G01-G11, Data place open, table open).
 Build: 037e96e9bb, served from `.study-builds/tier4-r1d1-037e96e9bb`.
 
-Every walk below was started with `real.mjs --replay` from the same route walked earlier on this
-build; every step's screen matched, and every screenshot was looked at again. The data stayed
+Every walk below was replayed with `real.mjs --replay` from the route walked earlier on this build
+(the z* folders) into a fresh v* folder; all five replays matched every step to the end (exit 0),
+and the key screenshots were looked at again. The data stayed
 gauges.csv's own 11 gauges on every walk.
 
 Result: **reached** by pointer and by keyboard. No crash, no block, no wrong result that would
@@ -14,7 +15,7 @@ spoil grading. No mismatch with the answer key.
 
 Screenshots: /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d1/pilot/T67B/<walk>/NN.png
 
-## 1. Success path by pointer (z1-pointer)
+## 1. Success path by pointer (v1-pointer)
 
 - 01: the Sources row reads "gauges...." 11, a warning mark and "3" (name "3 issues in gauges.csv");
   the table shows "With issues 11" and warning marks on depth_cm and station.
@@ -33,7 +34,7 @@ Screenshots: /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d
 The earlier pass on this task has no report, so the detours are the three the task list names for
 T67: the table's warning marks first, the table's column header menu, and the inspector of a source.
 
-### 2a. The table's warning marks first (z2a-detour-table-marks)
+### 2a. The table's warning marks first (v2a-detour-table-marks)
 
 - 03: the depth_cm mark opens a one-line list: "1 not a number", Make blank, Ignore, Show rows,
   Ignore all -- as the answer key says.
@@ -46,7 +47,7 @@ T67: the table's warning marks first, the table's column header menu, and the in
   nothing about issues; the chip next to it is the door. 14: telemetry's header still carries its
   warning mark. A participant leaving telemetry as text is not a failure.
 
-### 2b. The table's column header menu, with the main menu and Quick actions first (z2b-detour-menus)
+### 2b. The table's column header menu, with the main menu and Quick actions first (v2b-detour-menus)
 
 - 02: right-click on the source row opens the same row menu. 03: the main menu has nothing on issues.
 - 04-07: Quick actions, typing "issues" -> "No results"; Enter does nothing; Tab goes to "Clear
@@ -58,7 +59,7 @@ T67: the table's warning marks first, the table's column header menu, and the in
   the answer key's "also success" route.
 - 16: the source inspector's "..." offers Edit source... and Replace with file....
 
-### 2c. The inspector of a source (z2c-detour-source-inspector)
+### 2c. The inspector of a source (v2c-detour-source-inspector)
 
 - 02: source inspector > ... > Edit source... opens "Replace: gauges.csv" (Choose file, a URL box,
   Cancel, Replace dimmed, "Choose a file first").
@@ -66,7 +67,7 @@ T67: the table's warning marks first, the table's column header menu, and the in
 - 04: Escape returns to the project unchanged (3 issues, 11 nodes). The source inspector itself
   shows only Loaded: Nodes 11, Edges 0 -- no issues. A participant gets back safely.
 
-## 3. Success path by keyboard (z3-keyboard, keyboard-only and screen-reader mode)
+## 3. Success path by keyboard (v3-keyboard, keyboard-only and screen-reader mode)
 
 Focus order from the top: Main menu, Project: gauges, Undo (dimmed), Redo (dimmed), Data, Collapse
 Sources, Add source, "gauges.csv 11 nodes", "3 issues in gauges.csv", "gauges.csv menu".
@@ -91,18 +92,18 @@ Sources, Add source, "gauges.csv 11 nodes", "3 issues in gauges.csv", "gauges.cs
 1. **Undo of a data fix selects every node.** Undo (button or Control+Z) after fixing an issue
    restores it but also selects all 11 nodes: rings on the canvas, every table row highlighted, the
    inspector switches to "11 nodes selected", and the screen reader hears "11 nodes selected".
-   Nothing the person did asked for a selection. z1-pointer/11.png, z3-keyboard/32.png.
+   Nothing the person did asked for a selection. v1-pointer/11.png, v3-keyboard/32.png.
 2. **"With issues 0" while issues remain.** After Show rows from one column's mark and fixing that
    column, the table's chip reads "With issues 0" with an empty table, while station and telemetry
    still carry warning marks and the source chip says 2. The chip counts only the column it was
-   opened from but does not say so. z2a-detour-table-marks/06.png.
+   opened from but does not say so. v2a-detour-table-marks/06.png.
 3. **Quick actions knows nothing about issues.** Typing "issues" gives "No results".
-   z2b-detour-menus/06.png.
+   v2b-detour-menus/06.png.
 4. **The source inspector does not show the source's issues**, and its "Edit source..." opens a
    screen titled "Replace: gauges.csv"; Enter with a non-address in its URL box does nothing and says
-   nothing. z2c-detour-source-inspector/02.png, 03.png, 04.png.
+   nothing. v2c-detour-source-inspector/02.png, 03.png, 04.png.
 5. **The source chip reads a warning mark and "0"** while the issue list is still open after the last
-   fix (it goes away when the list closes). z1-pointer/07.png.
+   fix (it goes away when the list closes). v1-pointer/07.png.
 
 None of these blocks the task or changes what the participant ends with.
 
@@ -110,4 +111,6 @@ None of these blocks the task or changes what the participant ends with.
 
 The other routes in this re-pilot's list belong to other tasks (T60-T66, T68) and their own starts;
 only "T67A/T67B success path (the issue chip is the path's first click)" belongs to T67 B, and it is
-walked above.
+the success path walked above (v1-pointer by pointer, v3-keyboard by keyboard). Each of the other
+routes is walked by its own task's pilot from that task's own start; none of them starts from
+gauges.csv.

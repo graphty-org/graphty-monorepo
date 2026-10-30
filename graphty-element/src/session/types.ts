@@ -3451,7 +3451,11 @@ export interface CommandOutcomeMap {
     "visibility.context": Promise<void>;
     /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
     "visibility.steps": Promise<void>;
-    /** Settles once the conditions are recorded and the pass that evaluates the masks has run. */
+    /**
+     * Settles once the conditions are recorded and the pass that evaluates the masks has run.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
     "visibility.conditions": Promise<void>;
     /** Settles once the playback settings are recorded. */
     "visibility.playback": Promise<void>;

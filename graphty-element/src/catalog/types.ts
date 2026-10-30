@@ -2098,7 +2098,9 @@ export interface FilterStep {
  * OPEN UNION: a later release may add an effect on visibility or selection; handle unknown
  * effects. Styling, saving a set or running on the matches belong to `styles`, `sets` and `runs`,
  * never here.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export type FilterEffect = "keep" | "exclude" | "select";
 
@@ -2113,7 +2115,9 @@ export type FilterEffect = "keep" | "exclude" | "select";
  * A `range`, `categories` or `text` leaf on an edge value that names no `nodes` reading gets one
  * from the effect: keep keeps the matching edges and the nodes at their ends, exclude hides only
  * the matching edges, select selects only the matching edges. A reading written in the rule wins.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export interface FilterCondition {
     /** The condition's id, unique among the conditions. */
@@ -2147,7 +2151,9 @@ export type FilterSelectWithin = "graph" | "picture";
 
 /**
  * A filter condition as it is handed in: the id is made when absent, and `on` defaults to true.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
     readonly id?: string;

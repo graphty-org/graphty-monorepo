@@ -186,7 +186,9 @@ export interface VisibilityChange extends FilterResult {
 
 /**
  * How many elements of one kind a filter condition's rule matches, out of all of them.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export interface FilterConditionMatches {
     /**
@@ -211,7 +213,9 @@ export interface FilterConditionMatches {
  * so it counts its rule's matches among what is drawn, out of how many are drawn (the whole graph
  * when nothing filters). That too holds whether it is on or off, and whatever order the
  * conditions are in.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export interface FilterConditionCount {
     /** The condition's id. */
@@ -372,7 +376,9 @@ export interface VisibilityApi {
      * their order. A selection change the reader makes by hand (a `"user"` cause) switches every
      * select condition that is on off, in one undoable step, and keeps the reader's selection.
      * Opening a project never applies them; undo puts the selection back.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     readonly conditions: readonly FilterCondition[];
     /**
@@ -383,7 +389,9 @@ export interface VisibilityApi {
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when a condition is malformed or two share an id,
      *     or one whose rule needs something this session lacks.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     setConditions(conditions: readonly FilterConditionInput[], options?: RunOptions): Run<FilterResult>;
     /**
@@ -398,7 +406,9 @@ export interface VisibilityApi {
      * @param options - A signal to cancel with, and a progress handler.
      * @returns The run, which resolves with the counts and the condition's id.
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when it is malformed or its id is taken.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     addCondition(condition: FilterConditionInput, options?: RunOptions): Run<FilterResult & { readonly id: string }>;
     /**
@@ -409,7 +419,9 @@ export interface VisibilityApi {
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when no condition has that id, or the change is
      *     malformed.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     updateCondition(id: string, change: Partial<Omit<FilterCondition, "id">>, options?: RunOptions): Run<FilterResult>;
     /**
@@ -418,7 +430,9 @@ export interface VisibilityApi {
      * @param options - A signal to cancel with, and a progress handler.
      * @returns The run, which resolves with the counts.
      * @throws A `GraphtyError` (`E_BAD_COMMAND`) when no condition has that id.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     /**
@@ -426,7 +440,9 @@ export interface VisibilityApi {
      * Synchronous and kept per condition, so editing one condition counts that one again and no
      * other. Read again on `visibility:changed` or `history:changed`.
      * @returns The counts.
+     * Experimental: may change or be removed in a minor release.
      * @since 3.32.0
+     * @beta
      */
     conditionCounts(): readonly FilterConditionCount[];
     /**

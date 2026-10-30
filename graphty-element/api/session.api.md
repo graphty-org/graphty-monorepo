@@ -608,6 +608,7 @@ export interface CommandOutcomeMap {
     "view.immersive": Promise<void>;
     "view.remove": Promise<void>;
     "view.save": Promise<void>;
+    // @beta
     "visibility.conditions": Promise<void>;
     "visibility.context": Promise<void>;
     "visibility.playback": Promise<void>;
@@ -1207,7 +1208,7 @@ export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[key
 // @public @deprecated
 export type Filter = RuleTree;
 
-// @public
+// @beta
 export interface FilterCondition {
     readonly effect: FilterEffect;
     readonly id: string;
@@ -1216,7 +1217,7 @@ export interface FilterCondition {
     readonly within?: FilterSelectWithin;
 }
 
-// @public
+// @beta
 export interface FilterConditionCount {
     readonly edges: FilterConditionMatches | null;
     readonly id: string;
@@ -1224,13 +1225,13 @@ export interface FilterConditionCount {
     readonly unresolved: readonly Path[];
 }
 
-// @public
+// @beta
 export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
     readonly id?: string;
     readonly on?: boolean;
 };
 
-// @public
+// @beta
 export interface FilterConditionMatches {
     readonly matched: number;
     readonly total: number;
@@ -1239,7 +1240,7 @@ export interface FilterConditionMatches {
 // @public @deprecated
 export type FilterDirection = SelectionDirection;
 
-// @public
+// @beta
 export type FilterEffect = "keep" | "exclude" | "select";
 
 // @public
@@ -6609,10 +6610,13 @@ export type ValueType = "text" | "number" | "boolean" | "date" | "category";
 
 // @public
 export interface VisibilityApi {
+    // @beta
     addCondition(condition: FilterConditionInput, options?: RunOptions): Run<FilterResult & {
         readonly id: string;
     }>;
+    // @beta
     conditionCounts(): readonly FilterConditionCount[];
+    // @beta
     readonly conditions: readonly FilterCondition[];
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
@@ -6620,8 +6624,10 @@ export interface VisibilityApi {
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
+    // @beta
     removeCondition(id: string, options?: RunOptions): Run<FilterResult>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
+    // @beta
     setConditions(conditions: readonly FilterConditionInput[], options?: RunOptions): Run<FilterResult>;
     setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
@@ -6629,6 +6635,7 @@ export interface VisibilityApi {
     readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
     summaryOf(source: SourceKey): VisibilitySummary;
+    // @beta
     updateCondition(id: string, change: Partial<Omit<FilterCondition, "id">>, options?: RunOptions): Run<FilterResult>;
     readonly window: TimeWindow | null;
 }

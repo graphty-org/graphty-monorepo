@@ -35,6 +35,7 @@ import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
 import type { BasemapConfig, BasemapStatus, GlobeLook, MapFrameFact } from "./config/Basemap";
 import type { LocationMapFrame } from "./layout/locationMap/place";
+import { flatMapReach } from "./layout/locationMap/reach";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
 
@@ -4765,7 +4766,8 @@ export class Graph implements GraphContext {
         if (orbit instanceof OrbitCameraController) {
             orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * 1.02 } : null;
             orbit.grabSphere = frame?.surface === "globe" ? { radius: frame.radius } : null;
-            // The near clip plane follows the globe (or its going).
+            orbit.farReach = frame?.surface === "flat" ? { radius: flatMapReach(frame.mapFrame) } : null;
+            // The clip planes follow the globe or the flat map (or their going).
             orbit.updateCameraPosition();
         }
     }

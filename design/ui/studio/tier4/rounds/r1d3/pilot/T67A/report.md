@@ -6,10 +6,20 @@ Start: setup pantries.txt (pantries.csv open, Data place showing).
 ## Scope
 
 A targeted re-pilot walks the success path by pointer, plus each route the fix pass touched that
-belongs to this task. Every route the fix pass touched belongs to another task (T64, T65, T66, T68:
-the keep and depth cards, style layer filters, the Data source card, the Hide card, the table role
-re-run), so none of them is part of T67A. The task's own detours (the three the first round walked)
-and its keyboard walk were walked again too, so every route of this task is covered on this build.
+belongs to this task. Every route the fix pass touched belongs to another task and starts from that
+task's own data: the keep and depth cards and their spoken counts, undo and redo of their edits and
+a style layer's Which nodes (T65A, T65B), the Data source card's count (T66A, T66B), the narrowed
+Hide card's count (T68A, T68B), and the table role re-run and Analyze's weight (T64A, T64B). None
+of them starts from pantries.csv or is a step of T67A, so they are walked in those tasks' own
+re-pilots, not here. The task's own detours (the three the first round walked) and its keyboard
+walk were walked too, so every route of this task is covered on this build.
+
+Every route below was walked twice on this build: once in the walks named in each section, and
+again in a fresh replay of each into its own session (a1-path, a2a-table, a2b-source, a2c-header,
+a3-keys under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T67A/).
+Every step of every replay matched its earlier screen and every session ended. The second success
+path walk shows the same screens: a1-path/05.png (the two issues), a1-path/10.png (Resolved 2,
+P07 families blank), a1-path/18.png (two Undos bring both issues back, still 12 pantry sites).
 
 ## Success path by pointer -- reached
 

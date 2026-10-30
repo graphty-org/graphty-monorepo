@@ -129,14 +129,25 @@ function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: str
                     <Button
                         size="compact-xs"
                         variant="subtle"
-                        color="yellow"
+                        // Every issue fixed while the list is open: a check, not a warning reading "0".
+                        color={count === 0 ? "gray" : "yellow"}
                         className="dp-source-issues"
-                        leftSection={<GLYPHS.warning size={14} className="ws-issue-icon" aria-hidden />}
-                        aria-label={`${String(count)} ${count === 1 ? "issue" : "issues"} in ${name}`}
+                        leftSection={
+                            count === 0 ? (
+                                <GLYPHS.check size={14} aria-hidden />
+                            ) : (
+                                <GLYPHS.warning size={14} className="ws-issue-icon" aria-hidden />
+                            )
+                        }
+                        aria-label={
+                            count === 0
+                                ? `No issues left in ${name}`
+                                : `${String(count)} ${count === 1 ? "issue" : "issues"} in ${name}`
+                        }
                         aria-haspopup="dialog"
                         aria-expanded={opened}
                     >
-                        {formatNumber(count)}
+                        {count === 0 ? null : formatNumber(count)}
                     </Button>
                 </Popout.Trigger>
                 <Popout.Panel

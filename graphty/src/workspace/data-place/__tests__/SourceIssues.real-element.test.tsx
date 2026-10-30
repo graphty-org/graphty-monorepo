@@ -78,6 +78,9 @@ describe("a Sources row's issues", () => {
             assert.lengthOf(session.data.issues(), 0);
             assert.include(spoken(), "name: 1 value trimmed");
         });
+        // While the list stays open the chip says nothing is left: a check, no "0" beside a warning.
+        const done = await within(row).findByRole("button", { name: "No issues left in sites.csv" });
+        assert.equal(done.textContent, "");
         // The issue is settled: once the popover closes, the row has nothing left to show.
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {

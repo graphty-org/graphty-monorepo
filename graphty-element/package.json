@@ -71,6 +71,7 @@
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
         "./src/layout/index.ts",
+        "./src/ai/keys/withEncryptStorage.ts",
         "./index.ts",
         "./src/graphty-element.ts"
     ],
@@ -184,6 +185,7 @@
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": "1.29.2",
+        "@jsonhero/schema-infer": "^0.1.5",
         "@playwright/test": "^1.54.1",
         "@storybook/addon-console": "^3.0.0",
         "@storybook/addon-docs": "^9.0.11",
@@ -201,6 +203,7 @@
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
         "encrypt-storage": "^2.14.7",
+        "esbuild": "^0.28.2",
         "eslint": "^9.29.0",
         "eslint-plugin-jsdoc": "^50.6.17",
         "fast-check": "^4.2.0",
@@ -219,7 +222,8 @@
         "vite-plugin-cem": "^0.8.2",
         "vite-plugin-eslint": "^1.8.1",
         "vitepress": "^1.6.3",
-        "vitest": "catalog:"
+        "vitest": "catalog:",
+        "webpack": "^5.111.1"
     },
     "peerDependencies": {
         "@ai-sdk/anthropic": "^2.0.50",
@@ -274,7 +278,6 @@
         "@graphty/graph-io": "workspace:^",
         "@graphty/graph-samples": "workspace:^",
         "@graphty/layout": "workspace:^",
-        "@jsonhero/schema-infer": "^0.1.5",
         "babylonjs-map": "workspace:^",
         "colorjs.io": "^0.5.2",
         "d3-force-3d": "^3.0.6",

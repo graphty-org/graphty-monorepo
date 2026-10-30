@@ -227,9 +227,9 @@ describe("shardOfRun", () => {
 });
 
 describe("runShard", () => {
-    const run = async (c, env = {}) => {
+    const run = async (c, env = {}, name = "graphty-1") => {
         const result = join(c.root, "result.json");
-        const code = await runShard("graphty-1", c.first, {
+        const code = await runShard(name, c.first, {
             root: c.root,
             viaRunTests: true,
             state: emptyState(),
@@ -273,6 +273,19 @@ describe("runShard", () => {
             [T1.name],
         );
         assert.deepEqual(result.ran.sort(), [T1.file, T2.file]);
+    });
+
+    // #5128: a pull request's light-check bin (graphty-7, past the family's shards) found no SHARDS entry of its
+    // name, so a test that failed once was never retried and was reported as failing every time.
+    it("retries a light-check bin's failed files as a shard of its family", async () => {
+        const c = checkout({ retryFails: false });
+        const { code, result } = await run(c, {}, "graphty-7");
+        assert.equal(result.retried, true);
+        assert.equal(code, 0);
+        assert.deepEqual(
+            result.flaky.map((f) => f.name),
+            [T1.name],
+        );
     });
 
     // A story leg once retried its stories under the unit config, which found no test files: with no report

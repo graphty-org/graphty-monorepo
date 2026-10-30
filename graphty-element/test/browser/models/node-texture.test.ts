@@ -4,9 +4,9 @@
  * same reader gate as a model, with tint its own channel.
  */
 
-import type { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
-import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
+import type { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
+import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../../index.js";

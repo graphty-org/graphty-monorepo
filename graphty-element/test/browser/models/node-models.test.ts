@@ -8,8 +8,8 @@
  * test makes no request off this machine and the example still runs exactly as written.
  */
 
-import { SceneInstrumentation } from "@babylonjs/core/Instrumentation/sceneInstrumentation";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { SceneInstrumentation } from "@babylonjs/core/Instrumentation/sceneInstrumentation.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";

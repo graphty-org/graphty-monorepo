@@ -17,10 +17,12 @@ import {
     channelRecord,
     deployedRecord,
     deployState,
+    lastNightlyMove,
     missedSlot,
     MISSED_TITLE,
     promotion,
     siteReleasePlan,
+    slotText,
     stall,
     stampOf,
     STALL_TITLE,
@@ -302,6 +304,72 @@ describe("the missed-slot alarm (#5052)", () => {
             missedSlot(ran({ state: "green-clean", promote: "true" }), STARTED).cause,
             /failed before it landed/,
         );
+    });
+});
+
+describe("the missed-slot alarm replays 2026-10-30 (#5135)", () => {
+    const H = "660d4cacbf835e5dee06a69e5a3dd5c981d592a6";
+    // GET /v1/release-state as both runs read it: 660d4ca held for review (#5065), no nightly move recorded
+    const state = {
+        nightly: null,
+        ageNightlyMs: null,
+        blocking: "held",
+        hold: { base: H, head: H, issue: 5065, at: 1793373687260 },
+        offered: { sha: H, state: "green-images" },
+    };
+    // the slot job's env of each run, as logged
+    const full = {
+        moved: false,
+        pickResult: "success",
+        release: "true",
+        pickWhy: "68713aa is not judged yet",
+        resume: "false",
+        sha: "68713aa976b296bead7a5e786741d7285605b761",
+        state: "green-images",
+        deferred: "false",
+        hold: "none",
+        held: H,
+        heldState: "green-images",
+        what: "1749 screenshots differ from master's baselines",
+        issue: "",
+        promote: "false",
+        why: "the verdict is green-images, not green-clean",
+    };
+    const candidate = {
+        moved: false,
+        pickResult: "success",
+        release: "false",
+        pickWhy: "the held head is judged already",
+        resume: "false",
+        sha: H,
+    };
+    it("a candidate run that tested nothing keeps the full run's cause and title (runs 41103133086, 41138164069)", () => {
+        const before = missedSlot(full, Date.parse("2026-10-30T18:00:36Z"), state);
+        const after = missedSlot(candidate, Date.parse("2026-10-30T22:26:41Z"), state);
+        assert.equal(
+            before.title,
+            `${MISSED_TITLE} 2026-10-30 18:00 UTC: waiting on the owner's screenshot review of the held 660d4ca`,
+        );
+        assert.equal(after.title, before.title);
+        assert.match(after.detail, /serve --candidate next/);
+    });
+    it("a no-op run names a red blocker or a hold nobody can review, and says no new candidate only when the store is silent", () => {
+        const red = { blocking: "red", red: { sha: "b".repeat(40), lane: "T4 GPU", issue: 4600 } };
+        assert.match(missedSlot(candidate, 0, red).cause, /^red lane on bbbbbbb: T4 GPU \(#4600\)$/);
+        const stuck = { ...state, offered: null };
+        assert.match(missedSlot(candidate, 0, stuck).cause, /^hold on 660d4ca is not reviewable/);
+        assert.match(missedSlot(candidate, 0, null).cause, /^no new candidate: the held head is judged already$/);
+    });
+    it("names when nightly last moved: the push to channel/nightly when the store has no move (2026-10-29 15:30Z)", () => {
+        const pushed = Date.parse("2026-10-29T15:30:28Z");
+        const now = Date.parse("2026-10-30T22:28:29Z");
+        assert.equal(lastNightlyMove(null, pushed), pushed);
+        assert.equal(lastNightlyMove(pushed + HOUR, pushed), pushed + HOUR);
+        assert.equal(lastNightlyMove(null, Number.NaN), null);
+        const alarm = missedSlot(candidate, now, state);
+        const text = slotText({ mode: "candidate", runUrl: "u", alarm, moved: lastNightlyMove(null, pushed), now });
+        assert.match(text, /Nightly last moved at 2026-10-29 15:30 UTC, 30 hours ago\./);
+        assert.match(slotText({ mode: "full", runUrl: "u", alarm, moved: null, now }), /at an unknown time/);
     });
 });
 

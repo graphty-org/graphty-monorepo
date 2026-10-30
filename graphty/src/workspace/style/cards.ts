@@ -353,15 +353,7 @@ export function leafOf(card: Card): RuleTree | null {
         case "number":
             return numberLeaf(card, path);
         case "date":
-            return card.min === undefined && card.max === undefined
-                ? null
-                : {
-                      kind: "range",
-                      attribute: path,
-                      ...(card.min === undefined ? {} : { min: card.min }),
-                      ...(card.max === undefined ? {} : { max: card.max }),
-                      as: "time",
-                  };
+            return dateLeaf(card, path);
         case "category":
             return categoryLeaf(card, path);
         case "yes-no":
@@ -379,6 +371,25 @@ export function leafOf(card: Card): RuleTree | null {
 
 /** A card of one type. */
 type CardOf<T extends Card["type"]> = Extract<Card, { type: T }>;
+
+/**
+ * A date card's leaf: its range compared as times, or null while it has neither end.
+ * @param card - the card, matching neither present nor absent.
+ * @param path - the value path.
+ * @returns the leaf, or null while it is unfinished.
+ */
+function dateLeaf(card: CardOf<"date">, path: string): RuleTree | null {
+    if (card.min === undefined && card.max === undefined) {
+        return null;
+    }
+    return {
+        kind: "range",
+        attribute: path,
+        ...(card.min === undefined ? {} : { min: card.min }),
+        ...(card.max === undefined ? {} : { max: card.max }),
+        as: "time",
+    };
+}
 
 /**
  * A number card's leaf: its top N, or its range.
@@ -574,15 +585,8 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
             const notField = not === undefined ? undefined : field(not);
             return notField === undefined ? elsewhere : presenceCard(notField, "absent");
         }
-        case "range": {
-            const f = field(leaf.attribute);
-            if (leaf.as === "time") {
-                return f?.kind === "date" ? dateCard(f, leaf.min, leaf.max) : elsewhere;
-            }
-            return f?.kind === "number"
-                ? { type: "number", key: keyOf(f), field: f, match: "range", min: leaf.min, max: leaf.max }
-                : elsewhere;
-        }
+        case "range":
+            return rangeCard(leaf, field(leaf.attribute), elsewhere);
         case "threshold":
             return thresholdCard(leaf, field, elsewhere);
         case "expression":
@@ -607,6 +611,23 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
         default:
             return elsewhere;
     }
+}
+
+/**
+ * The card a range leaf draws: a date card for a range read as times, a number card for one read
+ * as numbers, else the fixed card.
+ * @param leaf - the range leaf.
+ * @param f - its field, if the kind has it.
+ * @param elsewhere - the fixed card.
+ * @returns the card.
+ */
+function rangeCard(leaf: Extract<RuleTree, { kind: "range" }>, f: CardField | undefined, elsewhere: Card): Card {
+    if (leaf.as === "time") {
+        return f?.kind === "date" ? dateCard(f, leaf.min, leaf.max) : elsewhere;
+    }
+    return f?.kind === "number"
+        ? { type: "number", key: keyOf(f), field: f, match: "range", min: leaf.min, max: leaf.max }
+        : elsewhere;
 }
 
 /**

@@ -63,6 +63,33 @@ function ChoiceItem({
 }
 
 /**
+ * A warning chip that opens a menu of choices (a repeated key, an unknown end).
+ * @param props - Component props
+ * @param props.label - its words
+ * @param props.children - the menu's items
+ * @returns the chip
+ */
+function MenuChip({ label, children }: Readonly<{ label: string; children: React.ReactNode }>): React.JSX.Element {
+    return (
+        <li className="jn-chip" data-warning="">
+            <Menu position="bottom-start" withinPortal>
+                <Menu.Target>
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="yellow"
+                        leftSection={<GLYPHS.warning size={14} aria-hidden />}
+                    >
+                        {label}
+                    </Button>
+                </Menu.Target>
+                <Menu.Dropdown>{children}</Menu.Dropdown>
+            </Menu>
+        </li>
+    );
+}
+
+/**
  * A count chip that narrows the tables to what it counts, the table bar's "With issues" chip.
  * @param props - Component props
  * @param props.which - what it narrows to
@@ -127,8 +154,6 @@ export function MatchChips({
     const edges = shape === "edges";
     const kind = shape === "edge-values" ? "edge" : "node";
     const toggles = shownChips(report, choices);
-    // Rows with an end the graph lacks: added with a new node, or left out, as the reader chooses.
-    const unknownEnds = report.unknownEndRows;
     return (
         <ul className="jn-chips" aria-label="Matches" id={id}>
             {edges ? (
@@ -185,73 +210,45 @@ export function MatchChips({
                 </li>
             ) : null}
             {report.repeatedKeys > 0 && !repeatedIgnored ? (
-                <li className="jn-chip" data-warning="">
-                    <Menu position="bottom-start" withinPortal>
-                        <Menu.Target>
-                            <Button
-                                size="compact-xs"
-                                variant="subtle"
-                                color="yellow"
-                                leftSection={<GLYPHS.warning size={14} aria-hidden />}
-                            >
-                                {counted(report.repeatedKeys, "repeated key", "repeated keys")}
-                            </Button>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                            <ChoiceItem
-                                checked={choices.repeated !== "both"}
-                                onClick={() => {
-                                    onChange({ ...choices, repeated: "first" });
-                                }}
-                            >
-                                Keep first
-                            </ChoiceItem>
-                            <ChoiceItem
-                                checked={choices.repeated === "both"}
-                                onClick={() => {
-                                    onChange({ ...choices, repeated: "both" });
-                                }}
-                            >
-                                Keep both
-                            </ChoiceItem>
-                            <Menu.Item onClick={onIgnoreRepeated}>Ignore</Menu.Item>
-                        </Menu.Dropdown>
-                    </Menu>
-                </li>
+                <MenuChip label={counted(report.repeatedKeys, "repeated key", "repeated keys")}>
+                    <ChoiceItem
+                        checked={choices.repeated !== "both"}
+                        onClick={() => {
+                            onChange({ ...choices, repeated: "first" });
+                        }}
+                    >
+                        Keep first
+                    </ChoiceItem>
+                    <ChoiceItem
+                        checked={choices.repeated === "both"}
+                        onClick={() => {
+                            onChange({ ...choices, repeated: "both" });
+                        }}
+                    >
+                        Keep both
+                    </ChoiceItem>
+                    <Menu.Item onClick={onIgnoreRepeated}>Ignore</Menu.Item>
+                </MenuChip>
             ) : null}
-            {edges && unknownEnds > 0 ? (
-                <li className="jn-chip" data-warning="">
-                    <Menu position="bottom-start" withinPortal>
-                        <Menu.Target>
-                            <Button
-                                size="compact-xs"
-                                variant="subtle"
-                                color="yellow"
-                                leftSection={<GLYPHS.warning size={14} aria-hidden />}
-                            >
-                                {counted(unknownEnds, "unknown end", "unknown ends")}
-                            </Button>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                            <ChoiceItem
-                                checked={choices.unknownEnds !== "leave-out"}
-                                onClick={() => {
-                                    onChange({ ...choices, unknownEnds: "add" });
-                                }}
-                            >
-                                Add as new nodes
-                            </ChoiceItem>
-                            <ChoiceItem
-                                checked={choices.unknownEnds === "leave-out"}
-                                onClick={() => {
-                                    onChange({ ...choices, unknownEnds: "leave-out" });
-                                }}
-                            >
-                                Leave those rows out
-                            </ChoiceItem>
-                        </Menu.Dropdown>
-                    </Menu>
-                </li>
+            {edges && report.unknownEndRows > 0 ? (
+                <MenuChip label={counted(report.unknownEndRows, "unknown end", "unknown ends")}>
+                    <ChoiceItem
+                        checked={choices.unknownEnds !== "leave-out"}
+                        onClick={() => {
+                            onChange({ ...choices, unknownEnds: "add" });
+                        }}
+                    >
+                        Add as new nodes
+                    </ChoiceItem>
+                    <ChoiceItem
+                        checked={choices.unknownEnds === "leave-out"}
+                        onClick={() => {
+                            onChange({ ...choices, unknownEnds: "leave-out" });
+                        }}
+                    >
+                        Leave those rows out
+                    </ChoiceItem>
+                </MenuChip>
             ) : null}
         </ul>
     );

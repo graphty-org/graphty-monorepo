@@ -596,6 +596,41 @@ function changedCount(table: JoinTable, graph: JoinGraph, choices: JoinChoices, 
 }
 
 /**
+ * Whether both of an edge row's ends are nodes the graph holds.
+ * @param row - The row.
+ * @returns True when both matched.
+ */
+function bothFound(row: EdgeRow): boolean {
+    return row.found[0] && row.found[1];
+}
+
+/**
+ * What a join of edges does with each row: of several rows naming one pair, `repeated` keeps the
+ * first (the last with "last") and the rest repeat it, or keeps them all; a loaded row joins two
+ * known nodes or adds a new end; a row not loaded is left out.
+ * @param count - How many rows the table holds.
+ * @param rows - The rows the join loads.
+ * @param choices - The join.
+ * @returns Each row's fate.
+ */
+function edgeFates(count: number, rows: readonly EdgeRow[], choices: JoinChoices): JoinRowFate[] {
+    const pairOf = (row: EdgeRow): string => `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
+    const keptAt = new Map<string, number>();
+    for (const row of rows) {
+        if (choices.repeated === "last" || !keptAt.has(pairOf(row))) {
+            keptAt.set(pairOf(row), row.at);
+        }
+    }
+    const fates: JoinRowFate[] = Array.from({ length: count }, () => "left-out");
+    for (const row of rows) {
+        const loadedFate = bothFound(row) ? "joined" : "new-end";
+        const repeat = choices.repeated !== "both" && keptAt.get(pairOf(row)) !== row.at;
+        fates[row.at] = repeat ? "repeat" : loadedFate;
+    }
+    return fates;
+}
+
+/**
  * Count what a join of edges would do.
  * @param table - The incoming table.
  * @param graph - The graph.
@@ -610,11 +645,10 @@ function edgeReport(
     report: (counts: Partial<JoinReport>, elements: readonly JoinElement[]) => JoinReport,
 ): JoinReport {
     const all = matchEdges(table, graph, choices, looseOf(choices));
-    const both = (edgeRows: readonly EdgeRow[]): number =>
-        edgeRows.filter((row) => row.found[0] && row.found[1]).length;
+    const both = (edgeRows: readonly EdgeRow[]): number => edgeRows.filter(bothFound).length;
     const loosest = matchEdges(table, graph, choices, { ignoreCase: true, ignoreSpaces: true });
     // The rows the join loads: with unknownEnds "leave-out", only those whose two ends are known.
-    const rows = all.filter((row) => choices.unknownEnds !== "leave-out" || (row.found[0] && row.found[1]));
+    const rows = all.filter((row) => choices.unknownEnds !== "leave-out" || bothFound(row));
     const pairs = new Map<string, number>();
     const fresh = new Set<string>();
     const touched = new Set<unknown>();
@@ -626,30 +660,11 @@ function edgeReport(
 
     const repeatedKeys = [...pairs.values()].filter((count) => count > 1).length;
     const rowMatches: (readonly (NodeId | EdgeId)[])[] = table.rows.map(() => []);
-    for (const row of all) {
-        if (row.found[0] && row.found[1]) {
-            rowMatches[row.at] = [row.ends[0] as NodeId, row.ends[1] as NodeId];
-        }
+    for (const row of all.filter(bothFound)) {
+        rowMatches[row.at] = [row.ends[0] as NodeId, row.ends[1] as NodeId];
     }
 
-    // Each row's fate: the row a repeated pair keeps is the first (the last with "last").
-    const keptAt = new Map<string, number>();
-    for (const row of rows) {
-        const pair = `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
-        if (choices.repeated === "last" || !keptAt.has(pair)) {
-            keptAt.set(pair, row.at);
-        }
-    }
-    const rowFates: JoinRowFate[] = table.rows.map(() => "left-out");
-    for (const row of rows) {
-        const pair = `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
-        if (choices.repeated !== "both" && keptAt.get(pair) !== row.at) {
-            rowFates[row.at] = "repeat";
-        } else {
-            rowFates[row.at] = row.found[0] && row.found[1] ? "joined" : "new-end";
-        }
-    }
-
+    const rowFates = edgeFates(table.rows.length, rows, choices);
     const kept = choices.repeated === "both" ? rows.length : pairs.size;
     const matched = both(rows);
     return report(
@@ -673,7 +688,7 @@ function edgeReport(
             rowMatches: frozen(rowMatches),
             withoutValueIds: frozen(graph.nodes.map((node) => node.id).filter((id) => !touched.has(id))),
             rowFates: frozen(rowFates),
-            unknownEndRows: all.filter((row) => !row.found[0] || !row.found[1]).length,
+            unknownEndRows: all.filter((row) => !bothFound(row)).length,
         },
         graph.edges,
     );
@@ -790,24 +805,28 @@ function planEdges(
     // keeps the pair where it first appeared either way.
     const byPair = new Map<string, { edge: Record<string, unknown>; both: boolean }>();
     const loaded = matchEdges(table, graph, choices, looseOf(choices)).filter(
-        (row) => choices.unknownEnds !== "leave-out" || (row.found[0] && row.found[1]),
+        (row) => choices.unknownEnds !== "leave-out" || bothFound(row),
     );
+    // An edge's own values: each brought column, under its clash name.
+    const valuesOf = (row: EdgeRow): Record<string, unknown> => {
+        const values: Record<string, unknown> = {};
+        for (const column of columns) {
+            const rule = clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
+            const value = table.rows[row.at][column];
+            if (!absent(value)) {
+                values[rule === "both" ? bothName(column, table) : column] = value;
+            }
+        }
+        return values;
+    };
     for (const [at, row] of loaded.entries()) {
         const pair = choices.repeated === "both" ? String(at) : `${String(row.ends[0])}${PART}${String(row.ends[1])}`;
         if (choices.repeated !== "last" && byPair.has(pair)) {
             continue;
         }
 
-        const edge: Record<string, unknown> = { [source]: row.ends[0], [target]: row.ends[1] };
-        for (const column of columns) {
-            const rule = clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
-            const value = table.rows[row.at][column];
-            if (!absent(value)) {
-                edge[rule === "both" ? bothName(column, table) : column] = value;
-            }
-        }
-
-        byPair.set(pair, { edge, both: row.found[0] && row.found[1] });
+        const edge: Record<string, unknown> = { [source]: row.ends[0], [target]: row.ends[1], ...valuesOf(row) };
+        byPair.set(pair, { edge, both: bothFound(row) });
     }
 
     const edges = [...byPair.values()].map((each) => each.edge);

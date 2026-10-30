@@ -463,6 +463,16 @@ function checkSide(value: Readonly<Record<string, unknown>>): void {
 }
 
 /**
+ * Check a range leaf's `as`: "time", or absent to compare numbers.
+ * @param value - The leaf.
+ */
+function checkRangeAs(value: Readonly<Record<string, unknown>>): void {
+    if (value.as !== undefined && value.as !== "time") {
+        throw bad('A "range" leaf\'s as is "time", or absent to compare numbers.', { as: value.as });
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -489,10 +499,7 @@ function checkTree(value: unknown, walker: Walker): void {
             checkQuery(value.attribute, 'A "range" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
             checkBounds(value);
-
-            if (value.as !== undefined && value.as !== "time") {
-                throw bad('A "range" leaf\'s as is "time", or absent to compare numbers.', { as: value.as });
-            }
+            checkRangeAs(value);
             checkLeafNodes(value);
 
             return;

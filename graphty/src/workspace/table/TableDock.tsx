@@ -518,6 +518,27 @@ function leaveGrid(event: React.KeyboardEvent): void {
 }
 
 /**
+ * Show rows from an issue list outside the table: narrows the asked-for tab to the issue's rows,
+ * then forgets the ask.
+ * @param store - the chrome store, which holds the ask
+ * @param setArrangement - sets the dock's arrangement
+ */
+function useAskedIssue(store: WorkspaceStore, setArrangement: React.Dispatch<React.SetStateAction<Arrangement>>): void {
+    const issueAsked = useWorkspaceState((state) => state.dockIssue);
+    useEffect(() => {
+        if (issueAsked === null) {
+            return;
+        }
+        const askedKind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
+        setArrangement((now) => ({
+            ...now,
+            views: { ...now.views, [askedKind]: { ...now.views[askedKind], issue: issueAsked } },
+        }));
+        store.set({ dockIssue: null });
+    }, [issueAsked, store, setArrangement]);
+}
+
+/**
  * The table dock (data prototype spec section 3.5): Nodes, Edges and one item tab per group run;
  * the count; the Columns chooser; the options menu with Export...; Maximize and Close. Every
  * column's configuration is in its header: type, role, warning and origin icons, the issue's
@@ -580,19 +601,7 @@ export function TableDock(): React.JSX.Element {
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
-    // Show rows from an issue list outside the table: narrow the asked-for tab to the issue's rows.
-    const issueAsked = useWorkspaceState((state) => state.dockIssue);
-    useEffect(() => {
-        if (issueAsked === null) {
-            return;
-        }
-        const askedKind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
-        setArrangement((now) => ({
-            ...now,
-            views: { ...now.views, [askedKind]: { ...now.views[askedKind], issue: issueAsked } },
-        }));
-        store.set({ dockIssue: null });
-    }, [issueAsked, store]);
+    useAskedIssue(store, setArrangement);
 
     const close = (
         <ActionIcon

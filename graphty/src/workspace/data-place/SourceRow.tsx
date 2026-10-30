@@ -122,6 +122,14 @@ function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: str
     if (count === 0 && !opened) {
         return null;
     }
+    // Every issue fixed while the list is open: a check, not a warning reading "0".
+    const done = count === 0;
+    const issues = `${String(count)} ${count === 1 ? "issue" : "issues"} in ${name}`;
+    const icon = done ? (
+        <GLYPHS.check size={14} aria-hidden />
+    ) : (
+        <GLYPHS.warning size={14} className="ws-issue-icon" aria-hidden />
+    );
     return (
         <PopoutManager>
             <Popout opened={opened} onOpenChange={setOpened}>
@@ -129,25 +137,14 @@ function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: str
                     <Button
                         size="compact-xs"
                         variant="subtle"
-                        // Every issue fixed while the list is open: a check, not a warning reading "0".
-                        color={count === 0 ? "gray" : "yellow"}
+                        color={done ? "gray" : "yellow"}
                         className="dp-source-issues"
-                        leftSection={
-                            count === 0 ? (
-                                <GLYPHS.check size={14} aria-hidden />
-                            ) : (
-                                <GLYPHS.warning size={14} className="ws-issue-icon" aria-hidden />
-                            )
-                        }
-                        aria-label={
-                            count === 0
-                                ? `No issues left in ${name}`
-                                : `${String(count)} ${count === 1 ? "issue" : "issues"} in ${name}`
-                        }
+                        leftSection={icon}
+                        aria-label={done ? `No issues left in ${name}` : issues}
                         aria-haspopup="dialog"
                         aria-expanded={opened}
                     >
-                        {count === 0 ? null : formatNumber(count)}
+                        {done ? null : formatNumber(count)}
                     </Button>
                 </Popout.Trigger>
                 <Popout.Panel
@@ -162,6 +159,35 @@ function IssuesChip({ source, name }: Readonly<{ source: LoadedSource; name: str
                 </Popout.Panel>
             </Popout>
         </PopoutManager>
+    );
+}
+
+/**
+ * A Sources row's count chips, named in words ("13 nodes, 18 edges"); none for a count of 0.
+ * @param props - Component props
+ * @param props.source - the load
+ * @returns the chips, or nothing
+ */
+function SourceCounts({ source }: Readonly<{ source: LoadedSource }>): React.JSX.Element | null {
+    const counted = countWords(source);
+    if (counted === "") {
+        return null;
+    }
+    return (
+        <>
+            <Tooltip label={counted}>
+                <span className="dp-source-chips" aria-hidden>
+                    {source.counts.nodes === 0 ? null : (
+                        // A server load's chip reads "100 of 171" when its source says how many it holds.
+                        <EntityChip kind="node">{serverCount(source.counts.nodes, source.total)}</EntityChip>
+                    )}
+                    {source.counts.edges === 0 ? null : (
+                        <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>
+                    )}
+                </span>
+            </Tooltip>
+            <VisuallyHidden>{counted}</VisuallyHidden>
+        </>
     );
 }
 
@@ -219,7 +245,6 @@ export function SourceRow({
         });
     };
     const match = joinMatch(source);
-    const counted = countWords(source);
     const menuItems = items.map((item) => (
         <CommandMenuItem
             key={item.id}
@@ -275,22 +300,7 @@ export function SourceRow({
                                 )}
                             </span>
                             {match === null ? null : <VisuallyHidden>{joinWords(source)}</VisuallyHidden>}
-                            {counted === "" ? null : (
-                                <Tooltip label={counted}>
-                                    <span className="dp-source-chips" aria-hidden>
-                                        {source.counts.nodes === 0 ? null : (
-                                            // A server load's chip reads "100 of 171" when its source says how many it holds.
-                                            <EntityChip kind="node">
-                                                {serverCount(source.counts.nodes, source.total)}
-                                            </EntityChip>
-                                        )}
-                                        {source.counts.edges === 0 ? null : (
-                                            <EntityChip kind="edge">{formatNumber(source.counts.edges)}</EntityChip>
-                                        )}
-                                    </span>
-                                </Tooltip>
-                            )}
-                            {counted === "" ? null : <VisuallyHidden>{counted}</VisuallyHidden>}
+                            <SourceCounts source={source} />
                         </button>
                     )}
                     {renaming ? null : <IssuesChip source={source} name={name} />}

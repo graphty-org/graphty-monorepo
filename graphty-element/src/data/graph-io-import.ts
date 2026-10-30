@@ -449,6 +449,27 @@ function missingEndpoint(message: string): string {
 }
 
 /**
+ * One import issue as the aggregator's error.
+ * @param issue - the importer's issue
+ * @returns the error
+ */
+function errorOf(issue: ImportReport["issues"][number]): Parameters<ErrorAggregator["addError"]>[0] {
+    return {
+        message:
+            issue.code === "E_MISSING_ENDPOINT" ? `${missingEndpoint(issue.message)}: ${issue.message}` : issue.message,
+        category: issue.category,
+        ...(issue.line === null ? {} : { line: issue.line }),
+        ...(issue.element === null ? {} : { field: issue.element }),
+        params: {
+            issue: issue.code,
+            ...(issue.element === null ? {} : { element: issue.element }),
+            // a dropped value, not a refused row: the node or edge it belongs to was kept
+            ...(issue.params?.skipped === "value" ? { skipped: "value" } : {}),
+        },
+    };
+}
+
+/**
  * Copy the errors of an import report into the source's aggregator.
  *
  * Warnings stay in the report: the aggregator has always counted only what went wrong, and a
@@ -465,21 +486,7 @@ export function aggregateErrors(report: ImportReport, errors: ErrorAggregator, s
             continue;
         }
 
-        const canContinue = errors.addError({
-            message:
-                issue.code === "E_MISSING_ENDPOINT"
-                    ? `${missingEndpoint(issue.message)}: ${issue.message}`
-                    : issue.message,
-            category: issue.category,
-            ...(issue.line === null ? {} : { line: issue.line }),
-            ...(issue.element === null ? {} : { field: issue.element }),
-            params: {
-                issue: issue.code,
-                ...(issue.element === null ? {} : { element: issue.element }),
-                // a dropped value, not a refused row: the node or edge it belongs to was kept
-                ...(issue.params?.skipped === "value" ? { skipped: "value" } : {}),
-            },
-        });
+        const canContinue = errors.addError(errorOf(issue));
 
         if (stopAtLimit && !canContinue) {
             throw new Error(`Too many errors (${errors.getErrorCount()}), aborting parse`);

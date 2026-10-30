@@ -632,6 +632,24 @@ function oneSource(keys: readonly SourceKey[]): { source?: SourceKey } {
 }
 
 /**
+ * Which end of the edges names an unknown node: "source", "target" or "both".
+ * @param touching - The edges that name one.
+ * @param unknown - The unknown nodes.
+ * @returns The end.
+ */
+function unknownSide(
+    touching: readonly { readonly source: NodeId; readonly target: NodeId }[],
+    unknown: ReadonlySet<NodeId>,
+): "source" | "target" | "both" {
+    const atSource = touching.some((edge) => unknown.has(edge.source));
+    const atTarget = touching.some((edge) => unknown.has(edge.target));
+    if (atSource && atTarget) {
+        return "both";
+    }
+    return atSource ? "source" : "target";
+}
+
+/**
  * The issues the loads saw: unknown ends, repeated ids, blank ids and refused rows.
  * @param input - The records and the state.
  * @returns The issues found.
@@ -661,12 +679,7 @@ function loadIssues(input: IssueInput): FoundIssue[] {
     const touching = edges.filter((edge) => unknown.has(edge.source) || unknown.has(edge.target));
     if (touching.length > 0) {
         const ids = [...unknown];
-        const atSource = touching.some((edge) => unknown.has(edge.source));
-        const atTarget = touching.some((edge) => unknown.has(edge.target));
-        let ends = atSource ? "source" : "target";
-        if (atSource && atTarget) {
-            ends = "both";
-        }
+        const ends = unknownSide(touching, unknown);
         const forget = (facts: LoadFacts): LoadFacts => ({
             ...facts,
             unknownEnds: facts.unknownEnds.filter((id) => !unknown.has(id)),

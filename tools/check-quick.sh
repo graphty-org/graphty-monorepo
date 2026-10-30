@@ -10,7 +10,7 @@
 # 3. tools/test-changed.mjs: the tests CI's selection would run, with CI's shard commands, no coverage;
 # 4. tools/sonar-gate.mjs: SonarQube on the changed lines (off the owner's network it passes, warning);
 # 5. when webgpu-graph-algorithms is affected, its node tests on this machine's NVIDIA card;
-# 6. PR Integrity on HEAD (tools/pr-integrity.mjs --local: test integrity, owned closure, breaking
+# 6. PR Integrity on HEAD (tools/pr-integrity.mjs --local: test integrity, breaking
 #    commits, baselines signed; Proof and the fresh review need the pull request and are left to CI);
 # 7. the documentation site build CI's Docs job runs (npm run docs:build), when the change reaches the
 #    site (tools/docs-affected.sh, the pre-push gate's rule);

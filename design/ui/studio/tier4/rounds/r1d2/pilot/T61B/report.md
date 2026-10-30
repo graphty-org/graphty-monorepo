@@ -97,3 +97,98 @@ Already known and unchanged: tabbing into a join column box opens its list (d1-m
 the issue still offers Add nodes for G12 after the join put G12 in the graph
 (p1-success/20.png); Replace removes gauges.csv from Sources (d1-menu-open/08.png); the second
 source's file name is cut to "f..." on its row, readable in its tooltip (p1-success/15.png).
+
+## Re-walk on build bccf8fe47f (the unknown end's mark moved to the end that is unknown)
+
+Build bccf8fe47f (`.study-builds/tier4-r1d2-bccf8fe47f`), 1440 x 900, start `empty`. Screenshots are
+under /home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d2/pilot/T61B/ (e1 to e6).
+Every walk starts from the empty start screen and reaches the app by clicks, typing and keys only.
+The data stayed the task's own on every walk: gauges.csv (G01-G11, Upper Falls, Mill Pond, ...) and
+flows.csv (15 rows, G09 -> G12 among them).
+
+Of the routes the fix pass touched, two belong to this task: the success path on to Edges > With
+issues, and the keyboard walk on to the Edges table's end header. Both were walked, with the
+detours held from the earlier pass. The rest belong to T61 A, T65, T66, T67 and T68 and are walked by
+those pilots.
+
+| Walk | How | Result |
+| ---- | --- | ------ |
+| e1-success (pointer) | replay of p1-success, on to Edges > With issues 1 and the header mark | All 23 steps matched; reached |
+| e2-menu-open (detour: main menu, Replace, Cancel and Undo, the join boxes, a separate graph, the reverse order) | replay of d1-menu-open | All 36 steps matched; the earlier findings stand |
+| e3-flows-first (detour: Replace and Control+Z, a canceled join, then flows.csv first and gauges.csv second) | replay of w2-menu-open; stopped at step 14, finished by hand | Reached (12 nodes, 15 edges) |
+| e4-quick-actions (detour: Quick actions > Add data..., then Edges > With issues 1) | replay of p2-menu | All 61 steps matched; reached |
+| e5-keys (keyboard, screen-reader mode) | replay of k1-keys | All 95 steps matched |
+| e6-keys-edges (keyboard, screen-reader mode) | replay of k1-keys kept open, then by keys to the Edges table's end header | Reached |
+
+### Success path by pointer (e1-success): reached
+
+- The join screen reads "Join flows.csv -> gauges.csv", Edges, from = Id, to = Id, "14 edges
+  added", "1 new node", "1 not in graph", "1 repeated key" with its warning glyph (e1-success/05.png).
+- After Join: Overview Nodes 12, Edges 14, "From 2 files"; Sources lists gauges.csv (11) and the
+  flows.csv row (12, 14, issue chip 1) (e1-success/13.png).
+- Edges, 14 edges, "With issues 1": the warning glyph is on the Target header and Source has none;
+  the one row is G09 -> G12, 4 km, with G12 drawn in the warning color and G09 plain
+  (e1-success/23.png); the glyph's name is "Issues in Target" (e1-success/24.png). The table now names
+  the gauge that did not fit. The same screen after Quick actions > Add data...
+  (e4-quick-actions/62.png).
+
+### Detour: flows.csv first, then gauges.csv (e3-flows-first): reached
+
+- Step 14 went another way: the "Join canceled" notice was still up, so "Undo#2" was its Undo, which
+  reopens the join (e3-flows-first/15.png), as on d1-menu-open. Cancel, then Main menu > Back to
+  start and the rest by hand.
+- The join screen reads "Join gauges.csv -> flows.csv", Node values, id = Id, "11 matched", "1 no
+  value" (e3-flows-first/19.png). After Join: 12 nodes, 15 edges, "1 repeated edge", "From 2 files",
+  both sources, neither row carrying an issue chip (20.png). This order's counts are the ones the
+  answer key accepts.
+- Edges, "With issues 1": the glyph is on the "from" header ("Issues in from"), the one row is
+  G03 -> G04, 2.1 km, with G03 tinted; its menu reads "1 repeated edge" with Keep, Merge, Ignore,
+  Show rows (21.png, 22.png). Nothing after Join names G12 as not on the gauge list; the join
+  screen's "1 no value" is the only place.
+
+### Success path by keyboard (e6-keys-edges, keys only, screen-reader mode): reached
+
+- Steps 1-95 matched the earlier walk (start screen, file load, Data, Add source, the join screen,
+  the issue dialog, Edit join, a second Add source > File... > flows.csv, which replaces flows.csv in
+  place: the header Undo reads "Undo replacing flows.csv", the network stays 12 nodes, 14 edges).
+- Tab from the gauges.csv row: gauges.csv menu, "flows.csv 12 nodes, 14 edges" (pressed), "1 issue
+  in flows.csv", flows.csv menu, Collapse Fields, Collapse flows.csv, Rows are, Add to edge fields,
+  Source, Target, Direction, Expand gauges.csv, Add filter, Resize left panel, Canvas "Graph
+  drawing", Analyze, Resize table, tab "Nodes", "With issues 11", Columns, Table options, Maximize
+  table, Close table, "Key id", then out of the table to "From 2 files". No focus fell to the page
+  body.
+- Shift+Tab back to tab "Nodes", ArrowRight to "Edges", Tab to "With issues 1", Space checks it;
+  Tab to "Key from", ArrowRight to "Key to". Browse mode reads the header row as "Key from Options
+  for from Key to Issues in to Options for to number, joined km ..." and the row "G09 G12 4".
+- On the "to" header the focused name is "Key to" and its description is empty (`--expect
+  described=issue` failed): nothing spoken on focus says this column has an issue.
+- Shift+F10 opens the header's menu: "1 unknown end", Add nodes (checked), Leave out, Ignore, Show
+  rows, Hide, Hide others, Sort ascending, Sort descending (e6-keys-edges/103.png). Escape returns
+  focus to "Key to"; ArrowDown goes to row header "G12" (105.png).
+- In this walk the edge headers read "from" and "to" (the replaced flows.csv's own column names),
+  where the pointer walk's read "Source" and "Target"; the mark is on the target end either way.
+
+### Mismatches between the answer key and the screen
+
+None new. The key's numbers hold: 12 gauges (11 and G12), 14 stretches, and 14 on the second file's
+Sources row. As the key says, the repeated stretch can be read only on the join screen in this order;
+flows.csv first gives 12 nodes and 15 edges with "1 repeated edge".
+
+### Defects (crash, block, or a result that would spoil grading)
+
+No crash and no block on any walk. The fix holds for B: the Target header carries the mark and G12 is
+the tinted cell (e1-success/23.png). The earlier grading risks are unchanged (Replace gives the same
+counts as a join; the repeat disappears after Join; the two orders give 14 and 15 edges).
+
+Smaller, seen on this pass:
+
+1. Keyboard: the end header's focused name does not say it has an issue ("Key to", empty
+   description); only browse mode reads "Issues in to", and the fixes are reached only through
+   Shift+F10 (e6-keys-edges/100.png, 102.png, 103.png).
+2. Flows-first order: the "1 repeated edge" mark sits on the "from" header and tints only G03, the
+   first end of the repeated stretch G03 -> G04, so the table reads as if G03 were the problem
+   (e3-flows-first/21.png).
+3. The Nodes table's "With issues 11" counts every gauge row, while the marks it shows are the
+   station column's "1 value with padded spaces" (Willow Run) and the depth_cm column's G07 blank;
+   the other rows show no tinted cell on screen. A participant asked "did anything not fit" may read
+   11 there (e3-flows-first/23.png, 24.png; the same on the earlier build, x1-success/13.png).

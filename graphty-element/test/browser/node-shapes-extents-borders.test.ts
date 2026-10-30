@@ -443,7 +443,7 @@ describe("a border in screen pixels", () => {
             [{ src: "a", dst: "b" }],
             [layerFor(["a", "b"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
         );
-        const nodes = element.graph.getDataManager().nodes;
+        const { nodes } = element.graph.getDataManager();
         const a = nodes.get("a");
         assert.isDefined(a);
         const line = (): number => edgeOf(element, "a", "b").drawnLine?.length ?? NaN;

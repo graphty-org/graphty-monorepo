@@ -307,7 +307,8 @@ describe("non-gating jobs", () => {
     it("reads ci.yml's job-level continue-on-error, not a step's", () => {
         const jobs = nonGatingJobs(ci);
         expect(jobs).toContain("Performance Benchmarks");
-        expect(jobs).toContain("Story tests (${{ matrix.name || matrix.project }})");
+        // gating since #4613 (the screenshot gate blocks again)
+        expect(jobs).not.toContain("Story tests (${{ matrix.name || matrix.project }})");
         expect(jobs).not.toContain("Build");
         expect(jobs).not.toContain("Lint");
     });

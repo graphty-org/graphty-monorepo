@@ -14,9 +14,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { isGraphtyError } from "../../src/errors";
 import { Graphty } from "../../src/graphty-element";
 
-/** How long the element may take to build its renderer. */
-const MOUNT_TIMEOUT_MS = 15000;
-
 let container: HTMLDivElement | null = null;
 
 /**
@@ -38,12 +35,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }

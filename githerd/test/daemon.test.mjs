@@ -770,7 +770,7 @@ describe("HTTP endpoints", () => {
             body: JSON.stringify({ event: "Stop", job: "j1", nonce: "n", input: { session_id: "w1" } }),
         });
         expect(await res.json()).toEqual({});
-        await vi.waitFor(() => expect(daemon.state.retiring).toEqual([]), { timeout: 2000, interval: 20 });
+        await vi.waitFor(() => expect(daemon.state.retiring).toEqual([]));
         expect(job.state).toBe("done");
         await daemon.shutdown();
         const ended = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "session-ended");
@@ -3469,20 +3469,17 @@ describe("the notify command check", () => {
 });
 
 /**
- * Waits for a condition, checking every 20 ms; fails after 15 s.
+ * Waits for a condition, until the one hang guard (tools/test-wait-guard.mjs).
  * @param {() => unknown} check returns truthy when done
  * @param {string} what for the failure message
  * @returns {Promise<any>} the check's value
  */
 async function until(check, what) {
-    return vi.waitFor(
-        async () => {
-            const value = await check();
-            if (!value) throw new Error(`timed out waiting for ${what}`);
-            return value;
-        },
-        { timeout: 15_000, interval: 20 },
-    );
+    return vi.waitFor(async () => {
+        const value = await check();
+        if (!value) throw new Error(`timed out waiting for ${what}`);
+        return value;
+    });
 }
 
 /**

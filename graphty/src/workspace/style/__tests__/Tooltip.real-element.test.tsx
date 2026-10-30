@@ -15,9 +15,6 @@ import { findValuePicker, render, screen, waitFor, within } from "../../../test/
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** What the element's hover event carries. */
 type NodeEventDetail = HTMLElementEventMap["graphty-node-hover"]["detail"];
 
@@ -43,13 +40,10 @@ describe("a tooltip from an attribute on the real element", () => {
         });
         render(<Workspace store={store} />);
         let found: HTMLElementTagNameMap["graphty-element"] | null = null;
-        await waitFor(
-            () => {
-                found = document.querySelector("graphty-element");
-                assert.isDefined(found?.session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+        });
         if (found === null) {
             throw new Error("the element never came up");
         }
@@ -57,7 +51,7 @@ describe("a tooltip from an attribute on the real element", () => {
         await element.session.data.addNodes(NODES);
         await element.session.data.addEdges(EDGES);
 
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         const nodes = tab.querySelector<HTMLElement>('[data-group="node"]');
         if (nodes === null) {
             throw new Error("the Style tab draws no Nodes group");
@@ -65,13 +59,13 @@ describe("a tooltip from an attribute on the real element", () => {
         await userEvent.click(within(nodes).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
         // An empty tooltip says nothing, so a new Tooltip asks at once what it reads.
-        const list = await findValuePicker({ timeout: TIMEOUT_MS });
+        const list = await findValuePicker();
         assert.isNotNull(within(list).queryByRole("option", { name: "Fixed text" }), "fixed text is still a choice");
         assert.isNotNull(within(list).queryByRole("option", { name: /^Node id(,|$)/ }), "the node id can be picked");
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
         // The entry says which attribute the tooltip reads.
         // The first write adds the Everything layer and redraws the tab, so look in the page.
-        await screen.findByRole("button", { name: "Tooltip source: name" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("button", { name: "Tooltip source: name" });
 
         const heard: NodeEventDetail[] = [];
         element.addEventListener("graphty-node-hover", (event) => {
@@ -79,24 +73,18 @@ describe("a tooltip from an attribute on the real element", () => {
         });
         await element.waitForSettled();
         let at = element.nodeScreenPosition("2");
-        await waitFor(
-            () => {
-                at = element.nodeScreenPosition("2");
-                assert.isTrue(at?.visible, "node 2 is on screen");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            at = element.nodeScreenPosition("2");
+            assert.isTrue(at?.visible, "node 2 is on screen");
+        });
         await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
 
-        await waitFor(
-            () => {
-                assert.deepEqual(
-                    heard.map((d) => [d.nodeId, d.tooltip]),
-                    [["2", "Beta"]],
-                    "the tooltip on the hovered node says its name",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(
+                heard.map((d) => [d.nodeId, d.tooltip]),
+                [["2", "Beta"]],
+                "the tooltip on the hovered node says its name",
+            );
+        });
     });
 });

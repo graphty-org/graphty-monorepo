@@ -4,6 +4,9 @@ import "@mantine/core/styles.css";
 import { MantineProvider } from "@mantine/core";
 import type { Preview, StoryContext } from "@storybook/react";
 import React from "react";
+import { configure } from "storybook/test";
+
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 
 import { pinErudaTopRight } from "../src/lib/eruda";
 import { initSentry } from "../src/lib/sentry";
@@ -12,6 +15,13 @@ import { loadGraphtyElement } from "../src/elementLoader";
 import { loadFrame } from "../src/workspace/frameLoader";
 import { HeroTurns } from "../src/workspace/start/heroTurns";
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
+
+// A play function's waitFor and findBy* wait until the monorepo's one hang guard, not Testing
+// Library's 1000 ms: a deadline on a wait fails a story whenever the machine is busy
+// (tools/test-wait-guard.mjs). Here, so the interactive Storybook and the visual capture get it too.
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
+// graphty-element's waitForStableFrame() waits until the same guard, not its 30 s default.
+(globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: number }).__GRAPHTY_WAIT_GUARD_MS__ = WAIT_GUARD_MS;
 
 // Error tracking in Storybook only when a DSN was built in. Without one there is nothing to set up,
 // and the Sentry stories say on the page that it is not configured.

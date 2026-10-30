@@ -572,6 +572,15 @@ const addSpec = (result, spec, why) => result.mode !== "all" && !result.specs.ha
 let grepRoot = join(HERE, "..");
 const namesCache = new Map();
 const namesByGraphs = new WeakMap();
+
+/**
+ * Points the search for root-file names (namedBy) at a checkout: selectChange's, or a test's fixture.
+ * @param root the checkout
+ */
+export function useNamesRoot(root) {
+    grepRoot = root;
+    namesCache.clear();
+}
 /**
  * Whether a package's tests name a root file: a string literal in the test-side files of its import graphs
  * or its test and lint configs (in any of its files when it has no graph) holds the file's path, a folder
@@ -2959,8 +2968,7 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
     if (!graph) {
         throw new Error("nx's project graph could not be read");
     }
-    grepRoot = root;
-    namesCache.clear();
+    useNamesRoot(root);
     const packages = new Map([...graph.roots].filter(([, d]) => shards.some((s) => s.package === d)));
     const all = graphs ?? buildGraphs(root, [...packages.values()], shards);
     const rules = loadRules(root);

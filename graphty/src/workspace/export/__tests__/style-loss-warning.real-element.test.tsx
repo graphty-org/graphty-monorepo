@@ -15,9 +15,6 @@ import { userEvent } from "vitest/browser";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and exporting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const NODES = Array.from({ length: 8 }, (_unused, i) => ({ id: `n${String(i)}`, group: i % 3 === 0 ? "x" : "y" }));
 const EDGES = NODES.slice(1).map((node, i) => ({ source: NODES[i].id, target: node.id }));
 
@@ -90,15 +87,12 @@ async function openData(): Promise<HTMLElement> {
     await userEvent.keyboard("{Control>}e{/Control}");
     const dialog = await screen.findByRole("dialog", { name: "Export" });
     await userEvent.click(within(dialog).getByText("Data"));
-    await waitFor(
-        () => {
-            assert.notInclude(
-                within(dialog).getByLabelText("Preview of the exported data").textContent,
-                "Writing the preview",
-            );
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.notInclude(
+            within(dialog).getByLabelText("Preview of the exported data").textContent,
+            "Writing the preview",
+        );
+    });
     return dialog;
 }
 
@@ -128,13 +122,10 @@ describe("Export warns before the graph's styles are lost", () => {
         const saved = catchDownloads();
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         const element = document.querySelector("graphty-element");
         if (session === undefined || element === null) {
             throw new Error("the element never came up");
@@ -152,7 +143,7 @@ describe("Export warns before the graph's styles are lost", () => {
         await chooseCsvNodes(dialog);
         within(dialog).getByText("No styles");
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_nodes.csv", TOAST, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_nodes.csv", TOAST);
         assert.isNull(within(dialog).queryByRole("alertdialog"));
         assert.deepEqual(
             saved.map(({ name }) => name),
@@ -167,7 +158,7 @@ describe("Export warns before the graph's styles are lost", () => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<graphml");
         });
         await userEvent.click(within(again).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_graph.graphml", TOAST, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_graph.graphml", TOAST);
         assert.isNull(screen.queryByRole("alertdialog"));
         const file = saved.find(({ name }) => name === "untitled_graph.graphml");
         assert.isDefined(file, "the GraphML file was saved");
@@ -199,13 +190,10 @@ describe("Export warns before the graph's styles are lost", () => {
         const saved = catchDownloads();
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -226,13 +214,13 @@ describe("Export warns before the graph's styles are lost", () => {
             assert.include(within(dialog).getByLabelText("Preview of the exported data").textContent, "<gexf");
         });
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        const warning = await within(dialog).findByRole("alertdialog", {}, { timeout: TIMEOUT_MS });
+        const warning = await within(dialog).findByRole("alertdialog", {});
         assert.match(warning.textContent, /Node label color not written/);
         assert.match(warning.textContent, /Reopened: layers as layers/);
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 
         await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
-        await screen.findByText("Exported untitled_graph.gexf", TOAST, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_graph.gexf", TOAST);
         assert.deepEqual(
             saved.map(({ name }) => name),
             ["untitled_graph.gexf"],
@@ -243,13 +231,10 @@ describe("Export warns before the graph's styles are lost", () => {
         const saved = catchDownloads();
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -259,7 +244,7 @@ describe("Export warns before the graph's styles are lost", () => {
         const dialog = await openData();
         await chooseCsvNodes(dialog);
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_nodes.csv", TOAST, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_nodes.csv", TOAST);
         assert.isNull(screen.queryByRole("alertdialog"));
 
         const again = await openData();
@@ -269,7 +254,7 @@ describe("Export warns before the graph's styles are lost", () => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<gexf");
         });
         await userEvent.click(within(again).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_graph.gexf", TOAST, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_graph.gexf", TOAST);
         assert.isNull(screen.queryByRole("alertdialog"));
         assert.deepEqual(
             saved.map(({ name }) => name),

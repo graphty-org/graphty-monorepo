@@ -6,7 +6,6 @@ import { ToggleIconButton, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { realInput } from "../../helpers/real-input";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A 24 x 24 icon button that stays on or off: lock aspect ratio, use as mask, show or hide.
@@ -167,7 +166,7 @@ export const Keyboard: Story = {
             // As a test: the browser's own press. The button flips while it is still held down.
             await real.userEvent.hover(button);
             await real.commands.mouseDown();
-            await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"), storyWaitOptions(1000));
+            await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
             // The click that ends the same press is swallowed: after its commit the toggle is still on.
             await real.commands.mouseUp();
             await expect(button).toHaveAttribute("aria-pressed", "true");
@@ -179,7 +178,7 @@ export const Keyboard: Story = {
         // React commits a state update from a native pointer event in a microtask, after
         // fireEvent returns, so wait for the commit before reading the attribute.
         fireEvent.pointerDown(button, { button: 0 });
-        await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"), storyWaitOptions(1000));
+        await waitFor(() => expect(button).toHaveAttribute("aria-pressed", "true"));
         fireEvent.click(button, { detail: 1 });
         await new Promise((resolve) => setTimeout(resolve, 0));
         await expect(button).toHaveAttribute("aria-pressed", "true");

@@ -19,9 +19,6 @@ import { cleanup, render, screen, waitFor, within } from "../../../test/test-uti
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and the layout settling, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 type GraphtyTag = HTMLElementTagNameMap["graphty-element"];
 
 /**
@@ -30,14 +27,11 @@ type GraphtyTag = HTMLElementTagNameMap["graphty-element"];
  */
 async function open(): Promise<{ element: GraphtyTag; session: GraphSession }> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null })} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     const session = element?.session;
     if (element === null || session === undefined) {
         throw new Error("the element never came up");
@@ -62,7 +56,7 @@ async function bringKeyUp(session: GraphSession): Promise<void> {
         selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
         set: { "node.color": "#ff00ff" },
     });
-    await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+    await screen.findByRole("region", { name: "Legend" });
 }
 
 /**
@@ -78,12 +72,9 @@ async function applyCircle(session: GraphSession): Promise<void> {
     const popover = await screen.findByRole("dialog", { name: "Layout" });
     await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
     await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-    await waitFor(
-        () => {
-            assert.strictEqual(session.layout.id, "circular");
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.strictEqual(session.layout.id, "circular");
+    });
     await userEvent.keyboard("{Escape}");
 }
 

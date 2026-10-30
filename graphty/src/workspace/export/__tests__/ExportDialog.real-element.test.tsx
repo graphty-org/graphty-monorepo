@@ -12,12 +12,8 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { storyWaitOptions } from "../../../stories/wait";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and capturing, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** The notice's toast; the workspace's status line speaks the same words. */
 const TOAST = { selector: ".cm-toast-message" };
@@ -69,13 +65,10 @@ afterEach(() => {
 async function openScoredGraph(): Promise<GraphSession> {
     render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -114,13 +107,10 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         // A new, empty project; the graph goes in through the element's session.
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -133,9 +123,9 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         // Export... (Mod+E) opens the dialog on Image; Export saves the picture.
         await userEvent.keyboard("{Control>}e{/Control}");
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        await within(dialog).findByRole("img", {}, { timeout: TIMEOUT_MS });
+        await within(dialog).findByRole("img", {});
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_current-view.png", TOAST, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_current-view.png", TOAST);
         const picture = saved.find(({ name }) => name === "untitled_current-view.png");
         assert.isDefined(picture, "the picture was saved");
         assert.equal(picture?.blob.type, "image/png");
@@ -152,11 +142,11 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         const preview = within(again).getByLabelText("Preview of the exported data");
         await waitFor(() => {
             assert.notEqual(preview.textContent, "Writing the preview...");
-        }, storyWaitOptions(1000));
+        });
         assert.include(preview.textContent, header);
         // CSV holds no styles, as Format says: Export saves at once.
         await userEvent.click(within(again).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_nodes.csv", TOAST, storyWaitOptions(1000));
+        await screen.findByText("Exported untitled_nodes.csv", TOAST);
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         assert.isDefined(table, "the table was saved");
         const lines = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];
@@ -168,13 +158,10 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         const saved = catchDownloads();
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -200,7 +187,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
             });
             assert.isNull(within(dialog).queryByRole("alert"), "the file can be written");
             await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-            await screen.findByText(`Exported ${file}`, TOAST, { timeout: TIMEOUT_MS });
+            await screen.findByText(`Exported ${file}`, TOAST);
             // The graph has no layers of its own, so nothing about its styles is lost: no warning.
             assert.isNull(screen.queryByRole("alertdialog"));
             const blob = saved.find(({ name }) => name === file)?.blob;
@@ -222,7 +209,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await userEvent.click(within(dialog).getByRole("combobox", { name: "Scope" }));
         await userEvent.click(await screen.findByRole("option", { name: "Shown 4 of 6" }));
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_nodes.csv", TOAST, storyWaitOptions(1000));
+        await screen.findByText("Exported untitled_nodes.csv", TOAST);
         const table = saved.find(({ name }) => name === "untitled_nodes.csv");
         const rows = (await table?.blob.text())?.trim().split(/\r?\n/) ?? [];
         assert.lengthOf(rows, 4 + 1, "the shown nodes, under one header");
@@ -231,7 +218,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         dialog = await openExport();
         await pick(dialog, "Styles");
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_styles.style.json", TOAST, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_styles.style.json", TOAST);
         const styles = JSON.parse(
             (await saved.find(({ name }) => name === "untitled_styles.style.json")?.blob.text()) ?? "{}",
         ) as Record<string, unknown>;
@@ -244,7 +231,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         dialog = await openExport();
         await pick(dialog, "Recipe");
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_recipe.json", TOAST, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_recipe.json", TOAST);
         const recipe = (await saved.find(({ name }) => name === "untitled_recipe.json")?.blob.text()) ?? "";
         assert.include(recipe, '"score"');
         for (const node of NODES) {
@@ -255,13 +242,10 @@ describe("Export: save a picture and the numbers (task T13)", () => {
     it("offers no edge table without edges, and names a tour's views by their plain names", async () => {
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -272,7 +256,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         const preview = within(dialog).getByLabelText("Preview of the exported data");
         await waitFor(() => {
             assert.notEqual(preview.textContent, "Writing the preview...");
-        }, storyWaitOptions(1000));
+        });
         assert.isNull(within(dialog).queryByText("Table"), "no Nodes / Edges toggle without edges");
         assert.isNull(within(dialog).queryByRole("radio", { name: "Edges" }));
 
@@ -294,7 +278,7 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         await pick(dialog, "Video");
         await userEvent.click(within(dialog).getByText("3 s"));
         await userEvent.click(within(dialog).getByRole("button", { name: "Record" }));
-        const notice = await screen.findByText(/^Exported untitled_tour\.(webm|mp4)/, {}, { timeout: TIMEOUT_MS });
+        const notice = await screen.findByText(/^Exported untitled_tour\.(webm|mp4)/, {});
         const video = saved.find(({ name }) => notice.textContent?.includes(name) ?? false);
         assert.isDefined(video, "the video was saved");
         assert.match(video?.blob.type ?? "", /^video\//);

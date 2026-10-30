@@ -12,7 +12,6 @@ import { userEvent } from "vitest/browser";
 
 import { DataTable, PanelField, Tree, VariablePill } from "../../src";
 import { renderThemed, resetHarness } from "../harness/measure";
-import { TOOLTIP_WAIT } from "../waits";
 
 const SHAPES = ["Box", "Sphere", "Cylinder", "Cone", "Capsule", "Torus", "Knot", "Tetrahedron"].map((name, i) => ({
     value: `shape-${String(i)}`,
@@ -186,7 +185,7 @@ describe("table rows", () => {
         const arrow = within(header).getByTestId("data-table-sort-glyph");
         expect(menu.querySelector("svg")?.innerHTML).not.toBe(arrow.querySelector("svg")?.innerHTML);
         await userEvent.hover(menu);
-        const tip = await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
+        const tip = await screen.findByRole("tooltip", {});
         expect(tip).toHaveTextContent("Options for hours");
         // The key that opens the menu from the header shows beside its name.
         expect(tip.querySelector(".cm-tooltip-shortcut")).toHaveTextContent("Alt+Down");
@@ -203,7 +202,7 @@ describe("a disabled control says why on hover", () => {
             </Tooltip>,
         );
         await userEvent.hover(screen.getByRole("checkbox", { name: "Style nodes" }), { force: true });
-        expect(await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).toHaveTextContent("Stays on");
+        expect(await screen.findByRole("tooltip", {})).toHaveTextContent("Stays on");
     });
 
     it("an aria-disabled icon button shows its reason", async () => {
@@ -215,7 +214,7 @@ describe("a disabled control says why on hover", () => {
             </Tooltip>,
         );
         await userEvent.hover(screen.getByRole("button", { name: "Undo" }));
-        expect(await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).toHaveTextContent("Nothing to undo");
+        expect(await screen.findByRole("tooltip", {})).toHaveTextContent("Nothing to undo");
     });
 });
 

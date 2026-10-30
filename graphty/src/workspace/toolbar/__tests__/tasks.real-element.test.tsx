@@ -26,9 +26,6 @@ function segment(radio: HTMLInputElement): HTMLElement {
     return label;
 }
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * A new, empty project, then Zachary's karate club opened through the element's
  * import, with the layout the element recommends for it.
@@ -38,13 +35,10 @@ const TIMEOUT_MS = 90_000;
 async function openKarate(place?: "data"): Promise<GraphSession> {
     render(<Workspace initialState={{ project: { name: "Untitled", id: 1 }, place }} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -86,14 +80,11 @@ async function analyze(filter: string, entry: string): Promise<void> {
  */
 async function finished(session: GraphSession, algorithm: string): Promise<RunId> {
     let found: RunId | undefined;
-    await waitFor(
-        () => {
-            const run = session.runs.list().find((r) => r.algorithm === algorithm);
-            assert.equal(run?.status, "succeeded");
-            found = run?.id;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        const run = session.runs.list().find((r) => r.algorithm === algorithm);
+        assert.equal(run?.status, "succeeded");
+        found = run?.id;
+    });
     if (found === undefined) {
         throw new Error(`no ${algorithm} run`);
     }
@@ -216,7 +207,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         if (screen.queryByRole("tree", { name: "Style layers" }) === null) {
             await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         }
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         // A grouping run's groups are layers in a folder named for it.
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / }));
         await userEvent.keyboard("{Delete}");
@@ -241,7 +232,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await session.styles.settled();
         assert.isAbove(session.runs.bindings(louvain).length, 0, "the run painted its layer again");
         assert.equal(session.runs.get(louvain)?.startedAt, computedAt, "restored from the stored result");
-        await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / }, { timeout: TIMEOUT_MS });
+        await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / });
     });
 
     it("a run's layer, its key entry and its values go by the algorithm's name: Closeness, not Reach", async () => {
@@ -254,14 +245,10 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         if (screen.queryByRole("tree", { name: "Style layers" }) === null) {
             await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         }
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-        await within(tree).findByRole(
-            "treeitem",
-            { name: /^Closeness, (node |edge |node and edge )?layer/ },
-            { timeout: TIMEOUT_MS },
-        );
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await within(tree).findByRole("treeitem", { name: /^Closeness, (node |edge |node and edge )?layer/ });
         assert.notMatch(tree.textContent ?? "", /Reach/);
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
         await within(legend).findByRole("group", { name: "Color: Closeness" });
         const names = session.data
             .readableValues()
@@ -390,25 +377,22 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const row = await frameRow();
         assert.notEqual(row.getAttribute("aria-disabled"), "true", "an edge is selected");
         await userEvent.click(row);
-        await waitFor(
-            () => {
-                // Measured when compared, so a canvas resized by the inspector opening counts. From
-                // the angle the camera looks from: framing keeps it.
-                const expected = element.resolveCameraPreset("fitToGraph", { ...ends, params: { keepAngle: true } });
-                const now = element.getCameraState();
-                const { position, target } = expected;
-                assert.isDefined(position);
-                assert.isDefined(target);
-                for (const axis of ["x", "y", "z"] as const) {
-                    assert.closeTo(now.target?.[axis] ?? Number.NaN, target?.[axis] ?? 0, 1e-3, `target.${axis}`);
-                }
-                // The reported position carries the shift that centers the view on the part the
-                // toolbar leaves free; the distance from what it looks at is the framing.
-                const span = (axis: "x" | "y" | "z"): number => (position?.[axis] ?? 0) - (target?.[axis] ?? 0);
-                assert.closeTo(now.cameraDistance ?? Number.NaN, Math.hypot(span("x"), span("y"), span("z")), 1e-3);
-            },
-            { timeout: 10_000 },
-        );
+        await waitFor(() => {
+            // Measured when compared, so a canvas resized by the inspector opening counts. From
+            // the angle the camera looks from: framing keeps it.
+            const expected = element.resolveCameraPreset("fitToGraph", { ...ends, params: { keepAngle: true } });
+            const now = element.getCameraState();
+            const { position, target } = expected;
+            assert.isDefined(position);
+            assert.isDefined(target);
+            for (const axis of ["x", "y", "z"] as const) {
+                assert.closeTo(now.target?.[axis] ?? Number.NaN, target?.[axis] ?? 0, 1e-3, `target.${axis}`);
+            }
+            // The reported position carries the shift that centers the view on the part the
+            // toolbar leaves free; the distance from what it looks at is the framing.
+            const span = (axis: "x" | "y" | "z"): number => (position?.[axis] ?? 0) - (target?.[axis] ?? 0);
+            assert.closeTo(now.cameraDistance ?? Number.NaN, Math.hypot(span("x"), span("y"), span("z")), 1e-3);
+        });
     });
 
     it("says what f framed, by the node's name", async () => {
@@ -418,15 +402,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const name = session.data.name(node) ?? String(node);
         await userEvent.keyboard("f");
         // Said once the framing's camera animation (a second long) has finished.
-        await waitFor(
-            () => {
-                assert.include(
-                    screen.getAllByRole("status").map((status) => status.textContent),
-                    `Framed ${name}`,
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.include(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Framed ${name}`,
+            );
+        });
     });
 
     it("switches to 2D with 5, and opens a node's neighborhood from its Degree row, reaches two hops and filters to it", async () => {
@@ -608,7 +589,7 @@ it("shows and hides the legend and the table from their own toolbar buttons, pre
     const session = await openKarate();
     const run = session.runs.start("pagerank");
     await run;
-    await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+    await screen.findByRole("region", { name: "Legend" });
     const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
     const legend = within(toolbar).getByRole("button", { name: "Legend" });
     const table = within(toolbar).getByRole("button", { name: "Table" });

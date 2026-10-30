@@ -1,14 +1,14 @@
 import { defineConfig } from "vitest/config";
 
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         ...baseTest({ reporters: ["verbose"] }),
         globals: true,
         environment: "happy-dom",
         pool: "forks",
-        testTimeout: 30000,
         coverage: {
             provider: "v8",
             reporter: ["text", "json", "html", "lcov"],
@@ -35,3 +35,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

@@ -26,9 +26,6 @@ import { WORKSPACE_AUTOSAVE_KEY } from "../autosave";
 
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** The samples, and their node counts. */
 const FLORENTINE = { name: "Florentine families", nodes: 15 };
 const LES_MIS = { name: "Les Miserables", nodes: 77 };
@@ -121,16 +118,13 @@ function openedElement(): { element: ElementUnderTest; session: GraphSession } {
 async function leave(element: ElementUnderTest, view: ReturnType<typeof render>): Promise<string> {
     // The chip is drawn on React's next render after the element's status event, so the element's
     // own status reads "saved" a moment before the chip exists or says so: wait for both.
-    const chip = await waitFor(
-        () => {
-            assert.strictEqual(element.autosaver.status.state, "saved");
-            assert.isNotNull(element.autosaver.status.savedAt);
-            const shown = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
-            assert.strictEqual(shown.textContent, "Autosave: saved");
-            return shown;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const chip = await waitFor(() => {
+        assert.strictEqual(element.autosaver.status.state, "saved");
+        assert.isNotNull(element.autosaver.status.savedAt);
+        const shown = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
+        assert.strictEqual(shown.textContent, "Autosave: saved");
+        return shown;
+    });
     // The chip's words are readable: 4.5:1 or more against what is behind them.
     assert.isAtLeast(textContrast(chip), 4.5);
     const { entry } = element.autosaver.status;
@@ -138,13 +132,10 @@ async function leave(element: ElementUnderTest, view: ReturnType<typeof render>)
         throw new Error("autosave wrote no entry");
     }
     view.unmount();
-    await waitFor(
-        async () => {
-            const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
-            assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(async () => {
+        const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+        assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
+    });
     return entry;
 }
 
@@ -224,7 +215,7 @@ async function fromAnotherTab(id: string): Promise<string> {
  * @returns the offer's region.
  */
 function offer(): Promise<HTMLElement> {
-    return screen.findByRole("region", { name: "Unsaved work" }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("region", { name: "Unsaved work" });
 }
 
 describe("Workspace autosave with the real graphty-element", () => {
@@ -236,12 +227,9 @@ describe("Workspace autosave with the real graphty-element", () => {
         const { store, view } = mountWorkspace();
         await openBy(store, () => pickSample(FLORENTINE.name));
         const { element } = openedElement();
-        await waitFor(
-            () => {
-                assert.strictEqual(element.autosaver.status.state, "saved");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.autosaver.status.state, "saved");
+        });
         assert.notMatch(store.get().notice?.message ?? "", /private window|may clear/);
         assert.notMatch(document.body.textContent, /private window|may clear/);
         view.unmount();
@@ -255,8 +243,8 @@ describe("Workspace autosave with the real graphty-element", () => {
         assert.equal(session.project.name, LES_MIS.name);
 
         // The reader picks a layer in the Style layers list.
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-        const hovered = await within(tree).findByRole("treeitem", { name: /^Hovered, / }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        const hovered = await within(tree).findByRole("treeitem", { name: /^Hovered, / });
         await userEvent.click(hovered);
         await waitFor(() => {
             assert.strictEqual(first.store.get().inspected?.kind, "layer-row");
@@ -278,25 +266,19 @@ describe("Workspace autosave with the real graphty-element", () => {
         await openBy(second.store, () => Promise.resolve());
         const reopened = openedElement();
         assert.equal(reopened.session.data.statistics().nodeCount, LES_MIS.nodes);
-        await waitFor(
-            () => {
-                assert.strictEqual(reopened.element.autosaver.status.entry, entry, "this tab writes its own entry");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(reopened.element.autosaver.status.entry, entry, "this tab writes its own entry");
+        });
         // Same place, same layer, focus on the main heading, and the status line says what reopened.
-        await waitFor(
-            () => {
-                assert.strictEqual(second.store.get().place, "graph");
-                assert.deepEqual(second.store.get().inspected, { kind: "layer-row", id: layer });
-                assert.strictEqual(document.activeElement?.id, INSPECTOR_TITLE_ID);
-                assert.include(
-                    screen.getAllByRole("status").map((status) => status.textContent),
-                    `Reopened ${LES_MIS.name}`,
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(second.store.get().place, "graph");
+            assert.deepEqual(second.store.get().inspected, { kind: "layer-row", id: layer });
+            assert.strictEqual(document.activeElement?.id, INSPECTOR_TITLE_ID);
+            assert.include(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Reopened ${LES_MIS.name}`,
+            );
+        });
         assert.strictEqual(document.activeElement?.textContent, "Hovered");
         const row = within(screen.getByRole("tree", { name: "Style layers" })).getByRole("treeitem", {
             name: /^Hovered, /,
@@ -314,12 +296,9 @@ describe("Workspace autosave with the real graphty-element", () => {
         const first = mountWorkspace();
         await openBy(first.store, () => pickSample(LES_MIS.name));
         const { element } = openedElement();
-        await waitFor(
-            () => {
-                assert.isNotNull(element.autosaver.status.savedAt);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotNull(element.autosaver.status.savedAt);
+        });
         const { entry } = element.autosaver.status;
         if (entry === null) {
             throw new Error("autosave wrote no entry");
@@ -342,7 +321,7 @@ describe("Workspace autosave with the real graphty-element", () => {
         });
         try {
             const second = mountWorkspace();
-            await screen.findByRole("button", { name: `Open the ${LES_MIS.name} sample` }, { timeout: TIMEOUT_MS });
+            await screen.findByRole("button", { name: `Open the ${LES_MIS.name} sample` });
             assert.isNull(second.store.get().project);
             assert.isNull(document.querySelector("graphty-element:not([data-start-page])"));
             const listed = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);

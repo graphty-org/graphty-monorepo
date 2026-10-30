@@ -26,9 +26,6 @@ declare module "vitest/browser" {
     }
 }
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * A fixture as a file, read from where the app serves it.
  * @param name - its file name.
@@ -63,13 +60,10 @@ function drop(file: File): void {
  * @param edges - the edges.
  */
 async function holds(session: GraphSession, nodes: number, edges: number): Promise<void> {
-    await waitFor(
-        () => {
-            assert.strictEqual(session.data.nodes().length, nodes);
-            assert.strictEqual(session.data.edges().length, edges);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.strictEqual(session.data.nodes().length, nodes);
+        assert.strictEqual(session.data.edges().length, edges);
+    });
 }
 
 /**
@@ -80,15 +74,12 @@ async function supplyChain(): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -97,7 +88,7 @@ async function supplyChain(): Promise<GraphSession> {
     await holds(live, 40, 0);
     store.set({ dockOpen: false, dockMaximized: false });
     drop(await fixture("ships-to-2024-09.csv"));
-    const join = await screen.findByRole("region", { name: /^Join / }, { timeout: TIMEOUT_MS });
+    const join = await screen.findByRole("region", { name: /^Join / });
     await userEvent.click(within(join).getByRole("button", { name: "Join" }));
     await holds(live, 40, 150);
     return live;
@@ -159,18 +150,14 @@ describe("Replace with file on the real element", () => {
         await session.visibility.setSteps(steps);
         const shownBefore = session.visibility.summary.visibleNodes;
 
-        const row = await screen.findByRole("listitem", { name: "ships-to-2024-09.csv" }, { timeout: TIMEOUT_MS });
+        const row = await screen.findByRole("listitem", { name: "ships-to-2024-09.csv" });
         await userEvent.hover(row);
         await userEvent.click(within(row).getByRole("button", { name: "ships-to-2024-09.csv menu" }));
         const october = await fixture("ships-to-2024-10.csv");
         await commands.chooseNextFile(october.name, "text/csv", await october.text());
         await userEvent.click(await screen.findByRole("menuitem", { name: "Replace with file..." }));
 
-        const receipt = await screen.findByText(
-            "Replaced ships-to-2024-09.csv with ships-to-2024-10.csv",
-            {},
-            { timeout: TIMEOUT_MS },
-        );
+        const receipt = await screen.findByText("Replaced ships-to-2024-09.csv with ships-to-2024-10.csv", {});
         const toast = receipt.closest<HTMLElement>('[role="group"]');
         if (toast === null) {
             throw new Error("the receipt is not in a notice");

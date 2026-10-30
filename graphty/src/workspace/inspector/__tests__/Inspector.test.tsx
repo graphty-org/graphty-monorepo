@@ -13,7 +13,6 @@ import {
 import { afterEach, assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { storyWaitOptions } from "../../../stories/wait";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
@@ -266,7 +265,6 @@ describe("the inspector", () => {
         const tip = await screen.findByText(
             "Hide every node outside this neighborhood. Its card in Filters turns it off",
             {},
-            storyWaitOptions(3000),
         );
         // Beside the button (right, or left where the window ends), never below it over the first
         // neighbor's name.
@@ -331,7 +329,7 @@ describe("the inspector", () => {
         // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
         // was already in the page with this text (testing-library judged it inaccessible). It mounts
         // after the theme's 1000 ms open delay, so the wait has no deadline of its own to race it.
-        const tip = await screen.findByText(/quantity/, {}, storyWaitOptions(3000));
+        const tip = await screen.findByText(/quantity/, {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
     });
 
@@ -501,7 +499,7 @@ describe("the inspector", () => {
         await userEvent.hover(screen.getByRole("button", { name: "Edge actions" }));
         // The tooltip mounts after the theme's 1000 ms open delay, so the wait has no deadline of its
         // own to race it.
-        const tip = await screen.findByText("Edge actions", {}, storyWaitOptions(3000));
+        const tip = await screen.findByText("Edge actions", {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
         await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /Select endpoints/ }));

@@ -22,9 +22,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and loading a sample, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
 const PRE_STEPS = 1000;
 
@@ -60,14 +57,11 @@ async function openSample(sample: string, nodes: number): Promise<{ session: Gra
 async function openProject(name: string): Promise<{ session: GraphSession; store: WorkspaceStore }> {
     const store = createWorkspaceStore({ project: { name, id: 1 }, inspected: null });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -103,14 +97,11 @@ async function runGroups(session: GraphSession, algorithm: string): Promise<{ la
  */
 async function openBinding(store: WorkspaceStore, layer: Layer, name = "Color"): Promise<HTMLElement> {
     store.set({ inspected: { kind: "layer-row", id: layer.id } });
-    const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-    const pill = await waitFor(
-        () => {
-            const found = within(tab).getByRole("button", { name: new RegExp(`^Node ${name.toLowerCase()}: `) });
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const tab = await screen.findByTestId("style-tab", {});
+    const pill = await waitFor(() => {
+        const found = within(tab).getByRole("button", { name: new RegExp(`^Node ${name.toLowerCase()}: `) });
+        return found;
+    });
     await userEvent.click(pill);
     return screen.findByRole("group", { name: `${name} binding` });
 }

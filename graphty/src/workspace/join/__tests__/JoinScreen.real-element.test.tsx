@@ -44,9 +44,6 @@ const FLOWS = [
     "G05,G08,3.1",
 ].join("\n");
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * A fixture as a file, read from where the app serves it.
  * @param name - its file name.
@@ -87,26 +84,20 @@ async function projectWith(
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
     const live = session;
     drop(typeof first === "string" ? await fixture(first) : first);
-    await waitFor(
-        () => {
-            assert.strictEqual(live.data.nodes().length, nodes);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.strictEqual(live.data.nodes().length, nodes);
+    });
     store.set({ dockOpen: false, dockMaximized: false });
     return { store, session: live };
 }
@@ -118,7 +109,7 @@ async function projectWith(
  */
 async function joinScreenFor(name: string): Promise<HTMLElement> {
     drop(await fixture(name));
-    return screen.findByRole("region", { name: `Join ${name}` }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("region", { name: `Join ${name}` });
 }
 
 /**
@@ -338,12 +329,9 @@ describe("the join screen on the real element", () => {
         await userEvent.keyboard("{Escape}");
         assert.isNotNull(screen.queryByRole("region", { name: /^Join / }), "Esc in the menu closes only the menu");
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(session.data.edges().length, 150);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(session.data.edges().length, 150);
+        });
         assert.strictEqual(session.data.nodes().length, 40);
         assert.strictEqual(session.data.sources()[1]?.kind, "join");
     });
@@ -357,7 +345,7 @@ describe("the join screen on the real element", () => {
             await commands.chooseNextFile("flows.csv", "text/csv", FLOWS);
             await userEvent.keyboard("{Control>}k{/Control}");
             await userEvent.click(await screen.findByRole("option", { name: /Add data\.\.\./ }));
-            const join = await screen.findByRole("region", { name: "Join flows.csv" }, { timeout: TIMEOUT_MS });
+            const join = await screen.findByRole("region", { name: "Join flows.csv" });
             assert.deepEqual(chips(join), [
                 "14 edges added",
                 "1 new node",
@@ -366,12 +354,9 @@ describe("the join screen on the real element", () => {
                 "1 unknown end",
             ]);
             await userEvent.click(within(join).getByRole("button", { name: "Join" }));
-            await waitFor(
-                () => {
-                    assert.strictEqual(session.data.edges().length, 14);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.strictEqual(session.data.edges().length, 14);
+            });
             assert.strictEqual(session.data.nodes().length, 12, "G12, the unknown end, is added");
             assert.isAbove(session.data.issues().length, 0, "the unknown end is reported");
         } finally {
@@ -382,7 +367,7 @@ describe("the join screen on the real element", () => {
     it("tags each row with what Join does, and decides an unknown end before joining", async () => {
         const { session } = await projectWith(new File([GAUGES], "gauges.csv"), 11);
         drop(new File([FLOWS], "flows.csv"));
-        const join = await screen.findByRole("region", { name: "Join flows.csv" }, { timeout: TIMEOUT_MS });
+        const join = await screen.findByRole("region", { name: "Join flows.csv" });
         const incoming = within(join).getByRole("grid", { name: "flows.csv" });
         // The first cell of each drawn row: its tag.
         const tags = (): string[] =>
@@ -436,21 +421,18 @@ describe("the join screen on the real element", () => {
         // "Join", chosen from the Join choices menu, joins.
         await userEvent.click(within(join).getByRole("button", { name: "Join choices" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Join" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(session.data.edges().length, 14);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(session.data.edges().length, 14);
+        });
         assert.strictEqual(session.data.nodes().length, 11, "G12 was left out, not added");
     });
 
     it("keeps a joined source row's ratio whole and its name readable", async () => {
         await projectWith(new File([GAUGES], "gauges.csv"), 11);
         drop(new File([FLOWS], "deliveries.csv"));
-        const join = await screen.findByRole("region", { name: "Join deliveries.csv" }, { timeout: TIMEOUT_MS });
+        const join = await screen.findByRole("region", { name: "Join deliveries.csv" });
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
-        const row = await screen.findByRole("listitem", { name: "deliveries.csv" }, { timeout: TIMEOUT_MS });
+        const row = await screen.findByRole("listitem", { name: "deliveries.csv" });
         await waitFor(() => {
             const ratio = row.querySelector<HTMLElement>(".dp-source-label .dp-quiet");
             const name = row.querySelector<HTMLElement>(".dp-source-name");

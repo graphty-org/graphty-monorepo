@@ -71,7 +71,6 @@ const HORIZONS: readonly number[] = [1, 5, 10];
 const PRINTED = 50;
 /** The horizon of the scale / center case the plan named (20), printed; its asserted horizon is the fixed case's largest admitted one. */
 const SCALED_PRINTED = 20;
-const CASE_TIMEOUT = 300_000;
 /** The label of a free case. */
 function caseLabel(graph: ParityGraph, k: number | null): string {
     return `${graph}/k=${k ?? "auto"}`;
@@ -246,79 +245,73 @@ async function compare(
 }
 
 describe("FR vs @graphty/layout: the admission rule (the f64 and f32 oracles alone, no GPU)", () => {
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 75 s on the T4 lane, 55 s on the dev box's RTX 4070 SUPER under load, 35 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "every case's trajectory sensitivity is printed; the admitted horizons are under a third of the cap on both counts; the layout10 member's configuration (karate with the mask) is admitted at its horizon",
-        async () => {
-            const third = P5_TOLERANCE_CAPS["fr-layout-oracle"].cap / 3;
-            // the ensemble runs at gpuScale() and its numbers are printed only on a software adapter (the P3 precedent of fa2-distributional.test.ts: a 4-core CI runner under coverage cannot finish the full-size random1k ensemble inside the case timeout, ci.yml run 35548431040)
-            const scale = gpuScale();
-            const full = scale === 1;
-            const failures: string[] = [];
-            const check = async (
-                label: string,
-                s: GraphSnapshot,
-                options: FruchtermanReingoldOptions,
-                mask: NodeMask | null,
-                horizons: readonly number[],
-            ): Promise<void> => {
-                const sensitivity = await frTrajectorySensitivity(
-                    s,
-                    startPositions(s, options, false),
-                    options,
-                    mask,
-                    horizons,
-                );
-                const admitted = ADMITTED[label];
-                console.warn(
-                    `[fr-layout-oracle] admission ${label}${full ? "" : ` (scaled x${scale}, printed only)`} (a third of the cap ${third.toExponential(3)}): ${horizons
-                        .map((k) => {
-                            const v = sensitivity.get(k);
-                            if (v === undefined) {
-                                throw new Error(`no sensitivity at ${k}`);
-                            }
-                            return `k=${k} spread ${v.spread.toExponential(3)} f32 ${v.f32.toExponential(3)} ${admitted.includes(k) ? "admitted" : "left out"}`;
-                        })
-                        .join("; ")}`,
-                );
-                for (const k of full ? admitted : []) {
-                    const v = sensitivity.get(k);
-                    if (v === undefined) {
-                        throw new Error(`no sensitivity at ${k}`);
-                    }
-                    if (!(v.spread <= third)) {
-                        failures.push(`${label} k=${k}: the oracle's own spread ${v.spread.toExponential(3)}`);
-                    }
-                    if (!(v.f32 <= third)) {
-                        failures.push(`${label} k=${k}: the f32 oracle ${v.f32.toExponential(3)}`);
-                    }
+    it("every case's trajectory sensitivity is printed; the admitted horizons are under a third of the cap on both counts; the layout10 member's configuration (karate with the mask) is admitted at its horizon", async () => {
+        const third = P5_TOLERANCE_CAPS["fr-layout-oracle"].cap / 3;
+        // the ensemble runs at gpuScale() and its numbers are printed only on a software adapter (the P3 precedent of fa2-distributional.test.ts: a 4-core CI runner under coverage cannot finish the full-size random1k ensemble inside the case timeout, ci.yml run 35548431040)
+        const scale = gpuScale();
+        const full = scale === 1;
+        const failures: string[] = [];
+        const check = async (
+            label: string,
+            s: GraphSnapshot,
+            options: FruchtermanReingoldOptions,
+            mask: NodeMask | null,
+            horizons: readonly number[],
+        ): Promise<void> => {
+            const sensitivity = await frTrajectorySensitivity(
+                s,
+                startPositions(s, options, false),
+                options,
+                mask,
+                horizons,
+            );
+            const admitted = ADMITTED[label];
+            console.warn(
+                `[fr-layout-oracle] admission ${label}${full ? "" : ` (scaled x${scale}, printed only)`} (a third of the cap ${third.toExponential(3)}): ${horizons
+                    .map((k) => {
+                        const v = sensitivity.get(k);
+                        if (v === undefined) {
+                            throw new Error(`no sensitivity at ${k}`);
+                        }
+                        return `k=${k} spread ${v.spread.toExponential(3)} f32 ${v.f32.toExponential(3)} ${admitted.includes(k) ? "admitted" : "left out"}`;
+                    })
+                    .join("; ")}`,
+            );
+            for (const k of full ? admitted : []) {
+                const v = sensitivity.get(k);
+                if (v === undefined) {
+                    throw new Error(`no sensitivity at ${k}`);
                 }
-            };
-            for (const graph of GRAPHS) {
-                for (const k of K_VALUES) {
-                    await check(
-                        caseLabel(graph, k),
-                        paritySnapshot(graph, scale, false),
-                        { ...FR_BASE_OPTIONS, k },
-                        null,
-                        HORIZONS,
-                    );
+                if (!(v.spread <= third)) {
+                    failures.push(`${label} k=${k}: the oracle's own spread ${v.spread.toExponential(3)}`);
+                }
+                if (!(v.f32 <= third)) {
+                    failures.push(`${label} k=${k}: the f32 oracle ${v.f32.toExponential(3)}`);
                 }
             }
-            const karate = paritySnapshot("karate", scale, false);
-            await check(FIXED_LABEL, karate, FR_BASE_OPTIONS, pinMask(karate.nodeCount, pinIndex(karate.nodeCount)), [
-                ...HORIZONS,
-                SCALED_PRINTED,
-            ]);
-            expect(failures, "every admitted horizon under a third of the cap on both counts").toEqual([]);
-            expect(
-                ADMITTED[LAYOUT10_LABEL],
-                "the layout10 member's configuration is admitted at its horizon",
-            ).toContain(LAYOUT10_HORIZON);
-            expect(FR_NOISE_FIXTURES.layout10.fixture).toBe(`fr-${LAYOUT10_GRAPH}-layout${LAYOUT10_HORIZON}`);
-        },
-        CASE_TIMEOUT,
-    );
+        };
+        for (const graph of GRAPHS) {
+            for (const k of K_VALUES) {
+                await check(
+                    caseLabel(graph, k),
+                    paritySnapshot(graph, scale, false),
+                    { ...FR_BASE_OPTIONS, k },
+                    null,
+                    HORIZONS,
+                );
+            }
+        }
+        const karate = paritySnapshot("karate", scale, false);
+        await check(FIXED_LABEL, karate, FR_BASE_OPTIONS, pinMask(karate.nodeCount, pinIndex(karate.nodeCount)), [
+            ...HORIZONS,
+            SCALED_PRINTED,
+        ]);
+        expect(failures, "every admitted horizon under a third of the cap on both counts").toEqual([]);
+        expect(ADMITTED[LAYOUT10_LABEL], "the layout10 member's configuration is admitted at its horizon").toContain(
+            LAYOUT10_HORIZON,
+        );
+        expect(FR_NOISE_FIXTURES.layout10.fixture).toBe(`fr-${LAYOUT10_GRAPH}-layout${LAYOUT10_HORIZON}`);
+    });
 });
 
 describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second reference (P5-T4)", () => {
@@ -333,22 +326,17 @@ describe("FR vs @graphty/layout's FruchtermanReingoldSimulation: the second refe
             const label = caseLabel(graph, k);
             const asserted = ADMITTED[label];
             const printed = [...HORIZONS.filter((h) => !asserted.includes(h)), PRINTED];
-            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work took over 30 s (karate/k=auto) and 12.7 s (karate/k=0.3) on the macOS Metal host lane in release run 38029503050, more than a third of the 30 s budget; tracked in #1636
-            it(
-                `${label}: twice bitwise; within fr-layout-oracle after ${asserted.join(", ")} iterations, ${printed.join(", ")} printed; the temperature schedule bitwise`,
-                async (t) => {
-                    requireGpu(t);
-                    const s = paritySnapshot(graph, gpuScale(), false);
-                    try {
-                        const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, k };
-                        assertUnitStart(options);
-                        await compare(ctx, s, options, null, asserted, printed, label);
-                    } finally {
-                        ctx.release(s);
-                    }
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${label}: twice bitwise; within fr-layout-oracle after ${asserted.join(", ")} iterations, ${printed.join(", ")} printed; the temperature schedule bitwise`, async (t) => {
+                requireGpu(t);
+                const s = paritySnapshot(graph, gpuScale(), false);
+                try {
+                    const options: FruchtermanReingoldOptions = { ...FR_BASE_OPTIONS, k };
+                    assertUnitStart(options);
+                    await compare(ctx, s, options, null, asserted, printed, label);
+                } finally {
+                    ctx.release(s);
+                }
+            });
         }
     }
 

@@ -15,13 +15,9 @@ import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
-import { storyWaitOptions } from "../../../stories/wait";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** Two rings of six joined by a bridge: Louvain finds the rings. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, team: i < 6 ? "North" : "South" }));
@@ -67,13 +63,10 @@ describe("the table dock", () => {
     it("shows the element's records, sorts a result column, narrows to a group and exports", async () => {
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -212,7 +205,7 @@ describe("the table dock", () => {
         const preview = within(dialog).getByLabelText("Preview of the exported data");
         await waitFor(() => {
             assert.notEqual(preview.textContent, "Writing the preview...");
-        }, storyWaitOptions(1000));
+        });
         assert.include(preview.textContent, "n0");
 
         // Shift+T again closes the dock.
@@ -236,13 +229,10 @@ describe("the table dock", () => {
         const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
         render(<Workspace store={store} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }

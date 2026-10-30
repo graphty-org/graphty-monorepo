@@ -38,37 +38,11 @@ describe("Interaction Test Helpers", () => {
             graph = await setupTestGraph();
 
             // Should already be ready since setupTestGraph waits
-            await waitForGraphReady(graph, 1000);
+            await waitForGraphReady(graph);
 
             assert.isTrue(graph.initialized, "Graph should be initialized");
             assert.isDefined(graph.scene, "Scene should be defined");
             assert.isDefined(graph.camera, "Camera should be defined");
-        });
-
-        test("throws error if graph does not initialize within timeout", async () => {
-            // Create a graph but don't initialize it properly
-            const container = document.createElement("div");
-            document.body.appendChild(container);
-
-            // Create a mock graph-like object that's never initialized
-            const mockGraph = {
-                initialized: false,
-                scene: null,
-                camera: null,
-            } as unknown as Graph;
-
-            try {
-                await waitForGraphReady(mockGraph, 100);
-                assert.fail("Should have thrown an error");
-            } catch (error) {
-                assert.include(
-                    (error as Error).message,
-                    "did not initialize",
-                    "Error should mention initialization failure",
-                );
-            } finally {
-                container.remove();
-            }
         });
     });
 

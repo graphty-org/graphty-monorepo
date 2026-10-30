@@ -22,9 +22,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace with the starting rows.
  * @returns the session.
@@ -33,14 +30,11 @@ async function openScene(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -54,7 +48,7 @@ async function openScene(): Promise<GraphSession> {
  * @param name - the row's visible name.
  */
 async function openStyle(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -70,16 +64,11 @@ async function openStyle(name: string): Promise<void> {
  * @returns the line.
  */
 async function lineOf(channel: Channel): Promise<HTMLElement> {
-    return waitFor(
-        () => {
-            const line = document.querySelector<HTMLElement>(
-                `[data-testid="style-tab"] .ws-row[data-line="${channel}"]`,
-            );
-            assert.isNotNull(line, `${channel} drawn`);
-            return line;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor(() => {
+        const line = document.querySelector<HTMLElement>(`[data-testid="style-tab"] .ws-row[data-line="${channel}"]`);
+        assert.isNotNull(line, `${channel} drawn`);
+        return line;
+    });
 }
 
 /**
@@ -278,7 +267,7 @@ describe("focus after a style line is written or removed", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [valjean] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
         await screen.findByTestId("style-tab");
         await showKind("node");
         const before = session.styles.list().length;
@@ -410,7 +399,7 @@ describe("focus after a style line is written or removed", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [valjean] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         const memberships = await screen.findByRole("heading", { name: "Memberships" });
         const section = memberships.closest("section") ?? document.body;
         const entry = within(section).getByRole("button", { name: /^Louvain/ });

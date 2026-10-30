@@ -13,7 +13,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
-import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { createRegistry } from "../commands/registry";
 import { REGISTRATIONS } from "../registrations";
@@ -89,7 +88,7 @@ const inspector = (canvasElement: HTMLElement): ReturnType<typeof within> =>
  * @param canvasElement - the story's root.
  */
 async function openValues(canvasElement: HTMLElement): Promise<void> {
-    const tab = await inspector(canvasElement).findByRole("tab", { name: "Values" }, storyWaitOptions(1000));
+    const tab = await inspector(canvasElement).findByRole("tab", { name: "Values" });
     if (tab.getAttribute("aria-selected") !== "true") {
         await userEvent.click(tab);
     }
@@ -152,9 +151,7 @@ export const NodeWhyThisLook: Story = {
         const element = await loadRings(canvasElement);
         await runToEnd(element, "louvain");
         await element.session.selection.apply({ nodes: ["n3"] });
-        await userEvent.click(
-            await inspector(canvasElement).findByRole("tab", { name: "Style" }, storyWaitOptions(1000)),
-        );
+        await userEvent.click(await inspector(canvasElement).findByRole("tab", { name: "Style" }));
         await element.waitForStableFrame();
     },
 };
@@ -165,14 +162,8 @@ export const SeveralElementsNeighborhood: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n0"] });
-        await userEvent.click(
-            await inspector(canvasElement).findByRole("button", { name: /Degree/ }, storyWaitOptions(1000)),
-        );
-        await inspector(canvasElement).findByRole(
-            "group",
-            { name: "Node 0 and 3 connections" },
-            storyWaitOptions(1000),
-        );
+        await userEvent.click(await inspector(canvasElement).findByRole("button", { name: /Degree/ }));
+        await inspector(canvasElement).findByRole("group", { name: "Node 0 and 3 connections" });
         await element.waitForStableFrame();
     },
 };
@@ -183,11 +174,7 @@ export const SeveralElementsSummary: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n1", "n4", "n9"] });
-        await inspector(canvasElement).findByRole(
-            "group",
-            { name: "Edges joining these nodes" },
-            storyWaitOptions(1000),
-        );
+        await inspector(canvasElement).findByRole("group", { name: "Edges joining these nodes" });
         await element.waitForStableFrame();
     },
 };
@@ -201,7 +188,7 @@ export const MeasureRowData: Story = {
         const id = await runToEnd(element, "pagerank");
         storeOf(context).set({ inspected: { kind: "measure-row", id } });
         await openValues(canvasElement);
-        await inspector(canvasElement).findByRole("group", { name: "Top 10" }, storyWaitOptions(1000));
+        await inspector(canvasElement).findByRole("group", { name: "Top 10" });
     },
 };
 
@@ -214,7 +201,7 @@ export const RunRowData: Story = {
         const id = await runToEnd(element, "louvain");
         storeOf(context).set({ inspected: { kind: "run-row", id } });
         await openValues(canvasElement);
-        await inspector(canvasElement).findByRole("group", { name: "Sizes" }, storyWaitOptions(1000));
+        await inspector(canvasElement).findByRole("group", { name: "Sizes" });
     },
 };
 
@@ -227,15 +214,11 @@ export const RunRowSettingsChanged: Story = {
         const id = await runToEnd(element, "pagerank");
         storeOf(context).set({ inspected: { kind: "measure-row", id } });
         await openValues(canvasElement);
-        const field = await inspector(canvasElement).findByRole(
-            "spinbutton",
-            { name: /^Damping factor(,|$)/ },
-            storyWaitOptions(1000),
-        );
+        const field = await inspector(canvasElement).findByRole("spinbutton", { name: /^Damping factor(,|$)/ });
         await userEvent.clear(field);
         await userEvent.type(field, "0.5{Enter}");
         // The state bar's Rerun, not "the" status: the field's own Escape note is a live region too.
-        await inspector(canvasElement).findByRole("button", { name: "Rerun" }, storyWaitOptions(1000));
+        await inspector(canvasElement).findByRole("button", { name: "Rerun" });
     },
 };
 
@@ -251,7 +234,7 @@ export const GroupSetPathRowCommunity: Story = {
             storeOf(context).set({ inspected: { kind: "group-row", id: groupKey(id, first.group) } });
         }
         await openValues(canvasElement);
-        await inspector(canvasElement).findByRole("group", { name: "Members" }, storyWaitOptions(1000));
+        await inspector(canvasElement).findByRole("group", { name: "Members" });
     },
 };
 
@@ -268,7 +251,7 @@ export const AttributeAndFilterStepField: Story = {
     args: { initialState: { ...OPEN, place: "data", inspected: { kind: "attribute", id: "data.team" } } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
-        await inspector(canvasElement).findByRole("group", { name: "Table" }, storyWaitOptions(1000));
+        await inspector(canvasElement).findByRole("group", { name: "Table" });
     },
 };
 
@@ -281,7 +264,7 @@ export const EdgeData: Story = {
         if (bridge !== undefined) {
             await element.session.selection.apply({ edges: [bridge.id] });
         }
-        await inspector(canvasElement).findByRole("button", { name: /^From/ }, storyWaitOptions(1000));
+        await inspector(canvasElement).findByRole("button", { name: /^From/ });
         await element.waitForStableFrame();
     },
 };

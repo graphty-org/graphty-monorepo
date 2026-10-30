@@ -58,6 +58,18 @@ interface StableFrameWait {
 const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
 
 /**
+ * The default wait of {@link Graph.waitForStableFrame}: 30 seconds, or a test harness's own hang
+ * guard when it sets the global `globalThis.__GRAPHTY_WAIT_GUARD_MS__` (a positive number). A
+ * harness on a busy machine draws slower than any fixed default, and its one guard is what ends a
+ * real hang there; the graphty monorepo's test setup sets it from tools/test-wait-guard.mjs.
+ * @returns The default wait in milliseconds.
+ */
+function defaultStableFrameTimeoutMs(): number {
+    const guard = (globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: unknown }).__GRAPHTY_WAIT_GUARD_MS__;
+    return typeof guard === "number" && guard > 0 ? guard : DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+}
+
+/**
  * How much one `zoomStep` moves the camera: a fifth nearer or further, the smallest change that
  * reads as a change on a graph of any size.
  */
@@ -5733,7 +5745,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForStableFrame(options: { timeoutMs?: number } = {}): Promise<void> {
-        const timeoutMs = options.timeoutMs ?? DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+        const timeoutMs = options.timeoutMs ?? defaultStableFrameTimeoutMs();
         // Counted so a timeout can tell a picture that kept changing from a page that stopped
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.

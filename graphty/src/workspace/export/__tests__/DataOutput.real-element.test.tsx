@@ -14,9 +14,6 @@ import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and exporting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Picks a choice from one of the dialog's selects.
  * @param dialog - the Export dialog.
@@ -47,7 +44,7 @@ async function warningsFor(
 ): Promise<string[]> {
     const { lossNotes } = await element.exportGraph(format, options);
     assert.isNotEmpty(lossNotes, `${format} reports what it cannot hold`);
-    const note = await within(dialog).findByRole("note", {}, { timeout: TIMEOUT_MS });
+    const note = await within(dialog).findByRole("note", {});
     // The rows sit behind the one-line summary's Details (R14).
     const details = within(note).getByRole("button", { name: "Details" });
     if (details.getAttribute("aria-expanded") !== "true") {
@@ -68,65 +65,52 @@ async function warningsFor(
 }
 
 describe("Export > Data: what a format cannot hold, in the app's words", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "words the warnings for CSV edges and adjacency, GraphML and Graphty JSON from their codes",
-        async () => {
-            render(<Workspace initialState={{ project: { name: "Les Miserables", id: 1 } }} />);
-            let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            if (session === undefined) {
-                throw new Error("the element never came up");
-            }
-            const element = document.querySelector("graphty-element") as unknown as Parameters<typeof warningsFor>[1];
-            await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
-            await session.runs.start("louvain");
+    it("words the warnings for CSV edges and adjacency, GraphML and Graphty JSON from their codes", async () => {
+        render(<Workspace initialState={{ project: { name: "Les Miserables", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const element = document.querySelector("graphty-element") as unknown as Parameters<typeof warningsFor>[1];
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        await session.runs.start("louvain");
 
-            await userEvent.keyboard("{Control>}e{/Control}");
-            const dialog = await screen.findByRole("dialog", { name: "Export" });
-            await userEvent.click(within(dialog).getByText("Data"));
+        await userEvent.keyboard("{Control>}e{/Control}");
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        await userEvent.click(within(dialog).getByText("Data"));
 
-            await pick(dialog, "Format", "CSV");
-            await pick(dialog, "Table", "Edges");
-            const edges = await warningsFor(dialog, element, "csv", { table: "edges" });
-            // CSV holds no styles, so it offers no Include styles and says the layers are not
-            // written. The data prototype's compact rows: a few words, the columns and counts as chips.
-            assert.include(edges, "Style layers not written");
-            assert.include(
-                edges,
-                "Nodes table only",
-                `the edge table names what is in the Nodes table: ${edges.join(" | ")}`,
-            );
-            // Node colors and edge colors say the same thing in words: one line, not two.
-            assert.equal(new Set(edges).size, edges.length);
+        await pick(dialog, "Format", "CSV");
+        await pick(dialog, "Table", "Edges");
+        const edges = await warningsFor(dialog, element, "csv", { table: "edges" });
+        // CSV holds no styles, so it offers no Include styles and says the layers are not
+        // written. The data prototype's compact rows: a few words, the columns and counts as chips.
+        assert.include(edges, "Style layers not written");
+        assert.include(
+            edges,
+            "Nodes table only",
+            `the edge table names what is in the Nodes table: ${edges.join(" | ")}`,
+        );
+        // Node colors and edge colors say the same thing in words: one line, not two.
+        assert.equal(new Set(edges).size, edges.length);
 
-            await pick(dialog, "Table", "Adjacency List");
-            // The adjacency table has no header row: the preview starts with a node, not "source".
-            await waitFor(
-                () =>
-                    assert.notInclude(
-                        within(dialog).getByLabelText("Preview of the exported data").textContent,
-                        "source",
-                    ),
-                { timeout: TIMEOUT_MS },
-            );
-            await warningsFor(dialog, element, "csv", { table: "adjacency" });
+        await pick(dialog, "Table", "Adjacency List");
+        // The adjacency table has no header row: the preview starts with a node, not "source".
+        await waitFor(() =>
+            assert.notInclude(within(dialog).getByLabelText("Preview of the exported data").textContent, "source"),
+        );
+        await warningsFor(dialog, element, "csv", { table: "adjacency" });
 
-            await pick(dialog, "Format", /^GraphML/);
-            await warningsFor(dialog, element, "graphml", {});
+        await pick(dialog, "Format", /^GraphML/);
+        await warningsFor(dialog, element, "graphml", {});
 
-            await pick(dialog, "Format", "Graphty JSON");
-            const { lossNotes } = await element.exportGraph("graphty", {});
-            for (const { message } of lossNotes) {
-                assert.notInclude(dialog.textContent, message);
-            }
-        },
-        TIMEOUT_MS * 3,
-    );
+        await pick(dialog, "Format", "Graphty JSON");
+        const { lossNotes } = await element.exportGraph("graphty", {});
+        for (const { message } of lossNotes) {
+            assert.notInclude(dialog.textContent, message);
+        }
+    });
 });

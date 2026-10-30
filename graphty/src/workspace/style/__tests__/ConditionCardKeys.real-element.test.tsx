@@ -22,9 +22,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** The rule of the layer most tests open: names holding "Mlle" (3 of 77). */
 const POSTER: Selector = {
     match: "rule",
@@ -46,14 +43,11 @@ async function openLayer(
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -64,7 +58,7 @@ async function openLayer(
     }
     const layer = await session.styles.add({ name, target: "node", selector, set: { "node.color": "#d55e00" } });
     await session.styles.settled();
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     return { session, store, id: layer.id };
 }
@@ -74,7 +68,7 @@ async function openLayer(
  * @returns The row button.
  */
 async function whichRow(): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("button", { name: /^Which nodes, / });
 }
 
 /**

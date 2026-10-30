@@ -4,7 +4,6 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
-import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { AUTH_LOG_CSV, GRAPH_FILE_GML, HOSTS_CSV, PLAIN_JSON } from "./fixtures";
 
@@ -68,10 +67,10 @@ async function loadLog(canvasElement: HTMLElement): Promise<GraphtyElement> {
  */
 async function openMenu(canvasElement: HTMLElement, name: string): Promise<void> {
     const place = within(canvasElement).getByRole("region", { name: "Data place" });
-    const row = await within(place).findByRole("listitem", { name }, storyWaitOptions(1000));
+    const row = await within(place).findByRole("listitem", { name });
     row.querySelector("button")?.focus();
     await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-    await within(document.body).findByRole("menu", {}, storyWaitOptions(1000));
+    await within(document.body).findByRole("menu", {});
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -124,11 +123,9 @@ async function addField(
     column: string,
 ): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-    await userEvent.click(
-        await place.findByRole("button", { name: `Add to ${side} attributes` }, storyWaitOptions(1000)),
-    );
-    await userEvent.click(await within(document.body).findByRole("menuitem", { name: kind }, storyWaitOptions(1000)));
-    await userEvent.click(await within(document.body).findByRole("option", { name: column }, storyWaitOptions(1000)));
+    await userEvent.click(await place.findByRole("button", { name: `Add to ${side} attributes` }));
+    await userEvent.click(await within(document.body).findByRole("menuitem", { name: kind }));
+    await userEvent.click(await within(document.body).findByRole("option", { name: column }));
 }
 
 /** The edge "+" open on an event table: the kinds of field not listed yet. */
@@ -137,10 +134,8 @@ export const AddFieldMenu: Story = {
     play: async ({ canvasElement }) => {
         await loadLog(canvasElement);
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-        await userEvent.click(
-            await place.findByRole("button", { name: "Add to edge attributes" }, storyWaitOptions(1000)),
-        );
-        await within(document.body).findByRole("menuitem", { name: "Weight" }, storyWaitOptions(1000));
+        await userEvent.click(await place.findByRole("button", { name: "Add to edge attributes" }));
+        await within(document.body).findByRole("menuitem", { name: "Weight" });
     },
 };
 
@@ -153,17 +148,13 @@ export const FieldEntries: Story = {
         await addField(canvasElement, "edge", "Kind of source", "user");
         await addField(canvasElement, "edge", "Weight", "bytes");
         const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-        await userEvent.click(
-            await place.findByRole("combobox", { name: "Higher means, edge weight" }, storyWaitOptions(1000)),
-        );
-        await userEvent.click(
-            await within(document.body).findByRole("option", { name: "farther" }, storyWaitOptions(1000)),
-        );
+        await userEvent.click(await place.findByRole("combobox", { name: "Higher means, edge weight" }));
+        await userEvent.click(await within(document.body).findByRole("option", { name: "farther" }));
         await waitFor(() => {
             if (element.session.config.data.knownFields.edgeWeightMeaning !== "distance") {
                 throw new Error("the meaning is not written yet");
             }
-        }, storyWaitOptions(1000));
+        });
         await element.waitForStableFrame();
     },
 };
@@ -184,10 +175,8 @@ export const TwoSources: Story = {
         const element = await loadLog(canvasElement);
         await element.session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await element.waitForStableFrame();
-        await userEvent.click(
-            await within(canvasElement).findByRole("button", { name: "Add filter" }, storyWaitOptions(1000)),
-        );
-        await within(document.body).findByRole("option", { name: "Data source" }, storyWaitOptions(1000));
+        await userEvent.click(await within(canvasElement).findByRole("button", { name: "Add filter" }));
+        await within(document.body).findByRole("option", { name: "Data source" });
     },
 };
 
@@ -198,9 +187,9 @@ export const TwoSources: Story = {
  */
 async function addFilter(canvasElement: HTMLElement, item: string): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-    await userEvent.click(await place.findByRole("button", { name: "Add filter" }, storyWaitOptions(1000)));
+    await userEvent.click(await place.findByRole("button", { name: "Add filter" }));
     const named = new RegExp(`^${item}(,|$)`);
-    await userEvent.click(await within(document.body).findByRole("option", { name: named }, storyWaitOptions(1000)));
+    await userEvent.click(await within(document.body).findByRole("option", { name: named }));
 }
 
 /**
@@ -213,7 +202,7 @@ async function holds(element: GraphtyElement, n: number): Promise<void> {
         if (element.session.visibility.conditions.length !== n) {
             throw new Error(`waiting for ${String(n)} filter cards`);
         }
-    }, storyWaitOptions(1000));
+    });
 }
 
 /**
@@ -231,17 +220,17 @@ export const FilterCards: Story = {
         // Filter to: group 2 or more, typed in its From box and committed; a new card starts on
         // Select, so its toggle is switched to Filter to.
         await addFilter(canvasElement, "group");
-        const from = await place.findByRole("textbox", { name: "group from, number" }, storyWaitOptions(1000));
+        const from = await place.findByRole("textbox", { name: "group from, number" });
         await userEvent.clear(from);
         await userEvent.type(from, "2{Enter}");
         await holds(element, 1);
-        const group = await place.findByRole("group", { name: /^group is/ }, storyWaitOptions(1000));
+        const group = await place.findByRole("group", { name: /^group is/ });
         await userEvent.click(within(group).getByRole("radio", { name: /^Filter to:/ }));
 
         // Select: the largest component, as a new card starts.
         await addFilter(canvasElement, "Largest component");
         await holds(element, 2);
-        await place.findByRole("group", { name: /^in the largest component, Select/ }, storyWaitOptions(1000));
+        await place.findByRole("group", { name: /^in the largest component, Select/ });
 
         // Neighbors of the selected node.
         const marius = session.data.nodes().find((node) => String(node.id) === "4")?.id;
@@ -256,7 +245,7 @@ export const FilterCards: Story = {
             effect: "keep",
             rule: { kind: "not", of: { kind: "text", reads: "data.label", mode: "substring", text: "Cos" } },
         });
-        await place.findByRole("group", { name: /^not: label contains Cos/ }, storyWaitOptions(1000));
+        await place.findByRole("group", { name: /^not: label contains Cos/ });
         await element.waitForStableFrame();
     },
 };

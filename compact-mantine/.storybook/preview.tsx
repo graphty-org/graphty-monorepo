@@ -3,8 +3,16 @@ import "@mantine/core/styles.css";
 import { DirectionProvider, type MantineThemeOverride, MantineProvider } from "@mantine/core";
 import type { Preview, StoryContext } from "@storybook/react";
 import { type ReactNode, useRef } from "react";
+import { configure } from "storybook/test";
 
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import { createCompactTheme } from "../src/theme";
+
+// A play function's waitFor and findBy* (storybook/test's own copy of Testing Library) wait until
+// the monorepo's one hang guard, not Testing Library's 1000 ms: a deadline on a wait fails a story
+// whenever the machine is busy (tools/test-wait-guard.mjs). Set here, not in a test setup file,
+// because the stories' copy is not the one tests/setup.browser.ts configures.
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 // One theme per contrast mode and accent, built once: MantineProvider re-resolves when the object
 // changes.

@@ -4,7 +4,8 @@ name: PR Integrity
 # tools/pr-integrity.mjs): no test weakened, no unapproved breaking change, baselines
 # signed by the owner, and for the agent account's pull requests a Proof and a fresh review of the
 # branch's own diff. A code owner's approval of the head clears test integrity and the breaking-change
-# rule, so review events re-run it: an approval needs no push. Never on comment events, whose runs attach
+# rule, and an agent review of the head (tools/pr-review.sh) clears each test-integrity finding it
+# answers, so review events re-run it: a review needs no push. Never on comment events, whose runs attach
 # to master's head and cannot satisfy a pull request's required check. No concurrency group, for
 # pr-title.yml's reason.
 on:

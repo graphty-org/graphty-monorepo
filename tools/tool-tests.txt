@@ -69,6 +69,7 @@ tools/test-ledger.test.mjs
 tools/test-quarantine.test.mjs
 tools/test-select.test.mjs
 tools/test-slots.test.mjs
+tools/test-wait-guard.test.mjs
 tools/verify.test.mjs
 tools/visual-flaky-report.test.mjs
 tools/vitest-base.test.mjs

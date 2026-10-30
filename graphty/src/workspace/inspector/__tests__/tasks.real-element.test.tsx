@@ -21,9 +21,6 @@ import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** Two rings of six joined by one bridge; each node labeled, each edge weighted. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, label: `Node ${String(i)}` }));
 const ring = (from: number): { source: string; target: string; weight: number }[] =>
@@ -42,13 +39,10 @@ async function openWorkspace(): Promise<{ session: GraphSession; store: Workspac
     const store = createWorkspaceStore({ project: { name: "Two rings", id: 1 } });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -364,15 +358,12 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         });
         await userEvent.click(inspector().getByRole("button", { name: "Rerun" }));
 
-        await waitFor(
-            () => {
-                const runs = session.runs.list().filter((run) => run.algorithm === "pagerank");
-                assert.lengthOf(runs, 1);
-                assert.equal(runs[0].status, "succeeded");
-                assert.include(Object.values(runs[0].params), 0.5);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const runs = session.runs.list().filter((run) => run.algorithm === "pagerank");
+            assert.lengthOf(runs, 1);
+            assert.equal(runs[0].status, "succeeded");
+            assert.include(Object.values(runs[0].params), 0.5);
+        });
         assert.equal(runBar().textContent, "");
         // The bar and its Rerun are gone; focus is on the inspector's title, not the page.
         assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));

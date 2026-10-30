@@ -82,7 +82,7 @@ async function loadedGraph(dimension: "2d" | "3d"): Promise<Graph> {
  */
 async function picture(graph: Graph): Promise<Uint8Array> {
     await graph.getSession().styles.settled();
-    await graph.waitForStableFrame({ timeoutMs: 20_000 });
+    await graph.waitForStableFrame();
     graph.getUpdateManager().renderFrames(1);
     const { engine } = graph;
     return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;

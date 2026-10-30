@@ -19,9 +19,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const NODES = [
     { id: "1", name: "Alpha", score: 1.234567 },
     { id: "2", name: "Beta", score: 0.0123456 },
@@ -51,13 +48,10 @@ async function openWithGraph(): Promise<Opened> {
     const store = createWorkspaceStore({ project: { name: "Ring", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let found: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+    });
     if (found === null) {
         throw new Error("the element never came up");
     }
@@ -144,7 +138,7 @@ describe("label entries on the real element", () => {
 
     it("'+' lists Label, Card and Tooltip; Label picks a source and writes only it; a look applies; a font edit reads edited and its reset clears it", async () => {
         const { session, element } = await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         const keyRows = document.querySelectorAll(".ws-legend-section").length;
 
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
@@ -160,14 +154,11 @@ describe("label entries on the real element", () => {
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
 
-        await waitFor(
-            () => {
-                const binding = writer(session, "node.label")?.encode?.["node.label"];
-                assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
-                assert.equal(element.labelOf("1")?.text, "Alpha", "the nodes are labeled by name");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const binding = writer(session, "node.label")?.encode?.["node.label"];
+            assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
+            assert.equal(element.labelOf("1")?.text, "Alpha", "the nodes are labeled by name");
+        });
         // Only the words are written: no size, unit or look comes with them, and the canvas key
         // gains no row.
         assert.isUndefined(writer(session, "node.labelStyle"), "no label style is written");
@@ -224,25 +215,19 @@ describe("label entries on the real element", () => {
 
     it("the entry's eye off removes its labels from the canvas, and the minus removes the entry", async () => {
         const { session, element } = await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
-        await waitFor(
-            () => {
-                assert.equal(element.labelOf("2")?.text, "Beta");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(element.labelOf("2")?.text, "Beta");
+        });
 
         await userEvent.click(within(textList()).getByRole("button", { name: "Hide label" }));
-        await waitFor(
-            () => {
-                assert.isFalse(labelStyle(session).enabled);
-                assert.notEqual(element.labelOf("2")?.drawn, true, "the label is gone from the canvas");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isFalse(labelStyle(session).enabled);
+            assert.notEqual(element.labelOf("2")?.drawn, true, "the label is gone from the canvas");
+        });
 
         await userEvent.click(within(textList()).getByRole("button", { name: "Remove label" }));
         await waitFor(() => {
@@ -262,13 +247,10 @@ describe("label entries on the real element", () => {
             set: { "node.opacity": 1 },
         });
         store.set({ inspected: { kind: "layer-row", id: top.id } });
-        await waitFor(
-            () => {
-                assert.equal(element.labelOf("3")?.text, "Gamma");
-                assert.isNotNull(textList().closest('[data-empty="true"]'), "Text is dimmed");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(element.labelOf("3")?.text, "Gamma");
+            assert.isNotNull(textList().closest('[data-empty="true"]'), "Text is dimmed");
+        });
         assert.isNull(textList().querySelector("[data-line]"), "no entry from beneath");
         assert.notInclude(textList().textContent ?? "", "from", "no line names a layer beneath");
     });
@@ -277,7 +259,7 @@ describe("label entries on the real element", () => {
         const { session } = await openWithGraph();
         const { runId } = await session.runs.start("degree");
         await session.styles.settled();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
@@ -291,19 +273,16 @@ describe("label entries on the real element", () => {
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: /^Degree(,|$)/ }));
         const path = session.results.path(runId);
-        await waitFor(
-            () => {
-                const size = writer(session, "node.labelSize")?.encode?.["node.labelSize"];
-                assert.equal(size !== undefined && "by" in size ? size.by : undefined, path);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const size = writer(session, "node.labelSize")?.encode?.["node.labelSize"];
+            assert.equal(size !== undefined && "by" in size ? size.by : undefined, path);
+        });
         assert.isNotNull(within(textList()).getByRole("button", { name: "Stop varying node label size by data" }));
     });
 
     it("Escape on a new tooltip's source list leaves the Text list unchanged and returns focus to '+'", async () => {
         const { session } = await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         const before = textList().querySelectorAll("[data-line], [data-beneath]").length;
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
@@ -331,7 +310,7 @@ describe("label entries on the real element", () => {
 
     it("Tab crosses one stop per section: Text's '+' then Fill's '+'", async () => {
         await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         const nodes = screen.getByTestId("style-tab").querySelector<HTMLElement>('[data-group="node"]');
         if (nodes === null) {
             throw new Error("the Style tab draws no Nodes group");
@@ -347,7 +326,7 @@ describe("label entries on the real element", () => {
 
     it("a label of fixed text: Fixed text, type Hello, and the canvas label reads Hello", async () => {
         const { session, element } = await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         const list = await findValuePicker();
@@ -358,20 +337,17 @@ describe("label entries on the real element", () => {
         });
         assert.isUndefined(writer(session, "node.label"), "nothing is written before the words are typed");
         await userEvent.keyboard("Hello{Enter}");
-        await waitFor(
-            () => {
-                assert.equal(writer(session, "node.label")?.set?.["node.label"], "Hello");
-                assert.equal(element.labelOf("1")?.text, "Hello", "the canvas label reads Hello");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(writer(session, "node.label")?.set?.["node.label"], "Hello");
+            assert.equal(element.labelOf("1")?.text, "Hello", "the canvas label reads Hello");
+        });
         assert.isUndefined(writer(session, "node.labelStyle"), "the words alone: no style");
         assert.isUndefined(writer(session, "node.labelSize"), "the words alone: no size");
     });
 
     it("an edge label of fixed text writes only its words, adds no Size line, and its kind reads whole", async () => {
         const { session } = await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await showKind("edge");
         await userEvent.click(within(edgeTextList()).getByRole("button", { name: "Add to edge text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
@@ -379,12 +355,9 @@ describe("label entries on the real element", () => {
         await within(edgeTextList()).findByRole("textbox", { name: "Edge label text" });
         await userEvent.keyboard("Bob{Enter}");
         const mine = (): Layer[] => session.styles.list().filter((l) => l.source.by !== "element");
-        await waitFor(
-            () => {
-                assert.equal(mine().find((l) => l.set?.["edge.label"] !== undefined)?.set?.["edge.label"], "Bob");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(mine().find((l) => l.set?.["edge.label"] !== undefined)?.set?.["edge.label"], "Bob");
+        });
         for (const channel of ["edge.labelStyle", "edge.labelSize"] as const) {
             assert.isUndefined(
                 mine().find((l) => l.set?.[channel] !== undefined || l.encode?.[channel] !== undefined),
@@ -403,35 +376,28 @@ describe("label entries on the real element", () => {
 
     it("a label bound to a number prints three significant digits", async () => {
         const { session, element } = await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^score(,|$)/ }));
-        await waitFor(
-            () => {
-                const binding = writer(session, "node.label")?.encode?.["node.label"];
-                assert.deepEqual(binding !== undefined && "format" in binding ? binding.format : undefined, {
-                    maximumSignificantDigits: 3,
-                });
-                assert.equal(element.labelOf("1")?.text, "1.23");
-                assert.equal(element.labelOf("2")?.text, "0.0123");
-                assert.equal(element.labelOf("3")?.text, "98.8");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const binding = writer(session, "node.label")?.encode?.["node.label"];
+            assert.deepEqual(binding !== undefined && "format" in binding ? binding.format : undefined, {
+                maximumSignificantDigits: 3,
+            });
+            assert.equal(element.labelOf("1")?.text, "1.23");
+            assert.equal(element.labelOf("2")?.text, "0.0123");
+            assert.equal(element.labelOf("3")?.text, "98.8");
+        });
     });
 
     it("Label settings starts below the header, shows no gradient editor until a gradient is on, reads what lies beneath, and Escape closes it", async () => {
         await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
-        const button = await within(textList()).findByRole(
-            "button",
-            { name: "Node label settings" },
-            { timeout: TIMEOUT_MS },
-        );
+        const button = await within(textList()).findByRole("button", { name: "Node label settings" });
         await userEvent.click(button);
         const settings = await screen.findByRole("dialog", { name: "Label settings" });
         const header = document.querySelector(".ws-header");
@@ -458,7 +424,7 @@ describe("label entries on the real element", () => {
             ["Type", "Box", "Letters", "Placement", "Motion and distance", "Badge"],
         );
         await choose("Gradient", "On", settings);
-        await within(settings).findByRole("group", { name: "Gradient colors" }, { timeout: TIMEOUT_MS });
+        await within(settings).findByRole("group", { name: "Gradient colors" });
 
         within(settings)
             .getByRole("combobox", { name: /^Font(,|$)/ })
@@ -480,7 +446,7 @@ describe("a label entry's size, keys, lists and widths", () => {
      * @param session - the element's session.
      */
     async function addNameLabel(session: GraphSession): Promise<void> {
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^name(,|$)/ }));
@@ -598,7 +564,7 @@ describe("a label entry's size, keys, lists and widths", () => {
 
     it("the Fixed text box shows what is typed, and adding a label narrows no other field", async () => {
         const { session } = await openWithGraph();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(
             within(screen.getByTestId("style-tab")).getByRole("button", { name: "Add to node shape" }),
         );

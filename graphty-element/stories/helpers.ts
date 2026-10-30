@@ -110,57 +110,14 @@ export const eventWaitingDecorator = (story: any): any => {
 };
 
 /**
- * How long a story's data source may take to answer.
- *
- * Only a story that names a data source waits at all, and one that does is waiting on a file,
- * which is why this is measured in seconds rather than in frames.
- */
-const DATA_LOAD_TIMEOUT_MS = 15000;
-
-/**
- * Reject when a promise has not settled in time, with a sentence a reader can act on.
- *
- * ONLY FOR A READER. Under a runner -- the Storybook test project or a visual capture -- this awaits
- * the promise with no deadline of its own, so the runner's timeout is the only backstop: a stalled
- * machine that outlasts a wall-clock timer while the work still finishes is not a failure.
- * @param promise - What is being waited for.
- * @param timeoutMs - How long to wait.
- * @param whatWasWaitedFor - Named in the error, so the failure says what did not happen.
- * @returns The promise's own resolution, or a rejection describing the timeout.
- */
-async function within(promise: Promise<void>, timeoutMs: number, whatWasWaitedFor: string): Promise<void> {
-    if (isUnderRunner()) {
-        await promise;
-        return;
-    }
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    try {
-        await Promise.race([
-            promise,
-            new Promise<never>((_resolve, reject) => {
-                timer = setTimeout(() => {
-                    reject(new Error(`${whatWasWaitedFor} within ${String(timeoutMs)} ms.`));
-                }, timeoutMs);
-            }),
-        ]);
-    } finally {
-        if (timer !== undefined) {
-            clearTimeout(timer);
-        }
-    }
-}
-
-/**
  * Wait for a story's DATA SOURCE to finish loading, when it has one.
  *
  * `data-loaded` is emitted by a data source completing a load and by nothing else, so a story
  * that hands the element its nodes and edges directly never sees it. Waiting for it anyway is
  * what put a silent five second wait in front of every such story -- a wait that ended in the
  * story being captured regardless of whether anything had loaded. A story that DOES name a source
- * and never gets an answer now fails and says which source it was, because the alternative is
- * photographing an empty canvas and calling it a snapshot.
+ * waits for its answer, and one that never gets it is ended by the hang guard, because the
+ * alternative is photographing an empty canvas and calling it a snapshot.
  * @param canvasElement - The story's root element.
  */
 async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
@@ -184,17 +141,9 @@ async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
             });
         });
 
-    await within(loaded, DATA_LOAD_TIMEOUT_MS, `the ${source} data source did not finish loading`);
+    // No deadline of its own: the one hang guard (tools/test-wait-guard.mjs) ends a load that never comes.
+    await loaded;
 }
-
-/**
- * How long a story may take to reach a picture that will not change again.
- *
- * Generous against the 2.5 seconds every story here has been measured to need, and well inside
- * the 30 second timeout the Storybook test project allows, so the element's own message -- which
- * names what was still moving -- is what a reader sees rather than a bare harness timeout.
- */
-const STABLE_FRAME_TIMEOUT_MS = 15000;
 
 /**
  * Wait until the story's graph is drawing a picture that will not change again.
@@ -226,7 +175,7 @@ export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<v
 
     // Under a runner, the element's own default (30 seconds, started after the runner's clock) is
     // never the first to expire, so the runner's timeout is what bounds the wait.
-    await graphtyElement.waitForStableFrame(isUnderRunner() ? {} : { timeoutMs: STABLE_FRAME_TIMEOUT_MS });
+    await graphtyElement.waitForStableFrame();
 }
 
 // Helper to wait for skybox to load - only call this if your story actually uses a skybox
@@ -328,10 +277,10 @@ export function isVisualCapture(): boolean {
 }
 
 /**
- * True when something other than a reader runs this story and brings its own timeout: the Storybook
- * test project (`.storybook/vitest.setup.ts` sets `__GRAPHTY_STORY_RUNNER__`) or a visual capture.
- * A play function's waits then set no deadline of their own, so the runner's is the only one.
- * @returns Whether a runner bounds this story's waits.
+ * True when something other than a reader runs this story: the Storybook test project
+ * (`.storybook/vitest.setup.ts` sets `__GRAPHTY_STORY_RUNNER__`) or a visual capture. A story's
+ * endless demo cycle runs only for a reader.
+ * @returns Whether a runner, not a reader, runs this story.
  */
 export function isUnderRunner(): boolean {
     return (

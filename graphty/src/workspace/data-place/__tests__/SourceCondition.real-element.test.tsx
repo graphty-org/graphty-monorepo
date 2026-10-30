@@ -34,9 +34,6 @@ const ROUTES_JSON = JSON.stringify({
     ].map(([source, target]) => ({ source, target })),
 });
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Renders the workspace on the Data place and waits for the session, with the small graph file
  * loaded (8 nodes, `group` 1 to 3).
@@ -46,13 +43,10 @@ async function openWithGraph(): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }

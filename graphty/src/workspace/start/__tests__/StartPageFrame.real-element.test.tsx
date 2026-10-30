@@ -23,18 +23,6 @@ import { clearRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
-/**
- * The wait for a scroll to land. A smooth scroll moves on the page's frames, and the hero graph
- * turning above it draws every one of them on the test browser's software GPU. With every core
- * busy, as in the pre-push gate, the page's tasks ran up to 0.8 s and one key press took 0.7 s, so
- * waitFor's own 1-second limit could fail a scroll that was on its way (End, once, in the gate).
- * These waits keep only the hang guard.
- */
-const SCROLL = { timeout: TIMEOUT_MS };
-
 /**
  * Renders the start page and waits for its graph to load.
  * @returns the store.
@@ -42,15 +30,12 @@ const SCROLL = { timeout: TIMEOUT_MS };
 async function startPage(): Promise<WorkspaceStore> {
     const store = createWorkspaceStore();
     render(<Workspace store={store} />);
-    await waitFor(
-        () => {
-            const hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element[data-start-page]",
-            );
-            assert.equal(hero?.session.data.statistics().nodeCount, 77);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        const hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element[data-start-page]",
+        );
+        assert.equal(hero?.session.data.statistics().nodeCount, 77);
+    });
     return store;
 }
 
@@ -96,7 +81,7 @@ async function showSamples(): Promise<HTMLElement> {
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.isTrue(ended, "the page came to rest");
-        }, SCROLL);
+        });
     } finally {
         document.removeEventListener("scrollend", onEnd);
     }
@@ -125,13 +110,13 @@ describe("the start page in the app's frame", () => {
         await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.equal(scrolled(), 0, "the wheel scrolled it back up");
-        }, SCROLL);
+        });
         // As far as the samples, not past them: the library runs on well below its top.
         const header = Number.parseFloat(getComputedStyle(samples).scrollMarginTop) || 0;
         await wheelOver(screen.getByRole("heading", { level: 1 }), samples.getBoundingClientRect().top - header);
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "the wheel scrolled it down");
-        }, SCROLL);
+        });
     });
 
     it("shows the header's own lockup only once the page is scrolled past the big one", async () => {
@@ -152,11 +137,11 @@ describe("the start page in the app's frame", () => {
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
             assert.equal(header?.dataset.scrolled, "true", "scrolled down, the header shows its lockup");
-        }, SCROLL);
+        });
         await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
         await waitFor(() => {
             assert.isUndefined(header?.dataset.scrolled, "back at the top, it hides it again");
-        }, SCROLL);
+        });
     });
 
     it("scrolls back up from the samples by touch", async () => {
@@ -167,7 +152,7 @@ describe("the start page in the app's frame", () => {
         await swipeOver(screen.getByRole("heading", { name: "Sample library" }), 400);
         await waitFor(() => {
             assert.isBelow(scrolled(), before, "a swipe scrolled it back up");
-        }, SCROLL);
+        });
     });
 
     it("scrolls back up from the samples, and down again, by keyboard", async () => {
@@ -200,13 +185,13 @@ describe("the start page in the app's frame", () => {
             note("Home pressed");
             await waitFor(() => {
                 assert.equal(scrolled(), 0, "Home scrolled it back up");
-            }, SCROLL);
+            });
             note("at the top");
             await userEvent.keyboard("{End}");
             note("End pressed");
             await waitFor(() => {
                 assert.isAbove(scrolled(), 0, "End scrolled it down");
-            }, SCROLL);
+            });
         } finally {
             document.removeEventListener("scrollend", onEnd);
             globalThis.removeEventListener("keydown", onKey);

@@ -10,6 +10,7 @@ import http from "node:http";
 import net from "node:net";
 import { promisify } from "node:util";
 
+import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
 import { ownChild, processes } from "./processes";
 
 /** A WebDriver session in Safari. */
@@ -164,7 +165,7 @@ export async function startSafariDriver(): Promise<SafariDriver> {
                         await promisify(execFile)(
                             "osascript",
                             ["-e", 'tell application "Safari" to set miniaturized of front window to true'],
-                            { timeout: 30_000 },
+                            { timeout: WAIT_GUARD_MS },
                         ); // an Automation permission prompt nobody answers would hang it
                         return "osascript";
                     }

@@ -2557,7 +2557,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("packs a change's stories into at most the job budget, growing every bin's limit only as needed (#3448)", () => {
-        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 2000 }, (_, i) => `gexf-specimens--s${i}`);
         const bins = storyBins(
             [
                 entry("graph-io-fidelity", "all", [], ids),
@@ -2567,7 +2567,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             projects,
             list,
         );
-        assert.ok(1200 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
+        assert.ok(2000 * STORY_MS["graph-io-fidelity"] > STORY_JOB_BUDGET * STORY_BIN_LIMIT_MS, "over budget at 3 min");
         assert.ok(bins.length <= STORY_JOB_BUDGET, `${bins.length} bins`);
         for (const b of bins) assert.ok(b.ms <= STORY_BIN_MAX_MS, `${b.name} planned at ${b.ms} ms`);
         assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids, "a--one"].sort());
@@ -2578,7 +2578,7 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
     });
 
     it("never stretches a bin past 3 minutes with jobBudget Infinity (the rolling slices, early-capture.md 4a)", () => {
-        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
+        const ids = Array.from({ length: 2000 }, (_, i) => `gexf-specimens--s${i}`);
         const stories = [entry("graph-io-fidelity", "all", [], ids), entry("layout", "all")];
         const bins = storyBins(stories, projects, list, {}, () => 1, { jobBudget: Infinity });
         assert.ok(bins.length > STORY_JOB_BUDGET, `${bins.length} bins`);

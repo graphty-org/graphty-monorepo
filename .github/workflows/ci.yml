@@ -40,6 +40,13 @@ on:
                 type: string
                 required: false
                 default: ""
+        # The caller's needs.<job>.result is cancelled when any job here ended cancelled, an advisory
+        # (continue-on-error) one included: continue-on-error covers a failure, not a cancel. So the release train
+        # judges a cancelled call by this instead (#4556): All Checks Pass needs every job that gates.
+        outputs:
+            checks:
+                description: "All Checks Pass's result: success when every job that gates passed"
+                value: ${{ jobs.all-checks.result }}
     workflow_dispatch:
         inputs:
             reuse_build_run:
@@ -1354,6 +1361,8 @@ jobs:
     # which only restores them (budgets-and-trust.md 1.8: only master writes the entry a pull request trusts).
     # Master's push build only: one walk of every package, walked cold whenever the key moved, so the entry
     # holds only current graphs. Gates nothing; a failure here only makes the next pull request's plan walk more packages.
+    # It also records the story units this merge reaches, which the rolling screenshot slices render first
+    # (design/visual-testing/early-capture.md 4a): ordering only, never a reason to skip a render.
     select-graphs:
         name: Selector import graphs
         needs: packages
@@ -1361,6 +1370,10 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         continue-on-error: true
+        # id-token: write is the results store's credential for the reach rows
+        permissions:
+            contents: read
+            id-token: write
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1396,14 +1409,14 @@ jobs:
               run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
 
             # Exact key only, no prefix restore: the saved set then holds only the current graphs, never the
-            # superseded ones of earlier commits, so the entry does not grow.
-            - name: Look up the import graphs
+            # superseded ones of earlier commits, so the entry does not grow. Restored (not only looked up): the
+            # reach step below selects with them.
+            - name: Restore the import graphs
               id: graphs
               uses: actions/cache/restore@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
-                  lookup-only: true
 
             # The graphs resolve the other packages through their dist folders.
             - name: Download all package builds
@@ -1424,6 +1437,18 @@ jobs:
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
+
+            # The story units this merge (HEAD^1..HEAD) reaches, as the light check would select them, posted to the
+            # results store for the rolling slices' order (tools/channel/story-slices.mjs). Ordering only: a missing
+            # row means this merge's stories are rendered by age alone.
+            - name: Record the story units this merge reaches
+              continue-on-error: true
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  node tools/test-select.mjs --base HEAD^1 --head HEAD --plan > "$RUNNER_TEMP/reach-plan.json"
+                  node tools/channel/story-slices.mjs reach --plan "$RUNNER_TEMP/reach-plan.json" --sha "$GITHUB_SHA"
 
     # Sharded test jobs - run in parallel, collect coverage. The matrix comes from the packages job's plan
     # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard on master,

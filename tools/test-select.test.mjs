@@ -37,6 +37,7 @@ import {
     selectPackages,
     selectShards,
     selectStories,
+    storiesReaching,
     storyBins,
     STORY_BIN_LIMIT_MS,
     STORY_BIN_MAX_MS,
@@ -2007,6 +2008,26 @@ describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md se
         );
     });
 
+    it("selects a proven project's stories through its package graph when no shard runs its stories as tests", () => {
+        const play = "compact-mantine/tests/stories/play.storybook.test.tsx";
+        const [a, b] = ["compact-mantine/stories/A.stories.tsx", "compact-mantine/stories/B.stories.tsx"];
+        const graph = {
+            imports: { [play]: [a, b], [a]: ["compact-mantine/src/X.tsx"], [b]: [], "compact-mantine/src/X.tsx": [] },
+            projects: { storybook: { specs: [play], setup: [] } },
+        };
+        const graphs = new Map([["compact-mantine", [graph]]]);
+        const rules = { ...stories, selectProjects: ["compact-mantine"] };
+        const withCm = [...shards, byName("compact-mantine")];
+        const cm = [...none, sel("compact-mantine", "files", [play])];
+        const run = (changed, selection = cm) =>
+            pick(selection, changed, { rules, graphs, shards: withCm })["compact-mantine"];
+        assert.deepEqual(run(["compact-mantine/src/X.tsx"]).files, [a]);
+        assert.deepEqual(run([b]).files, [b]);
+        assert.equal(run(["compact-mantine/src/unknown.css"]).mode, "all", "a file no graph knows");
+        assert.equal(run(["compact-mantine/src/X.tsx"], [...none, sel("compact-mantine", "all")]).mode, "all");
+        assert.equal(storiesReaching("compact-mantine", ["graphty/src/X.tsx"], [graph]), null, "outside the package");
+    });
+
     it("runs no story for a change only to CI and tool files no story reads, proven project or not", () => {
         const unproven = { ...stories, selectProjects: [] };
         const ciOnly = [".github/workflows/release.yml", "tools/ci-workflows.test.mjs"];
@@ -2376,6 +2397,17 @@ describe("the light check's story bins (merging.md section 4.1, #3443 part b)", 
             "graph-io/fidelity-stories/F.stories.tsx",
             "layout/stories/A.stories.ts",
         ]);
+    });
+
+    it("never stretches a bin past 3 minutes with jobBudget Infinity (the rolling slices, early-capture.md 4a)", () => {
+        const ids = Array.from({ length: 1200 }, (_, i) => `gexf-specimens--s${i}`);
+        const stories = [entry("graph-io-fidelity", "all", [], ids), entry("layout", "all")];
+        const bins = storyBins(stories, projects, list, {}, () => 1, { jobBudget: Infinity });
+        assert.ok(bins.length > STORY_JOB_BUDGET, `${bins.length} bins`);
+        for (const b of bins) assert.ok(b.ms <= STORY_BIN_LIMIT_MS, `${b.name} planned at ${b.ms} ms`);
+        assert.deepEqual(bins.flatMap((b) => b.ids).sort(), [...ids].sort());
+        // the default budget still stretches the same stories into 9 jobs
+        assert.ok(storyBins(stories, projects, list).length <= STORY_JOB_BUDGET);
     });
 
     it("spreads many changed baselines over bins within the limit, each id once (#4401)", () => {

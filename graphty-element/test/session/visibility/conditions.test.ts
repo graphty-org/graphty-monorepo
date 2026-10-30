@@ -86,7 +86,9 @@ describe("filter conditions", () => {
             const shown = NODES.filter((id) => (!on[0] || TYPE[id] === "host") && (!on[1] || SCORE[id] < 0.8));
             const edges = EDGES.filter(([, s, t]) => shown.includes(s) && shown.includes(t)).map(([id]) => id);
             assert.deepStrictEqual(visible(session), { nodes: shown, edges: edges.sort() }, `mask ${mask}`);
-            assert.deepStrictEqual(selected(session).nodes, on[2] ? ["c", "d"] : [], `selection, mask ${mask}`);
+            // Select selects only what is in the picture.
+            const picked = on[2] ? ["c", "d"].filter((id) => shown.includes(id)) : [];
+            assert.deepStrictEqual(selected(session).nodes, picked, `selection, mask ${mask}`);
         }
 
         session.dispose();
@@ -170,17 +172,20 @@ describe("filter conditions", () => {
         assert.deepStrictEqual(selected(session).nodes, ["a"]);
         assert.deepStrictEqual(shows, ["conditions"]);
 
-        // A select condition selects every match, the hidden ones too, and hides nothing.
+        // A select condition selects the matches in the picture and hides nothing: the services
+        // are hidden by the keep condition, so nothing is selected.
         await session.visibility.addCondition({ id: "services", effect: "select", rule: SERVICES });
-        assert.deepStrictEqual(selected(session).nodes, ["c", "d"]);
+        assert.deepStrictEqual(selected(session).nodes, []);
         assert.deepStrictEqual(selections, ["command"]);
         assert.deepStrictEqual(shows, ["conditions"], "a select-only change is not a visibility change");
 
-        // A keep edit, setSteps and turning one off: only the last touches the selection.
+        // A keep edit that brings the services into the picture selects them; setSteps that
+        // hides them again drops them; turning the select condition off empties the selection.
         await session.selection.apply({ nodes: ["b"] });
         await session.visibility.updateCondition("hosts", { rule: { ...HOSTS, values: ["host", "service"] } });
+        assert.deepStrictEqual(selected(session).nodes, ["c", "d"]);
         await session.visibility.setSteps([{ id: "s1", on: true, rule: HOSTS }]);
-        assert.deepStrictEqual(selected(session).nodes, ["b"]);
+        assert.deepStrictEqual(selected(session).nodes, []);
         assert.deepStrictEqual(
             session.visibility.conditions.map((each) => each.id),
             ["s1", "services"],
@@ -189,18 +194,40 @@ describe("filter conditions", () => {
         await session.visibility.updateCondition("services", { on: false });
         assert.deepStrictEqual(selected(session).nodes, []);
 
-        // Undo switches it back on and puts back the selection the switch replaced; undo of the
-        // add puts "a" back.
-        await session.undo();
-        assert.deepStrictEqual(selected(session).nodes, ["b"]);
+        // Undo walks the selection back through each step; undo of the add puts "a" back.
+        await session.undo(); // services off
+        assert.deepStrictEqual(selected(session).nodes, []);
         await session.undo(); // setSteps
+        assert.deepStrictEqual(selected(session).nodes, ["c", "d"]);
         await session.undo(); // the keep edit
-        assert.deepStrictEqual(selected(session).nodes, ["b"], "keep edits never touch the selection");
+        assert.deepStrictEqual(selected(session).nodes, ["b"], "undo puts back the reader's selection");
         await session.undo(); // the select condition's add
         assert.deepStrictEqual(selected(session).nodes, ["a"]);
         await session.redo();
-        assert.deepStrictEqual(selected(session).nodes, ["c", "d"]);
+        assert.deepStrictEqual(selected(session).nodes, []);
         session.dispose();
+    });
+
+    it("selects only what the other conditions leave in the picture, whatever order they come in", async () => {
+        const conditions: FilterConditionInput[] = [
+            { id: "high", effect: "exclude", rule: HIGH },
+            { id: "hosts", effect: "select", rule: HOSTS },
+        ];
+        for (const list of [conditions, [...conditions].reverse()]) {
+            const session = await graph();
+            for (const each of list) {
+                await session.visibility.addCondition(each);
+            }
+
+            // Host a scores 0.8 or more and is out of the picture: b and e are selected.
+            assert.deepStrictEqual(selected(session).nodes, ["b", "e"], list.map((each) => each.id).join(" then "));
+            assert.ok(NODES.filter((id) => session.selection.has(id)).every((id) => session.visibility.isVisible(id)));
+
+            // Switching the exclude condition off brings them back into the selection.
+            await session.visibility.updateCondition("high", { on: false });
+            assert.deepStrictEqual(selected(session).nodes, ["a", "b", "e"]);
+            session.dispose();
+        }
     });
 
     it("keeps the steps API as a view: setSteps then steps is the same list, ids stay unique", async () => {

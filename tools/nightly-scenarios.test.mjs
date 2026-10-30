@@ -58,6 +58,7 @@ const load = (file) => {
 
 const CONTEXTS = [
     "github",
+    "jobs",
     "inputs",
     "needs",
     "steps",
@@ -229,9 +230,19 @@ function run(file, sc, inputs, prefix, out) {
                 : inner.some((i) => i.r === "cancelled")
                   ? "cancelled"
                   : "success";
+            // a called workflow's outputs read its jobs' results and outputs (the `jobs` context)
+            const jobsCtx = Object.fromEntries(
+                Object.keys(load(called).jobs).map((j) => [
+                    j,
+                    { result: out.jobs[`${path}/${j}`].result, outputs: out.jobs[`${path}/${j}`].outputs },
+                ]),
+            );
+            const declared = Object.fromEntries(
+                Object.entries(load(called).on?.workflow_call?.outputs ?? {}).map(([k, o]) => [k, o.value]),
+            );
             out.jobs[path] = {
                 result: result(sc.results?.[path] ?? derived),
-                outputs: sc.outputs?.[path] ?? {},
+                outputs: sc.outputs?.[path] ?? templateAll(declared, { ...base, jobs: jobsCtx }),
                 steps: {},
                 ran: true,
                 rerun: true,
@@ -889,6 +900,22 @@ describe("the nightly path's scenario matrix", () => {
         );
         const v = verdictOf({ ...lanes, captures: captureLane(missing) }, changed.length);
         assert.deepEqual([v.state, v.red], ["red", ["captures"]]);
+    });
+
+    // run 40950661827 attempt 2: GitHub stopped CI's Performance Benchmarks (continue-on-error) after 18 minutes,
+    // the CI call ended cancelled although every job that gates passed, the LLM lane skipped and the verdict filed
+    // "CI cancelled" as red with a bisect (#4556)
+    it("(18) an advisory CI job cancelled, every gating job green: the CI lane passes and the LLM lane still runs", () => {
+        const r = fullRun({ results: { "ci/performance": "cancelled" }, judged: { held: "" } });
+        assert.equal(r.jobs.ci.result, "cancelled", "continue-on-error covers a failure, not a cancel");
+        assert.equal(r.jobs.ci.outputs.checks, "success");
+        ran(r, "llm", "recapture", "verdict");
+        skipped(r, ...RED_EARLY);
+        assert.equal(r.jobs.verdict.outputs.state, "green-clean");
+        // a gating job that ends cancelled (its own timeout) still makes the lane red
+        const gating = fullRun({ results: { "ci/performance": "cancelled", "ci/all-checks": "failure" }, judged: {} });
+        assert.equal(gating.jobs.verdict.outputs.state, "red");
+        skipped(gating, "llm");
     });
 
     it("(16) the automatic abandon: before a full or restart pick only, failing open, never on changed screenshots", () => {

@@ -4258,6 +4258,8 @@ describe("release.yml", () => {
         assert.match(pick, /node tools\/full-run.mjs pick\n/);
         assert.match(pick, /RESULTS_URL: \$\{\{ vars.RESULTS_URL \}\}/);
         assert.match(pick, /id-token: write/);
+        // the ordering-only rule (early-capture.md 4e) is switched by a repository variable, so the trial can turn it off
+        assert.match(pick, /PICK_RULE: \$\{\{ vars.FULL_RUN_PICK_RULE \}\}/);
         assert.match(
             pick,
             /id: releasable\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && env.MODE != 'full' && env.MODE != 'restart' && env.MODE != 'candidate' && env.MODE != 'promote-nightly' \}\}/,
@@ -4285,7 +4287,7 @@ describe("release.yml", () => {
         );
         assert.match(
             verdict,
-            /"ci": "\$\{\{ needs.candidate_site.result == 'failure' && 'failure' \|\| needs.ci.result \}\}"/,
+            /"ci": "\$\{\{ needs.candidate_site.result == 'failure' && 'failure' \|\| needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success' && 'success' \|\| needs.ci.result \}\}"/,
         );
         for (const lane of ["pick", "llm", "t4", "audit"]) {
             assert.match(verdict, new RegExp(`"${lane}": "\\$\\{\\{ needs.${lane}.result \\}\\}"`), lane);
@@ -4456,7 +4458,7 @@ describe("release.yml", () => {
         // shadow and legacy: every lane passed; a nightly promotion: the verdict job decided to promote
         assert.match(
             version,
-            /if: \$\{\{ !cancelled\(\) && \(\(needs.pick.outputs.release == 'true' && \(\(\(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate'\) && needs.verdict.outputs.promote == 'true'\)\)\) \|\| \(needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true'\)\) \}\}/,
+            /if: \$\{\{ !cancelled\(\) && \(\(needs.pick.outputs.release == 'true' && \(\(\(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && \(needs.ci.result == 'success' \|\| \(needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success'\)\) && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.version_dry_run.result == 'success'\) \|\| \(\(inputs.mode == 'full' \|\| inputs.mode == 'restart' \|\| inputs.mode == 'candidate'\) && needs.verdict.outputs.promote == 'true'\)\)\) \|\| \(needs.pick.outputs.resume == 'true' && needs.resume.outputs.promote == 'true'\)\) \}\}/,
         );
         // the major-bump dry run is a lane: it versions the candidate and checks release-approvals.json (#3455)
         const dryRun = job(release, "version_dry_run");
@@ -4497,7 +4499,7 @@ describe("release.yml", () => {
         // coverage comes from the same CI call, and never holds the release
         assert.match(
             coverage,
-            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && needs.ci.result == 'success' \}\}/,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && \(needs.ci.result == 'success' \|\| \(needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success'\)\) \}\}/,
         );
         assert.match(coverage, /uses: \.\/\.github\/workflows\/coverage\.yml/);
         assert.doesNotMatch(version + land + publish + held, /coverage/);
@@ -4547,7 +4549,7 @@ describe("release.yml", () => {
     it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
         assert.match(
             llm,
-            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ !cancelled\(\) && inputs.mode != 'promote-nightly' && needs.pick.result == 'success' && needs.pick.outputs.release == 'true' && \(needs.ci.result == 'success' \|\| \(needs.ci.result == 'cancelled' && needs.ci.outputs.checks == 'success'\)\) \}\}/,
         );
         assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
@@ -7860,7 +7862,10 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
             /\n {8}if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && inputs\.ref == ''\n/,
         );
         assert.match(graphs, /uses: actions\/cache\/save@v\d+\n/);
-        assert.match(graphs, /lookup-only: true/, "the saved set holds only the current graphs");
+        // an exact-key restore (no prefix restore-keys) and a save only on a miss: the saved set holds only the
+        // current graphs (the restore also serves the reach step, design/visual-testing/early-capture.md 4a)
+        assert.doesNotMatch(graphs, /restore-keys: test-select-graphs/, "the saved set holds only the current graphs");
+        assert.match(graphs, /- name: Save the import graphs\n {14}if: steps\.graphs\.outputs\.cache-hit != 'true'\n/);
     });
 
     it("runs the plan's bins as Test (<family>-<bin>) jobs, each through run-group.mjs", () => {

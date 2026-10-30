@@ -4,7 +4,8 @@
 //
 //   node tools/full-run.mjs pick      which commit to test, or why the slot does nothing
 //       env MODE (full | restart | candidate), HEAD_SHA (the commit the run started on); RESULTS_URL and the job's
-//       OIDC token; writes run, sha, why, good, held and forward to GITHUB_OUTPUT
+//       OIDC token; PICK_RULE "rolling" lets the ordering-only rule choose (early-capture.md 4e; otherwise it is only
+//       logged); writes run, sha, why, good, held, forward, today, rolling_sha and rolling_why to GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
 //       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
@@ -109,9 +110,12 @@ export const LANES = {
  *     which gives a new candidate; re-testing while the blocker stands pays for the paid lanes for nothing
  * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly (true before it exists); a
  *     candidate older than nightly could never promote (the land job refuses it), so the slot does nothing
- * @returns `{ run, sha, why, good, inherit, held, forward }`; inherit is the verdict the commit takes over, when it
- *   does; held is the held candidate's head ("" when nothing is held, "unknown" when the store did not answer);
- *   forward is the held commit when the tested head is past it
+ * @param o.rolling the ordering-only rule's inputs for a full slot (`{ on, tree, captures }`, see rollingPick), or
+ *     null; with `on` false the rule's choice is only returned, never tested
+ * @returns `{ run, sha, why, good, inherit, held, forward, today, rolling }`; inherit is the verdict the commit takes
+ *   over, when it does; held is the held candidate's head ("" when nothing is held, "unknown" when the store did not
+ *   answer); forward is the held commit when the tested head is past it; today is what today's rule chose and
+ *   rolling the ordering rule's `{ sha, why }`
  */
 export function pick({
     mode,
@@ -123,6 +127,7 @@ export function pick({
     onNightly = () => true,
     hasNightly = () => true,
     hold = { open: "", closedAt: 0 },
+    rolling = null,
 }) {
     if (!store) {
         return {
@@ -160,18 +165,73 @@ export function pick({
             why: held ? "the held head is judged already" : "nothing is held",
         };
     }
-    const p = pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold });
+    const p = pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold, rolling });
     return { ...p, held };
 }
 
-function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold }) {
+/** The rolling captures' statuses that are a picture nobody approved yet (results-service QUEUE_STATUSES). */
+const UNAPPROVED = new Set(["changed", "new", "unseeded"]);
+
+/**
+ * The ordering-only pick rule (design/visual-testing/early-capture.md 4e): the newest kept-site commit that holds the
+ * newest approval merge (head's visual-baselines tree) and is older than the first commit whose rolling capture shows
+ * a picture not yet approved. It only chooses which commit the slot renders: the full run still renders that commit
+ * whole and its own captures decide the verdict. A rolling capture rendered under another baselines tree is left out,
+ * since an approval merged after it may cover it.
+ * @param o the inputs
+ * @param o.head the commit the run started on
+ * @param o.sites the commits with a kept site
+ * @param o.judged the store's recent verdicts by commit
+ * @param o.firstParents (sha) => that commit and its first parents, newest first
+ * @param o.sameBaselines (from, to) => whether two commits have the same visual-baselines/ tree
+ * @param o.hasNightly (sha) => whether that commit's history holds channel/nightly
+ * @param o.tree head's visual-baselines tree
+ * @param o.captures GET /v1/story-captures' captures (each story's newest), or null when the store did not answer
+ * @returns `{ sha, why }`; sha is "" when the rule has no preference and the slot keeps today's rule
+ */
+export function rollingPick({ head, sites, judged, firstParents, sameBaselines, hasNightly, tree, captures }) {
+    if (!captures) return { sha: "", why: "the store did not answer for the rolling captures" };
+    // a story re-rendered since it changed counts from its first unapproved render (firstUnapprovedSha), not its newest
+    const unapproved = new Set(
+        captures
+            .filter((c) => UNAPPROVED.has(c.status) && c.baselinesTree === tree)
+            .flatMap((c) => [c.sha, c.firstUnapprovedSha ?? c.sha]),
+    );
+    const chain = firstParents(head);
+    // ponytail: the first unapproved commit is the oldest render showing one, not the merge that changed the picture;
+    // a picture changed between a story's last unchanged render and that one is held by the full run, as today
+    const first = chain.findLastIndex((s) => unapproved.has(s));
+    if (first < 0) return { sha: "", why: "no rolling capture shows an unapproved picture" };
+    const x = short(chain[first]);
+    const sha = chain.slice(first + 1).find((s) => sites.has(s) && sameBaselines(s, head)) ?? "";
+    if (!sha) return { sha, why: `no kept-site commit older than ${x} holds the newest approval` };
+    if (judged.has(sha)) return { sha: "", why: `${short(sha)}, older than ${x}, is judged already` };
+    if (!hasNightly(sha)) return { sha: "", why: `${short(sha)}, older than ${x}, is older than nightly` };
+    return { sha, why: `${x} has an unapproved rolling picture, so the newest commit before it` };
+}
+
+function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNightly, hasNightly, hold, rolling }) {
     // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
     // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
     // older commit's build records its site late)
     const sites = new Set(store.sites ?? []);
     const byOrder = sites.size ? firstParents(head).find((s) => sites.has(s)) : undefined;
-    const sha = mode === "restart" ? head : (byOrder ?? store.candidate?.sha);
-    if (!sha) return { run: true, sha: head, why: "the store records no site yet: testing master's head" };
+    const today = mode === "restart" ? head : (byOrder ?? store.candidate?.sha);
+    if (!today) return { run: true, sha: head, why: "the store records no site yet: testing master's head" };
+    const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
+    const rule =
+        mode === "full" && rolling
+            ? rollingPick({ head, sites, judged, firstParents, sameBaselines, hasNightly, ...rolling })
+            : undefined;
+    const on = { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold };
+    const preferred = rule?.sha && rolling.on ? slotOn(rule.sha, on) : undefined;
+    // a preferred commit that would only inherit a verdict tests nothing: the slot keeps today's rule
+    const p = preferred?.run ? preferred : slotOn(today, on);
+    const why = p.sha === today ? p.why : `ordering: ${rule.why}: ${p.why}`;
+    return { ...p, why, today, rolling: rule };
+}
+
+function slotOn(sha, { judged, firstParents, stray, sameBaselines, onNightly, hasNightly, hold }) {
     // a promotion's version merge onto a newer master leaves that master's site the newest until the merge's own
     // is recorded: testing it would spend a whole run on a commit nightly cannot move to
     if (!hasNightly(sha)) {
@@ -181,7 +241,6 @@ function pickSlot({ mode, head, store, firstParents, stray, sameBaselines, onNig
             why: `${short(sha)} lacks channel/nightly: it is older than nightly, nothing to promote`,
         };
     }
-    const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
     const chain = firstParents(sha);
     const good = chain.slice(1).find((s) => GREEN.has(judged.get(s)?.state)) ?? "";
     // ponytail: a cleared hold re-runs the whole suite; a promote-only run from the stored verdict if slots get scarce
@@ -367,13 +426,23 @@ export function changedSummary(changed) {
  */
 export function redIssue({ sha, red, lanes, run, bisect }) {
     const names = red.map((l) => LANES[l].name).join(", ");
+    // the verdict and the early red jobs run only when nobody cancelled the run (!cancelled()), so a lane GitHub
+    // reports as cancelled hit its job time limit (timeout-minutes): a real red, not a cancelled run (#4556)
+    const said = (r) => (r === "cancelled" ? "timed out (cancelled)" : (r ?? "skipped"));
     const results = Object.keys(LANES)
-        .map((l) => `${LANES[l].name} ${lanes[l] ?? "skipped"}`)
+        .map((l) => `${LANES[l].name} ${said(lanes[l])}`)
         .join(", ");
+    const timedOut = red.some((l) => lanes[l] === "cancelled")
+        ? [
+              "",
+              "The run itself was not cancelled (a cancelled run is judged by nobody): a lane GitHub reports as cancelled hit its job time limit, so its tests never finished. Find what made it slow in the job's log.",
+          ]
+        : [];
     const body = [
         `The full run failed on ${sha} (${names}): ${run}`,
         "",
         `Results: ${results}`,
+        ...timedOut,
         "",
         bisect,
         "",
@@ -565,8 +634,16 @@ async function pickMain(env) {
         onNightly,
         hasNightly,
         hold: publishHold(),
+        rolling: env.MODE === "full" && store ? await rollingInputs(cfg, env) : null,
     });
     console.log(`::notice::${p.why}`);
+    if (p.rolling) {
+        const on = env.PICK_RULE === "rolling" ? "on" : "off (shadow)";
+        const chose = p.rolling.sha ? short(p.rolling.sha) : "no preference";
+        const line = `ordering pick rule ${on}: ${chose} (${p.rolling.why}); today's rule: ${short(p.today)}`;
+        console.log(`::notice::${line}`);
+        if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${line}\n`);
+    }
     if (p.inherit) {
         await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });
     }
@@ -577,7 +654,19 @@ async function pickMain(env) {
         why: p.why,
         held: p.held ?? "",
         forward: p.forward ?? "",
+        // the trial's comparison (early-capture.md 4e): what today's rule and the ordering rule chose
+        today: p.today ?? "",
+        rolling_sha: p.rolling?.sha ?? "",
+        rolling_why: p.rolling?.why ?? "",
     });
+}
+
+// The ordering rule's inputs: each story's newest rolling capture and head's visual-baselines tree; env PICK_RULE
+// "rolling" (the repository variable FULL_RUN_PICK_RULE) lets the rule choose, anything else only logs its choice
+async function rollingInputs(cfg, env) {
+    const answer = await read(cfg, "/v1/story-captures");
+    const tree = sh("git", ["rev-parse", `${env.HEAD_SHA}:visual-baselines`]);
+    return { on: env.PICK_RULE === "rolling", tree, captures: answer?.captures ?? null };
 }
 
 /**

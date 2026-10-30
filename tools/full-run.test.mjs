@@ -303,6 +303,25 @@ describe("the red issue and its bisect", () => {
         assert.match(body, /`Refs #<this issue>` restarts the full run after this run ends/);
     });
 
+    // #4556: GitHub reports a job that hit its timeout-minutes as "cancelled", and the verdict runs only in a run
+    // nobody cancelled (!cancelled()), so a cancelled lane there timed out: say so, or it reads as a cancelled run
+    it("calls a cancelled lane timed out, since the verdict never runs in a cancelled run", () => {
+        const { title, body } = redIssue({
+            sha: "abcdef1234",
+            red: ["llm"],
+            lanes: { ...ALL_GREEN, llm: "cancelled" },
+            run: "https://run",
+            bisect: "Bisect dispatched.",
+        });
+        assert.equal(title, "Full run red: LLM regression on abcdef1");
+        assert.match(body, /LLM regression timed out \(cancelled\), T4 GPU success/);
+        assert.match(body, /a lane GitHub reports as cancelled hit its job time limit/);
+        assert.doesNotMatch(
+            redIssue({ sha: "a", red: ["t4"], lanes: { ...ALL_GREEN, t4: "failure" }, run: "r", bisect: "" }).body,
+            /time limit/,
+        );
+    });
+
     it("dispatches one bisect, for the first lane that has one, with the run's failing tests", () => {
         const failures = { tests: [{ shard: "layout", file: "x", name: "y" }], failedBefore: ["layout: x > y"] };
         const plan = bisectPlan({ red: ["ci", "hosts"], sha: "bad", good: "good", run: 9, failures });
@@ -871,5 +890,84 @@ describe("actorOf", () => {
         assert.equal(actorOf({ GITHUB_ACTOR: "github-actions[bot]", WATCHED: "true" }), "");
         assert.equal(actorOf({ GITHUB_ACTOR: "github-actions[bot]", WATCHED: "false" }), "github-actions[bot]");
         assert.equal(actorOf({ GITHUB_ACTOR: "someone" }), "someone");
+    });
+});
+
+describe("the ordering-only pick rule (early-capture.md 4e)", () => {
+    // every commit kept its site; head's visual-baselines tree is T, and c0 predates the newest approval merge
+    const sites = { candidate: { sha: "c3", builtAt: 1 }, sites: CHAIN, recent: [] };
+    const sameBaselines = (from, to) => (from === "c0") === (to === "c0");
+    const shot = (sha, status = "changed", baselinesTree = "T") => ({
+        project: "p",
+        story: "s",
+        sha,
+        status,
+        baselinesTree,
+    });
+    const run = (captures, o = {}) =>
+        pick({
+            mode: "full",
+            head: "c3",
+            store: o.store ?? sites,
+            firstParents,
+            stray: code,
+            sameBaselines,
+            rolling: { on: o.on ?? true, tree: "T", captures },
+            ...o.extra,
+        });
+
+    it("prefers the newest kept-site commit older than the first unapproved rolling picture", () => {
+        const p = run([shot("c3"), shot("c2"), shot("c3", "unchanged")]);
+        assert.deepEqual([p.run, p.sha, p.today, p.rolling.sha], [true, "c1", "c3", "c1"]);
+        assert.match(p.why, /^ordering: .*c2.*: c1 is not judged yet/);
+    });
+
+    it("only logs its choice while the repository variable is off, so the trial can compare it", () => {
+        const p = run([shot("c2")], { on: false });
+        assert.deepEqual([p.sha, p.today, p.rolling.sha], ["c3", "c3", "c1"]);
+    });
+
+    it("never prefers a commit that predates the newest approval merge", () => {
+        const p = run([shot("c1")]);
+        assert.deepEqual([p.sha, p.rolling.sha], ["c3", ""]);
+        assert.match(p.rolling.why, /no kept-site commit older than c1 holds the newest approval/);
+    });
+
+    it("ignores pictures that are approved, or rendered under an older baselines tree", () => {
+        for (const captures of [[], [shot("c2", "unchanged")], [shot("c2", "changed", "OLD")], null]) {
+            const p = run(captures);
+            assert.deepEqual([p.sha, p.rolling.sha], ["c3", ""]);
+        }
+        for (const status of ["new", "unseeded"]) assert.equal(run([shot("c2", status)]).sha, "c1");
+    });
+
+    it("leaves the slot to today's rule when the preferred commit is judged, has no site or lacks nightly", () => {
+        const judged = { ...sites, recent: [{ sha: "c1", state: "red" }] };
+        assert.equal(run([shot("c2")], { store: judged }).sha, "c3");
+        assert.equal(run([shot("c2")], { store: { ...sites, sites: ["c3", "c2", "c0"] } }).sha, "c3");
+        const hasNightly = (s) => s !== "c1";
+        assert.equal(run([shot("c2")], { extra: { hasNightly } }).sha, "c3");
+    });
+
+    it("never idles a slot on a preferred commit that would only inherit a verdict", () => {
+        // c1 inherits c0's verdict (nothing but versions between them), so preferring it would test nothing
+        const stray = (_from, to) => (to === "c1" ? [] : code());
+        const store = { ...sites, recent: [{ sha: "c0", state: "red" }] };
+        const p = run([shot("c2")], { store, extra: { stray, sameBaselines: () => true } });
+        assert.deepEqual([p.run, p.sha, p.rolling.sha], [true, "c3", "c1"]);
+    });
+
+    it("bounds the preference by a story's first unapproved render, not its newest", () => {
+        // the story changed at c2 and a later slice rendered it again at c3: the rule still keeps to c1
+        const p = run([{ ...shot("c3"), firstUnapprovedSha: "c2" }]);
+        assert.deepEqual([p.sha, p.rolling.sha], ["c1", "c1"]);
+    });
+
+    it("never changes a restart, a candidate run or a pick without the store", () => {
+        const rolling = { on: true, tree: "T", captures: [shot("c2")] };
+        const base = { head: "c3", firstParents, stray: code, sameBaselines, rolling };
+        assert.equal(pick({ ...base, mode: "restart", store: sites }).sha, "c3");
+        assert.equal(pick({ ...base, mode: "candidate", store: sites }).run, false);
+        assert.equal(pick({ ...base, mode: "full", store: null }).sha, "c3");
     });
 });

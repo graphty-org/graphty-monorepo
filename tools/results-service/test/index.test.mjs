@@ -458,6 +458,17 @@ describe("GET /v1/plan", () => {
         assert.equal((await plan(call, { variants: `${BROWSER},b`, inputs: "k1" })).status, 400);
     });
 
+    it("answers an everything run's ~55 variants within D1's 100 bound parameters", async () => {
+        const { call } = service();
+        const variants = Array.from({ length: 55 }, (_, i) => `family-${i}|off`);
+        const r = await plan(call, {
+            base: "b1",
+            variants: variants.join(","),
+            inputs: variants.map(() => "-").join(","),
+        });
+        assert.equal(r.status, 200);
+    });
+
     it("computes the quarantine when it is read", async () => {
         const { call, env } = service();
         const s = seed(env);

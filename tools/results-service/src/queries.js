@@ -99,10 +99,17 @@ export async function trackedIssues(db, family, now) {
 // Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
 // inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    if (!pairs.length) return [];
+    // 1 + 3 parameters a variant: chunks of 30 stay under D1's 100 (an everything run asks about ~55 variants)
+    const rows = [];
+    for (let i = 0; i < pairs.length; i += 30)
+        rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 30))));
+    return rows.filter((r) => !changed.has(r.file)); // rule 1, the file itself; its import closure is the client's
+}
+
+async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
-    const rows = await all(
+    return all(
         db,
         `SELECT DISTINCT i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
          FROM failure f JOIN invocation i ON i.id = f.invocation
@@ -113,7 +120,6 @@ async function failingOnBase(db, base, pairs, changed) {
         ...variants,
         ...pairs.flat(),
     );
-    return rows.filter((r) => !changed.has(r.file)); // rule 1, the file itself; its import closure is the client's
 }
 
 async function variantFacts(db, variant, inputs, now) {

@@ -5,42 +5,35 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-10-21 (tier 3 round 1 closed; insights read). Summarized on 2026-10-21: the tier 2
+Last updated: 2026-10-30 (tier 4 round 1 visual walkthrough). Summarized on 2026-10-21: the tier 2
 rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
 in git history of this file.
 
 ## Top of mind
 
-1. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars; the studio
-   stops. Bar 5 fails only on two backlog items rated 3 before the round; no new sev 3 survived.
-   Insights: `tier3/rounds/round-1/insights.md`.
-2. Both my sev 3 claims were weakened to sev 2 by the skeptics: the key covering nodes (no session
-   was misled) and the picker that picks nothing (no session reached it; "watch"). Lesson: a
-   visual finding needs a reader who paid for it, or a scripted repro, to hold its severity.
-3. The round's strongest signal was visual: a new style line starts at the value everything
-   already has (Fill "+" gives `6366F1`, edge Width 8 with no unit), so accepting it changes
-   nothing on screen and looks broken (9 sessions). A change a reader makes must be visible.
-4. Newcomers look for node color in the Graph inspector first (9 sessions); it shows only canvas
-   settings and points nowhere. The only bridge was matching the count beside "Everything" to the
-   node count -- counts carry wayfinding, so one count, one look (heading, card, chip, tree) matters.
-5. Focus visibility is a bar 6 item: the inspector's F6 stop draws no focus indicator (WCAG
-   2.4.7); the color swatch's focus draws as the hex box's border. Every stop gets one focus look.
-6. `colorWord` (compact-mantine) names FFD700 "gold" and F16363 "red": the spoken name and the
-   seen hue disagree. Color names must follow hue bands, fixed in compact-mantine. Measure delta E
-   before claiming two drawn colors look alike.
-7. Nothing says the color box accepts a color word, and the swatches hold no common hues.
-8. The purple "Layer" token: readers avoided it rather than read it (6 sessions). Avoidance is not
-   understanding; the token's two looks (purple field, black chip) are still mine to unify.
-9. Members listed by id (`s05`) and no row mark in the table: readers checked by eye. A visual
-   "painted by this layer" mark on rows is the cheapest fix to propose.
-10. Still open from my walk: key size (20 px rows, content width, title at entry size), condition
-    picker hierarchy, Select with no max height, menus opening with a filled first item.
-11. The round is at its ceiling (55 of 56 succeeded): judge by cost and routes, not success. Same
-    model plays every persona, so my screenshot audits are a needed second source.
-12. Rules for my own work: one path per problem; check what the element offers first; a claim only
-    I made is scripted on the frozen build before anyone fixes it; words at rest never rise.
-13. Tool habits: `real.mjs --start` in the background with `REAL_SLOT_WAIT_SECONDS` high; crop with
-    `tmp/visual-r1/crop.py` to read 8-9 px text; click empty canvas before a shortcut.
+1. (2026-10-30) Tier 4 round 1 walk done on 79ed770292: 0 sev 3/4, 14 sev 2, 15 sev 1
+   (`tier4/rounds/round-1/expert/visual.md`). Two themes: one mark with two meanings, and the
+   deciding text drawn smallest.
+2. The link glyph means "web address" and "joined": `SourceRow.tsx` maps `join` to
+   `GLYPHS.webAddress` though `GLYPHS.join` exists. Cheapest fix on the list.
+3. A column's kind has three glyph maps (table `typeIcons`, picker `VALUE_GLYPHS`, Fields
+   `TypeGlyph`); `opened` shows a calendar in the Filters picker while the table says text. Watch T62
+   sessions for a reader who takes it as already a date -- that would lift it to sev 3.
+4. Watch T65: Select and Hide cards look alike at rest (only an 8 px segmented control differs).
+5. Filter card titles and resting summaries are about 8 px; the deciding words are the smallest.
+6. Source row names cut to one letter ("d..") are decided (R11: counts win); do not re-propose.
+7. Lesson kept: a visual finding needs a reader who paid for it, or a scripted repro, to hold sev 3.
+   I rated none 3 this round for that reason.
+8. Focus visibility, `colorWord` hue names, and the purple "Layer" token are still open from tier 3.
+9. "A change a reader makes must be visible": empty selects with no placeholder (yes/no card,
+   Weight "Higher means") break it from the other side -- an unfinished field looks finished.
+10. compact-mantine is Figma-locked: PageList hover = selected fill, dark dropdown with no edge go to
+    the owner, never into code.
+11. Tool habits: `REAL_SLOT_WAIT_SECONDS=600` on `--start`; crop with
+    `.worktrees/design-studio-tier4/tmp/visual-t4/crop.py in x y w h scale out`; `--hover-at` on the
+    name text itself (a point on the row's glyph gives no tooltip).
+12. Read `decided.md` (R1-R15) before rating a tier 4 screen: several of my candidates were decisions
+    the build did not finish (R8 Open button, R13 chips), which is a different finding from a new one.
 
 ## Priorities and values
 
@@ -63,6 +56,16 @@ in git history of this file.
 - Numbers in a column share decimals and align.
 
 ## Decisions (dated, with reasons)
+
+- **2026-10-30 (tier 4 round 1 walk):** Rated nothing 3. The kind-glyph conflict (`opened` a
+  calendar in the picker while text in the table) could mislead T62, but no reader has paid for it
+  yet; marked "watch". Same for Select/Hide cards looking alike (T65).
+- **2026-10-30:** Reported the join chips and the address box as "decision not finished on the
+  build" (R13, R8) rather than new proposals, so the fix list points at the decision already made.
+- **2026-10-30:** Listed known backlog items (cut source names, the lost issue chip after a join,
+  "Advanced") by screen but did not re-propose them: R11 is binding and the rest are queued.
+- **2026-10-30:** Owned the link glyph by the app from source (`SourceRow.tsx:19`), not by
+  screenshot guess; read source at the frozen commit with `git show 79ed770292:<path>`.
 
 - **2026-10-21 (tier 3 round 1 walk):** Rated the zero-match picker severity 3, not 2: the closed
   state's chips actively print positive counts, so a reader is told the opposite of the result, and
@@ -162,6 +165,16 @@ in git history of this file.
 
 ## Tried: worked / did not work
 
+- 2026-10-30 worked: four sessions (light 1440 two files joined, dark 1440 one file with fixes and
+  two cards, light 900 x 700 T68 state, dark 900 x 700 join) covered every tier 4 screen in about 45
+  steps. Batching steps (`--click A --click B`) kept the step count low.
+- 2026-10-30 worked: sampling pixel fills (PIL `getpixel`) to prove hover and selected share a fill,
+  instead of judging two light grays by eye.
+- 2026-10-30 did not work: `--hover-at` on a source row's glyph returned no tooltip; on the name
+  text it did. I nearly reported a missing tooltip.
+- 2026-10-30 did not work: `--click "role=button:<accessible name>"` with the row's long name;
+  `--click-at` on the row was simpler.
+
 - 2026-10-21 worked: three sessions (light 1440 Les Miserables, light 1440 volunteers file, dark
   900 x 700 saved project) covered every tier 3 screen, each card type, a folder, several layers
   picked together, bound color and size, and "Why this look" in about 75 steps.
@@ -218,6 +231,13 @@ in git history of this file.
   designers too.
 
 ## Sources
+
+- `design/ui/studio/tier4/rounds/round-1/expert/visual.md` (tier 4 round 1 walkthrough, 29
+  findings); sessions in `expert/visual/v1..v4`
+- `design/ui/studio/tier4/decided.md` R1-R15 (data screen decisions), owner rules for data UI
+- `graphty/src/workspace/data-place/SourceRow.tsx:15-19` (source glyphs); `table/HeaderCell.tsx`,
+  `table/typeIcons.ts`, `style/WhichPicker.tsx` (`VALUE_GLYPHS`), `data-place/TypeGlyphIcon.tsx`
+  (three kind-glyph maps); `export/ExportDialog.tsx` (compact-mantine `PageList`)
 
 - `design/ui/studio/tier3/iterations/1/visual.md` (iteration 1 findings, 34);
   screenshots in `design/ui/studio/tier3/build/i1-visual/` (local, ignored by git)

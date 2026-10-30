@@ -24,6 +24,8 @@
         "shards": [
             "algorithms-browser",
             "layout",
+            "layout-storybook",
+            "cytoscape-extensions-storybook",
             "graphty-storybook",
             "graphty-element-storybook-1",
             "graphty-element-storybook-2",
@@ -136,7 +138,15 @@
             "pattern": "^compact-mantine/src/theme/",
             "projects": ["graphty", "compact-mantine"]
         },
-        "selectProjects": ["graphty-element", "graphty", "compact-mantine"],
+        "selectProjects": [
+            "graphty-element",
+            "graphty",
+            "algorithms",
+            "graph-io-fidelity",
+            "compact-mantine",
+            "layout",
+            "cytoscape-extensions"
+        ],
         "drawnBy": {
             "graph-io-fidelity": ["graph-io", "graphty-element"]
         }

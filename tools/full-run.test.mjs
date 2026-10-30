@@ -20,6 +20,8 @@ import {
     duplicateOf,
     fixedRecently,
     flakyLanes,
+    FLAKY_GROUP,
+    flakyFilings,
     flakyStories,
     flakyStoryBody,
     greenCloses,
@@ -876,6 +878,36 @@ describe("file-deferred", () => {
         assert.equal(r.status, 0, r.stderr);
         assert.match(r.stdout, /^fixed=77$/m);
         assert.doesNotMatch(readFileSync(log, "utf8"), /issue create|workflow run bisect/);
+    });
+});
+
+describe("flaky story issues", () => {
+    const story = (project, n) => ({
+        name: `${project}/s${n}.png`,
+        why: "drew a different picture",
+        test: { file: `${project}/stories/S.stories.ts`, name: `Story ${n}` },
+    });
+    it("files one issue per story while a project has only a few", () => {
+        const stories = Array.from({ length: FLAKY_GROUP }, (_, i) => story("layout", i));
+        const out = flakyFilings(stories, "on abc", "Fix it.");
+        assert.deepEqual(
+            out.map((f) => f.name),
+            stories.map((s) => s.name),
+        );
+    });
+    // #4940: a capture-code mismatch flipped 555 graph-io-fidelity stories at once and filed one issue for each
+    it("files one issue for a project whose stories flipped all at once, naming every story test", () => {
+        const many = Array.from({ length: 555 }, (_, i) => story("graph-io-fidelity", i));
+        const out = flakyFilings([...many, story("layout", 1)], "on abc", "Fix it.");
+        assert.deepEqual(
+            out.map((f) => f.name),
+            [`graph-io-fidelity (${FLAKY_GROUP}+ stories at once)`, "layout/s1.png"],
+        );
+        assert.match(out[0].body, /^555 stories of graph-io-fidelity were found flaky at once on abc\./);
+        assert.match(out[0].body, /Flaky test: graph-io-fidelity\/stories\/S\.stories\.ts > Story 0 /);
+        // GitHub's body limit: the list stops short of it and says so
+        assert.match(out[0].body, /and more/);
+        assert.ok(out[0].body.length < 65_536);
     });
 });
 

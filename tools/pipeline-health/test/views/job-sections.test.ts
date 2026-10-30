@@ -99,7 +99,7 @@ describe("allowed to fail, and failing", () => {
         const items = [
             // Performance Benchmarks in full runs: 3 of 4 failed
             ...["failure", "failure", "success", "failure"].map((c, i) => job(i, "CI / Performance Benchmarks", c)),
-            // a story-test matrix job, in a pull request run and a full run
+            // a story-test matrix job, in a pull request run and a full run (gating in ci.yml since #4613)
             job(10, "Story tests (graphty-element)", "success", { workflow: "ci.yml", load: "pr" }),
             job(11, "CI / Story tests (graphty)", "failure"),
             job(12, "CI / Story tests (graphty)", "cancelled"),
@@ -117,9 +117,39 @@ describe("allowed to fail, and failing", () => {
             failed: { t: "num", n: 3 },
             rate: { t: "mark", state: "bad", cell: { t: "num", n: 25, unit: "pct" } },
         });
-        expect(row("Story tests (${{ matrix.name || matrix.project }})")?.failed).toEqual({ t: "num", n: 1 });
+        // a gating job (Story tests is, since #4613) gets no row, however often it failed
+        expect(row("Story tests (${{ matrix.name || matrix.project }})")).toBeUndefined();
         expect(row("Build")).toBeUndefined();
         expect(s.rows[0].cells.job).toEqual({ t: "name", v: "Performance Benchmarks" });
+    });
+
+    it("folds a continue-on-error matrix job's runs into one row", async () => {
+        const store = new MemoryStore();
+        const yaml = [
+            "jobs:",
+            "    story-tests:",
+            "        name: Story tests (${{ matrix.project }})",
+            "        continue-on-error: true",
+            "",
+        ].join("\n");
+        await putRaw(
+            store,
+            [
+                job(10, "Story tests (graphty-element)", "success", { workflow: "ci.yml", load: "pr" }),
+                job(11, "CI / Story tests (graphty)", "failure"),
+                job(12, "CI / Story tests (graphty)", "cancelled"),
+            ],
+            NOW,
+        );
+        await setCursor(store, "non-gating", JSON.stringify(nonGatingJobs(yaml)), NOW);
+        const s = await nonGatingTable(await reads(store));
+        if (s.kind !== "table") throw new Error(s.kind);
+        expect(s.rows.map((r) => [r.cells.job, r.cells.failed])).toEqual([
+            [
+                { t: "name", v: "Story tests (${{ matrix.project }})" },
+                { t: "num", n: 1 },
+            ],
+        ]);
     });
 });
 

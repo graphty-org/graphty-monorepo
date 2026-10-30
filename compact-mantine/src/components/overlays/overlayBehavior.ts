@@ -31,6 +31,8 @@
  * - A tooltip does not open while its trigger's own pop-up is open (`aria-expanded` on a control
  *   with `aria-haspopup`): an info circle's explanation, a menu or a list already covers that
  *   place and says more.
+ * - A submenu stays open when the pointer leaves its row for anything but another row of the
+ *   parent menu (the gap between the menus, the page), and closes at once on another row.
  * - Menus get type-ahead: a printable key moves focus to the next enabled row whose label starts
  *   with it ("v" -> View).
  * - A menu clamped to the viewport shows Figma's 24px chevron rows at the ends it can still
@@ -337,6 +339,57 @@ function holdIfFocusOpened(tooltip: HTMLElement): void {
     tooltip.dataset.cmSeen = "";
 }
 
+/** A submenu row whose submenu is open. */
+const OPEN_SUBMENU_ROW = '[data-sub-menu-item][aria-expanded="true"]';
+
+/**
+ * Whether an element is in an open submenu or on the row that opened it. A submenu's dropdown
+ * renders inside its parent dropdown (Menu.Sub does not portal), so it is a dropdown inside another.
+ * @param element - where the pointer was
+ * @returns true for an open submenu row or anything in a submenu
+ */
+function inSubmenu(element: Element): boolean {
+    const outer = element.closest("[data-menu-dropdown]")?.parentElement?.closest("[data-menu-dropdown]");
+    return element.closest(OPEN_SUBMENU_ROW) !== null || (outer !== undefined && outer !== null);
+}
+
+/**
+ * A submenu stays open until the pointer moves onto another row of its parent menu (Figma, and a
+ * macOS menu): Mantine closes it when the pointer leaves its row, so the 4px gap between the two
+ * menus closed it before the pointer could reach it (issue 4631). A move from a submenu or its row
+ * to anything that is not a menu row is kept from React, so Mantine never sees that leave.
+ * @param event - a mouseout anywhere in the document, in the capture phase
+ */
+function keepSubmenuOpen(event: MouseEvent): void {
+    const { target, relatedTarget } = event;
+    if (
+        target instanceof Element &&
+        relatedTarget instanceof Element &&
+        relatedTarget.closest("[data-menu-item]") === null &&
+        inSubmenu(target)
+    ) {
+        event.stopPropagation();
+    }
+}
+
+/**
+ * The other half of keepSubmenuOpen: the pointer reaching another row of a parent menu closes
+ * that menu's open submenu, at once. The close is Mantine's own, run by the leave it was kept from.
+ * @param event - a mouseover anywhere in the document, in the capture phase
+ */
+function closeSubmenusLeft(event: MouseEvent): void {
+    const row = event.target instanceof Element ? event.target.closest("[data-menu-item]") : null;
+    if (row === null) {
+        return;
+    }
+    for (const item of document.querySelectorAll(OPEN_SUBMENU_ROW)) {
+        const submenu = document.getElementById(item.getAttribute("aria-controls") ?? "");
+        if (item !== row && !submenu?.contains(row) && item.closest("[data-menu-dropdown]")?.contains(row)) {
+            item.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: row }));
+        }
+    }
+}
+
 function menuRows(menu: Element): HTMLElement[] {
     return Array.from(menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')).filter(
         (row) =>
@@ -554,6 +607,8 @@ export function installOverlayBehavior(): void {
             stopAutoScroll();
         }
     });
+    document.addEventListener("mouseout", keepSubmenuOpen, true);
+    document.addEventListener("mouseover", closeSubmenusLeft, true);
     document.addEventListener("keydown", consumeMenuEscape, true);
     document.addEventListener("keydown", typeAhead);
     document.addEventListener("focusin", skipDisabledFirstRow);

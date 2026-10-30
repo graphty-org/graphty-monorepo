@@ -29,7 +29,8 @@
 // workflow's GITHUB_TOKEN (GITHUB_ACTOR github-actions[bot]: release-due's restart and candidate runs) is never seen by
 // release-rerun.yml, so its attempt 1 decides at once like any later attempt. A lane red on attempt 1 and
 // green on attempt 2, and a story the re-capture found flaky (flaky.json in the final captures), each get one
-// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing.
+// "Flaky in full run: <name>" issue (bug, priority:critical, effort:medium) and block nothing; more than FLAKY_GROUP
+// stories of one project at once get one issue for the project (flakyFilings).
 //
 // Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
 // held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
@@ -929,6 +930,38 @@ export function flakyStoryBody(s, at, tail) {
     return `${named}The story ${s.name} ${s.why} ${at}.\n\n${tail}`;
 }
 
+/** More flaky stories than this in one project at once is one cause (#4940), filed as one issue. */
+export const FLAKY_GROUP = 5;
+// GitHub refuses an issue body over 65,536 characters
+const MAX_BODY = 60_000;
+
+/**
+ * What to file for the flaky stories: one issue per story, or one per project when more than FLAKY_GROUP of its
+ * stories flipped at once. A grouped body still names each story test, so the dashboard matches it to them.
+ * @param stories the flaky stories, as flakyStories returns them
+ * @param at where and when they were found
+ * @param tail the closing paragraph
+ * @returns `{ name, body }` per issue
+ */
+export function flakyFilings(stories, at, tail) {
+    const byProject = Map.groupBy(stories, (s) => s.name.split("/")[0]);
+    return [...byProject].flatMap(([project, all]) => {
+        if (all.length <= FLAKY_GROUP) return all.map((s) => ({ name: s.name, body: flakyStoryBody(s, at, tail) }));
+        let list = "";
+        for (const s of all) {
+            const story = s.test ? "Flaky test: " + s.test.file + " > " + s.test.name + " (" + s.name + ")" : s.name;
+            const line = `- ${story}: ${s.why}\n`;
+            if (list.length + line.length > MAX_BODY) {
+                list += "- ... and more (the run's visual-final captures list them all)\n";
+                break;
+            }
+            list += line;
+        }
+        const head = `${all.length} stories of ${project} were found flaky at once ${at}. So many at once is one cause (the renderer, the capture code, the runner), not ${all.length} unstable stories.`;
+        return [{ name: `${project} (${FLAKY_GROUP}+ stories at once)`, body: `${head}\n\n${list}\n${tail}` }];
+    });
+}
+
 // One open "Flaky in full run: <name>" issue per name: a comment when it recurs
 function fileFlaky(name, body) {
     const title = `${FLAKY_TITLE} ${name}`;
@@ -957,11 +990,10 @@ function fileFlakies(env, lanes, stories) {
             () => null,
         );
     }
-    for (const s of stories) {
-        const body = flakyStoryBody(s, at, tail);
+    for (const { name, body } of flakyFilings(stories, at, tail)) {
         bestEffort(
-            () => fileFlaky(s.name, body),
-            `filing the flaky story ${s.name}`,
+            () => fileFlaky(name, body),
+            `filing the flaky story ${name}`,
             () => null,
         );
     }

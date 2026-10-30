@@ -77,3 +77,16 @@ None that crash, block the task or spoil its grading.
 - T65B success path in the other card order (Undo and Redo of the depth edit): the T65B pilot has
   not recorded it yet (its walk folder holds no route), so there was nothing to replay; it belongs to
   T65B's own pilot.
+
+## Success walk on the frozen build 79ed770292 (2026-10-30)
+
+The round gate needs a success walk of this half on the frozen build; this pass's walks were on
+a53beb7179. `q/p1-path` was replayed on 79ed770292 with `real.mjs --replay` into
+/home/apowers/Projects/graphty-monorepo/tmp/design-studio/tier4/r1d3/pilot/T66A/z1-path (not in
+git): all 15 steps matched every check point and the session ended. From `pantries-joined.txt`:
+Add filter, "source", Enter, tick pantries.csv. The Data source card reads "12 of 13" with Hide on;
+the top bar and the inspector read 12 of 13 nodes and 17 of 18 edges, and Full graph still holds 13
+nodes and 18 edges (z1-path/05.png). Ticking deliveries.csv brings P13 back and unticking leaves it
+out again; Graph place and back keeps the card. `data.json` at the end: 12 of 13 nodes and 17 of 18
+edges visible, one keep card on, matched 12 of 13. The result matches the answer key. With it,
+`real.mjs --gate rounds/round-1` passes.

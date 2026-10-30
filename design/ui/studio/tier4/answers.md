@@ -6,7 +6,10 @@ frozen build (a53beb7179) draws them. The dry run read every value and path off 
 0ffeae2ef5, the re-pilots re-read the changed ones off 037e96e9bb, ff17391bb1, bccf8fe47f and then
 a53beb7179, and each change is logged in `criteria.md`. A note naming an earlier build that no later
 note replaces still holds on a53beb7179. Each core task's path step count is written as "Path steps: N"
-(bar 7).
+(bar 7), in `tool/steps.mjs`'s units: every click, key, typed text and file chosen counts, looking
+does not. Each was counted on 79ed770292 by walking the path below exactly as written, from the
+session's real start, to the success state (`data.json` checked), as `route.jsonl` under the main
+checkout's `tmp/design-studio/tier4/round-1/path-counts/<half>/`.
 
 On 0ffeae2ef5 and 037e96e9bb, `real.mjs --end` writes `work.json`, `key.json` and `styles*.json` but no
 `data.json`, and none of those records a column's kind or role, a filter card or a fix. Until
@@ -96,7 +99,7 @@ showing.
   repeated key" drawn as a warning glyph and a menu) > Join. Overview: Nodes 13, Edges 18, "From 2
   files". B the same with gauges.csv and flows.csv: "Join flows.csv -> gauges.csv", chips "14
   edges added", "1 new node", "1 not in graph", "1 repeated key"; Overview Nodes 12, Edges 14.
-  Path steps: 6.
+  Path steps: 7 (Open a file, the file chosen, Data, Add source, File..., the file chosen, Join).
 - **Detour that still succeeds**: opening deliveries.csv first and pantries.csv second (Data >
   "+" > File...), if the end network has both. On 0ffeae2ef5 through a53beb7179 that order gives A 13 nodes and **19**
   edges with "1 repeated edge" listed (the repeat is kept); those counts are that network's own and
@@ -139,7 +142,8 @@ showing.
   (A: "Sorted by opened, newest first", top row P12 Bayview Clinic, Mar 8, 2023). After "date" the
   caption stays "In the order loaded" until the first header click ("oldest first"); the second
   gives "newest first" (B: Birch Hollow, Jun 27, 2018 on top). No control in the Data place sets a
-  column's kind on this build. Path steps: 5.
+  column's kind on this build. Path steps: 5 (B the same: on 79ed770292 the first click on "Options
+  for installed" scrolls to it and opens the menu).
 - **On 037e96e9bb**: B's `installed` header lies past the table's right edge at 1440 px; a
   right-click on it did nothing, and the first click on "Options for installed" only scrolls the
   table to it, the second opens the menu. By keyboard the Options button is not a Tab stop: the
@@ -216,7 +220,9 @@ showing.
   hours > Between, "from" 10 (the "to" stays 52) > Enter. A new card starts on Hide, so this one
   needs no Select / Hide step (14 of 24). Add filter > role > staff ("Is any of"); switch that
   card from Hide to Select (left on Hide it leaves 4 of 24 in the picture). Order free: the other
-  order gives the same 14 of 24 and 4 selected. Path steps: 12 (A).
+  order gives the same 14 of 24 and 4 selected. Path steps: 14 (A): Data, Add filter, trained,
+  "trained: how to match", Yes, Add a condition, hours, the "from" box, 10 typed, Enter, Add
+  filter, role, staff, Select.
 - **B on 0ffeae2ef5**: the first half matched (one card, telemetry yes and depth_cm Between 70 to
   210, Hide: 5 of 12). The second half could not be built: `installed` was offered as text, so
   "before 2005" had no condition. B was blocked on that build.
@@ -225,7 +231,9 @@ showing.
   Add filter > telemetry > Yes; Add a condition > depth_cm > "from" 70 > Enter; Add filter >
   installed > type 2005 > Enter (3 of 12 while it hides); switch that card to Select. The screen
   reads **5 of 12** nodes and **"3 nodes selected"**: G01, G02 and G09, the gauges in the picture put
-  in before 2005; a screen reader hears 3. Path steps: 12 (B). The same Before 2005 in a
+  in before 2005; a screen reader hears 3. Path steps: 13 (B): Add filter, telemetry, "yes",
+  Add a condition, depth_cm, the "from" box, 70 typed, Enter, Add filter, installed, 2005 typed,
+  Enter, Select. The same Before 2005 in a
   style layer's Which nodes keeps 5 of 12 nodes ("installed before 2005, 5 nodes"). On 037e96e9bb
   through a53beb7179 the collapsed date card reads "installed is at most 1104537599999" (a raw number for the end of
   2004), not "before 2005"; that wording is the build's, and the card is right.

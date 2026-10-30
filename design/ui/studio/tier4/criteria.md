@@ -385,3 +385,11 @@ first two by itself; the dry run owns the rest.
   hovering or reading) in its `route.jsonl` against the answer key's "Path steps". The gate reads
   the dry run's pilot walks from its passes (`r1`, `r1d1`, ...), and counts as the success walk only
   a walk named success, path or pointer.
+- 2026-10-30: a correction of the answer key's units, not a bar change. Bar 7's limit stays "the
+  key's path plus 3"; only the per-task path counts it is measured against, which come from the key,
+  were re-counted in `tool/steps.mjs`'s units (every click, key, typed text and file chosen) by
+  walking each core path exactly as the key writes it on 79ed770292, from the session's real start,
+  to the success state: T61 6 to **7** (both halves; choosing each file is a step), T62 **5** (both,
+  unchanged), T65 A 12 to **14** and B 12 to **13** (opening the "how to match" list, the "from"
+  box and the typed value each count), T67 **3** (B **4**, unchanged). The walks are under the main
+  checkout's `tmp/design-studio/tier4/round-1/path-counts/`.

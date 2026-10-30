@@ -191,6 +191,15 @@ const OFF_SHARDS = [
         "test-command": "cytoscape-extensions/scripts/test-cytoscape-versions.sh 3.31.0 3",
         "needs-browser": false,
     },
+    // cytoscape-extensions' stories: every play function run as a test, so the selector has an import graph that
+    // picks the stories a change reaches. No coverage: the cytoscape-extensions shard measures the package.
+    {
+        shard: "cytoscape-extensions-storybook",
+        package: "cytoscape-extensions",
+        "test-command":
+            "cd cytoscape-extensions && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
+    },
     // algorithms - two shards (default and browser separated to avoid worker timeout)
     // Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
     {
@@ -220,6 +229,15 @@ const OFF_SHARDS = [
         package: "layout",
         "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
         "needs-browser": false,
+    },
+    // layout's stories: every play function run as a test (16 s of vitest for 17 stories), so the
+    // selector has an import graph that picks the stories a change reaches. No coverage: the layout
+    // shard measures layout.
+    {
+        shard: "layout-storybook",
+        package: "layout",
+        "test-command": "cd layout && pnpm exec vitest run --config vitest.storybook.config.ts --project=storybook",
+        "needs-browser": true,
     },
     // graphty - every project but the stories (uses Playwright for browser-based vitest), in five
     // parts, each its own CI job: about 1,240 tests took 46 minutes in one, past the gate's 30-minute
@@ -415,7 +433,8 @@ export const STORY_SHARDS = [
  *   small-browser  algorithms-browser 0.1, graph-io-browser 0.1, remote-logger 0.4,
  *                  compact-mantine 4.5 to 6.3, visual-review 2.1,
  *                  webgpu-graph-algorithms-browser 1.1, algorithms-storybook 1.8,
- *                  graph-io-storybook 1.6 (on this machine)
+ *                  graph-io-storybook 1.6 (on this machine), layout-storybook 0.3,
+ *                  cytoscape-extensions-storybook 0.7
  *                                                                    about 10 + setup = 12 minutes
  * Their own jobs: graph-io (8.1 minutes of vitest; small-node took 13 to 21 minutes with it),
  * graphty-1 to graphty-5 (about 45 minutes in all, see SHARDS) and graphty-storybook (2.1 minutes;
@@ -441,12 +460,14 @@ export const GROUPS = {
         "webgpu-graph-algorithms-browser",
         "algorithms-storybook",
         "graph-io-storybook",
+        "layout-storybook",
+        "cytoscape-extensions-storybook",
     ],
 };
 
 // Group members whose lcov.info coverage.yml merges, and tools/merge-coverage.sh feeds to Coveralls
 // and SonarQube. The webgpu browser smoke never uploaded coverage (the node shards measure the
-// package); graphty-storybook and algorithms-storybook write none (their packages' own shards measure them); nor does
+// package); graphty-storybook, algorithms-storybook, layout-storybook and cytoscape-extensions-storybook write none (their packages' own shards measure them); nor does
 // graph-io-browser (the graph-io shard measures graph-io).
 // Nor do the On shards: coverage is judged on the Off run.
 const NO_COVERAGE = new Set([
@@ -454,6 +475,8 @@ const NO_COVERAGE = new Set([
     "graphty-storybook",
     "algorithms-storybook",
     "graph-io-storybook",
+    "layout-storybook",
+    "cytoscape-extensions-storybook",
     "graph-io-browser",
     ...FEATURES_ON_SHARDS.map((s) => s.shard),
 ]);

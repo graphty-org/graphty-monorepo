@@ -2014,7 +2014,8 @@ async function walkFile(project, file, ctx) {
 }
 
 /**
- * Another package's build output, as the source file it was built from, when that is known: the selection
+ * A package's build output (another package's, or its own), as the source file it was built from, when that is
+ * known: the selection
  * graph then follows a change to that package's source to exactly the tests that load it (design/ci/
  * minimal-tests.md section 2.2). Only the graph is changed; the tests themselves still run the build. A file
  * reached this way, and what it reaches outside the package under test, is kept in `viaAlias`: it is the

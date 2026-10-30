@@ -533,6 +533,38 @@ describe("the advisory record", () => {
     });
 });
 
+describe("building a package's import graph through its own build", () => {
+    it("follows a file that imports the package's own build into the source it was built from", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pl/package.json", JSON.stringify({ name: "pl", type: "module", exports: { ".": "./dist/pl.js" } }));
+            put("pl/scripts/build-bundle.js", 'export default { entry: "src/index.ts" };\n');
+            put("pl/src/index.ts", 'export { shell } from "./shell";\n');
+            put("pl/src/shell.ts", "export const shell = 1;\n");
+            put("pl/dist/pl.js", "export const shell = 1;\n");
+            put(
+                "pl/test/a.test.ts",
+                'import { it } from "vitest";\nimport { shell } from "../dist/pl.js";\nit("a", () => shell);\n',
+            );
+            put("pl/vitest.config.mjs", "export default { test: { include: ['test/**/*.test.ts'] } };\n");
+            const out = execFileSync(
+                process.execPath,
+                [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pl"],
+                { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const g = JSON.parse(out.trim().split("\n").at(-1));
+            assert.deepEqual(g.imports["pl/test/a.test.ts"], ["pl/src/index.ts"]);
+            assert.ok(selectInGraph(g, ["pl/src/shell.ts"]).specs.has("pl/test/a.test.ts"));
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("building a package's import graph when its projects transform a file differently", () => {
     it("keeps each project's edges: a stand-in one project loads does not hide what another imports", () => {
         const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
@@ -1425,11 +1457,11 @@ describe("visual-review files only the story setups load", () => {
 
     it("a story-test-setup.mjs change runs only visual-review and the shards that run the story setup", () => {
         const picked = run(["visual-review/capture/story-test-setup.mjs"]);
-        const story = SHARDS.filter((s) => /^graphty(-element)?-storybook/u.test(s.shard)).map((s) => s.shard);
+        const story = SHARDS.filter((s) => /^(graphty(-element)?|layout)-storybook/u.test(s.shard)).map((s) => s.shard);
         const own = SHARDS.filter((s) => s.package === "visual-review").map((s) => s.shard);
         // algorithms-browser and layout gate ci.yml's story-tests job for those two projects
         assert.deepEqual([...picked].sort(), [...own, ...story, "algorithms-browser", "layout"].sort());
-        assert.ok(story.length === 6, story.join(", "));
+        assert.ok(story.length === 7, story.join(", "));
     });
 
     it("a dependent without an import graph still runs whole on a change to visual-review's other code", () => {
@@ -1626,7 +1658,10 @@ describe("workflow and lockfile changes (design/ci/channels-pipeline/merging.md 
     });
 
     it("a lockfile change runs the packages whose importers changed and their dependents", () => {
-        assert.deepEqual(run(["pnpm-lock.yaml"], ["layout"]), { everything: null, shards: ["layout"] });
+        assert.deepEqual(run(["pnpm-lock.yaml"], ["layout"]), {
+            everything: null,
+            shards: ["layout", "layout-storybook"],
+        });
         const fmt = run(["pnpm-lock.yaml"], ["graph-format"]).shards;
         for (const sh of ["graph-format", "graph-io", "algorithms-default", "layout"]) {
             assert.ok(fmt.includes(sh), `${sh} in ${fmt.join(", ")}`);

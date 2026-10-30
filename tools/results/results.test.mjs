@@ -638,9 +638,10 @@ describe("planRead", () => {
         // layout's stories run in ci.yml's story-tests job, so its `-shots` family is asked too (STORY_SHARDS)
         assert.equal(
             q.get("variants"),
-            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots",
+            "layout|flags=off|whole,layout|flags=off|selected,layout-shots|flags=off|shots," +
+                "layout-storybook|flags=off|whole,layout-storybook|flags=off|selected",
         );
-        assert.equal(q.get("inputs"), "-,-,-");
+        assert.equal(q.get("inputs"), "-,-,-,-,-");
         assert.equal(q.get("files"), "layout/src/x.ts");
     });
 });

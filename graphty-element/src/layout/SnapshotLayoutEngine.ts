@@ -455,7 +455,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             // now. Wait for it here if a layout is ever seen starting mid-pass.
             nodeSizes: () => {
                 this.#host?.drawPaint();
-                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.drawnRadius));
+                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.layoutRadius));
             },
             nodeExtents: () => {
                 this.#host?.drawPaint();

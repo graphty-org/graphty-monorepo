@@ -10,13 +10,17 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-29) Tier 4 key now names 037e96e9bb; 0ffeae2ef5 notes stand unless a 037 note replaces
-  them. On 037: T65 B unblocked (date cards), T61 Quick actions door = path, T64 table-set weight
-  is NOT read by Analyze (P on both halves), T66/T68 keep the other file's edges (17 of 18).
-  Still open: no `data.json` from `--end`; T67 and T60 not re-walked on 037.
+- (2026-10-29) Key now names ff17391bb1. On ff: T65 Select counts only what is in the picture (A 4,
+  B 3: the old "5 not 4" grading line is gone); T64 Shortest path reads only "farther" weights, so
+  A opens on None with "not read" (right for A; grade on Fields); re-runs recompute and paths list
+  names. T68 B's gauges.csv row export (11 nodes, 0 edges) is F, the flows.csv row's is success.
+  Still open: no `data.json` from `--end`; T67 and T60 not re-walked since 0ffeae2ef5.
+- (2026-10-29) Pilot "mismatches" that are stale (T67A on 0ffeae2ef5, T64A on 037) or name
+  decided.md wording ("Select | Hide" vs "Filter to | Filter out") are not key changes: the key
+  writes the screen. Check the build each finding names before editing.
 - (2026-10-29) Build defects that change a reported count get a grading line while they stand:
-  T65 Select counts hidden nodes (5 not 4), T66/T68 Data source card drops every edge of the other
-  file, T61 deliveries-first keeps the repeat (19). Grade the act, not the build's number.
+  T61 deliveries-first keeps the repeat (19), T61 Replace looks like a join (13 / 18). Grade the
+  act, not the build's number.
 - (2026-10-29) Tier 4 echoes found by grepping graphty/src strings: "Picked" is the Style card
   kind for hand-picked nodes (T65 "picked" steers to the P route); "farther apart" is the weight
   option's own text (T64 B); "Web address" is the box label (T60). Grep the app's strings for
@@ -35,8 +39,6 @@ made and evidence comes in. Summarized 2026-10-21 (older entries folded; full te
   by hand (`tmp/researcher/score-r1/tally.py`) before trusting its counts.
 - (2026-10-21) `--start` run inside the participant's turn queued for a browser and died with the
   turn: 11 of 56 starts VOID. Starts run before the participant's turn.
-- (2026-10-21) A synthetic input event is not a real one (`--wheel 3000` = one clamped notch).
-  Repro gesture defects with real-sized events before they count.
 - (2026-10-21) Avoidance is not comprehension: 0 of 10 sprang the `<<Layer>>` token trap, 6 called
   it jargon. Question 3 needs a measure that separates the two.
 - (2026-10-21) Leading risk: the answer key describes most problems graders cite, and every
@@ -81,6 +83,11 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-29 (key matched to ff17391bb1):** Changed only notes the r1d2 re-pilots contradicted
+  or extended; earlier-build notes stay as history. T68 B's source-row export of 11 nodes / 0 edges
+  graded F by the existing definition (neither the network nor the picture's 13 edges), not a bar
+  change. T62's right-click written per half (A opens, B nothing) from the T62A/T62B reports.
+  "Select | Hide" recorded as the screen's words, not rewritten toward decided.md.
 - **2026-10-29 (key matched to 037e96e9bb):** Rewrote only notes the re-pilot contradicted, kept
   each 0ffeae2ef5 note as history beside its 037 note (graders may meet either reading in old
   reports). T64's table-weight line changed grade for B (was "the asked reading", now P): not a bar
@@ -155,6 +162,9 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-29 (key to ff) -- Worked again: the exact-match edit script; one assert caught a header
+  phrase ("On 0ffeae2ef5 and 037e96e9bb") already reworded, so no unverified build claim was added.
+
 - 2026-10-29 (key to 037) -- Worked: one Python edit script with exact-match asserts per
   replacement (caught a wrapped-line miss before any write). Did not work: matching a sentence
   across a line wrap; match a short unique fragment instead.
@@ -206,6 +216,8 @@ logged). Their reasons, in short:
 
 ## Thinking
 
+- (2026-10-21) A synthetic input event is not a real one (`--wheel 3000` = one clamped notch).
+  Repro gesture defects with real-sized events before they count.
 - 2026-10-29 -- A pilot's "mismatch" splits three ways: the key described a door the build lacks
   (rewrite the path), the build gives a different number for the same act (grading line while the
   defect stands), or the act cannot be done (blocked; the orchestrator decides). Never fold the

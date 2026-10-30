@@ -2,9 +2,10 @@
 
 Never shown to participants. Each task: its success definition, the success path, and what the
 final screen, the end-state records or the saved file must show. Paths name controls as the
-frozen build (037e96e9bb) draws them. The dry run read every value and path off the earlier build
-0ffeae2ef5, the re-pilot re-read the changed ones off 037e96e9bb, and each change is logged in
-`criteria.md`. A note naming 0ffeae2ef5 that no 037e96e9bb note replaces still holds on 037e96e9bb. Each core task's path step count is written as "Path steps: N"
+frozen build (ff17391bb1) draws them. The dry run read every value and path off the earlier build
+0ffeae2ef5, the re-pilots re-read the changed ones off 037e96e9bb and then ff17391bb1, and each
+change is logged in `criteria.md`. A note naming an earlier build that no later note replaces still
+holds on ff17391bb1. Each core task's path step count is written as "Path steps: N"
 (bar 7).
 
 On 0ffeae2ef5 and 037e96e9bb, `real.mjs --end` writes `work.json`, `key.json` and `styles*.json` but no
@@ -80,7 +81,7 @@ showing.
   stretches, on the second file's Sources row. On 0ffeae2ef5 the row's issue chip is drawn over the
   edge count (A reads as a slash, a glyph and "8"; B's 14 is hidden), so the count is readable only
   in the row's hover tooltip ("13 nodes, 18 edges"; B "12 nodes, 14 edges"); the row's accessible
-  name says "17 of 19 rows joined" (B "13 of 15"). On 037e96e9bb A's 18 reads whole on the row,
+  name says "17 of 19 rows joined" (B "13 of 15"). On 037e96e9bb and ff17391bb1 A's 18 reads whole on the row,
   beside a node count of 13 and an issue chip "1"; the tooltip still reads "13 nodes, 18 edges", and
   the row's file name is cut to "d.." (B's row was not re-walked on this build).
 - **Path**: start screen > Open a file > pantries.csv (opens 12 nodes) > Data > Sources "+" (Add
@@ -91,14 +92,17 @@ showing.
   edges added", "1 new node", "1 not in graph", "1 repeated key"; Overview Nodes 12, Edges 14.
   Path steps: 6.
 - **Detour that still succeeds**: opening deliveries.csv first and pantries.csv second (Data >
-  "+" > File...), if the end network has both. On 0ffeae2ef5 that order gives A 13 nodes and **19**
+  "+" > File...), if the end network has both. On 0ffeae2ef5 through ff17391bb1 that order gives A 13 nodes and **19**
   edges with "1 repeated edge" listed (the repeat is kept); those counts are that network's own and
   count as right. Main menu > Open project or file... and dropping the file on the open network
   open the same join screen.
 - **Not success**: two separate projects; the second file opened with Replace, so only one table
-  is in the network. On 0ffeae2ef5 Replace (the Join split button's, or the source row's "Replace
-  with file...") keeps the first file's columns and gives the same counts as a join (A 13 / 18, B
-  12 / 14); only the Sources list, which then holds the second file alone, shows it.
+  is in the network. On 0ffeae2ef5 through ff17391bb1 Replace (the Join split button's, or the
+  source row's "Replace with file...") keeps the first file's columns and gives the same counts as
+  a join (A 13 / 18, B 12 / 14); only the Sources list, which then holds the second file alone,
+  shows it. With "Replace pantries.csv" chosen, the join screen's header still reads "Join
+  deliveries.csv -> pantries.csv", and after Replace the Undo notice names the file that replaced,
+  not the one replaced.
 - **A second door**: on 0ffeae2ef5, Quick actions (Control+K) > Add data... opened an older "Add
   to" page whose default left G12 and its stretch out (B: 11 nodes, 14 edges) and showed no unknown
   gauge afterwards; a report of 11 and 14 that names nothing that did not fit was P. On 037e96e9bb
@@ -106,8 +110,9 @@ showing.
   both sources): graded as the path.
 - **Separate graph on 037e96e9bb**: the join screen's "Open as a separate graph" (or Control+O with
   a network open) makes a second project from deliveries.csv alone (13 nodes, 19 edges, "1 repeated
-  edge"): two separate projects, not success. Replace leaves the issue chip at 2, attributed to the
-  second file.
+  edge"): two separate projects, not success. On ff17391bb1 that new project still shows the old
+  project's last notice (for example "Undid replacing deliveries.csv."). Replace leaves the issue
+  chip at 2, attributed to the second file.
 
 ## T62. Read the wrong way
 
@@ -121,7 +126,8 @@ showing.
   Either way the ISO days sort in date order, so the right name can come out on top. Those routes
   are P (a false success on screen; grade by the header glyph).
 - **Path**: the table (already showing at the start) > the `opened` header's menu (its "Options
-  for opened" button, or right-click on the header) > Type > date; then sort newest first (the
+  for opened" button, or right-click on the header: A's right-click opens the menu, B's does
+  nothing on 037e96e9bb and ff17391bb1) > Type > date; then sort newest first (the
   header menu's "Sort descending", or the header clicked twice) and read the top row. The menu calls
   the kind "Type" (text, number, yes/no, date, category); the caption then reads "newest first"
   (A: "Sorted by opened, newest first", top row P12 Bayview Clinic, Mar 8, 2023). After "date" the
@@ -167,13 +173,15 @@ showing.
   does not read it at all: Shortest path opens on Weight None ("Each edge counts as 1"), lists the
   column as "trips (loaded, not read)" (B "km (loaded, not read)") and counts steps. The reading is
   not set, so this route is P on both A and B until "Higher means" is set in Data > Fields.
-- **The Analyze list on 037e96e9bb**: Shortest path's Weight list offers the column with its
-  reading ("km (farther)") for that run only; Fields keeps no weight, so a run weighted there with
-  no weight set in Data is P. With the weight set in Data, PageRank and Shortest path open on it
-  ("trips (closer, loaded)"). Running Shortest path a second time with the same ends keeps the
-  first run's result in the inspector (same time, same Weight), so a participant who fixes the
-  reading and re-runs sees the old answer; grade on Data > Fields, not on that result. The path
-  result lists nodes by code (G05, G08, G09) even with the label set.
+- **The Analyze list on 037e96e9bb and ff17391bb1**: Shortest path's Weight list offers the column
+  with its reading ("km (farther)") for that run only; Fields keeps no weight, so a run weighted
+  there with no weight set in Data is P. With the weight set in Data, PageRank opens on it ("trips
+  (closer, loaded)"). Shortest path reads only a "farther" weight: B opens on "km (farther)"; A,
+  with "closer" set, opens on None, lists "trips (closer, loaded, not read)" and shows why it is not
+  read. A's path on None is right for A: grade on Data > Fields. On 037e96e9bb a second run with
+  the same ends kept the first run's result even after the reading changed, and the path result
+  listed nodes by code (G05, G08, G09). On ff17391bb1 a run asked again after the weight's reading
+  changed computes a new result, and the path result lists nodes by name once the label is set.
 - **Not success**: a Style text line that draws the name but leaves the label unset is half (P):
   the program still names the site by its code elsewhere.
 
@@ -186,7 +194,8 @@ showing.
   before 2005 -- **3** selected among those in the picture (G01, G02, G09).
 - **Selected count**: a Select card selects only what is in the picture, so A reads "4 nodes
   selected" with 4 rings, and turning the keep card off selects the fifth staff member again.
-  (Builds 0ffeae2ef5 and 037e96e9bb selected over the whole graph: 5 for A, 5 for B.)
+  (Builds 0ffeae2ef5 and 037e96e9bb selected over the whole graph: 5 for A, 5 for B. ff17391bb1
+  selects only what is in the picture: 4 for A, 3 for B.)
 - **Path**: Data > Filters "+" (Add filter) > trained > Yes; on that card "Add a condition" >
   hours > Between, "from" 10 (the "to" stays 52) > Enter. A new card starts on Hide, so this one
   needs no Select / Hide step (14 of 24). Add filter > role > staff ("Is any of"); switch that
@@ -222,8 +231,10 @@ showing.
   009087a540 the Data source card keeps every edge whose two ends it keeps: the screen reads "12 of
   13 nodes, 17 of 18 edges" (B "11 of 12 nodes, 13 of 14 edges"), the routes stay drawn, and the
   card's own chip counts nodes only ("12 of 13"); ticking the second file shows 13 of 13 and 18 of
-  18 (B 12 of 12 and 14 of 14). 037e96e9bb is such a build; with both files ticked its top bar
-  reads "13 of 13 nodes" with no edge count, and only the inspector shows 18 of 18.
+  18 (B 12 of 12 and 14 of 14). 037e96e9bb and ff17391bb1 are such builds; with both files ticked
+  the top bar reads "13 of 13 nodes" (B "12 of 12 nodes") with no edge count, and only the
+  inspector shows 18 of 18 (B 14 of 14). The card's effect control reads "Select | Hide", with Hide
+  on.
 - **A card on the id cannot leave one node out on 0ffeae2ef5 or 037e96e9bb**: the id card offers
   only Contains, Starts with, Ends with and Is exactly (the `site` / `station` card adds Has a value
   and Has no value), and Hide hides what does not match, so an id card for P13 with Hide leaves P13
@@ -273,12 +284,16 @@ showing.
 - **Severity 4 candidate**: a file short of rows with no sign on screen that rows were left out.
   Seen on 0ffeae2ef5: the Shown edge export above, and a GraphML exported from a source row (scope
   "gauges.csv 11": 11 nodes, 0 edges, no warning), whose scope then sticks for Control+E.
-- **Other doors on 037e96e9bb**: the source row's Export... opens on scope "pantries.csv 12 of 13"
-  with a "12 of 13" chip; the table options' Export... opens on "All 13". Each CSV export passes
-  "Styles lost in CSV" with Save anyway.
+- **Other doors on 037e96e9bb and ff17391bb1**: the source row's Export... opens on scope
+  "pantries.csv 12 of 13" with a "12 of 13" chip; the table options' Export... opens on "All 13".
+  Each CSV export passes "Styles lost in CSV" with Save anyway. B: the gauges.csv row's Export... >
+  GraphML writes 11 nodes and 0 edges at once (no Save anyway step); its scope line says "0 of 14
+  edges", but the file holds neither the network nor what is in the picture (13 edges), so it is
+  not success. The flows.csv row's Export... and the table options' Export... write 12 nodes and 14
+  edges after Save anyway: success.
 - **Path**: main menu (or Control+E) > Export, which opens on Data with Format CSV. A: Table Nodes,
   scope All 13 > Export > "Styles lost in CSV" > Save anyway; then Table Edges > Export > Save
-  anyway. B: Format > GraphML > Export > "Styles lost in GraphML" > Save anyway (a step the export
+  anyway. B: Format > GraphML (the scope reads "All 12 nodes, 14 edges") > Export > "Styles lost in GraphML" > Save anyway (a step the export
   always adds while a node is out of the picture). The tool writes the saved file into the
   session's `downloads/` and prints its path; the screen's notice gives only the file name.
 - **Not success**: a saved project (`.graphty.json`) or an image only. Control+S with a `.graphml`

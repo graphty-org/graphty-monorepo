@@ -284,3 +284,22 @@ first two by itself; the dry run owns the rest.
   which holds the second fix pass's committed changes (a select condition limited to what is in the
   picture, a run asked again after the default weight changed computes again, every inspector node
   row called by its name) with the current master merged in. No criteria changed.
+- 2026-10-29: answer key matched to build ff17391bb1 from the targeted re-pilot (no bar, success
+  definition or step count changed; tasks.md needed no change):
+    - Header: the key names ff17391bb1; a note naming an earlier build that no later note replaces
+      still holds.
+    - T61: the second file's row, the deliveries-first order (19 edges, "1 repeated edge") and
+      Replace's join-like result hold on ff17391bb1; with Replace chosen the join screen's header
+      still names the join, and the Undo notice names the file that replaced; the separate project
+      carries the old project's last notice.
+    - T62: the header right-click opens the menu on A and does nothing on B; the path says so.
+    - T64: Shortest path reads only a "farther" weight, so A with "closer" set opens on None and
+      lists the weight as "not read" (still graded on Data > Fields); on ff17391bb1 a re-run after
+      the reading changed computes again, and the path result lists names once the label is set.
+    - T65: ff17391bb1 selects only what is in the picture (A 4, B 3), as the success definition
+      already says.
+    - T66: B with both files ticked reads "12 of 12 nodes" with no edge count; the card's effect
+      control reads "Select | Hide".
+    - T68: B's default scope reads "All 12 nodes, 14 edges"; B's gauges.csv row export (11 nodes,
+      0 edges) is written as not success and the flows.csv row and table options exports as
+      success.

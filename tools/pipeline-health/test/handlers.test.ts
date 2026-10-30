@@ -207,6 +207,7 @@ describe("ingest: benchmarks", () => {
         source: "algorithms",
         unit: "ms",
         sha: "abc",
+        machine: "AMD EPYC 7763 64-Core Processor",
         rows: [{ name: "PageRank n=1000", value: ms }],
     });
 
@@ -219,8 +220,8 @@ describe("ingest: benchmarks", () => {
         expect((await h(event("/v1/benchmarks", body(6), { claims: full("601") }))).statusCode).toBe(200);
         const item = await mem.get({ pk: "BENCH", sk: "algorithms: PageRank n=1000" });
         expect(item?.points).toEqual([
-            { at: NOW, v: 4, run: 600, sha: "abc" },
-            { at: NOW, v: 6, run: 601, sha: "abc" },
+            { at: NOW, v: 4, run: 600, sha: "abc", machine: "AMD EPYC 7763 64-Core Processor" },
+            { at: NOW, v: 6, run: 601, sha: "abc", machine: "AMD EPYC 7763 64-Core Processor" },
         ]);
         expect(
             (

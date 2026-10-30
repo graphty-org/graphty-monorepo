@@ -533,6 +533,81 @@ describe("the advisory record", () => {
     });
 });
 
+describe("building a package's import graph when its projects transform a file differently", () => {
+    it("keeps each project's edges: a stand-in one project loads does not hide what another imports", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pc/package.json", JSON.stringify({ name: "pc", type: "module" }));
+            put("pc/src/dep.ts", "export const dep = 1;\n");
+            put("pc/src/loader.ts", 'export const load = () => import("./dep");\n');
+            put(
+                "pc/test/a.test.ts",
+                'import { it } from "vitest";\nimport { load } from "../src/loader";\nit("a", () => load());\n',
+            );
+            put(
+                "pc/test/b.spec.ts",
+                'import { it } from "vitest";\nimport { load } from "../src/loader";\nit("b", () => load());\n',
+            );
+            put(
+                "pc/vitest.config.mjs",
+                "const standIn = { name: 'stand-in', enforce: 'pre', transform: (code, id) =>\n" +
+                    "    id.endsWith('/src/loader.ts') ? 'export const load = () => 0;' : undefined };\n" +
+                    "export default { test: { projects: [\n" +
+                    "    { extends: true, plugins: [standIn], test: { name: 'stub', include: ['test/**/*.test.ts'] } },\n" +
+                    "    { extends: true, test: { name: 'real', include: ['test/**/*.spec.ts'] } },\n" +
+                    "] } };\n",
+            );
+            const out = execFileSync(
+                process.execPath,
+                [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pc"],
+                { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const g = JSON.parse(out.trim().split("\n").at(-1));
+            assert.deepEqual(g.imports["pc/src/loader.ts"], ["pc/src/dep.ts"]);
+            assert.ok(selectInGraph(g, ["pc/src/dep.ts"]).specs.has("pc/test/b.spec.ts"));
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("building a package's import graph when its tests load its own build", () => {
+    it("walks the package's own dist/ as the source it was built from", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pd/package.json", JSON.stringify({ name: "pd", type: "module" }));
+            put("pd/src/inner.ts", "export const inner = 1;\n");
+            put("pd/src/index.ts", 'export { inner } from "./inner";\n');
+            put("pd/dist/inner.js", "export const inner = 1;\n");
+            put("pd/dist/inner.js.map", JSON.stringify({ version: 3, sources: ["../src/inner.ts"], mappings: "" }));
+            put("pd/dist/pd.js", 'export { inner } from "./inner.js";\n');
+            put("pd/dist/pd.js.map", JSON.stringify({ version: 3, sources: ["../src/index.ts"], mappings: "" }));
+            put(
+                "pd/test/a.test.ts",
+                'import { it } from "vitest";\nimport { inner } from "../dist/pd.js";\nit("a", () => inner);\n',
+            );
+            put("pd/vitest.config.mjs", "export default { test: { include: ['test/**/*.test.ts'] } };\n");
+            const out = execFileSync(
+                process.execPath,
+                [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pd"],
+                { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+            );
+            const g = JSON.parse(out.trim().split("\n").at(-1));
+            assert.ok(selectInGraph(g, ["pd/src/inner.ts"]).specs.has("pd/test/a.test.ts"));
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("building a package's import graph (a fixture package, walked by Vitest for real)", () => {
     const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
     const put = (path, text) => {

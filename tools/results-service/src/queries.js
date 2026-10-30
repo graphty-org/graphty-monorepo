@@ -63,10 +63,11 @@ async function passesSince(db, q, before = Number.MAX_SAFE_INTEGER) {
 async function activeQuarantine(db, families, now) {
     const wanted = families?.filter((f) => !NEVER_QUARANTINED.test(f));
     if (wanted?.length === 0) return [];
+    const byFamily = wanted ? ` AND family IN (${placeholders(wanted)})` : "";
     const rows = await all(
         db,
         `SELECT family, file, name, issue, since, expires FROM quarantine
-         WHERE left_at IS NULL AND expires > ?${wanted ? ` AND family IN (${placeholders(wanted)})` : ""}`,
+         WHERE left_at IS NULL AND expires > ?${byFamily}`,
         now,
         ...(wanted ?? []),
     );

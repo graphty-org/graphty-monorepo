@@ -863,6 +863,7 @@ function fileFlaky(name, body) {
  * job was cancelled before it recorded its verdict (#4983).
  */
 export const MAX_FLAKY_STORIES = 5;
+const MAX_LISTED = 100;
 
 /**
  * The flaky issues a verdict files: one per lane and one per story, or one for every story when there are
@@ -881,7 +882,10 @@ export function flakyFilings({ lanes, stories, at, tail }) {
     }));
     if (stories.length <= MAX_FLAKY_STORIES)
         return [...out, ...stories.map((s) => ({ name: s.name, body: flakyStoryBody(s, at, tail) }))];
-    const list = stories.map((s) => `- ${flakyStoryBody(s, at, "").trim().replaceAll("\n\n", ": ")}`).join("\n");
+    // the first MAX_LISTED, without the run on each line: GitHub refuses a body over 65,536 characters
+    const line = (s) => `- ${s.test ? `Flaky test: ${s.test.file} > ${s.test.name}: ` : ""}${s.name} ${s.why}`;
+    const more = stories.length > MAX_LISTED ? `\n- and ${stories.length - MAX_LISTED} more` : "";
+    const list = stories.slice(0, MAX_LISTED).map(line).join("\n") + more;
     const body = `${stories.length} stories were flaky at once ${at}. So many at once share a cause: find it.\n\n${list}\n\n${tail}`;
     return [...out, { name: "many stories at once", body }];
 }

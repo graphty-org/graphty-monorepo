@@ -910,8 +910,17 @@ describe("flakyFilings", () => {
         assert.equal(out.length, 1);
         assert.equal(out[0].name, "many stories at once");
         assert.ok(out[0].body.startsWith(`${n} stories were flaky at once on abc.`));
-        assert.ok(out[0].body.includes("Flaky test: p/S.stories.ts > s304"));
+        assert.ok(out[0].body.includes("Flaky test: p/S.stories.ts > s99: p/s99.png drew a different picture"));
+        assert.ok(out[0].body.includes(`- and ${n - 100} more`));
         assert.ok(out[0].body.endsWith("Fix it."));
+    });
+
+    it("keeps the one issue's body under GitHub's 65,536 characters, however many stories and however long their names", () => {
+        const long = "x".repeat(200);
+        const many = Array.from({ length: 5000 }, (_, i) => ({ ...story(i), name: `${long}${i}.png` }));
+        const at = `on ${"a".repeat(40)} (https://github.com/graphty-org/graphty-monorepo/actions/runs/41003760177, attempt 1)`;
+        const [f] = flakyFilings({ lanes: [], stories: many, at, tail: "Fix it." });
+        assert.ok(f.body.length < 65536, `${f.body.length}`);
     });
 });
 

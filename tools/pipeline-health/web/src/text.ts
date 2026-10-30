@@ -708,8 +708,10 @@ const S: Record<string, (p: P) => string> = {
     "flaky.net_new.note": (p) => `${fmtN(num(p, "added"))} new, ${fmtN(num(p, "resolved"))} resolved`,
     "releases.workflows.note": (p) => `newest run failed: ${str(p, "workflow")}, ${fmtN(num(p, "runs"))} in a row`,
     "releases.held.note": (p) => `candidate held ${fmtN(num(p, "h"))} h`,
-    "releases.review_wait.note": (p) =>
-        `waiting ${fmtN(num(p, "h"))} h on the screenshot review${num(p, "issue") ? ` of ${issueLink(num(p, "issue"))}` : ""}`,
+    "releases.review_wait.note": (p) => {
+        const of = num(p, "issue") ? ` of ${issueLink(num(p, "issue"))}` : "";
+        return `waiting ${fmtN(num(p, "h"))} h on the screenshot review${of}`;
+    },
     "releases.skipped.note": (p) => `${at(p, "attempt")} attempt, ${str(p, "sha")} untested`,
     "data.past_age.note": (p) =>
         `${fmtN(num(p, "judged"))} judged; ${fmtN(num(p, "idle"))} idle, ${fmtN(num(p, "notsetup"))} not set up`,

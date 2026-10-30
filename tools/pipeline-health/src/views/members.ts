@@ -461,20 +461,20 @@ async function sparkOf(reads: Reads, c: MemberConfig, spec: Spec, range: Range):
  * @param c the member's configuration
  * @param spec how it is shown
  * @param s its status
- * @returns the note, or undefined when its own value set the state
+ * @returns `{ note }`, or nothing when its own value set the state
  */
-function alsoNote(c: MemberConfig, spec: Spec, s: MemberStatus): Fact | undefined {
+function alsoNote(c: MemberConfig, spec: Spec, s: MemberStatus): { note?: Fact } {
     if (!spec.also || (s.state !== "FAILING" && s.state !== "WARNING")) {
-        return undefined;
+        return {};
     }
     for (const a of c.also ?? []) {
         const v = s.facts?.[a.metric];
         const note = spec.also[a.metric];
         if (note && v !== undefined && a.fail && hit(v, a.fail)) {
-            return note(v, s.facts ?? {});
+            return { note: note(v, s.facts ?? {}) };
         }
     }
-    return undefined;
+    return {};
 }
 
 /**
@@ -501,11 +501,8 @@ export async function memberAt(reads: Reads, s: MemberStatus, range: Range, id?:
         ...(s.minN === undefined ? {} : { minN: s.minN }),
         ...(reason ? { reason } : {}),
         ...(s.clearedAt === undefined ? {} : { cleared: iso(s.clearedAt) }),
+        ...alsoNote(c, spec, s),
     };
-    const note = alsoNote(c, spec, s);
-    if (note) {
-        out.note = note;
-    }
     if (GRAY.has(state) && state !== "info") {
         return out;
     }

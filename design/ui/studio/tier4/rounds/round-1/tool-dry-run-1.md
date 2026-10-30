@@ -2,62 +2,69 @@
 
 Date: 2026-10-30. Build: 79ed770292, served from the main checkout's
 `.study-builds/tier4-r1d3-79ed770292` (the first line of `../../criteria.md`). Tool: `../../../tool/real.mjs`
-at worktree commit 9dfb8b9321. Every session started for these checks is under the main checkout's
-`tmp/design-studio/tier4/r1/tool-check-1/` (`gate/`, `replay/`, `detours/`, `prove/`); nothing was started in the
-studio's files, and no file of the studio, the tool or the build was changed.
+at worktree commit a003550937. Every session started for these checks is under the main checkout's
+`tmp/design-studio/tier4/r1/tool-check-1/third-run/` (`gate/`, `match/`, `drop/`, `detours/`, `replay/`,
+`bars-dark/`, `prove/`, and the stand-in and planted copies named below); nothing was started in the studio's
+files, and no file of the studio, the tool or the build was changed. Briefing one session (check 5) rewrote that
+session's `briefing.md` under the worktree's `tmp/studio-sessions/`.
 
 ## Result
 
-Not ok. Checks 1, 3, 4, 5 and 7 pass; check 2 passes with one wording defect in the tool's refusal; check 6 fails: bar 4's end-state check, bar 5's scripted axe walk of the tier 4 screens and bar 7's step count have no script, and the wording check cannot run without that walk. The round's gate also refuses the round today (section 6).
+Ok: all seven checks pass. Two small tool defects remain, and the round still meets one known build finding
+that fails bar 5 (see "Problems").
 
-| #   | Check                                   | Result     |
-| --- | --------------------------------------- | ---------- |
-| 1   | Browser gate                            | pass       |
-| 2   | Matcher refuses an ambiguous name       | pass, with one wording defect |
-| 3   | File drop on the start screen           | pass (delivered case only) |
-| 4   | Detour walks replay without a tool error | pass (26 of 26 matched) |
-| 5   | Participants cannot reach facilitator files | pass |
-| 6   | Every script-scored bar has a working script | FAIL |
-| 7   | Fast paths                              | pass |
+| #   | Check                                        | Result |
+| --- | -------------------------------------------- | ------ |
+| 1   | Browser gate                                 | pass |
+| 2   | Matcher refuses an ambiguous name            | pass |
+| 3   | File drop on the start screen                | pass |
+| 4   | Detour walks replay without a tool error     | pass (26 of 26 match, 619 steps) |
+| 5   | Participants cannot reach facilitator files  | pass |
+| 6   | Every script-scored bar has a working script | pass |
+| 7   | Fast paths                                   | pass |
 
 ## 1. Browser gate
 
-Ten `real.mjs --start ... empty` commands were launched at the same moment (`gate/s01` to `gate/s10`). A one-second
-count of the machine's `real.mjs --serve` and `--warm` processes ran for 400 seconds, through the starts, the ends
-and the replays and self-test that followed: its highest reading was 8 (`gate/poll.log`). Eight sessions started
-within 12 seconds; s05 and s06 printed `waiting for a free browser slot ...` and started 30 seconds later, once
-ends freed slots. `BROWSER_SLOTS=17 with-browser.sh true` exits 2 with "BROWSER_SLOTS must be 1 to 16"; 16 runs.
-All ten sessions were ended, each `--end` exiting 0.
+Ten `real.mjs --start ... empty` commands were launched at the same moment (`gate/s01` to `gate/s10`). A
+one-second count of the machine's `real.mjs --serve` and `--warm` node processes ran through every check below
+(`gate/poll.log`, 1052 readings): its highest reading was 8, reached 523 times, never 9. Eight sessions started
+(two by taking over a warm browser); s05 and s10 printed `waiting for a free browser slot ...` and were still
+queued, with their tickets in the pool's `queue/` folder, after 400 seconds. Once two sessions were ended, both
+took the freed slots within seconds. `BROWSER_SLOTS=16` runs; `BROWSER_SLOTS=17` and `BROWSER_SLOTS=99` each make
+`with-browser.sh` exit 2 with "BROWSER_SLOTS must be 1 to 16". All ten sessions were ended, each `--end` exiting 0
+(`gate/exits.txt`), and no session socket or `--serve` process was left afterwards.
 
 ## 2. Matcher
 
 On the start screen, "Samples" names both the top bar's link and the card's button.
 
 - `--click Samples` did nothing and printed `ambiguous: "Samples" matches 2 controls, so the step did nothing;
-  name one: "Samples#1" button "Samples", "Samples#2" link "Samples"`.
-- `--click "Samples#1"` did nothing either: `ambiguous: "Samples#1" picks by position among different kinds of
-  control ...; name it by kind: "role=button:Samples", "role=link:Samples"`.
+  name one: "role=button:Samples" button "Samples", "role=link:Samples" link "Samples"`.
+- `--click "Samples#1"` and `--click "Samples#2"` each did nothing: `ambiguous: "Samples#1" picks by position
+  among different kinds of control, so the step did nothing; name it by kind: "role=button:Samples",
+  "role=link:Samples"`.
 
-Neither resolved to the first match. Defect: the first refusal offers `"Samples#1"` and `"Samples#2"` as the way
-to name one, and the tool then refuses exactly that pick, because the two are different kinds of control. A
-participant who follows the first message's advice spends a second step on a second refusal. When the candidates
-differ in kind, the first message should offer the `role=<role>:<name>` forms instead.
+Neither resolved to the first match. A control's own name is no longer refused because a dialog around it holds
+the same words: in the Web API server form, `--click Endpoint`, `--click Mapping` and `--click Kind` each acted on
+the field (dry run 2 saw each refused, with the whole form offered as a second candidate). `node --test
+tool/match.test.mjs` passes 2 of 2 ("an exact control name wins over a dialog, heading or card whose words
+include it"; "a replay compares a refusal by what was refused and the candidates, not its wording"), and
+`--prove` passes its planted position pick between the Attribute list's option "weight" and the Data panel's row
+"weight", which must be refused.
 
 ## 3. File drop
 
-`--drop florentine.gml` on the start screen (session `gate/s06`) printed `dropped the file florentine.gml on the
-middle of the window (empty canvas); the page took it`, and the next screenshot shows the florentine network open
-(15 nodes, 20 edges). The drop goes through the browser's own input path (DevTools `Input.dispatchDragEvent` with
-the real file), not page-made events. The "not delivered" branch (a page that does not take the drop prints `the
-drop was not delivered ...`) is in the code but was not reached: no screen of this build refuses a dropped file,
-so it was not exercised live in this check.
+`--drop florentine.gml` on the start screen (`drop/`) printed `dropped the file florentine.gml on the middle of
+the window (empty canvas); the page took it`, and the next screenshot shows the florentine network open (15
+nodes, 20 edges). The drop goes through the browser's own input path, not page-made events. No screen of this
+build refuses a dropped file, so the "not delivered" message was not reached live; `--prove`'s planted page that
+takes no file is reported as `the drop was not delivered` (check passes).
 
 ## 4. Detours
 
-Every task half's commonest detours, as its dry-run report lists them, were replayed with `real.mjs --replay
-<walk> <new folder> --end-on-diverge` on the frozen build, four at a time through the gate, into `detours/<half>/`.
-For each half the newest detours walk of the dry run was taken (where a half's detours are several walks, each
-of them):
+The same 26 walks as the earlier tool checks (each task half's newest detours walk of the dry run, as its
+reports list them) were replayed with `real.mjs --replay <walk> <new folder> --end-on-diverge` on the frozen
+build, four at a time through the gate, into `detours/<half>/`:
 
 | Half | Walks replayed (main checkout's `tmp/design-studio/tier4/`) |
 | ---- | ------------------------------------------------------------ |
@@ -80,74 +87,73 @@ of them):
 | T68A | `r1d3/pilot/T68A/w2-detours` |
 | T68B | `r1d3/pilot/T68B/z04-detours-3` |
 
-All 26 exited 0 with `replayed all N steps; every check point matched; session ended` (6 to 61 steps each, 619
-in all), with no script error, console error, failed request, miss or refusal. Every one drew on the NVIDIA card.
-Steps the detours use and the replays exercised include uploads to the file chooser, a file drop, save and
-Control+S, the export dialog, right-click menus, the find box and keyboard chords.
+All 26 exited 0 with `replayed all N steps; every check point matched; session ended`, 619 steps in all, with no
+script error, console error, failed request, miss or tool error. The 8 walks that diverged in dry run 2 only
+because the tool's refusal wording had changed now match as recorded: the replay compares a refusal by what was
+refused and the candidates offered. Uploads to the file chooser, a file drop, save and Control+S, the export
+dialog, right-click menus, the find box and keyboard chords are among the steps replayed.
 
 ## 5. Participants and facilitator files
 
-- `real.mjs --brief .../tier4/rounds/round-1/sessions/r1-s05` (T62 A, Grace) exited 0 and wrote
-  `tmp/studio-sessions/tier4/rounds/round-1/sessions/r1-s05/briefing.md` in the worktree, outside the studio's
-  files; the folder holds only that file. It holds Grace's two persona files (without the "Why this persona
-  exists" and "Evidence limits" sections written for the study team), her history from `roster.md`, the T62 A
-  prompt word for word, the start command (`REAL_DIST=<frozen build> REAL_TIER=4 ... --start <her folder>
-  setup:pantries.txt`) and the tool's "A session", "Steps" and "Names, dialogs and lists". It holds no answer
-  key, avoided-words list, follow-up, facilitator note, criteria, the B prompt, another task, or another
-  participant's name.
-- `real.mjs --start .../tier4/rounds/round-1/sessions/r1-s05 setup:pantries.txt` was refused, exit 2, naming the
-  folder to brief and start instead; nothing started.
-- `real.mjs --prove` (run with `REAL_PROVE_DIR` under `prove/`): "a participant transcript that opens tasks.md
-  voids the session, by name" and "an end copies the session into the round's folder with the leak check beside
-  it" pass, as do the round leak check's three checks and the gate's refusal of a round with no gate evidence.
+- `real.mjs --brief .../tier4/rounds/round-1/sessions/r1-s13` (T67 A, Grace) exited 0 and wrote
+  `tmp/studio-sessions/tier4/rounds/round-1/sessions/r1-s13/briefing.md` in the worktree, outside the studio's
+  files; the folder holds only that file. It holds Grace's two persona files without the sections written for
+  the study team ("Why this persona exists", "Evidence limits"), her history from `roster.md`, the T67 A prompt
+  word for word, the start command (`REAL_DIST=<frozen build> REAL_TIER=4 ... --start <her folder>
+  setup:pantries.txt`) and the tool's "A session", "Steps" and "Names, dialogs and lists". It holds no answer key,
+  avoided-words list, "Kept on purpose" line, detours table, follow-up, facilitator note, criteria, the B prompt or
+  another participant's name.
+- `real.mjs --start .../tier4/rounds/round-1/sessions/r1-s13 setup:pantries.txt` was refused, exit 2, naming the
+  folder to brief and start instead; nothing started and no `sessions/` folder was created in the round.
+- `real.mjs --prove` (section 7): "a participant transcript that opens tasks.md voids the session, by name" and
+  "an end copies the session into the round's folder with the leak check beside it" pass.
 
 ## 6. Script-scored bars
 
-FAIL. Of the bars and before-session items in `../../criteria.md` scored by a script, check or count, only the
-wording check has a script that exists; the others name a script that does not exist or no script at all.
+The criteria name four scripts for the bars and before-session items scored by a script. Each exists, fails on a
+planted failure of its own, fails on a run that reads nothing, and ran on the frozen build:
 
-- **Bar 4, the end-state check** ("a script run over every session's `data.json`": card counts against what the
-  element shows, join chips against node and edge counts, export row counts). No such script exists in
-  `tool/`, and `real.mjs --end` writes no `data.json` (no code in `real.mjs` writes one; no `data.json` exists under
-  any tier 4 walk). Before-the-first-session item 4 is therefore not met, and the bar's severity 4 cases
-  ("a filter that hides more than it says", "an export that drops rows") have no check. The criteria do not name
-  the script's file.
-- **Bar 5, the scripted axe walk of the tier 4 screens** (both sizes, both themes). `bars.mjs` measures tier 2's
-  screens by default and tier 3's with `--tier 3`; it has no tier 4 mode and no walk of the web address box,
-  Sources "+", the join screen, Fields "+", the Filters picker, the issue list or Export on Data. No tier 4
-  `bars.json`, axe result or `vocabulary.json` exists anywhere under the main checkout's
-  `tmp/design-studio/tier4/` or the round's folder.
-- **Before-the-first-session item 5, the wording check.** `wording.mjs` exists and its `--self-test` passes (every
-  planted echo caught), but it needs the `vocabulary.json` of the tier 4 screen walk above, which no script
-  produces, so it cannot run on the frozen build.
-- **Bar 7, cost on core tasks** ("the step logs, against each path's step count"). No script counts a session's
-  steps against `answers.md`'s path counts. `score.mjs` exists and its self-test passes, but it scores tier 3's
-  bars (time to the first styled graph, the T47 route line) and reads nothing tier 4 measures.
-- **The gate.** `real.mjs --gate rounds/round-1` (run read-only; it wrote nothing) refuses the round on two counts
-  the dry run still owns: it looks for the pilot walks under the main checkout's
-  `tmp/design-studio/tier4/round-1/pilot/<half>/`, where none are (the dry run's walks are under `r1d1` to
-  `r1d3`), and it wants `rounds/round-1/bars/bars.json` from a `bars.mjs` run, which for tier 4 would be a tier 2
-  run measuring none of tier 4's screens. The gate also sorts walks by name (`detour`, `keys`/`keyboard`), and
-  several of the dry run's detour walks are named otherwise (`T67A/x2a-table`, `T61B/n4-quick-actions`), so they
-  would count as success walks.
+| Script | Scores | Planted failure | Reads nothing | On the frozen build |
+| ------ | ------ | --------------- | ------------- | ------------------- |
+| `tool/endstate.mjs` | bar 4, the end-state check | `--self-test` exit 0; and three failures planted in copies of a frozen-build T65 A record (`planted/`), each exit 1 with its line: a Hide card that hides more than it says, a Select card whose chip differs from what is selected, a source chip one edge short | an empty folder: `FAIL: read zero items`, exit 1 | the 26 detour replays, the T61 A replay and the gate sessions: every session ok, exit 0 (exported tables and GraphML counted, project files listed) |
+| `tool/bars.mjs --tier 4` | bar 5, axe on the tier 4 screens | an image with no text alternative, two buttons of one name and focus dropped to the page, each caught at 1440 x 900 and 900 x 700 in the run itself; `tier4.test.mjs` 3 of 3 | a screen not reached is a `MISS` line that fails the run (`tier4.test.mjs`) | `bars-dark/`: all nine data screens at both sizes, no `MISS` line, non-empty `vocabulary.json` and `spoken.json`; exit 1 on the build's axe finding (see "Problems") |
+| `tool/steps.mjs` | bar 7, cost on core tasks | `--self-test` exit 0; four extra clicks planted in each T62 session of the stand-in round below: `FAILS T62 ... median 4 steps over the path`, exit 1 | a round with no session: `FAILS ... no counted session`, exit 1 | a stand-in round (`steps-round/`: the round's `plan.md`, each core session holding the answer key's path walk on 79ed770292 and `Grade: S`) with the real `answers.md`: T61 7, T62 5, T65 14 / 13, T67 3 / 4, each 0 over its path, exit 0 |
+| `tool/wording.mjs` | before-session item 5 | `--self-test` exit 0, every planted echo caught | an empty screen list: `FAIL: read 22 prompts, 0 screens ...`, exit 1; no `vocabulary.json`: exit 1 | the round's `bars/` and `bars-light/` and this run's `bars-dark/`: "22 prompts against 9 screens and their spoken text: 0 shared words and 0 shared phrases not kept on purpose", exit 0 |
 
-The scripts that do exist were checked against planted failures: `wording.mjs --self-test`, `keydraw.mjs
---self-test` and `score.mjs --self-test` each exit 0 with every planted case caught. None of the three reads a
-tier 4 measure on the frozen build.
+The step counter now reads the same counts the answer key gives for each core path, and the wording check passes
+on the frozen build's own words, so dry run 2's two blocking findings are closed. `keydraw.mjs --self-test` and
+`score.mjs --self-test` also exit 0. Bars 1 to 3 are counted by the researcher from the grades' first lines, and
+bar 6 by the experts' walkthroughs, `real.mjs` repros and the content designer's hand count; the criteria name no
+script for them.
 
 ## 7. Fast paths
 
-- **GPU renderer.** Every session these checks started (the ten gate sessions, the single replay and the 26
-  detour replays) records `"renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX 4070 SUPER ...))"`
-  in its `session.json`; none is SwiftShader.
-- **Warm takeover.** After the gate sessions were ended with `REAL_DIST` set, two warm browsers were waiting; the
-  next `--start` (the replay below) logged `took over warm browser 1772819 (warm for 112 s)` in its `session.log`,
-  and ten of the 26 detour replays also took one over.
-- **Replay.** `real.mjs --replay` of the main checkout's `tmp/design-studio/tier4/r1d3/pilot/T60A/success-c`
-  (T60 A's success path by web address, 8 steps) into `replay/T60A-success-c` matched every check point and ended
-  the session, exit 0.
-- **`--prove`** on the frozen build: 94 checks, `every check passed`, exit 0. Among them "a batch stops at its first
-  miss", "a replay of an unchanged route matches every check point and ends the session", "a replay stops at the
-  first step whose check points differ, and leaves the session open there", "a rewalk replays every route" and
-  "the next start of the same build takes over the warm browser, with the app already open".
+- **GPU renderer.** Every session these checks started (10 gate sessions, the matcher and drop sessions, the T61
+  A replay, 26 detour replays and the bars walk's sessions) records `"renderer": "ANGLE (NVIDIA, Vulkan 1.4.312
+  (NVIDIA NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)"` in its `session.json`; none is SwiftShader.
+- **Warm takeover.** After the gate sessions were ended with `REAL_DIST` set, the next `--start` (`match/`) logged
+  `took over warm browser 2183882 (warm for 14 s)` in its `session.log`; the drop session, the T61 A replay and
+  17 of the 26 detour replays also took one over.
+- **Replay.** `real.mjs --replay` of the main checkout's `tmp/design-studio/tier4/r1d3/pilot/T61A/n1-success`
+  (T61 A's success walk, 18 steps) into `replay/T61A-n1-success` matched every check point and ended the session,
+  exit 0.
+- **`--prove`** on the frozen build (`REAL_PROVE_DIR` under `prove/`): 96 checks, `every check passed`, exit 0.
+  Among them "a batch stops at its first miss: the steps after it do not run", "a replay of an unchanged route
+  matches every check point and ends the session", "a replay stops at the first step whose check points differ,
+  and leaves the session open there", "a rewalk replays every route", "the next start of the same build takes
+  over the warm browser, with the app already open" and "the session draws on the GPU, not SwiftShader".
 - `node --test design/ui/studio/tool/with-browser.test.mjs`: 5 of 5 pass.
+
+## Problems
+
+1. Bar 5 fails on the frozen build, as already recorded in `../../report.md`: axe finds a critical
+   `aria-valid-attr-value` on seven of the nine tier 4 data screens at both sizes (the table's Nodes tab names,
+   in `aria-controls`, a panel that is not in the page). The scripted walk measures it correctly; it is a build
+   finding the round will report, not a tool error.
+2. `real.mjs --prove` reads `REAL_TIER` from the shell. Run with `REAL_TIER=4` set (as every tier 4 briefing's
+   start command sets it), it briefs its planted tier 2 sessions against tier 4's `tasks.md`, fails three
+   briefing checks ("tasks.md has no Prompt B for T18") and then stops on an uncaught `ENOENT` for its own
+   planted `01.png`, with a stack trace instead of its check list (`prove-with-tier4.out`). With `REAL_TIER`
+   unset it passes every check. The self-test should set its own tier for its planted sessions.
+3. `bars.mjs --tier 4` still prints its summary under tier 2's bar numbers ("bar 8 (axe)", "bar 7 (a): 0 runs",
+   "bar 9 (a): 1 app words at rest"), which a reader of a tier 4 run can mistake for tier 4's bars 7 and 8.

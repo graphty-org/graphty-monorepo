@@ -5,10 +5,19 @@
 // ends, in list order), prints the ones that failed and exits 1 if any did. Add a tool's test by adding its path.
 // Each test file must be safe beside the others: its own temporary directories and port 0, never a fixed path.
 // Each runs fenced off from the real world (#3392): no GitHub or results-store credentials or CI variables, a `gh`
-// on PATH that refuses, and tools/tool-test-guard.mjs, which refuses fetch beyond loopback and writes under the main
-// checkout's tmp/. A refusal fails the test file, even when the tool under test swallowed the error.
+// on PATH that refuses, and tools/tool-test-guard.mjs, which refuses fetch beyond loopback and writes to what the main
+// checkout's tmp/ held when the run started. A refusal fails the test file, even when the tool under test swallowed the error.
 import { execFileSync, spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    chmodSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -23,6 +32,8 @@ function mainCheckout() {
     }
 }
 const main = mainCheckout();
+// what the shared tmp/ holds before any test runs: the state no test may touch
+const shared = JSON.stringify(existsSync(join(main, "tmp")) ? readdirSync(join(main, "tmp")) : []);
 const GUARD = pathToFileURL(fileURLToPath(new URL("tool-test-guard.mjs", import.meta.url))).href;
 // what would let a test act on the real repository, the results store or the job running it
 const STRIPPED = [
@@ -62,6 +73,7 @@ function fencedEnv(dir, base = process.env) {
     env.NODE_OPTIONS = `${base.NODE_OPTIONS ?? ""} --import=${GUARD}`.trim();
     env.TOOL_TEST_GUARD_LOG = log;
     env.TOOL_TEST_GUARD_PROTECT = join(main, "tmp");
+    env.TOOL_TEST_GUARD_SHARED = shared;
     env.GRAPHTY_TEST_SLOTS = "0"; // the machine's slots live in the main checkout's tmp/
     return { env, log };
 }

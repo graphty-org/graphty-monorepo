@@ -7,6 +7,9 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
+    UNSIGNED_TITLE,
+    unsignedIssue,
+    unsignedTree,
     actorOf,
     bestEffort,
     bisectPlan,
@@ -68,6 +71,22 @@ describe("isOnNightly", () => {
         git("merge", "-q", "--no-edit", versions);
         assert.equal(isOnNightly(git("rev-parse", "HEAD"), nightly, dir), true, "only versions differ");
         assert.equal(isOnNightly(baselines, "refs/heads/none", dir), false, "no channel/nightly yet");
+    });
+});
+
+describe("unsignedTree", () => {
+    const T = "1".repeat(40);
+    it("alarms only on a tree that is neither nightly's nor named by an approval statement", () => {
+        assert.equal(unsignedTree({ tree: T, nightlyTree: "2".repeat(40), hasStatement: false }), true);
+        assert.equal(unsignedTree({ tree: T, nightlyTree: T, hasStatement: false }), false);
+        assert.equal(unsignedTree({ tree: T, nightlyTree: "2".repeat(40), hasStatement: true }), false);
+        assert.equal(unsignedTree({ tree: T, nightlyTree: null, hasStatement: false }), false);
+    });
+
+    it("titles the alarm so one open issue is found again", () => {
+        const { title, body } = unsignedIssue("a".repeat(40), T);
+        assert.equal(title, `${UNSIGNED_TITLE} on aaaaaaa`);
+        assert.match(body, new RegExp(T));
     });
 });
 

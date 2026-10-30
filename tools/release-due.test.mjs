@@ -208,6 +208,21 @@ describe("release-due approvals since the last green build", () => {
         assert.equal(due[0].run, true);
     });
 
+    it("finds no approval in a merge of a rolling approval", () => {
+        const rolling = {
+            approval: P,
+            commits: [
+                {
+                    sha: P,
+                    parents: [H],
+                    subject: `test(workspace): rolling approval of visual baselines rendered at ${H.slice(0, 12)}`,
+                },
+            ],
+        };
+        assert.deepEqual(approvalsIn([rolling]), []);
+        assert.deepEqual(resumesDue([rolling], store), []);
+    });
+
     it("promotes a candidate once, with its newest approval", () => {
         const older = { ...approvalMerge, approval: "0ld" };
         assert.deepEqual(approvalsIn([approvalMerge, unrelated, older]), [{ candidate: H, accept: P }]);

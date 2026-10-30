@@ -53,6 +53,12 @@ export interface EdgePosition {
      * pairs, flat, as `line.bends` holds them. A route the edge's style stores wins over it.
      */
     bends?: readonly number[];
+    /**
+     * Where the layout put the edge's label, when it placed one (Graphviz's `lp`): `along` of the way from the source
+     * to the target and `across` that length to the left of the line, as one pair of `bends` is given. Absent, the
+     * label goes at the middle of the edge's line.
+     */
+    labelAt?: readonly [along: number, across: number];
 }
 
 /**

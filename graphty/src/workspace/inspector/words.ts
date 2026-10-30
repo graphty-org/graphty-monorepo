@@ -389,6 +389,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.targetNodeGap": "Gap",
     "edge.supportModel": "Route",
     "edge.supportUnit": "Route",
+    "edge.supportScale": "Route",
     "edge.supportSpringLength": "Route",
     "edge.supportSpringConstant": "Route",
     "edge.supportRepulsion": "Route",

@@ -215,6 +215,15 @@ jobs:
                   rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
+            # One approval in flight (design/visual-testing/early-capture.md, 4d rule 4): a pull request that changes
+            # visual-baselines/ fails unless merging it leaves master with exactly the baselines tree its head carries,
+            # the tree the owner signed (tools/channel/baselines-tree.mjs). Here in Build, not in Checks: an approval
+            # head that only adds screenshot records reuses an earlier run and skips Checks, and that is the case this
+            # check exists for.
+            - name: Check that merging keeps the signed baselines tree
+              if: github.event_name == 'pull_request'
+              run: node tools/channel/baselines-tree.mjs
+
             # New required checks start as warnings. tools/ci-advisory-checks.json lists each new job or step
             # with the date it becomes required ("enforce"). The output is the JSON list of "<job>" and
             # "<job>/<step>" still in their warning period. A listed job carries the job-level

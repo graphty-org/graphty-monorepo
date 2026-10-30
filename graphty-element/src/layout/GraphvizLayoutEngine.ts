@@ -15,7 +15,7 @@ import {
     type GraphvizEngine,
     graphvizLayoutId,
 } from "./graphviz/engines";
-import { clusterMargins, edgeBends, fromJson } from "./graphviz/fromJson";
+import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson } from "./graphviz/fromJson";
 import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
 import { graphvizStructure } from "./graphviz/structure";
 import { type DotStructure, POINTS_PER_UNIT, toDot } from "./graphviz/toDot";
@@ -52,6 +52,15 @@ function commonOptions(engine: GraphvizEngine): OptionsSchema {
                 label: "Scale",
                 description:
                     "The scene units one inch of Graphviz's drawing takes: node sizes are handed to Graphviz divided by it and its positions come back multiplied by it",
+                advanced: true,
+            },
+        },
+        nodeSize: {
+            schema: z.enum(["drawn", "label"]).default("drawn"),
+            meta: {
+                label: "Node size",
+                description:
+                    'What size Graphviz lays each node out at: "drawn", the size the element draws it; "label", the size Graphviz gives it from the Graphviz attributes in its data (its label, font, shape and least size), as Graphviz lays out a DOT file',
                 advanced: true,
             },
         },
@@ -209,8 +218,8 @@ function widest(sizes: ArrayLike<number> | undefined): number {
  *     handed over as clusters, not as nodes
  * @param structure - the edges with their attributes, the clusters' attributes and the rank subgraphs
  * @returns the coordinates, two per row (NaN for a skipped row), the bends of each edge Graphviz
- *     routed off the straight line, by its place in `structure.edges`, and how far each group's
- *     cluster reaches past its members on each side, by the group's row
+ *     routed off the straight line and where it put each edge label, by its place in `structure.edges`, and how far
+ *     each group's cluster reaches past its members on each side, by the group's row
  */
 async function computeWith(
     engine: GraphvizEngine,
@@ -218,10 +227,15 @@ async function computeWith(
     options: Readonly<Record<string, unknown>>,
     groups: ReadonlyMap<number, readonly number[]>,
     structure: DotStructure,
-): Promise<{ positions: F32; bends: ReadonlyMap<number, string>; margins: ReadonlyMap<number, GroupMargins> }> {
+): Promise<{
+    positions: F32;
+    bends: ReadonlyMap<number, string>;
+    labels: ReadonlyMap<number, readonly [number, number]>;
+    margins: ReadonlyMap<number, GroupMargins>;
+}> {
     const n = input.graph.nodeCount;
     if (n === 0) {
-        return { positions: new Float32Array(0), bends: new Map(), margins: new Map() };
+        return { positions: new Float32Array(0), bends: new Map(), labels: new Map(), margins: new Map() };
     }
 
     const limit = options.maxNodes as number;
@@ -244,7 +258,7 @@ async function computeWith(
     const extents = input.nodeExtents?.().map((size) => size / scale);
     // twopi spaces its rings `ranksep` apart (1 inch by default) whatever the nodes' size, which
     // fits Graphviz's 0.75-inch default node; scale it to the widest node the element draws.
-    if (engine === "twopi" && attributes.ranksep === undefined) {
+    if (engine === "twopi" && attributes.ranksep === undefined && structure.labelSized !== true) {
         attributes.ranksep = String(TWOPI_RANKSEP_PER_INCH * widest(sizes));
     }
 
@@ -268,6 +282,7 @@ async function computeWith(
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
+        labels: edgeLabelPlaces(reply.json, structure.edges ?? []),
         margins: new Map(
             [...clusterMargins(reply.json)].map(([row, m]) => [
                 row,
@@ -291,6 +306,8 @@ async function computeWith(
  * @param followers - the groups drawn round their members, by row: handed over as clusters
  * @param withOutlines - also hand over each node's outline (its `shape`), for a run that routes edges between
  *     nodes already placed
+ * @param labelSized - hand each node over for Graphviz to size by its label, font, shape and least size, as it lays
+ *     out a DOT file, instead of at its drawn size
  * @returns the structure, and the edge each of its edges is
  */
 export function layoutStructure(
@@ -299,6 +316,7 @@ export function layoutStructure(
     edges: readonly Edge[],
     followers: ReadonlyMap<number, readonly number[]>,
     withOutlines = false,
+    labelSized = false,
 ): DotStructure & { readonly edgeOf: readonly Edge[] } {
     const { ids } = input.stored;
     const groups = new Map<number, Readonly<Record<string, unknown>>>();
@@ -307,7 +325,7 @@ export function layoutStructure(
         const row = ids.indexOf(node.id);
         if (followers.has(row)) {
             groups.set(row, node.data);
-        } else if (withOutlines) {
+        } else if (withOutlines || labelSized) {
             data.set(row, node.data);
         }
     }
@@ -316,7 +334,14 @@ export function layoutStructure(
     const host: { getDataManager?: () => { readonly rankSets: readonly RankSet[] } } | undefined =
         nodes[0]?.parentGraph;
     const ranks = host?.getDataManager?.().rankSets ?? [];
-    return graphvizStructure((id) => ids.indexOf(id), edges, groups, ranks, withOutlines ? data : undefined);
+    return graphvizStructure(
+        (id) => ids.indexOf(id),
+        edges,
+        groups,
+        ranks,
+        withOutlines || labelSized ? data : undefined,
+        labelSized ? { idOf: (row) => ids.idOf(row) } : undefined,
+    );
 }
 
 /**
@@ -402,6 +427,8 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected readonly options: Readonly<Record<string, unknown>>;
         /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
         private routes = new Map<Edge, readonly number[]>();
+        /** Where Graphviz put each labelled edge's label, as `along, across` its two ends. */
+        private labelPlaces = new Map<Edge, readonly [number, number]>();
 
         /**
          * Build the engine for one `setLayout`.
@@ -424,8 +451,15 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected async compute(input: SnapshotLayoutInput): Promise<F32> {
             // A group drawn round its members is placed by the element, not by Graphviz: it is
             // handed over as a cluster of its members, not as a node with room of its own.
-            const structure = layoutStructure(input, this._nodes, this._edges, this.followerGroups);
-            const { positions, bends, margins } = await computeWith(
+            const structure = layoutStructure(
+                input,
+                this._nodes,
+                this._edges,
+                this.followerGroups,
+                false,
+                this.options.nodeSize === "label",
+            );
+            const { positions, bends, labels, margins } = await computeWith(
                 engine,
                 input,
                 this.options,
@@ -438,19 +472,26 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 // label and the edges it routes inside it
                 laidGroupMargins.set(this, margins);
                 this.routes = routesOf(bends, structure.edgeOf);
+                this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
             }
             return positions;
         }
 
         /**
-         * Where an edge's ends are, and the route Graphviz laid it along when it did not draw it straight.
+         * Where an edge's ends are, the route Graphviz laid it along when it did not draw it straight, and where it
+         * put the edge's label.
          * @param e - the edge
-         * @returns its ends, and its bends when it has a route
+         * @returns its ends, its bends when it has a route, and its label's place when Graphviz placed one
          */
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);
-            return bends === undefined ? ends : { ...ends, bends };
+            const labelAt = this.labelPlaces.get(e);
+            return {
+                ...ends,
+                ...(bends === undefined ? {} : { bends }),
+                ...(labelAt === undefined ? {} : { labelAt }),
+            };
         }
     };
 }

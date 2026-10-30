@@ -12,6 +12,7 @@ import { isolateGit } from "./isolated-git-env.mjs";
 import {
     AGENT,
     DEPENDABOT,
+    findingId,
     onlyDependabot,
     hasProof,
     isBreaking,
@@ -171,6 +172,42 @@ describe("prIntegrity", () => {
         assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Test integrity:/);
         assert.match(prIntegrity(r.dir, pr(r, { author: DEPENDABOT })).problems.join(), /^Test integrity:/);
         const head = r.git("rev-parse", "HEAD");
+        assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
+    });
+
+    // #5083: the owner reviews no code, so an independent agent review that answers each finding clears it.
+    it("lets an agent review of the head clear each finding it answers, and no other", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        const older = r.commit("test: drop one", { "src/a.test.mjs": TEST.split("\n").slice(0, 2).join("\n") + "\n" });
+        const head = r.commit("build: a prepare script", { "package.json": '{"scripts":{"prepare":"b"}}\n' });
+        const integrity = (reviews) =>
+            prIntegrity(r.dir, pr(r, { reviews })).problems.filter((p) => p.startsWith("Test integrity:"));
+        const found = integrity([]).map((p) => /^Test integrity: (.*) \(an agent review/u.exec(p)[1]);
+        assert.equal(found.length, 3, found.join("\n")); // tests -1, assertions -1, scripts.prepare added
+        const clears = (sha, fs) => fs.map((f) => `<!-- integrity-cleared ${sha} ${findingId(f)} -->`).join("\n");
+        const body = (sha, fs) => `<!-- fresh-review x -->\n${clears(sha, fs)}\n\nBlocking findings: 0`;
+        assert.deepEqual(integrity([review(AGENT, "COMMENTED", head, body(head, found))]), []);
+        // a record for an older head, one that leaves a finding unanswered, or one by an untrusted account
+        assert.equal(integrity([review(AGENT, "COMMENTED", older, body(older, found))]).length, 3);
+        assert.equal(integrity([review(AGENT, "COMMENTED", head, body(head, found.slice(1)))]).length, 1);
+        assert.equal(integrity([review("stranger", "COMMENTED", head, body(head, found))]).length, 3);
+    });
+
+    it("keeps a screenshot-settings finding for the owner, whatever an agent review says", () => {
+        const r = repo();
+        r.commit("test: a story", { "src/x.stories.ts": "export default {};\nexport const A = {};\n" });
+        r.git("switch", "-q", "-c", "b");
+        const head = r.commit("test: capture settings", {
+            "src/x.stories.ts": "export default {};\nexport const A = { parameters: { chromatic: { delay: 9 } } };\n",
+        });
+        const [p] = prIntegrity(r.dir, pr(r)).problems;
+        const f = /^Test integrity: (.*) \(screenshot settings/u.exec(p)[1];
+        const body = `<!-- integrity-cleared ${head} ${findingId(f)} -->`;
+        assert.equal(
+            prIntegrity(r.dir, pr(r, { reviews: [review(AGENT, "COMMENTED", head, body)] })).problems.length,
+            1,
+        );
         assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
     });
 

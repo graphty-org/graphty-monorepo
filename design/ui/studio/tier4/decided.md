@@ -399,7 +399,7 @@ Each settled by an existing source; `../owner-decisions.md` "2026-10-29 -- Decid
 
 ## Dry run pass 2 (director, 2026-10-29)
 
-Settled by the triage of the re-pilot walks on build 037e96e9bb (`dry-run-r1-2.md`, which names each
+Settled by the triage of the re-pilot walks on build 037e96e9bb (`dry-run-r1-2.md` as committed at 8f1aa15875, which names each
 defect by its row). Screenshots are under the main checkout's `tmp/design-studio/tier4/r1d1/pilot/`.
 
 - **REVERSAL: a select condition selects only what is in the picture.** This entry records that the
@@ -455,3 +455,20 @@ No earlier entry is reversed.
   notice it on the join screen, and whether a resolved choice should stay listed, is a question for the
   sessions (T61). Why: the T61 A pilot read the missing repeat after Join as a lost answer
   (`T61A/w1-success/18.png`); the join screen shows it before Join (`answers.md` T61).
+
+## Dry run pass 4 (director, 2026-10-29)
+
+Settled by the triage of the second re-pilot on build ff17391bb1 (`dry-run-r1-2.md`, which names each
+defect by its row). Screenshots are under the main checkout's `tmp/design-studio/tier4/r1d1/pilot/`.
+No earlier entry is reversed.
+
+- **An issue's mark is on what has the problem.** An unknown end's warning sits on the edge column
+  that names the node no node row gave (Target, when a route's target is not on the site list), and
+  that end's cell is the one drawn in the warning color; when both ends hold unknown nodes, both end
+  columns carry it. The issue's id, count, fixes and words do not change. The element says which end
+  (`params.ends` on the unknown-end issue); the app places the mark from it. Why: with the route
+  list's issue shown in the Edges table, the warning sat on Source and drew P05, a site on the list,
+  while P13, the target, was the one not on it (`T61A/x1-success/20.png`); the issue list names no
+  site, so the table is where a person reads which one did not fit, and reading it right gave the
+  wrong answer. A grading note in the answer key that works around a wrong screen is not a reason to
+  keep it.

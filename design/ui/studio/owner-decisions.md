@@ -4,6 +4,18 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-29 -- Decided by the team: an unknown-end issue says which end is unknown (graphty-element)
+
+From the tier 4 dry run, pass 4 (`tier4/dry-run-r1-2.md`, unit U2).
+
+- **graphty-element, non-breaking.** The `unknown-end` issue that `session.data.issues()` lists gains
+  `params.ends`: `"source"`, `"target"` or `"both"`, by which end of the edges it counts names a node no
+  node row gave. `params` is an open record, so adding a key changes nothing a consumer reads today; the
+  issue's id, count, fixes and other params are unchanged, so an ignored issue stays ignored. Why: a
+  consumer that marks the column holding the problem had only up to five example ids, so the graphty
+  app marked the edge's first column for every unknown end and drew a known site as the one that did
+  not fit (T61). A per-cell fact was not added: no consumer needs it yet.
+
 ## 2026-10-29 -- Decided by the team: a within-picture Select card counts what it marks (graphty-element)
 
 From the tier 4 dry run, pass 3 (`tier4/dry-run-r1-3.md`, unit U1).
@@ -20,7 +32,7 @@ From the tier 4 dry run, pass 3 (`tier4/dry-run-r1-3.md`, unit U1).
 
 ## 2026-10-29 -- Decided by the team: a select condition can select only what is in the picture (graphty-element)
 
-From the tier 4 dry run, pass 2 (`tier4/dry-run-r1-2.md`, unit U1).
+From the tier 4 dry run, pass 2 (`tier4/dry-run-r1-2.md` as committed at 8f1aa15875, unit U1).
 
 - **graphty-element, non-breaking.** `FilterCondition` takes an optional `within: "graph" | "picture"`
   (the type exported as `FilterSelectWithin`, an open union), read only when `effect` is `"select"`. Absent, or `"graph"`, the condition selects over the whole graph,

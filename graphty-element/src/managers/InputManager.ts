@@ -1,5 +1,5 @@
-import type { Vector2 } from "@babylonjs/core/Maths/math.vector";
-import { Observable } from "@babylonjs/core/Misc/observable";
+import type { Vector2 } from "@babylonjs/core/Maths/math.vector.js";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
 
 import type { GraphEventType, InputEnabledChangedEvent } from "../events";
 import { BabylonInputSystem } from "../input/babylon-input-system";

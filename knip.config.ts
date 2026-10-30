@@ -316,7 +316,7 @@ const config: KnipConfig = {
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // Only `lint:knip:prod` would report them, as unlisted.
-                ...(production ? ["lodash", "ngraph.random", "@graphty/remote-logger"] : []),
+                ...(production ? ["lodash", "ngraph.random", "@graphty/remote-logger", "@jsonhero/schema-infer"] : []),
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",

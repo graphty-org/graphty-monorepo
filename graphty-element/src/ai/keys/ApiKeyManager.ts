@@ -4,12 +4,29 @@
  * @module ai/keys/ApiKeyManager
  */
 
-import { EncryptStorage } from "encrypt-storage";
+import type { EncryptStorage } from "encrypt-storage";
 
+import { missingPackage } from "../missingPackage";
 import type { ProviderType } from "../providers";
 import { deriveKeyFromPassphrase } from "./deriveKeyFromPassphrase";
 
 type StorageType = "localStorage" | "sessionStorage";
+
+/**
+ * `encrypt-storage`, which persistence needs, or undefined where it is not installed.
+ *
+ * It is an optional peer, so it is the literal target of an `await import()` inside `try` rather
+ * than a static import (see `missingPackage`). The await is at the top level so that the
+ * synchronous methods below can use it: every importer of this module waits for it once.
+ * Without the package the manager keeps keys in memory, and persistence throws `E_MISSING_PACKAGE`.
+ */
+let encryptStorage: typeof import("encrypt-storage") | undefined;
+let encryptStorageError: unknown;
+try {
+    encryptStorage = await import("encrypt-storage");
+} catch (error) {
+    encryptStorageError = error;
+}
 
 /**
  * Configuration options for enabling persistence. Every field is optional.
@@ -382,9 +399,13 @@ export class ApiKeyManager {
      * Open the encrypted store for a configuration.
      * @param config - The persistence configuration
      * @returns The encrypted store
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `encrypt-storage` is not installed.
      */
     private openStorage(config: Required<PersistenceConfig>): EncryptStorage {
-        return new EncryptStorage(config.encryptionKey, {
+        if (encryptStorage === undefined) {
+            throw missingPackage("encrypt-storage", "api-key-persistence", encryptStorageError);
+        }
+        return new encryptStorage.EncryptStorage(config.encryptionKey, {
             prefix: config.prefix,
             storageType: config.storage,
         });

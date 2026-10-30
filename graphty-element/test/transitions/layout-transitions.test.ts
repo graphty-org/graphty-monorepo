@@ -4,7 +4,7 @@
  * progress is asserted from the readings handed to the runner, never from elapsed time.
  */
 
-import type { Scene } from "@babylonjs/core/scene";
+import type { Scene } from "@babylonjs/core/scene.js";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { clearRegisteredTransitionsForTesting, registerTransition } from "../../extend";

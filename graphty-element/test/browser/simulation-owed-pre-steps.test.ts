@@ -11,7 +11,7 @@
  */
 import "../../src/graphty-element";
 
-import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
+import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine.js";
 import type { GraphSnapshot, NodeMask } from "@graphty/graph-format";
 import type { ForceAtlas2Options, LayoutSimulation } from "@graphty/layout";
 import { afterEach, assert, describe, test } from "vitest";

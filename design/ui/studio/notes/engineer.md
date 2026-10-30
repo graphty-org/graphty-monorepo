@@ -17,19 +17,36 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-- (2026-10-29) Re-walk of "every inspector node row is called by its name" (d612c60665) on
-  `graphty/dist` built after the edit: the five label and path routes (`--rewalk` of
-  `tmp/r1-dry2-U3/`) and five T65 selection routes (replays of `tmp/r1-dry2-recheck-U1/`) all
-  matched every check point, into `design/ui/studio/tmp/r1-dry2-recheck-U3/`. Nothing worse; the
-  acceptance holds (T64B-detour-table-role 09.png Old Bridge, Heron Marsh, Lake Inlet;
-  T64A-label-path 09.png Central Warehouse, Harbor Market; T65A-path 17.png selection inspector
-  unchanged, no node list). Keys on the changed rows (`T64B-keys-rows/`): the path layer's Values
-  lists the same names; Tab and Shift+Tab move through the rows in order (20.png, 21.png), Escape
-  on a row with nothing selected does nothing (22.png), Enter selects that node and opens it with
-  focus on its Values tab (23.png); the Selected layer's "Now" lists "Heron Marsh" (24.png). Not
-  walked: a grouping run's Members and a run's Top list (no route in this unit reaches them; the
-  unit test covers group Members). Clicking the legend card does not open the run (12.png): reach
-  a path's rows through its layer's Values.
+- (2026-10-29) A within-picture Select card's chip counts what it marks. `countsNow` /
+  `countRule` (VisibilityApi.ts): for a select condition with `within: "picture"` (on or off),
+  `matched` is its rule's matches among what the keep and exclude conditions that are on leave
+  drawn (`drawnBy`, the same pass `selectedBy` uses) and `total` is how many are drawn; every
+  other condition counts over the whole graph as before. The cache key adds the picture rule
+  (`combinedRule(null, conditions)`) and its set signature, so switching the keep card recounts
+  it -- the same trap as the run-reuse regression (an input missing from a key). Tests:
+  `conditions.test.ts` (2 of 3 both orders, 3 of 5 with keep off, off card keeps 2 of 3; fails
+  without: 3 of 5) and `Filters.real-element.test.tsx` chip "4 of 5" / "7 of 8" / "4 of 5".
+  Re-walk `design/ui/studio/tmp/r1-dry2-U1/`: T65A-path 17.png role 4 of 14, 4 selected;
+  T65A-order 11.png keep off 5 of 24 / 5, 12.png on 4 of 14 / 4; T65B-path-diverged 09.png
+  installed 3 of 5, 3 selected (the divergence is the chip); T65B-order 08.png the same; keys,
+  style detour and T68A/B match. Not changed: the typing preview (`usePreviewCount`) still counts
+  over the whole graph while a Select card's text is retyped.
+
+- (2026-10-29) An unknown end's warning marks the end that is unknown. graphty-element: the
+  `unknown-end` issue's params gain `ends` ("source", "target", "both"), from the touching edges
+  (issues.ts loadIssues; additive, recorded in owner-decisions.md). The app's `issuePlace` now
+  returns `columns` (plural): Target for "target", both end columns for "both", Source when absent
+  (a project saved before `ends`). `issuesByColumn` (TableDock.tsx) puts the issue on each. Tests:
+  element `data-issues.test.ts` "says which end...", app `columns.test.ts`, and
+  `IssueRows.real-element.test.tsx` "marks the target column, and only the target cell" (fails
+  without: the source cell tinted). The fraud fixture's 18 unknown ends are targets too, so
+  `TableDockConfig.real-element.test.tsx` now expects the warning on "to". Known limit: "both" tints
+  a row's source cell even when only its target is unknown (the tint is per row).
+
+- (2026-10-29) Re-walk of "every inspector node row is called by its name" (d612c60665): ten
+  routes matched every check point (`design/ui/studio/tmp/r1-dry2-recheck-U3/`); keys on the rows
+  work (Tab order, Enter selects and opens Values). Not walked: a grouping run's Members, a run's
+  Top list. The legend card does not open the run: reach a path's rows through its layer's Values.
 
 - (2026-10-29) Every inspector node row is called by its name: path "Nodes in order", a set or
   group run's Members, a layer's Top list, Members and Selected (RunValues.tsx, LayerValues.tsx)
@@ -85,54 +102,11 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
   unchanged. The old routes now diverge where they narrowed hours to 40: the selection follows
   (one staff member left), which is the fix, not a regression.
 
-- (2026-10-29) Re-walk of the five fixes (source row chips, Add data doors, column kind, Data
-  source filter card, export scope) on dist stamp 9eb2d0d4d89d (built after every source edit):
-  nothing worse, each acceptance holds. Walks: `design/ui/studio/tmp/r1-dry1-recheck-U1/`
-  (crops in `crops/`). Pilot walks to `--replay` live in the main checkout's
-  `tmp/design-studio/tier4/r1/pilot/<task>/<walk>`, not in `rounds/r1/pilot/` (reports only).
-  Seen, not caused by these fixes: (a) at the narrowest left panel a joined row's name shrinks to
-  one letter ("d..", "f..") -- chips whole, tooltip kept, but two loads starting with the same
-  letter would look alike; (b) unticking EVERY load in a Filters Data source card leaves the last
-  rule in force (11 of 12 still hidden, `ruleOfCards` returns null for an unfinished card and the
-  old rule stays) -- T66B-success-2/16.png; (c) gauges' auto-detected Time on text `installed`
-  shows no Time pill in the table header (pill comes from `column.role`, which the auto time
-  field does not set), so nothing in the table marks it -- T60A-empty-doors/04.png.
+- (2026-10-29) The five r1 dry-run-1 fixes (source row chips, Add data doors, column kind, Data
+  source filter card, export scope) and their re-walk, in full: `git show 2b3b98a613:design/ui/studio/notes/engineer.md`.
+  Still open from them: a mixed column draws the mixed glyph in the table but Aa in Fields
+  (`TypeGlyph` has no "mixed"); unticking every load in a Data source card leaves the last rule.
 
-0.  (2026-10-29) Export opens on the whole graph every time (`ExportDialog`'s open effect sets
-    `scope` on EVERY opening, Image openings too: "all", or `source:<key>` only for a source row's own
-    Export... with two or more loads). Before, a source row's scope stuck in the Data choices and
-    Control+E wrote 11 nodes, 0 edges. The Scope list and its chips count the rows of what the file
-    holds (`scopeLabel` in `DataOutput.tsx`): edges for CSV Edges ("Shown 17 of 18"), nodes for
-    CSV Nodes, "All 12 nodes, 14 edges" and two chips for a network format; `session.scope.count`
-    already gave both halves, so no element change. Tests: `export-doors.real-element.test.tsx`
-    "Export's scope says what it writes..." (both fail without the fix). Re-walk:
-    `design/ui/studio/tmp/r1-dry1-U7/` (T68B 06-08: GraphML 12 nodes, 14 edges; T68A 04-07: All 18,
-    Shown 17 of 18, 17 edge rows written). A source scope for GraphML now reads
-    "gauges.csv 11 of 12 nodes, 0 of 14 edges" -- the zero is said, but the label truncates in the
-    select at 1440 wide.
-1.  (2026-10-29) A Filters Data source card writes `{ kind: "source", sources, side: "nodes" }`
-    (`filterLeaf` in `data-place/filterCards.ts`, used by `ruleOfCards`): it keeps the nodes the
-    ticked loads supplied and every edge between them, whichever load supplied the edge. The Style
-    Data source card (`leafOf` in `style/cards.ts`) is untouched and still speaks both halves. With
-    `side: "nodes"` the element counts no edge half (`conditionCounts().edges` is null), so the card
-    shows one chip; the header Filter chip now also names edges whenever the filter left any out
-    (`summary.visibleEdges < totalEdges`), not only when a card speaks of edges. Test:
-    `SourceCondition.real-element.test.tsx` "keeps the edges between the kept nodes". Re-walk:
-    `design/ui/studio/tmp/r1-dry1-U6/` (T66 A 12/13 + 17/18, B 11/12 + 13/14; T68 starts same).
-2.  (2026-10-29) A column's kind alone draws it: cells (`timeValue` in `time/timeActions.ts` formats
-    only a column typed date, to the day), the sort caption (`sortCaption`, by `descriptor.type`) and
-    every glyph (`typeOf` in `data-place/words.ts` maps a non-date column whose measurement is "time"
-    -- the Time role -- back to number or text). The Time role shows only as the header's Time chip.
-    Test: `table/__tests__/TableDates.real-element.test.tsx` "draws a text column with the Time role".
-    STILL OPEN: a mixed column (families, depth_cm) draws the mixed glyph in the table header but Aa in
-    Fields' lists; `TypeGlyph` has no "mixed".
-3.  (2026-10-29) Every door that adds a data file to an open project goes through
-    `addSource` in `start/open.ts` (join screen onto a graph with data): Sources + File..., Open
-    project or file..., a window or canvas drop, Quick actions > Add data... (now
-    `chooseAndOpenFile`), and a Recent entry that is a data file (`openedData` in
-    `project/actions.ts`). The older "Add to <project>" Data page is reachable from no door; only
-    New from data... (a new graph) and Replace still open the Data page. Test:
-    `join/__tests__/JoinScreen.real-element.test.tsx` "opens from Quick actions > Add data...".
 4.  (2026-10-29) A re-walk after a rebuild must run with `REAL_WARM_POOL=0`: a warm browser of the
     same build stamp (the stamp is HEAD, not the dist's content) keeps the app it loaded BEFORE the
     rebuild, so the replay shows the old code pixel for pixel. `session.log` says "took over warm
@@ -249,6 +223,9 @@ date)` lost its kind and column arguments: a text or number time field shows its
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- 2026-10-29 did not work: a background wait loop on `pgrep -f "<pattern>"` matches its own shell
+  command line and never ends; wait on a file the job writes instead.
 
 - 2026-10-29 worked: replaying the fix author's own re-walk folders (they carry the hand steps past
   the pilot's divergence) gives a full-length match check of the new screens in one pass.

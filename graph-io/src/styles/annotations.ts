@@ -476,8 +476,10 @@ function arrowOf(
         sourceBox !== null && sourceBox.width > 0 && sourceBox.height > 0
             ? facing(sourceBox, aim)
             : { x: aim.x > corner.x ? corner.x : sourceCenter.x, y: aim.y > corner.y ? corner.y : sourceCenter.y };
-    // ponytail: a node end stops at its center; Cytoscape stops at the node's box, which needs the node's size
+    // ponytail: a node end stops at its center; Cytoscape stops at the node's box, which needs the node's size, as a text source needs its measured box (#5231)
     const to = toPoint ?? facing(targetBox ?? { x: aim.x, y: aim.y, width: 0, height: 0 }, sourceCenter);
+    const sourceSize = positive(f.get("sourceSize")) ?? 1;
+    const start = xOut(from, to, f.get("sourceType"), sourceSize);
     const color = javaColor(f.get("lineColor")) ?? { color: "#000000", alpha: 1 };
     const sourceColor = javaColor(f.get("sourceColor"))?.color ?? color.color;
     const targetColor = javaColor(f.get("targetColor"))?.color ?? color.color;
@@ -485,21 +487,40 @@ function arrowOf(
         {
             ...base,
             kind: "arrow",
-            from: { x: from.x, y: -from.y },
+            from: { x: start.x, y: -start.y },
             to: { x: to.x, y: -to.y },
             color: color.color,
             opacity: color.alpha * percent(f.get("lineOpacity")),
             width: Math.max(1, (positive(f.get("lineThickness")) ?? 1) / zoom / 2),
             sourceArrow: arrowShape(f.get("sourceType")),
             targetArrow: arrowShape(f.get("targetType")),
-            sourceSize: positive(f.get("sourceSize")) ?? 1,
+            sourceSize,
             targetSize: positive(f.get("targetSize")) ?? 1,
             sourceColor,
             targetColor,
-            ...heads("source", f.get("sourceType"), positive(f.get("sourceSize")) ?? 1),
+            ...heads("source", f.get("sourceType"), sourceSize),
             ...heads("target", f.get("targetType"), positive(f.get("targetSize")) ?? 1),
         },
     ];
+}
+
+/**
+ * Where a line starts. An X at the source lies wholly outside the source, from its side out half the X's length each
+ * way of where the line starts (measured on Cytoscape 3.10.5's SVG of `specimen-images-charts-p6`: the source box ends
+ * at 249, the X spans 249 to 259 and the line starts at 254); every other head's tip is the source's side.
+ * @param from - the side of the source the line leaves, y down
+ * @param to - the line's end, y down
+ * @param type - the source end's saved `ArrowType`, a position or a name
+ * @param size - the source end's saved size
+ * @returns the line's start, y down
+ */
+function xOut(from: AnnotationPoint, to: AnnotationPoint, type: string | undefined, size: number): AnnotationPoint {
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    if (arrowShape(type) !== "other:x" || length === 0) {
+        return from;
+    }
+    const out = (ARROW_LENGTHS[ARROW_ORDER.indexOf("other:x")] * size) / 2 / length;
+    return { x: from.x + (to.x - from.x) * out, y: from.y + (to.y - from.y) * out };
 }
 
 /**

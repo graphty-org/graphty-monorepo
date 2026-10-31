@@ -68,6 +68,8 @@ const union = (boxes: readonly PBox[]): PBox =>
     );
 /** Whether a box lies wholly inside another. */
 const within = (a: PBox, b: PBox): boolean => a.x0 >= b.x0 && a.y0 >= b.y0 && a.x1 <= b.x1 && a.y1 <= b.y1;
+/** How far, in px, a line's end may lie off the box of the arrow annotation graphty draws along it. */
+const NOTE_LINE_SLACK = 3;
 const inside = (p: Pt, b: PBox, slack = 0): boolean =>
     p[0] >= b.x0 - slack && p[0] <= b.x1 + slack && p[1] >= b.y0 - slack && p[1] <= b.y1 + slack;
 /**
@@ -2339,8 +2341,30 @@ export function associate(
         bandLines.set(line, { ends, own });
         return [line];
     });
+    // The lines of the arrow annotations graphty draws, carried into the oracle's frame: a line along one with an end on
+    // no node's outline is that annotation's, not an edge (cys-annotation-example: the "NAB2 upregulated" note's arrow,
+    // its tail 9 px off node 169409, read as an edge 169409->169421 the file does not have)
+    const noteLines =
+        frame === null
+            ? []
+            : guide.strays.filter((x) => x.tag === "annotation-arrow").map((x) => carryBox(frame, x.box));
+    // and the arrowheads drawn right after such a line are its own, never an edge's (its "GCN3 downregulated" arrow's
+    // head was read as an arrowhead of the edge 169422->169421 beside it)
+    const noteHeads = new Set<Prim>();
+    const alongNote = (p: Prim): boolean => {
+        const ends: [Pt, Pt] = [p.points[0], p.points.at(-1) ?? p.points[0]];
+        const note =
+            noteLines.some((b) => ends.every((q) => inside(q, b, NOTE_LINE_SLACK))) &&
+            ends.some((q) => (nodesOn(q)[0]?.d ?? Infinity) > 2);
+        if (note) {
+            ownHeads(p, ends, p.stroke?.width ?? 0)
+                .flat()
+                .forEach((h) => noteHeads.add(h));
+        }
+        return note;
+    };
     for (const p of [...free().filter((q) => q.kind === "path"), ...bands]) {
-        if (p.kind !== "path" || p.stroke === null || p.points.length < 2) {
+        if (p.kind !== "path" || p.stroke === null || p.points.length < 2 || alongNote(p)) {
             continue;
         }
         const placed = bandLines.get(p);
@@ -2491,6 +2515,7 @@ export function associate(
             (p.kind !== "shape" && !picture) ||
             p.lettering === true ||
             annotated.some((b) => boxIoU(b, p.box) >= 0.5) ||
+            noteHeads.has(p) ||
             wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))
         ) {
             continue;

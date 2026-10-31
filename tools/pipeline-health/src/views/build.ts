@@ -70,9 +70,9 @@ type CategoryPage = (typeof CATEGORY)[string];
 /** The members of Runners (section 2.6): the runner rows of CI. */
 /**
  * Members another category judges, also shown on a page because they are one of its sources: the Flaky page
- * names every flaky source (4.4), so it shows CI's rerun rate and the stress run. They never set its state.
+ * names every flaky source (4.4), so it shows CI's rerun rate. They never set its state.
  */
-const ALSO_SHOWN: Partial<Record<PageId, string[]>> = { flaky: ["ci.reruns", "data.stress_run"] };
+const ALSO_SHOWN: Partial<Record<PageId, string[]>> = { flaky: ["ci.reruns"] };
 
 const RUNNERS = new Set([
     "ci.runner_wait",
@@ -178,6 +178,8 @@ class Builder {
             ...(c.setBy ? { setBy: await ref(c.setBy) } : {}),
             others: await Promise.all(c.others.map(ref)),
             headline: await this.member(head, range, HEADLINE_ID[head]),
+            // The member that set the color, as a full row, when it is not the headline: shown in its place.
+            ...(c.setBy && c.setBy !== head ? { driver: await this.member(c.setBy, range) } : {}),
         };
     }
 
@@ -202,6 +204,8 @@ class Builder {
                     worst: e.worst === "FAILING" ? "bad" : "warn",
                     start: iso(e.start),
                     end: e.endedAt === undefined ? null : iso(e.endedAt),
+                    ...(e.startUnknown ? { startUnknown: true } : {}),
+                    ...(e.endedAt === undefined && !this.judgedNow(e.member) ? { notJudgedNow: true } : {}),
                     fact: f("ep.past_threshold", {
                         member: spec.id,
                         ...(peak === undefined ? {} : { peak, ...(spec.unit ? { unit: spec.unit } : {}) }),
@@ -209,6 +213,16 @@ class Builder {
                     link: spec.link,
                 };
             });
+    }
+
+    /**
+     * Whether a member is past a line now: an episode stays open through an hour of gray steps, but a member too
+     * thin to judge now shows no state, so the overview must not call its episode ongoing.
+     * @param id
+     */
+    private judgedNow(id: string): boolean {
+        const s = this.reads.ev.members.find((m) => m.id === id)?.state;
+        return s === "WARNING" || s === "FAILING";
     }
 
     sources(): SourceAge[] {
@@ -305,12 +319,7 @@ class Builder {
                     ...empty,
                 ];
             case "data-sources":
-                return [
-                    ...empty,
-                    await stressTable(this.reads),
-                    sourcesTable(this.reads),
-                    notSetUpTable(this.reads, this.reads.ev.members),
-                ];
+                return [...empty, sourcesTable(this.reads), notSetUpTable(this.reads, this.reads.ev.members)];
             case "local-runs":
                 return [
                     await dimBars(this.reads, "runs", "local.runs", range, "n"),

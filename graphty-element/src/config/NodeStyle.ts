@@ -259,7 +259,10 @@ export const NodeStyle = z.strictObject({
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's
             // sides. A node that grows to hold its label (`labelFit`) grows by as far as its corners
-            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it.
+            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it. A coordinate may
+            // add a length in the units of `size` after its fraction, so a piece keeps its size whatever the
+            // node's: "-1+24" is 24 in from the left side, "0+6" 6 above the middle (here, in `parts` and in
+            // `lines`).
             points: z.string().optional(),
             // Whether a "polygon" node's corners are stretched about its center until the farthest
             // on each axis reach its sides (unset or true), or drawn exactly where they say, as
@@ -285,6 +288,10 @@ export const NodeStyle = z.strictObject({
             // (`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the node's
             // height: a chart's item labels). Drawn whatever the label says, beside it.
             texts: z.string().optional(),
+            // The label laid out as a table of cells, as JSON (see the `node.labelTable` channel): drawn in place of
+            // the label's own words, each cell's outline a line over the node and each line of its text centered in
+            // its place; with `labelFit` the table is the label's box the node grows round.
+            labelTable: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and
@@ -585,6 +592,13 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),
+    /**
+     * A second label drawn outside the node, beside it (Graphviz's `xlabel`), switched on by its words. It is drawn
+     * in the label's look -- font, size, color, outline -- and any field set here wins over the label's. Unset
+     * `location`, it sits against the node's top left corner outside it (its own lower right corner on the node's
+     * box's upper left), or where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     tooltip: RichTextStyle.prefault({
         location: "top-right",
         textColor: "#000000",

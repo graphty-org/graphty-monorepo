@@ -238,7 +238,9 @@ export interface NodeStyleValues {
     /**
      * A `polygon` node's corners, each as `x,y` relative to the node's center as fractions of its half width and half
      * height, y up, separated by spaces: `"0,1 1,-1 -1,-1"` is a triangle filling the box. A corner past 1 reaches
-     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach.
+     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach. A
+     * coordinate may add a length in the units of `width` after its fraction, kept whatever the node's size: `"-1+24"`
+     * is 24 in from the left side (Graphviz's synthetic-biology glyphs).
      */
     readonly shapePoints: string;
     /**
@@ -330,8 +332,33 @@ export interface NodeStyleValues {
      * throughout.
      */
     readonly labelRuns: string;
+    /**
+     * The label laid out as a table of cells (Graphviz's HTML-like `<TABLE>`), as JSON: `{ "border", "cellBorder",
+     * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "lineHeight"?, "rows" }`,
+     * lengths in the unit of `width`. `border` is the table's outline width, `cellBorder` and `cellPadding` every
+     * cell's own unless the cell gives one, `cellSpacing` the room between cells and round them, `width` and
+     * `height` a least size (exact with `fixedSize`), `align` (`left`, `right`) and `valign` (`top`, `bottom`) where
+     * the table sits in a cell larger than it, `lineHeight` how tall a text line is as a multiple of its font size.
+     * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
+     * `{ "lines"?, "table"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
+     * "balign"?, "border"?, "padding"?, "rule"? }`: its text as lines `{ "runs", "align"? }` (runs as in
+     * `labelRuns`), or a table of its own; `align` is also `text` (the lines line up across the whole cell),
+     * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left. The
+     * table's size, with `labelPaddingX` and `labelPaddingY` round it, is the label's box when the node grows to
+     * fit it. `label` holds its words.
+     */
+    readonly labelTable: string;
     /** The tooltip text. */
     readonly tooltip: string;
+    /**
+     * A second label drawn outside the node, beside it, in the label's font, size and color (Graphviz's `xlabel`).
+     * Unset `xlabelOffsetX` and `xlabelOffsetY`, it sits against the node's top left corner, outside it.
+     */
+    readonly xlabel: string;
+    /** How far right of the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetX: number;
+    /** How far down from the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetY: number;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */
@@ -874,6 +901,12 @@ export interface EdgeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` on an
+     * edge that also has a label). Unset a place of its own, up and left of the line's middle, its lower right corner
+     * on it.
+     */
+    readonly xlabel: string;
     /** The label text at the source end. */
     readonly sourceLabel: string;
     /** The label text at the target end. */

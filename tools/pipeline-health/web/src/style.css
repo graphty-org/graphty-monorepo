@@ -137,7 +137,7 @@ a {
 }
 main {
     padding: 28px 40px 48px;
-    max-width: 1280px;
+    max-width: 1400px;
     min-width: 0;
 }
 .side {
@@ -217,7 +217,8 @@ h1 {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    height: 150px;
+    min-height: 150px;
+    height: auto;
     padding: 12px 14px 12px;
     border-radius: 6px;
     color: #000;
@@ -262,6 +263,11 @@ h1 {
 .by {
     line-height: 1.3;
     padding-right: 10px;
+    /* Three lines at most; the block's title and label hold the whole text. */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 .by.bym {
     margin-top: auto;
@@ -316,6 +322,11 @@ summary:hover {
 .val small {
     font-weight: 450;
     color: var(--ink2);
+}
+.kn .knot {
+    display: block;
+    color: var(--ink2);
+    font-weight: 600;
 }
 .kpi .spark {
     margin-top: 4px;
@@ -374,9 +385,15 @@ summary:hover {
     line-height: 1.3;
 }
 .kvl {
-    font-size: 14px;
+    font-size: 13px;
+    line-height: 1.3;
     font-weight: 600;
     color: var(--muted);
+}
+.kv .kvl,
+.kv .kvm {
+    display: block;
+    line-height: 1.3;
 }
 .kvm {
     font-size: 12px;
@@ -432,7 +449,7 @@ h3 {
 }
 .ep {
     display: grid;
-    grid-template-columns: 4px 150px 92px minmax(0, 1fr) 118px 10px;
+    grid-template-columns: 4px 184px 92px minmax(0, 1fr) 118px 10px;
     gap: 14px;
     align-items: center;
     padding: 6px 10px 6px 0;
@@ -470,7 +487,7 @@ h3 {
 .row,
 .rowh {
     display: grid;
-    grid-template-columns: minmax(170px, 1.5fr) 104px minmax(130px, 1fr) 124px 84px 10px;
+    grid-template-columns: minmax(170px, 1.5fr) 104px minmax(130px, 1fr) 124px 120px 10px;
     gap: 14px;
     align-items: center;
     padding: 7px 10px;
@@ -494,7 +511,9 @@ h3 {
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
-    white-space: nowrap;
+    white-space: normal;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .row.dim .val,
 .tr.dim {
@@ -556,21 +575,45 @@ h3 {
     background: var(--warn);
     box-shadow: inset 0 0 0 1px var(--warnedge);
 }
+/* The overview's one line on what to act on first: a bar in the state's color, the words in ink. */
+.urgent {
+    margin: 0 0 16px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    background: var(--faint);
+    box-shadow: inset 4px 0 var(--none);
+}
+.urgent.bad {
+    box-shadow: inset 4px 0 var(--bad);
+}
+.urgent.warn {
+    box-shadow: inset 4px 0 var(--warnedge);
+}
+.urgent.ok {
+    box-shadow: inset 4px 0 var(--ok);
+}
 .kcap {
     margin: -8px 0 10px;
     color: var(--muted);
     font-size: 12px;
 }
+/* The sentence wraps under the chips on a narrow screen rather than push the page sideways. */
 .pstate {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     gap: 12px;
+    row-gap: 6px;
     margin: -6px 0 22px;
     max-width: 900px;
 }
 .pstate .sw {
     font-size: 14px;
     padding: 2px 9px;
+}
+.pstate > span:last-child {
+    flex: 1 1 260px;
+    min-width: 0;
 }
 .num {
     text-align: right;
@@ -595,6 +638,11 @@ h3 {
     grid-template-columns: minmax(150px, 300px) minmax(0, 1fr);
     gap: 14px;
     align-items: center;
+}
+/* A bar's label wraps rather than ending in "...": "shared: the same check in 3 or more pull requests" is the point. */
+.bl {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 .bv {
     display: flex;
@@ -633,6 +681,27 @@ h3 {
     align-items: baseline;
     padding: 6px 0;
 }
+/* A table class with no column rule of its own still gets one column per cell, never one cell per line. */
+.tbl .thead,
+.tbl .tr {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+}
+.tbl {
+    /* The hidden value tables of the sparklines inside stay inside the table's own scroll. */
+    position: relative;
+}
+.tr > span,
+.tbl .thead > span,
+.srow > span,
+.hrow > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+/* A column name breaks between words, never inside one. */
+.thead > span {
+    overflow-wrap: break-word;
+}
 .tr.past {
     color: var(--muted);
 }
@@ -646,10 +715,29 @@ h3 {
 .ln {
     color: var(--link);
     margin-right: 4px;
+}
+.bn2 .ln {
     white-space: nowrap;
 }
 .ln:hover {
     text-decoration: underline;
+}
+.t-chronic .thead,
+.t-chronic .tr {
+    grid-template-columns: minmax(0, 2fr) 120px 90px 90px 90px;
+}
+.t-nongating .thead,
+.t-nongating .tr {
+    grid-template-columns: minmax(0, 2fr) 80px 70px 80px;
+}
+.t-bench .thead,
+.t-bench .tr {
+    grid-template-columns: minmax(0, 2fr) 90px 110px minmax(120px, 1fr) 50px;
+    align-items: center;
+}
+/* A sparkline in a table cell is a block, so no line box puts its descender gap under it and lifts it off the row. */
+.tr .spark {
+    display: block;
 }
 .t-spans .thead,
 .t-spans .tr {
@@ -657,7 +745,7 @@ h3 {
 }
 .t-shared .thead,
 .t-shared .tr {
-    grid-template-columns: minmax(150px, 1fr) minmax(150px, 1.2fr) 96px minmax(170px, 1.4fr) 140px;
+    grid-template-columns: minmax(120px, 0.9fr) minmax(110px, 0.8fr) 96px minmax(260px, 3fr) 120px;
 }
 .t-owner .thead,
 .t-owner .tr {
@@ -681,7 +769,7 @@ h3 {
 }
 .t-trains .thead,
 .t-trains .tr {
-    grid-template-columns: 190px 170px minmax(0, 1fr);
+    grid-template-columns: minmax(110px, 170px) minmax(100px, 150px) minmax(14ch, 2fr) minmax(0, 1fr);
 }
 .t-wf .thead,
 .t-wf .tr {
@@ -733,6 +821,7 @@ h3 {
 .chart {
     position: relative;
     height: 130px;
+    margin-right: 96px;
 }
 .chart svg {
     width: 100%;
@@ -863,11 +952,18 @@ a.more:hover {
     align-items: center;
     gap: 8px;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 .dbar span {
     display: inline-block;
+    flex: 0 1 auto;
+    min-width: 2px;
     height: 10px;
     background: var(--data);
+}
+/* A file path breaks after a slash (render.ts adds the break points), never inside a name. */
+.hott .hrow > .nm {
+    overflow-wrap: break-word;
 }
 @media (max-width: 1280px) {
     main {
@@ -894,20 +990,34 @@ a.more:hover {
     }
     .row,
     .rowh {
-        grid-template-columns: minmax(150px, 1.4fr) 92px minmax(110px, 1fr) 124px 78px 10px;
+        grid-template-columns: minmax(0, 1.4fr) 84px minmax(0, 1fr) 124px 104px 10px;
         gap: 12px;
     }
     .shards .srow {
-        grid-template-columns: minmax(160px, 1.4fr) 40px 50px 48px 200px 110px 10px;
+        grid-template-columns: minmax(130px, 1.6fr) 40px 50px 48px minmax(80px, 1fr) minmax(0, 110px) 10px;
         gap: 10px;
     }
+    .shards .sbar {
+        width: 100%;
+        height: auto;
+    }
     .hott .hrow {
-        grid-template-columns: minmax(200px, 2fr) 110px 50px 64px 80px 64px 10px;
+        grid-template-columns: minmax(0, 2fr) 90px 50px 64px 80px 64px 10px;
         gap: 10px;
     }
     .t-shared .thead,
     .t-shared .tr {
-        grid-template-columns: minmax(130px, 1fr) minmax(120px, 1fr) 80px minmax(150px, 1.3fr) 110px;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.8fr) 80px minmax(0, 2.4fr) minmax(0, 110px);
+        gap: 10px;
+    }
+    .t-cost .thead,
+    .t-cost .tr {
+        grid-template-columns: minmax(0, 1.5fr) 90px 100px 124px 70px;
+        gap: 10px;
+    }
+    .t-src .thead,
+    .t-src .tr {
+        grid-template-columns: minmax(0, 1.5fr) 70px 80px minmax(0, 1fr) minmax(0, 1fr) 70px;
         gap: 10px;
     }
 }
@@ -926,6 +1036,21 @@ a.more:hover {
     padding: 2px 10px;
     color: var(--muted);
     border-radius: 4px;
+    /* "7 d" never wraps inside itself; a long caption next to the toggle wraps instead. */
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+/* One end of a time span, kept on one line. */
+.nw {
+    white-space: nowrap;
+}
+/* Between the judged rows and the rows that cannot set the page's color. */
+.rowsep {
+    margin: 14px 0 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--faint);
+    color: var(--muted);
+    font-size: 12px;
 }
 .range a:hover,
 .seg a:hover {
@@ -993,7 +1118,35 @@ p.more {
 }
 .t-hist .thead,
 .t-hist .tr {
-    grid-template-columns: 100px 90px 190px 110px minmax(0, 1fr) 110px;
+    grid-template-columns: 100px 90px minmax(0, 130px) 110px minmax(12ch, 1fr) 110px;
+}
+/* On a tablet an episode's span wraps between its two ends, so its sentence keeps most of the row. */
+@media (max-width: 1100px) and (min-width: 701px) {
+    .ep {
+        grid-template-columns: 4px 140px 76px minmax(0, 1fr) 72px 10px;
+        gap: 10px;
+    }
+}
+/* Narrower, the failure message takes a line of its own under the other cells, never a column a letter wide. */
+@media (max-width: 1100px) and (min-width: 701px) {
+    .t-hist .thead,
+    .t-hist .tr {
+        grid-auto-flow: row;
+        grid-template-columns: 90px 80px minmax(0, 1fr) 90px minmax(0, 110px);
+    }
+    .t-hist .thead > :nth-child(5),
+    .t-hist .tr > :nth-child(5) {
+        grid-row: 2;
+        grid-column: 1 / -1;
+    }
+    .t-hist .tr {
+        border-top: 1px solid var(--faint);
+    }
+}
+/* A word value ("passed", "found nothing") is set smaller than a number and never breaks inside a word. */
+.vw {
+    font-size: 16px;
+    overflow-wrap: normal;
 }
 .hott .nm small {
     display: inline;
@@ -1085,8 +1238,307 @@ h2.top {
     background: transparent;
     border: 1px solid var(--muted);
 }
+/* ---- phones: one column, the pages as a scroll strip on top, member rows as cards ---- */
 @media (max-width: 700px) {
     .tiles {
         grid-template-columns: 1fr;
+    }
+    .app {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .side {
+        position: static;
+        height: auto;
+        padding: 12px 0 0;
+        min-width: 0;
+    }
+    .brand {
+        padding: 0 16px 8px;
+    }
+    .side > ul {
+        display: flex;
+        overflow-x: auto;
+        border-bottom: 1px solid var(--faint);
+    }
+    .ni {
+        padding: 6px 12px 6px 0;
+    }
+    .ni .bar {
+        margin-right: 8px;
+    }
+    .sub,
+    .sub.open,
+    .sample {
+        display: none;
+    }
+    main {
+        padding: 16px 16px 32px;
+    }
+    .status {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .blk {
+        height: auto;
+        min-height: 120px;
+    }
+    .rowh {
+        display: none;
+    }
+    /* The value and the target each get the full width, so a long target never squeezes the name. */
+    .row {
+        grid-template-columns: minmax(0, 1fr) fit-content(45%);
+        grid-template-areas:
+            "nm st"
+            "val val"
+            "tg tg"
+            "sp sp";
+        row-gap: 4px;
+    }
+    .row .nm {
+        grid-area: nm;
+    }
+    .row .st {
+        grid-area: st;
+        text-align: right;
+    }
+    .row .val {
+        grid-area: val;
+    }
+    .row .tg {
+        grid-area: tg;
+    }
+    .row .sp {
+        grid-area: sp;
+    }
+    .row > .chev {
+        display: none;
+    }
+    /*
+     * Tables stack: each row is a card, its first cell the title and every other cell a "column: value" line, so
+     * no column is cut off and nothing scrolls sideways (the column's name is the cell's data-h).
+     */
+    .tbl .thead {
+        display: none;
+    }
+    .tbl .tr,
+    .tbl.dropped .tr {
+        display: block;
+        padding: 8px 0;
+        border-top: 1px solid var(--faint);
+    }
+    /* The column name and the value are two grid columns, so a label that wraps makes its line taller. */
+    .tbl .tr > span {
+        display: grid;
+        grid-template-columns: 40% minmax(0, 1fr);
+        column-gap: 2%;
+        align-items: start;
+    }
+    .tbl .tr > span::before {
+        content: attr(data-h);
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+    }
+    .tbl .tr > span:first-child {
+        display: block;
+        font-weight: 600;
+    }
+    .tbl .tr > span:first-child::before {
+        content: none;
+    }
+    /* Shard and hotspot rows: the name on its own line, the numbers under it, the chevron beside the name. */
+    .shards .srow {
+        grid-template-columns: 36px 46px 46px minmax(0, 1fr) 10px;
+        row-gap: 2px;
+    }
+    .shards .srow > .nm,
+    .hott .hrow > .nm {
+        grid-column: 1 / -2;
+    }
+    .shards .srow > :last-child,
+    .hott .hrow > :last-child {
+        grid-row: 1;
+        grid-column: -2 / -1;
+    }
+    .shards .srow > .note2 {
+        grid-column: 1 / -1;
+    }
+    .hott .hrow {
+        grid-template-columns: minmax(0, 1fr) 44px 58px 72px 44px 10px;
+        gap: 2px 8px;
+    }
+    /* A heading over a narrow number column wraps between words and never inside one. */
+    .hott .thead > span,
+    .shards .thead > span {
+        overflow-wrap: normal;
+        font-size: 11px;
+    }
+    .ep {
+        display: block;
+        position: relative;
+        padding: 6px 4px 6px 14px;
+    }
+    .ep .eb {
+        position: absolute;
+        left: 0;
+        top: 6px;
+        bottom: 6px;
+        width: 4px;
+    }
+    .ep .et,
+    .ep .ec {
+        display: inline;
+        margin-right: 8px;
+    }
+    .ep .ex {
+        display: block;
+    }
+    .ep .en {
+        display: block;
+        text-align: left;
+    }
+    .ep > .chev {
+        display: none;
+    }
+    /* Hour ticks: every other one, so no two labels touch. */
+    .ticks span:nth-child(even):not(:last-child) {
+        display: none;
+    }
+}
+
+/* ---- reading aids: what red means, muted fillers, folded rows, the runners chart's legend ---- */
+.muted {
+    color: var(--muted);
+}
+.nm .redm {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+}
+.nm .redm.on {
+    color: var(--ink2);
+}
+/* OK on a row: outlined, not filled, so color still marks exceptions only (3.2) and OK reads apart from gray. */
+.sw.okl {
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink2);
+}
+/* Beside an OK chip: the 7-day measures past red the color leaves out, with the red edge the blocks use. */
+.chips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: none;
+}
+/* The section a link or a sub-item of the navigation scrolled to. */
+h2.hit {
+    animation: hit 3s ease-out;
+}
+@keyframes hit {
+    0%,
+    40% {
+        background: var(--warn);
+        color: #000;
+    }
+    100% {
+        background: transparent;
+    }
+}
+.st .cov {
+    display: block;
+    color: var(--muted);
+    font-weight: 400;
+}
+.nm small.tag {
+    display: inline;
+    margin-left: 6px;
+}
+.tag {
+    white-space: nowrap;
+    padding: 0 4px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--muted);
+}
+.tbl.dropped .thead,
+.tbl.dropped .tr {
+    grid-template-columns: var(--cols);
+}
+.tfold > summary {
+    padding-left: 0;
+}
+.legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+.legend .lk {
+    display: inline-block;
+    width: 14px;
+    height: 3px;
+    margin-left: 8px;
+}
+.legend .lk:first-child {
+    margin-left: 0;
+}
+.lk.run {
+    background: var(--ink2);
+}
+.lk.q {
+    background: var(--bad);
+}
+.lk.lim {
+    border-top: 2px dashed var(--line);
+    height: 0;
+}
+.cl.end {
+    left: 100%;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+.chart + .ticks {
+    margin-right: 96px;
+}
+/* ---- the API cannot be reached: a retry button in the banner and the diagnostics under it ---- */
+.banner .retry {
+    margin: 0 6px;
+    padding: 1px 10px;
+    border: 1px solid #000;
+    border-radius: 3px;
+    background: #fff;
+    color: #000;
+    font: inherit;
+    cursor: pointer;
+}
+.banner a {
+    color: #000;
+    text-decoration: underline;
+}
+.diag {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 16px;
+    margin: 0;
+    font-size: 13px;
+}
+.diag dt {
+    color: var(--muted);
+}
+.diag dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+    .diag {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+    .diag dd {
+        margin-bottom: 8px;
     }
 }

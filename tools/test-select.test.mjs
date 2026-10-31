@@ -279,7 +279,9 @@ describe("deferring downstream packages' tests (landing checks)", () => {
 describe("shards", () => {
     it("reads each vitest run of a shard command", () => {
         const runs = shardRuns(SHARDS.find((s) => s.shard === "graphty-element-browser-2"));
-        assert.deepEqual(runs, [{ config: null, projects: ["browser", "interactions", "xr"], slice: "2/5" }]);
+        assert.deepEqual(runs, [
+            { config: null, projects: ["browser", "interactions", "xr", "minimum-work"], slice: "2/5" },
+        ]);
         assert.deepEqual(
             shardRuns(SHARDS.find((s) => s.shard === "graph-io-browser"))[0].config,
             "vitest.browser.config.ts",
@@ -852,7 +854,7 @@ describe("running a selection", () => {
         const element = selectedCommand(ROOT, byName("graphty-element-browser-2"), ["graphty-element/test/a.test.ts"]);
         assert.equal(
             element,
-            "cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr 'test/a.test.ts'",
+            "cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --project=minimum-work 'test/a.test.ts'",
         );
     });
 

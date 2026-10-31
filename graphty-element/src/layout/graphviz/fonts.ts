@@ -116,7 +116,8 @@ export function withDrawnFonts(
         return family;
     };
     const fix = (attributes: Readonly<Record<string, string>>): Readonly<Record<string, string>> => {
-        if (attributes.label === undefined) {
+        // ponytail: an end label's own font (`labelfontname`) is handed over as the file names it
+        if ((attributes.label ?? attributes.xlabel ?? attributes.headlabel ?? attributes.taillabel) === undefined) {
             return attributes;
         }
 

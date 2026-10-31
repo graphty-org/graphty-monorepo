@@ -64,15 +64,17 @@ import type {
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
-    GRAPHVIZ_DECORATED_BOXES,
+    type GlyphPoint,
     GRAPHVIZ_GLYPH_SHAPES,
     GRAPHVIZ_POLYGON_SHAPES,
     graphvizFont,
     graphvizFontName,
+    type GraphvizGlyph,
     graphvizGlyph,
     graphvizPolygonCorners,
     isGraphvizBox,
 } from "./drawing.js";
+import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 import { layoutRecord } from "./record.js";
@@ -112,6 +114,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "shapeLines",
         "shapeLineWidth",
         "tooltip",
+        "xlabel",
         "visible",
     ] as const),
     edge: Object.freeze([
@@ -127,6 +130,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "label",
         "sourceLabel",
         "targetLabel",
+        "xlabel",
         "labelColor",
         "labelSize",
         "labelFont",
@@ -171,6 +175,7 @@ const NODE_ATTRIBUTES: readonly string[] = [
     "fontsize",
     "fontcolor",
     "tooltip",
+    "xlabel",
 ];
 
 /** Every edge attribute the reader reads; the writer replaces them all. */
@@ -198,7 +203,7 @@ const EDGE_ATTRIBUTES: readonly string[] = [
 ];
 
 /** Attributes the reader notes as not carried. */
-const NOTED_ATTRIBUTES: readonly string[] = ["peripheries", "xlabel"];
+const NOTED_ATTRIBUTES: readonly string[] = ["peripheries"];
 
 const CIRCLE_LIKE: ReadonlySet<string> = new Set(["circle", "doublecircle", "mcircle", "square", "msquare"]);
 const BOX_LIKE: ReadonlySet<string> = new Set(["box", "rect", "rectangle", "square"]);
@@ -756,8 +761,8 @@ interface NodeRead {
 interface HtmlTableFrame {
     /** `BORDER`: the width of the table's outline, 1 when not given. */
     readonly border: number;
-    /** From the outline to the cells' text on each side: the border, `CELLSPACING`, `CELLBORDER`, `CELLPADDING`. */
-    readonly inset: number;
+    /** The table's rows and cells, as the neutral `labelTable` value. */
+    readonly cells: LabelTable;
     /** `COLOR`, or null for the node's pen color. */
     readonly color: string | null;
     /** `STYLE`, lowercase. */
@@ -769,12 +774,19 @@ interface HtmlTableFrame {
 
 /**
  * The frame of a label that is an HTML-like table, perhaps inside font tags (Graphviz's `fonttable`); null for any
- * other label. Cells, rows and their own borders are not read: graphty draws the table as the node's box.
+ * other label, with its rows and cells.
  * @param label - the `label` attribute, or null
  * @param html - the file's HTML strings
+ * @param scheme - the node's color scheme, for its cells' font colors
+ * @param site - where a bad font color is noted
  * @returns the frame, or null
  */
-function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTableFrame | null {
+function htmlTableFrame(
+    label: string | null,
+    html: ReadonlySet<string>,
+    scheme: string | null,
+    site: CanonSite,
+): HtmlTableFrame | null {
     if (label === null || (!isHtmlString(label) && !html.has(`<${label}>`))) {
         return null;
     }
@@ -793,13 +805,16 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
         const v = length(name, 0, 0, 65535);
         return v > 0 ? v : null;
     };
-    const inset =
-        border + length("cellspacing", 2, -128, 127) + length("cellborder", border, 0, 127) + length("cellpadding", 2);
+    const tagAttrs = (tag: string): Map<string, string> =>
+        new Map(tagAttributes(tag).map(([k, v]) => [k.toLowerCase(), v]));
+    const markup = isHtmlString(label) ? label.slice(1, -1) : label;
+    const cells = readLabelTable(markup, tagAttrs, (tags) => htmlRunFont(tags, scheme, site));
+    if (cells === null) {
+        return null;
+    }
     return {
         border,
-        // a cell's border is the table's unless CELLBORDER is given; a negative CELLSPACING overlaps the cells, but
-        // the text never sits outside the table
-        inset: Math.max(0, inset),
+        cells,
         color: nonEmpty(attrs.get("color") ?? null),
         style: (attrs.get("style") ?? "").toLowerCase(),
         width: size("width"),
@@ -925,6 +940,10 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
         put("label", shown);
         readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
         readHtmlRuns(label, cx.html, n.scheme, put, at);
+        if (n.table !== null) {
+            // Graphviz's text line is its line height (LINESPACING) of font sizes tall
+            put("labelTable", JSON.stringify({ ...n.table.cells, lineHeight: LINE_SPACING }));
+        }
         if (cx.cluster) {
             put("labelPosition", clusterLabelPosition(get));
             readClusterLabelPlace(get, put);
@@ -1046,7 +1065,7 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
         point: !cx.cluster && shape === "point",
         scheme: get("colorscheme"),
         color: nonEmpty(get("color")),
-        table: cx.cluster ? null : htmlTableFrame(get(LABEL_ATTRIBUTE), cx.html),
+        table: cx.cluster ? null : htmlTableFrame(get(LABEL_ATTRIBUTE), cx.html, get("colorscheme"), at("labelTable")),
     };
     // in a node's label \E stands for nothing (measured with dot 2.43); \T and \H stand for their letters
     const names: DotEscapeNames = cx.cluster ? { graph: cx.name } : { node: cx.name, graph: cx.graph, edge: "" };
@@ -1060,8 +1079,29 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     readNodeOutline(n);
     readNodeShape(n);
     readNodeLabelAndSize(n, names);
-    if (nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+}
+
+/**
+ * Reads a node's external label (`xlabel`), drawn outside it in its label's face, and where a laid-out file stored it
+ * (`xlp`, its center, kept only beside the node's stored `pos`) as an offset from the node's center, y down.
+ * @param get - the node's attributes
+ * @param cx - its name and the file's HTML strings
+ * @param center - its stored center, in points, y up; null when the file stores none
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readNodeXlabel(get: Attr, cx: NodeContext, center: readonly number[] | null, put: Put, at: At): void {
+    const raw = nonEmpty(get("xlabel"));
+    if (cx.cluster || raw === null) {
+        return;
+    }
+    const names: DotEscapeNames = { node: cx.name, graph: cx.graph, edge: "" };
+    put("xlabel", labelText(raw, names, cx.html, false, at("xlabel")));
+    const [px, py] = center ?? [];
+    const [lx, ly] = (get("xlp") ?? "").split(",").map(Number);
+    if ([px, py, lx, ly].every(Number.isFinite)) {
+        put("xlabelOffsetX", num6(lx - px));
+        put("xlabelOffsetY", num6(py - ly));
     }
 }
 
@@ -1540,8 +1580,9 @@ const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map(
 
 /**
  * A Graphviz shape drawn as pieces of its own (`graphvizGlyph`) at a node's size, as the neutral values that draw it:
- * a polygon of its outline drawn where it says, its further pieces (`shapeParts`) and lines (`shapeLines`), each as
- * fractions of the node's half width and half height. An `underline` is filled with no line round it, its line alone
+ * a polygon of its outline drawn where it says, its further pieces (`shapeParts`) and lines (`shapeLines`), each
+ * coordinate a fraction of the node's half width or half height plus a length in points (`-1+24`), so the pieces keep
+ * their sizes when the node grows to hold its label. An `underline` is filled with no line round it, its line alone
  * drawn in the pen's width.
  * @param shape - the shape name, lowercase
  * @param width - the node's width in points, or null for Graphviz's default
@@ -1596,17 +1637,34 @@ function glyphTexts(
     if (glyph === null) {
         return null;
     }
-    // fractions of the half width and half height the glyph was laid out at
+    // each coordinate is a * W + b: a fraction of the half width (or height) plus a length in points, read off the
+    // glyph laid out again at twice the width and at twice the height
     const half = (v: number | null, fallback: number): number => (v !== null && v > 0 ? v : fallback) / 2;
     const [W, H] = [half(width, 54), half(height, 36)];
-    const list = (points: readonly (readonly [number, number])[]): string =>
-        cornersText(points.map(([x, y]) => [x / W, y / H] as const));
-    const lists = (all: readonly (readonly (readonly [number, number])[])[]): string | null =>
-        all.length === 0 ? null : all.map(list).join("; ");
+    const wide = graphvizGlyph(shape, 4 * W, 2 * H);
+    const tall = graphvizGlyph(shape, 2 * W, 4 * H);
+    if (wide === null || tall === null) {
+        return null;
+    }
+    const term = (v: number, grown: number, by: number): string => {
+        const a = num6((grown - v) / by);
+        const b = num6(v - a * by);
+        if (b === 0) {
+            return String(a);
+        }
+        return `${String(a)}${b > 0 ? "+" : ""}${String(b)}`;
+    };
+    const pieces = (pick: (g: GraphvizGlyph) => readonly (readonly GlyphPoint[])[]): string | null => {
+        const [at, x2, y2] = [pick(glyph), pick(wide), pick(tall)];
+        const text = at.map((points, i) =>
+            points.map(([x, y], j) => `${term(x, x2[i][j][0], W)},${term(y, y2[i][j][1], H)}`).join(" "),
+        );
+        return text.length === 0 ? null : text.join("; ");
+    };
     return {
-        outline: list(glyph.outline),
-        parts: lists(glyph.parts),
-        lines: lists(glyph.lines),
+        outline: pieces((g) => [g.outline]) ?? "",
+        parts: pieces((g) => g.parts),
+        lines: pieces((g) => g.lines),
         unstroked: glyph.unstroked === true,
         ring: glyph.ring ?? null,
     };
@@ -1780,8 +1838,9 @@ function readLabelFit(
     const given = shape === "plain" ? [] : margin;
     const marginX = given.length > 0 ? given[0] * DOT_POINTS_PER_INCH : pad.x;
     const marginY = given.length > 0 ? (given[1] ?? given[0]) * DOT_POINTS_PER_INCH : pad.y;
-    const padX = marginX + (table?.inset ?? 0);
-    const padY = marginY + (table?.inset ?? 0);
+    // a table's cells are laid out by whoever draws them (`labelTable`): the label's box is the table's
+    const padX = marginX;
+    const padY = marginY + (table === null ? ((LINE_SPACING - 1) * fontSize * lines) / 2 : 0);
     // a table's WIDTH and HEIGHT are its least size, the margin round it; the node's own size is another
     const least = nodeLeastSize(get, shape);
     if (typeof table?.width === "number") {
@@ -1790,12 +1849,13 @@ function readLabelFit(
     if (typeof table?.height === "number") {
         put("height", num6(Math.max(table.height + 2 * marginY, least.h)));
     }
-    // a decorated box holds its label as a box does, exactly; so does a cylinder, its width (`cylinder_size`).
+    // a decorated box and a synthetic-biology glyph (four-sided, Graphviz's `isBox`) hold their label as a box does,
+    // exactly; so does a cylinder, its width (`cylinder_size`).
     // ponytail: Graphviz grows a cylinder's padded height 1.375 times too, which only a label over about 26 points
     // tall reaches past the default height; carry it when a sample needs it
-    put("labelFit", GRAPHVIZ_DECORATED_BOXES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
+    put("labelFit", GRAPHVIZ_GLYPH_SHAPES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
-    put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
+    put("labelPaddingY", num6(padY));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
         put("labelFitSquare", true);
     }
@@ -1840,8 +1900,10 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             }
         }
     }
-    if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+    // beside a label, the xlabel is a second label of its own
+    const xlabel = nonEmpty(get("xlabel"));
+    if (get(LABEL_ATTRIBUTE) !== null && xlabel !== null) {
+        put("xlabel", labelText(xlabel, cx.names, cx.html, false, at("xlabel")));
     }
     readEndLabelFace(get, scheme, put, at);
 }
@@ -2459,6 +2521,7 @@ function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue 
 export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
     const notes = new StyleNotes();
     const cx = contexts(snapshot);
+    const places = labelPlaceContext(snapshot);
     const node = valueColumns(snapshot.nodeCount);
     const nameColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
     const clusterColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
@@ -2469,14 +2532,11 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const get: Attr = (name) => cellText(snapshot.nodes, name, i);
         const ncx = cx.node(i);
         const at: At = (property) => ({ notes, target: "node", property, element: i, budget: context.budget });
-        readNode(
-            get,
-            ncx,
-            (p, v) => {
-                node.put(i, p, v);
-            },
-            at,
-        );
+        const put: Put = (p, v) => {
+            node.put(i, p, v);
+        };
+        readNode(get, ncx, put, at);
+        readNodeXlabel(get, ncx, places.center(i), put, at);
         const shown = defaultLabel(ncx, (get("shape") ?? "").toLowerCase(), notes);
         if (shown !== null) {
             nameColumn[i] = shown;
@@ -2492,7 +2552,6 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     // `splines=none` and `splines=""` draw no edges at all (https://graphviz.org/docs/attrs/splines/)
     const splines = cellText(snapshot.graph, "splines", 0)?.trim().toLowerCase();
     const noEdges = splines === "" || splines === "none";
-    const places = labelPlaceContext(snapshot);
     for (let e = 0; e < snapshot.edgeCount; e++) {
         context.budget.spend("edge", EDGE_ATTRIBUTES.length);
         const get: Attr = (name) => cellText(snapshot.edges, name, e);
@@ -2810,6 +2869,10 @@ function nodeAttributes(
     } else if (label === null && shown !== null) {
         out.set(LABEL_ATTRIBUTE, "");
     }
+    const xlabel = get("xlabel");
+    if (!cx.cluster && typeof xlabel === "string") {
+        out.set("xlabel", escapeLabel(xlabel));
+    }
     noteLabelPosition(get("labelPosition"), cx, raw, approximate);
     if (tokens.length > 0) {
         out.set("style", tokens.join(","));
@@ -3040,6 +3103,7 @@ function edgeAttributes(get: Get, directed: boolean, approximate: Approximate): 
         ["label", LABEL_ATTRIBUTE],
         ["targetLabel", "headlabel"],
         ["sourceLabel", "taillabel"],
+        ["xlabel", "xlabel"],
     ] as const) {
         const v = get(property);
         if (typeof v === "string") {

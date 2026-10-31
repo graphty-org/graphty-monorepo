@@ -4,7 +4,7 @@
  * what it draws agree. Nothing here reaches Babylon.js, Lit or the DOM.
  */
 import type { NodeStyleConfig } from "../config/NodeStyle";
-import { polygonPoints, polygonReach } from "./shapeOutlines";
+import { type Point2, polygonReach, type ShapePoint, shapePointList } from "./shapeOutlines";
 
 /** A label's box: as wide as its widest line, as tall as its lines at one font size each. */
 export interface LabelBox {
@@ -45,7 +45,8 @@ const SIDES: ReadonlyMap<string, number> = new Map([
  * it grows by as far as its corners reach past its half width and half height, as Graphviz grows
  * a distorted or skewed polygon. Corners drawn where they say (`shape.stretchPoints` false) already
  * reach that far past the box they are fractions of when they are drawn, so that box is not grown
- * by their reach again (corners that fall short of it still draw it in).
+ * by their reach again (corners that fall short of it still draw it in). Corners that add lengths to their fractions
+ * (`-1+24`) are drawn against the box whatever its size, so their reach changes nothing.
  *
  * A star grows until the box fits between its arms (Graphviz's `star_size`).
  *
@@ -71,7 +72,8 @@ export function labelFitExtent(
     let width = quantize(box.width + 2 * (shape.labelPaddingX ?? 0));
     let height = quantize(box.height + 2 * (shape.labelPaddingY ?? 0));
     const type = shape.type ?? "";
-    const polygon = type === "polygon" ? polygonPoints(shape.points) : null;
+    const corners = type === "polygon" ? shapePointList(shape.points) : null;
+    const polygon = corners !== null && corners.length >= 3 ? corners : null;
     if (shape.labelFit === "inside" && type === "star") {
         ({ width, height } = starAround(width, height));
     } else if (shape.labelFit === "inside" && !BOXES.has(type)) {
@@ -92,18 +94,45 @@ export function labelFitExtent(
 
     width = Math.max(least.width, width);
     height = Math.max(least.height, height);
-    if (polygon !== null) {
-        // corners drawn where they say reach past the box as they are drawn: only a shortfall counts here
-        const drawnAsTheySay = shape.stretchPoints === false;
-        const [reachX, reachY] = polygonReach(polygon).map((r) => (drawnAsTheySay ? Math.min(1, r) : r));
-        width = Math.max(least.width, width * reachX);
-        height = Math.max(least.height, height * reachY);
-    }
+    ({ width, height } = reachedBox(shape, polygon, { width, height }, least));
     if (shape.labelFitSquare === true) {
         width = height = Math.max(width, height);
     }
 
     return { width, height };
+}
+
+/** A width and a height. */
+interface Extent {
+    width: number;
+    height: number;
+}
+
+/**
+ * A fitted polygon's box grown by as far as its corners reach past it, or drawn in by as far as they fall short when
+ * they are drawn where they say. Corners with lengths are drawn against the box whatever its size, so they neither
+ * grow it nor draw it in.
+ * @param shape - The node's shape block.
+ * @param polygon - Its corners, or null for another shape.
+ * @param box - The fitted box.
+ * @param least - The node's least size.
+ * @returns The box.
+ */
+function reachedBox(
+    shape: NonNullable<NodeStyleConfig["shape"]>,
+    polygon: ShapePoint[] | null,
+    box: Extent,
+    least: Extent,
+): Extent {
+    if (polygon?.every(([, xLength, , yLength]) => xLength === 0 && yLength === 0) !== true) {
+        return box;
+    }
+    // corners drawn where they say reach past the box as they are drawn: only a shortfall counts here
+    const drawnAsTheySay = shape.stretchPoints === false;
+    const [reachX, reachY] = polygonReach(polygon.map(([x, , y]): Point2 => [x, y])).map((r) =>
+        drawnAsTheySay ? Math.min(1, r) : r,
+    );
+    return { width: Math.max(least.width, box.width * reachX), height: Math.max(least.height, box.height * reachY) };
 }
 
 /**

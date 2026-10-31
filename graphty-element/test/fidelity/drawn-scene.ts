@@ -230,6 +230,41 @@ interface NodeInternals {
     outerBorder: AbstractMesh | null;
     drawnStyle: NodeStyleConfig | null;
     decorationPieces: readonly NodeDecorationPiece[];
+    tableTexts: readonly unknown[] | null;
+}
+
+/**
+ * The label of a node that draws it as a table (`shape.labelTable`), whose words are drawn in its cells, the last of
+ * its further texts, as Graphviz's scene records them: the cells' words in order, one line each, in a box round them
+ * all, in the first cell's font and color.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the label, or null for a node whose label is not a table
+ */
+function readTableLabel(node: Node, p: Projector): DrawnLabel | null {
+    const count = (node as unknown as NodeInternals).tableTexts?.length ?? 0;
+    const cells = count === 0 ? [] : node.shapeTextLabels.slice(-count).flatMap((l) => readLabel(l, p) ?? []);
+    const [first] = cells;
+    if (first === undefined) {
+        return null;
+    }
+    const edge = (key: keyof ScreenBox, pick: (...v: number[]) => number): number =>
+        pick(...cells.map((c) => c.box[key]));
+    return {
+        ...first,
+        text: cells.map((c) => c.text).join("\n"),
+        box: {
+            x0: edge("x0", Math.min),
+            y0: edge("y0", Math.min),
+            x1: edge("x1", Math.max),
+            y1: edge("y1", Math.max),
+            near: edge("near", Math.min),
+            far: edge("far", Math.max),
+        },
+        textBox: null,
+        lineCount: cells.reduce((sum, c) => sum + c.lineCount, 0),
+        background: null,
+    };
 }
 
 /**
@@ -653,6 +688,11 @@ export interface DrawnNode {
     /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
     picture?: ScreenBox;
     label: DrawnLabel | null;
+    /**
+     * The label of a node that draws it as a table (`shape.labelTable`), read off the table's cells, or null for
+     * none; the cells are also among its `texts`.
+     */
+    tableLabel?: DrawnLabel | null;
     /** The further texts it draws over its face (`shape.texts`). */
     texts?: DrawnLabel[];
     /**
@@ -935,7 +975,9 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         innerBorder: outer === null ? null : own,
         outer,
         label: readLabel(node.label, p),
-        texts: node.shapeTextLabels.flatMap((l) => {
+        tableLabel: readTableLabel(node, p),
+        // the further texts, and the external label beside the node (Graphviz's xlabel), each a text of the node
+        texts: [...node.shapeTextLabels, ...(node.xlabelLabel === undefined ? [] : [node.xlabelLabel])].flatMap((l) => {
             const read = readLabel(l, p);
             return read === null ? [] : [read];
         }),

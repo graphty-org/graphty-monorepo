@@ -16,7 +16,14 @@
 #    site (tools/docs-affected.sh, the pre-push gate's rule);
 # 8. the bundle size checks ci.yml's Checks job runs, for graphty-element and cytoscape-extensions when
 #    affected or their script changed;
-# 9. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
+# 9. the rest of ci.yml's Checks job, with its commands and its "Plan the package-only checks" gating: the
+#    tools tests (test:ci-workflows, which no test shard runs), CI budgets, offline links, the signing
+#    bypass grep, Knip, published dependencies (of the affected packages, the ones built here), the
+#    ESLint root config, the API report, feature flags, declared build tools, dry-run outcome checks,
+#    the release hold list, data sources, migration counts, legacy API use, committed images, the Figma
+#    lock, and the whole-repository formatting check when one of prettier's inputs changed;
+#    tools/check-quick.test.mjs fails when the Checks job gains a `pnpm run` step this script lacks;
+# 10. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
 #    route, on this machine's NVIDIA card). Never by default: the agent that owns a long-lived branch
 #    asks for it before opening the pull request (CLAUDE.md, "Shipping a change", step 2; issue #3269).
 #
@@ -96,6 +103,41 @@ fi
 if affected cytoscape-extensions; then
     step "Bundle size (cytoscape-extensions)" pnpm --filter @graphty/cytoscape-extensions run size
 fi
+# The Checks job (ci.yml), in its order. Its package-only steps run when the package is affected or the
+# step's own script changed, as "Plan the package-only checks" decides.
+touched() { grep -qE "$1" <<<"$(git diff --name-only "$MB")"; }
+step "CI workflow tests" pnpm run test:ci-workflows
+step "CI budgets" node tools/ci-budgets.mjs lint
+step "Links (offline)" ./tools/check-links.sh --offline
+no_signing_bypass() { ! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/; }
+step "No signing bypass in tools/ and .husky/" no_signing_bypass
+step "Knip (dead code)" pnpm run lint:knip
+step "Knip (production dependencies)" pnpm run lint:knip:prod
+# CI has every package built; here only the affected ones are, and only they can ship something new.
+published_deps() {
+    local dirs=() p
+    for p in $AFFECTED; do [ -f "$p/package.json" ] && dirs+=("$p"); done
+    [ ${#dirs[@]} -eq 0 ] || pnpm run check:published-deps "${dirs[@]}"
+}
+step "Published dependencies (affected)" published_deps
+step "ESLint root config" pnpm run lint:eslint-root
+if touched '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$'; then
+    step "Formatting (whole repository)" pnpm run format:check
+fi
+if affected graphty-element || touched '^tools/api-report'; then
+    step "Public API report (graphty-element)" pnpm run check:api-report
+fi
+step "Feature flags" pnpm run check:features
+step "Declared build tools" pnpm run check:declared-tools
+step "Dry-run outcome checks kept" pnpm run check:dry-run-checks
+step "Release hold list" pnpm run check:release-hold
+if affected graphty-element || touched '^tools/check-data-source-migration'; then
+    step "Element data sources on graph-io" pnpm run check:data-source-migration
+fi
+step "Migration count script" pnpm run check:migration-counts
+step "Legacy graph API use" pnpm run check:legacy-use
+step "No committed walk screenshots" pnpm run check:committed-images
+step "compact-mantine Figma lock" pnpm run check:figma-lock
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.
 dry_run() { pnpm exec nx run graphty:build && node graphty/acceptance/run.mjs; }
 if [ "$DRY_RUN" = 1 ]; then

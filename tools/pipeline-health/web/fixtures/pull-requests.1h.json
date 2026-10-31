@@ -218,7 +218,7 @@
             "minN": 5
         },
         {
-            "state": "slow",
+            "state": "warn",
             "window": "7d",
             "sla": {
                 "target": {

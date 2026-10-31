@@ -186,6 +186,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.shapeLines": "mesh",
     // words, like a label: per node, drawn by `Node.syncLabel`
     "node.shapeTexts": "content",
+    // a table label sizes the node it is drawn on, as `node.labelFit` does: the fitted extents and the cells'
+    // outlines are baked into the source mesh
+    "node.labelTable": "mesh",
     "node.shapeLineWidth": "mesh",
     // How a node grows to hold its label: the fitted extents are baked into the source mesh, and
     // Node keys the mesh by them as well, since nodes of one style differ by their label's box.

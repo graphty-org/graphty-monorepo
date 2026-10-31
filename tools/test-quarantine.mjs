@@ -9,7 +9,7 @@
  * 2026-10-22, a test that fails because of load or timing is a critical defect). A
  * quarantined test still runs and its result is printed loudly, but its failure does not fail the shard.
  * A test that fails on the first run AND on the retry, and is not quarantined, fails the shard: that is a
- * real failure. GPU tests (the webgpu-graph-algorithms families) are never quarantined.
+ * real failure. GPU tests (the webgpu-graph-algorithms families) and the style fidelity slices are never quarantined.
  *
  * An entry leaves the list when its issue closes, when the test passed in 20 consecutive gate runs of its
  * shard, or when it expires (14 days after it was added, design/ci/ci-cd-plan.md 9.3); a test that flakes
@@ -66,7 +66,9 @@ import { selectedCommand } from "./test-select.mjs";
 const DAY = 86_400_000;
 export const PASSES_TO_LEAVE = 20;
 export const MAX_RETRY_FILES = 5; // more failing files than this is a breakage, not a flake: no retry
-const GPU_FAMILY = /^webgpu-graph-algorithms/;
+// never quarantined: GPU tests, and the style fidelity gate's samples (a sample judged differently on the same inputs
+// is a determinism defect in the drawing or the comparator, #4270)
+const GPU_FAMILY = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
 const FILE = "tools/test-quarantine.json";
 const RETRY_MARK = "test-quarantine: retrying";
 

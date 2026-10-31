@@ -15,6 +15,7 @@ import {
     type Judgement,
     type KnownRecords,
     oracleFileSha256,
+    oracleSlice,
     raiseFloors,
     ratchetKnown,
     recordableScores,
@@ -159,6 +160,19 @@ describe("style fidelity gate", () => {
             judgeKey("s~specification", run({}), undefined, undefined, { section: "specificationFloors" }).section,
             "specificationFloors",
         );
+    });
+
+    it("spreads the full run over slices that are disjoint and cover every sample, and refuses a bad slice", () => {
+        const ids = ["a", "b", "c", "d", "e"];
+        assert.deepEqual(oracleSlice(ids, undefined), ids);
+        assert.deepEqual(oracleSlice(ids, ""), ids);
+        assert.deepEqual(oracleSlice(ids, "1/2"), ["a", "c", "e"]);
+        assert.deepEqual(oracleSlice(ids, "2/2"), ["b", "d"]);
+        const three = ["1/3", "2/3", "3/3"].flatMap((s) => oracleSlice(ids, s));
+        assert.deepEqual([...three].sort(), ids);
+        for (const bad of ["0/2", "3/2", "2", "a/b", "1/0"]) {
+            assert.throws(() => oracleSlice(ids, bad), /GRAPHTY_ORACLE_SLICE/);
+        }
     });
 });
 

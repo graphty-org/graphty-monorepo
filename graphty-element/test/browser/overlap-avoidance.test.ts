@@ -223,6 +223,27 @@ describe("ngraph's nodeGap keeps drawn nodes apart", () => {
 
         assert.deepEqual(overlappingPairs(g), []);
     });
+
+    it("moves nodes apart again when they grow after the frame loop stopped the layout at rest", async () => {
+        const g = await mount();
+        const { nodes, edges } = star();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await g.setLayout("ngraph", { seed: 7, dim: 2, nodeGap: 1 });
+        await settle(g);
+        // A frame that finds the layout at rest stops stepping it.
+        for (let frame = 0; frame < 100 && g.getLayoutManager().running; frame++) {
+            g.scene.render();
+            await nextFrame();
+        }
+        assert.isFalse(g.getLayoutManager().running, "the frame loop stopped the settled layout");
+
+        await sizeEveryNode(g, 12);
+        assert.isTrue(g.getLayoutManager().running, "a node that grew starts the layout again");
+        await settle(g);
+
+        assert.deepEqual(overlappingPairs(g), []);
+    });
 });
 
 interface Rect {

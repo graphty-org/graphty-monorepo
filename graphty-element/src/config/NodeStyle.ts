@@ -588,6 +588,13 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),
+    /**
+     * A second label drawn outside the node, beside it (Graphviz's `xlabel`), switched on by its words. It is drawn
+     * in the label's look -- font, size, color, outline -- and any field set here wins over the label's. Unset
+     * `location`, it sits against the node's top left corner outside it (its own lower right corner on the node's
+     * box's upper left), or where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     tooltip: RichTextStyle.prefault({
         location: "top-right",
         textColor: "#000000",

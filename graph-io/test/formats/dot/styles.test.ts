@@ -375,6 +375,36 @@ two", fontsize=20]; c [margin="0.5,0.25"]; d [margin=0.1]; p [shape=plain];
         expect((await load("digraph { a -> b }")).styles.styles.graph.background).toBe("#ffffff");
         expect((await load("digraph { bgcolor=red; a -> b }")).styles.styles.graph.background).toBe("#ff0000");
     });
+
+    it("turns the drawing a quarter turn counterclockwise for rotate=90, landscape and a landscape orientation", async () => {
+        const rotation = async (attrs: string): Promise<unknown> =>
+            (await load(`digraph { ${attrs} a -> b }`)).styles.styles.graph.rotation;
+        expect(await rotation("rotate=90;")).toBe(90);
+        expect(await rotation("landscape=true;")).toBe(90);
+        expect(await rotation("orientation=landscape;")).toBe(90);
+        expect(await rotation("orientation=L;")).toBe(90);
+        // Graphviz turns only for 90, and reads rotate before orientation and orientation before landscape
+        expect(await rotation("rotate=45;")).toBeUndefined();
+        expect(await rotation("rotate=0; landscape=true;")).toBeUndefined();
+        expect(await rotation("orientation=portrait; landscape=true;")).toBeUndefined();
+        expect(await rotation("landscape=false;")).toBeUndefined();
+        expect(await rotation("")).toBeUndefined();
+    });
+
+    it("writes the drawing's quarter turn back as rotate=90, in place of landscape or a landscape orientation", async () => {
+        for (const attrs of ["landscape=true;", "orientation=landscape;", "rotate=90;"]) {
+            const { snapshot, styles } = await load(`digraph { ${attrs} a -> b }`);
+            const text = await registry.exportGraphToString(snapshot, "dot", { styles });
+            expect(text).toMatch(/\brotate="?90"?/);
+            expect(text).not.toMatch(/landscape|orientation/);
+            expect((await load(text)).styles.styles.graph.rotation).toBe(90);
+        }
+        const upright = await load("digraph { rotate=90; a -> b }");
+        const { rotation: _turn, ...unturned } = upright.styles.styles.graph;
+        const styles = { ...upright.styles, styles: { ...upright.styles.styles, graph: unturned } };
+        const text = await registry.exportGraphToString(upright.snapshot, "dot", { styles });
+        expect(text).not.toMatch(/rotate/);
+    });
 });
 
 describe("DOT styles: what Graphviz draws beyond the attributes", () => {
@@ -682,10 +712,22 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         expect(text).toMatch(/\bf\s*\[[^\]]*shape=fivepoverhang\b/);
     });
 
-    it("reads an edge's xlabel as its label when it has none, and notes one it cannot carry beside a label", async () => {
+    it("reads an edge's xlabel as its label when it has none, and as its xlabel beside a label", async () => {
         const { snapshot, styles } = await load('digraph { a -> b [xlabel="x"]; a -> c [label="l", xlabel="x"] }');
         expect(drawn(styles, snapshot, "edge", "label")).toEqual(["x", "l"]);
-        expect(codes(styles)).toContain("W_STYLE_NOT_CARRIED");
+        expect(drawn(styles, snapshot, "edge", "xlabel")).toEqual([null, "x"]);
+        expect(codes(styles)).not.toContain("W_STYLE_NOT_CARRIED");
+    });
+
+    it("carries a node's xlabel, and its stored xlp as an offset from the node's stored center", async () => {
+        const { snapshot, styles } = await load(
+            'graph { a [xlabel="ext \\N"]; b [xlabel="x", pos="376,95!", xlp="402,121"]; c [xlabel="y", xlp="1,2"] }',
+        );
+        expect(drawn(styles, snapshot, "node", "xlabel")).toEqual(["ext a", "x", "y"]);
+        // right 26 points and up 26 points (DOT's y grows upward, the offset's downward)
+        expect(drawn(styles, snapshot, "node", "xlabelOffsetX")).toEqual([null, 26, null]);
+        expect(drawn(styles, snapshot, "node", "xlabelOffsetY")).toEqual([null, -26, null]);
+        expect(codes(styles)).not.toContain("W_STYLE_NOT_CARRIED");
     });
 });
 

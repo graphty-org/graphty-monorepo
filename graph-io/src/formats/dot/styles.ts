@@ -113,6 +113,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "shapeLines",
         "shapeLineWidth",
         "tooltip",
+        "xlabel",
         "visible",
     ] as const),
     edge: Object.freeze([
@@ -128,6 +129,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "label",
         "sourceLabel",
         "targetLabel",
+        "xlabel",
         "labelColor",
         "labelSize",
         "labelFont",
@@ -136,7 +138,7 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "tooltip",
         "visible",
     ] as const),
-    graph: Object.freeze(["background"] as const),
+    graph: Object.freeze(["background", "rotation"] as const),
     block: "native",
 });
 
@@ -172,6 +174,7 @@ const NODE_ATTRIBUTES: readonly string[] = [
     "fontsize",
     "fontcolor",
     "tooltip",
+    "xlabel",
 ];
 
 /** Every edge attribute the reader reads; the writer replaces them all. */
@@ -199,7 +202,7 @@ const EDGE_ATTRIBUTES: readonly string[] = [
 ];
 
 /** Attributes the reader notes as not carried. */
-const NOTED_ATTRIBUTES: readonly string[] = ["peripheries", "xlabel"];
+const NOTED_ATTRIBUTES: readonly string[] = ["peripheries"];
 
 const CIRCLE_LIKE: ReadonlySet<string> = new Set(["circle", "doublecircle", "mcircle", "square", "msquare"]);
 const BOX_LIKE: ReadonlySet<string> = new Set(["box", "rect", "rectangle", "square"]);
@@ -1061,8 +1064,29 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
     readNodeOutline(n);
     readNodeShape(n);
     readNodeLabelAndSize(n, names);
-    if (nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+}
+
+/**
+ * Reads a node's external label (`xlabel`), drawn outside it in its label's face, and where a laid-out file stored it
+ * (`xlp`, its center, kept only beside the node's stored `pos`) as an offset from the node's center, y down.
+ * @param get - the node's attributes
+ * @param cx - its name and the file's HTML strings
+ * @param center - its stored center, in points, y up; null when the file stores none
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readNodeXlabel(get: Attr, cx: NodeContext, center: readonly number[] | null, put: Put, at: At): void {
+    const raw = nonEmpty(get("xlabel"));
+    if (cx.cluster || raw === null) {
+        return;
+    }
+    const names: DotEscapeNames = { node: cx.name, graph: cx.graph, edge: "" };
+    put("xlabel", labelText(raw, names, cx.html, false, at("xlabel")));
+    const [px, py] = center ?? [];
+    const [lx, ly] = (get("xlp") ?? "").split(",").map(Number);
+    if ([px, py, lx, ly].every(Number.isFinite)) {
+        put("xlabelOffsetX", num6(lx - px));
+        put("xlabelOffsetY", num6(py - ly));
     }
 }
 
@@ -1860,8 +1884,10 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             }
         }
     }
-    if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
+    // beside a label, the xlabel is a second label of its own
+    const xlabel = nonEmpty(get("xlabel"));
+    if (get(LABEL_ATTRIBUTE) !== null && xlabel !== null) {
+        put("xlabel", labelText(xlabel, cx.names, cx.html, false, at("xlabel")));
     }
     readEndLabelFace(get, scheme, put, at);
 }
@@ -2427,6 +2453,48 @@ function graphBackground(snapshot: GraphSnapshot, notes: StyleNotes): Record<str
 }
 
 /**
+ * The quarter turn Graphviz gives the whole drawing, counterclockwise, as the graph's `rotation`: `rotate` when the
+ * graph sets it (only 90 turns), else `orientation` (a value starting with L), else `landscape` (true). The first of
+ * them the graph sets decides, even set empty (lib/common/input.c, graph_init).
+ * @param snapshot - the graph
+ * @param graph - the graph's values, which take the turn
+ */
+function readGraphRotation(snapshot: GraphSnapshot, graph: Record<string, StyleValue>): void {
+    const text = (name: string): string => (cellText(snapshot.graph, name, 0) ?? "").trim();
+    let turned = false;
+    if (snapshot.graph.has("rotate")) {
+        turned = Number.parseInt(text("rotate"), 10) === 90;
+    } else if (snapshot.graph.has("orientation")) {
+        turned = /^l/i.test(text("orientation"));
+    } else if (snapshot.graph.has("landscape")) {
+        turned = isTrue(text("landscape"));
+    }
+    if (turned) {
+        graph.rotation = 90;
+    }
+}
+
+/**
+ * Writes the drawing's turn as Graphviz's `rotate=90`, in place of whichever of `rotate`, `landscape` and a landscape
+ * `orientation` the graph had: Graphviz turns a drawing only by a quarter turn, so any other turn is written as none.
+ * @param graph - the graph table written
+ * @param rotation - the graph's `rotation`, in degrees counterclockwise
+ */
+function writeGraphRotation(graph: GraphSnapshot["graph"], rotation: StyleValue | undefined): void {
+    for (const name of ["rotate", "landscape"]) {
+        if (graph.has(name)) {
+            graph.remove(name);
+        }
+    }
+    if (graph.has("orientation") && /^l/i.test((cellText(graph, "orientation", 0) ?? "").trim())) {
+        graph.remove("orientation");
+    }
+    if (typeof rotation === "number" && ((rotation % 360) + 360) % 360 === 90) {
+        graph.set("rotate", ["90"], { dtype: "string" });
+    }
+}
+
+/**
  * The styles of a DOT file, read the way Graphviz draws it, with Graphviz's defaults beneath: an unfilled black
  * ellipse 54 x 36 labeled with its name, black edges with a target arrow in a directed graph. A file graphty wrote
  * gives back its `graphty.styles` block.
@@ -2437,6 +2505,7 @@ function graphBackground(snapshot: GraphSnapshot, notes: StyleNotes): Record<str
 export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
     const notes = new StyleNotes();
     const cx = contexts(snapshot);
+    const places = labelPlaceContext(snapshot);
     const node = valueColumns(snapshot.nodeCount);
     const nameColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
     const clusterColumn = new Array<StyleValue | null>(snapshot.nodeCount).fill(null);
@@ -2447,14 +2516,11 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         const get: Attr = (name) => cellText(snapshot.nodes, name, i);
         const ncx = cx.node(i);
         const at: At = (property) => ({ notes, target: "node", property, element: i, budget: context.budget });
-        readNode(
-            get,
-            ncx,
-            (p, v) => {
-                node.put(i, p, v);
-            },
-            at,
-        );
+        const put: Put = (p, v) => {
+            node.put(i, p, v);
+        };
+        readNode(get, ncx, put, at);
+        readNodeXlabel(get, ncx, places.center(i), put, at);
         const shown = defaultLabel(ncx, (get("shape") ?? "").toLowerCase(), notes);
         if (shown !== null) {
             nameColumn[i] = shown;
@@ -2470,7 +2536,6 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     // `splines=none` and `splines=""` draw no edges at all (https://graphviz.org/docs/attrs/splines/)
     const splines = cellText(snapshot.graph, "splines", 0)?.trim().toLowerCase();
     const noEdges = splines === "" || splines === "none";
-    const places = labelPlaceContext(snapshot);
     for (let e = 0; e < snapshot.edgeCount; e++) {
         context.budget.spend("edge", EDGE_ATTRIBUTES.length);
         const get: Attr = (name) => cellText(snapshot.edges, name, e);
@@ -2495,6 +2560,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
         });
     }
     const graph = graphBackground(snapshot, notes);
+    readGraphRotation(snapshot, graph);
     const blockText = cellText(snapshot.graph, STYLE_BLOCK_NAME, 0);
     if (blockText !== null) {
         exactFromBlock(snapshot, blockText, { node: node.values, edge: edge.values }, cx);
@@ -2787,6 +2853,10 @@ function nodeAttributes(
     } else if (label === null && shown !== null) {
         out.set(LABEL_ATTRIBUTE, "");
     }
+    const xlabel = get("xlabel");
+    if (!cx.cluster && typeof xlabel === "string") {
+        out.set("xlabel", escapeLabel(xlabel));
+    }
     noteLabelPosition(get("labelPosition"), cx, raw, approximate);
     if (tokens.length > 0) {
         out.set("style", tokens.join(","));
@@ -3017,6 +3087,7 @@ function edgeAttributes(get: Get, directed: boolean, approximate: Approximate): 
         ["label", LABEL_ATTRIBUTE],
         ["targetLabel", "headlabel"],
         ["sourceLabel", "taillabel"],
+        ["xlabel", "xlabel"],
     ] as const) {
         const v = get(property);
         if (typeof v === "string") {
@@ -3260,6 +3331,7 @@ function styledExport(snapshot: GraphSnapshot, input: ExporterStyleInput, onMixe
     if (typeof background === "string" && background !== toolDefaults("graphviz")?.graph.background?.value) {
         out.graph.set("bgcolor", [background], { dtype: "string" });
     }
+    writeGraphRotation(out.graph, input.rules.styles.graph.rotation);
     const inline = [...input.tags.node.values(), ...input.tags.edge.values()].some((col) => !readsBack(col));
     if (!inline) {
         setTagColumns(out, input);

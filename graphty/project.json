@@ -51,9 +51,10 @@
                 { "dependentTasksOutputFiles": "**/doors.json", "transitive": true }
             ],
             "options": {
-                "command": "eslint && tsc --noEmit && tsc --noEmit -p eslint-rules",
+                "command": "eslint $ESLINT_CACHE && tsc --noEmit && tsc --noEmit -p eslint-rules",
                 "cwd": "graphty"
             },
+            "outputs": ["{projectRoot}/node_modules/.cache/eslint"],
             "dependsOn": ["^build"]
         },
         "dev": {

@@ -334,6 +334,15 @@ export interface NodeStyleValues {
     readonly labelRuns: string;
     /** The tooltip text. */
     readonly tooltip: string;
+    /**
+     * A second label drawn outside the node, beside it, in the label's font, size and color (Graphviz's `xlabel`).
+     * Unset `xlabelOffsetX` and `xlabelOffsetY`, it sits against the node's top left corner, outside it.
+     */
+    readonly xlabel: string;
+    /** How far right of the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetX: number;
+    /** How far down from the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetY: number;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */
@@ -876,6 +885,12 @@ export interface EdgeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` on an
+     * edge that also has a label). Unset a place of its own, up and left of the line's middle, its lower right corner
+     * on it.
+     */
+    readonly xlabel: string;
     /** The label text at the source end. */
     readonly sourceLabel: string;
     /** The label text at the target end. */
@@ -929,6 +944,11 @@ export interface EdgeStyleValues {
 export interface GraphStyleValues {
     /** The background color. */
     readonly background: StyleColor;
+    /**
+     * How far the whole drawing (nodes, edges and labels) is turned counterclockwise on screen, in degrees, about its
+     * middle: Graphviz's `rotate=90` and `landscape` turn it 90. Absent, it is upright.
+     */
+    readonly rotation: number;
 }
 
 /**

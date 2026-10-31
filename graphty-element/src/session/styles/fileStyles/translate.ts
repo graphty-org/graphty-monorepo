@@ -162,6 +162,8 @@ export interface Translation {
     readonly hidden: Readonly<Record<StyleTarget, { readonly key: string; readonly count: number } | null>>;
     /** The graph's background color, or null. */
     readonly background: string | null;
+    /** How far the file turns the whole drawing counterclockwise, in degrees, or null when it is upright. */
+    readonly rotation: number | null;
     /** What the file's reading and its translation met. */
     readonly notes: readonly FileStyleNote[];
     /**
@@ -725,6 +727,21 @@ function channelPlans(
             ["overlayCornerRadius", [length("node.overlayCornerRadius")]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
+            ["xlabel", [id("node.xlabel")]],
+            // where the file stored its external label: its center, from the node's, in the scene's units as a label
+            // offset is; a stored place centers the label there instead of against the node's corner
+            [
+                "xlabelOffsetX",
+                [
+                    length("node.xlabelOffsetX", factors.node * SCENE_PER_UNIT.node),
+                    {
+                        channel: "node.xlabelLocation",
+                        convert: (value) => (typeof value === "number" ? "center" : null),
+                        identity: false,
+                    },
+                ],
+            ],
+            ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
             ["shape", [table("node.shape", shapeTable, nearShapes)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
@@ -881,6 +898,7 @@ function channelPlans(
         ["label", [id("edge.label")]],
         ["targetLabel", [id("edge.arrowHeadText")]],
         ["sourceLabel", [id("edge.arrowTailText")]],
+        ["xlabel", [id("edge.xlabel")]],
         // Along the line, in the scene's units, as a node's lengths are.
         ["targetLabelOffset", [length("edge.arrowHeadTextDistance", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceLabelOffset", [length("edge.arrowTailTextDistance", factors.node * SCENE_PER_UNIT.node)]],
@@ -1325,12 +1343,13 @@ export function translateFileStyles(input: TranslateInput): Translation {
 
     const layers = inRuleOrder(byKind, extracted.styles.rules);
 
-    const { background } = extracted.styles.graph;
+    const { background, rotation } = extracted.styles.graph;
     return {
         layers,
         columns,
         hidden,
         background: typeof background === "string" ? background : null,
+        rotation: typeof rotation === "number" && rotation % 360 !== 0 ? ((rotation % 360) + 360) % 360 : null,
         notes: notes.list(),
         predicted,
         sceneScale: factors.scene,

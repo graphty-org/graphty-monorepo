@@ -105,6 +105,9 @@ export const STYLE_PROPERTIES: {
         ["overlayCornerRadius", "number"],
         ["label", "text"],
         ["tooltip", "text"],
+        ["xlabel", "text"],
+        ["xlabelOffsetX", "signed"],
+        ["xlabelOffsetY", "signed"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelItalic", "boolean"],
@@ -258,6 +261,7 @@ export const STYLE_PROPERTIES: {
         ["targetPort", "text"],
         ["label", "text"],
         ["tooltip", "text"],
+        ["xlabel", "text"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelTextAlign", "textAlign"],
@@ -306,7 +310,10 @@ export const STYLE_PROPERTIES: {
         ["labelOnTop", "boolean"],
         ["visible", "boolean"],
     ]),
-    graph: new Map<string, StyleValueKind>([["background", "color"]]),
+    graph: new Map<string, StyleValueKind>([
+        ["background", "color"],
+        ["rotation", "number"],
+    ]),
 });
 
 /**

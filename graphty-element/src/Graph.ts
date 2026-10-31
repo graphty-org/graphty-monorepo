@@ -1218,6 +1218,10 @@ export class Graph implements GraphContext {
                 this.updateManager.meshesAdded();
             }
 
+            if (changed("viewRotation")) {
+                this.applyViewRotation(true);
+            }
+
             if (changed("selectionStyle") || changed("startingRows")) {
                 for (const node of this.dataManager.nodes.values()) {
                     node.refreshSelectionOverlay();
@@ -2176,6 +2180,7 @@ export class Graph implements GraphContext {
             this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
                 this.eventManager.emit("skybox-loaded", { graph: this, url });
             });
+            this.applyViewRotation(false);
 
             // Start the graph system (render loop, etc.)
             this.lifecycleManager.startGraph((frameMs) => {
@@ -4637,6 +4642,24 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Turn the 2D view as the project setting `viewRotation` says.
+     * @param reframe - Whether to frame the turned drawing again, when the view is 2D and the
+     *     element frames on its own initiative.
+     */
+    private applyViewRotation(reframe: boolean): void {
+        const twoD = this.camera.getController("2d");
+        if (!(twoD instanceof TwoDCameraController)) {
+            return;
+        }
+
+        twoD.rotation = ((this.session.config.viewRotation ?? 0) * Math.PI) / 180;
+        this.updateManager.viewMoved();
+        if (reframe && this.scene.metadata?.twoD === true) {
+            this.autoFrame();
+        }
+    }
+
+    /**
      * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
      * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
      * configuration placed the camera itself with `startingCameraDistance`. An explicit
@@ -6436,6 +6459,9 @@ export class Graph implements GraphContext {
                 x: twoDController.camera.position.x,
                 y: twoDController.camera.position.y,
             };
+            if (controller instanceof TwoDCameraController) {
+                state.rotation = controller.rotation;
+            }
         } else if ("position" in camera) {
             // Fallback for other camera types
             state.position = {
@@ -6652,15 +6678,15 @@ export class Graph implements GraphContext {
                 twoDController.updateOrtho(targetSize); // Reuse controller method
             }
 
-            // Set pan (camera position)
-            if (state.pan) {
-                // Reuse controller's pan method for consistency
-                const dx = state.pan.x - twoDController.camera.position.x;
-                const dy = state.pan.y - twoDController.camera.position.y;
+            if (controller instanceof TwoDCameraController) {
+                if (state.rotation !== undefined) {
+                    controller.rotation = state.rotation;
+                }
 
-                // Use controller's pan method (adds delta)
-                const panMethod = twoDController as unknown as { pan: (dx: number, dy: number) => void };
-                panMethod.pan(dx, dy);
+                // Set pan (camera position): the view's center, in world units however the view is turned
+                if (state.pan) {
+                    controller.panTo(state.pan.x, state.pan.y);
+                }
             }
         } else {
             // Fallback for other camera types
@@ -7052,6 +7078,11 @@ export class Graph implements GraphContext {
         if (!controller || !("velocity" in controller)) {
             this.applyCameraStateImmediate(targetState);
             return;
+        }
+
+        // The turn is not animated: it is set at the start, so the pan and zoom glide in the turned view.
+        if (targetState.rotation !== undefined && controller instanceof TwoDCameraController) {
+            controller.rotation = targetState.rotation;
         }
 
         const twoDController = controller as unknown as {

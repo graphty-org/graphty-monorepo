@@ -3,6 +3,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
+import omit from "lodash/omit.js";
 
 import { fixedParamsOf, type ShaderParams, type ShaderUse, timingOf } from "./catalog/shaders";
 import {
@@ -62,7 +63,7 @@ import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isPositive } from "./meshes/shapeOutlines";
 import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
-import { Node, NodeIdType } from "./Node";
+import { Node, NodeIdType, XLABEL_UNSHARED } from "./Node";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
 
@@ -87,6 +88,12 @@ const EDGE_LABEL_LOCATION: AttachPosition = "center";
 
 /** How far an edge's own label sits from the middle of the line when its block does not say. */
 const EDGE_LABEL_OFFSET = 0;
+
+/**
+ * Where an edge's external label (`xlabel`) hangs from the line's middle when its block does not say and no layout
+ * placed it: up and left, its lower right corner on the middle, the first place Graphviz's lib/label/xlabels.c tries.
+ */
+const EDGE_XLABEL_LOCATION: AttachPosition = "top-left";
 
 /**
  * Where a caption hangs from the cap it belongs to, when its own block does not say.
@@ -610,6 +617,15 @@ export class Edge {
     private _labelOffset = EDGE_LABEL_OFFSET;
     private _labelAttachPosition: AttachPosition = EDGE_LABEL_LOCATION;
 
+    /** The external label on screen (`xlabel`), drawn beside the line's middle. */
+    xlabelLabel: RichTextLabel | null = null;
+    private _xlabelOffset = 0;
+    private _xlabelAttachPosition: AttachPosition = EDGE_XLABEL_LOCATION;
+    /** Whether the external label's style names a location of its own, which a layout's place does not override. */
+    private _xlabelPlacedByStyle = false;
+    /** What the external label on screen was drawn from, or undefined for none. See {@link syncXlabel}. */
+    private drawnXlabel?: string;
+
     /**
      * The words the label on screen is drawing, and undefined when this edge draws no label.
      *
@@ -1097,13 +1113,16 @@ export class Edge {
             bent = this.placeLine(src, dst, lnk.bends);
         }
 
+        // the layout's place (Graphviz's `lp` and `xlp`) is the label's center
+        const laidLabel = lnk.labelAt !== undefined && !this.lifted;
         this.label?.attachTo(
             this.labelPoint(src, dst, bent, lnk.labelAt),
-            this._labelAttachPosition,
-            this._labelOffset,
+            laidLabel ? "center" : this._labelAttachPosition,
+            laidLabel ? 0 : this._labelOffset,
         );
 
-        this.placeArrowCaptions(src, dst);
+        this.placeXlabel(src, dst, bent, lnk.xlabelAt);
+        this.placeArrowCaptions(src, dst, lnk);
 
         // Cache positions for next frame
         this._lastSrcPos = srcPos.clone();
@@ -1210,16 +1229,41 @@ export class Edge {
     }
 
     /**
+     * Put the external label, if there is one: centered where the layout put it (Graphviz's `xlp`) unless its style
+     * names a location, else against the line's middle where its style, or {@link EDGE_XLABEL_LOCATION}, says.
+     * @param src - The source end.
+     * @param dst - The target end.
+     * @param bent - Whether the line was drawn bent.
+     * @param xlabelAt - The layout's place, relative to the two ends.
+     */
+    private placeXlabel(src: Vector3, dst: Vector3, bent: boolean, xlabelAt: EdgePosition["xlabelAt"]): void {
+        if (!this.xlabelLabel) {
+            return;
+        }
+
+        const laid = xlabelAt !== undefined && !this.lifted && !this._xlabelPlacedByStyle;
+        this.xlabelLabel.attachTo(
+            this.labelPoint(src, dst, bent, laid ? xlabelAt : undefined),
+            laid ? "center" : this._xlabelAttachPosition,
+            laid ? 0 : this._xlabelOffset,
+        );
+    }
+
+    /**
      * Put each end's caption, if it has one, beside the arrow cap where the cap now sits, or, at an
-     * end drawn with no arrow, where the line leaves the node.
+     * end drawn with no arrow, where the line leaves the node; centered where the layout put it
+     * (Graphviz's `head_lp` and `tail_lp`) when its style does not place it.
      * @param src - The source node's center.
      * @param dst - The target node's center.
+     * @param laid - Where the layout put the end labels, if it placed them.
      */
-    private placeArrowCaptions(src: Vector3, dst: Vector3): void {
+    private placeArrowCaptions(src: Vector3, dst: Vector3, laid: EdgePosition): void {
         // ponytail: a capless end is found along the straight line between the centers, not along a bent route
         const style = this.currentStyle;
         if (this.arrowHeadText) {
-            const along = this.captionOnLine(style.arrowHead, this.dstNode, dst, src);
+            const along =
+                this.captionOnLine(style.arrowHead, this.dstNode, dst, src) ??
+                this.captionLaid(style.arrowHead, src, dst, laid.headLabelAt);
             this.arrowHeadText.attachTo(
                 along?.at ?? this.arrowCap?.position ?? this.leaveNode(this.dstNode, dst, src),
                 along?.attachPosition ?? this._arrowHeadTextAttachPosition,
@@ -1228,13 +1272,37 @@ export class Edge {
         }
 
         if (this.arrowTailText) {
-            const along = this.captionOnLine(style.arrowTail, this.srcNode, src, dst);
+            const along =
+                this.captionOnLine(style.arrowTail, this.srcNode, src, dst) ??
+                this.captionLaid(style.arrowTail, src, dst, laid.tailLabelAt);
             this.arrowTailText.attachTo(
                 along?.at ?? this.arrowTailCap?.position ?? this.leaveNode(this.srcNode, src, dst),
                 along?.attachPosition ?? this._arrowTailTextAttachPosition,
                 along?.offset ?? this._arrowTailTextOffset,
             );
         }
+    }
+
+    /**
+     * Where an end's caption sits when the layout placed it and its style names no location of its own: centered on
+     * the layout's place. Null otherwise.
+     * @param arrow - The end's arrow block.
+     * @param src - The source node's center.
+     * @param dst - The target node's center.
+     * @param place - The layout's place, relative to the two ends.
+     * @returns The point, where the caption hangs from it and how far, or null.
+     */
+    private captionLaid(
+        arrow: EdgeStyleConfig["arrowHead"],
+        src: Vector3,
+        dst: Vector3,
+        place: EdgePosition["headLabelAt"],
+    ): { at: Vector3; attachPosition: AttachPosition; offset: number } | null {
+        if (place === undefined || this.lifted || arrow?.text?.location !== undefined) {
+            return null;
+        }
+
+        return { at: Vector3.FromArray(bendPoints(src, dst, place)), attachPosition: "center", offset: 0 };
     }
 
     /**
@@ -1293,7 +1361,7 @@ export class Edge {
      * @internal
      */
     refreshFonts(families: ReadonlySet<string>): boolean {
-        const texts = [this.label, this.arrowHeadText, this.arrowTailText];
+        const texts = [this.label, this.xlabelLabel, this.arrowHeadText, this.arrowTailText];
         if (this.disposed || this.drawnStyle === null || !texts.some((text) => text?.usesFont(families) === true)) {
             return false;
         }
@@ -2094,14 +2162,15 @@ export class Edge {
     private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
         // Every one runs: each brings its own part into line, whatever the others found.
         const label = this.syncLabel(style, rebuild);
+        const xlabel = this.syncXlabel(style, rebuild);
         const captions = this.syncArrowCaptions(style, rebuild);
         const bends = this.syncBends(style);
         const placement = this.syncPlacement(style);
 
-        if (label || captions || bends || placement) {
+        if (label || xlabel || captions || bends || placement) {
             this.invalidatePositionCache();
             // Overlapping texts are thinned out with node labels when `labels.declutter` is on.
-            if (this.label ?? this.arrowHeadText ?? this.arrowTailText) {
+            if (this.label ?? this.xlabelLabel ?? this.arrowHeadText ?? this.arrowTailText) {
                 LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
             }
         }
@@ -2137,6 +2206,46 @@ export class Edge {
         // `StylePainter.edgePaint` builds fresh on every call, and a comparison against a
         // reference somebody else can still write to silently starts passing.
         this.drawnLabelStyle = wantedLabel === undefined ? undefined : cloneDeep(wantedLabel);
+        return true;
+    }
+
+    /**
+     * Bring the external label (`xlabel`) into line with one resolved style: drawn in the label's look with its own
+     * fields over it. Rebuilt only when what it is drawn from changes, or the meshes it is placed against were
+     * replaced. See {@link syncContent}.
+     * @param style - The resolved style.
+     * @param rebuild - True when the meshes the label is positioned against have just been replaced.
+     * @returns True when the external label was rebuilt.
+     */
+    private syncXlabel(style: EdgeStyleConfig, rebuild: boolean): boolean {
+        // its words switch it on, whichever way they were written
+        const own = style.xlabel;
+        const wanted =
+            own?.text === undefined || own.text === "" || own.enabled === false
+                ? undefined
+                : drawnText({ ...own, enabled: true });
+        const key = wanted === undefined ? undefined : JSON.stringify([style.label, wanted]);
+        if (!rebuild && key === this.drawnXlabel) {
+            return false;
+        }
+
+        this.xlabelLabel?.dispose();
+        this.xlabelLabel = null;
+        this.drawnXlabel = key;
+        if (wanted === undefined) {
+            return true;
+        }
+
+        // the label's look, less where it sits and what it says; the external label's own fields win
+        const block = { ...omit(style.label ?? {}, XLABEL_UNSHARED), ...wanted };
+        const placement = this.placementOf(wanted, EDGE_XLABEL_LOCATION, 0);
+        this.xlabelLabel = new RichTextLabel(
+            this.context.getScene(),
+            this.createLabelOptions(this.extractLabelText(wanted), block, placement),
+        );
+        this._xlabelAttachPosition = placement.attachPosition;
+        this._xlabelOffset = placement.attachOffset;
+        this._xlabelPlacedByStyle = wanted.location !== undefined;
         return true;
     }
 
@@ -2362,6 +2471,9 @@ export class Edge {
 
         this.label?.dispose();
         this.label = null;
+        this.xlabelLabel?.dispose();
+        this.xlabelLabel = null;
+        this.drawnXlabel = undefined;
         this.arrowHeadText?.dispose();
         this.arrowHeadText = null;
         this.arrowTailText?.dispose();
@@ -2487,7 +2599,7 @@ export class Edge {
             }
         }
 
-        for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
+        for (const text of [this.label, this.xlabelLabel, this.arrowHeadText, this.arrowTailText]) {
             const labelMesh = text?.labelMesh;
 
             if (labelMesh && !labelMesh.isDisposed()) {

@@ -1049,6 +1049,29 @@ jobs:
               continue-on-error: true
               run: echo "LINT_START=$(date +%s)" >> "$GITHUB_ENV"
 
+            # graphty-element and graphty lint with an ESLint content cache (--cache in their project.json lint
+            # targets). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
+            # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
+            # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
+            # unchanged file -- the lockfile, the ESLint configs and rules, the tsconfigs -- so a change to any of
+            # them lints everything. An unchanged file that a pull request's type change makes fail a type-aware
+            # rule is caught by master's and the full run's lint, which never restore the cache. The key's last part
+            # is the day, so master saves one cache a day (about 3 MB), not one per commit.
+            - name: Key the ESLint caches
+              id: eslint-cache
+              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v1-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.js', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the ESLint caches (PR)
+              if: needs.packages.outputs.full == 'false'
+              continue-on-error: true
+              uses: actions/cache/restore@v6
+              with:
+                  path: |
+                      graphty-element/node_modules/.cache/eslint
+                      graphty/node_modules/.cache/eslint
+                  key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
+                  restore-keys: ${{ steps.eslint-cache.outputs.prefix }}
+
             - name: Lint affected (PR)
               if: needs.packages.outputs.full == 'false'
               run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
@@ -1056,6 +1079,16 @@ jobs:
             - name: Lint all (master, a manual dispatch or the merge queue)
               if: needs.packages.outputs.full == 'true'
               run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
+
+            - name: Save the ESLint caches (full lint)
+              if: needs.packages.outputs.full == 'true' && env.SAVE_CACHES == 'true'
+              continue-on-error: true
+              uses: actions/cache/save@v6
+              with:
+                  path: |
+                      graphty-element/node_modules/.cache/eslint
+                      graphty/node_modules/.cache/eslint
+                  key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
 
             # Lint all took 3 to 5 minutes until a typescript-eslint update made one rule take 7 of them
             # (2026-10-06, about 14 minutes in all), and nothing said so for two days. A run past the budget

@@ -3365,6 +3365,25 @@ describe("apt in the workflows", () => {
 });
 
 describe("actions/cache in the workflows", () => {
+    it("restores the ESLint caches only for a pull request's lint, so master and the full run lint every file", () => {
+        // An ESLint cache skips an unchanged file even when a type change elsewhere would make a type-aware rule
+        // fail it; only the full lint catches that, so it must never start from a restored cache.
+        const lint = job(workflow("ci.yml"), "lint");
+        const restore = lint.match(/- name: Restore the ESLint caches.*\n\s+if: (.*)\n/);
+        assert.ok(restore, "the Lint job restores the ESLint caches");
+        assert.equal(restore[1], "needs.packages.outputs.full == 'false'");
+        assert.match(lint, /- name: Save the ESLint caches.*\n\s+if: needs\.packages\.outputs\.full == 'true' &&/);
+        for (const project of ["graphty-element", "graphty"]) {
+            const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
+                .targets.lint;
+            assert.match(
+                target.options.command,
+                /--cache --cache-strategy content --cache-location node_modules\/\.cache\/eslint\//,
+            );
+            assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
+        }
+    });
+
     it("never keys a cache on the commit and never caches .nx/cache", () => {
         // The Nx cache never hit (release commits change every package.json, and nx.json sharedGlobals
         // includes .github/workflows/**) and its key held github.sha, so every run saved a new 600 MB entry

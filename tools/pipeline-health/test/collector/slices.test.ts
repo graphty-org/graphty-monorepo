@@ -230,6 +230,14 @@ describe("the slice runner-minutes", () => {
         expect(isQuiet(samples({}, 6), T, cfg)).toBe(false); // only back to 07:35: the collector just started
         expect(isQuiet(samples({}, 7), T + 9 * MIN, cfg)).toBe(false); // no sample in the last cycle
     });
+
+    it("counts only jobs waiting over 2 minutes for a runner, not fresh or concurrency-pending ones", () => {
+        // 15:18Z on 2026-10-31: 96 jobs seconds old (longest wait 0 s) kept slices from starting for 30 minutes.
+        const at = (over: Partial<RunnerSample>) => samples().map((s, k) => (k === 8 ? { ...s, ...over } : s));
+        expect(isQuiet(at({ queued: 96, queuedOver2: 0 }), T, cfg)).toBe(true);
+        expect(isQuiet(at({ queued: 5, queuedOver2: 1, longestQueuedMs: 3 * MIN }), T, cfg)).toBe(false);
+        expect(isQuiet(at({ queued: 1 }), T, cfg)).toBe(false); // a sample stored before queuedOver2 existed
+    });
 });
 
 describe("the store summary", () => {

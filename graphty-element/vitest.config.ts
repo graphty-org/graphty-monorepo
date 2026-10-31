@@ -90,6 +90,7 @@ const LODASH_FUNCTIONS = [
     "lodash/defaultsDeep.js",
     "lodash/get.js",
     "lodash/isEqual.js",
+    "lodash/omit.js",
 ];
 
 /**

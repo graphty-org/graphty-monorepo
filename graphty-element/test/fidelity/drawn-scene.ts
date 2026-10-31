@@ -935,7 +935,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         innerBorder: outer === null ? null : own,
         outer,
         label: readLabel(node.label, p),
-        texts: node.shapeTextLabels.flatMap((l) => {
+        // the further texts, and the external label beside the node (Graphviz's xlabel), each a text of the node
+        texts: [...node.shapeTextLabels, ...(node.xlabelLabel === undefined ? [] : [node.xlabelLabel])].flatMap((l) => {
             const read = readLabel(l, p);
             return read === null ? [] : [read];
         }),

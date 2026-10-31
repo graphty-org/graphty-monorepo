@@ -709,6 +709,21 @@ function channelPlans(
             ["overlayCornerRadius", [length("node.overlayCornerRadius")]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
+            ["xlabel", [id("node.xlabel")]],
+            // where the file stored its external label: its center, from the node's, in the scene's units as a label
+            // offset is; a stored place centers the label there instead of against the node's corner
+            [
+                "xlabelOffsetX",
+                [
+                    length("node.xlabelOffsetX", factors.node * SCENE_PER_UNIT.node),
+                    {
+                        channel: "node.xlabelLocation",
+                        convert: (value) => (typeof value === "number" ? "center" : null),
+                        identity: false,
+                    },
+                ],
+            ],
+            ["xlabelOffsetY", [length("node.xlabelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
             ["shape", [table("node.shape", shapeTable, nearShapes)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],

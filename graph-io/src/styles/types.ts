@@ -332,6 +332,15 @@ export interface NodeStyleValues {
     readonly labelRuns: string;
     /** The tooltip text. */
     readonly tooltip: string;
+    /**
+     * A second label drawn outside the node, beside it, in the label's font, size and color (Graphviz's `xlabel`).
+     * Unset `xlabelOffsetX` and `xlabelOffsetY`, it sits against the node's top left corner, outside it.
+     */
+    readonly xlabel: string;
+    /** How far right of the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetX: number;
+    /** How far down from the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetY: number;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */

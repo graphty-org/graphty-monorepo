@@ -36,7 +36,8 @@ const EDGE_ATTRIBUTES = [
 
 /**
  * The node attributes an edge's route follows besides the node's size: its outline, and where its ports are (a
- * record's fields, `{<p1> a|<p2> b}`, are laid out from its label in its font).
+ * record's fields, `{<p1> a|<p2> b}`, are laid out from its label in its font); and its external label, which
+ * Graphviz places beside it where nothing else is drawn (its `xlp`).
  */
 const NODE_ATTRIBUTES = [
     "shape",
@@ -47,6 +48,7 @@ const NODE_ATTRIBUTES = [
     "label",
     "fontsize",
     "fontname",
+    "xlabel",
 ] as const;
 
 /**
@@ -128,6 +130,9 @@ function labelSizedAttributes(data: Readonly<Record<string, unknown>>, id: NodeI
     }
 
     out.label = label.replaceAll(NODE_NAME_ESCAPE, String(id));
+    if (out.xlabel !== undefined) {
+        out.xlabel = out.xlabel.replaceAll(NODE_NAME_ESCAPE, String(id));
+    }
     return out;
 }
 

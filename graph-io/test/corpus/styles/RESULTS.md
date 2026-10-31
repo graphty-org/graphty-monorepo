@@ -116,7 +116,7 @@ Tool values are elements drawn with the writing program's default.
 | cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 625 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-native-edit.cys | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
 | cys/generated/graphty-written.cys | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 |  |
-| dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | 4 | 3 | 80 | 100% | 0% | 0 | 7130 | 0 | W_STYLE_BAD_VALUE, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED |
+| dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | 4 | 3 | 80 | 100% | 0% | 0 | 7130 | 0 | W_STYLE_BAD_VALUE, W_STYLE_HTML_LABEL |
 | dot/DynamicalSystemsGroup_cats__cats_pkg.gv | ok | 456 | 1003 | 6 | 5 | 1071 | 0% | 0% | 0 | 11125 | 0 | W_STYLE_HTML_LABEL |
 | dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot | ok | 18 | 20 | 9 | 7 | 28 | 21% | 14% | 0 | 286 | 0 | W_STYLE_HTML_LABEL |
 | dot/damoqiongqiu_NiceFish__dependencies.dot | ok | 126 | 75 | 7 | 5 | 82 | 27% | 27% | 0 | 1801 | 0 |  |
@@ -128,7 +128,7 @@ Tool values are elements drawn with the writing program's default.
 | dot/fidelity/real-siblings.gv | ok | 200 | 284 | 7 | 2 | 157 | 0% | 0% | 0 | 4356 | 0 |  |
 | dot/fidelity/real-softmaint.gv | ok | 213 | 269 | 6 | 3 | 202 | 0% | 0% | 0 | 3654 | 0 |  |
 | dot/fidelity/synth-edges-clusters.gv | ok | 80 | 102 | 11 | 7 | 155 | 70% | 23% | 0 | 1151 | 0 | W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_RECORD_LABEL |
-| dot/fidelity/synth-nodes.gv | ok | 106 | 109 | 5 | 3 | 217 | 100% | 0% | 0 | 1475 | 0 | W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_NOT_CARRIED, W_STYLE_RECORD_LABEL, W_STYLE_UNFILLED, W_STYLE_UNKNOWN_VALUE |
+| dot/fidelity/synth-nodes.gv | ok | 106 | 109 | 5 | 3 | 217 | 100% | 0% | 0 | 1475 | 0 | W_STYLE_GRADIENT, W_STYLE_HTML_LABEL, W_STYLE_RECORD_LABEL, W_STYLE_UNFILLED, W_STYLE_UNKNOWN_VALUE |
 | dot/generated/clusters-200.gv | ok | 1200 | 0 | 5 | 1 | 995 | 0% | 0% | 0 | 13000 | 0 |  |
 | dot/generated/clusters-40.gv | ok | 160 | 39 | 4 | 2 | 117 | 0% | 0% | 0 | 2071 | 0 |  |
 | dot/generated/colors-and-scopes.gv | ok | 33 | 3 | 4 | 5 | 50 | 100% | 2% | 0 | 320 | 0 | W_STYLE_BAD_VALUE, W_STYLE_COLOR_LIST, W_STYLE_GRADIENT, W_STYLE_HTML_LABEL |

@@ -348,6 +348,11 @@ const DECLARED = [
     "edge.shaders",
     "edge.taper",
     "edge.lift",
+    "node.xlabel",
+    "node.xlabelStyle",
+    "node.xlabelLocation",
+    "node.xlabelOffsetX",
+    "node.xlabelOffsetY",
 ];
 
 describe("the channel set", () => {
@@ -374,8 +379,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and seventy-four node channels and one hundred and forty-six edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 174);
+    it("splits into one hundred and seventy-nine node channels and one hundred and forty-six edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 179);
         assert.strictEqual(channelsFor("edge").length, 146);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -609,6 +614,12 @@ describe("what a style editor needs to draw a row", () => {
         "node.label",
         "node.labelStyle",
         "node.tooltip",
+        // Unset, a node has no external label, and one that has sits at its corner or where the layout put it.
+        "node.xlabel",
+        "node.xlabelStyle",
+        "node.xlabelLocation",
+        "node.xlabelOffsetX",
+        "node.xlabelOffsetY",
         "node.tooltipStyle",
         // Unset, a node is highlighted when it is selected and not otherwise.
         "node.halo",

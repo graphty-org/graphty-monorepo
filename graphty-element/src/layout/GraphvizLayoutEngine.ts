@@ -16,7 +16,7 @@ import {
     graphvizLayoutId,
 } from "./graphviz/engines";
 import { canvasMeasure, withDrawnFonts } from "./graphviz/fonts";
-import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson } from "./graphviz/fromJson";
+import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson, nodeXlabelPlaces } from "./graphviz/fromJson";
 import type { GraphvizFailureCode, GraphvizReply } from "./graphviz/protocol";
 import { graphvizStructure } from "./graphviz/structure";
 import { type DotStructure, POINTS_PER_UNIT, toDot } from "./graphviz/toDot";
@@ -232,11 +232,18 @@ async function computeWith(
     positions: F32;
     bends: ReadonlyMap<number, string>;
     labels: ReadonlyMap<number, readonly [number, number]>;
+    xlabels: ReadonlyMap<number, readonly [number, number]>;
     margins: ReadonlyMap<number, GroupMargins>;
 }> {
     const n = input.graph.nodeCount;
     if (n === 0) {
-        return { positions: new Float32Array(0), bends: new Map(), labels: new Map(), margins: new Map() };
+        return {
+            positions: new Float32Array(0),
+            bends: new Map(),
+            labels: new Map(),
+            xlabels: new Map(),
+            margins: new Map(),
+        };
     }
 
     const limit = options.maxNodes as number;
@@ -287,6 +294,12 @@ async function computeWith(
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
         labels: edgeLabelPlaces(reply.json, structure.edges ?? []),
+        xlabels: new Map(
+            [...nodeXlabelPlaces(reply.json)].map(([row, [x, y]]) => [
+                row,
+                [(x / POINTS_PER_UNIT) * scale, (y / POINTS_PER_UNIT) * scale] as const,
+            ]),
+        ),
         margins: new Map(
             [...clusterMargins(reply.json)].map(([row, m]) => [
                 row,
@@ -433,6 +446,8 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         private routes = new Map<Edge, readonly number[]>();
         /** Where Graphviz put each labelled edge's label, as `along, across` its two ends. */
         private labelPlaces = new Map<Edge, readonly [number, number]>();
+        /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
+        private xlabelPlaces = new Map<string, readonly [number, number]>();
 
         /**
          * Build the engine for one `setLayout`.
@@ -463,7 +478,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 false,
                 this.options.nodeSize === "label",
             );
-            const { positions, bends, labels, margins } = await computeWith(
+            const { positions, bends, labels, xlabels, margins } = await computeWith(
                 engine,
                 input,
                 this.options,
@@ -477,6 +492,9 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 laidGroupMargins.set(this, margins);
                 this.routes = routesOf(bends, structure.edgeOf);
                 this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
+                this.xlabelPlaces = new Map(
+                    [...xlabels].map(([row, place]) => [String(input.stored.ids.idOf(row)), place]),
+                );
             }
             return positions;
         }
@@ -487,6 +505,15 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
          * @param e - the edge
          * @returns its ends, its bends when it has a route, and its label's place when Graphviz placed one
          */
+        /**
+         * Where Graphviz put a node's external label (its `xlp`).
+         * @param n - the node
+         * @returns right and down of the node's center, in scene units, or undefined when Graphviz placed none
+         */
+        override getNodeXlabelOffset(n: Node): readonly [number, number] | undefined {
+            return this.xlabelPlaces.get(String(n.id));
+        }
+
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);

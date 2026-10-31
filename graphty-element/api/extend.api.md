@@ -1918,6 +1918,7 @@ export abstract class LayoutEngine {
     abstract getEdgePosition(e: Edge): EdgePosition;
     // (undocumented)
     abstract getNodePosition(n: Node_2): Position;
+    getNodeXlabelOffset(_n: Node_2): readonly [right: number, down: number] | undefined;
     static getOptionsForDimension(dimension: 2 | 3): object | null;
     static getOptionsForDimensionByType(type: string, dimension: 2 | 3): object | null;
     static getRegisteredTypes(): string[];
@@ -2129,6 +2130,8 @@ class Node_2 implements ModelUser {
     showTooltip(): void;
     // (undocumented)
     size: number;
+    // @internal
+    syncXlabelPlace(): void;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
@@ -2136,6 +2139,7 @@ class Node_2 implements ModelUser {
     updateStyle(): void;
     // @internal
     get wordedLabel(): RichTextLabel | null;
+    xlabelLabel?: RichTextLabel;
 }
 export { Node_2 as Node }
 

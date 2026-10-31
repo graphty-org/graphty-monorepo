@@ -432,6 +432,16 @@ export abstract class LayoutEngine {
      */
     protected abstract setNodePosition(n: Node, p: Position): void;
     abstract getEdgePosition(e: Edge): EdgePosition;
+    /**
+     * Where the layout put a node's external label (`xlabel`), when it places one (Graphviz's `xlp`): the label's
+     * center, right and down of the node's center, in scene units. Undefined by default: the label then sits against
+     * the node's top left corner.
+     * @param _n - The node.
+     * @returns The offset, or undefined when the layout places no external label.
+     */
+    getNodeXlabelOffset(_n: Node): readonly [right: number, down: number] | undefined {
+        return undefined;
+    }
     // for animated layouts
     abstract step(): void;
     /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */

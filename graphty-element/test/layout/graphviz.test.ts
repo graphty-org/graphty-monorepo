@@ -11,7 +11,13 @@ import { assert, describe, it, vi } from "vitest";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../../src/catalog/layouts";
 import { graphvizAvailability } from "../../src/layout/graphviz/availability";
 import { GRAPHVIZ_ENGINES, GRAPHVIZ_NODE_BUDGETS } from "../../src/layout/graphviz/engines";
-import { clusterMargins, edgeBends, edgeLabelPlaces, fromJson } from "../../src/layout/graphviz/fromJson";
+import {
+    clusterMargins,
+    edgeBends,
+    edgeLabelPlaces,
+    fromJson,
+    nodeXlabelPlaces,
+} from "../../src/layout/graphviz/fromJson";
 import { runGraphviz } from "../../src/layout/graphviz/host";
 import { classify, layout } from "../../src/layout/graphviz/loader";
 import { graphvizStructure } from "../../src/layout/graphviz/structure";
@@ -916,5 +922,36 @@ describe("where Graphviz put each edge label read back", () => {
         const [along, across] = edgeLabelPlaces(reply.ok ? reply.json : "{}", edges).get(0) ?? [Number.NaN, Number.NaN];
         assert.closeTo(along, 0.5, 0.1, "about halfway down the edge");
         assert.isAbove(Math.abs(across), 0.05, "beside the line, not on it");
+    });
+
+    it("reads where Graphviz puts a node's external label, from the node's center, right and down", () => {
+        const json = JSON.stringify({
+            objects: [
+                { name: "n0", pos: "100,50", xlp: "80,70" },
+                { name: "n1", pos: "10,10" },
+                { name: "cluster", pos: "1,1", xlp: "2,2" },
+            ],
+        });
+        assert.deepEqual([...nodeXlabelPlaces(json)], [[0, [-20, -20]]]);
+    });
+
+    it("hands a node's xlabel to Graphviz, which places it outside the node", async () => {
+        const snapshot = graph(true, [["a", "b"]]);
+        const structure = graphvizStructure(
+            (id) => ["a", "b"].indexOf(String(id)),
+            [{ srcId: "a", dstId: "b", data: {} }],
+            new Map(),
+            [],
+            new Map([[0, { xlabel: "outside" }]]),
+        );
+        assert.deepEqual(structure.nodeAttributes?.get(0), { xlabel: "outside" });
+        const reply = await layout(toDot(snapshot, {}, undefined, undefined, new Map(), structure), "dot");
+
+        assert.isTrue(reply.ok);
+        const places = nodeXlabelPlaces(reply.ok ? reply.json : "{}");
+        assert.deepEqual([...places.keys()], [0]);
+        const [right, down] = places.get(0) ?? [Number.NaN, Number.NaN];
+        // Graphviz's default node is 54 by 36 points: the label's center is past its half width or half height
+        assert.isTrue(Math.abs(right) > 27 || Math.abs(down) > 18, `outside the node: ${String([right, down])}`);
     });
 });

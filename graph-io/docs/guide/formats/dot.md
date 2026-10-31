@@ -134,8 +134,10 @@ With `styles: true`, graph-io reads node and edge attributes the way Graphviz dr
 `color`, `fillcolor` and `style=filled` (colors by X11 and SVG name, color schemes, `#rrggbbaa`
 and HSV), `shape`, `width` and `height` (inches, in pixels at 72 per inch), `penwidth`, the
 `dashed`, `dotted`, `bold` and `invis` styles, `arrowhead`, `arrowtail` and `dir`, `fontcolor`,
-`fontsize`, `fontname`, `label` (with Graphviz's escapes such as `\N`), `tooltip` and the graph's
-`bgcolor`. Defaults set with `node [...]` and `edge [...]` apply as Graphviz applies them, and the
+`fontsize`, `fontname`, `label` (with Graphviz's escapes such as `\N`), `tooltip`, a node's
+`image` with `imagescale` and `imagepos`, and the graph's `bgcolor`. An HTML-like `<TABLE>` label
+keeps its cells, with each cell's and the table's `BGCOLOR` and a cell's `<IMG SRC SCALE>`. A picture's
+file name is kept as written, so a relative one is found next to the page that shows the graph. Defaults set with `node [...]` and `edge [...]` apply as Graphviz applies them, and the
 members of a cluster are a group the rules can use.
 
 Graphviz's defaults are always added: an unfilled black ellipse 54 by 36 pixels labeled with the

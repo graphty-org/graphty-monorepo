@@ -15921,7 +15921,7 @@
             "frame.zoom": 1,
             "background": 1,
             "raster.canvas": 0.99,
-            "raster.label": 0.92,
+            "raster.label": 0.93,
             "raster.nodeBody": 0.93,
             "raster.nodeOutline": 0.92
         },
@@ -17243,7 +17243,7 @@
             "edge.wiggle": 1
         },
         "dot-synth-nodes": {
-            "node.present": 0.99,
+            "node.present": 1,
             "node.extra": 1,
             "node.position": 0.981,
             "node.width": 1,
@@ -17307,9 +17307,9 @@
             "edge.wiggle": 1
         },
         "dot-synth-nodes@matched": {
-            "node.present": 0.99,
+            "node.present": 1,
             "node.extra": 1,
-            "node.position": 0.904,
+            "node.position": 0.905,
             "node.width": 1,
             "node.height": 0.99,
             "node.sizeToSpacing": 1,

@@ -1312,8 +1312,14 @@ export class Autosaver {
      * @returns True when it does.
      */
     #graphTaken(): boolean {
-        const snapshot = this.#session.data.snapshot();
-        return snapshot.nodeCount > 0 || snapshot.edgeCount > 0 || loadLineOf(dispatcherOf(this.#session)).size > 0;
+        try {
+            const snapshot = this.#session.data.snapshot();
+            return snapshot.nodeCount > 0 || snapshot.edgeCount > 0 || loadLineOf(dispatcherOf(this.#session)).size > 0;
+        } catch {
+            // A session disposed meanwhile (the element left): the open reports that, releases the
+            // lock and settles the attempt, as it always did.
+            return false;
+        }
     }
 
     /**

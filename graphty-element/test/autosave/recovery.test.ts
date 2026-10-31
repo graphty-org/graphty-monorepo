@@ -303,6 +303,34 @@ describe("a restore that does not finish", () => {
         assert.strictEqual(Number((await store.read(id))?.meta.restoreAttempts ?? 0), 0, "the attempt was taken back");
     });
 
+    it("a page that leaves while the entry is read releases the entry's lock", async () => {
+        const memory = memoryAutosaveStore();
+        const { id } = await earlier(memory, (session) => session.config.set({ name: "Left at startup" }));
+        let reading = (): void => undefined;
+        const reached = new Promise<void>((resolve) => {
+            reading = resolve;
+        });
+        let finish = (): void => undefined;
+        const finished = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        const slow: AutosaveStore = Object.assign(Object.create(memory) as AutosaveStore, {
+            read: async (entry: string) => {
+                reading();
+                await finished;
+                return memory.read(entry);
+            },
+        });
+        const page = load(slow);
+        const recovering = page.saver.recover();
+        await reached;
+        page.session.dispose();
+        finish();
+
+        assert.isNull(await recovering, "the restore settles instead of throwing");
+        assert.isFalse((await page.locks.held()).has(lockName(KEY, id)), "the entry's lock was released");
+    });
+
     it("a graph the page already holds is not replaced by the restore at the start", async () => {
         const store = memoryAutosaveStore();
         const { id } = await earlier(store, (session) => session.config.set({ name: "Older work" }));

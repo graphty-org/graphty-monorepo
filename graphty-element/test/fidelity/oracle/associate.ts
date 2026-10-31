@@ -751,16 +751,24 @@ function capAxis(outline: readonly Pt[], line: readonly Pt[], dir: Pt): Pt {
  * @returns the points
  */
 function middleRun(path: readonly Pt[]): Pt[] {
-    const at = pointAlong(path, 0.5);
-    let left = pathLength(path) / 2;
-    for (let i = 1; i < path.length; i++) {
-        const step = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
-        if (left <= step) {
-            return [path[i - 1], at, path[i]];
-        }
-        left -= step;
+    const kept = middles.get(path);
+    if (kept !== undefined) {
+        return [...kept];
     }
-    return [...path];
+    const run = ((): Pt[] => {
+        const at = pointAlong(path, 0.5);
+        let left = pathLength(path) / 2;
+        for (let i = 1; i < path.length; i++) {
+            const step = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]);
+            if (left <= step) {
+                return [path[i - 1], at, path[i]];
+            }
+            left -= step;
+        }
+        return [...path];
+    })();
+    middles.set(path, run);
+    return [...run];
 }
 
 /**
@@ -1078,12 +1086,38 @@ const longestPath = (prims: readonly Prim[]): Prim | undefined => {
         .sort((a, b) => pathLength(b.points) - pathLength(a.points) || a.index - b.index)[0];
 };
 
+// A drawing's point lists are never changed once read, so what is measured along one is kept by the list: matching
+// a shape against every line's ends and middle asks again for each shape (json-vis-siblings: about 400 shapes against
+// 284 curves of 128 points each, measured afresh over 2 s of its 7 s story, past the capture's limit on a CI runner).
+const lengths = new WeakMap<readonly Pt[], number>();
+const middles = new WeakMap<readonly Pt[], Pt[]>();
+const reversals = new WeakMap<readonly Pt[], Pt[]>();
+const drawnEnds = new WeakMap<PNode, WeakMap<readonly Pt[], Pt>>();
+
 function pathLength(pts: readonly Pt[]): number {
-    let s = 0;
-    for (let i = 1; i < pts.length; i++) {
-        s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    let s = lengths.get(pts);
+    if (s === undefined) {
+        s = 0;
+        for (let i = 1; i < pts.length; i++) {
+            s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        }
+        lengths.set(pts, s);
     }
     return s;
+}
+
+/**
+ * A line's points last to first, one list per line, so what is measured along the reversed line is kept too.
+ * @param pts - the line
+ * @returns its points reversed
+ */
+function reversedOf(pts: readonly Pt[]): Pt[] {
+    let r = reversals.get(pts);
+    if (r === undefined) {
+        r = [...pts].reverse();
+        reversals.set(pts, r);
+    }
+    return r;
 }
 
 const sameBox = (a: PBox, b: PBox): boolean =>
@@ -1134,12 +1168,31 @@ export function lineCapSize(e: Pick<PEdge, "stroke">): number {
  * @returns the point
  */
 function drawnEnd(pts: readonly Pt[], end: "source" | "target", node: PNode | undefined): Pt {
-    const run = end === "source" ? pts : [...pts].reverse();
+    const run = end === "source" ? pts : reversedOf(pts);
     // only a line that runs on to the node's very center: one that ends inside a large box (a group's) ends there
     if (node === undefined || Math.hypot(run[0][0] - node.cx, run[0][1] - node.cy) > 2) {
         return run[0];
     }
-    const box = boxOfNode(node);
+    let byLine = drawnEnds.get(node);
+    if (byLine === undefined) {
+        byLine = new WeakMap();
+        drawnEnds.set(node, byLine);
+    }
+    let at = byLine.get(run);
+    if (at === undefined) {
+        at = leaveBox(run, boxOfNode(node));
+        byLine.set(run, at);
+    }
+    return at;
+}
+
+/**
+ * Where a line starting inside a box first crosses its outline.
+ * @param run - the line, starting inside the box
+ * @param box - the box
+ * @returns the crossing, or the line's start where it does not start inside
+ */
+function leaveBox(run: readonly Pt[], box: PBox): Pt {
     const under = (p: Pt): boolean => p[0] > box.x0 + 1 && p[0] < box.x1 - 1 && p[1] > box.y0 + 1 && p[1] < box.y1 - 1;
     const out = run.findIndex((p) => !under(p));
     if (out <= 0) {
@@ -1209,7 +1262,7 @@ function alongGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly P
         end,
         nodes.find((n) => n.id === id),
     );
-    const run = end === "source" ? e.points : [...e.points].reverse();
+    const run = end === "source" ? e.points : reversedOf(e.points);
     const far = run.at(-1) ?? q;
     const len = Math.hypot(far[0] - q[0], far[1] - q[1]);
     if (len < 1e-9) {
@@ -1340,7 +1393,7 @@ function capsAcross(stroke: readonly Pt[], e: PEdge, end: ArrowEnd): boolean {
  * @returns true when it is centered on the line
  */
 function centeredOnLine(box: PBox, e: PEdge, end: ArrowEnd): boolean {
-    const pts = end === "source" ? [...e.points].reverse() : e.points;
+    const pts = end === "source" ? reversedOf(e.points) : e.points;
     const [a, b] = end === "middle" ? middleRun(pts) : [pts.at(-2) ?? pts[0], pts.at(-1) ?? pts[0]];
     const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (len < 1e-9) {

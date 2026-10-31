@@ -1,3 +1,22 @@
+## 0.0.31 (2026-10-31)
+
+### 🩹 Fixes
+
+- **layout:** add a Barnes-Hut repulsion to ForceAtlas2 and use it for the large dataset stories ([#5001](https://github.com/graphty-org/graphty-monorepo/issues/5001), [#3849](https://github.com/graphty-org/graphty-monorepo/issues/3849), [#3848](https://github.com/graphty-org/graphty-monorepo/issues/3848))
+- **algorithms:** score every ordered pair in directed link prediction ([#961](https://github.com/graphty-org/graphty-monorepo/issues/961))
+- **cytoscape-extensions:** measure the network sources as loaded after the file formats ([1e66fbbcce](https://github.com/graphty-org/graphty-monorepo/commit/1e66fbbcce))
+- **cytoscape-extensions:** keep the script-tag bundle's lazy file formats under Vite 8 ([#4230](https://github.com/graphty-org/graphty-monorepo/issues/4230))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.64
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+- Updated graph-io to 0.3.51
+- Updated layout to 2.5.13
+
 ## 0.0.30 (2026-10-29)
 
 ### 🧱 Updated Dependencies

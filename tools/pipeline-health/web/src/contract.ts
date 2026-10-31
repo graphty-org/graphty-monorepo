@@ -53,7 +53,7 @@ export type SlaState = "ok" | "warn" | "bad" | "nodata";
  * - `few`: a rate whose last hour holds fewer than its minimum n; out of the rollup.
  * - `partial`: its source covers less than its window; out of the rollup.
  * - `idle`: its activity stopped by design (n=0); out of the rollup.
- * - `slow`: a slow measure, drawn with its own window, never sets a state.
+ * - `slow`: sent by APIs built before 7- and 28-day members were judged; read as out of the rollup.
  * - `info`: informational until it has fired on real data.
  */
 export type MemberState = SlaState | "notsetup" | "few" | "partial" | "idle" | "slow" | "info";
@@ -100,7 +100,8 @@ export interface NumberValue {
 }
 
 export interface WordValue {
-    word: "passed" | "failed" | "yes" | "no" | "filed" | "skipped";
+    /** `quiet`: the weekly stress run found nothing three weeks running. */
+    word: "passed" | "failed" | "yes" | "no" | "filed" | "skipped" | "quiet";
     /** "filed 0": a count after the word. */
     n?: number;
 }
@@ -270,6 +271,11 @@ export interface CategoryStatus {
     others: MemberRef[];
     /** The headline measure under the block (section 2.3). */
     headline: Member;
+    /**
+     * The member that set the state, as a full row, when it is not the headline: the overview shows it under the
+     * block in the headline's place, so the number under a colored block is the one that colored it.
+     */
+    driver?: Member;
 }
 
 /** One episode of the last 24 h: a member that went past its target (section 2.4). */
@@ -282,6 +288,13 @@ export interface Episode {
     start: Iso;
     /** `null` while ongoing. */
     end: Iso | null;
+    /** The episode began before the history the engine keeps, or at a time it cannot tell: `start` is a bound. */
+    startUnknown?: boolean;
+    /**
+     * Still open (`end` is null), but the member is not judged now (too few samples, no data): the page says so
+     * rather than "ongoing", because the member's row shows no state that could set its category's color.
+     */
+    notJudgedNow?: boolean;
     /** What happened: the member, its value and the cause when the collector knows it. */
     fact: Fact;
     link: Route;
@@ -407,7 +420,7 @@ export interface StripSection extends SectionBase {
  * A table. The page names the table's columns by section id; each row maps a column key to a cell.
  * Tables: master/red, master/shared, pull-requests/owner, runners/superseded, ci/chronic, ci/non-gating,
  * ci/benchmarks, releases/lanes,
- * releases/trains, releases/workflows, costs/money, costs/unit, data-sources/stress,
+ * releases/trains, releases/workflows, costs/money, costs/unit, flaky/stress,
  * data-sources/sources, data-sources/not-set-up.
  */
 export interface TableSection extends SectionBase {
@@ -478,8 +491,10 @@ export interface JobsSection extends SectionBase {
     saturatedMs?: (number | null)[];
     /** The plan's limit, from config (`slas.json`). */
     limit: number;
-    /** The observed peak: a label beside the limit, never a threshold. */
+    /** The observed peak of running jobs: a label beside the limit, never a threshold. */
     peak: { n: number; at: Iso };
+    /** The observed peak of queued jobs; absent from payloads built before it was. */
+    peakQueued?: { n: number; at: Iso };
 }
 
 /** Shard and test-file times (section 6), a slow section. */
@@ -577,6 +592,15 @@ export interface RunResponse {
     cancel?: "superseded" | "by-hand" | "other";
     jobs: { name: string; conclusion: string | null; created: Iso; started: Iso | null; completed: Iso | null }[];
 }
+
+/** The live health API, the page's data source unless VITE_HEALTH_API_URL names another. */
+export const LIVE_API = "https://bsn9dvawxd.execute-api.us-east-2.amazonaws.com";
+
+/**
+ * The dev server's same-origin path to the API (vite.config.ts proxies it), so a dev server on any host
+ * reads the live data without that host being on the API's CORS list.
+ */
+export const DEV_API_PATH = "/health-api";
 
 /** The path of an API route, relative to the API base. */
 export function apiPath(

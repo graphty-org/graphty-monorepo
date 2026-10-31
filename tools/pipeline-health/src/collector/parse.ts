@@ -12,12 +12,13 @@ import type {
     StepItem,
     TestItem,
 } from "../model/items.js";
-import { DAY, HOUR, isOffMaster, loadOf, MIN } from "../model/items.js";
+import { DAY, isOffMaster, loadOf, MIN } from "../model/items.js";
 import {
     type ChannelAttempt,
     type LaneJob,
     NOT_A_TRAIN,
     type OwnerWait,
+    type PrStockPrs,
     type ReleaseSeen,
     type WorkflowState,
 } from "../model/snapshots.js";
@@ -563,6 +564,8 @@ export interface PrStocks {
     autoMergeArmedLong: number;
     screenshotBacklogMs: number;
     maxFailingSameCheck: number;
+    /** The pull requests behind the counts, so a row can name them ("which one?"). */
+    prs: PrStockPrs;
 }
 
 /** How long the pull request's pictures have waited for the owner: its pending "Visual review" status, 0 if none. */
@@ -587,18 +590,29 @@ export function prStocks(open: GqlPr[], nowMs: number): PrStocks {
         autoMergeArmedLong: 0,
         screenshotBacklogMs: 0,
         maxFailingSameCheck: 0,
+        prs: { greenStuck: [], armedLong: [] },
     };
     const failing = new Map<string, number>();
     for (const p of open) {
         if (p.state !== "OPEN" || p.isDraft) continue;
         if (!waitsOnOwner(p)) {
             s.open++;
-            s.oldestOpenMs = Math.max(s.oldestOpenMs, nowMs - Date.parse(p.createdAt));
+            const age = nowMs - Date.parse(p.createdAt);
+            if (age > s.oldestOpenMs) {
+                s.oldestOpenMs = age;
+                s.prs.oldest = p.number;
+            }
         }
         const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
         const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
-        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") s.autoMergeGreenStuck++;
-        if (armed >= 24 * 60 * MIN) s.autoMergeArmedLong++;
+        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") {
+            s.autoMergeGreenStuck++;
+            s.prs.greenStuck.push(p.number);
+        }
+        if (armed >= 24 * 60 * MIN) {
+            s.autoMergeArmedLong++;
+            s.prs.armedLong.push(p.number);
+        }
         s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
         // An aggregator failing alone counts too (4, "Excluded checks").
         const checks = new Set(failingChecks(p, nowMs).map((c) => c.check));
@@ -886,21 +900,21 @@ export const declaredRuns = (workflow: string, runs: GhRun[]): GhRun[] =>
 export const failedInRow = (runs: GhRun[]): number => failedStreak(runs).length;
 
 /**
- * One release workflow's row (4.5, Release workflows): completed runs in the last hour, how many failed, the
+ * One release workflow's row (4.5, Release workflows): completed runs in the last 24 hours, how many failed, the
  * failing streak and its start. ponytail: counts only the runs the collector reads (10 or 12), so "in a row"
  * stops there.
  */
 export function workflowState(workflow: string, all: GhRun[], nowMs: number): WorkflowState {
     const runs = declaredRuns(workflow, all);
-    const hour = runs.filter(
-        (r) => r.status === "completed" && r.conclusion !== "skipped" && nowMs - Date.parse(r.created_at) <= HOUR,
+    const day = runs.filter(
+        (r) => r.status === "completed" && r.conclusion !== "skipped" && nowMs - Date.parse(r.created_at) <= DAY,
     );
     const streak = failedStreak(runs);
     const replaced = replacedRuns(runs);
     return {
         workflow,
-        runs: hour.length,
-        failed: hour.filter((r) => BAD.has(r.conclusion ?? "") && !replaced.has(r.id)).length,
+        runs: day.length,
+        failed: day.filter((r) => BAD.has(r.conclusion ?? "") && !replaced.has(r.id)).length,
         inRow: streak.length,
         ...(streak.length ? { since: Date.parse(streak[streak.length - 1].created_at) } : {}),
     };

@@ -13,6 +13,8 @@ const none: Cell = { t: "none" };
 const name = (v: string): Cell => ({ t: "name", v });
 const pct = (n: number): number => Math.round(n * 100);
 const jobCell = (workflow: string, job: string): Cell => ({ t: "sub", main: name(job), sub: name(workflow) });
+/** Whole milliseconds, or 3 significant digits under 1 ms (the page shows those in microseconds). */
+const msValue = (ms: number): number => (ms >= 1 ? Math.round(ms) : Number(ms.toPrecision(3)));
 
 /**
  * Chronically failing jobs: each with its failures in its newest runs, its last pass and its issue; one with no
@@ -61,20 +63,23 @@ export async function nonGatingTable(reads: Reads): Promise<Section> {
         }
         return { pattern, n, failed };
     });
-    rows.sort(
-        (a, b) => (b.n ? b.failed / b.n : -1) - (a.n ? a.failed / a.n : -1) || a.pattern.localeCompare(b.pattern),
-    );
+    // Most failures first; a job that never ran last, and never as a failure.
+    rows.sort((a, b) => b.failed - a.failed || b.n - a.n || a.pattern.localeCompare(b.pattern));
     return {
         kind: "table",
         id: "non-gating",
         rows: rows.map(({ pattern, n, failed }) => {
             const rate: Cell = n ? { t: "num", n: pct((n - failed) / n), unit: "pct" } : none;
+            // Red when it fails half its runs, yellow from a quarter: a job allowed to fail still says how often.
+            let mark: "bad" | "warn" | undefined;
+            if (n && failed * 2 >= n) mark = "bad";
+            else if (n && failed * 4 >= n) mark = "warn";
             return {
                 cells: {
                     job: name(pattern),
-                    runs: { t: "num", n },
-                    failed: { t: "num", n: failed },
-                    rate: n && failed * 2 >= n ? { t: "mark", state: "bad", cell: rate } : rate,
+                    runs: n ? { t: "num", n } : none,
+                    failed: n ? { t: "num", n: failed } : none,
+                    rate: mark ? { t: "mark", state: mark, cell: rate } : rate,
                 },
                 ...(n ? {} : { past: true }),
             };
@@ -91,7 +96,14 @@ export async function benchmarksTable(reads: Reads): Promise<Section> {
     const benches = await readBenches(reads.store, reads.now);
     if (!benches.length) return { kind: "empty", id: "benchmarks", fact: f("ci.no_benchmarks") };
     const rows = benches.map((b) => ({ b, t: trend(b.points) }));
-    rows.sort((x, y) => (y.t.ratio ?? 0) - (x.t.ratio ?? 0) || x.b.benchmark.localeCompare(y.b.benchmark));
+    // Regressed first, then by ratio; those without 13 runs (no ratio yet) last.
+    rows.sort(
+        (x, y) =>
+            Number(y.t.regressed) - Number(x.t.regressed) ||
+            Number(x.t.ratio === undefined) - Number(y.t.ratio === undefined) ||
+            (y.t.ratio ?? 0) - (x.t.ratio ?? 0) ||
+            x.b.benchmark.localeCompare(y.b.benchmark),
+    );
     return {
         kind: "table",
         id: "benchmarks",
@@ -103,7 +115,7 @@ export async function benchmarksTable(reads: Reads): Promise<Section> {
             return {
                 cells: {
                     benchmark: name(b.benchmark),
-                    latest: { t: "num", n: Math.round(v.at(-1) ?? 0), unit: "ms" },
+                    latest: { t: "num", n: msValue(v.at(-1) ?? 0), unit: "ms" },
                     ratio: t.regressed ? { t: "mark", state: "bad", cell: ratio } : ratio,
                     spark: {
                         t: "spark",

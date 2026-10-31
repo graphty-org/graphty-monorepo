@@ -74,6 +74,7 @@ import {
     graphvizPolygonCorners,
     isGraphvizBox,
 } from "./drawing.js";
+import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 import { layoutRecord } from "./record.js";
@@ -760,8 +761,8 @@ interface NodeRead {
 interface HtmlTableFrame {
     /** `BORDER`: the width of the table's outline, 1 when not given. */
     readonly border: number;
-    /** From the outline to the cells' text on each side: the border, `CELLSPACING`, `CELLBORDER`, `CELLPADDING`. */
-    readonly inset: number;
+    /** The table's rows and cells, as the neutral `labelTable` value. */
+    readonly cells: LabelTable;
     /** `COLOR`, or null for the node's pen color. */
     readonly color: string | null;
     /** `STYLE`, lowercase. */
@@ -773,12 +774,19 @@ interface HtmlTableFrame {
 
 /**
  * The frame of a label that is an HTML-like table, perhaps inside font tags (Graphviz's `fonttable`); null for any
- * other label. Cells, rows and their own borders are not read: graphty draws the table as the node's box.
+ * other label, with its rows and cells.
  * @param label - the `label` attribute, or null
  * @param html - the file's HTML strings
+ * @param scheme - the node's color scheme, for its cells' font colors
+ * @param site - where a bad font color is noted
  * @returns the frame, or null
  */
-function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTableFrame | null {
+function htmlTableFrame(
+    label: string | null,
+    html: ReadonlySet<string>,
+    scheme: string | null,
+    site: CanonSite,
+): HtmlTableFrame | null {
     if (label === null || (!isHtmlString(label) && !html.has(`<${label}>`))) {
         return null;
     }
@@ -797,13 +805,16 @@ function htmlTableFrame(label: string | null, html: ReadonlySet<string>): HtmlTa
         const v = length(name, 0, 0, 65535);
         return v > 0 ? v : null;
     };
-    const inset =
-        border + length("cellspacing", 2, -128, 127) + length("cellborder", border, 0, 127) + length("cellpadding", 2);
+    const tagAttrs = (tag: string): Map<string, string> =>
+        new Map(tagAttributes(tag).map(([k, v]) => [k.toLowerCase(), v]));
+    const markup = isHtmlString(label) ? label.slice(1, -1) : label;
+    const cells = readLabelTable(markup, tagAttrs, (tags) => htmlRunFont(tags, scheme, site));
+    if (cells === null) {
+        return null;
+    }
     return {
         border,
-        // a cell's border is the table's unless CELLBORDER is given; a negative CELLSPACING overlaps the cells, but
-        // the text never sits outside the table
-        inset: Math.max(0, inset),
+        cells,
         color: nonEmpty(attrs.get("color") ?? null),
         style: (attrs.get("style") ?? "").toLowerCase(),
         width: size("width"),
@@ -929,6 +940,10 @@ function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: 
         put("label", shown);
         readLabelAlign(label, names, cx.html, RECORD.has(shape), put);
         readHtmlRuns(label, cx.html, n.scheme, put, at);
+        if (n.table !== null) {
+            // Graphviz's text line is its line height (LINESPACING) of font sizes tall
+            put("labelTable", JSON.stringify({ ...n.table.cells, lineHeight: LINE_SPACING }));
+        }
         if (cx.cluster) {
             put("labelPosition", clusterLabelPosition(get));
             readClusterLabelPlace(get, put);
@@ -1050,7 +1065,7 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
         point: !cx.cluster && shape === "point",
         scheme: get("colorscheme"),
         color: nonEmpty(get("color")),
-        table: cx.cluster ? null : htmlTableFrame(get(LABEL_ATTRIBUTE), cx.html),
+        table: cx.cluster ? null : htmlTableFrame(get(LABEL_ATTRIBUTE), cx.html, get("colorscheme"), at("labelTable")),
     };
     // in a node's label \E stands for nothing (measured with dot 2.43); \T and \H stand for their letters
     const names: DotEscapeNames = cx.cluster ? { graph: cx.name } : { node: cx.name, graph: cx.graph, edge: "" };
@@ -1823,8 +1838,9 @@ function readLabelFit(
     const given = shape === "plain" ? [] : margin;
     const marginX = given.length > 0 ? given[0] * DOT_POINTS_PER_INCH : pad.x;
     const marginY = given.length > 0 ? (given[1] ?? given[0]) * DOT_POINTS_PER_INCH : pad.y;
-    const padX = marginX + (table?.inset ?? 0);
-    const padY = marginY + (table?.inset ?? 0);
+    // a table's cells are laid out by whoever draws them (`labelTable`): the label's box is the table's
+    const padX = marginX;
+    const padY = marginY + (table === null ? ((LINE_SPACING - 1) * fontSize * lines) / 2 : 0);
     // a table's WIDTH and HEIGHT are its least size, the margin round it; the node's own size is another
     const least = nodeLeastSize(get, shape);
     if (typeof table?.width === "number") {
@@ -1839,7 +1855,7 @@ function readLabelFit(
     // tall reaches past the default height; carry it when a sample needs it
     put("labelFit", GRAPHVIZ_GLYPH_SHAPES.has(shape) || shape === "cylinder" ? "bounds" : "inside");
     put("labelPaddingX", num6(padX));
-    put("labelPaddingY", num6(padY + ((LINE_SPACING - 1) * fontSize * lines) / 2));
+    put("labelPaddingY", num6(padY));
     if (CIRCLE_LIKE.has(shape) || isTrue(get("regular"))) {
         put("labelFitSquare", true);
     }

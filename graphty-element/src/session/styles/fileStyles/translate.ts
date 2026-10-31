@@ -628,6 +628,16 @@ function channelPlans(
             ["shapeParts", [points("node.shapeParts")]],
             ["shapeLines", [points("node.shapeLines")]],
             ["shapeTexts", [id("node.shapeTexts")]],
+            [
+                "labelTable",
+                [
+                    {
+                        channel: "node.labelTable",
+                        convert: (value) => labelTableForElement(value, factors.node),
+                        identity: false,
+                    },
+                ],
+            ],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
@@ -1288,6 +1298,69 @@ export function labelRunsMarkup(runs: unknown, size: unknown = null): string | n
                 .join("\n");
         })
         .join("");
+}
+
+/** The lengths of a table and of its cells, scaled as the file's other lengths are. */
+const TABLE_LENGTHS = ["border", "cellBorder", "cellSpacing", "cellPadding", "width", "height", "padding"] as const;
+
+/**
+ * A table label (the neutral `labelTable`, JSON with lengths in the file's units and each line's text as runs) as
+ * the element draws one (`node.labelTable`): its lengths scaled, each line's runs as label markup.
+ * ponytail: a run's own point size is not carried (its markup is a share of the label's size, which this value does
+ * not know); carry the table's label size when a file sizes the text of its cells.
+ * @param value - the table, as JSON
+ * @param factor - the scene's lengths per file length
+ * @returns the element's table, as JSON, or null when the value is not a table
+ */
+export function labelTableForElement(value: unknown, factor: number): string | null {
+    if (typeof value !== "string") {
+        return null;
+    }
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(value);
+    } catch {
+        return null;
+    }
+    const table = (t: unknown, depth: number): unknown => {
+        if (typeof t !== "object" || t === null || depth > 8) {
+            return null;
+        }
+        const out: Record<string, unknown> = { ...(t as Record<string, unknown>) };
+        for (const key of TABLE_LENGTHS) {
+            if (typeof out[key] === "number") {
+                out[key] = round(out[key] * factor);
+            }
+        }
+        if (Array.isArray(out.rows)) {
+            out.rows = out.rows.map((row: unknown) => {
+                const r = typeof row === "object" && row !== null ? (row as Record<string, unknown>) : {};
+                const cells = Array.isArray(r.cells) ? r.cells : [];
+                return { ...r, cells: cells.map((c: unknown) => cellFor(c, depth)) };
+            });
+        }
+        return out;
+    };
+    const cellFor = (c: unknown, depth: number): unknown => {
+        const out = table(c, depth) as Record<string, unknown> | null;
+        if (out === null) {
+            return {};
+        }
+        delete out.rows;
+        if (out.table !== undefined) {
+            out.table = table(out.table, depth + 1);
+        }
+        if (Array.isArray(out.lines)) {
+            out.lines = out.lines.map((line: unknown) => {
+                const l = typeof line === "object" && line !== null ? (line as Record<string, unknown>) : {};
+                const text = labelRunsMarkup(JSON.stringify(l.runs ?? [])) ?? "";
+                return typeof l.align === "string" ? { text, align: l.align } : { text };
+            });
+        }
+        return out;
+    };
+    const out = table(parsed, 0) as Record<string, unknown> | null;
+    return out !== null && Array.isArray(out.rows) ? JSON.stringify(out) : null;
 }
 
 /**

@@ -480,7 +480,8 @@ export function sceneNode(
     const covered = ring !== null && ring.inner && 2 * ring.reachPx >= Math.min(w, h);
     const subPixel = Math.min(w, h) < 1;
     const visible = d.visible && hiddenBy === null;
-    const { label } = d;
+    // a table's words are its label, as the source program's scene records them
+    const label = d.label ?? d.tableLabel ?? null;
     const place = label ? labelPlace(label.box, d) : "other";
     const occluded =
         label !== null && place === "inside" && !label.onTop && (label.box.near + label.box.far) / 2 > d.box.near;

@@ -697,6 +697,7 @@ export type Channel =
     | "node.shapeParts"
     | "node.shapeLines"
     | "node.shapeTexts"
+    | "node.labelTable"
     | "node.shapeLineWidth"
     | "node.labelFit"
     | "node.labelPaddingX"

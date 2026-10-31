@@ -179,6 +179,7 @@ const DECLARED = [
     "node.shapeParts",
     "node.shapeLines",
     "node.shapeTexts",
+    "node.labelTable",
     "node.shapeLineWidth",
     "node.labelFit",
     "node.labelPaddingX",
@@ -384,8 +385,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and seventy-nine node channels and one hundred and fifty-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 179);
+    it("splits into one hundred and eighty node channels and one hundred and fifty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 180);
         assert.strictEqual(channelsFor("edge").length, 151);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -613,6 +614,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.shapeParts",
         "node.shapeLines",
         "node.shapeTexts",
+        "node.labelTable",
         "node.shapeLineWidth",
         "node.gradientColors",
         "node.gradientStops",

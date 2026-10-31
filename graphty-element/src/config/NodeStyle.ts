@@ -288,6 +288,10 @@ export const NodeStyle = z.strictObject({
             // (`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the node's
             // height: a chart's item labels). Drawn whatever the label says, beside it.
             texts: z.string().optional(),
+            // The label laid out as a table of cells, as JSON (see the `node.labelTable` channel): drawn in place of
+            // the label's own words, each cell's outline a line over the node and each line of its text centered in
+            // its place; with `labelFit` the table is the label's box the node grows round.
+            labelTable: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and

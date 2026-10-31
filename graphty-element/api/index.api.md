@@ -5181,6 +5181,7 @@ export const NodeStyle: z.ZodObject<{
         lines: z.ZodOptional<z.ZodString>;
         lineWidth: z.ZodOptional<z.ZodNumber>;
         texts: z.ZodOptional<z.ZodString>;
+        labelTable: z.ZodOptional<z.ZodString>;
         labelFit: z.ZodOptional<z.ZodEnum<{
             bounds: "bounds";
             inside: "inside";

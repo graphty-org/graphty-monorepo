@@ -401,8 +401,9 @@ describe("the pre-push gate matches CI", () => {
         // and the advisory test selector it starts beside the shards
         "test-select.mjs",
         "test-select-rules.json",
-        // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with
+        // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with (and the hang guard it reads)
         "test-quarantine.mjs",
+        "test-wait-guard.mjs",
         // the test ledger, and the scratch worktree a land check re-runs a failure on golden's tip in
         "test-ledger.mjs",
         "land.mjs",
@@ -555,6 +556,7 @@ describe("the pre-push gate matches CI", () => {
                 "push-base.mjs",
                 "shard-verdict.mjs",
                 "test-quarantine.mjs",
+                "test-wait-guard.mjs",
                 "test-ledger.mjs",
                 "test-select.mjs",
                 "test-select-rules.json",
@@ -6517,6 +6519,7 @@ describe("a failed pre-push test shard (#1562)", () => {
                 "push-base.mjs",
                 "shard-verdict.mjs",
                 "test-quarantine.mjs",
+                "test-wait-guard.mjs",
                 "test-ledger.mjs",
                 "test-select.mjs",
                 "test-select-rules.json",

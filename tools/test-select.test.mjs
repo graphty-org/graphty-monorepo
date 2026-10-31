@@ -614,6 +614,68 @@ describe("building a package's import graph when its projects transform a file d
     });
 });
 
+describe("building a package's import graph from an earlier commit's graph", () => {
+    it("selects exactly what a full walk does after an edit, an added file and a deleted file", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        const git = (...a) => execFileSync("git", a, { cwd: fixture, encoding: "utf8" }).trim();
+        const commit = () => {
+            git("add", "-A");
+            git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-qm", "c");
+        };
+        const walk = (...extra) =>
+            JSON.parse(
+                execFileSync(
+                    process.execPath,
+                    [join(ROOT, "tools/test-select.mjs"), "--root", fixture, "--graph", "pi", ...extra],
+                    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+                )
+                    .trim()
+                    .split("\n")
+                    .at(-1),
+            );
+        const test = (name, from) =>
+            `import { it } from "vitest";\nimport { v } from "../src/${from}";\nit("${name}", () => v);\n`;
+        try {
+            git("init", "-q");
+            put(".gitignore", "node_modules\n");
+            put("pi/package.json", JSON.stringify({ name: "pi", type: "module" }));
+            put("pi/vitest.config.mjs", "export default { test: { include: ['test/**/*.test.ts'] } };\n");
+            put("pi/src/top.ts", 'export { v } from "./middle";\n');
+            put("pi/src/middle.ts", "export const v = 1;\n");
+            put("pi/src/legacy.ts", 'export { v } from "./doomed";\n');
+            put("pi/src/doomed.ts", "export const v = 2;\n");
+            put("pi/src/steady.ts", "export const v = 3;\n");
+            put("pi/test/top.test.ts", test("top", "top"));
+            put("pi/test/legacy.test.ts", test("legacy", "legacy"));
+            put("pi/test/steady.test.ts", test("steady", "steady"));
+            commit();
+            const base = join(fixture, ".git", "base-graph.json");
+            writeFileSync(base, JSON.stringify({ commit: git("rev-parse", "HEAD"), ...walk() }));
+            put("pi/src/middle.ts", 'export { v } from "./fresh";\n'); // edited, imports an added file
+            put("pi/src/fresh.ts", "export const v = 4;\n");
+            put("pi/src/legacy.ts", "export const v = 2;\n");
+            rmSync(join(fixture, "pi/src/doomed.ts"));
+            commit();
+            const full = walk();
+            const inc = walk("--reuse", base);
+            assert.ok(inc.reused > 0, "the unchanged files keep their edges");
+            assert.deepEqual(inc.imports, full.imports);
+            assert.deepEqual(inc.projects, full.projects);
+            assert.deepEqual(inc.raw, full.raw);
+            for (const f of ["pi/src/fresh.ts", "pi/src/middle.ts", "pi/src/legacy.ts", "pi/src/steady.ts"]) {
+                assert.deepEqual([...selectInGraph(inc, [f]).specs], [...selectInGraph(full, [f]).specs], f);
+            }
+            assert.deepEqual([...selectInGraph(inc, ["pi/src/fresh.ts"]).specs.keys()], ["pi/test/top.test.ts"]);
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("building a package's import graph when its tests load its own build", () => {
     it("walks the package's own dist/ as the source it was built from", () => {
         const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-fixture-"));
